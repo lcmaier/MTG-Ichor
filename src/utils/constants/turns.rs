@@ -1,5 +1,5 @@
 // src/utils/constants/turns.rs
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Phase {
     Beginning,
     Precombat, // Main phase 1

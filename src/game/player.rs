@@ -3,7 +3,7 @@ use crate::game::game_obj::GameObj;
 use crate::utils::mana::ManaPool;
 use crate::utils::constants::card_types::CardType;
 use crate::utils::constants::zones::Zone;
-use crate::utils::constants::id_types::PlayerId;
+use crate::utils::constants::id_types::{PlayerId, ObjectId};
 
 #[derive(Debug, Clone)]
 pub struct Player {
@@ -77,11 +77,21 @@ impl Player {
 
 
     // play a land from hand
-    pub fn play_land(&mut self, card_index: usize) -> Result<GameObj, String>{
+    pub fn play_land(&mut self, card_id: ObjectId) -> Result<GameObj, String>{
         // check if we've played our allotment of lands this turn
         if self.lands_played_this_turn >= self.max_lands_this_turn {
             return Err("Already played a land this turn".to_string());
         }
+
+        // find the card position in hand
+        let position = self.hand.iter().position(|card| match card {
+            GameObj::Card { id, .. } => *id == card_id,
+        });
+
+        let card_index = match position {
+            Some(index) => index,
+            None => return Err(format!("Card with ID {} not found in hand", card_id)),
+        };
 
         // check if the card is a land
         match &self.hand[card_index] {
