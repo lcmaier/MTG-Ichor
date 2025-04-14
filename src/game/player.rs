@@ -16,6 +16,7 @@ pub struct Player {
 
     // player state
     pub life_total: i64,
+    pub max_hand_size: u32,
     pub mana_pool: ManaPool,
     pub max_lands_this_turn: u32,
     pub lands_played_this_turn: u32,
@@ -23,13 +24,14 @@ pub struct Player {
 
 impl Player {
     // Create a new player
-    pub fn new(id: PlayerId, starting_life: i64, default_lands_per_turn: u32) -> Self {
+    pub fn new(id: PlayerId, starting_life: i64, max_hand_size: u32, default_lands_per_turn: u32) -> Self {
         Player{
             id,
             hand: Vec::new(),
             library: Vec::new(),
             graveyard: Vec::new(),
             life_total: starting_life,
+            max_hand_size, 
             mana_pool: ManaPool::new(),
             max_lands_this_turn: default_lands_per_turn,
             lands_played_this_turn: 0,
@@ -65,13 +67,31 @@ impl Player {
     }
 
     // helper to draw multiple cards
-    pub fn draw_n_cards(&mut self, n: i64) -> Result<(), String> {
+    pub fn draw_n_cards(&mut self, n: u64) -> Result<(), String> {
         for _ in 0..n {
             match self.draw_card() {
                 Ok(_) => {} // do nothing, card was drawn successfully
                 Err(e) => return Err(e), // return the error if drawing fails
             }
         }
+        Ok(())
+    }
+
+    pub fn show_hand(&mut self) -> Result<(), String> {
+        println!("\nYour hand:");
+        for (i, card) in self.hand.iter().enumerate() {
+            match card {
+                GameObj::Card { characteristics, ..} => {
+                    match (&characteristics.name, &characteristics.rules_text) {
+                        (Some(name), Some(rules_text)) => {
+                            println!("{}: {} - {}", i + 1, name, rules_text);
+                        },
+                        _ => println!("{}: ERROR: UNKNOWN CARD", i + 1)
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

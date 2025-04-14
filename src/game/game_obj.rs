@@ -38,3 +38,43 @@ pub enum GameObj {
         controller: Option<PlayerId>
     },
 }
+
+impl GameObj {
+    // Get the owner of this game object
+    pub fn get_owner(&self) -> PlayerId {
+        match self {
+            GameObj::Card { owner, .. } => *owner,
+        }
+    }
+
+    // Get the controller of this game object
+    pub fn get_controller(&self) -> Option<PlayerId> {
+        match self {
+            GameObj::Card { controller, .. } => *controller,
+        }
+    }
+
+    // Get the zone the object is in
+    pub fn get_zone(&self) -> &Zone {
+        match self {
+            GameObj::Card { zone, .. } => zone,
+            // Add other variants here when you implement them
+        }
+    }
+
+    // Check if the game object is in a specific zone
+    pub fn is_in_zone(&self, zone_to_check: &Zone) -> bool {
+        match self {
+            GameObj::Card { zone, .. } => zone == zone_to_check,
+            // Add other variants here when you implement them
+        }
+    }
+
+    // Update the zone
+    pub fn set_zone(&mut self, new_zone: Zone) {
+        match self {
+            GameObj::Card { zone, .. } => *zone = new_zone,
+            // Add other variants here when you implement them
+        }
+    }
+}

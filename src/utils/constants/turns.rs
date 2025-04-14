@@ -16,6 +16,7 @@ pub enum Step {
     BeginCombat,
     DeclareAttackers,
     DeclareBlockers,
+    FirstStrikeDamage,
     CombatDamage,
     EndCombat,
     End,

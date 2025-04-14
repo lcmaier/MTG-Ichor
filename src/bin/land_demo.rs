@@ -16,7 +16,7 @@ fn main() {
     // Create a new player
     let mut pid_counter = 0;
     let player1_id = pid_counter;
-    let mut player1 = Player::new(player1_id, 20, 1);
+    let mut player1 = Player::new(player1_id, 20, 7, 1);
     pid_counter += 1;
 
     // Create and shuffle a test deck with basic lands
@@ -139,7 +139,7 @@ fn main() {
                 };
 
                 // get the original hand index and card_id of selected card
-                let (hand_index, card) = land_cards[selected_index];
+                let (_, card) = land_cards[selected_index];
                 let card_id = match card {
                     GameObj::Card { id, .. } => *id,
                 };
