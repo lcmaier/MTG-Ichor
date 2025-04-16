@@ -2,9 +2,9 @@
 use uuid::Uuid;
 use std::collections::HashSet;
 use crate::utils::constants::colors::Color;
+use crate::utils::constants::game_objects::{GameObj, LibraryState, Characteristics};
 use crate::utils::constants::zones::Zone;
 use crate::utils::constants::card_types::{CardType, Supertype, LandType};
-use crate::game::game_obj::{Characteristics, GameObj};
 use crate::utils::constants::id_types::PlayerId;
 
 // Define a temporary simplified enum for land types we need
@@ -18,7 +18,7 @@ pub enum BasicLand {
     Wastes
 }
 
-pub fn create_basic_land(land_type: BasicLand, owner: PlayerId) -> GameObj {
+pub fn create_basic_land(land_type: BasicLand, owner: PlayerId) -> GameObj<LibraryState> {
     let id = Uuid::new_v4(); // Generate a new unique ID for the card
     let mut card_types = HashSet::new();
     card_types.insert(CardType::Land);
@@ -58,12 +58,11 @@ pub fn create_basic_land(land_type: BasicLand, owner: PlayerId) -> GameObj {
     };
 
     // Create the GameObj for the land
-    GameObj::Card {
+    GameObj {
         id,
-        characteristics,
-        zone: Zone::Library, // Lands start in the library
         owner,
-        controller: Some(owner), // The owner is also the controller
+        characteristics,
+        state: LibraryState {},
     }
 }
 

@@ -5,3 +5,5 @@ pub mod turns;
 pub mod zones;
 pub mod id_types;
 pub mod combat;
+pub mod game_objects;
+pub mod deck;

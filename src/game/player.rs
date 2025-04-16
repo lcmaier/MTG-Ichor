@@ -1,5 +1,5 @@
 // src/game/player.rs
-use crate::game::game_obj::GameObj;
+use crate::utils::constants::game_objects::{GameObj, GraveyardState, HandState, LibraryState};
 use crate::utils::mana::ManaPool;
 use crate::utils::constants::card_types::CardType;
 use crate::utils::constants::zones::Zone;
@@ -10,9 +10,9 @@ pub struct Player {
     pub id: usize,
 
     // player zones
-    pub hand: Vec<GameObj>,
-    pub library: Vec<GameObj>,
-    pub graveyard: Vec<GameObj>,
+    pub hand: Vec<GameObj<HandState>>,
+    pub library: Vec<GameObj<LibraryState>>,
+    pub graveyard: Vec<GameObj<GraveyardState>>,
 
     // player state
     pub life_total: i64,
@@ -40,7 +40,7 @@ impl Player {
 
 
     // initialize player's library with provided deck (from game engine, randomized order)
-    pub fn set_library(&mut self, cards: Vec<GameObj>) {
+    pub fn set_library(&mut self, cards: Vec<GameObj<LibraryState>>) {
         self.library = cards;
     }
 
@@ -52,17 +52,13 @@ impl Player {
             return Err("Library is empty".to_string());
         }
 
-        let mut card = self.library.pop().unwrap(); // pop from the end of the library vector (top of the library)
+        let card = self.library.pop().unwrap(); // pop from the end of the library vector (top of the library)
 
-        // update the card's zone attribute to hand
-        match &mut card {
-            GameObj::Card { zone, .. } => { // pattern match the card's zone and update it
-                *zone = Zone::Hand;
-            }
-        }
+        // Convert the LibraryState to HandState
+        let hand_card = card.to_hand();
 
         // move the card to the player's hand
-        self.hand.push(card);
+        self.hand.push(hand_card);
         Ok(())
     }
 
@@ -80,72 +76,50 @@ impl Player {
     pub fn show_hand(&mut self) -> Result<(), String> {
         println!("\nYour hand:");
         for (i, card) in self.hand.iter().enumerate() {
-            match card {
-                GameObj::Card { characteristics, ..} => {
-                    match (&characteristics.name, &characteristics.rules_text) {
-                        (Some(name), Some(rules_text)) => {
-                            println!("{}: {} - {}", i + 1, name, rules_text);
-                        },
-                        _ => println!("{}: ERROR: UNKNOWN CARD", i + 1)
-                    }
+            if let Some(name) = &card.characteristics.name {
+                if let Some(rules_text) = &card.characteristics.rules_text {
+                    println!("{}: {} - {}", i + 1, name, rules_text);
+                } else {
+                    println!("{}: {} - (No rules text)", i + 1, name);
                 }
+            } else {
+                println!("{}: ERROR: UNKNOWN CARD", i + 1);
             }
         }
 
         Ok(())
     }
 
+    // Find card in hand by ID and return a reference to the HandState GameObj
+    pub fn get_card_in_hand(&self, card_id: ObjectId) -> Option<&GameObj<HandState>> {
+        self.hand.iter().find(|card| card.id == card_id)
+    }
 
-    // play a land from hand
-    pub fn play_land(&mut self, card_id: ObjectId) -> Result<GameObj, String>{
-        // check if we've played our allotment of lands this turn
-        if self.lands_played_this_turn >= self.max_lands_this_turn {
-            return Err("Already played a land this turn".to_string());
+    // Get a mutable reference to a card in hand by ID
+    pub fn get_card_in_hand_mut(&mut self, card_id: ObjectId) -> Option<&mut GameObj<HandState>> {
+        self.hand.iter_mut().find(|card| card.id == card_id)
+    }
+
+    // Remove a card from hand by ID
+    pub fn remove_card_from_hand(&mut self, card_id: ObjectId) -> Result<GameObj<HandState>, String> {
+        let mut extracted = self.hand.extract_if(.., |card| card.id == card_id);
+
+        // get first (and should be only) matching card
+        if let Some(card) = extracted.next() {
+            Ok(card)
+        } else {
+            Err(format!("Card with ID {} not found in hand", card_id))
         }
-
-        // find the card position in hand
-        let position = self.hand.iter().position(|card| match card {
-            GameObj::Card { id, .. } => *id == card_id,
-        });
-
-        let card_index = match position {
-            Some(index) => index,
-            None => return Err(format!("Card with ID {} not found in hand", card_id)),
-        };
-
-        // check if the card is a land
-        match &self.hand[card_index] {
-            GameObj::Card { characteristics, ..} => {
-                if let Some(card_types) = &characteristics.card_type {
-                    if !card_types.iter().any(|t| *t == CardType::Land) {
-                        return Err(format!("Selected card at index {} is not a land", card_index));
-                    }
-                }
-            }
-        }
-
-
-        // need to move the land from the hand to the battlefield
-        // game engine will handle putting it in the right zone, we just need to update the player's state
-        // first remove it from the hand
-        let mut land = self.hand.remove(card_index);
-
-        // update the land's zone to battlefield
-        match &mut land {
-            GameObj::Card { zone, .. } => {
-                *zone = Zone::Battlefield;
-            }
-        }
-
-        // increment the lands played this turn
-        self.lands_played_this_turn += 1;
-
-        Ok(land) // this result will be handled by the game engine
     }
 
     
     // Reset lands played at end of turn
     pub fn reset_lands_played(&mut self) {
         self.lands_played_this_turn = 0;
+    }
+
+    // Increase max land count for this turn
+    pub fn increase_land_drop_limit(&mut self, amount: u32) {
+        self.max_lands_this_turn += amount;
     }
 }

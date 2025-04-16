@@ -1,6 +1,6 @@
 // src/game.rs
-pub mod game_obj;
 pub mod player;
 pub mod card;
-pub mod deck;
 pub mod gamestate;
+pub mod collections;
+pub mod turn_structure;

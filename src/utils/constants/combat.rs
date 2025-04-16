@@ -5,7 +5,7 @@ pub struct AttackingCreature {
     pub attack_target_id: ObjectId,
     pub attack_target_type: AttackTarget,
 }
-
+#[derive(Debug, Clone, PartialEq)]
 pub enum AttackTarget {
     Player(PlayerId),
     Planeswalker(ObjectId),

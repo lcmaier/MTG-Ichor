@@ -1,76 +1,58 @@
 // src/game/gamestate/special_actions.rs
 use crate::game::gamestate::Game;
 use crate::utils::constants::id_types::{ObjectId, PlayerId};
-use crate::game::game_obj::GameObj;
-use crate::utils::constants::turns::Phase;
+use crate::utils::constants::turns::PhaseType;
 use crate::utils::constants::zones::Zone;
 use crate::utils::constants::card_types::CardType;
 
 impl Game {
-    // Special Action: Play a Land from your hand
+    // Special Action: Play a Land from your hand (counts toward land drop for turn)
     pub fn play_land_from_hand(&mut self, player_id: PlayerId, card_id: ObjectId) -> Result<(), String> {
-
-        // check if the stack is empty
-        if !self.stack.is_empty() {
-            return Err("Cannot play a land while the stack is not empty".to_string());
+        
+        // 1. Check if it's the player's turn
+        if self.active_player_id != player_id {
+            return Err("You can only play lands via special action on your turn".to_string());
         }
 
-        // check if the player has priority
-        if self.priority_player_id != player_id {
-            return Err("You do not have priority to play a land".to_string());
-        }
-
-        // check if it is a main phase
-        // println!("(self.phase != Phase::Precombat) == {:?}, (self.phase != Phase::Postcombat) == {:?}", self.phase != Phase::Precombat, self.phase != Phase::Postcombat);
-        if self.phase != Phase::Precombat && self.phase != Phase::Postcombat {
+        // 2. Check if it is a main phase
+        if self.phase.phase_type != PhaseType::Precombat && self.phase.phase_type != PhaseType::Postcombat {
             let msg = format!("You can only play a land during your main phase, the current phase is {:?}", self.phase);
             return Err(msg);
         }
-
-        // create scope for mutable Player reference, need to do checks before moving the land (which requires a mutable borrow)
-        {
-            // get the player
-            let player = self.get_player_mut(player_id)?;
-
-            // check if the player has already played their land(s) this turn
-            if player.lands_played_this_turn >= player.max_lands_this_turn {
-                return Err("Already played maximum number of lands this turn".to_string());
-            }
-
-            // verify the card exists in the player's hand and that it is a land
-            let card_in_hand = player.hand.iter().find(|card| match card {
-                GameObj::Card { id, .. } => *id == card_id
-            });
-
-            let is_land = match card_in_hand {
-                Some(GameObj::Card { characteristics, .. }) => {
-                    if let Some(card_types) = &characteristics.card_type {
-                        card_types.contains(&CardType::Land)
-                    } else {
-                        false
-                    }
-                },
-                None => return Err(format!("Card with ID {} not found in hand", card_id)),
-            };
-
-            if !is_land {
-                return Err(format!("Card with ID {} is not a land", card_id));
-            }
+        
+        // 3. Check if the stack is empty
+        if !self.stack.is_empty() {
+            return Err("You can only play lands when the stack is empty".to_string());
         }
 
-        // now that we know the card is a land, that we've descoped the Player mutable reference, and that all the checks have passed, 
-        // we can move the land from the player's hand to the battlefield
-        self.move_object(
-            Zone::Hand, 
-            card_id, 
-            Zone::Battlefield, 
-            Some(player_id), 
-            None, // battlefield is public zone, so no player ID needed
-            None)?; // no additional effects for playing a land
-        
-        // increment the player's lands played this turn
+        // 4. Check if the player has priority
+        if self.priority_player_id != player_id {
+            return Err("You can only play lands when you have priority".to_string());
+        }
+
+        // 5. Get the player and ensure they actually have a land drop to spend
         let player = self.get_player_mut(player_id)?;
+        if player.lands_played_this_turn >= player.max_lands_this_turn {
+            return Err("You have no land drops remaining this turn".to_string());
+        }
+
+        // 6. Find and validate the card in hand
+        let card = player.get_card_in_hand(card_id)
+            .ok_or_else(|| format!("player.get_card_in_hand() call failed, card with ID {} not found in hand", card_id))?;
+
+        if !card.has_card_type(&CardType::Land) {
+            return Err("Selected card is not a land".to_string());
+        }
+
+        // 7. Remove card from hand
+        let hand_card = player.remove_card_from_hand(card_id)?;
+
+        // 8. Increment land drop count
         player.lands_played_this_turn += 1;
+
+        // 9. Convert to battlefield state and add to the battlefield vec
+        let battlefield_card = hand_card.to_battlefield(player_id);
+        self.battlefield.push(battlefield_card);
 
         Ok(())
     }
