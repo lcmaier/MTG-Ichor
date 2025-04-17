@@ -13,7 +13,7 @@ pub enum ManaType {
 
 #[derive(Debug, Clone)]
 pub struct ManaPool {
-    pub mana: HashMap<ManaType, i64>,
+    pub mana: HashMap<ManaType, u64>,
 }
 
 // Methods for ManaPool
@@ -28,16 +28,16 @@ impl ManaPool {
     }
 
     // Get all available mana (for displaying to player)
-    pub fn get_available_mana(&self) -> HashMap<ManaType, i64> {
+    pub fn get_available_mana(&self) -> HashMap<ManaType, u64> {
         self.mana.clone()
     }
 
-    pub fn add_mana(&mut self, mana_type: ManaType, amount: i64) {
+    pub fn add_mana(&mut self, mana_type: ManaType, amount: u64) {
         *self.mana.entry(mana_type).or_insert(0) += amount;
     }
 
     // Remove mana from pool
-    pub fn remove_mana(&mut self, mana_type: ManaType, amount: i64) -> Result<(), String> {
+    pub fn remove_mana(&mut self, mana_type: ManaType, amount: u64) -> Result<(), String> {
         if let Some(mana) = self.mana.get_mut(&mana_type) {
             if *mana >= amount {
                 *mana -= amount;
@@ -51,11 +51,16 @@ impl ManaPool {
     }
 
     // Check if pool has enough mana of a specific type
-    pub fn has_mana(&self, mana_type: ManaType, amount: i64) -> bool {
+    pub fn has_mana(&self, mana_type: ManaType, amount: u64) -> bool {
         if let Some(mana) = self.mana.get(&mana_type) {
             *mana >= amount
         } else {
             false
         }
+    }
+
+    // empty the mana pool
+    pub fn empty(&mut self) {
+        self.mana.clear();
     }
 }

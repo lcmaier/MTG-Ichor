@@ -1,7 +1,8 @@
 use crate::game::player::Player;
-use crate::game::turn_structure::phase::next_phase_type;
+use crate::game::turn_structure::phase::{self, next_phase_type};
 use crate::game::turn_structure::{phase::Phase, step::Step};
 use crate::utils::constants::combat::{AttackingCreature, BlockingCreature};
+use crate::utils::constants::events::{EventHandler, GameEvent};
 use crate::utils::constants::game_objects::{BattlefieldState, CommandState, ExileState, GameObj, StackState};
 use crate::utils::constants::turns::PhaseType;
 use crate::utils::constants::zones::Zone;
@@ -41,57 +42,6 @@ impl Game {
             attacking_creatures: Vec::new(),
             blocking_creatures: Vec::new(),
         }
-    }
-
-    // Helper to get obj ID from index in a specific zone -- this is the ONLY place we should be using indexes to access objects, ObjectId EVERYWHERE else
-    pub fn get_obj_id_from_index(&self, player_id: PlayerId, zone: &Zone, index: usize) -> Result<ObjectId, String> {
-        match zone {
-            Zone::Hand => {
-                let player = self.get_player_ref(player_id)?;
-                if index >= player.hand.len() {
-                    return Err(format!("Index {} out of bounds for hand", index));
-                }
-                Ok(player.hand[index].id)
-            },
-            Zone::Library => {
-                let player = self.get_player_ref(player_id)?;
-                if index >= player.library.len() {
-                    return Err(format!("Index {} out of bounds for library", index));
-                }
-                Ok(player.library[index].id)
-            },
-            Zone::Graveyard => {
-                let player = self.get_player_ref(player_id)?;
-                if index >= player.graveyard.len() {
-                    return Err(format!("Index {} out of bounds for graveyard", index));
-                }
-                Ok(player.graveyard[index].id)
-            },
-            Zone::Battlefield => {
-                if index >= self.battlefield.len() {
-                    return Err(format!("Index {} out of bounds for battlefield", index));
-                }
-                Ok(self.battlefield[index].id)
-            },
-            Zone::Stack => {
-                if index >= self.stack.len() {
-                    return Err(format!("Index {} out of bounds for stack", index));
-                }
-                Ok(self.stack[index].id)
-            },
-            Zone::Exile => {
-                if index >= self.exile.len() {
-                    return Err(format!("Index {} out of bounds for exile", index));
-                }
-                Ok(self.exile[index].id)
-            },
-            Zone::Command => {
-                if index >= self.command_zone.len() {
-                    return Err(format!("Index {} out of bounds for command zone", index));
-                }
-                Ok(self.command_zone[index].id)
-            },
-        }    
     }
 
     // Advance the gamestate to the next phase or step
@@ -135,5 +85,24 @@ impl Game {
         self.priority_player_id = next_player_id;
         println!("Priority passed to player {}", self.priority_player_id);
         Ok(false)
+    }
+}
+
+impl EventHandler for Game {
+    fn handle_event(&mut self, event: &GameEvent) -> Result<(), String> {
+        match event {
+            GameEvent::ManaAbilityActivated { source_id, player_id } => {
+                self.handle_mana_ability_activated(*source_id, *player_id)
+            },
+            GameEvent::ManaAdded { source_id, player_id, mana_types } => {
+                self.handle_mana_added(*source_id, *player_id, mana_types)
+            },
+            GameEvent::PhaseEnded { phase_type } => {
+                self.handle_phase_ended(*phase_type)
+            },
+            GameEvent::StepEnded { step_type } => {
+                self.handle_step_ended(*step_type)
+            },
+        }
     }
 }

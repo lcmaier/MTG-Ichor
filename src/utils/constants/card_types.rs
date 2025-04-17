@@ -88,11 +88,11 @@ pub enum EnchantmentType {
 // Lands -- there's an extra subtype here, Basic Lands
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum BasicLandType {
-    Forest,
-    Island, 
-    Mountain,
     Plains,
+    Island,
     Swamp,
+    Mountain,
+    Forest
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

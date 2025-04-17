@@ -2,7 +2,9 @@
 use std::io;
 use std::io::Write;
 use mtgsim::game::player::Player;
-use mtgsim::utils::constants::game_objects::{GameObj, HandState};
+use mtgsim::utils::constants::abilities::AbilityType;
+use mtgsim::utils::constants::events::{EventHandler, GameEvent};
+use mtgsim::utils::constants::game_objects::{BattlefieldState, GameObj, HandState};
 use mtgsim::game::gamestate::Game;
 use mtgsim::utils::constants::card_types::CardType;
 use mtgsim::utils::constants::deck::Deck;
@@ -76,6 +78,20 @@ fn main() {
             println!("No current step (Main Phase)");
         }
 
+        // Display mana pool for both players
+        for player_id in [player1_id, player2_id] {
+            let player = game.get_player_ref(player_id).unwrap();
+            println!("Player {}'s mana pool:", player_id);
+            let mana_pool = player.mana_pool.get_available_mana();
+            if mana_pool.is_empty() {
+                println!("  (Empty)");
+            } else {
+                for (mana_type, amount) in mana_pool {
+                    println!("  {:?}: {}", mana_type, amount);
+                }
+            }
+        }
+
         if game.priority_player_id == turn_player_id {
             // Display active player's hand 
             let active_player = game.get_player_ref(game.active_player_id).unwrap();
@@ -120,8 +136,9 @@ fn main() {
                 println!("1. Play a land");
             }
             
-            println!("2. Pass priority");
-            println!("3. Quit");
+            println!("2. Tap a land for mana");
+            println!("3. Pass priority");
+            println!("4. Quit");
 
             let mut choice = String::new();
             print!("> ");
@@ -178,6 +195,76 @@ fn main() {
                     }
                 },
                 "2" => {
+                    // Find all untapped lands on the battlefield that the player controls 
+                    // (this isn't the most robust it could be, since things that aren't lands can have mana abilities, but it wil work for the alpha)
+                    let untapped_lands: Vec<(usize, &GameObj<BattlefieldState>)> = game.battlefield.iter()
+                        .enumerate()
+                        .filter(|(_, card)| {
+                            card.has_card_type(&CardType::Land) &&
+                            card.state.controller == game.priority_player_id && // lands can be tapped any time you have priority
+                            !card.state.tapped
+                        })
+                        .collect();
+                    
+                    if untapped_lands.is_empty() {
+                        println!("You control no untapped lands.");
+                        continue;
+                    }
+
+                    // Show available lands
+                    println!("Select a land to tap for mana:");
+                    for (i, (_, card)) in untapped_lands.iter().enumerate() {
+                        if let Some(name) = &card.characteristics.name {
+                            println!("{}: {}", i + 1, name);
+                        } else {
+                            println!("{}: Unknown land", i + 1);
+                        }
+                    }
+
+                    // Get user selection
+                    let mut selection = String::new();
+                    print!("> ");
+                    io::stdout().flush().unwrap();
+                    io::stdin().read_line(&mut selection).unwrap();
+
+                    // Process selection
+                    let selected_index = match selection.trim().parse::<usize>() {
+                        Ok(i) if i > 0 && i <= untapped_lands.len() => i - 1,
+                        _ => {
+                            println!("Invalid selection");
+                            continue;
+                        }
+                    };
+
+                    // get the land from the filtered vector we created (ok to index since we built it, so no index instability)
+                    let (_, land) = untapped_lands[selected_index];
+                    let land_id = land.id;
+
+                    // attempt to activate the mana ability
+                    // NOTE: This implementation precludes multiple mana abilities on the same card, find only returns the first value it finds
+                    // will need to refactor this to be more robust later, but in our alpha the only mana sources are Forest and Mountain basic lands,
+                    // which only have a single mana ability each, so we're good for now.
+                    if let Some(abilities) = &land.characteristics.abilities {
+                        if let Some(mana_ability_definition) = abilities.iter()
+                            .find(|ability| ability.ability_type == AbilityType::Mana) {
+                            // If we found a mana ability on the land, create and process mana ability activation event
+                            let mana_activation_event = GameEvent::ManaAbilityActivated { 
+                                source_id: land_id, 
+                                player_id: game.priority_player_id 
+                            };
+
+                            match game.handle_event(&mana_activation_event) {
+                                Ok(_) => println!("Mana ability activated successfully!"),
+                                Err(e) => println!("Error activating mana ability: {}", e),
+                            }
+                        } else {
+                            println!("Selected land has no mana ability.");
+                        }
+                    } else {
+                        println!("Selected land has no abilities.");
+                    }
+                },
+                "3" => {
                     // Pass priority
                     println!("Passing priority...");
                     match game.pass_priority() {
@@ -189,7 +276,7 @@ fn main() {
                         Err(e) => println!("Error passing priority: {}", e),
                     }
                 },
-                "3" => {
+                "4" => {
                     println!("Goodbye!");
                     break;
                 },
@@ -198,8 +285,10 @@ fn main() {
         } else {
             // Non-active player's turn (or active player doesn't have priority)
             println!("\nWaiting for Player {} to act...", game.priority_player_id);
-            println!("2. Pass priority"); // to line up with active player options
-            println!("3. Quit");
+             // numbers are offset to line up with active player options
+            println!("2. Tap a land for mana");
+            println!("3. Pass priority");
+            println!("4. Quit");
 
             // Get user selection
             let mut selection = String::new();
@@ -209,6 +298,76 @@ fn main() {
 
             match selection.trim() {
                 "2" => {
+                    // Find all untapped lands on the battlefield that the player controls 
+                    // (this isn't the most robust it could be, since things that aren't lands can have mana abilities, but it wil work for the alpha)
+                    let untapped_lands: Vec<(usize, &GameObj<BattlefieldState>)> = game.battlefield.iter()
+                        .enumerate()
+                        .filter(|(_, card)| {
+                            card.has_card_type(&CardType::Land) &&
+                            card.state.controller == game.priority_player_id && // lands can be tapped any time you have priority
+                            !card.state.tapped
+                        })
+                        .collect();
+                    
+                    if untapped_lands.is_empty() {
+                        println!("You control no untapped lands.");
+                        continue;
+                    }
+
+                    // Show available lands
+                    println!("Select a land to tap for mana:");
+                    for (i, (_, card)) in untapped_lands.iter().enumerate() {
+                        if let Some(name) = &card.characteristics.name {
+                            println!("{}: {}", i + 1, name);
+                        } else {
+                            println!("{}: Unknown land", i + 1);
+                        }
+                    }
+
+                    // Get user selection
+                    let mut selection = String::new();
+                    print!("> ");
+                    io::stdout().flush().unwrap();
+                    io::stdin().read_line(&mut selection).unwrap();
+
+                    // Process selection
+                    let selected_index = match selection.trim().parse::<usize>() {
+                        Ok(i) if i > 0 && i <= untapped_lands.len() => i - 1,
+                        _ => {
+                            println!("Invalid selection");
+                            continue;
+                        }
+                    };
+
+                    // get the land from the filtered vector we created (ok to index since we built it, so no index instability)
+                    let (_, land) = untapped_lands[selected_index];
+                    let land_id = land.id;
+
+                    // attempt to activate the mana ability
+                    // NOTE: This implementation precludes multiple mana abilities on the same card, find only returns the first value it finds
+                    // will need to refactor this to be more robust later, but in our alpha the only mana sources are Forest and Mountain basic lands,
+                    // which only have a single mana ability each, so we're good for now.
+                    if let Some(abilities) = &land.characteristics.abilities {
+                        if let Some(mana_ability_definition) = abilities.iter()
+                            .find(|ability| ability.ability_type == AbilityType::Mana) {
+                            // If we found a mana ability on the land, create and process mana ability activation event
+                            let mana_activation_event = GameEvent::ManaAbilityActivated { 
+                                source_id: land_id, 
+                                player_id: game.priority_player_id 
+                            };
+
+                            match game.handle_event(&mana_activation_event) {
+                                Ok(_) => println!("Mana ability activated successfully!"),
+                                Err(e) => println!("Error activating mana ability: {}", e),
+                            }
+                        } else {
+                            println!("Selected land has no mana ability.");
+                        }
+                    } else {
+                        println!("Selected land has no abilities.");
+                    }
+                },
+                "3" => {
                     // Pass priority
                     println!("Passing priority...");
                     match game.pass_priority() {
@@ -220,7 +379,7 @@ fn main() {
                         Err(e) => println!("Error passing priority: {}", e),
                     }
                 },
-                "3" => {
+                "4" => {
                     println!("Goodbye!");
                     break;
                 },

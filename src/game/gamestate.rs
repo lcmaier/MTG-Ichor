@@ -2,8 +2,8 @@
 mod core;
 mod combat;
 mod special_actions;
-mod effects;
 mod players;
+mod event_handlers;
 
 // Re-export the Game struct and its implementations
 pub use core::Game;

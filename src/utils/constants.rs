@@ -7,3 +7,5 @@ pub mod id_types;
 pub mod combat;
 pub mod game_objects;
 pub mod deck;
+pub mod abilities;
+pub mod events;

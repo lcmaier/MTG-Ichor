@@ -3,7 +3,7 @@
 // this file contains in-game deck functionality
 use rand::rng;
 use rand::seq::SliceRandom;
-use crate::{game::card::{create_basic_land, BasicLand}, utils::constants::{deck::{Deck, DeckFormat}, game_objects::{GameObj, LibraryState}, id_types::PlayerId}};
+use crate::{cards::basic_lands::{create_basic_land, BasicLand}, utils::constants::{deck::{Deck, DeckFormat}, game_objects::{GameObj, LibraryState}, id_types::PlayerId}};
 
 impl Deck {
     // Create a new empty deck of the specified format

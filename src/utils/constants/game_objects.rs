@@ -2,7 +2,7 @@
 use std::collections::HashSet;
 use crate::utils::constants::id_types::{ObjectId, PlayerId};
 use crate::utils::constants::colors::Color;
-use crate::utils::constants::zones::Zone;
+use crate::utils::constants::abilities::AbilityDefinition;
 use crate::utils::constants::card_types::{CardType, Supertype, Subtype};
 use crate::utils::traits::zonestate::ZoneState;
 use crate::utils::constants::combat::AttackTarget;
@@ -17,7 +17,7 @@ pub struct Characteristics {
     pub supertype: Option<HashSet<Supertype>>,
     pub subtype: Option<HashSet<Subtype>>,
     pub rules_text: Option<String>,
-    pub abilities: Option<Vec<String>>, // placeholder, we'll want a proper Ability type once we get to object abilities
+    pub abilities: Option<Vec<AbilityDefinition>>, 
     pub power: Option<i32>,
     pub toughness: Option<i32>,
     pub loyalty: Option<i32>,
