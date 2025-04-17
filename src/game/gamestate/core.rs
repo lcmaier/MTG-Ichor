@@ -48,15 +48,27 @@ impl Game {
     pub fn advance_turn(&mut self) -> Result<(), String> {
         // If we're in a phase with steps, attempt to advance to the next step
         if self.phase.has_steps() {
-            if self.phase.next_step() {
-                // If next_step() returned Ok(()), the internal state has already been updated to the new step/phase, so we simply evaluate it
-                return self.process_current_phase()
+            if let Some(current_step) = &self.phase.current_step {
+                // store current step type for StepEnded game event handler
+                let old_step_type = current_step.step_type;
+
+                if self.phase.next_step() {
+                    // If next_step() returned true, emit the step ended event
+                    self.handle_event(&GameEvent::StepEnded { step_type: old_step_type })?;
+                    return self.process_current_phase();
+                }
             }
         }
 
+        // We do a similar thing with the phase end as we did with the step end
+        // Store the current phase before advancing
+        let old_phase_type = self.phase.phase_type;
         // If this phase doesn't have steps or we couldn't reach a next step (because we were in the last step of the previous phase)
         // we move to the next phase
         let next_phase_type = next_phase_type(&self.phase.phase_type);
+
+        // Emit the phase ended event
+        self.handle_event(&GameEvent::PhaseEnded { phase_type: old_phase_type })?;
 
         // If we're moving from Ending phase to Beginning phase, we are starting a new turn
         if self.phase.phase_type == PhaseType::Ending && next_phase_type == PhaseType::Beginning {
