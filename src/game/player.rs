@@ -16,7 +16,7 @@ pub struct Player {
 
     // player state
     pub life_total: i64,
-    pub max_hand_size: u32,
+    pub max_hand_size: i32,
     pub mana_pool: ManaPool,
     pub max_lands_this_turn: u32,
     pub lands_played_this_turn: u32,
@@ -24,7 +24,7 @@ pub struct Player {
 
 impl Player {
     // Create a new player
-    pub fn new(id: PlayerId, starting_life: i64, max_hand_size: u32, default_lands_per_turn: u32) -> Self {
+    pub fn new(id: PlayerId, starting_life: i64, max_hand_size: i32, default_lands_per_turn: u32) -> Self {
         Player{
             id,
             hand: Vec::new(),

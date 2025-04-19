@@ -2,13 +2,15 @@ use crate::game::player::Player;
 use crate::game::turn_structure::phase::{self, next_phase_type};
 use crate::game::turn_structure::{phase::Phase, step::Step};
 use crate::utils::constants::combat::{AttackingCreature, BlockingCreature};
+use crate::utils::constants::effect_context::EffectContext;
 use crate::utils::constants::events::{EventHandler, GameEvent};
 use crate::utils::constants::game_objects::{BattlefieldState, CommandState, ExileState, GameObj, StackState};
 use crate::utils::constants::turns::PhaseType;
 use crate::utils::constants::zones::Zone;
 use crate::utils::constants::id_types::{ObjectId, PlayerId};
+use crate::utils::constants::card_types::CardType;
 
-
+#[derive(Debug, Clone)]
 pub struct Game {
     pub players: Vec<Player>,
     pub active_player_id: usize, // the active player is the one whose turn it is (by definition), so this doubles as a turn player index
@@ -24,6 +26,9 @@ pub struct Game {
     // Combat tracking
     pub attacking_creatures: Vec<AttackingCreature>, // creatures attacking this turn
     pub blocking_creatures: Vec<BlockingCreature>, // creatures blocking this turn
+
+    // Context tracking for effects
+    pub effect_context: EffectContext,
 }
 
 impl Game {
@@ -41,6 +46,7 @@ impl Game {
             command_zone: Vec::new(),
             attacking_creatures: Vec::new(),
             blocking_creatures: Vec::new(),
+            effect_context: EffectContext::new(),
         }
     }
 
@@ -98,6 +104,33 @@ impl Game {
         println!("Priority passed to player {}", self.priority_player_id);
         Ok(false)
     }
+
+    // Handle resolving the spell/ability on top of the stack
+    pub fn resolve_top_of_stack(&mut self) -> Result<(), String> {
+        // Ensure the stack is nonempty
+        if self.stack.is_empty() {
+            return Err("Cannot resolve top of stack: Stack is empty".to_string());
+        }
+
+        // Pop the top spell/ability from the stack
+        let top_object = self.stack.pop().unwrap();
+        // need to clone the value up here so we can pass the spell/ability's controller to the resolution functionk
+        let top_obj_clone = top_object.clone();
+
+        // Resolve it based on card type (permanents go to battlefield, nonpermanents go to graveyard)
+        if let Some(card_types) = &top_object.characteristics.card_type {
+            if card_types.contains(&CardType::Instant) || card_types.contains(&CardType::Sorcery) {
+                top_object.resolve_as_nonpermanent()?;
+            } else {
+                top_object.resolve_as_permanent(top_obj_clone.state.controller)?;
+            }
+        } else {
+            // must be an ability on the stack
+            top_object.resolve_as_ability()?;
+        }
+    
+        Ok(())
+    }
 }
 
 impl EventHandler for Game {
@@ -114,6 +147,27 @@ impl EventHandler for Game {
             },
             GameEvent::StepEnded { step_type } => {
                 self.handle_step_ended(*step_type)
+            },
+            GameEvent::DamageAboutToBeDealt { source_id, target_ref, amount } => {
+                self.handle_damage_about_to_be_dealt(*source_id, target_ref, *amount)
+            },
+            GameEvent::DamageDealt { source_id, target_ref, amount } => {
+                self.handle_damage_dealt(*source_id, target_ref, *amount)
+            },
+            GameEvent::CheckStateBasedActions => {
+                self.handle_check_state_based_actions()
+            },
+            GameEvent::CreatureZeroToughness { creature_id } => {
+                // Implementation would be in a separate method
+                Ok(()) // Placeholder for now
+            },
+            GameEvent::PermanentDestroyed { permanent_id, reason } => {
+                // Implementation would be in a separate method
+                Ok(()) // Placeholder for now
+            },
+            GameEvent::PermanentSacrificed { permanent_id } => {
+                // Implementation would be in a separate method
+                Ok(()) // Placeholder for now
             },
         }
     }

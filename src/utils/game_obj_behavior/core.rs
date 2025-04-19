@@ -1,5 +1,12 @@
 // src/utils/game_obj_behavior/core.rs
-use crate::utils::{constants::{card_types::CardType, game_objects::{Characteristics, GameObj}, id_types::{ObjectId, PlayerId}, zones::Zone}, traits::zonestate::ZoneState};
+use crate::utils::{
+    constants::{
+        card_types::{CardType, Subtype, Supertype}, 
+        game_objects::{Characteristics, GameObj}, 
+        id_types::{ObjectId, PlayerId}, 
+        zones::Zone
+    }, 
+    traits::zonestate::ZoneState};
 
 // Common methods for all GameObjs regardless of state
 impl<S: ZoneState> GameObj<S> {
@@ -16,10 +23,22 @@ impl<S: ZoneState> GameObj<S> {
         }
     }
 
-    // Get the current zone based on the state
-    pub fn zone(&self) -> Zone {
-        todo!()
+    // similar methods for subtype and supertype 
+    // (consider Rime Tender, a creature with "{T}: Untap another target snow permanent.", or
+    // Bladewing the Risen with "When ~ enters, you may return target Dragon permanent card from your graveyard to the battlefield."
+    pub fn has_card_subtype(&self, subtype: &Subtype) -> bool {
+        if let Some(subtypes) = &self.characteristics.subtype {
+            subtypes.contains(subtype)
+        } else {
+            false
+        }
     }
-
+    pub fn has_card_supertype(&self, supertype: &Supertype) -> bool {
+        if let Some(supertypes) = &self.characteristics.supertype {
+            supertypes.contains(supertype)
+        } else {
+            false
+        }
+    }
 
 }

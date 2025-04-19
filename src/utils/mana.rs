@@ -50,6 +50,17 @@ impl ManaPool {
         }
     }
 
+    pub fn get_generic_mana(&self) -> u64 {
+        let mut total_mana = 0;
+        total_mana += self.mana[&ManaType::White];
+        total_mana += self.mana[&ManaType::Blue];
+        total_mana += self.mana[&ManaType::Black];
+        total_mana += self.mana[&ManaType::Red];
+        total_mana += self.mana[&ManaType::Green];
+        total_mana += self.mana[&ManaType::Colorless];
+        return total_mana
+    }
+
     // Check if pool has enough mana of a specific type
     pub fn has_mana(&self, mana_type: ManaType, amount: u64) -> bool {
         if let Some(mana) = self.mana.get(&mana_type) {

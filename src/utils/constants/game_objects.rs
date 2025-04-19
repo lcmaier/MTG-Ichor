@@ -4,13 +4,17 @@ use crate::utils::constants::id_types::{ObjectId, PlayerId};
 use crate::utils::constants::colors::Color;
 use crate::utils::constants::abilities::AbilityDefinition;
 use crate::utils::constants::card_types::{CardType, Supertype, Subtype};
+use crate::utils::targeting::core::TargetRef;
 use crate::utils::traits::zonestate::ZoneState;
 use crate::utils::constants::combat::AttackTarget;
 
+use super::costs::ManaCost;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Characteristics {
+    // Official WOTC characteristics
     pub name: Option<String>,
-    pub mana_cost: Option<String>,
+    pub mana_cost: Option<ManaCost>,
     pub color: Option<HashSet<Color>>,
     pub color_indicator: Option<HashSet<Color>>,
     pub card_type: Option<HashSet<CardType>>,
@@ -90,7 +94,7 @@ pub struct BlockingState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StackState {
     pub controller: PlayerId,
-    pub targets: Vec<String>, // placeholder for now, will need a Target type
+    pub targets: Vec<TargetRef>, 
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct GraveyardState;

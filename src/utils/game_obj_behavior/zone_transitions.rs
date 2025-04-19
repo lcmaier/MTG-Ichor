@@ -54,6 +54,15 @@ impl GameObj<HandState> {
             state: battlefield_state,
         }
     }
+
+    pub fn to_stack(self, stack_state: StackState) -> GameObj<StackState> {
+        GameObj { 
+            id: self.id, 
+            owner: self.owner, 
+            characteristics: self.characteristics, 
+            state: stack_state 
+        }
+    }
 }
 
 
@@ -62,13 +71,13 @@ impl GameObj<HandState> {
 
 // Moving objects from the battlefield to other zones
 impl GameObj<BattlefieldState> {
-    // destroy transition (by default, moves the object to the graveyard)
-    pub fn destroy(self) -> GameObj<GraveyardState> {
+    // Transition to Graveyard
+    pub fn to_graveyard(self) -> GameObj<GraveyardState> {
         GameObj { 
             id: self.id, 
             owner: self.owner, 
             characteristics: self.characteristics, 
-            state: GraveyardState 
+            state: GraveyardState {}
         }
     }
 }
@@ -156,8 +165,13 @@ impl GameObj<StackState> {
             id: self.id, 
             owner: self.owner, 
             characteristics: self.characteristics, 
-            state: GraveyardState 
+            state: GraveyardState {}
         })
+    }
+
+    // Abilities cease to be objects once they resolve
+    pub fn resolve_as_ability(self) -> Result<(), String> {
+        Ok(())
     }
 }
 

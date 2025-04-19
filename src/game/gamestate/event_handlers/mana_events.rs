@@ -52,7 +52,7 @@ impl Game {
         };
 
         // Process the mana event and return
-        self.handle_event(&mana_event);
+        self.handle_event(&mana_event)?;
         Ok(())
     }
 
