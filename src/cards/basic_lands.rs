@@ -76,6 +76,7 @@ pub fn create_basic_land(basic_land_variant: BasicLand, owner: PlayerId) -> Game
 
 
     let mana_ability = AbilityDefinition {
+        id: Uuid::new_v4(),
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
         effect_details: EffectDetails::ProduceMana { mana_produced: mana_map },

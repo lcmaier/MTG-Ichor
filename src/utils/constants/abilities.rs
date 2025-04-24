@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use uuid::Uuid;
+
 use crate::{
     game::{gamestate::Game, player::Player}, 
     utils::{
@@ -24,14 +26,19 @@ pub enum AbilityType {
 
 impl Cost {
     // Check if the cost can be paid
-    pub fn can_pay(&self, game: &Game, permanent_id: ObjectId, player_id: PlayerId) -> Result<bool, String> {
+    pub fn can_pay(&self, game: &Game, player_id: PlayerId, permanent_id: Option<ObjectId>) -> Result<bool, String> {
         match self {
             Cost::Tap => {
                 // we need to ensure that the associated permanent is untapped to pay a Tap cost
-                // First, find the permanent
+                // First, get the permanent
+                if permanent_id == None {
+                    return Err("A tap payment needs a permanent_id to tap, received none".to_string())
+                }
+                let obj_id = permanent_id.unwrap();
+                // Next, find the permanent
                 let permanent = game.battlefield.iter()
-                    .find(|obj| obj.id == permanent_id)
-                    .ok_or_else(|| format!("Permanent with ID {} not found on the battlefield", permanent_id))?;
+                    .find(|obj| obj.id == obj_id)
+                    .ok_or_else(|| format!("Permanent with ID {} not found on the battlefield", obj_id))?;
 
                 // return true only if the permanent is untapped
                 Ok(!permanent.state.tapped)
@@ -42,6 +49,8 @@ impl Cost {
                     Ok(p) => p,
                     Err(_) => return Ok(false),
                 };
+                println!("{:?}", mana_cost);
+                println!("{:?}", player.mana_pool);
 
                 // check specific mana type costs (Green, White, etc--everything except generic mana, which requires additional handling)
                 if !player.mana_pool.has_mana(ManaType::White, mana_cost.white as u64) ||
@@ -63,23 +72,28 @@ impl Cost {
                 casting_pool.remove_mana(ManaType::Colorless, mana_cost.colorless as u64)?;
 
                 // Now that we've checked all specific costs, get total remaining mana and check if we can pay generic cost
-                if !casting_pool.get_generic_mana() >= mana_cost.generic as u64 {
+                if casting_pool.get_generic_mana() < mana_cost.generic as u64 {
                     return Ok(false);
                 }
-                // If we pass all the checks, then this player can pay the cost
+                // If we pass all the checks, then this player can pay this mana cost
                 Ok(true)
             }
         }
     }
 
     // Pay the cost (IMPORTANT: this method assumes you've already verified that the cost can be paid (with can_pay), undefined behavior when calling on an unpayable cost)
-    pub fn pay(&self, game: &mut Game, permanent_id: ObjectId, player_id: PlayerId) -> Result<(), String> {
+    pub fn pay(&self, game: &mut Game, player_id: PlayerId, permanent_id: Option<ObjectId>) -> Result<(), String> {
         match self {
             Cost::Tap => {
-                // First, locate the permanent on the battlefield
+                // This payment type requires a permanent id (to tap)
+                if permanent_id == None {
+                    return Err("A tap payment needs a permanent_id to tap, received none".to_string())
+                }
+                let obj_id = permanent_id.unwrap();
+                // Next, locate the permanent on the battlefield
                 let mut_permanent = game.battlefield.iter_mut()
-                    .find(|obj| obj.id == permanent_id)
-                    .ok_or_else(|| format!("Permanent with ID {} not found on the battlefield", permanent_id))?;
+                    .find(|obj| obj.id == obj_id)
+                    .ok_or_else(|| format!("Permanent with ID {} not found on the battlefield", obj_id))?;
 
                 // pay the cost by tapping down the permanent
                 mut_permanent.state.tapped = true;
@@ -93,7 +107,7 @@ impl Cost {
                 player.mana_pool.remove_mana(ManaType::Blue, mana_cost.blue as u64)?;
                 player.mana_pool.remove_mana(ManaType::Black, mana_cost.black as u64)?;
                 player.mana_pool.remove_mana(ManaType::Red, mana_cost.red as u64)?;
-                player.mana_pool.remove_mana(ManaType::Green, mana_cost.generic as u64)?;
+                player.mana_pool.remove_mana(ManaType::Green, mana_cost.green as u64)?;
                 player.mana_pool.remove_mana(ManaType::Colorless, mana_cost.colorless as u64)?;
 
                 // to pay generic costs, for now we just remove mana as needed in CWUBRG order
@@ -102,7 +116,7 @@ impl Cost {
                 if generic_remaining > 0 {
                     let mana_left = player.mana_pool.get_available_mana();
                     // get how much colorless is in the mana pool and subtract it from the generic_remaining
-                    let colorless_left = mana_left.get(&ManaType::Colorless).unwrap();
+                    let colorless_left = mana_left.get(&ManaType::Colorless).unwrap_or(&0);
                     if colorless_left >= &generic_remaining {
                         // we can satisfy the requirement with colorless mana
                         player.mana_pool.remove_mana(ManaType::Colorless, generic_remaining as u64)?;
@@ -166,6 +180,7 @@ impl Cost {
 // Ability definitions - These are NOT objects in the game
 #[derive(Debug, Clone, PartialEq)]
 pub struct AbilityDefinition {
+    pub id: Uuid,
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect_details: EffectDetails,

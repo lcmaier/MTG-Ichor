@@ -3,7 +3,7 @@
 // this file contains in-game deck functionality
 use rand::rng;
 use rand::seq::SliceRandom;
-use crate::{cards::basic_lands::{create_basic_land, BasicLand}, utils::constants::{deck::{Deck, DeckFormat}, game_objects::{GameObj, LibraryState}, id_types::PlayerId}};
+use crate::{cards::{basic_lands::{create_basic_land, BasicLand}, generator::ObjectGenerator}, utils::constants::{deck::{Deck, DeckFormat}, game_objects::{GameObj, LibraryState}, id_types::PlayerId}};
 
 impl Deck {
     // Create a new empty deck of the specified format
@@ -57,6 +57,19 @@ impl Deck {
             deck.put_card_on_bottom(create_basic_land(BasicLand::Mountain, owner));
         }
 
+        deck.shuffle();
+        deck
+    }
+
+    pub fn create_lightning_bolt_deck(owner: PlayerId) -> Self {
+        let mut deck = Deck::new(owner, DeckFormat::Limited);
+        for _ in 0..20 {
+            deck.put_card_on_bottom(create_basic_land(BasicLand::Mountain, owner));
+            match ObjectGenerator::create_card_in_library(&"Lightning Bolt", owner) {
+                Ok(card) => deck.put_card_on_bottom(card),
+                Err(e) => panic!("Error creating Lightning Bolt: {}", e),
+            }
+        }
         deck.shuffle();
         deck
     }

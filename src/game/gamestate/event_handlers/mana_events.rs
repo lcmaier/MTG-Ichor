@@ -34,14 +34,14 @@ impl Game {
 
         // Ensure we can pay all costs
         for cost in &costs {
-            if !cost.can_pay(self, source_id, controller_id)? {
+            if !cost.can_pay(self, controller_id, Some(source_id))? {
                 return Err(format!("Cannot pay cost {:?}", cost));
             }
         }
 
         // Passed cost check, now pay the costs
         for cost in costs {
-            cost.pay(self, source_id, controller_id)?;
+            cost.pay(self, controller_id, Some(source_id))?;
         }
 
         // Now that the costs are paid, add the ability's mana

@@ -38,7 +38,9 @@ impl ManaPool {
 
     // Remove mana from pool
     pub fn remove_mana(&mut self, mana_type: ManaType, amount: u64) -> Result<(), String> {
-        if let Some(mana) = self.mana.get_mut(&mana_type) {
+        if amount == 0 {
+            Ok(()) // nothing to do if need to remove 0 mana
+        } else if let Some(mana) = self.mana.get_mut(&mana_type) {
             if *mana >= amount {
                 *mana -= amount;
                 Ok(())
@@ -51,19 +53,15 @@ impl ManaPool {
     }
 
     pub fn get_generic_mana(&self) -> u64 {
-        let mut total_mana = 0;
-        total_mana += self.mana[&ManaType::White];
-        total_mana += self.mana[&ManaType::Blue];
-        total_mana += self.mana[&ManaType::Black];
-        total_mana += self.mana[&ManaType::Red];
-        total_mana += self.mana[&ManaType::Green];
-        total_mana += self.mana[&ManaType::Colorless];
-        return total_mana
+        self.mana.iter().fold(0, |acc, (_, &amount)| acc + amount)
     }
 
     // Check if pool has enough mana of a specific type
     pub fn has_mana(&self, mana_type: ManaType, amount: u64) -> bool {
-        if let Some(mana) = self.mana.get(&mana_type) {
+        if amount == 0 {
+            true // you always have at least 0 mana of a given type in your mana pool
+        } else if let Some(mana) = self.mana.get(&mana_type) {
+            // println!("Has {} {:?} mana", mana, mana_type);
             *mana >= amount
         } else {
             false

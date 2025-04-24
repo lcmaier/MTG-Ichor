@@ -94,7 +94,9 @@ pub struct BlockingState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StackState {
     pub controller: PlayerId,
-    pub targets: Vec<TargetRef>, 
+    pub targets: Vec<TargetRef>,
+    pub stack_object_type: StackObjectType,
+    pub source_id: Option<ObjectId>, // For abilities, the ID of the object that created them
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct GraveyardState;
@@ -102,3 +104,15 @@ pub struct GraveyardState;
 pub struct ExileState;
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandState;
+
+
+// enum for the different kinds of objects that can be on the stack
+// e.g. a copy of a card resolving on the stack ceases to exist, while a card resolving on the stack goes to either the battlefield or graveyard
+#[derive(Debug, Clone, PartialEq)]
+pub enum StackObjectType {
+    Spell,              // A card cast as a spell
+    CopyOfSpell,        // A copy of a spell (e.g., created by Fork)
+    ActivatedAbility,   // An activated ability of a permanent
+    TriggeredAbility,   // A triggered ability that has triggered
+    CopyOfAbility       // A copy of an ability (e.g., created by Strionic Resonator)
+}

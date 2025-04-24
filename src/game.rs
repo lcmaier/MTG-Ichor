@@ -3,3 +3,4 @@ pub mod player;
 pub mod gamestate;
 pub mod collections;
 pub mod turn_structure;
+pub mod ui;

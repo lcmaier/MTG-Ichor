@@ -1,10 +1,11 @@
 use crate::game::player::Player;
 use crate::game::turn_structure::phase::{self, next_phase_type};
 use crate::game::turn_structure::{phase::Phase, step::Step};
+use crate::utils::constants::abilities::AbilityType;
 use crate::utils::constants::combat::{AttackingCreature, BlockingCreature};
 use crate::utils::constants::effect_context::EffectContext;
 use crate::utils::constants::events::{EventHandler, GameEvent};
-use crate::utils::constants::game_objects::{BattlefieldState, CommandState, ExileState, GameObj, StackState};
+use crate::utils::constants::game_objects::{BattlefieldState, CommandState, ExileState, GameObj, StackObjectType, StackState};
 use crate::utils::constants::turns::PhaseType;
 use crate::utils::constants::zones::Zone;
 use crate::utils::constants::id_types::{ObjectId, PlayerId};
@@ -99,6 +100,15 @@ impl Game {
             return Ok(true);
         }
 
+        // If both players have passed priority and stack is not empty, resolve the top of stack
+        if next_player_id == self.active_player_id && !self.stack.is_empty() {
+            println!("Both players passed priority with non-empty stack. Resolving top spell/ability...");
+            self.resolve_top_of_stack()?;
+            // After resolution, active player gets priority
+            self.priority_player_id = self.active_player_id;
+            return Ok(true);
+        }    
+
         // Otherwise, pass priority to the next player
         self.priority_player_id = next_player_id;
         println!("Priority passed to player {}", self.priority_player_id);
@@ -114,22 +124,27 @@ impl Game {
 
         // Pop the top spell/ability from the stack
         let top_object = self.stack.pop().unwrap();
-        // need to clone the value up here so we can pass the spell/ability's controller to the resolution functionk
-        let top_obj_clone = top_object.clone();
+        // Need to clone the value here so we can pass the spell/ability's controller to the resolution function
+        let controller_id = top_object.state.controller;
 
-        // Resolve it based on card type (permanents go to battlefield, nonpermanents go to graveyard)
-        if let Some(card_types) = &top_object.characteristics.card_type {
-            if card_types.contains(&CardType::Instant) || card_types.contains(&CardType::Sorcery) {
-                top_object.resolve_as_nonpermanent()?;
-            } else {
-                top_object.resolve_as_permanent(top_obj_clone.state.controller)?;
-            }
-        } else {
-            // must be an ability on the stack
-            top_object.resolve_as_ability()?;
+        // Process the object based on its stack_object type
+        match top_object.state.stack_object_type {
+            StackObjectType::Spell => {
+                // Process a regular spell (a card that has been cast)
+
+                // Process all spell abilities of this spell
+                if let Some(abilities) = &top_object.characteristics.abilities {
+                    for ability in abilities {
+                        if ability.ability_type == AbilityType::Spell {
+                            // process this spell ability's effect(s)
+                            self.process_effect(&ability.effect_details, &top_object.state.targets, controller_id, Some(top_object.id))?;
+                        }
+                    }
+                }
+                Ok(())
+            },
+            _ => todo!()
         }
-    
-        Ok(())
     }
 }
 

@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use uuid::Uuid;
+
 use crate::utils::{
     constants::{
         abilities::{AbilityDefinition, AbilityType, EffectDetails}, card_types::CardType, colors::Color, costs::ManaCost, game_objects::{Characteristics, GameObj, HandState, LibraryState}, id_types::PlayerId, zones::Zone}, targeting::requirements::TargetingRequirement, traits::zonestate::ZoneState};
@@ -16,7 +18,7 @@ pub fn lightning_bolt_characteristics() -> Characteristics {
     // Define effect(s)
     let effect_details = EffectDetails::DealDamage { 
         amount: 3, 
-        target_requirement: Some(TargetingRequirement::any_target()) 
+        target_requirement: Some(TargetingRequirement::any_target(1)) 
     };
     
     Characteristics {
@@ -29,6 +31,7 @@ pub fn lightning_bolt_characteristics() -> Characteristics {
         subtype: None,
         rules_text: Some("~ deals 3 damage to any target.".to_string()),
         abilities: Some(vec![AbilityDefinition {
+            id: Uuid::new_v4(),
             ability_type: AbilityType::Spell,
             costs: vec![], // No additional cost beyond mana cost
             effect_details,

@@ -2,3 +2,4 @@
 pub mod mana_events;
 pub mod state_based_actions;
 pub mod destruction_events;
+pub mod damage_events;
