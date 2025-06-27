@@ -21,21 +21,24 @@ use mtgsim::cards::basic_lands::{create_basic_land, BasicLand};
 fn create_test_deck_with_spells(owner: PlayerId) -> Deck {
     let mut deck = Deck::new(owner, DeckFormat::Limited);
 
-    // Add 10 Mountains, 10 Forests
+    // Add 10 Mountains, 10 Forests, 10 Lightning Bolts, and 10 Grizzly Bears
     for _ in 0..10 {
         deck.put_card_on_bottom(create_basic_land(BasicLand::Mountain, owner));
         deck.put_card_on_bottom(create_basic_land(BasicLand::Forest, owner));
-    }
-
-    // Add 20 Lightning Bolts
-    for _ in 0..20 {
+        match ObjectGenerator::create_card_in_library("Grizzly Bears", owner) {
+            Ok(card) => deck.put_card_on_bottom(card),
+            Err(e) => {
+                println!("Error creating Grizzly Bears: {}", e);
+                // Continue anyway for resilience
+            }
+        };
         match ObjectGenerator::create_card_in_library("Lightning Bolt", owner) {
             Ok(card) => deck.put_card_on_bottom(card),
             Err(e) => {
                 println!("Error creating Lightning Bolt: {}", e);
                 // Continue anyway for resilience
             }
-        }
+        };
     }
 
     deck.shuffle();
@@ -119,7 +122,7 @@ fn choose_spell_targets(game: &Game, player_id: PlayerId, card_id: Uuid) -> Resu
                                                 }
 
                                                 // add damageable permanents
-                                                for (_, permanent) in game.battlefield.iter() {
+                                                for permanent in game.battlefield.values() {
                                                     if permanent.has_card_type(&CardType::Creature) ||
                                                        permanent.has_card_type(&CardType::Planeswalker) ||
                                                        permanent.has_card_type(&CardType::Battle) {
@@ -281,7 +284,7 @@ fn main() {
             if game.battlefield.is_empty() {
                 println!("(Empty)");
             } else {
-                for (i, (_, card)) in game.battlefield.iter().enumerate() {
+                for (i, card) in game.battlefield.values().enumerate() {
                     if let Some(name) = &card.characteristics.name {
                         if let Some(rules_text) = &card.characteristics.rules_text {
                             println!("{}: {} - {} (Owner: {})", i + 1, name, rules_text, card.owner);
@@ -314,7 +317,7 @@ fn main() {
 
             match choice.trim() {
                 "1" if game.phase.phase_type == PhaseType::Precombat || game.phase.phase_type == PhaseType::Postcombat => {
-                    // Land playing code (same as the turn_structure_demo)
+                    // Land playing code (same as your turn_structure_demo)
                     let player = game.get_player_ref(turn_player_id).unwrap();
                     let land_cards: Vec<(usize, &GameObj<HandState>)> = player.hand.iter()
                         .enumerate()

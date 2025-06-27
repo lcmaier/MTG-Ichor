@@ -35,7 +35,7 @@ impl Game {
         // 704.5f If a creature has toughness 0 or less, it’s put into its owner’s graveyard. Regeneration can’t replace this event.
         let mut zero_toughness_creature_events = Vec::new();
 
-        for permanent in &self.battlefield {
+        for (_, permanent) in &self.battlefield {
             if permanent.has_card_type(&CardType::Creature) {
                 if let Some(toughness) = permanent.characteristics.toughness {
                     if toughness <= 0 {
@@ -55,15 +55,15 @@ impl Game {
         // 704.5g If a creature has toughness greater than 0, it has damage marked on it, and the total damage marked on it is greater than or equal to its toughness, that creature has been dealt lethal damage and is destroyed. Regeneration can replace this event.
         let mut lethal_damage_destruction_events = Vec::new();
 
-        for permanent in &self.battlefield {
+        for (_, permanent) in &self.battlefield {
             if permanent.has_card_type(&CardType::Creature) {
                 // Check if the creature has lethal damage
-                if let (Some(damageable), Some(toughness)) = (
-                    &permanent.state.damageable,
+                if let (Some(creature), Some(toughness)) = (
+                    &permanent.state.creature,
                     permanent.characteristics.toughness
                 ) {
                     // Only check creatures with toughness >0
-                    if toughness > 0 && damageable.damage_marked >= toughness as u32 {
+                    if toughness > 0 && creature.damage_marked >= toughness as u32 {
                         // Create a destruction event for this creature and add it to the vector
                         let destroy_event = GameEvent::PermanentDestroyed { permanent_id: permanent.id, reason: DeathReason::LethalDamage };
                         lethal_damage_destruction_events.push(destroy_event);

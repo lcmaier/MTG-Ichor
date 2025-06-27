@@ -1,5 +1,5 @@
 // src/utils/constants/colors.rs
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Color {
     White,
     Blue,

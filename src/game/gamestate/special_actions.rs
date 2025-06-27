@@ -52,7 +52,7 @@ impl Game {
 
         // 9. Convert to battlefield state and add to the battlefield vec
         let battlefield_card = hand_card.to_battlefield(player_id);
-        self.battlefield.push(battlefield_card);
+        self.battlefield.insert(battlefield_card.id, battlefield_card);
 
         Ok(())
     }

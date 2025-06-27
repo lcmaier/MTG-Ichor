@@ -2,3 +2,4 @@
 pub mod core;
 pub mod battlefield;
 pub mod zone_transitions;
+pub mod creatures;

@@ -6,8 +6,8 @@ impl Game {
     // Handle damage about to be dealt (for replacement effects)
     pub fn handle_damage_about_to_be_dealt(&mut self, source_id: ObjectId, target_ref: &TargetRef, amount: u64) -> Result<(), String> {
         // This is where damage replacement effects would be processed
-        // For the alpha version, we can just return OK
-        Ok(())
+        // For the alpha version, we can just pass these through without any changes
+        return self.handle_damage_dealt(source_id, target_ref, amount)
     }
 
     // Handle damage being dealt
@@ -23,13 +23,12 @@ impl Game {
             },
             TargetRefId::Object(object_id) => {
                 // Get the object from the battlefield (only objects on the battlefield can be dealt damage--you can't Lightning Bolt a Counterspell)
-                let permanent = self.battlefield.iter_mut()
-                    .find(|o| o.id == *object_id)
+                let permanent = self.battlefield.get_mut(object_id)
                     .ok_or_else(|| format!("Object with ID {} not found on battlefield", object_id))?;
 
-                // Deal damage to the permanent only if it has the 'damageable' aspect
-                if let Some(damageable) = &mut permanent.state.damageable {
-                    damageable.damage_marked += amount as u32;
+                // Deal damage to the permanent only if it's a damageable object (Creature, Planeswalker, or Battle)
+                if let Some(creature) = &mut permanent.state.creature {
+                    creature.damage_marked += amount as u32;
 
                     // Get the name for display
                     let default = &"Unknown".to_string();
@@ -37,9 +36,9 @@ impl Game {
                         .unwrap_or(default);
                 
                     println!("Permanent {} takes {} damage. Marked damage is now {}", 
-                            name, amount, damageable.damage_marked);
+                            name, amount, creature.damage_marked);
                     Ok(())
-                } else {
+                } else { // TODO: handle Planeswalkers and Battles
                     return Err(format!("Object with ID {} cannot be dealt damage", object_id));
                 }
             }

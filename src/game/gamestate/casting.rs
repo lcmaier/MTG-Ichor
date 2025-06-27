@@ -103,8 +103,7 @@ impl Game {
         }
 
         // Find the permanent
-        let permanent = self.battlefield.iter()
-            .find(|obj| obj.id == permanent_id)
+        let permanent = self.battlefield.get(&permanent_id)
             .ok_or_else(|| format!("Permanent with ID {} not found on battlefield", permanent_id))?.clone();
 
 

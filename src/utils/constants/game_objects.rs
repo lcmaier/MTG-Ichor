@@ -54,7 +54,6 @@ pub struct BattlefieldState {
     // pub counters: HashMap<CounterType, u32> // to be implemented as soon as I create the CounterType
     
     // Optional *aspects* based on card type
-    pub damageable: Option<DamageableAspect>,
     pub creature: Option<CreatureAspect>,
     // to be implemeneted when necessary
     // pub planeswalker: Option<PlaneswalkerAspect>,
@@ -62,11 +61,6 @@ pub struct BattlefieldState {
 }
 
 //// Aspects
-// Aspect for objects that can have damage marked on them
-#[derive(Debug, Clone, PartialEq)]
-pub struct DamageableAspect {
-    pub damage_marked: u32,
-}
 
 // Aspect for creature-specific fields
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +68,11 @@ pub struct CreatureAspect {
     pub summoning_sick: bool,
     pub power_modifier: i32,    // for temporary modifications
     pub toughness_modifier: i32, // same deal here
+
+    // Cached calculated current power/toughness
+    pub current_power: i32,
+    pub current_toughness: i32,
+    pub damage_marked: u32, // Damage marked on the creature
 
     // Combat state tracking
     pub attacking: Option<AttackingState>,
@@ -83,13 +82,15 @@ pub struct CreatureAspect {
 // Creature Aspect States
 #[derive(Debug, Clone, PartialEq)]
 pub struct AttackingState {
-    pub target: AttackTarget
+    pub target: AttackTarget,
+    pub is_blocked: bool, // Whether this creature is currently blocked (needed in the case where a blocker is declared and then somehow removed from combat (e.g. removal spell, blink spell, etc)), we don't want damage going through in that case
+    pub blocked_by: Vec<ObjectId>, // IDs of creatures blocking this creature
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockingState {
-    pub blocking: Vec<ObjectId>, // Both the game and the creature itself need to keep track of what it's blocking
-    pub max_can_block: u32,      // Max creatures this creature can block (I believe a Hundred-Handed One buffed with a few "extra block" abilities is the max--somewhere around to 105)
+    pub blocking: Vec<ObjectId>, // The creature(s) this is blocking
+    pub max_can_block: u32, // How many creatures this can block (1 for most, u32::MAX for "any number")
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct StackState {

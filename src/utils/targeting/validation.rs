@@ -15,7 +15,7 @@ impl TargetCriteria {
                     if let TargetRefId::Object(obj_id) = &target.ref_id {
                         match zone {
                             TargetZone::Battlefield => {
-                                if let Some(permanent) = game.battlefield.iter().find(|obj| &obj.id == obj_id) {
+                                if let Some(permanent) = game.battlefield.get(obj_id) {
                                     permanent.has_card_type(card_type)
                                 } else {
                                     false
@@ -62,8 +62,7 @@ impl TargetCriteria {
                             TargetRefId::Player(_) => true, // Players can be damaged (by default)
                             TargetRefId::Object(obj_id) => {
                                 // ensure it's a permanent (i.e. on the battlefield) that's a creature, planeswalker, or battle
-                                game.battlefield.iter()
-                                    .find(|obj| &obj.id == obj_id)
+                                game.battlefield.get(obj_id)
                                     .map(|obj| {
                                         obj.has_card_type(&CardType::Creature) ||
                                         obj.has_card_type(&CardType::Planeswalker) ||
@@ -76,7 +75,7 @@ impl TargetCriteria {
                     TargetCategory::Permanent => {
                         // to satisfy a Permanent category, the target must be on the battlefield
                         if let TargetRefId::Object(obj_id) = &target.ref_id {
-                            game.battlefield.iter()
+                            game.battlefield.values()
                                 .any(|obj| &obj.id == obj_id)
                         } else {
                             false

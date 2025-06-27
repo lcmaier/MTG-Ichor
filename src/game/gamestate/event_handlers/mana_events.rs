@@ -8,8 +8,7 @@ impl Game {
     pub fn handle_mana_ability_activated(&mut self, source_id: ObjectId, controller_id: PlayerId, ) -> Result<(), String> {
         // locate the permanent in the battlefield vector
         // Find the permanent to check conditions
-        let permanent = self.battlefield.iter()
-            .find(|obj| obj.id == source_id)
+        let permanent = self.battlefield.get(&source_id)
             .ok_or_else(|| format!("Permanent with ID {} not found on battlefield", source_id))?;
 
         // check controller -- you can't activate mana abilities of permanents you don't control
@@ -18,6 +17,7 @@ impl Game {
         }
 
         // get the ability and any costs to pay (I'd hope there's a cost for a mana ability sheesh)
+        // TODO: This code is assuming the permanent has exactly one mana ability, IF YOU'RE HAVING BUGS WITH THE DUAL LANDS LOOK HERE
         let (costs, mana_produced) = if let Some(abilities) = &permanent.characteristics.abilities {
             let mana_ability = abilities.iter()
                 .find(|ability| ability.ability_type == AbilityType::Mana)

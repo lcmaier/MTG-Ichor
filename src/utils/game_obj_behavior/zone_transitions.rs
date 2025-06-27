@@ -10,7 +10,7 @@ use crate::utils::constants::card_types::*;
 // Playing cards from the hand
 impl GameObj<HandState> {
     // cards from the hand can go to every other zone (including command 
-    // (i.e. an effect would discard your commander out of your hand, you have the option to put it into the command zone))
+    // (e.g. an effect would discard your commander out of your hand, you have the option to put it into the command zone))
     pub fn to_battlefield(self, controller: PlayerId) -> GameObj<BattlefieldState> {
         let mut battlefield_state = BattlefieldState {
             tapped: false,
@@ -20,27 +20,20 @@ impl GameObj<HandState> {
             controller,
             // counters: HashMap::new(),
             // initialize all aspects to None, we populate these as needed below
-            damageable: None,
             creature: None,
         };
 
         // Check card types and add relevant aspects
         if let Some(card_types) = &self.characteristics.card_type {
-            // Add damageable aspect for creatures, planeswalkers, and battles
-            if card_types.contains(&CardType::Creature) ||
-               card_types.contains(&CardType::Planeswalker) ||
-               card_types.contains(&CardType::Battle) {
-                battlefield_state.damageable = Some(DamageableAspect { 
-                    damage_marked: 0, 
-                });
-            }
-
             // Add creature aspect for creatures
             if card_types.contains(&CardType::Creature) {
                 battlefield_state.creature = Some(CreatureAspect { 
                     summoning_sick: true, 
                     power_modifier: 0, 
-                    toughness_modifier: 0, 
+                    toughness_modifier: 0,
+                    damage_marked: 0,
+                    current_power: self.characteristics.power.unwrap(), // creatures are defined as having a power and toughness, so this is safe to unwrap
+                    current_toughness: self.characteristics.toughness.unwrap(),
                     attacking: None, 
                     blocking: None 
                 });
@@ -101,7 +94,7 @@ impl GameObj<StackState> {
             return Err("Can't resolve a non-permanent spell as a permanent".to_string());
         }
 
-        // next we initialize the state for this object when it enter the battlefield
+        // next we initialize the state for this object when it enters the battlefield
         let mut battlefield_state = BattlefieldState {
             tapped: false,
             flipped: false,
@@ -110,27 +103,20 @@ impl GameObj<StackState> {
             controller: spell_controller,
             // counters: HashMap::new()
             // initialize all aspects to None, we populate these as needed below
-            damageable: None,
             creature: None,
         };
 
         // Check card types and add relevant aspects
         if let Some(card_types) = &self.characteristics.card_type {
-            // Add damageable aspect for creatures, planeswalkers, and battles
-            if card_types.contains(&CardType::Creature) ||
-               card_types.contains(&CardType::Planeswalker) ||
-               card_types.contains(&CardType::Battle) {
-                battlefield_state.damageable = Some(DamageableAspect { 
-                    damage_marked: 0, 
-                });
-            }
-
             // Add creature aspect for creatures
             if card_types.contains(&CardType::Creature) {
                 battlefield_state.creature = Some(CreatureAspect { 
                     summoning_sick: true, 
                     power_modifier: 0, 
                     toughness_modifier: 0, 
+                    damage_marked: 0,
+                    current_power: self.characteristics.power.unwrap(), // creatures are defined as having a power and toughness, so this is safe to unwrap
+                    current_toughness: self.characteristics.toughness.unwrap(),
                     attacking: None, 
                     blocking: None 
                 });

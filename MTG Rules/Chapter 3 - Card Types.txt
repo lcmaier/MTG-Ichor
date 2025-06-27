@@ -1,0 +1,359 @@
+300. General
+
+300.1. The card types are artifact, battle, conspiracy, creature, dungeon, enchantment, instant, kindred, land, phenomenon, plane, planeswalker, scheme, sorcery, and vanguard.
+
+300.2. Some objects have more than one card type (for example, an artifact creature). Such objects combine the aspects of each of those card types, and are subject to spells and abilities that affect either or all of those card types.
+
+300.2a An object that’s both a land and another card type (for example, an artifact land) can only be played as a land. It can’t be cast as a spell.
+
+300.2b Each kindred card has another card type. Casting and resolving a kindred card follow the rules for casting and resolving a card of the other card type.
+
+301. Artifacts
+
+301.1. A player who has priority may cast an artifact card from their hand during a main phase of their turn when the stack is empty. Casting an artifact as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+301.2. When an artifact spell resolves, its controller puts it onto the battlefield under their control.
+
+301.3. Artifact subtypes are always a single word and are listed after a long dash: “Artifact — Equipment.” Artifact subtypes are also called artifact types. Artifacts may have multiple subtypes. See rule 205.3g for the complete list of artifact types.
+
+301.4. Artifacts have no characteristics specific to their card type. Most artifacts have no colored mana symbols in their mana costs, and are therefore colorless. However, there is no correlation between being colorless and being an artifact: artifacts may be colored, and colorless objects may be card types other than artifact.
+
+301.5. Some artifacts have the subtype “Equipment.” An Equipment can be attached to a creature. It can’t legally be attached to anything that isn’t a creature.
+
+301.5a The creature an Equipment is attached to is called the “equipped creature.” The Equipment is attached to, or “equips,” that creature.
+
+301.5b Equipment spells are cast like other artifact spells. Equipment enter the battlefield like other artifacts. They don’t enter the battlefield attached to a creature. The equip keyword ability attaches the Equipment to a creature you control (see rule 702.6, “Equip”). Control of the creature matters only when the equip ability is activated and when it resolves. Spells and other abilities may also attach an Equipment to a creature. If an effect attempts to attach an Equipment to an object that can’t be equipped by it, the Equipment doesn’t move.
+
+301.5c An Equipment that’s also a creature can’t equip a creature unless that Equipment has reconfigure (see rule 702.151, “Reconfigure”). An Equipment that loses the subtype “Equipment” can’t equip a creature. An Equipment can’t equip itself. An Equipment that equips an illegal or nonexistent permanent becomes unattached from that permanent but remains on the battlefield. (This is a state-based action. See rule 704.) An Equipment can’t equip more than one creature. If a spell or ability would cause an Equipment to equip more than one creature, the Equipment’s controller chooses which creature it equips.
+
+301.5d An Equipment’s controller is separate from the equipped creature’s controller; the two need not be the same. Changing control of the creature doesn’t change control of the Equipment, and vice versa. Only the Equipment’s controller can activate its abilities. However, if the Equipment grants an ability to the equipped creature (with “gains” or “has”), the equipped creature’s controller is the only one who can activate that ability.
+
+301.5e If an effect attempts to put an Equipment that isn’t also an Aura (see rule 303.4i) onto the battlefield attached to either an object it can’t legally equip or an object that is undefined, the Equipment enters the battlefield unattached. If the Equipment is a token, it’s created and enters the battlefield unattached.
+
+301.5f An ability of a permanent that refers to the “equipped creature” refers to whatever creature that permanent is attached to, even if the permanent with the ability isn’t an Equipment.
+
+301.6. Some artifacts have the subtype “Fortification.” A Fortification can be attached to a land. It can’t legally be attached to an object that isn’t a land. Fortification’s analog to the equip keyword ability is the fortify keyword ability. Rules 301.5a–f apply to Fortifications in relation to lands just as they apply to Equipment in relation to creatures, with one clarification relating to rule 301.5c: a Fortification that’s also a creature (not a land) can’t fortify a land. (See rule 702.67, “Fortify.”)
+
+301.7. Some artifacts have the subtype “Vehicle.” Most Vehicles have a crew ability which allows them to become artifact creatures. See rule 702.122, “Crew.”
+
+301.7a Each Vehicle has a printed power and toughness, but it has these characteristics only if it’s also a creature. See rule 208.3.
+
+301.7b If a Vehicle becomes a creature, it immediately has its printed power and toughness. Other effects, including the effect that makes it a creature, may modify these values or set them to different values.
+
+302. Creatures
+
+302.1. A player who has priority may cast a creature card from their hand during a main phase of their turn when the stack is empty. Casting a creature as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+302.2. When a creature spell resolves, its controller puts it onto the battlefield under their control.
+
+302.3. Creature subtypes are usually a single word long and are listed after a long dash: “Creature — Human Soldier,” “Artifact Creature — Golem,” and so on. Creature subtypes are also called creature types. Creatures may have multiple subtypes. See rule 205.3m for the complete list of creature types.
+Example: “Creature — Goblin Wizard” means the card is a creature with the subtypes Goblin and Wizard.
+
+302.4. Power and toughness are characteristics only creatures have.
+
+302.4a A creature’s power is the amount of damage it deals in combat.
+
+302.4b A creature’s toughness is the amount of damage needed to destroy it.
+
+302.4c To determine a creature’s power and toughness, start with the numbers printed in its lower right corner, then apply any applicable continuous effects. (See rule 613, “Interaction of Continuous Effects.”)
+
+302.5. Creatures can attack and block. (See rule 508, “Declare Attackers Step,” and rule 509, “Declare Blockers Step.”)
+
+302.6. A creature’s activated ability with the tap symbol or the untap symbol in its activation cost can’t be activated unless the creature has been under its controller’s control continuously since their most recent turn began. A creature can’t attack unless it has been under its controller’s control continuously since their most recent turn began. This rule is informally called the “summoning sickness” rule.
+
+302.7. Damage dealt to a creature by a source with neither wither nor infect is marked on that creature (see rule 120.3). If the total damage marked on that creature is greater than or equal to its toughness, that creature has been dealt lethal damage and is destroyed as a state-based action (see rule 704). All damage marked on a creature is removed when it regenerates (see rule 701.19, “Regenerate”) and during the cleanup step (see rule 514.2).
+
+303. Enchantments
+
+303.1. A player who has priority may cast an enchantment card from their hand during a main phase of their turn when the stack is empty. Casting an enchantment as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+303.2. When an enchantment spell resolves, its controller puts it onto the battlefield under their control.
+
+303.3. Enchantment subtypes are always a single word and are listed after a long dash: “Enchantment — Shrine.” Each word after the dash is a separate subtype. Enchantment subtypes are also called enchantment types. Enchantments may have multiple subtypes. See rule 205.3h for the complete list of enchantment types.
+
+303.4. Some enchantments have the subtype “Aura.” An Aura enters the battlefield attached to an object or player. What an Aura can be attached to is defined by its enchant keyword ability (see rule 702.5, “Enchant”). Other effects can limit what a permanent can be enchanted by.
+
+303.4a An Aura spell requires a target, which is defined by its enchant ability.
+
+303.4b The object or player an Aura is attached to is called enchanted. The Aura is attached to, or “enchants,” that object or player.
+
+303.4c If an Aura is enchanting an illegal object or player as defined by its enchant ability and other applicable effects, the object it was attached to no longer exists, or the player it was attached to has left the game, the Aura is put into its owner’s graveyard. (This is a state-based action. See rule 704.)
+
+303.4d An Aura can’t enchant itself. If this occurs somehow, the Aura is put into its owner’s graveyard. An Aura that’s also a creature can’t enchant anything. If this occurs somehow, the Aura becomes unattached, then is put into its owner’s graveyard. (These are state-based actions. See rule 704.) An Aura can’t enchant more than one object or player. If a spell or ability would cause an Aura to become attached to more than one object or player, the Aura’s controller chooses which object or player it becomes attached to.
+
+303.4e An Aura’s controller is separate from the enchanted object’s controller or the enchanted player; the two need not be the same. If an Aura enchants an object, changing control of the object doesn’t change control of the Aura, and vice versa. Only the Aura’s controller can activate its abilities. However, if the Aura grants an ability to the enchanted object (with “gains” or “has”), the enchanted object’s controller is the only one who can activate that ability.
+
+303.4f If an Aura is entering the battlefield under a player’s control by any means other than by resolving as an Aura spell, and the effect putting it onto the battlefield doesn’t specify the object or player the Aura will enchant, that player chooses what it will enchant as the Aura enters the battlefield. The player must choose a legal object or player according to the Aura’s enchant ability and any other applicable effects.
+
+303.4g If an Aura is entering the battlefield and there is no legal object or player for it to enchant, the Aura remains in its current zone, unless that zone is the stack. In that case, the Aura is put into its owner’s graveyard instead of entering the battlefield. If the Aura is a token, it isn’t created.
+
+303.4h If an effect attempts to put a permanent that isn’t an Aura, Equipment, or Fortification onto the battlefield attached to an object or player, it enters the battlefield unattached.
+
+303.4i If an effect attempts to put an Aura onto the battlefield attached to either an object or player it can’t legally enchant or an object or player that is undefined, the Aura remains in its current zone, unless that zone is the stack. In that case, the Aura is put into its owner’s graveyard instead of entering the battlefield. If the Aura is a token, it isn’t created.
+
+303.4j If an effect attempts to attach an Aura on the battlefield to an object or player it can’t legally enchant, the Aura doesn’t move.
+
+303.4k If an effect allows an Aura that’s being turned face up to become attached to an object or player, the Aura’s controller considers the characteristics of that Aura as it would exist if it were face up to determine what it may be attached to, and they must choose a legal object or player according to the Aura’s enchant ability and any other applicable effects.
+
+303.4m An ability of a permanent that refers to the “enchanted [object or player]” refers to whatever object or player that permanent is attached to, even if the permanent with the ability isn’t an Aura.
+
+303.5. Some enchantments have the subtype “Saga.” See rule 714 for more information about Saga cards.
+
+303.6. Some enchantments have the subtype “Class.” See rule 716 for more information about Class cards.
+
+303.7. Some Aura enchantments also have the subtype “Role.”
+
+303.7a If a permanent has more than one Role controlled by the same player attached to it, each of those Roles except the one with the most recent timestamp is put into its owner’s graveyard. This is a state-based action. See rule 704.
+
+304. Instants
+
+304.1. A player who has priority may cast an instant card from their hand. Casting an instant as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+304.2. When an instant spell resolves, the actions stated in its rules text are followed. Then it’s put into its owner’s graveyard.
+
+304.3. Instant subtypes are always a single word and are listed after a long dash: “Instant — Arcane.” Each word after the dash is a separate subtype. The set of instant subtypes is the same as the set of sorcery subtypes; these subtypes are called spell types. Instants may have multiple subtypes. See rule 205.3k for the complete list of spell types.
+
+304.4. Instants can’t enter the battlefield. If an instant would enter the battlefield, it remains in its previous zone instead.
+
+304.5. If text states that a player may do something “any time they could cast an instant” or “only as an instant,” it means only that the player must have priority. The player doesn’t need to have an instant card they could cast. Effects that would preclude that player from casting an instant spell don’t affect the player’s capability to perform that action (unless the action is actually casting an instant spell).
+
+305. Lands
+
+305.1. A player who has priority may play a land card from their hand during a main phase of their turn when the stack is empty. Playing a land is a special action; it doesn’t use the stack (see rule 116). Rather, the player simply puts the land onto the battlefield. Since the land doesn’t go on the stack, it is never a spell, and players can’t respond to it with instants or activated abilities.
+
+305.2. A player can normally play one land during their turn; however, continuous effects may increase this number.
+
+305.2a To determine whether a player can play a land, compare the number of lands the player can play this turn with the number of lands they have already played this turn (including lands played as special actions and lands played during the resolution of spells and abilities). If the number of lands the player can play is greater, the play is legal.
+
+305.2b A player can’t play a land, for any reason, if the number of lands the player can play this turn is equal to or less than the number of lands they have already played this turn. Ignore any part of an effect that instructs a player to do so.
+
+305.3. A player can’t play a land, for any reason, if it isn’t their turn. Ignore any part of an effect that instructs a player to do so.
+
+305.4. Effects may also allow players to “put” lands onto the battlefield. This isn’t the same as “playing a land” and doesn’t count as a land played during the current turn.
+
+305.5. Land subtypes are always a single word and are listed after a long dash. Land subtypes are also called land types. Lands may have multiple subtypes. See rule 205.3i for the complete list of land types.
+Example: “Basic Land — Mountain” means the card is a land with the subtype Mountain.
+
+305.6. The basic land types are Plains, Island, Swamp, Mountain, and Forest. If an object uses the words “basic land type,” it’s referring to one of these subtypes. An object with the land card type and a basic land type has the intrinsic ability “{T}: Add [mana symbol],” even if the text box doesn’t actually contain that text or the object has no text box. For Plains, [mana symbol] is {W}; for Islands, {U}; for Swamps, {B}; for Mountains, {R}; and for Forests, {G}. See rule 107.4a. See also rule 605, “Mana Abilities.”
+
+305.7. If an effect sets a land’s subtype to one or more of the basic land types, the land no longer has its old land type. It loses all abilities generated from its rules text, its old land types, and any copiable effects affecting that land, and it gains the appropriate mana ability for each new basic land type. Note that this doesn’t remove any abilities that were granted to the land by other effects. Setting a land’s subtype doesn’t add or remove any card types (such as creature) or supertypes (such as basic, legendary, and snow) the land may have. If a land gains one or more land types in addition to its own, it keeps its land types and rules text, and it gains the new land types and mana abilities.
+
+305.8. Any land with the supertype “basic” is a basic land. Any land that doesn’t have this supertype is a nonbasic land, even if it has a basic land type.
+
+305.9. If an object is both a land and another card type, it can be played only as a land. It can’t be cast as a spell.
+
+306. Planeswalkers
+
+306.1. A player who has priority may cast a planeswalker card from their hand during a main phase of their turn when the stack is empty. Casting a planeswalker as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+306.2. When a planeswalker spell resolves, its controller puts it onto the battlefield under their control.
+
+306.3. Planeswalker subtypes are always a single word and are listed after a long dash: “Planeswalker — Jace.” Each word after the dash is a separate subtype. Planeswalker subtypes are also called planeswalker types. Planeswalkers may have multiple subtypes. See rule 205.3j for the complete list of planeswalker types.
+
+306.4. Previously, planeswalkers were subject to a “planeswalker uniqueness rule” that stopped a player from controlling two planeswalkers of the same planeswalker type. This rule has been removed and planeswalker cards printed before this change have received errata in the Oracle card reference to have the legendary supertype. Like other legendary permanents, they are subject to the “legend rule” (see rule 704.5j).
+
+306.5. Loyalty is a characteristic only planeswalkers have.
+
+306.5a The loyalty of a planeswalker card not on the battlefield is equal to the number printed in its lower right corner.
+
+306.5b A planeswalker has the intrinsic ability “This permanent enters with a number of loyalty counters on it equal to its printed loyalty number.” This ability creates a replacement effect (see rule 614.1c).
+
+306.5c The loyalty of a planeswalker on the battlefield is equal to the number of loyalty counters on it.
+
+306.5d Each planeswalker has a number of loyalty abilities, which are activated abilities with loyalty symbols in their costs. Loyalty abilities follow special rules: A player may activate a loyalty ability of a permanent they control any time they have priority and the stack is empty during a main phase of their turn, but only if none of that permanent’s loyalty abilities have been activated that turn. See rule 606, “Loyalty Abilities.”
+
+306.6. Planeswalkers can be attacked. (See rule 508, “Declare Attackers Step.”)
+
+306.7. Previously, planeswalkers were subject to a redirection effect that allowed a player to have noncombat damage that would be dealt to an opponent be dealt to a planeswalker under that opponent’s control instead. This rule has been removed and certain cards have received errata in the Oracle card reference to deal damage directly to planeswalkers.
+
+306.8. Damage dealt to a planeswalker results in that many loyalty counters being removed from it.
+
+306.9. If a planeswalker’s loyalty is 0, it’s put into its owner’s graveyard. (This is a state-based action. See rule 704.)
+
+307. Sorceries
+
+307.1. A player who has priority may cast a sorcery card from their hand during a main phase of their turn when the stack is empty. Casting a sorcery as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+307.2. When a sorcery spell resolves, the actions stated in its rules text are followed. Then it’s put into its owner’s graveyard.
+
+307.3. Sorcery subtypes are always a single word and are listed after a long dash: “Sorcery — Arcane.” Each word after the dash is a separate subtype. The set of sorcery subtypes is the same as the set of instant subtypes; these subtypes are called spell types. Sorceries may have multiple subtypes. See rule 205.3k for the complete list of spell types.
+
+307.4. Sorceries can’t enter the battlefield. If a sorcery would enter the battlefield, it remains in its previous zone instead.
+
+307.5. If a spell, ability, or effect states that a player can do something only “any time they could cast a sorcery” or “only as a sorcery,” it means only that the player must have priority, it must be during the main phase of their turn, and the stack must be empty. The player doesn’t need to have a sorcery card they could cast. Effects that would preclude that player from casting a sorcery spell don’t affect the player’s capability to perform that action (unless the action is actually casting a sorcery spell).
+
+307.5a Similarly, if an effect checks to see if a spell was cast “any time a sorcery couldn’t have been cast,” it’s checking only whether the spell’s controller cast it without having priority, during a phase other than their main phase, or while another object was on the stack.
+
+308. Kindreds
+
+308.1. Each kindred card has another card type. Casting and resolving a kindred card follows the rules for casting and resolving a card of the other card type.
+
+308.2. Kindred subtypes are usually a single word long and are listed after a long dash: “Kindred Enchantment — Merfolk.” The set of kindred subtypes is the same as the set of creature subtypes; these subtypes are called creature types. Kindreds may have multiple subtypes. See rule 205.3m for the complete list of creature types.
+
+308.3. Some older kindred cards were printed with the “tribal” card type. Cards printed with that type have received errata in the Oracle card reference.
+
+309. Dungeons
+
+309.1. Dungeon is a card type seen only on nontraditional Magic cards.
+
+309.2. Dungeon cards begin outside the game. Dungeon cards aren’t part of a player’s deck or sideboard. They are brought into the game using the venture into the dungeon keyword action. See rule 701.49, “Venture into the Dungeon.”
+
+309.2a If a player ventures into the dungeon while they don’t own a dungeon card in the command zone, they choose a dungeon card they own from outside the game and put it into the command zone.
+
+309.2b A dungeon card that’s brought into the game is put into the command zone until it leaves the game.
+
+309.2c Dungeon cards are not permanents. They can’t be cast. Dungeon cards can’t leave the command zone except as they leave the game.
+
+309.2d If an effect other than a venture into the dungeon keyword action would bring a dungeon card into the game from outside the game, it doesn’t; that card remains outside the game.
+
+309.3. A player can own only one dungeon card in the command zone at a time, and they can’t bring a dungeon card into the game if a dungeon card they own is in the command zone.
+
+309.4. Each dungeon card has a series of rooms connected to one another with arrows. A player uses a venture marker placed on the dungeon card they own to indicate which room they are currently in.
+
+309.4a As a player puts a dungeon they own into the command zone, they put their venture marker on the topmost room.
+
+309.4b Each room has a name. These names are considered flavor text and do not affect game play.
+
+309.4c Each room has a triggered ability called a room ability whose effect is printed on the card. They all have the same trigger condition not printed on the card. The full text of each room ability is “When you move your venture marker into this room, [effect.]” As long as a dungeon card is in the command zone, its abilities may trigger. Each room ability is controlled by the player who owns the dungeon card that is that ability’s source.
+
+309.5. The venture into the dungeon keyword action allows players to move their venture marker down the rooms of a dungeon card.
+
+309.5a If a player ventures into the dungeon while they own a dungeon card in the command zone and their venture marker isn’t on that dungeon’s bottommost room, they move their venture marker from the room it is on to the next room, following the direction of an arrow pointing away from the room their venture marker is on. If there are multiple arrows pointing away from the room the player’s venture marker is on, they choose one of them to follow.
+
+309.5b If a player ventures into the dungeon while they own a dungeon card in the command zone and their venture marker is on that dungeon card’s bottommost room, they remove that dungeon card from the game. They then choose a dungeon card they own from outside the game and put it into the command zone. They put their venture marker on the topmost room.
+
+309.6. If a player’s venture marker is on the bottommost room of a dungeon card, and that dungeon card isn’t the source of a room ability that has triggered but not yet left the stack, the dungeon card’s owner removes it from the game. (This is a state-based action. See rule 704.)
+
+309.7. A player completes a dungeon as that dungeon card is removed from the game.
+
+310. Battles
+
+310.1. A player who has priority may cast a battle card from their hand during a main phase of their turn when the stack is empty. Casting a battle as a spell uses the stack. (See rule 601, “Casting Spells.”)
+
+310.2. When a battle spell resolves, its controller puts it onto the battlefield under their control.
+
+310.3. Battle subtypes are always a single word and are listed after a long dash: “Battle — Siege.” Battle subtypes are also called battle types. See rule 205.3q for the complete list of battle types.
+
+310.4. Defense is a characteristic that battles have.
+
+310.4a The defense of a battle card not on the battlefield is equal to the number printed in its lower right corner.
+
+310.4b A battle has the intrinsic ability “This permanent enters with a number of defense counters on it equal to its printed defense number.” This ability creates a replacement effect (see rule 614.1c).
+
+310.4c The defense of a battle on the battlefield is equal to the number of defense counters on it.
+
+310.5. Battles can be attacked. (See rule 508, “Declare Attackers Step.”)
+
+310.6. Damage dealt to a battle results in that many defense counters being removed from it.
+
+310.7. If a battle’s defense is 0 and it isn’t the source of an ability which has triggered but not yet left the stack, it’s put into its owner’s graveyard. (This is a state-based action. See rule 704.)
+
+310.8. Each battle has a player designated as its protector.
+
+310.8a As a battle enters the battlefield, its controller chooses a player to be its protector. Which players may be chosen as its protector are determined by its battle type (see rule 310.11). If it has no battle types, its controller becomes its protector.
+
+310.8b A battle’s protector can never attack it. A battle can be attacked by any attacking player for whom its protector is a defending player. Notably, a Siege battle can be attacked by its own controller.
+
+310.8c A battle’s protector may block creatures attacking that battle with creatures they control. Creatures controlled by other players can’t block those attackers.
+
+310.8d If a battle’s protector is a different player than its controller, all rules and effects that refer to the “defending player” relative to a battle that is being attacked refer to that battle’s protector rather than its controller. See rule 508.5.
+
+310.8e If a rule or effect refers to the player who protects a battle, it means the player who is that battle’s protector.
+
+310.8f A battle can have only one protector at a time. A battle’s protector stops being its protector if another player becomes its protector.
+
+310.8g A battle’s protector doesn’t change if it stops being a battle or it becomes a copy of another battle.
+
+310.9. A battle can’t be attached to players or permanents, even if it is also an Aura, Equipment, or Fortification. If a battle is somehow attached to a permanent, it becomes unattached. This is a state-based action (see rule 704).
+
+310.10. If a battle that isn’t being attacked has no player designated as its protector, or its protector is a player who can’t be its protector based on its battle type, its controller chooses an appropriate player to be its protector. If no player can be chosen this way, the battle is put into its owner’s graveyard. This is a state-based action (see rule 704).
+
+310.11. All currently existing battles have the subtype Siege. Sieges are subject to special rules.
+
+310.11a As a Siege enters the battlefield, its controller must choose its protector from among their opponents. Only an opponent of a Siege’s controller can be its protector.
+
+310.11b Sieges have the intrinsic ability “When the last defense counter is removed from this permanent, exile it, then you may cast it transformed without paying its mana cost.”
+
+311. Planes
+
+311.1. Plane is a card type seen only on nontraditional Magic cards. Only the Planechase casual variant uses plane cards. See rule 901, “Planechase.”
+
+311.2. Plane cards remain in the command zone throughout the game, both while they’re part of a planar deck and while they’re face up. They’re not permanents. They can’t be cast. If a plane card would leave the command zone, it remains in the command zone.
+
+311.3. Plane subtypes are listed after a long dash, and may be multiple words: “Plane — Serra’s Realm.” All words after the dash are, collectively, a single subtype. Planar subtypes are called planar types. A plane can have only one subtype. See rule 205.3n for the complete list of planar types.
+
+311.4. A plane card may have any number of static, triggered, and/or activated abilities. As long as a plane card is face up in the command zone, its static abilities affect the game, its triggered abilities may trigger, and its activated abilities may be activated.
+
+311.5. The controller of a face-up plane card is the player designated as the planar controller. Normally, the planar controller is whoever the active player is. However, if the current planar controller would leave the game, instead the next player in turn order that wouldn’t leave the game becomes the planar controller, then the old planar controller leaves the game. The new planar controller retains that designation until they leave the game or a different player becomes the active player, whichever comes first.
+
+311.6. A face-up plane card that’s turned face down becomes a new object.
+
+311.7. Each plane card has a triggered ability that triggers “Whenever chaos ensues.” These are called chaos abilities. Each one is indicated by a chaos symbol to the left of the ability, though the symbol itself has no special rules meaning. This ability triggers if the chaos symbol is rolled on the planar die (see rule 901.9b), if a resolving spell or ability says that chaos ensues, or if a resolving spell or ability states that chaos ensues for a particular object. In the last case, the chaos ability can trigger even if that plane card is still in the planar deck but revealed. A chaos ability is controlled by the current planar controller.
+
+312. Phenomena
+
+312.1. Phenomenon is a card type seen only on nontraditional Magic cards. Only the Planechase casual variant uses phenomenon cards. See rule 901, “Planechase.”
+
+312.2. Phenomenon cards remain in the command zone throughout the game, both while they’re part of a planar deck and while they’re face up. They’re not permanents. They can’t be cast. If a phenomenon card would leave the command zone, it remains in the command zone.
+
+312.3. Phenomenon cards have no subtypes.
+
+312.4. The controller of a face-up phenomenon card is the player designated as the planar controller. Normally, the planar controller is whoever the active player is. However, if the current planar controller would leave the game, instead the next player in turn order that wouldn’t leave the game becomes the planar controller, then the old planar controller leaves the game. The new planar controller retains that designation until they leave the game or a different player becomes the active player, whichever comes first.
+
+312.5. Each phenomenon card has a triggered ability that triggers when you encounter it. “When you encounter [this phenomenon]” means “When you move this card off a planar deck and turn it face up.”
+
+312.6. A face-up phenomenon card that’s turned face down becomes a new object.
+
+312.7. If a phenomenon card is face up in the command zone, and it isn’t the source of a triggered ability that has triggered but not yet left the stack, the planar controller planeswalks the next time a player would receive priority. (This is a state-based action; see rule 704. See also rule 701.31, “Planeswalk.”)
+
+313. Vanguards
+
+313.1. Vanguard is a card type seen only on nontraditional Magic cards. Only the Vanguard casual variant uses vanguard cards. See rule 902, “Vanguard.”
+
+313.2. Vanguard cards remain in the command zone throughout the game. They’re not permanents. They can’t be cast. If a vanguard card would leave the command zone, it remains in the command zone.
+
+313.3. Vanguard cards have no subtypes.
+
+313.4. A vanguard card may have any number of static, triggered, and/or activated abilities. As long as a vanguard card is in the command zone, its static abilities affect the game, its triggered abilities may trigger, and its activated abilities may be activated.
+
+313.5. The owner of a vanguard card is the player who started the game with it in the command zone. The controller of a face-up vanguard card is its owner.
+
+313.6. Each vanguard card has a hand modifier printed in its lower left corner. This is a number preceded by a plus sign, a number preceded by a minus sign, or a zero. This modifier is applied to the starting hand size and maximum hand size of the vanguard card’s owner (normally seven). The resulting number is both how many cards that player draws at the beginning of the game and their maximum hand size. See rule 103.5.
+
+313.7. Each vanguard card has a life modifier printed in its lower right corner. This is a number preceded by a plus sign, a number preceded by a minus sign, or a zero. This modifier is applied as the starting life total of the vanguard card’s owner (normally 20) to is determined. See rule 103.4.
+
+314. Schemes
+
+314.1. Scheme is a card type seen only on nontraditional Magic cards. Only the Archenemy casual variant uses scheme cards. See rule 904, “Archenemy.”
+
+314.2. Scheme cards remain in the command zone throughout the game, both while they’re part of a scheme deck and while they’re face up. They’re not permanents. They can’t be cast. If a scheme card would leave the command zone, it remains in the command zone.
+
+314.3. Scheme cards have no subtypes.
+
+314.4. A scheme card may have any number of static, triggered, and/or activated abilities. As long as a scheme card is face up in the command zone, its static abilities affect the game, its triggered abilities may trigger, and its activated abilities may be activated.
+
+314.5. The owner of a scheme card is the player who started the game with it in the command zone. The controller of a face-up scheme card is its owner.
+
+314.6. If a non-ongoing scheme card is face up in the command zone, and no triggered abilities of any scheme are on the stack or waiting to be put on the stack, that scheme card is turned face down and put on the bottom of its owner’s scheme deck the next time a player would receive priority. (This is a state-based action. See rule 704.)
+
+314.7. If an ability of a scheme card includes the text “this scheme,” it means the scheme card in the command zone that’s the source of that ability. This is an exception to rule 109.2.
+
+315. Conspiracies
+
+315.1. Conspiracy cards are used only in limited play, particularly in the Conspiracy Draft variant (see rule 905). Conspiracy cards aren’t used in constructed play.
+
+315.2. At the start of a game, before decks are shuffled, each player may put any number of conspiracy cards from their sideboard into the command zone. Conspiracy cards with hidden agenda are put into the command zone face down. (See rule 702.106, “Hidden Agenda.”)
+
+315.3. Conspiracy cards remain in the command zone throughout the game. They’re not permanents. They can’t be cast or included in a deck. If a conspiracy card would leave the command zone, it remains in the command zone. Conspiracy cards that aren’t in the game can’t be brought into the game.
+
+315.4. Conspiracy cards have no subtypes.
+
+315.5. Conspiracy cards may have any number of static or triggered abilities. As long as a conspiracy card is face up in the command zone, its static abilities affect the game, and its triggered abilities may trigger.
+
+315.5a Abilities of conspiracy cards may affect the start-of-game procedure.
+
+315.5b Face-down conspiracy cards have no characteristics.
+
+315.6. The owner of a conspiracy card is the player who put it into the command zone at the start of the game. The controller of a conspiracy card is its owner.
+
+315.7. At any time, you may look at a face-down conspiracy card you control. You can’t look at face-down conspiracy cards controlled by other players.

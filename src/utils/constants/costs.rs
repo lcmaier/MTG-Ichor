@@ -10,7 +10,7 @@ pub enum Cost {
 
 // Mana costs
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub struct ManaCost {
     pub white: u8,
     pub blue: u8,

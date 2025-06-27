@@ -36,8 +36,7 @@ impl Cost {
                 }
                 let obj_id = permanent_id.unwrap();
                 // Next, find the permanent
-                let permanent = game.battlefield.iter()
-                    .find(|obj| obj.id == obj_id)
+                let permanent = game.battlefield.get(&obj_id)
                     .ok_or_else(|| format!("Permanent with ID {} not found on the battlefield", obj_id))?;
 
                 // return true only if the permanent is untapped
@@ -91,8 +90,7 @@ impl Cost {
                 }
                 let obj_id = permanent_id.unwrap();
                 // Next, locate the permanent on the battlefield
-                let mut_permanent = game.battlefield.iter_mut()
-                    .find(|obj| obj.id == obj_id)
+                let mut_permanent = game.battlefield.get_mut(&obj_id)
                     .ok_or_else(|| format!("Permanent with ID {} not found on the battlefield", obj_id))?;
 
                 // pay the cost by tapping down the permanent
@@ -129,7 +127,7 @@ impl Cost {
 
 
                     // Repeat for the colors in WUBRG order...
-                    let white_left = mana_left.get(&ManaType::White).unwrap();
+                    let white_left = mana_left.get(&ManaType::White).unwrap_or(&0);
                     if white_left >= &generic_remaining {
                         player.mana_pool.remove_mana(ManaType::White, generic_remaining as u64)?;
                         return Ok(())
@@ -137,7 +135,7 @@ impl Cost {
                     generic_remaining -= white_left;
                     player.mana_pool.remove_mana(ManaType::White, *white_left)?;
 
-                    let blue_left = mana_left.get(&ManaType::Blue).unwrap();
+                    let blue_left = mana_left.get(&ManaType::Blue).unwrap_or(&0);
                     if blue_left >= &generic_remaining {
                         player.mana_pool.remove_mana(ManaType::Blue, generic_remaining as u64)?;
                         return Ok(())
@@ -145,7 +143,7 @@ impl Cost {
                     generic_remaining -= blue_left;
                     player.mana_pool.remove_mana(ManaType::Blue, *blue_left)?;
                     
-                    let black_left = mana_left.get(&ManaType::Black).unwrap();
+                    let black_left = mana_left.get(&ManaType::Black).unwrap_or(&0);
                     if black_left >= &generic_remaining {
                         player.mana_pool.remove_mana(ManaType::Black, generic_remaining as u64)?;
                         return Ok(())
@@ -153,7 +151,7 @@ impl Cost {
                     generic_remaining -= black_left;
                     player.mana_pool.remove_mana(ManaType::Black, *black_left)?;
 
-                    let red_left = mana_left.get(&ManaType::Red).unwrap();
+                    let red_left = mana_left.get(&ManaType::Red).unwrap_or(&0);
                     if red_left >= &generic_remaining {
                         player.mana_pool.remove_mana(ManaType::Red, generic_remaining as u64)?;
                         return Ok(())
@@ -161,7 +159,7 @@ impl Cost {
                     generic_remaining -= red_left;
                     player.mana_pool.remove_mana(ManaType::Red, *red_left)?;
 
-                    let green_left = mana_left.get(&ManaType::Green).unwrap();
+                    let green_left = mana_left.get(&ManaType::Green).unwrap_or(&0);
                     if green_left >= &generic_remaining {
                         player.mana_pool.remove_mana(ManaType::Green, generic_remaining as u64)?;
                         return Ok(())

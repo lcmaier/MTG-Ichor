@@ -1,15 +1,16 @@
+use std::collections::HashMap;
+
+// src/game/gamestate/core.rs
 use crate::game::player::Player;
 use crate::game::turn_structure::phase::{self, next_phase_type};
 use crate::game::turn_structure::{phase::Phase, step::Step};
 use crate::utils::constants::abilities::AbilityType;
-use crate::utils::constants::combat::{AttackingCreature, BlockingCreature};
+use crate::utils::constants::combat::{AttackDeclaration, BlockDeclaration, CombatDamageAssignment};
 use crate::utils::constants::effect_context::EffectContext;
 use crate::utils::constants::events::{EventHandler, GameEvent};
-use crate::utils::constants::game_objects::{BattlefieldState, CommandState, ExileState, GameObj, StackObjectType, StackState};
-use crate::utils::constants::turns::PhaseType;
-use crate::utils::constants::zones::Zone;
+use crate::utils::constants::game_objects::{AttackingState, BattlefieldState, BlockingState, CommandState, ExileState, GameObj, StackObjectType, StackState};
 use crate::utils::constants::id_types::{ObjectId, PlayerId};
-use crate::utils::constants::card_types::CardType;
+use crate::utils::constants::turns::PhaseType;
 
 #[derive(Debug, Clone)]
 pub struct Game {
@@ -20,13 +21,18 @@ pub struct Game {
     pub phase: Phase,
     // global zones (Player zones hand, library, graveyard are within Player struct)
     pub stack: Vec<GameObj<StackState>>, // stack of objects (spells, abilities, etc.)
-    pub battlefield: Vec<GameObj<BattlefieldState>>, // battlefield objects (creatures, enchantments, tokens, etc.)
+    pub battlefield: HashMap<ObjectId, GameObj<BattlefieldState>>, // battlefield objects (creatures, enchantments, tokens, etc.)
     pub exile: Vec<GameObj<ExileState>>,
     pub command_zone: Vec<GameObj<CommandState>>,
 
     // Combat tracking
-    pub attacking_creatures: Vec<AttackingCreature>, // creatures attacking this turn
-    pub blocking_creatures: Vec<BlockingCreature>, // creatures blocking this turn
+    pub attacks_declared: bool, // whether attacks have been declared this combat
+    pub blockers_declared: bool, // whether blockers have been declared this combat
+
+    // API-based combat declarations (optional, used instead of default CLI UI if present)
+    pub pending_attack_declarations: Option<Vec<AttackDeclaration>>,
+    pub pending_block_declarations: Option<Vec<BlockDeclaration>>,
+    pub pending_damage_assignments: Option<Vec<CombatDamageAssignment>>,
 
     // Context tracking for effects
     pub effect_context: EffectContext,
@@ -42,13 +48,32 @@ impl Game {
             turn_number: 0,
             phase: Phase::new(PhaseType::Beginning),
             stack: Vec::new(),
-            battlefield: Vec::new(),
+            battlefield: HashMap::new(),
             exile: Vec::new(),
             command_zone: Vec::new(),
-            attacking_creatures: Vec::new(),
-            blocking_creatures: Vec::new(),
+            attacks_declared: false,
+            blockers_declared: false,
+            pending_attack_declarations: None,
+            pending_block_declarations: None,
+            pending_damage_assignments: None,
             effect_context: EffectContext::new(),
         }
+    }
+
+    /// Check state-based actions whenever a player would get priority
+    /// This should be called after any game action that could trigger SBAs
+    pub fn check_state_based_actions_if_needed(&mut self) -> Result<(), String> {
+        self.handle_event(&GameEvent::CheckStateBasedActions)
+    }
+    
+    /// Give priority to a player, checking SBAs first
+    pub fn give_priority(&mut self, player_id: PlayerId) -> Result<(), String> {
+        // First check state-based actions
+        self.check_state_based_actions_if_needed()?;
+        
+        // Then set priority
+        self.priority_player_id = player_id;
+        Ok(())
     }
 
     // Advance the gamestate to the next phase or step
@@ -126,27 +151,60 @@ impl Game {
         let top_object = self.stack.pop().unwrap();
         // Need to clone the value here so we can pass the spell/ability's controller to the resolution function
         let controller_id = top_object.state.controller;
+        let owner_id = top_object.owner;
 
         // Process the object based on its stack_object type
         match top_object.state.stack_object_type {
             StackObjectType::Spell => {
-                // Process a regular spell (a card that has been cast)
-
-                // Process all spell abilities of this spell
-                if let Some(abilities) = &top_object.characteristics.abilities {
-                    for ability in abilities {
-                        if ability.ability_type == AbilityType::Spell {
-                            // process this spell ability's effect(s)
-                            self.process_effect(&ability.effect_details, &top_object.state.targets, controller_id, Some(top_object.id))?;
+                // Evaluate based on permanent vs nonpermanent (as this determines what zone the object will go to next)
+                if let Some(card_types) = &top_object.characteristics.card_type {
+                    let is_permanent = card_types.iter().any(|t| t.is_permanent());
+                    if is_permanent {
+                        // Resolve as permanent
+                        match top_object.resolve_as_permanent(controller_id) {
+                            Ok(permanent) => {
+                                println!("Resolving spell as permanent: {:?}", permanent);
+                                self.battlefield.insert(permanent.id, permanent);
+                            },
+                            Err(e) => return Err(format!("Error resolving spell as permanent: {}", e)),
+                        }
+                    } else {
+                        // Resolve as nonpermanent (goes to graveyard)
+                        println!("Resolving spell as nonpermanent: {:?}", top_object);
+                        // Process spell effects of this spell
+                        if let Some(abilities) = &top_object.characteristics.abilities {
+                            for ability in abilities {
+                                if ability.ability_type == AbilityType::Spell {
+                                    // process this spell ability's effect(s)
+                                    self.process_effect(&ability.effect_details, &top_object.state.targets, controller_id, Some(top_object.id))?;
+                                }
+                            }
+                        }
+                        // Move nonpermanent to graveyard
+                        match top_object.resolve_as_nonpermanent() {
+                            Ok(graveyard_obj) => {
+                                // spell resolves to its owner's graveyard
+                                let owner = self.get_player_mut(owner_id)?;
+                                owner.graveyard.push(graveyard_obj);
+                            },
+                            Err(e) => return Err(format!("Error resolving spell as nonpermanent: {}", e)),
                         }
                     }
+                } else {
+                    return Err("Spell without card types cannot be resolved".to_string())
                 }
-                Ok(())
             },
             _ => todo!()
         }
+        // check state based actions after resolving the top of stack
+        self.check_state_based_actions_if_needed()?;
+        Ok(())
+        
     }
 }
+
+
+
 
 impl EventHandler for Game {
     fn handle_event(&mut self, event: &GameEvent) -> Result<(), String> {
@@ -173,12 +231,10 @@ impl EventHandler for Game {
                 self.handle_check_state_based_actions()
             },
             GameEvent::CreatureZeroToughness { creature_id } => {
-                // Implementation would be in a separate method
-                Ok(()) // Placeholder for now
+                self.handle_creature_zero_toughness(*creature_id)
             },
             GameEvent::PermanentDestroyed { permanent_id, reason } => {
-                // Implementation would be in a separate method
-                Ok(()) // Placeholder for now
+                self.handle_permanent_destroyed(*permanent_id, reason.clone())
             },
             GameEvent::PermanentSacrificed { permanent_id } => {
                 // Implementation would be in a separate method

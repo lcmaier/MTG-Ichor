@@ -114,7 +114,7 @@ fn main() {
             if game.battlefield.is_empty() {
                 println!("(Empty)");
             } else {
-                for (i, card) in game.battlefield.iter().enumerate() {
+                for (i, card) in game.battlefield.values().enumerate() {
                     if let Some(name) = &card.characteristics.name {
                         if let Some(rules_text) = &card.characteristics.rules_text {
                             println!("{}: {} - {} (Owner: {})", i + 1, name, rules_text, card.owner);
@@ -197,7 +197,7 @@ fn main() {
                 "2" => {
                     // Find all untapped lands on the battlefield that the player controls 
                     // (this isn't the most robust it could be, since things that aren't lands can have mana abilities, but it wil work for the alpha)
-                    let untapped_lands: Vec<(usize, &GameObj<BattlefieldState>)> = game.battlefield.iter()
+                    let untapped_lands: Vec<(usize, &GameObj<BattlefieldState>)> = game.battlefield.values()
                         .enumerate()
                         .filter(|(_, card)| {
                             card.has_card_type(&CardType::Land) &&
@@ -300,7 +300,7 @@ fn main() {
                 "2" => {
                     // Find all untapped lands on the battlefield that the player controls 
                     // (this isn't the most robust it could be, since things that aren't lands can have mana abilities, but it wil work for the alpha)
-                    let untapped_lands: Vec<(usize, &GameObj<BattlefieldState>)> = game.battlefield.iter()
+                    let untapped_lands: Vec<(usize, &GameObj<BattlefieldState>)> = game.battlefield.values()
                         .enumerate()
                         .filter(|(_, card)| {
                             card.has_card_type(&CardType::Land) &&
