@@ -73,3 +73,126 @@ impl ManaPool {
         self.mana.clear();
     }
 }
+
+
+// UNIT TESTS
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_mana_pool_creation() {
+        let pool = ManaPool::new();
+        assert_eq!(pool.get_generic_mana(), 0);
+        assert!(pool.get_available_mana().is_empty());
+    }
+    
+    #[test]
+    fn test_add_mana() {
+        let mut pool = ManaPool::new();
+        
+        pool.add_mana(ManaType::Red, 3);
+        pool.add_mana(ManaType::Blue, 2);
+        pool.add_mana(ManaType::Red, 1); // Add more red
+        
+        assert_eq!(pool.get_available_mana().get(&ManaType::Red), Some(&4));
+        assert_eq!(pool.get_available_mana().get(&ManaType::Blue), Some(&2));
+        assert_eq!(pool.get_generic_mana(), 6);
+    }
+    
+    #[test]
+    fn test_remove_mana_success() {
+        let mut pool = ManaPool::new();
+        pool.add_mana(ManaType::Green, 5);
+        
+        let result = pool.remove_mana(ManaType::Green, 3);
+        assert!(result.is_ok());
+        assert_eq!(pool.get_available_mana().get(&ManaType::Green), Some(&2));
+    }
+    
+    #[test]
+    fn test_remove_mana_exact_amount() {
+        let mut pool = ManaPool::new();
+        pool.add_mana(ManaType::White, 2);
+        
+        let result = pool.remove_mana(ManaType::White, 2);
+        assert!(result.is_ok());
+        assert_eq!(pool.get_available_mana().get(&ManaType::White), Some(&0));
+    }
+    
+    #[test]
+    fn test_remove_mana_insufficient() {
+        let mut pool = ManaPool::new();
+        pool.add_mana(ManaType::Black, 2);
+        
+        let result = pool.remove_mana(ManaType::Black, 3);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Not enough Black mana in the pool");
+        assert_eq!(pool.get_available_mana().get(&ManaType::Black), Some(&2)); // Unchanged
+    }
+    
+    #[test]
+    fn test_remove_mana_not_present() {
+        let mut pool = ManaPool::new();
+        
+        let result = pool.remove_mana(ManaType::Colorless, 1);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "No Colorless mana in the pool");
+    }
+    
+    #[test]
+    fn test_remove_zero_mana() {
+        let mut pool = ManaPool::new();
+        
+        // Should succeed even with no mana
+        let result = pool.remove_mana(ManaType::Red, 0);
+        assert!(result.is_ok());
+    }
+    
+    #[test]
+    fn test_has_mana() {
+        let mut pool = ManaPool::new();
+        pool.add_mana(ManaType::Red, 3);
+        
+        assert!(pool.has_mana(ManaType::Red, 0)); // Always have 0
+        assert!(pool.has_mana(ManaType::Red, 1));
+        assert!(pool.has_mana(ManaType::Red, 3));
+        assert!(!pool.has_mana(ManaType::Red, 4));
+        assert!(!pool.has_mana(ManaType::Blue, 1)); // Don't have blue
+    }
+    
+    #[test]
+    fn test_empty_mana_pool() {
+        let mut pool = ManaPool::new();
+        pool.add_mana(ManaType::Red, 3);
+        pool.add_mana(ManaType::Blue, 2);
+        pool.add_mana(ManaType::Green, 1);
+        
+        assert_eq!(pool.get_generic_mana(), 6);
+        
+        pool.empty();
+        
+        assert_eq!(pool.get_generic_mana(), 0);
+        assert!(pool.get_available_mana().is_empty());
+        assert!(!pool.has_mana(ManaType::Red, 1));
+    }
+    
+    #[test]
+    fn test_all_mana_types() {
+        let mut pool = ManaPool::new();
+        
+        // Test all mana types
+        pool.add_mana(ManaType::White, 1);
+        pool.add_mana(ManaType::Blue, 1);
+        pool.add_mana(ManaType::Black, 1);
+        pool.add_mana(ManaType::Red, 1);
+        pool.add_mana(ManaType::Green, 1);
+        pool.add_mana(ManaType::Colorless, 2);
+        
+        assert_eq!(pool.get_generic_mana(), 7);
+        
+        let available = pool.get_available_mana();
+        assert_eq!(available.len(), 6);
+        assert_eq!(available.get(&ManaType::Colorless), Some(&2));
+    }
+}

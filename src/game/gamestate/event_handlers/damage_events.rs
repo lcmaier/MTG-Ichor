@@ -6,8 +6,13 @@ impl Game {
     // Handle damage about to be dealt (for replacement effects)
     pub fn handle_damage_about_to_be_dealt(&mut self, source_id: ObjectId, target_ref: &TargetRef, amount: u64) -> Result<(), String> {
         // This is where damage replacement effects would be processed
-        // For the alpha version, we can just pass these through without any changes
-        return self.handle_damage_dealt(source_id, target_ref, amount)
+        // For the alpha version, we do nothing here
+        // In the future, this would modify a pending damage event in a damage queue
+        // or apply replacement effects that modify the amount
+        
+        // For now, just return Ok without doing anything
+        // The actual damage will be dealt by the DamageDealt event
+        Ok(())
     }
 
     // Handle damage being dealt

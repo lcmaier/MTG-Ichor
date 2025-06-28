@@ -15,7 +15,7 @@ pub struct Deck {
     pub deck_format: DeckFormat,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DeckFormat {
     Constructed,
     Limited,

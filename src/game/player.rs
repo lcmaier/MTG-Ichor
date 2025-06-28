@@ -123,3 +123,144 @@ impl Player {
         self.max_lands_this_turn += amount;
     }
 }
+
+
+// UNIT TESTS
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{cards::basic_lands::{create_basic_land, BasicLand}, utils::mana::ManaType};
+
+    #[test]
+    fn test_player_creation() {
+        let player = Player::new(0, 20, 7, 1);
+
+        assert_eq!(player.id, 0);
+        assert_eq!(player.life_total, 20);
+        assert_eq!(player.max_hand_size, 7);
+        assert_eq!(player.max_lands_this_turn, 1);
+        assert_eq!(player.lands_played_this_turn, 0);
+        assert!(player.hand.is_empty());
+        assert!(player.library.is_empty());
+        assert!(player.graveyard.is_empty());
+    }
+
+    #[test]
+    fn test_set_library() {
+        let mut player = Player::new(0, 20, 7, 1);
+        let mut cards = Vec::new();
+        
+        // Create 5 test cards
+        for _ in 0..5 {
+            cards.push(create_basic_land(BasicLand::Forest, player.id));
+        }
+        
+        player.set_library(cards.clone());
+        assert_eq!(player.library.len(), 5);
+    }
+
+    #[test]
+    fn test_draw_card_success() {
+        let mut player = Player::new(0, 20, 7, 1);
+        let mut cards = Vec::new();
+        
+        // Create test deck
+        for _ in 0..3 {
+            cards.push(create_basic_land(BasicLand::Mountain, player.id));
+        }
+        
+        player.set_library(cards);
+        assert_eq!(player.library.len(), 3);
+        assert_eq!(player.hand.len(), 0);
+        
+        // Draw a card
+        let result = player.draw_card();
+        assert!(result.is_ok());
+        assert_eq!(player.library.len(), 2);
+        assert_eq!(player.hand.len(), 1);
+    }
+
+    #[test]
+    fn test_draw_card_empty_library() {
+        let mut player = Player::new(0, 20, 7, 1);
+        
+        // Try to draw from empty library
+        let result = player.draw_card();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Library is empty");
+    }
+
+    #[test]
+    fn test_draw_n_cards() {
+        let mut player = Player::new(0, 20, 7, 1);
+        let mut cards = Vec::new();
+        
+        // Create test deck with 10 cards
+        for _ in 0..10 {
+            cards.push(create_basic_land(BasicLand::Forest, player.id));
+        }
+        
+        player.set_library(cards);
+        
+        // Draw 7 cards
+        let result = player.draw_n_cards(7);
+        assert!(result.is_ok());
+        assert_eq!(player.library.len(), 3);
+        assert_eq!(player.hand.len(), 7);
+    }
+
+    #[test]
+    fn test_draw_n_cards_not_enough() {
+        let mut player = Player::new(0, 20, 7, 1);
+        let mut cards = Vec::new();
+        
+        // Create test deck with only 3 cards
+        for _ in 0..3 {
+            cards.push(create_basic_land(BasicLand::Mountain, player.id));
+        }
+        
+        player.set_library(cards);
+        
+        // Try to draw 5 cards
+        let result = player.draw_n_cards(5);
+        assert!(result.is_err());
+        assert_eq!(player.hand.len(), 3); // Should have drawn 3 cards before failing
+        assert_eq!(player.library.len(), 0);
+    }
+
+    #[test]
+    fn test_land_play_tracking() {
+        let mut player = Player::new(0, 20, 7, 1);
+        
+        assert_eq!(player.lands_played_this_turn, 0);
+        assert_eq!(player.max_lands_this_turn, 1);
+        
+        // Simulate playing a land
+        player.lands_played_this_turn += 1;
+        assert_eq!(player.lands_played_this_turn, 1);
+    }
+    
+    #[test]
+    fn test_mana_pool_operations() {
+        let mut player = Player::new(0, 20, 7, 1);
+        
+        // Test adding mana
+        player.mana_pool.add_mana(ManaType::Red, 3);
+        assert!(player.mana_pool.has_mana(ManaType::Red, 3));
+        assert!(!player.mana_pool.has_mana(ManaType::Red, 4));
+        
+        // Test removing mana
+        let result = player.mana_pool.remove_mana(ManaType::Red, 2);
+        assert!(result.is_ok());
+        assert!(player.mana_pool.has_mana(ManaType::Red, 1));
+        assert!(!player.mana_pool.has_mana(ManaType::Red, 2));
+        
+        // Test removing too much mana
+        let result = player.mana_pool.remove_mana(ManaType::Red, 2);
+        assert!(result.is_err());
+        
+        // Test emptying mana pool
+        player.mana_pool.empty();
+        assert!(!player.mana_pool.has_mana(ManaType::Red, 1));
+    }
+}

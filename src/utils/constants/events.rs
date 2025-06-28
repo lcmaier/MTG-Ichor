@@ -83,4 +83,10 @@ pub enum GameEvent {
     PermanentSacrificed {
         permanent_id: ObjectId,
     },
+
+    PermanentEntersBattlefield { permanent_id: ObjectId },
+    PermanentLeavesBattlefield { permanent_id: ObjectId },
+    CreatureDies { creature_id: ObjectId },
+    SpellCast { spell_id: ObjectId, caster_id: PlayerId },
+    EndOfTurn { player_id: PlayerId },
 }

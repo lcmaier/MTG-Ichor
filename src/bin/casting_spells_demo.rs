@@ -62,11 +62,13 @@ fn handle_cast_spell(game: &mut Game, player_id: PlayerId) -> Result<(), String>
 // Step 1: Propose the spell (601.2a)
 fn propose_spell(game: &Game, player_id: PlayerId) -> Result<Uuid, String> {
     let player = game.get_player_ref(player_id)?;
+    // get cards castable from hand
     let spell_cards: Vec<(usize, &GameObj<HandState>)> = player.hand.iter()
         .enumerate()
         .filter(|(_, card)| !card.has_card_type(&CardType::Land))
         .collect();
 
+    // TODO: get cards castable from other zones (e.g. graveyard, exile) if applicable
     if spell_cards.is_empty() {
         return Err("No spells in hand to cast.".to_string());
     }

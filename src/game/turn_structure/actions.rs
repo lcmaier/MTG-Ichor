@@ -68,6 +68,17 @@ impl Game {
         let active_player = self.get_player_mut(self.active_player_id)?;
         active_player.reset_lands_played();
 
+        // This isn't in rule 502 but rule 302.6 explains summoning sickness--so we update that state in all creatures currently under the active player's control
+        for permanent in self.battlefield.values_mut() {
+            if permanent.state.controller == self.active_player_id {
+                if let Some(creature) = &mut permanent.state.creature {
+                    if creature.summoning_sick {
+                        creature.summoning_sick = false;
+                    }
+                }
+            }
+        }
+
         // No player gets priority during untap step
         println!("Untap step completed.");
         Ok(())

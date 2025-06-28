@@ -45,7 +45,7 @@ impl Game {
             players: Vec::new(),
             active_player_id: 0,
             priority_player_id: 0,
-            turn_number: 0,
+            turn_number: 1,
             phase: Phase::new(PhaseType::Beginning),
             stack: Vec::new(),
             battlefield: HashMap::new(),
@@ -236,10 +236,143 @@ impl EventHandler for Game {
             GameEvent::PermanentDestroyed { permanent_id, reason } => {
                 self.handle_permanent_destroyed(*permanent_id, reason.clone())
             },
-            GameEvent::PermanentSacrificed { permanent_id } => {
-                // Implementation would be in a separate method
-                Ok(()) // Placeholder for now
-            },
+            _ => Err(format!("Unhandled game event: {:?}", event)),
         }
+    }
+}
+
+
+// UNIT TESTS
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{cards::basic_lands::{create_basic_land, BasicLand}, utils::constants::turns::StepType};
+    
+    #[test]
+    fn test_game_creation() {
+        let game = Game::new();
+        
+        assert_eq!(game.active_player_id, 0);
+        assert_eq!(game.priority_player_id, 0);
+        assert_eq!(game.turn_number, 1);
+        assert_eq!(game.phase.phase_type, PhaseType::Beginning);
+        assert!(game.players.is_empty());
+        assert!(game.stack.is_empty());
+        assert!(game.battlefield.is_empty());
+    }
+    
+    #[test]
+    fn test_add_players() {
+        let mut game = Game::new();
+        
+        let player1 = Player::new(0, 20, 7, 1);
+        let player2 = Player::new(1, 20, 7, 1);
+        
+        game.players.push(player1);
+        game.players.push(player2);
+        
+        assert_eq!(game.players.len(), 2);
+        assert_eq!(game.players[0].id, 0);
+        assert_eq!(game.players[1].id, 1);
+    }
+    
+    #[test]
+    fn test_get_player_ref() {
+        let mut game = Game::new();
+        game.players.push(Player::new(0, 20, 7, 1));
+        game.players.push(Player::new(1, 20, 7, 1));
+        
+        let player = game.get_player_ref(0);
+        assert!(player.is_ok());
+        assert_eq!(player.unwrap().id, 0);
+        
+        let invalid_player = game.get_player_ref(2);
+        assert!(invalid_player.is_err());
+    }
+    
+    #[test]
+    fn test_get_player_mut() {
+        let mut game = Game::new();
+        game.players.push(Player::new(0, 20, 7, 1));
+        
+        {
+            let player = game.get_player_mut(0).unwrap();
+            player.life_total = 15;
+        }
+        
+        assert_eq!(game.players[0].life_total, 15);
+    }
+    
+    #[test]
+    fn test_advance_to_next_phase() {
+        let mut game = Game::new();
+        game.players.push(Player::new(0, 20, 7, 1));
+        game.players.push(Player::new(1, 20, 7, 1));
+
+        // Both players need a card in library to prevent deckout in draw phase
+        for player in &mut game.players {
+            let mut library = Vec::new();
+            library.push(create_basic_land(BasicLand::Forest, player.id));
+            player.set_library(library);
+        }
+        
+        assert_eq!(game.phase.phase_type, PhaseType::Beginning);
+        // 3 steps in Beginning phase: Untap, Upkeep, Draw
+        for _ in 0..3 {
+            game.advance_turn().unwrap();
+            // print current phase and step for debugging
+            println!("Phase: {:?}, Step: {:?}", game.phase.phase_type, game.phase.current_step);
+        }
+        assert_eq!(game.phase.phase_type, PhaseType::Precombat);
+        // No steps in Precombat phase, so it should advance to Combat
+        game.advance_turn().unwrap();
+        assert_eq!(game.phase.phase_type, PhaseType::Combat);
+        // 6 steps in Combat phase: BeginCombat, DeclareAttackers, DeclareBlockers, FirstStrikeDamage, CombatDamage, EndCombat
+        for _ in 0..6 {
+            game.advance_turn().unwrap();
+            // print current phase and step for debugging
+            println!("Phase: {:?}, Step: {:?}", game.phase.phase_type, game.phase.current_step);
+        }
+
+        assert_eq!(game.phase.phase_type, PhaseType::Postcombat);
+        // No steps in Postcombat phase, so it should advance to Ending
+        game.advance_turn().unwrap();
+        assert_eq!(game.phase.phase_type, PhaseType::Ending);
+    }
+    
+    #[test]
+    fn test_turn_cycle() {
+        let mut game = Game::new();
+        game.players.push(Player::new(0, 20, 7, 1));
+        game.players.push(Player::new(1, 20, 7, 1));
+
+        // Both players need a card in library to prevent deckout in draw phase
+        for player in &mut game.players {
+            let mut library = Vec::new();
+            library.push(create_basic_land(BasicLand::Forest, player.id));
+            player.set_library(library);
+        }
+        
+        // Complete a full turn cycle
+        for _ in 0..13 { // 5 phases in a turn, 13 total steps (3 in beginning, 6 in combat, 2 main phases, and 2 ending)
+            game.advance_turn().unwrap();
+            // print current phase and step for debugging
+            println!("Phase: {:?}, Step: {:?}", game.phase.phase_type, game.phase.current_step);
+        }
+        
+        // Should now be player 2's turn
+        assert_eq!(game.turn_number, 2);
+        assert_eq!(game.active_player_id, 1);
+        assert_eq!(game.phase.phase_type, PhaseType::Beginning);
+
+        // Do it again and ensure it cycles correctly
+        for _ in 0..13 {
+            game.advance_turn().unwrap();
+        }
+        
+        // Should now be player 1's turn again
+        assert_eq!(game.turn_number, 3);
+        assert_eq!(game.active_player_id, 0);
+        assert_eq!(game.phase.phase_type, PhaseType::Beginning);
     }
 }
