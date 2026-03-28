@@ -1,0 +1,5 @@
+# Rust build artifacts
+mtgsim/target/
+
+# Local reference materials
+MTG-Rules/

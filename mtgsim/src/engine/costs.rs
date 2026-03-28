@@ -1,0 +1,176 @@
+use std::collections::HashMap;
+
+use crate::objects::card_data::Cost;
+use crate::state::game_state::GameState;
+use crate::types::card_types::CardType;
+use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::mana::ManaType;
+
+/// Shared cost payment logic.
+///
+/// All spells and ability types (mana, activated, spell casting) that need to pay costs
+/// funnel through this module. This avoids duplicating the cost payment
+/// pattern across mana_abilities.rs, activated.rs, etc.
+///
+/// **Generic mana allocation:** When a cost includes a generic mana component,
+/// the caller must provide a `generic_allocation` map specifying which mana
+/// types to spend. This is a player decision (routed through `DecisionProvider`
+/// in the calling code). See `ManaPool::pay()` for details.
+
+impl GameState {
+    /// Pay a list of costs for a spell or permanent's ability.
+    ///
+    /// `generic_allocation` specifies how to pay any generic mana components.
+    /// For costs with no generic mana (most ability costs), pass an empty map.
+    ///
+    /// Validates and pays each cost in order. If any cost can't be paid,
+    /// returns an error (costs already paid are NOT rolled back — the caller
+    /// should validate with `can_pay_costs` first if rollback-safety is needed).
+    pub fn pay_costs(
+        &mut self,
+        costs: &[Cost],
+        player_id: PlayerId,
+        source_id: ObjectId,
+        generic_allocation: &HashMap<ManaType, u64>,
+    ) -> Result<(), String> {
+        for cost in costs {
+            self.pay_single_cost(cost, player_id, source_id, generic_allocation)?;
+        }
+        Ok(())
+    }
+
+    /// Pay a single cost. Internal helper.
+    fn pay_single_cost(
+        &mut self,
+        cost: &Cost,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        generic_allocation: &HashMap<ManaType, u64>,
+    ) -> Result<(), String> {
+        match cost {
+            Cost::Tap => {
+                let entry = self.battlefield.get(&source_id)
+                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
+                if entry.tapped {
+                    return Err("Permanent is already tapped".to_string());
+                }
+                // Summoning sickness only prevents creatures from tapping (rule 302.6)
+                if entry.summoning_sick {
+                    let obj = self.get_object(source_id)?;
+                    if obj.card_data.types.contains(&CardType::Creature) {
+                        return Err("Creature has summoning sickness".to_string());
+                    }
+                }
+                let entry = self.battlefield.get_mut(&source_id).unwrap();
+                entry.tapped = true;
+                Ok(())
+            }
+            Cost::Mana(mana_cost) => {
+                let player = self.get_player_mut(player_id)?;
+                if mana_cost.generic == 0 {
+                    player.mana_pool.pay_specific_only(mana_cost)
+                } else {
+                    player.mana_pool.pay(mana_cost, generic_allocation)
+                }
+            }
+            Cost::PayLife(amount) => {
+                let player = self.get_player_mut(player_id)?;
+                if player.life_total < *amount as i64 {
+                    return Err(format!(
+                        "Cannot pay {} life, only {} available",
+                        amount, player.life_total
+                    ));
+                }
+                player.life_total -= *amount as i64;
+                Ok(())
+            }
+            Cost::SacrificeSelf => {
+                self.move_object(source_id, crate::types::zones::Zone::Graveyard)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::objects::card_data::{CardDataBuilder, Cost};
+    use crate::objects::object::GameObject;
+    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::game_state::GameState;
+    use crate::types::card_types::*;
+    use crate::types::mana::{ManaCost, ManaType};
+    use crate::types::zones::Zone;
+
+    fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {
+        let mut game = GameState::new(2, 20);
+        let forest = CardDataBuilder::new("Forest")
+            .card_type(CardType::Land)
+            .supertype(Supertype::Basic)
+            .subtype(Subtype::Land(LandType::Forest))
+            .mana_ability_single(ManaType::Green)
+            .build();
+        let obj = GameObject::new(forest, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let mut entry = BattlefieldEntity::new(id, 0);
+        entry.summoning_sick = false;
+        game.battlefield.insert(id, entry);
+        (game, id)
+    }
+
+    #[test]
+    fn test_pay_tap_cost() {
+        let (mut game, forest_id) = setup_with_forest();
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc).unwrap();
+        assert!(game.battlefield.get(&forest_id).unwrap().tapped);
+    }
+
+    #[test]
+    fn test_pay_tap_cost_already_tapped() {
+        let (mut game, forest_id) = setup_with_forest();
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc).unwrap();
+        assert!(game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc).is_err());
+    }
+
+    #[test]
+    fn test_pay_mana_cost_specific() {
+        let (mut game, _) = setup_with_forest();
+        game.players[0].mana_pool.add(ManaType::Green, 2);
+        let cost = ManaCost::single(ManaType::Green, 1, 0);
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &no_alloc).unwrap();
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
+    }
+
+    #[test]
+    fn test_pay_mana_cost_with_generic() {
+        let (mut game, _) = setup_with_forest();
+        game.players[0].mana_pool.add(ManaType::Green, 2);
+        game.players[0].mana_pool.add(ManaType::Red, 1);
+        // Cost: {1}{G} — player chooses to spend Red for generic
+        let cost = ManaCost::single(ManaType::Green, 1, 1);
+        let mut alloc = HashMap::new();
+        alloc.insert(ManaType::Red, 1);
+        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &alloc).unwrap();
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
+    }
+
+    #[test]
+    fn test_pay_life_cost() {
+        let (mut game, forest_id) = setup_with_forest();
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc).unwrap();
+        assert_eq!(game.players[0].life_total, 17);
+    }
+
+    #[test]
+    fn test_pay_life_cost_insufficient() {
+        let (mut game, forest_id) = setup_with_forest();
+        let no_alloc = HashMap::new();
+        assert!(game.pay_costs(&[Cost::PayLife(21)], 0, forest_id, &no_alloc).is_err());
+    }
+}
