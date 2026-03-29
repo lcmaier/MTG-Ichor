@@ -1,3 +1,5 @@
+use crate::engine::actions::GameAction;
+use crate::events::event::DamageTarget;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     AmountExpr, CountExpr, Effect, Primitive, TargetSpec,
@@ -92,21 +94,16 @@ impl GameState {
             Primitive::DealDamage(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 for target in &ctx.targets {
-                    match target {
-                        ResolvedTarget::Object(id) => {
-                            if let Some(entry) = self.battlefield.get_mut(id) {
-                                entry.damage_marked += amount as u32;
-                            } else {
-                                return Err(format!(
-                                    "Target object {} not on battlefield", id
-                                ));
-                            }
-                        }
-                        ResolvedTarget::Player(pid) => {
-                            let player = self.get_player_mut(*pid)?;
-                            player.life_total -= amount as i64;
-                        }
-                    }
+                    let damage_target = match target {
+                        ResolvedTarget::Object(id) => DamageTarget::Object(*id),
+                        ResolvedTarget::Player(pid) => DamageTarget::Player(*pid),
+                    };
+                    self.execute_action(GameAction::DealDamage {
+                        source: ctx.source,
+                        target: damage_target,
+                        amount,
+                        is_combat: false,
+                    })?;
                 }
                 Ok(())
             }
@@ -116,7 +113,9 @@ impl GameState {
                 // Drawing targets the controller (TargetSpec::You or None)
                 let player_id = self.resolve_player_for_self(target_spec, ctx);
                 for _ in 0..count {
-                    self.draw_card(player_id)?;
+                    self.execute_action(GameAction::DrawCard {
+                        player: player_id,
+                    })?;
                 }
                 Ok(())
             }
@@ -124,16 +123,21 @@ impl GameState {
             Primitive::GainLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let player_id = self.resolve_player_for_self(target_spec, ctx);
-                let player = self.get_player_mut(player_id)?;
-                player.life_total += amount as i64;
+                self.execute_action(GameAction::GainLife {
+                    player: player_id,
+                    amount,
+                    source: ctx.source,
+                })?;
                 Ok(())
             }
 
             Primitive::LoseLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let player_id = self.resolve_player_for_self(target_spec, ctx);
-                let player = self.get_player_mut(player_id)?;
-                player.life_total -= amount as i64;
+                self.execute_action(GameAction::LoseLife {
+                    player: player_id,
+                    amount,
+                })?;
                 Ok(())
             }
 
@@ -189,7 +193,11 @@ impl GameState {
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
-                            self.move_object(*id, crate::types::zones::Zone::Graveyard)?;
+                            self.execute_action(GameAction::ZoneChange {
+                                object: *id,
+                                from: crate::types::zones::Zone::Battlefield,
+                                to: crate::types::zones::Zone::Graveyard,
+                            })?;
                         }
                         // If not on battlefield, destroy does nothing (rule 701.7b)
                     }
@@ -201,10 +209,9 @@ impl GameState {
                 // Untap target permanent (rule 701.21a).
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
-                        if let Some(entry) = self.battlefield.get_mut(id) {
-                            entry.tapped = false;
-                        }
-                        // If not on battlefield, untap does nothing
+                        self.execute_action(GameAction::Untap {
+                            object: *id,
+                        })?;
                     }
                 }
                 Ok(())

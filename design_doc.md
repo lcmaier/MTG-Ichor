@@ -1,6 +1,10 @@
 # MTG Simulator — Design Document
 
 > Last updated: 2026-03-29 (post-Phase 2 audit, rev 2)
+Project Goal: The ultimate goal for this project is a rules engine that is fast, 
+correct, extensible, and managable, that a GUI could lay on top of for two humans 
+to play over a network, or in a CLI/API where a bot is playing itself/another bot 
+in dozens of parallel games.
 
 This document is the single source of truth for the simulator's architecture,
 current status, and upcoming work. Update it as decisions are made.
