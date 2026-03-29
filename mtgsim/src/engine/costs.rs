@@ -18,6 +18,88 @@ use crate::types::mana::ManaType;
 /// in the calling code). See `ManaPool::pay()` for details.
 
 impl GameState {
+    /// Read-only check: can all costs be paid right now?
+    ///
+    /// Checks both resource availability AND cost restrictions.
+    /// Cost restrictions (Phase 5) start as a no-op — the `check_cost_restrictions`
+    /// call is a placeholder for when continuous effects populate
+    /// `GameState::cost_restrictions`.
+    pub fn can_pay_costs(
+        &self,
+        costs: &[Cost],
+        player_id: PlayerId,
+        source_id: ObjectId,
+    ) -> Result<(), String> {
+        for cost in costs {
+            self.check_cost_resource(cost, player_id, source_id)?;
+            // Phase 5: self.check_cost_restrictions(cost, player_id, source_id)?;
+        }
+        Ok(())
+    }
+
+    /// Resource check: does the player have the resources to pay this cost?
+    fn check_cost_resource(
+        &self,
+        cost: &Cost,
+        player_id: PlayerId,
+        source_id: ObjectId,
+    ) -> Result<(), String> {
+        match cost {
+            Cost::Tap => {
+                let entry = self.battlefield.get(&source_id)
+                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
+                if entry.tapped {
+                    return Err("Permanent is already tapped".to_string());
+                }
+                if entry.summoning_sick {
+                    let obj = self.get_object(source_id)?;
+                    if obj.card_data.types.contains(&CardType::Creature) {
+                        return Err("Creature has summoning sickness".to_string());
+                    }
+                }
+                Ok(())
+            }
+            Cost::Untap => {
+                let entry = self.battlefield.get(&source_id)
+                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
+                if !entry.tapped {
+                    return Err("Permanent is not tapped".to_string());
+                }
+                Ok(())
+            }
+            Cost::Mana(mana_cost) => {
+                let player = self.get_player(player_id)?;
+                if !player.mana_pool.can_pay(mana_cost) {
+                    return Err("Not enough mana".to_string());
+                }
+                Ok(())
+            }
+            Cost::PayLife(amount) => {
+                let player = self.get_player(player_id)?;
+                if player.life_total < *amount as i64 {
+                    return Err(format!(
+                        "Cannot pay {} life, only {} available",
+                        amount, player.life_total
+                    ));
+                }
+                Ok(())
+            }
+            Cost::SacrificeSelf => {
+                if !self.battlefield.contains_key(&source_id) {
+                    return Err(format!("Permanent {} not on battlefield", source_id));
+                }
+                Ok(())
+            }
+            Cost::Sacrifice(_, _)
+            | Cost::Discard(_, _)
+            | Cost::ExileFromGraveyard(_, _)
+            | Cost::RemoveCounters(_, _)
+            | Cost::AddCounters(_, _) => {
+                Err(format!("Cost {:?} validation not yet implemented", cost))
+            }
+        }
+    }
+
     /// Pay a list of costs for a spell or permanent's ability.
     ///
     /// `generic_allocation` specifies how to pay any generic mana components.
@@ -65,6 +147,16 @@ impl GameState {
                 entry.tapped = true;
                 Ok(())
             }
+            Cost::Untap => {
+                let entry = self.battlefield.get(&source_id)
+                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
+                if !entry.tapped {
+                    return Err("Permanent is not tapped".to_string());
+                }
+                let entry = self.battlefield.get_mut(&source_id).unwrap();
+                entry.tapped = false;
+                Ok(())
+            }
             Cost::Mana(mana_cost) => {
                 let player = self.get_player_mut(player_id)?;
                 if mana_cost.generic_count() == 0 {
@@ -86,6 +178,13 @@ impl GameState {
             }
             Cost::SacrificeSelf => {
                 self.move_object(source_id, crate::types::zones::Zone::Graveyard)
+            }
+            Cost::Sacrifice(_, _)
+            | Cost::Discard(_, _)
+            | Cost::ExileFromGraveyard(_, _)
+            | Cost::RemoveCounters(_, _)
+            | Cost::AddCounters(_, _) => {
+                Err(format!("Cost {:?} payment not yet implemented", cost))
             }
         }
     }

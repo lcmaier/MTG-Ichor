@@ -1,3 +1,4 @@
+use crate::events::event::{GameEvent, LossReason};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::ObjectId;
@@ -16,19 +17,28 @@ impl GameState {
         let mut any_performed = false;
 
         // 704.5a — Player with 0 or less life loses the game
-        // (game loss not yet implemented, just log for now)
-        for player in &self.players {
-            if player.life_total <= 0 {
-                println!("SBA: Player {} has {} life (would lose the game)", player.id, player.life_total);
-                // TODO: handle game loss
+        for i in 0..self.players.len() {
+            if self.players[i].life_total <= 0 && !self.player_lost[i] {
+                self.player_lost[i] = true;
+                self.events.emit(GameEvent::PlayerLost {
+                    player_id: i,
+                    reason: LossReason::LifeReachedZero,
+                });
+                self.events.emit(GameEvent::StateBasedActionPerformed);
+                any_performed = true;
             }
         }
 
         // 704.5b — Player who attempted to draw from empty library loses
-        for player in &self.players {
-            if player.has_drawn_from_empty_library {
-                println!("SBA: Player {} drew from empty library (would lose the game)", player.id);
-                // TODO: handle game loss
+        for i in 0..self.players.len() {
+            if self.players[i].has_drawn_from_empty_library && !self.player_lost[i] {
+                self.player_lost[i] = true;
+                self.events.emit(GameEvent::PlayerLost {
+                    player_id: i,
+                    reason: LossReason::DrawnFromEmptyLibrary,
+                });
+                self.events.emit(GameEvent::StateBasedActionPerformed);
+                any_performed = true;
             }
         }
 
@@ -49,9 +59,9 @@ impl GameState {
             .collect();
 
         for id in zero_toughness {
-            let name = self.objects.get(&id).map(|o| o.card_data.name.clone()).unwrap_or_default();
-            println!("SBA 704.5f: {} has 0 or less toughness, moved to graveyard", name);
+            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
             self.move_object(id, Zone::Graveyard)?;
+            self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
         }
 
@@ -72,10 +82,10 @@ impl GameState {
             .collect();
 
         for id in lethal_damage {
-            let name = self.objects.get(&id).map(|o| o.card_data.name.clone()).unwrap_or_default();
-            println!("SBA 704.5g: {} has lethal damage, destroyed", name);
+            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
             // TODO: check for indestructible / regeneration
             self.move_object(id, Zone::Graveyard)?;
+            self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
         }
 

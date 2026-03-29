@@ -165,9 +165,15 @@ impl GameState {
     fn process_draw_step(&mut self) -> Result<(), String> {
         let active = self.active_player;
 
-        // First turn of the game: first player doesn't draw (rule 103.8)
-        // For now, always draw. TODO: add first-turn skip logic
-        self.draw_card(active)?; // Ok(None) on empty library just flags SBA
+        // Rule 103.8a: first player skips the draw step of their first turn.
+        // The skip_first_draw flag is set during Game::new() based on GameConfig.
+        // This is a one-time flag — in-game "skip draw" effects use replacement
+        // effects (Phase 6), not boolean flags.
+        if self.skip_first_draw {
+            self.skip_first_draw = false;
+        } else {
+            self.draw_card(active)?; // Ok(None) on empty library just flags SBA
+        }
 
         self.priority_player = active;
         Ok(())

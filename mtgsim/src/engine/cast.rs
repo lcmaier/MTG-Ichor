@@ -92,6 +92,20 @@ impl GameState {
         // just use the card's printed mana cost directly.
         if let Some(ref mana_cost) = card_data.mana_cost {
             let costs = vec![Cost::Mana(mana_cost.clone())];
+
+            // Pre-check: can we pay? If not, roll back the card from the stack.
+            // IMPORTANT: can_pay_costs is read-only — no costs have been paid yet.
+            // The only mutation so far is moving the card to the stack (step 2),
+            // so rollback only needs to undo that. For future complex costs
+            // (sacrifice, discard), can_pay_costs validates feasibility; pay_costs
+            // then executes atomically, guaranteed to succeed by the pre-check.
+            if let Err(e) = self.can_pay_costs(&costs, player_id, card_id) {
+                // Rollback: move card back to hand (no costs to refund)
+                self.stack_entries.remove(&card_id);
+                self.move_object(card_id, Zone::Hand)?;
+                return Err(e);
+            }
+
             let generic_allocation = decisions.choose_generic_mana_allocation(
                 self, player_id, mana_cost,
             );
@@ -118,7 +132,7 @@ impl GameState {
     /// - **Cycling** (activated from hand, rule 702.29)
     /// - **Unearth** (activated from graveyard, rule 702.84)
     /// - **Channel** (activated from hand, rule 702.47)
-    /// - Various graveyard-activated abilities (e.g. Scavenging Ooze's exile)
+    /// - Various graveyard-activated abilities (e.g. Reassembling Skeleton's self-recursion)
     ///
     /// Planned approach: each AbilityDef gains an `activation_zone: Option<Zone>`
     /// field (None = battlefield, the default). This function would check the

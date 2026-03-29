@@ -215,7 +215,11 @@ impl GameState {
         }
     }
 
-    /// Add an object ID to the zone's collection
+    /// Add an object ID to the zone's collection.
+    ///
+    /// Per rule 400.3, objects moving to library, hand, or graveyard always go
+    /// to their *owner's* zone, regardless of who controlled them. This is why
+    /// we use `obj.owner` here, not the controller from `BattlefieldEntity`.
     fn add_to_zone_collection(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         let owner = self.get_object(id)?.owner;
 

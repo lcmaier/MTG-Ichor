@@ -156,11 +156,24 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target {
                         if let Some(pos) = self.stack.iter().position(|s| s == id) {
                             let countered_id = self.stack.remove(pos);
+                            // Clean up the StackEntry for the countered spell
+                            self.stack_entries.remove(&countered_id);
                             let obj = self.get_object(countered_id)?;
                             let owner = obj.owner;
                             self.get_player_mut(owner)?.graveyard.push(countered_id);
                             let obj_mut = self.get_object_mut(countered_id)?;
                             obj_mut.zone = crate::types::zones::Zone::Graveyard;
+                            // Emit ZoneChange event
+                            self.events.emit(crate::events::event::GameEvent::ZoneChange {
+                                object_id: countered_id,
+                                owner,
+                                from: crate::types::zones::Zone::Stack,
+                                to: crate::types::zones::Zone::Graveyard,
+                            });
+                            self.events.emit(crate::events::event::GameEvent::SpellCountered {
+                                spell_id: countered_id,
+                                countered_by: ctx.source,
+                            });
                         }
                     }
                 }
@@ -175,9 +188,15 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target {
                         if let Some(pos) = self.stack.iter().position(|s| s == id) {
                             let removed_id = self.stack.remove(pos);
+                            // Clean up the StackEntry for the countered ability
+                            self.stack_entries.remove(&removed_id);
                             // Remove the object entirely — abilities on the
                             // stack are not cards and have no destination zone.
                             self.objects.remove(&removed_id);
+                            self.events.emit(crate::events::event::GameEvent::AbilityCountered {
+                                ability_id: removed_id,
+                                countered_by: ctx.source,
+                            });
                         }
                     }
                 }

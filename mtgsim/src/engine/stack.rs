@@ -117,7 +117,7 @@ impl GameState {
             self.objects.remove(&object_id);
         }
 
-        self.events.emit(GameEvent::SpellCountered {
+        self.events.emit(GameEvent::SpellFizzled {
             spell_id: object_id,
         });
 

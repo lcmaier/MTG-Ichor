@@ -60,9 +60,9 @@ current status, and upcoming work. Update it as decisions are made.
 
 ---
 
-## 2. Current Status (Post-Phase 2)
+## 2. Current Status (Post-Pre-Phase 3)
 
-**Test count:** 97 (81 unit + 15 integration + 1 doc-test), zero warnings.
+**Test count:** 124 (98 unit + 25 integration + 1 doc-test), zero warnings.
 
 ### What's implemented
 
@@ -71,17 +71,22 @@ current status, and upcoming work. Update it as decisions are made.
 | Types & IDs        | ✅ Done      | `types/` (ids, mana, zones, colors, card_types, keywords, effects)                                                         |
 | Game objects       | ✅ Done      | `objects/card_data.rs`, `objects/object.rs`                                                                                |
 | Game state         | ✅ Done      | `state/game_state.rs`, `state/player.rs`, `state/battlefield.rs`                                                           |
+| Game config        | ✅ Done      | `state/game_config.rs` — `GameConfig` (starting life, hand size, mulligan rule, deck limits) + `standard()`/`limited()`/`test()` presets |
+| Game lifecycle     | ✅ Done      | `state/game.rs` — `Game` struct (owns `GameState` + `GameConfig` + `GameResult`), `setup()`, `run_turn()`, `run()`, `check_game_over()` |
 | Zone transitions   | ✅ Done      | `engine/zones.rs`                                                                                                          |
-| Turn structure     | ✅ Done      | `engine/turns.rs` (all phases/steps, untap, draw, cleanup damage removal)                                                  |
+| Turn structure     | ✅ Done      | `engine/turns.rs` (all phases/steps, untap, draw with first-player skip, cleanup damage removal)                           |
 | Mana types         | ✅ Done      | `types/mana.rs` — `ManaSymbol` enum covers Colored, Generic, Colorless, Hybrid, MonoHybrid, Phyrexian, HybridPhyrexian, Snow, X |
 | Mana payment       | ⚠️ Partial  | `types/mana.rs` (`can_pay`/`pay`) + `engine/mana.rs` — only Colored, Generic, Colorless symbols are payable; Hybrid/Phyrexian/X/Snow bail with errors. Full payment requires `DecisionProvider` choices (e.g. Phyrexian = color or 2 life?) |
-| Cost payment       | ✅ Done      | `engine/costs.rs` (Tap, Mana, PayLife, SacrificeSelf)                                                                      |
-| Casting spells     | ✅ Done      | `engine/cast.rs` (rule 601.2, timing checks, sorcery/instant)                                                              |
+| Cost payment       | ✅ Done      | `engine/costs.rs` — `can_pay_costs()` read-only pre-check + `pay_costs()`. Supports Tap, Untap, Mana, PayLife, SacrificeSelf. Future variants (Sacrifice, Discard, ExileFromGraveyard, RemoveCounters, AddCounters) return stub errors. `CostRestriction` framework designed for Phase 5. |
+| Casting spells     | ✅ Done      | `engine/cast.rs` (rule 601.2, timing checks, sorcery/instant, `can_pay_costs` pre-check with rollback on failure)          |
 | Stack & resolution | ✅ Done      | `engine/stack.rs` (rule 608, pop-first, fizzle handling)                                                                   |
 | Priority system    | ✅ Done      | `engine/priority.rs` (rule 117, SBA loop, full priority round)                                                             |
 | Targeting          | ✅ Done      | `engine/targeting.rs` (Creature, Player, Any, Permanent, Spell)                                                            |
 | Effect resolver    | ⚠️ Partial  | `engine/resolve.rs` — DealDamage, DrawCards, GainLife, LoseLife, ProduceMana, CounterSpell, CounterAbility, Destroy, Untap. ~20 primitives still return stub errors. |
-| SBAs               | ⚠️ Partial  | `engine/sba.rs` — lethal damage, zero toughness. No game loss handling yet.                                                |
+| SBAs               | ✅ Done      | `engine/sba.rs` — lethal damage, zero toughness, player loss flags (704.5a life ≤ 0, 704.5b empty library draw). Routes through EventLog, no println. |
+| Game result        | ✅ Done      | `GameResult` enum (Winner/Draw). `Game::check_game_over()` reads `player_lost` flags set by SBAs.                          |
+| Discard to hand    | ✅ Done      | `Game::run_turn()` handles cleanup step discard via `DecisionProvider::choose_discard`                                      |
+| First-player skip  | ✅ Done      | `skip_next_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step` |
 | Card registry      | ✅ Done      | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs`                                                            |
 | Events             | ✅ Done      | `events/event.rs` (GameEvent enum, EventLog)                                                                               |
 | DecisionProvider   | ✅ Done      | `ui/decision.rs` (trait + Passive + Scripted + auto_allocate_generic)                                                      |
@@ -94,23 +99,19 @@ current status, and upcoming work. Update it as decisions are made.
 
 ### Known gaps / TODOs in existing code
 
-- `sba.rs`: Game loss just prints, no `GameResult` or game termination
-- `turns.rs`: First-player draw skip not implemented (rule 103.8a)
-- `turns.rs`: Cleanup step discard-to-hand-size stubbed
-- `cast.rs`: No pre-validation of full cost payability before payment
-- `resolve.rs`: `CounterSpell` primitive doesn't clean up `stack_entries`
-- `resolve.rs`: `CounterSpell`/`CounterAbility` don't emit `ZoneChange` events
 - `resolve.rs`: ~20 primitives still return stub errors
 - `stack.rs`: Permanent spells resolving to battlefield use a workaround (temporary re-push to stack for `move_object`)
 - `types/mana.rs`: `can_pay`/`pay` don't handle Hybrid, Phyrexian, MonoHybrid, Snow, X symbols
+- `costs.rs`: Cost variants Sacrifice, Discard, ExileFromGraveyard, RemoveCounters, AddCounters return stub errors
+- `game.rs`: Mulligan handling stubbed (players always keep opening hand)
 
 ---
 
-## 3. Pre-Phase 3 Work Items
+## 3. Pre-Phase 3 Work Items ✅ COMPLETED
 
-These are fixes and features that should land *before* we start Phase 3 (creatures & combat). They address correctness issues and lay groundwork.
+All items completed 2026-03-29. These fixes and features landed before Phase 3 (creatures & combat). They address correctness issues and lay groundwork.
 
-### 3.1 Game + GameConfig Struct (HIGH)
+### 3.1 Game + GameConfig Struct (HIGH) ✅
 
 **Problem:** No concept of game lifecycle — setup, turn loop, termination, or format-specific configuration. Decision-requiring moments (discard, mulligans) have nowhere to live because the engine doesn't hold a `DecisionProvider`.
 
@@ -198,7 +199,7 @@ impl Game {
 **Files touched:** `state/game_config.rs` (new), `state/game.rs` (new), `state/mod.rs`
 **Tests:** Unit tests for `GameConfig::standard()`, integration test for full game lifecycle
 
-### 3.2 Game Result & Loss Handling (HIGH)
+### 3.2 Game Result & Loss Handling (HIGH) ✅
 
 **Problem:** SBAs detect loss conditions but just `println!`. No way to end the game.
 
@@ -232,7 +233,7 @@ if let Some(result) = self.check_game_over() {
 **Files touched:** `state/game_state.rs` (loss flags), `state/game.rs` (`check_game_over`), `engine/sba.rs` (set flags instead of println)
 **Tests:** Integration test: bolt a player to 0 life, verify game ends
 
-### 3.3 Cost Validation & Rollback (HIGH)
+### 3.3 Cost Validation & Rollback (HIGH) ✅
 
 **Problem:** `cast_spell` moves the card to the stack, then pays costs. If payment fails, the card is stranded on the stack.
 
@@ -321,7 +322,7 @@ Only implement `can_pay` for variants we actually use right now; others return `
 **Files touched:** `objects/card_data.rs` (Cost enum), `engine/costs.rs` (can_pay_costs, check_cost_resource, check_cost_restrictions), `engine/cast.rs` (rollback logic), `state/game_state.rs` (cost_restrictions: Vec)
 **Tests:** Unit tests for each can_pay variant, integration test for failed-payment rollback
 
-### 3.4 Discard to Hand Size (MEDIUM)
+### 3.4 Discard to Hand Size (MEDIUM) ✅
 
 **Problem:** Cleanup step (rule 514.1) requires discarding to max hand size. Currently stubbed.
 
@@ -343,7 +344,7 @@ while self.state.players[active].hand.len() > max {
 **Files touched:** `state/game.rs` (discard logic in `run_turn`)
 **Tests:** Integration test: player with 8+ cards discards to 7
 
-### 3.5 First-Player Draw Skip (LOW)
+### 3.5 First-Player Draw Skip (LOW) ✅
 
 **Problem:** Rule 103.8a — the starting player skips their first draw step.
 
@@ -354,12 +355,12 @@ while self.state.players[active].hand.len() > max {
 **Files touched:** `state/game_state.rs` (flag), `engine/turns.rs` (check in `process_draw_step`), `state/game.rs` (set flag in `setup`)
 **Tests:** Unit test: first turn draw is skipped, second turn draws normally
 
-### 3.6 Minor Fixes (LOW)
+### 3.6 Minor Fixes (LOW) ✅
 
-- **CounterSpell cleanup:** Remove the `StackEntry` for countered spells in `resolve_primitive`
-- **Event consistency:** Emit `ZoneChange` events from `CounterSpell`/`CounterAbility`
-- **SBA println removal:** Route SBA messages through `EventLog` instead of `println!`
-- **Stack→Battlefield workaround:** Consider adding `move_object_direct(id, from, to)` that takes explicit zones, eliminating the temporary re-push hack in `stack.rs`
+- **CounterSpell cleanup:** ✅ Remove the `StackEntry` for countered spells in `resolve_primitive`
+- **Event consistency:** ✅ Emit `ZoneChange` events from `CounterSpell`/`CounterAbility`
+- **SBA println removal:** ✅ Route SBA messages through `EventLog` instead of `println!`
+- **Stack→Battlefield workaround:** Deferred — the temporary re-push hack in `stack.rs` works correctly and will be revisited if it causes issues in Phase 3
 
 ---
 

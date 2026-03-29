@@ -100,8 +100,10 @@ impl DecisionProvider for PassiveDecisionProvider {
         Vec::new()
     }
 
-    fn choose_discard(&self, _game: &GameState, _player_id: PlayerId) -> Option<ObjectId> {
-        None
+    fn choose_discard(&self, game: &GameState, player_id: PlayerId) -> Option<ObjectId> {
+        // Auto-discard the last card in hand (simple default for tests)
+        game.players.get(player_id)
+            .and_then(|p| p.hand.last().copied())
     }
 
     fn choose_priority_action(&self, _game: &GameState, _player_id: PlayerId) -> PriorityAction {

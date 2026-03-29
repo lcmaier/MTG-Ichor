@@ -77,6 +77,15 @@ pub struct GameState {
     /// battlefield gets the current value, then the counter increments.
     pub next_timestamp: u64,
 
+    // --- Game-end flags (set by SBAs, checked by Game) ---
+    /// Per-player loss flags. SBAs set these; `Game::check_game_over` reads them.
+    pub player_lost: Vec<bool>,
+
+    // --- First-turn draw skip (rule 103.8a) ---
+    /// If true, the first draw step is skipped (one-time flag for game setup).
+    /// In-game "skip draw" effects use the replacement effect system (Phase 6).
+    pub skip_first_draw: bool,
+
     // --- Event log ---
     pub events: EventLog,
 }
@@ -200,6 +209,8 @@ impl GameState {
             attacks_declared: false,
             blockers_declared: false,
             next_timestamp: 0,
+            player_lost: vec![false; num_players],
+            skip_first_draw: false,
             events: EventLog::new(),
         }
     }

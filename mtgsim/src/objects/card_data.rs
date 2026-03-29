@@ -58,22 +58,33 @@ pub struct AbilityDef {
     pub effect: Effect,
 }
 
-/// Costs that must be paid to activate an ability or cast a spell
+/// Costs that must be paid to activate an ability or cast a spell.
+///
+/// Only `Tap`, `Mana`, `SacrificeSelf`, and `PayLife` are fully implemented.
+/// Other variants exist for forward-compatibility; `can_pay_costs` and
+/// `pay_single_cost` return `Err("not yet implemented")` for them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Cost {
     /// Tap the source permanent
     Tap,
+    /// Untap the source permanent (Devoted Druid)
+    Untap,
     /// Pay a mana cost
     Mana(ManaCost),
-    /// Sacrifice the source permanent
-    SacrificeSelf,
-    // Sacrifice N permanents matching criteria (future)
-    // Sacrifice { count: u32, criteria: ... },
     /// Pay N life
     PayLife(u64),
-    // Discard N cards (future)
-    // Discard { count: u32 },
-    // Add as needed...
+    /// Sacrifice the source permanent
+    SacrificeSelf,
+    /// Sacrifice N permanents matching a filter ("Sacrifice a creature")
+    Sacrifice(crate::types::effects::PermanentFilter, u32),
+    /// Discard N cards matching a filter ("Discard a card")
+    Discard(crate::types::effects::CardFilter, u32),
+    /// Exile N cards from your graveyard matching a filter
+    ExileFromGraveyard(crate::types::effects::CardFilter, u32),
+    /// Remove N counters of a type from the source
+    RemoveCounters(crate::types::effects::CounterType, u32),
+    /// Add N counters of a type to the source (e.g. blight counters)
+    AddCounters(crate::types::effects::CounterType, u32),
 }
 
 // Effect and Primitive types are defined in types::effects and re-exported here

@@ -62,13 +62,29 @@ pub enum GameEvent {
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
     SpellResolved { spell_id: ObjectId },
-    SpellCountered { spell_id: ObjectId },
+    SpellCountered { spell_id: ObjectId, countered_by: ObjectId },
+    AbilityCountered { ability_id: ObjectId, countered_by: ObjectId },
+    /// Spell or ability fizzled (countered by game rules due to all targets
+    /// becoming illegal). No source object — this is a game-rules counter.
+    SpellFizzled { spell_id: ObjectId },
 
     // --- Creatures ---
     CreatureDied { creature_id: ObjectId, owner: PlayerId },
 
+    // --- Player loss ---
+    PlayerLost { player_id: PlayerId, reason: LossReason },
+
     // --- State-based ---
     StateBasedActionPerformed,
+}
+
+/// Why a player lost the game (for event logging).
+#[derive(Debug, Clone, PartialEq)]
+pub enum LossReason {
+    /// Life total reached 0 or below (rule 704.5a)
+    LifeReachedZero,
+    /// Attempted to draw from an empty library (rule 704.5b)
+    DrawnFromEmptyLibrary,
 }
 
 /// What damage is being dealt to
