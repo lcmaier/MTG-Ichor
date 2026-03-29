@@ -180,10 +180,39 @@ impl GameState {
                 Ok(())
             }
 
+            // === Phase 2 primitives: Destroy & Untap ===
+
+            Primitive::Destroy => {
+                // Destroy target permanent (rule 701.7a).
+                // Moves the permanent from battlefield to its owner's graveyard.
+                // TODO: check for indestructible (Phase 5)
+                for target in &ctx.targets {
+                    if let ResolvedTarget::Object(id) = target {
+                        if self.battlefield.contains_key(id) {
+                            self.move_object(*id, crate::types::zones::Zone::Graveyard)?;
+                        }
+                        // If not on battlefield, destroy does nothing (rule 701.7b)
+                    }
+                }
+                Ok(())
+            }
+
+            Primitive::Untap => {
+                // Untap target permanent (rule 701.21a).
+                for target in &ctx.targets {
+                    if let ResolvedTarget::Object(id) = target {
+                        if let Some(entry) = self.battlefield.get_mut(id) {
+                            entry.tapped = false;
+                        }
+                        // If not on battlefield, untap does nothing
+                    }
+                }
+                Ok(())
+            }
+
             // === Phase 3+ primitives — stubs ===
 
-            Primitive::Destroy
-            | Primitive::Exile
+            Primitive::Exile
             | Primitive::Sacrifice
             | Primitive::ReturnToHand
             | Primitive::ReturnToBattlefield
@@ -199,7 +228,6 @@ impl GameState {
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
             | Primitive::Tap
-            | Primitive::Untap
             | Primitive::SetPowerToughness(_, _)
             | Primitive::ModifyPowerToughness(_, _)
             | Primitive::AddAbility(_, _)

@@ -173,30 +173,6 @@ impl GameState {
         Ok(())
     }
 
-    /// Pass priority to the next player in turn order.
-    ///
-    /// Returns Ok(true) if priority has fully passed around (all players passed
-    /// in succession) and the game should advance or resolve the stack.
-    pub fn pass_priority(&mut self) -> Result<bool, String> {
-        let num_players = self.num_players();
-        let next = (self.priority_player + 1) % num_players;
-
-        if next == self.active_player {
-            if self.stack.is_empty() {
-                // All players passed with empty stack → advance
-                self.advance_turn()?;
-                return Ok(true);
-            } else {
-                // All players passed with non-empty stack → resolve top
-                // (Resolution will be implemented in Phase 2)
-                self.priority_player = self.active_player;
-                return Ok(true);
-            }
-        }
-
-        self.priority_player = next;
-        Ok(false)
-    }
 }
 
 #[cfg(test)]

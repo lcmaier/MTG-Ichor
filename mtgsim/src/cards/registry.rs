@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::objects::card_data::CardData;
 
 use super::basic_lands;
+use super::alpha;
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -51,7 +52,12 @@ impl CardRegistry {
         registry.register("Mountain", basic_lands::mountain);
         registry.register("Forest", basic_lands::forest);
 
-        // Non-land cards will be registered here as they're implemented
+        // Alpha set spells (Phase 2)
+        registry.register("Lightning Bolt", alpha::lightning_bolt);
+        registry.register("Ancestral Recall", alpha::ancestral_recall);
+        registry.register("Counterspell", alpha::counterspell);
+        registry.register("Burst of Energy", alpha::burst_of_energy);
+        registry.register("Volcanic Upheaval", alpha::volcanic_upheaval);
 
         registry
     }

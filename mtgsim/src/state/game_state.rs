@@ -1,10 +1,37 @@
 use std::collections::HashMap;
 
+use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::player::PlayerState;
+use crate::types::effects::Effect;
 use crate::types::ids::{ObjectId, PlayerId};
+
+/// Metadata for a spell or ability on the stack.
+///
+/// This is the sidecar state for stack objects, analogous to how
+/// `BattlefieldEntity` is the sidecar for battlefield permanents.
+/// Created when a spell is cast or ability is activated, consumed
+/// when the stack entry resolves or is removed.
+#[derive(Debug, Clone)]
+pub struct StackEntry {
+    /// The object ID of this stack entry (matches the key in `stack`)
+    pub object_id: ObjectId,
+    /// The player who controls this spell/ability
+    pub controller: PlayerId,
+    /// Targets chosen at cast/activation time (locked in)
+    pub chosen_targets: Vec<ResolvedTarget>,
+    /// Modes chosen at cast time (for modal spells, future-proofed)
+    pub chosen_modes: Vec<usize>,
+    /// X value if the spell has a variable cost
+    pub x_value: Option<u64>,
+    /// The effect to resolve (copied from CardData at cast time)
+    pub effect: Effect,
+    /// Whether this is a spell (true) or an ability (false).
+    /// Spells go to graveyard after resolution; abilities cease to exist.
+    pub is_spell: bool,
+}
 
 /// The complete state of a game of Magic.
 ///
@@ -26,6 +53,8 @@ pub struct GameState {
     // --- Global zones (player zones are in PlayerState) ---
     /// The stack — LIFO order (last element = top of stack)
     pub stack: Vec<ObjectId>,
+    /// Stack entry metadata — keyed by ObjectId
+    pub stack_entries: HashMap<ObjectId, StackEntry>,
     /// Battlefield state — keyed by ObjectId
     pub battlefield: HashMap<ObjectId, BattlefieldEntity>,
     /// Exile zone
@@ -160,6 +189,7 @@ impl GameState {
             objects: HashMap::new(),
             players,
             stack: Vec::new(),
+            stack_entries: HashMap::new(),
             battlefield: HashMap::new(),
             exile: Vec::new(),
             command: Vec::new(),
