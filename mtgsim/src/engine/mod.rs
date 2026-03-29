@@ -9,3 +9,4 @@ pub mod targeting;
 pub mod cast;
 pub mod stack;
 pub mod priority;
+pub mod combat;

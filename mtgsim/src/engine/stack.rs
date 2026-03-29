@@ -63,10 +63,27 @@ impl GameState {
                 || obj.card_data.types.contains(&CardType::Land);
 
             if is_permanent_type {
-                // Permanent spell: move to battlefield
-                // Re-add to stack vec temporarily so move_object can find it
-                self.stack.push(object_id);
-                self.move_object(object_id, Zone::Battlefield)?;
+                // Permanent spell: move to battlefield.
+                // We handle this manually (same as the instant/sorcery path below)
+                // because move_object would try to remove from the stack Vec,
+                // but we already popped the object above. No re-push needed.
+                //
+                // Rule 110.2: the controller of the permanent is whoever
+                // controlled the spell on the stack when it resolved.
+                let controller = entry.controller;
+                let owner = self.get_object(object_id)?.owner;
+                self.get_object_mut(object_id)?.zone = Zone::Battlefield;
+                self.init_zone_state_with_controller(object_id, controller)?;
+                self.events.emit(GameEvent::ZoneChange {
+                    object_id,
+                    owner,
+                    from: Zone::Stack,
+                    to: Zone::Battlefield,
+                });
+                self.events.emit(GameEvent::PermanentEnteredBattlefield {
+                    object_id,
+                    controller,
+                });
             } else {
                 // Instant/sorcery: move to owner's graveyard
                 let owner = self.get_object(object_id)?.owner;
@@ -307,6 +324,87 @@ mod tests {
         // Resolve next — should be Recall
         game.resolve_top_of_stack().unwrap();
         assert_eq!(game.players[1].hand.len(), 3); // Recall drew 3
+    }
+
+    fn make_grizzly_bears() -> std::sync::Arc<crate::objects::card_data::CardData> {
+        CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .color(crate::types::colors::Color::Green)
+            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .power_toughness(2, 2)
+            .build()
+    }
+
+    /// Helper: put a permanent spell on the stack (no targets, no spell ability effect).
+    fn put_permanent_on_stack(
+        game: &mut GameState,
+        card_data: std::sync::Arc<crate::objects::card_data::CardData>,
+        controller: usize,
+    ) -> crate::types::ids::ObjectId {
+        let obj = GameObject::new(card_data, controller, Zone::Stack);
+        let id = obj.id;
+        game.add_object(obj);
+        game.stack.push(id);
+        game.stack_entries.insert(id, StackEntry {
+            object_id: id,
+            controller,
+            chosen_targets: Vec::new(),
+            chosen_modes: Vec::new(),
+            x_value: None,
+            effect: Effect::Sequence(vec![]),
+            is_spell: true,
+        });
+        id
+    }
+
+    #[test]
+    fn test_creature_spell_resolves_to_battlefield() {
+        let mut game = GameState::new(2, 20);
+        let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
+
+        game.resolve_top_of_stack().unwrap();
+
+        // Creature should be on the battlefield, not on the stack or in graveyard
+        assert_eq!(game.get_object(bears_id).unwrap().zone, Zone::Battlefield);
+        assert!(game.battlefield.contains_key(&bears_id));
+        assert!(game.stack.is_empty());
+        assert!(!game.players[0].graveyard.contains(&bears_id));
+
+        // BattlefieldEntity should have correct state
+        let entry = game.battlefield.get(&bears_id).unwrap();
+        assert_eq!(entry.controller, 0);
+        assert!(!entry.tapped);
+
+        // P/T comes from CardData
+        let obj = game.get_object(bears_id).unwrap();
+        assert_eq!(obj.card_data.power, Some(2));
+        assert_eq!(obj.card_data.toughness, Some(2));
+    }
+
+    #[test]
+    fn test_creature_has_summoning_sickness_on_entry() {
+        let mut game = GameState::new(2, 20);
+        let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
+
+        game.resolve_top_of_stack().unwrap();
+
+        let entry = game.battlefield.get(&bears_id).unwrap();
+        assert!(entry.summoning_sick);
+    }
+
+    #[test]
+    fn test_permanent_spell_not_on_stack_after_resolution() {
+        let mut game = GameState::new(2, 20);
+        let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
+
+        // Verify it's on the stack before resolution
+        assert!(game.stack.contains(&bears_id));
+
+        game.resolve_top_of_stack().unwrap();
+
+        // Stack should be completely empty — no re-push artifact
+        assert!(game.stack.is_empty());
+        assert!(game.stack_entries.is_empty());
     }
 
     #[test]

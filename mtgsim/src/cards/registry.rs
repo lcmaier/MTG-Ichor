@@ -5,6 +5,7 @@ use crate::objects::card_data::CardData;
 
 use super::basic_lands;
 use super::alpha;
+use super::creatures;
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -58,6 +59,12 @@ impl CardRegistry {
         registry.register("Counterspell", alpha::counterspell);
         registry.register("Burst of Energy", alpha::burst_of_energy);
         registry.register("Volcanic Upheaval", alpha::volcanic_upheaval);
+
+        // Vanilla creatures (Phase 3)
+        registry.register("Grizzly Bears", creatures::grizzly_bears);
+        registry.register("Hill Giant", creatures::hill_giant);
+        registry.register("Savannah Lions", creatures::savannah_lions);
+        registry.register("Earth Elemental", creatures::earth_elemental);
 
         registry
     }

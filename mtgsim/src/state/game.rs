@@ -104,14 +104,12 @@ impl Game {
 
     /// Run a single full turn for the current active player.
     ///
-    /// Handles:
-    /// - Phase/step progression via `advance_turn`
-    /// - Priority rounds (delegates to engine)
-    /// - Cleanup step discard (calls `DecisionProvider::choose_discard`)
-    /// - SBA checks and game-over detection
+    /// Turn flow per step:
+    /// 1. Turn-based actions (combat declarations, damage, cleanup discard)
+    /// 2. Priority round (if the step grants priority)
+    /// 3. Game-over check
+    /// 4. Advance to next step/phase
     pub fn run_turn(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
-        // The game starts at Beginning/Untap. We process the current position
-        // first, then advance until we wrap back to the next turn's Untap.
         let starting_turn = self.state.turn_number;
 
         loop {
@@ -122,40 +120,84 @@ impl Game {
             let phase_type = self.state.phase.phase_type;
             let step = self.state.phase.step;
 
-            // Determine if this step/phase gets a priority round
-            let gets_priority = match (phase_type, step) {
-                // Untap step: no priority (rule 502.3)
-                (PhaseType::Beginning, Some(StepType::Untap)) => false,
-                // Cleanup step: no priority normally (rule 514.3)
-                // (rule 514.3a: if SBAs/triggers happen, another cleanup starts — future)
-                (PhaseType::Ending, Some(StepType::Cleanup)) => false,
-                // Everything else gets priority
-                _ => true,
-            };
+            // 1. Turn-based actions for the current step
+            self.process_turn_based_actions(phase_type, step, decisions)?;
+
+            // 2. Priority round (most steps grant priority)
+            //
+            // Rule 508.8: if no creatures were declared as attackers, the
+            // declare blockers and combat damage steps are skipped entirely
+            // (no turn-based actions, no priority).
+            let skipped_by_508_8 = !self.state.attacks_declared && matches!(
+                (phase_type, step),
+                (PhaseType::Combat, Some(StepType::DeclareBlockers))
+                | (PhaseType::Combat, Some(StepType::FirstStrikeDamage))
+                | (PhaseType::Combat, Some(StepType::CombatDamage))
+            );
+
+            let gets_priority = !skipped_by_508_8 && !matches!(
+                (phase_type, step),
+                (PhaseType::Beginning, Some(StepType::Untap))      // rule 502.3
+                | (PhaseType::Ending, Some(StepType::Cleanup))     // rule 514.3
+            );
 
             if gets_priority {
                 self.state.run_priority_loop(decisions)?;
 
-                // Check game over after each priority round
+                // 3. Game-over check after each priority round
                 if let Some(result) = self.check_game_over() {
                     self.result = Some(result);
                     return Ok(());
                 }
             }
 
-            // Handle cleanup step discard AFTER priority (or lack thereof)
-            if phase_type == PhaseType::Ending && step == Some(StepType::Cleanup) {
-                self.handle_cleanup_discard(decisions)?;
-            }
-
-            // Advance to next step/phase
+            // 4. Advance to next step/phase
             self.state.advance_turn()?;
 
-            // If we've wrapped to a new turn, we're done with this turn
             if self.state.turn_number > starting_turn {
                 return Ok(());
             }
         }
+    }
+
+    /// Execute turn-based actions for the current step (rule 703.4).
+    ///
+    /// These happen BEFORE the priority round for each step:
+    /// - Combat: declare attackers/blockers, deal damage
+    /// - Cleanup: discard to hand size
+    fn process_turn_based_actions(
+        &mut self,
+        phase_type: PhaseType,
+        step: Option<StepType>,
+        decisions: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        match (phase_type, step) {
+            // --- Combat phase ---
+            (PhaseType::Combat, Some(StepType::DeclareAttackers)) => {
+                self.state.process_declare_attackers(decisions)?;
+            }
+            (PhaseType::Combat, Some(StepType::DeclareBlockers)) => {
+                if self.state.attacks_declared {
+                    self.state.process_declare_blockers(decisions)?;
+                }
+            }
+            (PhaseType::Combat, Some(StepType::FirstStrikeDamage)) => {
+                if self.state.attacks_declared {
+                    self.state.process_combat_damage(decisions, true)?;
+                }
+            }
+            (PhaseType::Combat, Some(StepType::CombatDamage)) => {
+                if self.state.attacks_declared {
+                    self.state.process_combat_damage(decisions, false)?;
+                }
+            }
+            // --- Cleanup step ---
+            (PhaseType::Ending, Some(StepType::Cleanup)) => {
+                self.handle_cleanup_discard(decisions)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     /// Run the complete game until a result is determined.

@@ -70,21 +70,32 @@ pub trait DecisionProvider {
         target_spec: &TargetSpec,
     ) -> Vec<ResolvedTarget>;
 
+    /// Choose how to divide an attacker's combat damage among multiple blockers.
+    /// Called when an attacker with `power` is blocked by 2+ creatures.
+    ///
+    /// Under 2025 rules (510.1c), the attacking player freely divides damage
+    /// among blocking creatures with no ordering or lethal-first constraint.
+    ///
+    /// Returns a Vec<(blocker_id, damage_amount)> that must:
+    /// - Sum to `power`
+    /// - Only target blockers in `blockers`
+    fn choose_attacker_damage_assignment(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        attacker_id: ObjectId,
+        blockers: &[ObjectId],
+        power: u64,
+    ) -> Vec<(ObjectId, u64)>;
+
     /// Choose how to allocate mana from the pool to pay the generic component
     /// of a mana cost. Returns a map of ManaType → amount to spend on generic.
-    ///
-    /// The default implementation uses a greedy auto-allocation that spends
-    /// surplus mana (after reserving for specific symbols). Real player UIs
-    /// or AI can override this for full manual control.
     fn choose_generic_mana_allocation(
         &self,
         game: &GameState,
         player_id: PlayerId,
         mana_cost: &ManaCost,
-    ) -> HashMap<ManaType, u64> {
-        auto_allocate_generic(game, player_id, mana_cost)
-            .unwrap_or_default()
-    }
+    ) -> HashMap<ManaType, u64>;
 }
 
 /// A test-oriented decision provider that returns empty decisions (no attacks, no blocks).
@@ -114,7 +125,14 @@ impl DecisionProvider for PassiveDecisionProvider {
         Vec::new()
     }
 
-    // choose_generic_mana_allocation: uses default greedy implementation
+    fn choose_attacker_damage_assignment(&self, game: &GameState, _player_id: PlayerId, _attacker_id: ObjectId, blockers: &[ObjectId], power: u64) -> Vec<(ObjectId, u64)> {
+        default_damage_assignment(game, blockers, power)
+    }
+
+    fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
+        auto_allocate_generic(game, player_id, mana_cost)
+            .unwrap_or_default()
+    }
 }
 
 /// A test-oriented decision provider with pre-scripted decisions.
@@ -125,6 +143,7 @@ pub struct ScriptedDecisionProvider {
     pub discard_decisions: std::cell::RefCell<Vec<Option<ObjectId>>>,
     pub priority_decisions: std::cell::RefCell<Vec<PriorityAction>>,
     pub target_decisions: std::cell::RefCell<Vec<Vec<ResolvedTarget>>>,
+    pub damage_assignment_decisions: std::cell::RefCell<Vec<Vec<(ObjectId, u64)>>>,
 }
 
 impl ScriptedDecisionProvider {
@@ -135,6 +154,7 @@ impl ScriptedDecisionProvider {
             discard_decisions: std::cell::RefCell::new(Vec::new()),
             priority_decisions: std::cell::RefCell::new(Vec::new()),
             target_decisions: std::cell::RefCell::new(Vec::new()),
+            damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
@@ -185,16 +205,85 @@ impl DecisionProvider for ScriptedDecisionProvider {
         }
     }
 
-    // choose_generic_mana_allocation: uses default greedy implementation
+    fn choose_attacker_damage_assignment(
+        &self,
+        game: &GameState,
+        _player_id: PlayerId,
+        _attacker_id: ObjectId,
+        blockers: &[ObjectId],
+        power: u64,
+    ) -> Vec<(ObjectId, u64)> {
+        let mut decisions = self.damage_assignment_decisions.borrow_mut();
+        if decisions.is_empty() {
+            default_damage_assignment(game, blockers, power)
+        } else {
+            decisions.remove(0)
+        }
+    }
+
+    fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
+        auto_allocate_generic(game, player_id, mana_cost)
+            .unwrap_or_default()
+    }
 }
 
-/// Greedy auto-allocation of generic mana from a player's pool.
+/// Convenience: default damage assignment for an attacker blocked by multiple creatures.
+///
+/// Assigns lethal damage to each blocker in listed order, then puts all excess
+/// on the last living blocker. This is a common *strategic* choice, not a rules
+/// requirement — under 2025 rules (510.1c), the player may divide freely.
+/// Concrete `DecisionProvider` implementations call this explicitly — the trait
+/// itself has no default.
+pub fn default_damage_assignment(
+    game: &GameState,
+    blockers: &[ObjectId],
+    power: u64,
+) -> Vec<(ObjectId, u64)> {
+    let mut result = Vec::new();
+    let mut remaining = power;
+
+    let alive: Vec<ObjectId> = blockers.iter()
+        .copied()
+        .filter(|id| game.battlefield.contains_key(id))
+        .collect();
+
+    for (i, blocker_id) in alive.iter().enumerate() {
+        if remaining == 0 {
+            break;
+        }
+        let toughness = game.get_effective_toughness(*blocker_id).unwrap_or(0);
+        let damage_marked = game.battlefield.get(blocker_id)
+            .map(|e| e.damage_marked)
+            .unwrap_or(0);
+        let lethal = if toughness > damage_marked as i32 {
+            (toughness - damage_marked as i32) as u64
+        } else {
+            0
+        };
+
+        let is_last = i == alive.len() - 1;
+        let assign = if is_last {
+            // Last blocker gets all remaining damage
+            remaining
+        } else {
+            remaining.min(lethal)
+        };
+
+        if assign > 0 {
+            result.push((*blocker_id, assign));
+            remaining -= assign;
+        }
+    }
+
+    result
+}
+
+/// Convenience: greedy auto-allocation of generic mana from a player's pool.
 ///
 /// Calculates surplus mana after reserving for specific (colored) symbols,
-/// then greedily assigns surplus to pay the generic component. This is the
-/// default implementation used by DecisionProvider; real player UIs or AI
-/// implementations can override `choose_generic_mana_allocation` for full
-/// manual control.
+/// then greedily assigns surplus to pay the generic component. Concrete
+/// `DecisionProvider` implementations call this explicitly — the trait
+/// itself has no default.
 pub fn auto_allocate_generic(
     game: &GameState,
     player_id: PlayerId,

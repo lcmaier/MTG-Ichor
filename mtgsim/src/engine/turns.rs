@@ -73,6 +73,7 @@ impl GameState {
                 }
                 self.attacks_declared = false;
                 self.blockers_declared = false;
+                self.blocker_damage_divisions.clear();
             }
             _ => {}
         }

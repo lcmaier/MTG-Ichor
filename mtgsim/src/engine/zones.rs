@@ -258,8 +258,9 @@ impl GameState {
         }
     }
 
-    /// Initialize zone-specific state when entering a zone
-    fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
+    /// Initialize zone-specific state when entering a zone.
+    /// Default controller is the object's owner (correct for play_land, tokens, etc.).
+    pub(crate) fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         if zone == Zone::Battlefield {
             let obj = self.get_object(id)?;
             let controller = obj.owner; // default controller is owner
@@ -270,11 +271,29 @@ impl GameState {
         Ok(())
     }
 
-    /// Clean up zone-specific state when leaving a zone
-    fn cleanup_zone_state(&mut self, id: ObjectId, zone: Zone) {
-        if zone == Zone::Battlefield {
-            self.battlefield.remove(&id);
-        }
+    /// Initialize battlefield state with an explicit controller.
+    /// Used when a permanent spell resolves — the controller is whoever
+    /// controlled the spell on the stack (rule 110.2), which may differ
+    /// from the owner if a control-changing effect was applied.
+    pub(crate) fn init_zone_state_with_controller(
+        &mut self,
+        id: ObjectId,
+        controller: PlayerId,
+    ) -> Result<(), String> {
+        let ts = self.allocate_timestamp();
+        let entry = BattlefieldEntity::new(id, controller, ts);
+        self.battlefield.insert(id, entry);
+        Ok(())
+    }
+
+    /// Clean up zone-specific state when leaving a zone.
+    ///
+    /// Note: the BattlefieldEntity itself is already removed by
+    /// `remove_from_zone_collection`. This hook exists for future
+    /// zone-exit cleanup (e.g., detaching auras, removing counters).
+    fn cleanup_zone_state(&mut self, _id: ObjectId, _zone: Zone) {
+        // Battlefield removal is handled by remove_from_zone_collection.
+        // Future: detach auras, remove equipment grants, etc.
     }
 }
 

@@ -1,6 +1,6 @@
 # MTG Simulator — Design Document
 
-> Last updated: 2026-03-29 (post-Phase 2 audit, rev 2)
+> Last updated: 2026-03-29 (post-Phase 3, rev 3)
 Project Goal: The ultimate goal for this project is a rules engine that is fast, 
 correct, extensible, and managable, that a GUI could lay on top of for two humans 
 to play over a network, or in a CLI/API where a bot is playing itself/another bot 
@@ -60,9 +60,9 @@ current status, and upcoming work. Update it as decisions are made.
 
 ---
 
-## 2. Current Status (Post-Pre-Phase 3)
+## 2. Current Status (Post-Phase 3)
 
-**Test count:** 124 (98 unit + 25 integration + 1 doc-test), zero warnings.
+**Test count:** 162 (128 unit + 33 integration + 1 doc-test), zero warnings.
 
 ### What's implemented
 
@@ -87,20 +87,23 @@ current status, and upcoming work. Update it as decisions are made.
 | Game result        | ✅ Done      | `GameResult` enum (Winner/Draw). `Game::check_game_over()` reads `player_lost` flags set by SBAs.                          |
 | Discard to hand    | ✅ Done      | `Game::run_turn()` handles cleanup step discard via `DecisionProvider::choose_discard`                                      |
 | First-player skip  | ✅ Done      | `skip_next_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step` |
-| Card registry      | ✅ Done      | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs`                                                            |
+| Card registry      | ✅ Done      | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs` + `cards/creatures.rs`                                     |
 | Events             | ✅ Done      | `events/event.rs` (GameEvent enum, EventLog)                                                                               |
-| DecisionProvider   | ✅ Done      | `ui/decision.rs` (trait + Passive + Scripted + auto_allocate_generic)                                                      |
+| DecisionProvider   | ✅ Done      | `ui/decision.rs` (trait + Passive + Scripted + auto_allocate_generic + choose_damage_order)                                |
+| Combat validation   | ✅ Done      | `engine/combat/validation.rs` — validate_attackers, validate_blockers, AttackConstraints/BlockConstraints skeletons, effective characteristic helpers |
+| Combat resolution   | ✅ Done      | `engine/combat/resolution.rs` — assign_combat_damage (read-only), apply_combat_damage (routes through GameAction::DealDamage) |
+| Combat steps        | ✅ Done      | `engine/combat/steps.rs` — process_declare_attackers, process_declare_blockers, process_combat_damage (wired into Game::run_turn) |
 
-### Cards implemented (10)
+### Cards implemented (13)
 
 - **Basic lands:** Plains, Island, Swamp, Mountain, Forest
 - **Alpha spells:** Lightning Bolt, Ancestral Recall, Counterspell
 - **Other spells:** Burst of Energy (Urza's Destiny), Volcanic Upheaval (BFZ)
+- **Vanilla creatures:** Grizzly Bears (2/2, {1}{G}), Hill Giant (3/3, {3}{R}), Savannah Lions (2/1, {W})
 
 ### Known gaps / TODOs in existing code
 
 - `resolve.rs`: ~20 primitives still return stub errors
-- `stack.rs`: Permanent spells resolving to battlefield use a workaround (temporary re-push to stack for `move_object`)
 - `types/mana.rs`: `can_pay`/`pay` don't handle Hybrid, Phyrexian, MonoHybrid, Snow, X symbols
 - `costs.rs`: Cost variants Sacrifice, Discard, ExileFromGraveyard, RemoveCounters, AddCounters return stub errors
 - `game.rs`: Mulligan handling stubbed (players always keep opening hand)
@@ -364,111 +367,72 @@ while self.state.players[active].hand.len() > max {
 
 ---
 
-## 4. Phase 3: Creatures & Combat
+## 4. Phase 3: Creatures & Combat ✅ COMPLETED
 
-**Goal:** Creatures can be cast, enter the battlefield, attack, block, and deal combat damage. Lethal damage destruction already works via SBAs.
+All items completed 2026-03-29. Creatures resolve to the battlefield, full combat system (declare attackers, declare blockers, combat damage) wired into the turn loop, SBAs handle lethal damage.
 
-### Permanent spell resolution
+### 3a. Permanent spell resolution fix ✅
 
-Casting permanent spells already routes through `stack.rs` → `move_object(Zone::Battlefield)`. Verify creature spells resolve correctly to the battlefield with proper `BattlefieldEntity` initialization (summoning sickness, power/toughness).
+Fixed the "re-push" hack in `stack.rs` where permanent spells were temporarily pushed back onto the stack for `move_object`. Now uses manual zone bookkeeping (same pattern as instant/sorcery resolution): set zone, call `init_zone_state`, emit `ZoneChange` and `PermanentEnteredBattlefield` events. `init_zone_state` made `pub(crate)` for this.
 
-### Combat system (`engine/combat/`)
+### 3b-3d. Combat validation (`engine/combat/validation.rs`) ✅
 
-The combat system is split into **validation** and **resolution** because once attackers and blockers are locked in, combat damage is deterministic.
+**Constraint skeletons:** `AttackConstraints` (restrictions + requirements) and `BlockConstraints` (restrictions + requirements + per-creature `blocking_limits` for multi-block). Both have `::none()` constructors for Phase 3. Phase 4/5 will populate from keywords and continuous effects.
 
-```
-engine/combat/
-  mod.rs           — re-exports
-  validation.rs    — validate_attackers, validate_blockers
-  resolution.rs    — assign_combat_damage, apply_combat_damage
-```
+**Effective characteristic helpers** on `GameState`: `is_creature()`, `can_attack()`, `get_effective_power()`, `get_effective_toughness()`. Phase 3 reads `card_data` directly; Phase 5 will swap in layer-system-aware lookups (single-point change).
 
-#### Combat validation (the hard part)
+**`validate_attackers`** (rule 508.1): per-creature checks (on battlefield, is creature, correct controller, untapped, not summoning-sick, valid attack target) + set-level constraint checks.
 
-**Attacker validation (rule 508.1):**
+**`validate_blockers`** (rule 509.1): per-creature checks (on battlefield, is creature, correct controller, untapped, attacker is attacking this player) + per-creature block count vs `max_blocks_for()` + set-level constraint checks.
 
-The active player proposes a set of attackers. Validation checks:
+### 3e. Combat damage (`engine/combat/resolution.rs`) ✅
 
-1. **Per-creature legality:**
-   - Must be untapped (unless has vigilance — Phase 4)
-   - Must not have summoning sickness (unless has haste — Phase 4)
-   - Must not have "can't attack" restriction (Pacifism, etc. — Phase 5/6)
-   - Attack target must be legal (opponent or planeswalker they control)
+Two-phase design to avoid borrowing issues:
+1. **`assign_combat_damage(&GameState, ...)`** — read-only free function. Computes `Vec<CombatDamageAssignment>` from battlefield state. Handles unblocked attackers (→ player), single blocker (→ all damage), multiple blockers (→ ordered by `damage_orders`, lethal-first), blocked-but-no-blockers (→ no damage), zero-power (→ no damage). `first_strike_only` parameter stubs for Phase 4.
+2. **`GameState::apply_combat_damage(assignments)`** — routes each through `execute_action(GameAction::DealDamage { is_combat: true })` so Phase 6 replacement effects automatically intercept.
 
-2. **Set-level legality:**
-   - Effects that limit the total number of attackers ("No more than one creature can attack" — Crawlspace, Silent Arbiter)
-   - Effects that force attacks ("attacks each combat if able" — Goblin Rabblemaster, Berserker clause). A proposed set that omits a forced attacker is illegal.
-   - Cost-to-attack effects (Propaganda: "pay {2} or can't attack") — technically a player choice during declaration, may need `DecisionProvider` involvement
+### 3f. Turn structure wiring ✅
 
-3. **Algorithm:** For Phase 3 (no keywords yet), validation is simple per-creature checks: untapped, no summoning sickness, is a creature. Set-level constraints arrive with specific cards in later phases. The validator is designed to be extensible — it takes a `&[AttackConstraint]` list from continuous effects:
+`Game::run_turn` now calls combat turn-based actions before priority rounds:
+- `DeclareAttackers`: `process_declare_attackers` (taps attackers, sets `AttackingInfo`)
+- `DeclareBlockers`: `process_declare_blockers` (sets `BlockingInfo`, marks attackers as blocked, requests damage orders for multi-blocked attackers)
+- `FirstStrikeDamage`: `process_combat_damage(first_strike_only=true)` — Phase 3 no-op
+- `CombatDamage`: `process_combat_damage(first_strike_only=false)`
 
-```rust
-pub enum AttackConstraint {
-    MaxAttackers(usize),                       // Crawlspace
-    MustAttack(ObjectId),                      // "attacks if able"
-    CannotAttack(ObjectId),                    // Pacifism on specific creature
-    CostToAttack(ObjectId, Cost),              // Propaganda
-    CannotAttackPlayer(ObjectId, PlayerId),    // specific attack restrictions
-}
-```
+`GameState` gains `damage_orders: HashMap<ObjectId, Vec<ObjectId>>` for multi-blocker ordering. Cleared at end of combat phase alongside `attacks_declared`, `blockers_declared`, and per-permanent combat state.
 
-**Blocker validation (rule 509.1):**
+### 3g. Cards implemented ✅
 
-The defending player proposes a set of blocks. Validation checks:
+`cards/creatures.rs`: Grizzly Bears ({1}{G} 2/2), Hill Giant ({3}{R} 3/3), Savannah Lions ({W} 2/1). All registered in `CardRegistry`.
 
-1. **Per-creature legality:**
-   - Must be untapped
-   - Must not have "can't block" restriction
-   - Must be able to block the specific attacker (flying vs non-reach — Phase 4)
+### 3h. Integration tests (8 tests) ✅
 
-2. **Set-level legality:**
-   - Evasion requirements: menace requires ≥2 blockers on that attacker
-   - "Can't be blocked" (unblockable, protection, etc.)
-   - "Can't be blocked except by N or more creatures"
-   - Maximum blockers constraints
+- Registry has Phase 3 creatures
+- Unblocked attacker deals damage to defending player
+- Blocked creatures trade (both die from lethal damage via SBAs)
+- Bigger creature survives combat (Hill Giant vs Bears)
+- No attackers = no combat damage
+- Summoning-sick creature cannot attack (validation error)
+- Combat damage kills player (game over via SBAs)
+- Combat state cleared after combat phase
 
-3. **Algorithm:** Same extensible pattern — `&[BlockConstraint]`:
+### Key files changed/created
 
-```rust
-pub enum BlockConstraint {
-    CannotBeBlocked(ObjectId),                         // unblockable
-    CannotBeBlockedBy(ObjectId, PermanentFilter),      // "can't be blocked by creatures with power 2 or less"
-    MinBlockers(ObjectId, usize),                      // menace (min 2)
-    CannotBlock(ObjectId),                             // "can't block"
-    CannotBlockCreature(ObjectId, ObjectId),            // specific creature can't block specific attacker
-}
-```
-
-**For Phase 3,** both constraint lists start empty (no keywords or continuous effects yet). Validation is just the basic creature checks. The framework is ready for Phases 4-6 to populate constraints.
-
-#### Combat resolution (deterministic)
-
-Once attackers and blockers are locked in:
-
-1. **Damage assignment ordering** (rule 510.1c): If a creature is blocked by multiple blockers, the attacking player orders them. The attacker must assign lethal damage to the first before assigning to the next. Requires `DecisionProvider::choose_damage_order`.
-
-2. **Damage dealing:** Each creature simultaneously deals damage equal to its power. Unblocked attackers deal damage to the defending player. Blocked attackers deal damage to their blockers per the assignment order. Blocking creatures deal damage to the attacker they're blocking.
-
-3. **After damage:** SBAs handle creature death (lethal damage already implemented).
-
-### Cards to implement
-
-- Grizzly Bears (2/2 vanilla creature, {1}{G})
-- Hill Giant (3/3 vanilla creature, {3}{R})
-- Savannah Lions (2/1 vanilla creature, {W})
-
-### Turn structure integration
-
-- Wire combat steps into `Game::run_turn` (priority is granted during Declare Attackers, Declare Blockers, and Combat Damage steps)
-- `Game` calls `validate_attackers`/`validate_blockers` and re-prompts via `DecisionProvider` if invalid
-- Process damage in the combat damage step
-
-### Estimated scope
-
-- `engine/combat/` — new module, ~400-500 lines (validation is the bulk)
-- Modifications to `state/game.rs` (combat in `run_turn`), `state/battlefield.rs` (combat state)
-- `DecisionProvider`: add `choose_damage_order`
-- 8-12 new unit tests, 5-8 new integration tests
+| File | Change |
+| ---- | ------ |
+| `engine/combat/mod.rs` | New — module registration |
+| `engine/combat/validation.rs` | New — CombatError, AttackConstraints, BlockConstraints, validate_attackers, validate_blockers, effective characteristic helpers (760 lines) |
+| `engine/combat/resolution.rs` | New — CombatDamageAssignment, assign_combat_damage, apply_combat_damage (400 lines) |
+| `engine/combat/steps.rs` | New — process_declare_attackers, process_declare_blockers, process_combat_damage (190 lines) |
+| `engine/stack.rs` | Fixed permanent spell resolution (no re-push) |
+| `engine/zones.rs` | `init_zone_state` made `pub(crate)` |
+| `engine/turns.rs` | `damage_orders.clear()` in combat phase end |
+| `state/game_state.rs` | Added `damage_orders` field |
+| `state/game.rs` | Combat turn-based actions in `run_turn` |
+| `ui/decision.rs` | Added `choose_damage_order` to trait + implementations |
+| `cards/creatures.rs` | New — Grizzly Bears, Hill Giant, Savannah Lions |
+| `cards/registry.rs` | Registered 3 creatures |
+| `tests/phase3_integration_test.rs` | New — 8 integration tests |
 
 ---
 
@@ -602,6 +566,9 @@ Additional cards may be added to this list as development progresses. The genera
 | 2026-03-29 | Combat split: validation + resolution             | Once attackers/blockers are locked in, damage is deterministic. Validation is the complex part (constraints, forced attacks, evasion). Extensible via `AttackConstraint` / `BlockConstraint` lists populated by continuous effects. |
 | 2026-03-29 | `skip_next_draw` flag only for rule 103.8a        | In-game "skip draw" effects are replacement effects (Phase 6), not boolean flags. The flag is a one-time game-setup mechanism. |
 | 2026-03-29 | Explicit excluded cards list                      | Season of the Witch, Panglacial Wurm, Selvala — non-competitive cards that require disproportionate architectural changes. |
+| 2026-03-29 | Two-phase combat damage (compute then apply)      | `assign_combat_damage` is a read-only free function; `apply_combat_damage` mutates. Avoids borrow checker issues from reading battlefield while writing damage. |
+| 2026-03-29 | Effective characteristic helpers on GameState     | `is_creature()`, `can_attack()`, `get_effective_power/toughness()` — combat code calls these instead of reading `card_data` directly, so Phase 5 layer-system swap is a single-point change. |
+| 2026-03-29 | Permanent spell resolution: no re-push            | Fixed Phase 2 hack. Manual zone bookkeeping for permanent spells resolving to battlefield, consistent with instant/sorcery path. |
 
 ---
 
@@ -616,15 +583,16 @@ Pre-Phase 3 (current):
   3.5  First-player draw skip (flag + GameConfig)
   3.6  Minor fixes (CounterSpell cleanup, event consistency, SBA println)
 
-Phase 3: Creatures & Combat
-  3a   Creature spells resolve to battlefield (verify + fix)
-  3b   Combat validation framework (AttackConstraint / BlockConstraint)
-  3c   validate_attackers (per-creature + set-level)
-  3d   validate_blockers (per-creature + set-level)
-  3e   Combat damage assignment + resolution (deterministic)
-  3f   Wire combat into Game::run_turn + turn structure
-  3g   Cards: Grizzly Bears, Hill Giant, Savannah Lions
-  3h   Integration tests (attack, block, damage, creature death)
+Phase 3: Creatures & Combat ✅
+  3a   Permanent spell resolution fix (no re-push) ✅
+  3b   engine/combat/ module structure ✅
+  3c   validate_attackers + AttackConstraints skeleton ✅
+  3d   validate_blockers + BlockConstraints skeleton ✅
+  3e   Combat damage assignment + resolution (two-phase) ✅
+  3f   Wire combat into Game::run_turn + turn structure ✅
+  3g   Cards: Grizzly Bears, Hill Giant, Savannah Lions ✅
+  3h   Integration tests (8 tests) ✅
+  3i   Design doc update ✅
 
 Phase 4: Keywords
   4a   Flying / Reach (BlockConstraint entries)

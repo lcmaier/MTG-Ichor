@@ -71,6 +71,12 @@ pub struct GameState {
     // --- Combat tracking ---
     pub attacks_declared: bool,
     pub blockers_declared: bool,
+    /// Damage division for blockers blocking 2+ attackers (rule 510.1d).
+    /// Maps blocker ObjectId → Vec<(attacker ObjectId, damage amount)>.
+    /// Populated during declare blockers step, consumed during combat damage.
+    /// Phase 3: unused (multi-block requires Banding or "block additional" effects).
+    /// Phase 4/5: populated via DecisionProvider::choose_blocker_damage_division.
+    pub blocker_damage_divisions: HashMap<ObjectId, Vec<(ObjectId, u64)>>,
 
     // --- Timestamp counter for layer system (rule 613.7) ---
     /// Monotonically increasing counter. Each permanent that enters the
@@ -208,6 +214,7 @@ impl GameState {
             phase: Phase::new(PhaseType::Beginning),
             attacks_declared: false,
             blockers_declared: false,
+            blocker_damage_divisions: HashMap::new(),
             next_timestamp: 0,
             player_lost: vec![false; num_players],
             skip_first_draw: false,
