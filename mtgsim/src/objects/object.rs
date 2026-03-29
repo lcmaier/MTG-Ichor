@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::types::ids::{ObjectId, PlayerId, new_object_id};
 use crate::types::zones::Zone;
 
@@ -18,15 +20,15 @@ pub struct GameObject {
     pub id: ObjectId,
     /// The player who owns this object (determines whose graveyard/library it goes to)
     pub owner: PlayerId,
-    /// Reference to the immutable printed card definition
-    pub card_data: CardData,
+    /// Reference to the immutable printed card definition (shared via Arc)
+    pub card_data: Arc<CardData>,
     /// Current zone this object is in
     pub zone: Zone,
 }
 
 impl GameObject {
     /// Create a new game object in the specified zone
-    pub fn new(card_data: CardData, owner: PlayerId, zone: Zone) -> Self {
+    pub fn new(card_data: Arc<CardData>, owner: PlayerId, zone: Zone) -> Self {
         GameObject {
             id: new_object_id(),
             owner,
@@ -36,7 +38,7 @@ impl GameObject {
     }
 
     /// Create a new game object in the library (most common creation path — building a deck)
-    pub fn in_library(card_data: CardData, owner: PlayerId) -> Self {
+    pub fn in_library(card_data: Arc<CardData>, owner: PlayerId) -> Self {
         Self::new(card_data, owner, Zone::Library)
     }
 }

@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
+use crate::types::effects::{Effect, ManaOutput, Primitive, TargetSpec};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
@@ -74,45 +76,8 @@ pub enum Cost {
     // Add as needed...
 }
 
-/// What an ability or spell does when it resolves.
-///
-/// Effects are composable: `Sequence` chains multiple effects,
-/// and each variant is a self-contained one-shot or continuous effect description.
-///
-/// **Continuous effects** (e.g. "+2/+2 until end of turn") will be modeled as
-/// a one-shot `ApplyContinuousEffect` variant that *registers* a modifier in
-/// the GameState. The layer system (rule 613) reads these modifiers to compute
-/// effective characteristics. Modifiers carry a `Duration` (UntilEndOfTurn,
-/// WhileSourceOnBattlefield, etc.) and are cleaned up when they expire.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Effect {
-    /// Execute multiple effects in order
-    Sequence(Vec<Effect>),
-
-    /// Produce mana (for mana abilities)
-    ProduceMana {
-        mana: HashMap<ManaType, u64>,
-    },
-
-    /// Deal damage to target(s)
-    DealDamage {
-        amount: u64,
-        // Targeting requirements will be added in Phase 2
-    },
-
-    /// Draw cards
-    DrawCards {
-        count: u64,
-    },
-
-    /// Gain life
-    GainLife {
-        amount: u64,
-    },
-
-    // Destroy target (future)
-    // DestroyTarget { ... },
-}
+// Effect and Primitive types are defined in types::effects and re-exported here
+// for convenience. See effect_system_plan.md for the full design.
 
 // --- Builder Pattern ---
 
@@ -222,7 +187,10 @@ impl CardDataBuilder {
             id: crate::types::ids::new_ability_id(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],
-            effect: Effect::ProduceMana { mana: mana_produced },
+            effect: Effect::Atom(
+                Primitive::ProduceMana(ManaOutput { mana: mana_produced }),
+                TargetSpec::None,
+            ),
         });
 
         // Set rules text if empty
@@ -241,8 +209,8 @@ impl CardDataBuilder {
         self
     }
 
-    pub fn build(self) -> CardData {
-        self.data
+    pub fn build(self) -> Arc<CardData> {
+        Arc::new(self.data)
     }
 }
 
@@ -280,7 +248,7 @@ mod tests {
             .build();
 
         assert_eq!(bears.name, "Grizzly Bears");
-        assert_eq!(bears.mana_cost.unwrap().mana_value(), 2);
+        assert_eq!(bears.mana_cost.as_ref().unwrap().mana_value(), 2);
         assert!(bears.types.contains(&CardType::Creature));
         assert_eq!(bears.power, Some(2));
         assert_eq!(bears.toughness, Some(2));

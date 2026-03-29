@@ -59,14 +59,19 @@ impl GameState {
     }
 
     /// Draw a card: move top of library to hand.
-    pub fn draw_card(&mut self, player_id: PlayerId) -> Result<ObjectId, String> {
+    ///
+    /// Returns `Ok(Some(id))` if a card was drawn, `Ok(None)` if the library
+    /// was empty (the player is flagged for SBA 704.5b loss but the game
+    /// continues — SBAs will handle the actual loss when checked).
+    pub fn draw_card(&mut self, player_id: PlayerId) -> Result<Option<ObjectId>, String> {
         let player = self.get_player(player_id)?;
 
         if player.library.is_empty() {
-            // Rule 704.5b: player attempted to draw from empty library
+            // Rule 704.5b: flag that this player attempted to draw from empty library.
+            // The actual game loss happens when SBAs are next checked.
             let player_mut = self.get_player_mut(player_id)?;
             player_mut.has_drawn_from_empty_library = true;
-            return Err(format!("Player {} tried to draw from an empty library", player_id));
+            return Ok(None);
         }
 
         // Top of library = last element in the Vec
@@ -76,16 +81,19 @@ impl GameState {
         };
 
         self.move_object(card_id, Zone::Hand)?;
-        Ok(card_id)
+        Ok(Some(card_id))
     }
 
-    /// Draw N cards for a player
+    /// Draw N cards for a player.
+    ///
+    /// Returns the IDs of cards actually drawn. If the library runs out mid-draw,
+    /// the player is flagged for SBA loss and the remaining draws are skipped.
     pub fn draw_cards(&mut self, player_id: PlayerId, count: u64) -> Result<Vec<ObjectId>, String> {
         let mut drawn = Vec::new();
         for _ in 0..count {
-            match self.draw_card(player_id) {
-                Ok(id) => drawn.push(id),
-                Err(e) => return Err(e),
+            match self.draw_card(player_id)? {
+                Some(id) => drawn.push(id),
+                None => break, // library empty, flagged for SBA
             }
         }
         Ok(drawn)
@@ -97,6 +105,23 @@ impl GameState {
     /// Normally this is `Zone::Hand`, but continuous effects can allow playing
     /// lands from other zones (e.g. graveyard via Crucible of Worlds).
     pub fn play_land(&mut self, player_id: PlayerId, card_id: ObjectId, from: Zone) -> Result<(), String> {
+        // Rule 505.6b: Only the active player can play a land
+        if player_id != self.active_player {
+            return Err("Only the active player can play a land".to_string());
+        }
+
+        // Rule 505.6b: Lands can only be played during a main phase
+        match self.phase.phase_type {
+            crate::state::game_state::PhaseType::Precombat
+            | crate::state::game_state::PhaseType::Postcombat => {}
+            _ => return Err("Lands can only be played during a main phase".to_string()),
+        }
+
+        // Rule 505.6b: Stack must be empty to play a land
+        if !self.stack.is_empty() {
+            return Err("Cannot play a land while the stack is not empty".to_string());
+        }
+
         let obj = self.get_object(card_id)?;
         if obj.zone != from {
             return Err(format!("Card is not in {:?}", from));
@@ -234,7 +259,8 @@ impl GameState {
         if zone == Zone::Battlefield {
             let obj = self.get_object(id)?;
             let controller = obj.owner; // default controller is owner
-            let entry = BattlefieldEntity::new(id, controller);
+            let ts = self.allocate_timestamp();
+            let entry = BattlefieldEntity::new(id, controller, ts);
             self.battlefield.insert(id, entry);
         }
         Ok(())
@@ -257,13 +283,24 @@ mod tests {
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
 
-    fn make_forest() -> crate::objects::card_data::CardData {
+    fn make_forest() -> std::sync::Arc<crate::objects::card_data::CardData> {
         CardDataBuilder::new("Forest")
             .card_type(CardType::Land)
             .supertype(Supertype::Basic)
             .subtype(Subtype::Land(LandType::Forest))
             .mana_ability_single(ManaType::Green)
             .build()
+    }
+
+    fn stock_libraries(game: &mut GameState, cards_per_player: usize) {
+        let num_players = game.num_players();
+        for pid in 0..num_players {
+            for _ in 0..cards_per_player {
+                let obj = GameObject::in_library(make_forest(), pid);
+                let id = game.add_object(obj);
+                game.players[pid].library.push(id);
+            }
+        }
     }
 
     #[test]
@@ -277,7 +314,7 @@ mod tests {
 
         // Draw it
         let drawn = game.draw_card(0).unwrap();
-        assert_eq!(drawn, forest_id);
+        assert_eq!(drawn, Some(forest_id));
         assert!(game.players[0].library.is_empty());
         assert_eq!(game.players[0].hand.len(), 1);
         assert_eq!(game.players[0].hand[0], forest_id);
@@ -290,14 +327,21 @@ mod tests {
     #[test]
     fn test_draw_from_empty_library() {
         let mut game = GameState::new(2, 20);
-        let result = game.draw_card(0);
-        assert!(result.is_err());
+        let result = game.draw_card(0).unwrap();
+        assert_eq!(result, None);
         assert!(game.players[0].has_drawn_from_empty_library);
     }
 
     #[test]
     fn test_play_land() {
         let mut game = GameState::new(2, 20);
+        stock_libraries(&mut game, 5);
+
+        // Advance to Precombat main phase (Untap -> Upkeep -> Draw -> Precombat)
+        for _ in 0..3 {
+            game.advance_turn().unwrap();
+        }
+        assert_eq!(game.phase.phase_type, crate::state::game_state::PhaseType::Precombat);
 
         // Create a forest in hand
         let forest = GameObject::new(make_forest(), 0, Zone::Hand);
@@ -307,7 +351,7 @@ mod tests {
         // Play it
         game.play_land(0, forest_id, Zone::Hand).unwrap();
 
-        assert!(game.players[0].hand.is_empty());
+        assert!(game.players[0].hand.len() == 1); // drew 1 card during draw step
         assert!(game.battlefield.contains_key(&forest_id));
         assert_eq!(game.players[0].lands_played_this_turn, 1);
 
@@ -324,13 +368,48 @@ mod tests {
     }
 
     #[test]
+    fn test_play_land_wrong_phase() {
+        let mut game = GameState::new(2, 20);
+        stock_libraries(&mut game, 5);
+
+        // Stay in Beginning phase (Untap step)
+        let forest = GameObject::new(make_forest(), 0, Zone::Hand);
+        let forest_id = game.add_object(forest);
+        game.players[0].hand.push(forest_id);
+
+        let result = game.play_land(0, forest_id, Zone::Hand);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("main phase"));
+    }
+
+    #[test]
+    fn test_play_land_wrong_player() {
+        let mut game = GameState::new(2, 20);
+        stock_libraries(&mut game, 5);
+
+        // Advance to Precombat main (player 0 is active)
+        for _ in 0..3 {
+            game.advance_turn().unwrap();
+        }
+
+        // Player 1 tries to play a land during player 0's turn
+        let forest = GameObject::new(make_forest(), 1, Zone::Hand);
+        let forest_id = game.add_object(forest);
+        game.players[1].hand.push(forest_id);
+
+        let result = game.play_land(1, forest_id, Zone::Hand);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("active player"));
+    }
+
+    #[test]
     fn test_zone_transition_battlefield_to_graveyard() {
         let mut game = GameState::new(2, 20);
 
         // Create a forest on the battlefield
         let forest = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        let entry = crate::state::battlefield::BattlefieldEntity::new(forest_id, 0);
+        let entry = crate::state::battlefield::BattlefieldEntity::new(forest_id, 0, 0);
         game.battlefield.insert(forest_id, entry);
 
         // Move to graveyard

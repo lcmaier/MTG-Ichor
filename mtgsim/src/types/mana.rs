@@ -28,58 +28,174 @@ impl ManaType {
     }
 }
 
+/// A single mana symbol in a mana cost.
+///
+/// Each symbol represents one "slot" that must be paid. The variant describes
+/// what types of mana (or alternative payments) can satisfy it.
+///
+/// Reference: rules 107.4, 107.4a–107.4h
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ManaSymbol {
+    /// A single colored mana symbol: {W}, {U}, {B}, {R}, {G}
+    Colored(ManaType),
+    /// Generic mana: {1}. Each instance represents one generic mana.
+    /// A cost like {3} is stored as three `Generic` symbols.
+    Generic,
+    /// Colorless mana: {C}. Must be paid with colorless mana specifically.
+    Colorless,
+    /// Hybrid mana: {W/U}, {B/R}, etc. Pay with either color.
+    Hybrid(ManaType, ManaType),
+    /// Mono-hybrid (a.k.a. "twobrid"): {2/W}. Pay 2 generic or 1 of the color.
+    MonoHybrid(ManaType),
+    /// Phyrexian mana: {W/P}. Pay with the color or 2 life.
+    Phyrexian(ManaType),
+    /// Hybrid Phyrexian: {W/U/P}. Pay with either color or 2 life.
+    HybridPhyrexian(ManaType, ManaType),
+    /// Snow mana: {S}. Must be paid with mana from a snow source.
+    Snow,
+    /// X cost: variable. Mana value contribution is 0 when printed,
+    /// but X is chosen on cast and contributes to the total cost.
+    X,
+}
+
+impl ManaSymbol {
+    /// Mana value contribution of this symbol (rule 202.3).
+    /// X contributes 0 to mana value. MonoHybrid contributes 2.
+    pub fn mana_value(&self) -> u8 {
+        match self {
+            ManaSymbol::Colored(_) => 1,
+            ManaSymbol::Generic => 1,
+            ManaSymbol::Colorless => 1,
+            ManaSymbol::Hybrid(_, _) => 1,
+            ManaSymbol::MonoHybrid(_) => 2,
+            ManaSymbol::Phyrexian(_) => 1,
+            ManaSymbol::HybridPhyrexian(_, _) => 1,
+            ManaSymbol::Snow => 1,
+            ManaSymbol::X => 0,
+        }
+    }
+}
+
+impl fmt::Display for ManaSymbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ManaSymbol::Colored(t) => write!(f, "{{{}}}", mana_type_letter(*t)),
+            ManaSymbol::Generic => write!(f, "{{1}}"),
+            ManaSymbol::Colorless => write!(f, "{{C}}"),
+            ManaSymbol::Hybrid(a, b) => write!(f, "{{{}/{}}}", mana_type_letter(*a), mana_type_letter(*b)),
+            ManaSymbol::MonoHybrid(t) => write!(f, "{{2/{}}}", mana_type_letter(*t)),
+            ManaSymbol::Phyrexian(t) => write!(f, "{{{}/P}}", mana_type_letter(*t)),
+            ManaSymbol::HybridPhyrexian(a, b) => write!(f, "{{{}/{}/P}}", mana_type_letter(*a), mana_type_letter(*b)),
+            ManaSymbol::Snow => write!(f, "{{S}}"),
+            ManaSymbol::X => write!(f, "{{X}}"),
+        }
+    }
+}
+
+fn mana_type_letter(t: ManaType) -> &'static str {
+    match t {
+        ManaType::White => "W",
+        ManaType::Blue => "U",
+        ManaType::Black => "B",
+        ManaType::Red => "R",
+        ManaType::Green => "G",
+        ManaType::Colorless => "C",
+    }
+}
+
 /// Represents the mana cost printed on a card.
 ///
-/// Each field represents the number of mana symbols of that type in the cost.
-/// `generic` is the number in the gray circle (payable by any type).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Stored as an ordered sequence of mana symbols. This design naturally
+/// supports hybrid, Phyrexian, mono-hybrid, snow, and X costs.
+///
+/// The symbols are stored in conventional MTG ordering:
+/// generic/X first, then colored symbols in WUBRG order.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManaCost {
-    pub white: u8,
-    pub blue: u8,
-    pub black: u8,
-    pub red: u8,
-    pub green: u8,
-    pub colorless: u8,
-    pub generic: u8,
+    pub symbols: Vec<ManaSymbol>,
 }
 
 impl ManaCost {
-    pub const ZERO: ManaCost = ManaCost {
-        white: 0, blue: 0, black: 0, red: 0, green: 0, colorless: 0, generic: 0,
-    };
-
-    /// Convenience constructor for a mono-colored cost: e.g. `ManaCost::single(ManaType::Red, 1, 0)` = {R}
-    pub fn single(mana_type: ManaType, colored: u8, generic: u8) -> Self {
-        let mut cost = ManaCost::ZERO;
-        cost.generic = generic;
-        match mana_type {
-            ManaType::White => cost.white = colored,
-            ManaType::Blue => cost.blue = colored,
-            ManaType::Black => cost.black = colored,
-            ManaType::Red => cost.red = colored,
-            ManaType::Green => cost.green = colored,
-            ManaType::Colorless => cost.colorless = colored,
-        }
-        cost
+    /// A zero mana cost (no symbols).
+    pub fn zero() -> Self {
+        ManaCost { symbols: Vec::new() }
     }
 
-    /// Total mana value (converted mana cost)
+    /// Build a cost from raw symbols.
+    pub fn from_symbols(symbols: Vec<ManaSymbol>) -> Self {
+        ManaCost { symbols }
+    }
+
+    /// Convenience constructor for a mono-colored cost.
+    ///
+    /// e.g. `ManaCost::single(ManaType::Red, 1, 0)` = {R}
+    /// e.g. `ManaCost::single(ManaType::Green, 1, 1)` = {1}{G}
+    pub fn single(mana_type: ManaType, colored: u8, generic: u8) -> Self {
+        let mut symbols = Vec::with_capacity((generic + colored) as usize);
+        for _ in 0..generic {
+            symbols.push(ManaSymbol::Generic);
+        }
+        let sym = if mana_type == ManaType::Colorless {
+            ManaSymbol::Colorless
+        } else {
+            ManaSymbol::Colored(mana_type)
+        };
+        for _ in 0..colored {
+            symbols.push(sym);
+        }
+        ManaCost { symbols }
+    }
+
+    /// Total mana value / converted mana cost (rule 202.3).
     pub fn mana_value(&self) -> u8 {
-        self.white + self.blue + self.black + self.red + self.green + self.colorless + self.generic
+        self.symbols.iter().map(|s| s.mana_value()).sum()
+    }
+
+    /// Count how many symbols of a specific colored type appear.
+    pub fn colored_count(&self, mana_type: ManaType) -> u8 {
+        self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Colored(t) if *t == mana_type)).count() as u8
+    }
+
+    /// Count how many generic symbols appear.
+    pub fn generic_count(&self) -> u8 {
+        self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Generic)).count() as u8
+    }
+
+    /// Count how many X symbols appear.
+    pub fn x_count(&self) -> u8 {
+        self.symbols.iter().filter(|s| matches!(s, ManaSymbol::X)).count() as u8
+    }
+
+    /// Whether any symbol requires player choice (hybrid, Phyrexian, X, generic).
+    pub fn has_choices(&self) -> bool {
+        self.symbols.iter().any(|s| matches!(s,
+            ManaSymbol::Generic
+            | ManaSymbol::Hybrid(_, _)
+            | ManaSymbol::MonoHybrid(_)
+            | ManaSymbol::Phyrexian(_)
+            | ManaSymbol::HybridPhyrexian(_, _)
+            | ManaSymbol::X
+        ))
     }
 }
 
 impl fmt::Display for ManaCost {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.generic > 0 {
-            write!(f, "{{{}}}", self.generic)?;
+        // Coalesce consecutive Generic symbols into a single number: {3} not {1}{1}{1}
+        let mut i = 0;
+        while i < self.symbols.len() {
+            if self.symbols[i] == ManaSymbol::Generic {
+                let mut count = 0u8;
+                while i < self.symbols.len() && self.symbols[i] == ManaSymbol::Generic {
+                    count += 1;
+                    i += 1;
+                }
+                write!(f, "{{{}}}", count)?;
+            } else {
+                write!(f, "{}", self.symbols[i])?;
+                i += 1;
+            }
         }
-        for _ in 0..self.white { write!(f, "{{W}}")?; }
-        for _ in 0..self.blue { write!(f, "{{U}}")?; }
-        for _ in 0..self.black { write!(f, "{{B}}")?; }
-        for _ in 0..self.red { write!(f, "{{R}}")?; }
-        for _ in 0..self.green { write!(f, "{{G}}")?; }
-        for _ in 0..self.colorless { write!(f, "{{C}}")?; }
         Ok(())
     }
 }
@@ -258,34 +374,46 @@ impl ManaPool {
 
     /// Check if a ManaCost can be paid from this pool.
     /// Does NOT modify the pool.
+    ///
+    /// Currently handles `Colored`, `Colorless`, and `Generic` symbols.
+    /// Hybrid/Phyrexian/X/Snow payment requires `DecisionProvider` choices
+    /// and will be handled via the full `pay()` path in a future phase.
     pub fn can_pay(&self, cost: &ManaCost) -> bool {
-        if !self.has(ManaType::White, cost.white as u64) { return false; }
-        if !self.has(ManaType::Blue, cost.blue as u64) { return false; }
-        if !self.has(ManaType::Black, cost.black as u64) { return false; }
-        if !self.has(ManaType::Red, cost.red as u64) { return false; }
-        if !self.has(ManaType::Green, cost.green as u64) { return false; }
-        if !self.has(ManaType::Colorless, cost.colorless as u64) { return false; }
+        // Tally up specific color requirements
+        let mut need: HashMap<ManaType, u64> = HashMap::new();
+        let mut generic_count: u64 = 0;
 
-        let remaining = self.total()
-            - cost.white as u64
-            - cost.blue as u64
-            - cost.black as u64
-            - cost.red as u64
-            - cost.green as u64
-            - cost.colorless as u64;
+        for sym in &cost.symbols {
+            match sym {
+                ManaSymbol::Colored(t) => *need.entry(*t).or_insert(0) += 1,
+                ManaSymbol::Colorless => *need.entry(ManaType::Colorless).or_insert(0) += 1,
+                ManaSymbol::Generic => generic_count += 1,
+                // Future: hybrid/phyrexian would need choice-aware checking
+                _ => return false, // can't auto-check these yet
+            }
+        }
 
-        remaining >= cost.generic as u64
+        // Check each specific color requirement
+        for (&mana_type, &required) in &need {
+            if !self.has(mana_type, required) {
+                return false;
+            }
+        }
+
+        // Check that remaining mana covers generic
+        let specific_total: u64 = need.values().sum();
+        let remaining = self.total().saturating_sub(specific_total);
+        remaining >= generic_count
     }
 
     /// Pay a ManaCost from this pool.
     ///
-    /// Specific color requirements are paid automatically (they must be paid
-    /// with that exact color — no choice involved).
+    /// Specific color/colorless requirements are paid automatically.
     ///
     /// Generic costs require the caller to provide `generic_allocation`: a
     /// HashMap specifying how many of each ManaType to spend on the generic
-    /// portion. The values must sum to `cost.generic`. This is a player choice
-    /// because the player may want to preserve specific colors for future spells.
+    /// portion. The values must sum to `cost.generic_count()`. This is a
+    /// player choice because the player may want to preserve specific colors.
     ///
     /// Returns Err if the pool has insufficient mana or the allocation is invalid.
     pub fn pay(
@@ -297,25 +425,31 @@ impl ManaPool {
             return Err("Insufficient mana to pay cost".to_string());
         }
 
+        // Tally specific requirements
+        let mut need: HashMap<ManaType, u64> = HashMap::new();
+        let mut generic_need: u64 = 0;
+
+        for sym in &cost.symbols {
+            match sym {
+                ManaSymbol::Colored(t) => *need.entry(*t).or_insert(0) += 1,
+                ManaSymbol::Colorless => *need.entry(ManaType::Colorless).or_insert(0) += 1,
+                ManaSymbol::Generic => generic_need += 1,
+                _ => return Err(format!("Cannot pay symbol {:?} yet", sym)),
+            }
+        }
+
         // Validate generic allocation sums to generic cost
         let alloc_total: u64 = generic_allocation.values().sum();
-        if alloc_total != cost.generic as u64 {
+        if alloc_total != generic_need {
             return Err(format!(
                 "Generic allocation sums to {} but generic cost is {}",
-                alloc_total, cost.generic
+                alloc_total, generic_need
             ));
         }
 
         // Validate the allocation doesn't exceed what remains after specific costs
         for (&mana_type, &alloc_amount) in generic_allocation {
-            let specific_need = match mana_type {
-                ManaType::White => cost.white as u64,
-                ManaType::Blue => cost.blue as u64,
-                ManaType::Black => cost.black as u64,
-                ManaType::Red => cost.red as u64,
-                ManaType::Green => cost.green as u64,
-                ManaType::Colorless => cost.colorless as u64,
-            };
+            let specific_need = need.get(&mana_type).copied().unwrap_or(0);
             let available = self.amount(mana_type);
             if specific_need + alloc_amount > available {
                 return Err(format!(
@@ -326,12 +460,9 @@ impl ManaPool {
         }
 
         // Pay specific colors
-        self.remove(ManaType::White, cost.white as u64)?;
-        self.remove(ManaType::Blue, cost.blue as u64)?;
-        self.remove(ManaType::Black, cost.black as u64)?;
-        self.remove(ManaType::Red, cost.red as u64)?;
-        self.remove(ManaType::Green, cost.green as u64)?;
-        self.remove(ManaType::Colorless, cost.colorless as u64)?;
+        for (&mana_type, &required) in &need {
+            self.remove(mana_type, required)?;
+        }
 
         // Pay generic using the player's chosen allocation
         for (&mana_type, &alloc_amount) in generic_allocation {
@@ -348,7 +479,7 @@ impl ManaPool {
     /// Convenience method for costs where all mana is specific colors (e.g. {W},
     /// {G}{G}, {R}). Errors if the cost has a generic component — use `pay()` instead.
     pub fn pay_specific_only(&mut self, cost: &ManaCost) -> Result<(), String> {
-        if cost.generic > 0 {
+        if cost.generic_count() > 0 {
             return Err("Cost has generic component — use pay() with a generic allocation".to_string());
         }
         self.pay(cost, &HashMap::new())

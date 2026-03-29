@@ -3,9 +3,11 @@
 //! Tests here exercise multiple subsystems together:
 //! zone transitions, turn structure, mana abilities, SBAs, and events.
 
+use std::sync::Arc;
+
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::objects::card_data::AbilityType;
+use mtgsim::objects::card_data::{AbilityType, CardData};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::types::ids::AbilityId;
@@ -13,7 +15,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 
 /// Build a deck of basic lands for a player
-fn build_test_deck(game: &mut GameState, player_id: usize, land_fn: fn() -> mtgsim::objects::card_data::CardData, count: usize) {
+fn build_test_deck(game: &mut GameState, player_id: usize, land_fn: fn() -> Arc<CardData>, count: usize) {
     for _ in 0..count {
         let card_data = land_fn();
         let obj = GameObject::in_library(card_data, player_id);
@@ -176,7 +178,7 @@ fn test_card_registry_integration() {
     assert_eq!(game.players[0].library.len(), 3);
     assert_eq!(game.players[1].library.len(), 2);
 
-    let drawn_id = game.draw_card(0).unwrap();
+    let drawn_id = game.draw_card(0).unwrap().expect("Should have drawn a card");
     let drawn_obj = game.get_object(drawn_id).unwrap();
     assert_eq!(drawn_obj.card_data.name, "Swamp");
 }
@@ -197,10 +199,10 @@ fn test_sba_integration_with_turn_structure() {
         .power_toughness(2, 2)
         .build();
 
-    let bears = GameObject::new(bears_data, 0, Zone::Battlefield);
+    let bears = GameObject::new(bears_data.clone(), 0, Zone::Battlefield);
     let bears_id = bears.id;
     game.add_object(bears);
-    let mut entry = mtgsim::state::battlefield::BattlefieldEntity::new(bears_id, 0);
+    let mut entry = mtgsim::state::battlefield::BattlefieldEntity::new(bears_id, 0, 0);
     entry.damage_marked = 3;
     entry.summoning_sick = false;
     game.battlefield.insert(bears_id, entry);

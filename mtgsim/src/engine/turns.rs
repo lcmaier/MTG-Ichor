@@ -102,8 +102,19 @@ impl GameState {
                 self.priority_player = self.active_player;
             }
             StepType::Cleanup => {
-                // Normally no priority during cleanup
-                // Future: discard to hand size, remove damage, end "until end of turn" effects
+                // Rule 514.1: Discard to hand size — requires DecisionProvider (future)
+                // TODO: wire up discard-to-hand-size once DecisionProvider is integrated
+
+                // Rule 514.2: Remove all damage marked on permanents and end
+                // "until end of turn" / "this turn" effects (simultaneous)
+                for (_id, entry) in &mut self.battlefield {
+                    entry.damage_marked = 0;
+                }
+                // Future: end "until end of turn" continuous effects here
+
+                // Normally no priority during cleanup (rule 514.3)
+                // Rule 514.3a: If SBAs would be performed or triggered abilities
+                // are waiting, another cleanup step begins — handled in future phases
             }
         }
         Ok(())
@@ -156,7 +167,7 @@ impl GameState {
 
         // First turn of the game: first player doesn't draw (rule 103.8)
         // For now, always draw. TODO: add first-turn skip logic
-        self.draw_card(active)?;
+        self.draw_card(active)?; // Ok(None) on empty library just flags SBA
 
         self.priority_player = active;
         Ok(())
@@ -281,7 +292,7 @@ mod tests {
             .build();
         let forest = GameObject::new(forest_data, 0, crate::types::zones::Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        let mut entry = crate::state::battlefield::BattlefieldEntity::new(forest_id, 0);
+        let mut entry = crate::state::battlefield::BattlefieldEntity::new(forest_id, 0, 0);
         entry.tapped = true;
         entry.summoning_sick = true;
         game.battlefield.insert(forest_id, entry);

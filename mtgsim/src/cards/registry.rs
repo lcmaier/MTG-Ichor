@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::objects::card_data::CardData;
 
@@ -12,7 +13,7 @@ use super::basic_lands;
 ///
 /// This keeps card definitions purely data-driven — no engine code needed.
 pub struct CardRegistry {
-    cards: HashMap<String, fn() -> CardData>,
+    cards: HashMap<String, fn() -> Arc<CardData>>,
 }
 
 impl CardRegistry {
@@ -23,12 +24,12 @@ impl CardRegistry {
     }
 
     /// Register a card factory function
-    pub fn register(&mut self, name: &str, factory: fn() -> CardData) {
+    pub fn register(&mut self, name: &str, factory: fn() -> Arc<CardData>) {
         self.cards.insert(name.to_string(), factory);
     }
 
-    /// Look up a card by name and create a fresh CardData instance
-    pub fn create(&self, name: &str) -> Result<CardData, String> {
+    /// Look up a card by name and create a fresh Arc<CardData>
+    pub fn create(&self, name: &str) -> Result<Arc<CardData>, String> {
         self.cards.get(name)
             .map(|factory| factory())
             .ok_or_else(|| format!("Card '{}' not found in registry", name))

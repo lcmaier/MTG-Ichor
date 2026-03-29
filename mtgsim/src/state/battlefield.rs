@@ -10,6 +10,11 @@ pub struct BattlefieldEntity {
     pub object_id: ObjectId,
     pub controller: PlayerId,
 
+    /// Timestamp for the layer system (rule 613.7).
+    /// Permanents that entered the battlefield earlier have lower timestamps.
+    /// Used to order continuous effects within the same layer/sublayer.
+    pub timestamp: u64,
+
     // Permanent state
     pub tapped: bool,
     pub flipped: bool,
@@ -49,10 +54,11 @@ pub enum AttackTarget {
 }
 
 impl BattlefieldEntity {
-    pub fn new(object_id: ObjectId, controller: PlayerId) -> Self {
+    pub fn new(object_id: ObjectId, controller: PlayerId, timestamp: u64) -> Self {
         BattlefieldEntity {
             object_id,
             controller,
+            timestamp,
             tapped: false,
             flipped: false,
             face_down: false,

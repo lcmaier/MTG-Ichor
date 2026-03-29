@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::*;
 use crate::types::mana::ManaType;
 
 /// Create the CardData for a Plains
-pub fn plains() -> CardData {
+pub fn plains() -> Arc<CardData> {
     CardDataBuilder::new("Plains")
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
@@ -13,7 +15,7 @@ pub fn plains() -> CardData {
 }
 
 /// Create the CardData for an Island
-pub fn island() -> CardData {
+pub fn island() -> Arc<CardData> {
     CardDataBuilder::new("Island")
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
@@ -23,7 +25,7 @@ pub fn island() -> CardData {
 }
 
 /// Create the CardData for a Swamp
-pub fn swamp() -> CardData {
+pub fn swamp() -> Arc<CardData> {
     CardDataBuilder::new("Swamp")
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
@@ -33,7 +35,7 @@ pub fn swamp() -> CardData {
 }
 
 /// Create the CardData for a Mountain
-pub fn mountain() -> CardData {
+pub fn mountain() -> Arc<CardData> {
     CardDataBuilder::new("Mountain")
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
@@ -43,7 +45,7 @@ pub fn mountain() -> CardData {
 }
 
 /// Create the CardData for a Forest
-pub fn forest() -> CardData {
+pub fn forest() -> Arc<CardData> {
     CardDataBuilder::new("Forest")
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)

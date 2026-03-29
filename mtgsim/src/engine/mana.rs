@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::objects::card_data::{AbilityType, Effect};
+use crate::objects::card_data::AbilityType;
+use crate::types::effects::{Effect, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
@@ -66,9 +67,9 @@ impl GameState {
         player_id: PlayerId,
     ) -> Result<(), String> {
         match effect {
-            Effect::ProduceMana { mana } => {
+            Effect::Atom(Primitive::ProduceMana(output), _) => {
                 let player = self.get_player_mut(player_id)?;
-                for (mana_type, amount) in mana {
+                for (mana_type, amount) in &output.mana {
                     player.mana_pool.add(*mana_type, *amount);
                 }
                 Ok(())
@@ -109,7 +110,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0);
+        let mut entry = BattlefieldEntity::new(id, 0, 0);
         entry.summoning_sick = false;
         game.battlefield.insert(id, entry);
 

@@ -43,6 +43,11 @@ pub struct GameState {
     pub attacks_declared: bool,
     pub blockers_declared: bool,
 
+    // --- Timestamp counter for layer system (rule 613.7) ---
+    /// Monotonically increasing counter. Each permanent that enters the
+    /// battlefield gets the current value, then the counter increments.
+    pub next_timestamp: u64,
+
     // --- Event log ---
     pub events: EventLog,
 }
@@ -164,8 +169,16 @@ impl GameState {
             phase: Phase::new(PhaseType::Beginning),
             attacks_declared: false,
             blockers_declared: false,
+            next_timestamp: 0,
             events: EventLog::new(),
         }
+    }
+
+    /// Allocate and return the next timestamp value.
+    pub fn allocate_timestamp(&mut self) -> u64 {
+        let ts = self.next_timestamp;
+        self.next_timestamp += 1;
+        ts
     }
 
     // --- Object management ---

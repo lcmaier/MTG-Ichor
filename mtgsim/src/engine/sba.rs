@@ -124,7 +124,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(bears_id, 0);
+        let mut entry = BattlefieldEntity::new(bears_id, 0, 0);
         entry.summoning_sick = false;
         entry.damage_marked = 2; // lethal for a 2/2
         game.battlefield.insert(bears_id, entry);
@@ -150,7 +150,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(bears_id, 0);
+        let entry = BattlefieldEntity::new(bears_id, 0, 0);
         game.battlefield.insert(bears_id, entry);
 
         let performed = game.check_state_based_actions().unwrap();

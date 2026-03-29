@@ -67,7 +67,7 @@ impl GameState {
             }
             Cost::Mana(mana_cost) => {
                 let player = self.get_player_mut(player_id)?;
-                if mana_cost.generic == 0 {
+                if mana_cost.generic_count() == 0 {
                     player.mana_pool.pay_specific_only(mana_cost)
                 } else {
                     player.mana_pool.pay(mana_cost, generic_allocation)
@@ -113,7 +113,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0);
+        let mut entry = BattlefieldEntity::new(id, 0, 0);
         entry.summoning_sick = false;
         game.battlefield.insert(id, entry);
         (game, id)
