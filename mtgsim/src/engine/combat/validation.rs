@@ -7,6 +7,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::keywords::KeywordAbility;
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -23,6 +24,8 @@ pub enum CombatError {
     InvalidAttackTarget(ObjectId),
     AttackerNotAttackingThisPlayer(ObjectId, ObjectId),
     TooManyBlocks(ObjectId, usize),
+    HasDefender(ObjectId),
+    CantBlockFlyer(ObjectId, ObjectId),
     ConstraintViolation(String),
 }
 
@@ -39,6 +42,10 @@ impl std::fmt::Display for CombatError {
                 write!(f, "Blocker {} cannot block attacker {} (not attacking this player)", blocker, attacker)
             }
             CombatError::TooManyBlocks(id, max) => write!(f, "Creature {} cannot block more than {} attacker(s)", id, max),
+            CombatError::HasDefender(id) => write!(f, "Creature {} has defender and can't attack", id),
+            CombatError::CantBlockFlyer(blocker, attacker) => {
+                write!(f, "Creature {} can't block flyer {} (no flying or reach)", blocker, attacker)
+            }
             CombatError::ConstraintViolation(msg) => write!(f, "Constraint violation: {}", msg),
         }
     }
@@ -142,6 +149,15 @@ impl BlockConstraints {
 // card_data fields directly, so the transition is a single-point change.
 
 impl GameState {
+    /// Check if a permanent has an effective keyword ability.
+    /// Phase 4: reads printed keywords from card_data.
+    /// Phase 5: layer-system-aware (granted/removed keywords from continuous effects).
+    pub fn has_keyword(&self, id: ObjectId, keyword: KeywordAbility) -> bool {
+        self.objects.get(&id)
+            .map(|obj| obj.card_data.keywords.contains(&keyword))
+            .unwrap_or(false)
+    }
+
     /// Check if an object on the battlefield is currently a creature.
     /// Phase 3: reads printed types. Phase 5: reads effective types from layer system.
     pub fn is_creature(&self, id: ObjectId) -> bool {
@@ -151,11 +167,10 @@ impl GameState {
     }
 
     /// Check if a creature can attack (not summoning-sick, or has haste).
-    /// Phase 3: just checks summoning_sick. Phase 4: adds haste keyword bypass.
+    /// Rule 702.10b: Haste bypasses summoning sickness for attacking.
     pub fn can_attack(&self, id: ObjectId) -> bool {
         if let Some(entry) = self.battlefield.get(&id) {
-            // Phase 4: || self.has_effective_keyword(id, KeywordAbility::Haste)
-            !entry.summoning_sick
+            !entry.summoning_sick || self.has_keyword(id, KeywordAbility::Haste)
         } else {
             false
         }
@@ -221,7 +236,12 @@ pub fn validate_attackers(
             return Err(CombatError::CreatureHasSummoningSickness(*creature_id));
         }
 
-        // 6. Attack target must be valid
+        // 6. Defender check (rule 702.3b)
+        if game.has_keyword(*creature_id, KeywordAbility::Defender) {
+            return Err(CombatError::HasDefender(*creature_id));
+        }
+
+        // 7. Attack target must be valid
         match target {
             AttackTarget::Player(pid) => {
                 // Must be an opponent (not self, and within player range)
@@ -353,7 +373,15 @@ pub fn validate_blockers(
             return Err(CombatError::NotOnBattlefield(*attacker_id));
         }
 
-        // 6. Count blocks per creature
+        // 6. Flying evasion check (rule 702.9b)
+        if game.has_keyword(*attacker_id, KeywordAbility::Flying) {
+            if !game.has_keyword(*blocker_id, KeywordAbility::Flying)
+                && !game.has_keyword(*blocker_id, KeywordAbility::Reach) {
+                return Err(CombatError::CantBlockFlyer(*blocker_id, *attacker_id));
+            }
+        }
+
+        // 7. Count blocks per creature
         let count = block_counts.entry(*blocker_id).or_insert(0);
         *count += 1;
         let max = constraints.max_blocks_for(*blocker_id);
@@ -415,6 +443,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::{AttackingInfo, BattlefieldEntity};
+    use crate::types::keywords::KeywordAbility;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
     use crate::types::colors::Color;
@@ -697,5 +726,254 @@ mod tests {
             &constraints,
         );
         assert!(result.is_ok());
+    }
+
+    /// Place a creature with specific keywords on the battlefield (not summoning sick).
+    fn place_creature_with_keywords(
+        game: &mut GameState,
+        owner: PlayerId,
+        keywords: &[KeywordAbility],
+        power: i32,
+        toughness: i32,
+    ) -> ObjectId {
+        let mut builder = CardDataBuilder::new("Test Creature")
+            .card_type(CardType::Creature)
+            .power_toughness(power, toughness);
+        for kw in keywords {
+            builder = builder.keyword(*kw);
+        }
+        let data = builder.build();
+        let obj = GameObject::new(data, owner, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let ts = game.allocate_timestamp();
+        let mut entry = BattlefieldEntity::new(id, owner, ts);
+        entry.summoning_sick = false;
+        game.battlefield.insert(id, entry);
+        id
+    }
+
+    // --- has_keyword tests ---
+
+    #[test]
+    fn test_has_keyword_true() {
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Serra Angel")
+            .card_type(CardType::Creature)
+            .color(Color::White)
+            .mana_cost(ManaCost::single(ManaType::White, 2, 3))
+            .power_toughness(4, 4)
+            .keyword(KeywordAbility::Flying)
+            .keyword(KeywordAbility::Vigilance)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+
+        assert!(game.has_keyword(id, KeywordAbility::Flying));
+        assert!(game.has_keyword(id, KeywordAbility::Vigilance));
+    }
+
+    #[test]
+    fn test_has_keyword_false() {
+        let mut game = GameState::new(2, 20);
+        let creature_id = place_creature(&mut game, 0); // Grizzly Bears — no keywords
+
+        assert!(!game.has_keyword(creature_id, KeywordAbility::Flying));
+        assert!(!game.has_keyword(creature_id, KeywordAbility::Haste));
+        assert!(!game.has_keyword(creature_id, KeywordAbility::Trample));
+    }
+
+    // --- Flying / Reach tests (4b) ---
+
+    #[test]
+    fn test_ground_creature_cant_block_flyer() {
+        let mut game = GameState::new(2, 20);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 4, 4);
+        let ground = place_creature(&mut game, 1);
+        set_attacking(&mut game, flyer, 1);
+
+        let result = validate_blockers(
+            &game, 1,
+            &[(ground, flyer)],
+            &BlockConstraints::none(),
+        );
+        assert_eq!(result, Err(CombatError::CantBlockFlyer(ground, flyer)));
+    }
+
+    #[test]
+    fn test_flyer_can_block_flyer() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 4, 4);
+        let blocker = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Flying], 2, 2);
+        set_attacking(&mut game, attacker, 1);
+
+        let result = validate_blockers(
+            &game, 1,
+            &[(blocker, attacker)],
+            &BlockConstraints::none(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reach_can_block_flyer() {
+        let mut game = GameState::new(2, 20);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 4, 4);
+        let spider = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Reach], 2, 4);
+        set_attacking(&mut game, flyer, 1);
+
+        let result = validate_blockers(
+            &game, 1,
+            &[(spider, flyer)],
+            &BlockConstraints::none(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ground_vs_ground_blocking_unaffected() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature(&mut game, 0);
+        let blocker = place_creature(&mut game, 1);
+        set_attacking(&mut game, attacker, 1);
+
+        let result = validate_blockers(
+            &game, 1,
+            &[(blocker, attacker)],
+            &BlockConstraints::none(),
+        );
+        assert!(result.is_ok());
+    }
+
+    // --- Defender tests (4c) ---
+
+    #[test]
+    fn test_defender_cant_attack() {
+        let mut game = GameState::new(2, 20);
+        let wall = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Defender], 0, 8);
+
+        let result = validate_attackers(
+            &game, 0,
+            &[(wall, AttackTarget::Player(1))],
+            &AttackConstraints::none(),
+        );
+        assert_eq!(result, Err(CombatError::HasDefender(wall)));
+    }
+
+    // --- Haste tests (4d) ---
+
+    #[test]
+    fn test_haste_creature_can_attack_while_summoning_sick() {
+        let mut game = GameState::new(2, 20);
+        // Place creature with haste that still has summoning sickness
+        let data = CardDataBuilder::new("Raging Cougar")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .keyword(KeywordAbility::Haste)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let ts = game.allocate_timestamp();
+        let entry = BattlefieldEntity::new(id, 0, ts); // summoning_sick = true
+        game.battlefield.insert(id, entry);
+
+        let result = validate_attackers(
+            &game, 0,
+            &[(id, AttackTarget::Player(1))],
+            &AttackConstraints::none(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_no_haste_still_cant_attack_while_summoning_sick() {
+        let mut game = GameState::new(2, 20);
+        let creature_id = place_creature_sick(&mut game, 0);
+
+        let result = validate_attackers(
+            &game, 0,
+            &[(creature_id, AttackTarget::Player(1))],
+            &AttackConstraints::none(),
+        );
+        assert_eq!(result, Err(CombatError::CreatureHasSummoningSickness(creature_id)));
+    }
+
+    #[test]
+    fn test_haste_creature_can_tap_for_ability_while_summoning_sick() {
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Haste Tapper")
+            .card_type(CardType::Creature)
+            .power_toughness(1, 1)
+            .keyword(KeywordAbility::Haste)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let ts = game.allocate_timestamp();
+        let entry = BattlefieldEntity::new(id, 0, ts); // summoning_sick = true
+        game.battlefield.insert(id, entry);
+
+        // Should be able to pay tap cost despite summoning sickness
+        let result = game.can_pay_costs(
+            &[crate::objects::card_data::Cost::Tap],
+            0,
+            id,
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_defender_can_block() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature(&mut game, 0);
+        let wall = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Defender], 0, 8);
+        set_attacking(&mut game, attacker, 1);
+
+        let result = validate_blockers(
+            &game, 1,
+            &[(wall, attacker)],
+            &BlockConstraints::none(),
+        );
+        assert!(result.is_ok());
+    }
+
+    // --- Vigilance tests (4e) ---
+
+    #[test]
+    fn test_vigilance_creature_doesnt_tap_when_attacking() {
+        let mut game = GameState::new(2, 20);
+        let angel = place_creature_with_keywords(
+            &mut game, 0,
+            &[KeywordAbility::Flying, KeywordAbility::Vigilance], 4, 4,
+        );
+
+        let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
+        scripted.attack_decisions.borrow_mut().push(
+            vec![(angel, AttackTarget::Player(1))],
+        );
+        game.process_declare_attackers(&scripted).unwrap();
+
+        // Angel should NOT be tapped
+        assert!(!game.battlefield.get(&angel).unwrap().tapped);
+        // But should be attacking
+        assert!(game.battlefield.get(&angel).unwrap().attacking.is_some());
+    }
+
+    #[test]
+    fn test_non_vigilance_creature_still_taps_when_attacking() {
+        let mut game = GameState::new(2, 20);
+        let bears = place_creature(&mut game, 0);
+
+        let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
+        scripted.attack_decisions.borrow_mut().push(
+            vec![(bears, AttackTarget::Player(1))],
+        );
+        game.process_declare_attackers(&scripted).unwrap();
+
+        // Bears should be tapped
+        assert!(game.battlefield.get(&bears).unwrap().tapped);
+        assert!(game.battlefield.get(&bears).unwrap().attacking.is_some());
     }
 }

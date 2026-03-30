@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::EventLog;
@@ -77,6 +77,13 @@ pub struct GameState {
     /// Phase 3: unused (multi-block requires Banding or "block additional" effects).
     /// Phase 4/5: populated via DecisionProvider::choose_blocker_damage_division.
     pub blocker_damage_divisions: HashMap<ObjectId, Vec<(ObjectId, u64)>>,
+    /// Tracks creatures that dealt damage during the first-strike combat damage step.
+    /// Used to determine which creatures deal damage in the normal combat damage step:
+    /// - First strikers: dealt first-strike damage, skip normal step.
+    /// - Double strikers: dealt first-strike damage, deal again in normal step.
+    /// - Normal creatures: skip first-strike step, deal in normal step.
+    /// Cleared with other combat state in on_phase_end(Combat).
+    pub dealt_first_strike_damage: HashSet<ObjectId>,
 
     // --- Timestamp counter for layer system (rule 613.7) ---
     /// Monotonically increasing counter. Each permanent that enters the
@@ -215,6 +222,7 @@ impl GameState {
             attacks_declared: false,
             blockers_declared: false,
             blocker_damage_divisions: HashMap::new(),
+            dealt_first_strike_damage: HashSet::new(),
             next_timestamp: 0,
             player_lost: vec![false; num_players],
             skip_first_draw: false,

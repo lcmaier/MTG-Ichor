@@ -1,10 +1,10 @@
 # MTG Simulator — Design Document
 
-> Last updated: 2026-03-29 (post-Phase 3, rev 3)
-Project Goal: The ultimate goal for this project is a rules engine that is fast, 
-correct, extensible, and managable, that a GUI could lay on top of for two humans 
-to play over a network, or in a CLI/API where a bot is playing itself/another bot 
-in dozens of parallel games.
+> Last updated: 2026-03-29 (post-Phase 4, rev 4)
+> Project Goal: The ultimate goal for this project is a rules engine that is fast, 
+> correct, extensible, and managable, that a GUI could lay on top of for two humans 
+> to play over a network, or in a CLI/API where a bot is playing itself/another bot 
+> in dozens of parallel games.
 
 This document is the single source of truth for the simulator's architecture,
 current status, and upcoming work. Update it as decisions are made.
@@ -60,46 +60,47 @@ current status, and upcoming work. Update it as decisions are made.
 
 ---
 
-## 2. Current Status (Post-Phase 3)
+## 2. Current Status (Post-Phase 4)
 
-**Test count:** 162 (128 unit + 33 integration + 1 doc-test), zero warnings.
+**Test count:** 217 (168 unit + 48 integration + 1 doc-test), zero warnings.
 
 ### What's implemented
 
-| Area               | Status      | Key files                                                                                                                  |
-| ------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Types & IDs        | ✅ Done      | `types/` (ids, mana, zones, colors, card_types, keywords, effects)                                                         |
-| Game objects       | ✅ Done      | `objects/card_data.rs`, `objects/object.rs`                                                                                |
-| Game state         | ✅ Done      | `state/game_state.rs`, `state/player.rs`, `state/battlefield.rs`                                                           |
-| Game config        | ✅ Done      | `state/game_config.rs` — `GameConfig` (starting life, hand size, mulligan rule, deck limits) + `standard()`/`limited()`/`test()` presets |
-| Game lifecycle     | ✅ Done      | `state/game.rs` — `Game` struct (owns `GameState` + `GameConfig` + `GameResult`), `setup()`, `run_turn()`, `run()`, `check_game_over()` |
-| Zone transitions   | ✅ Done      | `engine/zones.rs`                                                                                                          |
-| Turn structure     | ✅ Done      | `engine/turns.rs` (all phases/steps, untap, draw with first-player skip, cleanup damage removal)                           |
-| Mana types         | ✅ Done      | `types/mana.rs` — `ManaSymbol` enum covers Colored, Generic, Colorless, Hybrid, MonoHybrid, Phyrexian, HybridPhyrexian, Snow, X |
-| Mana payment       | ⚠️ Partial  | `types/mana.rs` (`can_pay`/`pay`) + `engine/mana.rs` — only Colored, Generic, Colorless symbols are payable; Hybrid/Phyrexian/X/Snow bail with errors. Full payment requires `DecisionProvider` choices (e.g. Phyrexian = color or 2 life?) |
-| Cost payment       | ✅ Done      | `engine/costs.rs` — `can_pay_costs()` read-only pre-check + `pay_costs()`. Supports Tap, Untap, Mana, PayLife, SacrificeSelf. Future variants (Sacrifice, Discard, ExileFromGraveyard, RemoveCounters, AddCounters) return stub errors. `CostRestriction` framework designed for Phase 5. |
-| Casting spells     | ✅ Done      | `engine/cast.rs` (rule 601.2, timing checks, sorcery/instant, `can_pay_costs` pre-check with rollback on failure)          |
-| Stack & resolution | ✅ Done      | `engine/stack.rs` (rule 608, pop-first, fizzle handling)                                                                   |
-| Priority system    | ✅ Done      | `engine/priority.rs` (rule 117, SBA loop, full priority round)                                                             |
-| Targeting          | ✅ Done      | `engine/targeting.rs` (Creature, Player, Any, Permanent, Spell)                                                            |
-| Effect resolver    | ⚠️ Partial  | `engine/resolve.rs` — DealDamage, DrawCards, GainLife, LoseLife, ProduceMana, CounterSpell, CounterAbility, Destroy, Untap. ~20 primitives still return stub errors. |
-| SBAs               | ✅ Done      | `engine/sba.rs` — lethal damage, zero toughness, player loss flags (704.5a life ≤ 0, 704.5b empty library draw). Routes through EventLog, no println. |
-| Game result        | ✅ Done      | `GameResult` enum (Winner/Draw). `Game::check_game_over()` reads `player_lost` flags set by SBAs.                          |
-| Discard to hand    | ✅ Done      | `Game::run_turn()` handles cleanup step discard via `DecisionProvider::choose_discard`                                      |
-| First-player skip  | ✅ Done      | `skip_next_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step` |
-| Card registry      | ✅ Done      | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs` + `cards/creatures.rs`                                     |
-| Events             | ✅ Done      | `events/event.rs` (GameEvent enum, EventLog)                                                                               |
-| DecisionProvider   | ✅ Done      | `ui/decision.rs` (trait + Passive + Scripted + auto_allocate_generic + choose_damage_order)                                |
-| Combat validation   | ✅ Done      | `engine/combat/validation.rs` — validate_attackers, validate_blockers, AttackConstraints/BlockConstraints skeletons, effective characteristic helpers |
-| Combat resolution   | ✅ Done      | `engine/combat/resolution.rs` — assign_combat_damage (read-only), apply_combat_damage (routes through GameAction::DealDamage) |
-| Combat steps        | ✅ Done      | `engine/combat/steps.rs` — process_declare_attackers, process_declare_blockers, process_combat_damage (wired into Game::run_turn) |
+| Area               | Status     | Key files                                                                                                                                                                                                                                                                                 |
+| ------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Types & IDs        | ✅ Done     | `types/` (ids, mana, zones, colors, card_types, keywords, effects)                                                                                                                                                                                                                        |
+| Game objects       | ✅ Done     | `objects/card_data.rs`, `objects/object.rs`                                                                                                                                                                                                                                               |
+| Game state         | ✅ Done     | `state/game_state.rs`, `state/player.rs`, `state/battlefield.rs`                                                                                                                                                                                                                          |
+| Game config        | ✅ Done     | `state/game_config.rs` — `GameConfig` (starting life, hand size, mulligan rule, deck limits) + `standard()`/`limited()`/`test()` presets                                                                                                                                                  |
+| Game lifecycle     | ✅ Done     | `state/game.rs` — `Game` struct (owns `GameState` + `GameConfig` + `GameResult`), `setup()`, `run_turn()`, `run()`, `check_game_over()`                                                                                                                                                   |
+| Zone transitions   | ✅ Done     | `engine/zones.rs`                                                                                                                                                                                                                                                                         |
+| Turn structure     | ✅ Done     | `engine/turns.rs` (all phases/steps, untap, draw with first-player skip, cleanup damage removal)                                                                                                                                                                                          |
+| Mana types         | ✅ Done     | `types/mana.rs` — `ManaSymbol` enum covers Colored, Generic, Colorless, Hybrid, MonoHybrid, Phyrexian, HybridPhyrexian, Snow, X                                                                                                                                                           |
+| Mana payment       | ⚠️ Partial | `types/mana.rs` (`can_pay`/`pay`) + `engine/mana.rs` — only Colored, Generic, Colorless symbols are payable; Hybrid/Phyrexian/X/Snow bail with errors. Full payment requires `DecisionProvider` choices (e.g. Phyrexian = color or 2 life?)                                               |
+| Cost payment       | ✅ Done     | `engine/costs.rs` — `can_pay_costs()` read-only pre-check + `pay_costs()`. Supports Tap, Untap, Mana, PayLife, SacrificeSelf. Future variants (Sacrifice, Discard, ExileFromGraveyard, RemoveCounters, AddCounters) return stub errors. `CostRestriction` framework designed for Phase 5. |
+| Casting spells     | ✅ Done     | `engine/cast.rs` (rule 601.2, timing checks, sorcery/instant, `can_pay_costs` pre-check with rollback on failure)                                                                                                                                                                         |
+| Stack & resolution | ✅ Done     | `engine/stack.rs` (rule 608, pop-first, fizzle handling)                                                                                                                                                                                                                                  |
+| Priority system    | ✅ Done     | `engine/priority.rs` (rule 117, SBA loop, full priority round)                                                                                                                                                                                                                            |
+| Targeting          | ✅ Done     | `engine/targeting.rs` (Creature, Player, Any, Permanent, Spell)                                                                                                                                                                                                                           |
+| Effect resolver    | ⚠️ Partial | `engine/resolve.rs` — DealDamage, DrawCards, GainLife, LoseLife, ProduceMana, CounterSpell, CounterAbility, Destroy, Untap. ~20 primitives still return stub errors.                                                                                                                      |
+| SBAs               | ✅ Done     | `engine/sba.rs` — lethal damage, zero toughness, player loss flags (704.5a life ≤ 0, 704.5b empty library draw). Routes through EventLog, no println.                                                                                                                                     |
+| Game result        | ✅ Done     | `GameResult` enum (Winner/Draw). `Game::check_game_over()` reads `player_lost` flags set by SBAs.                                                                                                                                                                                         |
+| Discard to hand    | ✅ Done     | `Game::run_turn()` handles cleanup step discard via `DecisionProvider::choose_discard`                                                                                                                                                                                                    |
+| First-player skip  | ✅ Done     | `skip_next_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step`                                                                                                                                                         |
+| Card registry      | ✅ Done     | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs` + `cards/creatures.rs` + `cards/keyword_creatures.rs`                                                                                                                                                                     |
+| Events             | ✅ Done     | `events/event.rs` (GameEvent enum, EventLog)                                                                                                                                                                                                                                              |
+| DecisionProvider   | ✅ Done     | `ui/decision.rs` (trait + Passive + Scripted + auto_allocate_generic + choose_trample_damage_assignment)                                                                                                                                                                                  |
+| Combat validation  | ✅ Done     | `engine/combat/validation.rs` — validate_attackers, validate_blockers, AttackConstraints/BlockConstraints skeletons, effective characteristic helpers                                                                                                                                     |
+| Combat resolution  | ✅ Done     | `engine/combat/resolution.rs` — assign_combat_damage (read-only), apply_combat_damage (routes through GameAction::DealDamage)                                                                                                                                                             |
+| Combat steps       | ✅ Done     | `engine/combat/steps.rs` — process_declare_attackers, process_declare_blockers, process_combat_damage (wired into Game::run_turn)                                                                                                                                                         |
 
-### Cards implemented (13)
+### Cards implemented (24)
 
 - **Basic lands:** Plains, Island, Swamp, Mountain, Forest
 - **Alpha spells:** Lightning Bolt, Ancestral Recall, Counterspell
 - **Other spells:** Burst of Energy (Urza's Destiny), Volcanic Upheaval (BFZ)
-- **Vanilla creatures:** Grizzly Bears (2/2, {1}{G}), Hill Giant (3/3, {3}{R}), Savannah Lions (2/1, {W})
+- **Vanilla creatures:** Grizzly Bears (2/2, {1}{G}), Hill Giant (3/3, {3}{R}), Savannah Lions (2/1, {W}), Earth Elemental (4/5, {3}{R}{R})
+- **Keyword creatures (Phase 4):** Serra Angel (4/4 flying, vigilance), Thornweald Archer (2/1 reach, deathtouch), Raging Cougar (2/2 haste), Wall of Stone (0/8 defender), Elvish Archers (2/1 first strike), Ridgetop Raptor (2/1 double strike), War Mammoth (3/3 trample), Knight of Meadowgrain (2/2 first strike, lifelink), Rhox War Monk (3/4 lifelink), Giant Spider (2/4 reach), Vampire Nighthawk (2/3 flying, lifelink, deathtouch)
 
 ### Known gaps / TODOs in existing code
 
@@ -267,6 +268,7 @@ impl GameState {
 **Two layers of validation:**
 
 1. **Resource check** (`check_cost_resource`): Do you have the stuff?
+   
    - `Tap` → `!entry.tapped && !(summoning_sick && creature)`
    - `Mana(mc)` → `mana_pool.can_pay(&mc)`
    - `PayLife(n)` → `life_total >= n`
@@ -388,12 +390,14 @@ Fixed the "re-push" hack in `stack.rs` where permanent spells were temporarily p
 ### 3e. Combat damage (`engine/combat/resolution.rs`) ✅
 
 Two-phase design to avoid borrowing issues:
+
 1. **`assign_combat_damage(&GameState, ...)`** — read-only free function. Computes `Vec<CombatDamageAssignment>` from battlefield state. Handles unblocked attackers (→ player), single blocker (→ all damage), multiple blockers (→ ordered by `damage_orders`, lethal-first), blocked-but-no-blockers (→ no damage), zero-power (→ no damage). `first_strike_only` parameter stubs for Phase 4.
 2. **`GameState::apply_combat_damage(assignments)`** — routes each through `execute_action(GameAction::DealDamage { is_combat: true })` so Phase 6 replacement effects automatically intercept.
 
 ### 3f. Turn structure wiring ✅
 
 `Game::run_turn` now calls combat turn-based actions before priority rounds:
+
 - `DeclareAttackers`: `process_declare_attackers` (taps attackers, sets `AttackingInfo`)
 - `DeclareBlockers`: `process_declare_blockers` (sets `BlockingInfo`, marks attackers as blocked, requests damage orders for multi-blocked attackers)
 - `FirstStrikeDamage`: `process_combat_damage(first_strike_only=true)` — Phase 3 no-op
@@ -418,59 +422,71 @@ Two-phase design to avoid borrowing issues:
 
 ### Key files changed/created
 
-| File | Change |
-| ---- | ------ |
-| `engine/combat/mod.rs` | New — module registration |
-| `engine/combat/validation.rs` | New — CombatError, AttackConstraints, BlockConstraints, validate_attackers, validate_blockers, effective characteristic helpers (760 lines) |
-| `engine/combat/resolution.rs` | New — CombatDamageAssignment, assign_combat_damage, apply_combat_damage (400 lines) |
-| `engine/combat/steps.rs` | New — process_declare_attackers, process_declare_blockers, process_combat_damage (190 lines) |
-| `engine/stack.rs` | Fixed permanent spell resolution (no re-push) |
-| `engine/zones.rs` | `init_zone_state` made `pub(crate)` |
-| `engine/turns.rs` | `damage_orders.clear()` in combat phase end |
-| `state/game_state.rs` | Added `damage_orders` field |
-| `state/game.rs` | Combat turn-based actions in `run_turn` |
-| `ui/decision.rs` | Added `choose_damage_order` to trait + implementations |
-| `cards/creatures.rs` | New — Grizzly Bears, Hill Giant, Savannah Lions |
-| `cards/registry.rs` | Registered 3 creatures |
-| `tests/phase3_integration_test.rs` | New — 8 integration tests |
+| File                               | Change                                                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engine/combat/mod.rs`             | New — module registration                                                                                                                   |
+| `engine/combat/validation.rs`      | New — CombatError, AttackConstraints, BlockConstraints, validate_attackers, validate_blockers, effective characteristic helpers (760 lines) |
+| `engine/combat/resolution.rs`      | New — CombatDamageAssignment, assign_combat_damage, apply_combat_damage (400 lines)                                                         |
+| `engine/combat/steps.rs`           | New — process_declare_attackers, process_declare_blockers, process_combat_damage (190 lines)                                                |
+| `engine/stack.rs`                  | Fixed permanent spell resolution (no re-push)                                                                                               |
+| `engine/zones.rs`                  | `init_zone_state` made `pub(crate)`                                                                                                         |
+| `engine/turns.rs`                  | `damage_orders.clear()` in combat phase end                                                                                                 |
+| `state/game_state.rs`              | Added `damage_orders` field                                                                                                                 |
+| `state/game.rs`                    | Combat turn-based actions in `run_turn`                                                                                                     |
+| `ui/decision.rs`                   | Added `choose_damage_order` to trait + implementations                                                                                      |
+| `cards/creatures.rs`               | New — Grizzly Bears, Hill Giant, Savannah Lions                                                                                             |
+| `cards/registry.rs`                | Registered 3 creatures                                                                                                                      |
+| `tests/phase3_integration_test.rs` | New — 8 integration tests                                                                                                                   |
 
 ---
 
-## 5. Phase 4: Keywords
+## 5. Phase 4: Keywords ✅ COMPLETED
 
 **Goal:** Keyword abilities that modify combat and other game behaviors.
 
-### Keywords to implement
+Completed 2026-03-29. 10 keyword abilities implemented, 11 keyword-bearing creature cards, 51 new tests.
 
-- **Flying** (rule 702.9): Can only be blocked by creatures with flying or reach
-- **First Strike** (rule 702.7): Deals combat damage in first strike damage step
-- **Haste** (rule 702.10): No summoning sickness
-- **Trample** (rule 702.19): Excess combat damage dealt to defending player
-- **Reach** (rule 702.17): Can block flyers
-- **Vigilance** (rule 702.20): Doesn't tap to attack
-- **Lifelink** (rule 702.15): Damage dealt also gains life for controller
-- **Deathtouch** (rule 702.2): Any damage is lethal
+### Keywords implemented
 
-### Implementation approach
+| Keyword | Rule | Hook point | Implementation |
+|---------|------|-----------|----------------|
+| Flying | 702.9b | `validation.rs` validate_blockers | Per-pair check: flyer can only be blocked by flying/reach |
+| Reach | 702.17b | `validation.rs` validate_blockers | Allows blocking flyers |
+| Defender | 702.3b | `validation.rs` validate_attackers | `HasDefender` error; can still block |
+| Haste | 702.10b/c | `validation.rs` can_attack, `costs.rs` Cost::Tap | Bypasses summoning sickness for attacking and tap abilities |
+| Vigilance | 702.20b | `steps.rs` process_declare_attackers | Pre-collected `HashSet<ObjectId>` vigilance set; skips tapping |
+| First Strike | 702.7 | `resolution.rs`, `steps.rs` | Filters `assign_combat_damage` by first_strike_only flag |
+| Double Strike | 702.4 | `resolution.rs`, `steps.rs` | Deals damage in both first-strike and normal steps |
+| Trample | 702.19b/d | `resolution.rs`, `decision.rs` | `choose_trample_damage_assignment` on DecisionProvider; excess to defender |
+| Lifelink | 702.15b/f | `actions.rs` perform_action(DealDamage) | Controller gains life equal to damage dealt; does not stack |
+| Deathtouch | 702.2b | `actions.rs`, `sba.rs`, `battlefield.rs` | `damaged_by_deathtouch: bool` flag; any nonzero damage is lethal in SBA |
 
-Most keywords modify existing engine logic at specific hook points:
+### Key design decisions
 
-- **Flying/Reach**: Adds `BlockConstraint` entries in combat validation — flyers can only be blocked by creatures with flying or reach
-- **First Strike / Double Strike**: Extra combat damage step in `engine/turns.rs` + `engine/combat/resolution.rs`. Creatures with first strike deal damage in the first strike damage step; creatures with double strike deal damage in both steps.
-- **Haste**: Skip summoning sickness check in `engine/costs.rs` (tap cost) and `engine/combat/validation.rs` (attack legality)
-- **Trample**: In damage assignment, excess over lethal damage to blockers tramples to defending player
-- **Vigilance**: Attacking creature doesn't tap
-- **Lifelink**: After damage, controller gains life equal to damage dealt. Implemented as a post-damage-step hook.
-- **Deathtouch**: In SBA check, any damage from a deathtouch source counts as lethal regardless of amount
+1. **`has_keyword(id, KeywordAbility) -> bool`** is the single query point for all keyword checks. Phase 5 will swap this to query the layer system (single-point change).
+2. **Flying check is a per-pair validation check**, not a constraint-list entry — simpler, matches Forge/XMage.
+3. **Trample delegates to `DecisionProvider`** via `choose_trample_damage_assignment` (8th method on trait). Engine validates but does not choose. Default implementations use `default_trample_assignment` helper.
+4. **Deathtouch uses `damaged_by_deathtouch: bool`** on `BattlefieldEntity` — O(1) SBA check, cleared in cleanup.
+5. **Lifelink hooks into `perform_action(DealDamage)`** — catches both combat and noncombat damage. Boolean check (does not stack per 702.15f).
+6. **First/double strike uses `dealt_first_strike_damage: HashSet<ObjectId>`** on `GameState` — cleared with combat state at end of combat phase.
+7. **Vigilance uses pre-collected set** to avoid borrow-checker conflict between `has_keyword` (reads objects) and battlefield mutation.
 
-The `KeywordAbility` enum already exists in `types/keywords.rs` with all these variants.
+### New `CombatError` variants
 
-### Cards to implement
+- `HasDefender(ObjectId)` — creature with defender can't attack
+- `CantBlockFlyer(ObjectId, ObjectId)` — ground creature can't block flyer
 
-- Serra Angel (4/4, Flying, Vigilance)
-- Llanowar Elves (1/1, {T}: Add {G} — already have mana ability support)
-- Goblin Guide (2/2, Haste)
-- Typhoid Rats (1/1, Deathtouch)
+### New `GameState` fields
+
+- `dealt_first_strike_damage: HashSet<ObjectId>` — tracks who dealt first-strike damage
+
+### New `BattlefieldEntity` fields
+
+- `damaged_by_deathtouch: bool` — set by deathtouch damage, checked in SBA, cleared in cleanup
+
+### New `DecisionProvider` method
+
+- `choose_trample_damage_assignment(game, player_id, attacker_id, blockers, defending_target, power, has_deathtouch) -> (Vec<(ObjectId, u64)>, u64)` — returns (blocker assignments, overflow to defender)
 
 ---
 
@@ -539,10 +555,10 @@ Similarly, `AttackConstraint` and `BlockConstraint` (Section 4) are populated by
 
 These cards are **explicitly out of scope** due to rules ambiguities or engine-breaking interactions. They are non-competitive and not worth the architectural complexity they would require.
 
-| Card | Reason |
-| ---- | ------ |
-| **Season of the Witch** | "Destroy each creature that couldn't attack this turn" — "couldn't attack" is still poorly defined in the comprehensive rules. Would require tracking hypothetical attack legality for every creature every turn. |
-| **Panglacial Wurm** | "While you're searching your library, you may cast this card from your library." Casting from a library mid-search breaks stack assumptions, zone transition invariants, and mana ability resolution. Requires the ability to interrupt a search effect with a full cast sequence. |
+| Card                           | Reason                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Season of the Witch**        | "Destroy each creature that couldn't attack this turn" — "couldn't attack" is still poorly defined in the comprehensive rules. Would require tracking hypothetical attack legality for every creature every turn.                                                                                                                                                  |
+| **Panglacial Wurm**            | "While you're searching your library, you may cast this card from your library." Casting from a library mid-search breaks stack assumptions, zone transition invariants, and mana ability resolution. Requires the ability to interrupt a search effect with a full cast sequence.                                                                                 |
 | **Selvala, Explorer Returned** | Mana ability that reveals hidden information and produces an undefined amount of mana. You can begin casting a spell, activate Selvala to pay for it, discover you don't have enough mana, and have no way to cleanly rewind the game state (revealed cards, gained life, etc.). Breaks the assumption that mana abilities are deterministic and side-effect-free. |
 
 Additional cards may be added to this list as development progresses. The general criteria: if a card requires architectural changes that benefit only that card and a handful of similar effects, it's not worth supporting until/unless the simulator's scope explicitly expands to include it.
@@ -551,38 +567,30 @@ Additional cards may be added to this list as development progresses. The genera
 
 ## 9. Design Decisions Log
 
-| Date       | Decision                                          | Rationale                                                                                          |
-| ---------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 2026-03-27 | Central `HashMap<ObjectId, GameObject>` store     | Zones reference by ID; one source of truth                                                         |
-| 2026-03-27 | `DecisionProvider` trait for all player choices   | Engine stays pure, testable, UI-independent                                                        |
-| 2026-03-28 | `Arc<CardData>` shared across instances           | Avoids cloning ~1KB card data per object                                                           |
-| 2026-03-28 | `Vec<ManaSymbol>` for ManaCost                    | Supports hybrid/phyrexian/X/snow natively                                                          |
-| 2026-03-28 | `Effect` combinator tree (Atom/Sequence/...)      | Composable, serializable, covers 95%+ of cards                                                     |
-| 2026-03-29 | Stack pop-first during resolution                 | Resolving spell should NOT be visible on stack                                                     |
-| 2026-03-29 | `auto_allocate_generic` lives in `ui/decision.rs` | Engine requires manual selection; convenience is layered on top                                    |
-| 2026-03-29 | `can_pay_costs` = resource check + restriction check | Two-layer validation: "do you have it?" then "does the game allow it?" Restriction layer starts as no-op, activated by Phase 5 continuous effects |
-| 2026-03-29 | `GameConfig` struct now, `Format` trait later     | Covers 90% of formats with pure data; `Format` trait only needed when Commander/Brawl require behavioral differences. `Game` struct already structured for easy migration. |
-| 2026-03-29 | `Game` owns `DecisionProvider` dispatch           | Engine methods stay as pure state transforms. `Game::run_turn` is the only place that calls decision methods. No threading `DecisionProvider` through `advance_turn`. |
-| 2026-03-29 | Combat split: validation + resolution             | Once attackers/blockers are locked in, damage is deterministic. Validation is the complex part (constraints, forced attacks, evasion). Extensible via `AttackConstraint` / `BlockConstraint` lists populated by continuous effects. |
-| 2026-03-29 | `skip_next_draw` flag only for rule 103.8a        | In-game "skip draw" effects are replacement effects (Phase 6), not boolean flags. The flag is a one-time game-setup mechanism. |
-| 2026-03-29 | Explicit excluded cards list                      | Season of the Witch, Panglacial Wurm, Selvala — non-competitive cards that require disproportionate architectural changes. |
-| 2026-03-29 | Two-phase combat damage (compute then apply)      | `assign_combat_damage` is a read-only free function; `apply_combat_damage` mutates. Avoids borrow checker issues from reading battlefield while writing damage. |
-| 2026-03-29 | Effective characteristic helpers on GameState     | `is_creature()`, `can_attack()`, `get_effective_power/toughness()` — combat code calls these instead of reading `card_data` directly, so Phase 5 layer-system swap is a single-point change. |
-| 2026-03-29 | Permanent spell resolution: no re-push            | Fixed Phase 2 hack. Manual zone bookkeeping for permanent spells resolving to battlefield, consistent with instant/sorcery path. |
+| Date       | Decision                                             | Rationale                                                                                                                                                                                                                           |
+| ---------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-03-27 | Central `HashMap<ObjectId, GameObject>` store        | Zones reference by ID; one source of truth                                                                                                                                                                                          |
+| 2026-03-27 | `DecisionProvider` trait for all player choices      | Engine stays pure, testable, UI-independent                                                                                                                                                                                         |
+| 2026-03-28 | `Arc<CardData>` shared across instances              | Avoids cloning ~1KB card data per object                                                                                                                                                                                            |
+| 2026-03-28 | `Vec<ManaSymbol>` for ManaCost                       | Supports hybrid/phyrexian/X/snow natively                                                                                                                                                                                           |
+| 2026-03-28 | `Effect` combinator tree (Atom/Sequence/...)         | Composable, serializable, covers 95%+ of cards                                                                                                                                                                                      |
+| 2026-03-29 | Stack pop-first during resolution                    | Resolving spell should NOT be visible on stack                                                                                                                                                                                      |
+| 2026-03-29 | `auto_allocate_generic` lives in `ui/decision.rs`    | Engine requires manual selection; convenience is layered on top                                                                                                                                                                     |
+| 2026-03-29 | `can_pay_costs` = resource check + restriction check | Two-layer validation: "do you have it?" then "does the game allow it?" Restriction layer starts as no-op, activated by Phase 5 continuous effects                                                                                   |
+| 2026-03-29 | `GameConfig` struct now, `Format` trait later        | Covers 90% of formats with pure data; `Format` trait only needed when Commander/Brawl require behavioral differences. `Game` struct already structured for easy migration.                                                          |
+| 2026-03-29 | `Game` owns `DecisionProvider` dispatch              | Engine methods stay as pure state transforms. `Game::run_turn` is the only place that calls decision methods. No threading `DecisionProvider` through `advance_turn`.                                                               |
+| 2026-03-29 | Combat split: validation + resolution                | Once attackers/blockers are locked in, damage is deterministic. Validation is the complex part (constraints, forced attacks, evasion). Extensible via `AttackConstraint` / `BlockConstraint` lists populated by continuous effects. |
+| 2026-03-29 | `skip_next_draw` flag only for rule 103.8a           | In-game "skip draw" effects are replacement effects (Phase 6), not boolean flags. The flag is a one-time game-setup mechanism.                                                                                                      |
+| 2026-03-29 | Explicit excluded cards list                         | Season of the Witch, Panglacial Wurm, Selvala — non-competitive cards that require disproportionate architectural changes.                                                                                                          |
+| 2026-03-29 | Two-phase combat damage (compute then apply)         | `assign_combat_damage` is a read-only free function; `apply_combat_damage` mutates. Avoids borrow checker issues from reading battlefield while writing damage.                                                                     |
+| 2026-03-29 | Effective characteristic helpers on GameState        | `is_creature()`, `can_attack()`, `get_effective_power/toughness()` — combat code calls these instead of reading `card_data` directly, so Phase 5 layer-system swap is a single-point change.                                        |
+| 2026-03-29 | Permanent spell resolution: no re-push               | Fixed Phase 2 hack. Manual zone bookkeeping for permanent spells resolving to battlefield, consistent with instant/sorcery path.                                                                                                    |
 
 ---
 
 ## Implementation Order
 
 ```
-Pre-Phase 3 (current):
-  3.1  Game + GameConfig struct (lifecycle, setup, config)
-  3.2  GameResult + loss handling (flags in SBA, check in Game)
-  3.3  can_pay_costs pre-check + Cost enum expansion + CostRestriction stub
-  3.4  Discard to hand size (in Game::run_turn)
-  3.5  First-player draw skip (flag + GameConfig)
-  3.6  Minor fixes (CounterSpell cleanup, event consistency, SBA println)
-
 Phase 3: Creatures & Combat ✅
   3a   Permanent spell resolution fix (no re-push) ✅
   3b   engine/combat/ module structure ✅
@@ -594,14 +602,19 @@ Phase 3: Creatures & Combat ✅
   3h   Integration tests (8 tests) ✅
   3i   Design doc update ✅
 
-Phase 4: Keywords
-  4a   Flying / Reach (BlockConstraint entries)
-  4b   First Strike / Double Strike (extra damage step)
-  4c   Haste (summoning sickness bypass)
-  4d   Trample (excess damage assignment)
-  4e   Vigilance (no tap on attack)
-  4f   Lifelink, Deathtouch (post-damage hook, SBA modification)
-  4g   Cards: Serra Angel, Llanowar Elves, Goblin Guide, Typhoid Rats
+Phase 4: Keywords ✅
+  4a   has_keyword helper ✅
+  4b   Flying / Reach (per-pair evasion check) ✅
+  4c   Defender (can't attack) ✅
+  4d   Haste (summoning sickness bypass) ✅
+  4e   Vigilance (no tap on attack) ✅
+  4f   First Strike / Double Strike (two damage steps) ✅
+  4g   Trample (excess to defender via DecisionProvider) ✅
+  4h   Lifelink (damage → life gain in perform_action) ✅
+  4i   Deathtouch (damaged_by_deathtouch flag + SBA) ✅
+  4j   Cards: 11 keyword creatures ✅
+  4k   Integration tests (12 tests) ✅
+  4l   Design doc update ✅
 
 Phase 5: Continuous Effects & Layers
   5a   ContinuousEffect struct + duration tracking

@@ -1,3 +1,4 @@
+use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::events::event::{DamageTarget, GameEvent};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -115,6 +116,10 @@ impl GameState {
                     }
                 }
 
+                // Keyword hooks (delegated to engine/keywords.rs)
+                apply_deathtouch_flag(self, source, &target);
+                apply_lifelink(self, source, amount)?;
+
                 self.events.emit(GameEvent::DamageDealt {
                     source_id: source,
                     target: target.clone(),
@@ -212,6 +217,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::*;
+    use crate::types::keywords::KeywordAbility;
     use crate::types::mana::ManaType;
 
     fn setup_game_with_creature() -> (GameState, ObjectId) {
@@ -318,5 +324,75 @@ mod tests {
         }).unwrap();
 
         assert!(!game.battlefield.get(&bears_id).unwrap().tapped);
+    }
+
+    // --- Lifelink tests (4h) ---
+
+    fn setup_game_with_lifelink_creature() -> (GameState, ObjectId) {
+        let mut game = GameState::new(2, 20);
+
+        let data = CardDataBuilder::new("Lifelink Creature")
+            .mana_cost(crate::types::mana::ManaCost::single(ManaType::White, 1, 1))
+            .color(crate::types::colors::Color::White)
+            .card_type(CardType::Creature)
+            .power_toughness(2, 3)
+            .keyword(KeywordAbility::Lifelink)
+            .build();
+
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let entry = BattlefieldEntity::new(id, 0, 0);
+        game.battlefield.insert(id, entry);
+
+        (game, id)
+    }
+
+    #[test]
+    fn test_lifelink_combat_damage_gains_life() {
+        let (mut game, lifelinker) = setup_game_with_lifelink_creature();
+
+        game.execute_action(GameAction::DealDamage {
+            source: lifelinker,
+            target: DamageTarget::Player(1),
+            amount: 2,
+            is_combat: true,
+        }).unwrap();
+
+        // Player 1 took 2 damage: 20 - 2 = 18
+        assert_eq!(game.players[1].life_total, 18);
+        // Player 0 (controller) gained 2 life: 20 + 2 = 22
+        assert_eq!(game.players[0].life_total, 22);
+    }
+
+    #[test]
+    fn test_lifelink_noncombat_damage_gains_life() {
+        let (mut game, lifelinker) = setup_game_with_lifelink_creature();
+
+        game.execute_action(GameAction::DealDamage {
+            source: lifelinker,
+            target: DamageTarget::Player(1),
+            amount: 3,
+            is_combat: false,
+        }).unwrap();
+
+        assert_eq!(game.players[1].life_total, 17);
+        assert_eq!(game.players[0].life_total, 23);
+    }
+
+    #[test]
+    fn test_no_lifelink_no_life_gain() {
+        let (mut game, bears_id) = setup_game_with_creature(); // no lifelink
+
+        game.execute_action(GameAction::DealDamage {
+            source: bears_id,
+            target: DamageTarget::Player(1),
+            amount: 2,
+            is_combat: true,
+        }).unwrap();
+
+        assert_eq!(game.players[1].life_total, 18);
+        // Player 0 should NOT have gained life
+        assert_eq!(game.players[0].life_total, 20);
     }
 }

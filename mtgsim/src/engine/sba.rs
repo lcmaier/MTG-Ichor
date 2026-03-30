@@ -66,6 +66,8 @@ impl GameState {
         }
 
         // 704.5g — Creature with lethal damage is destroyed
+        // Also handles deathtouch (rule 702.2b): any nonzero damage from a
+        // deathtouch source is lethal.
         let lethal_damage: Vec<ObjectId> = self.battlefield.keys()
             .filter(|id| {
                 if let Some(obj) = self.objects.get(id) {
@@ -73,7 +75,10 @@ impl GameState {
                         let entry = self.battlefield.get(id).unwrap();
                         let base_t = obj.card_data.toughness.unwrap_or(0);
                         let effective_t = base_t + entry.toughness_modifier;
-                        return effective_t > 0 && entry.damage_marked >= effective_t as u32;
+                        if effective_t <= 0 { return false; } // handled by 704.5f
+                        // Normal lethal damage OR any damage from deathtouch source
+                        return entry.damage_marked >= effective_t as u32
+                            || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
                     }
                 }
                 false
@@ -145,6 +150,52 @@ mod tests {
         assert!(!game.battlefield.contains_key(&bears_id));
         assert_eq!(game.players[0].graveyard.len(), 1);
         assert_eq!(game.get_object(bears_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    #[test]
+    fn test_sba_deathtouch_damage_destroys_creature() {
+        let mut game = GameState::new(2, 20);
+
+        // 4/5 creature with 1 damage from deathtouch source
+        let data = CardDataBuilder::new("Earth Elemental")
+            .card_type(CardType::Creature)
+            .power_toughness(4, 5)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let mut entry = BattlefieldEntity::new(id, 0, 0);
+        entry.damage_marked = 1; // only 1 damage
+        entry.damaged_by_deathtouch = true; // but from deathtouch
+        game.battlefield.insert(id, entry);
+
+        let performed = game.check_state_based_actions().unwrap();
+        assert!(performed);
+        assert!(!game.battlefield.contains_key(&id));
+        assert_eq!(game.get_object(id).unwrap().zone, Zone::Graveyard);
+    }
+
+    #[test]
+    fn test_sba_deathtouch_zero_damage_no_destroy() {
+        let mut game = GameState::new(2, 20);
+
+        // Creature with deathtouch flag but 0 damage (shouldn't happen normally,
+        // but verify the guard)
+        let data = CardDataBuilder::new("Earth Elemental")
+            .card_type(CardType::Creature)
+            .power_toughness(4, 5)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let mut entry = BattlefieldEntity::new(id, 0, 0);
+        entry.damage_marked = 0;
+        entry.damaged_by_deathtouch = true;
+        game.battlefield.insert(id, entry);
+
+        let performed = game.check_state_based_actions().unwrap();
+        assert!(!performed);
+        assert!(game.battlefield.contains_key(&id));
     }
 
     #[test]

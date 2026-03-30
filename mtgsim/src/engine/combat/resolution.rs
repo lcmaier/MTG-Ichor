@@ -2,10 +2,13 @@
 // See rules 510.1–510.2.
 
 use crate::engine::actions::GameAction;
+use crate::engine::combat::keywords::{
+    assign_trample_damage, attack_target_to_damage_target, should_deal_damage_this_step,
+};
 use crate::events::event::DamageTarget;
-use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::keywords::KeywordAbility;
 use crate::ui::decision::DecisionProvider;
 
 /// A single combat damage assignment: source deals amount to target.
@@ -40,10 +43,7 @@ pub fn assign_combat_damage(
     for (id, entry) in &game.battlefield {
         // --- Attackers ---
         if let Some(ref attacking_info) = entry.attacking {
-            // Phase 3 stub: skip first-strike filtering
-            if first_strike_only {
-                // Phase 4: check for first_strike / double_strike keyword
-                // For now, no creatures have these keywords, so skip all.
+            if !should_deal_damage_this_step(game, *id, first_strike_only) {
                 continue;
             }
 
@@ -54,23 +54,32 @@ pub fn assign_combat_damage(
             }
             let damage = power as u64;
 
+            let has_trample = game.has_keyword(*id, KeywordAbility::Trample);
+
             if !attacking_info.is_blocked {
                 // Unblocked attacker: damage goes to attack target (rule 510.1b)
-                let target = match &attacking_info.target {
-                    AttackTarget::Player(pid) => Some(DamageTarget::Player(*pid)),
-                    AttackTarget::Planeswalker(oid) => Some(DamageTarget::Object(*oid)),
-                    AttackTarget::Battle(oid) => Some(DamageTarget::Object(*oid)),
-                };
-                if let Some(t) = target {
-                    assignments.push(CombatDamageAssignment {
-                        source: *id,
-                        target: t,
-                        amount: damage,
-                    });
-                }
+                assignments.push(CombatDamageAssignment {
+                    source: *id,
+                    target: attack_target_to_damage_target(&attacking_info.target),
+                    amount: damage,
+                });
+            } else if attacking_info.blocked_by.is_empty() && has_trample {
+                // Rule 702.19d: blocked but no blockers remain, trample → all to defender
+                assignments.push(CombatDamageAssignment {
+                    source: *id,
+                    target: attack_target_to_damage_target(&attacking_info.target),
+                    amount: damage,
+                });
             } else if attacking_info.blocked_by.is_empty() {
                 // Blocked but all blockers removed (rule 510.1c): no damage
-                // (creature was blocked, blockers left combat)
+                // (creature was blocked, blockers left combat, no trample)
+            } else if has_trample {
+                // Trample: delegate to keyword helper
+                let mut trample = assign_trample_damage(
+                    game, decisions, active_player, *id,
+                    &attacking_info.blocked_by, &attacking_info.target, damage,
+                );
+                assignments.append(&mut trample);
             } else if attacking_info.blocked_by.len() == 1 {
                 // Exactly one blocker: all damage to it (rule 510.1c)
                 let blocker = attacking_info.blocked_by[0];
@@ -89,9 +98,6 @@ pub fn assign_combat_damage(
                     game, active_player, *id, &attacking_info.blocked_by, damage,
                 );
 
-                // Phase 4 (trample): validate that excess goes to defending
-                // player only if all blockers have been assigned lethal.
-
                 for (blocker_id, amount) in division {
                     if amount > 0 && game.battlefield.contains_key(&blocker_id) {
                         assignments.push(CombatDamageAssignment {
@@ -106,8 +112,7 @@ pub fn assign_combat_damage(
 
         // --- Blockers ---
         if let Some(ref blocking_info) = entry.blocking {
-            // Phase 3 stub: skip first-strike filtering
-            if first_strike_only {
+            if !should_deal_damage_this_step(game, *id, first_strike_only) {
                 continue;
             }
 
@@ -184,9 +189,10 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::{AttackingInfo, BlockingInfo, BattlefieldEntity};
+    use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo, BattlefieldEntity};
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
+    use crate::types::keywords::KeywordAbility;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
     use crate::ui::decision::PassiveDecisionProvider;
@@ -339,18 +345,278 @@ mod tests {
         assert_eq!(game.battlefield.get(&blocker).unwrap().damage_marked, 2);
     }
 
-    // TODO: Remove this test when Phase 4 implements first/double strike.
-    // It only verifies the Phase 3 stub behavior (skip all on first_strike_only=true).
-    // Phase 4 replaces this with real first-strike filtering tests.
+    fn place_creature_with_keywords(
+        game: &mut GameState,
+        owner: PlayerId,
+        power: i32,
+        toughness: i32,
+        keywords: &[KeywordAbility],
+    ) -> ObjectId {
+        let mut builder = CardDataBuilder::new("Test Creature")
+            .card_type(CardType::Creature)
+            .color(Color::Green)
+            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .power_toughness(power, toughness);
+        for kw in keywords {
+            builder = builder.keyword(*kw);
+        }
+        let data = builder.build();
+        let obj = GameObject::new(data, owner, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let ts = game.allocate_timestamp();
+        let mut entry = BattlefieldEntity::new(id, owner, ts);
+        entry.summoning_sick = false;
+        game.battlefield.insert(id, entry);
+        id
+    }
+
+    // --- First Strike / Double Strike tests (4f) ---
+
     #[test]
-    fn test_first_strike_only_skips_all_in_phase3() {
+    fn test_first_strike_only_no_fs_creatures_skips() {
         let mut game = GameState::new(2, 20);
         let attacker = place_creature_with_pt(&mut game, 0, 3, 3);
         set_attacking(&mut game, attacker, 1);
 
-        // first_strike_only = true → no creatures have first strike → empty
+        // No first strike creatures → first_strike_only returns empty
         let passive = PassiveDecisionProvider;
         let assignments = assign_combat_damage(&game, &passive, 0, true);
+        assert!(assignments.is_empty());
+    }
+
+    #[test]
+    fn test_first_striker_deals_damage_in_first_step_only() {
+        let mut game = GameState::new(2, 20);
+        let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordAbility::FirstStrike]);
+        set_attacking(&mut game, fs, 1);
+
+        let passive = PassiveDecisionProvider;
+
+        // First strike step: should deal damage
+        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, fs);
+        assert_eq!(assignments[0].amount, 2);
+
+        // Simulate that FS creature dealt first-strike damage
+        game.dealt_first_strike_damage.insert(fs);
+
+        // Normal step: first striker already dealt, no double strike → skipped
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        assert!(assignments.is_empty());
+    }
+
+    #[test]
+    fn test_double_striker_deals_damage_in_both_steps() {
+        let mut game = GameState::new(2, 20);
+        let ds = place_creature_with_keywords(&mut game, 0, 1, 1, &[KeywordAbility::DoubleStrike]);
+        set_attacking(&mut game, ds, 1);
+
+        let passive = PassiveDecisionProvider;
+
+        // First strike step: double striker deals damage
+        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, ds);
+        assert_eq!(assignments[0].amount, 1);
+
+        // Simulate first-strike damage dealt
+        game.dealt_first_strike_damage.insert(ds);
+
+        // Normal step: double striker deals again
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, ds);
+        assert_eq!(assignments[0].amount, 1);
+    }
+
+    #[test]
+    fn test_normal_creature_skips_first_strike_step() {
+        let mut game = GameState::new(2, 20);
+        let normal = place_creature_with_pt(&mut game, 0, 3, 3);
+        set_attacking(&mut game, normal, 1);
+
+        let passive = PassiveDecisionProvider;
+
+        // First strike step: normal creature skipped
+        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        assert!(assignments.is_empty());
+
+        // Normal step: normal creature deals damage
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, normal);
+        assert_eq!(assignments[0].amount, 3);
+    }
+
+    #[test]
+    fn test_first_strike_and_normal_in_same_combat() {
+        let mut game = GameState::new(2, 20);
+        let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordAbility::FirstStrike]);
+        let normal = place_creature_with_pt(&mut game, 0, 3, 3);
+        set_attacking(&mut game, fs, 1);
+        set_attacking(&mut game, normal, 1);
+
+        let passive = PassiveDecisionProvider;
+
+        // First strike step: only FS creature
+        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, fs);
+
+        game.dealt_first_strike_damage.insert(fs);
+
+        // Normal step: only normal creature (FS already dealt)
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, normal);
+    }
+
+    #[test]
+    fn test_first_strike_blocker_deals_in_first_step() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature_with_pt(&mut game, 0, 3, 3);
+        let fs_blocker = place_creature_with_keywords(&mut game, 1, 2, 2, &[KeywordAbility::FirstStrike]);
+        set_attacking(&mut game, attacker, 1);
+        set_blocked_by(&mut game, attacker, vec![fs_blocker]);
+        set_blocking(&mut game, fs_blocker, vec![attacker]);
+
+        let passive = PassiveDecisionProvider;
+
+        // First strike step: only FS blocker deals damage
+        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, fs_blocker);
+        assert_eq!(assignments[0].target, DamageTarget::Object(attacker));
+
+        game.dealt_first_strike_damage.insert(fs_blocker);
+
+        // Normal step: attacker deals (it's normal), FS blocker doesn't
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, attacker);
+        assert_eq!(assignments[0].target, DamageTarget::Object(fs_blocker));
+    }
+
+    // --- Trample tests (4g) ---
+
+    #[test]
+    fn test_trample_excess_damages_player() {
+        let mut game = GameState::new(2, 20);
+        let trampler = place_creature_with_keywords(&mut game, 0, 4, 4, &[KeywordAbility::Trample]);
+        let blocker = place_creature_with_pt(&mut game, 1, 1, 2);
+        set_attacking(&mut game, trampler, 1);
+        set_blocked_by(&mut game, trampler, vec![blocker]);
+        set_blocking(&mut game, blocker, vec![trampler]);
+
+        let passive = PassiveDecisionProvider;
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+
+        // Trampler (4 power) vs blocker (2 toughness): 2 to blocker, 2 tramples to player
+        let to_blocker: Vec<_> = assignments.iter()
+            .filter(|a| a.source == trampler && a.target == DamageTarget::Object(blocker))
+            .collect();
+        let to_player: Vec<_> = assignments.iter()
+            .filter(|a| a.source == trampler && a.target == DamageTarget::Player(1))
+            .collect();
+        assert_eq!(to_blocker.len(), 1);
+        assert_eq!(to_blocker[0].amount, 2);
+        assert_eq!(to_player.len(), 1);
+        assert_eq!(to_player[0].amount, 2);
+    }
+
+    #[test]
+    fn test_trample_no_blockers_remain_all_to_player() {
+        let mut game = GameState::new(2, 20);
+        let trampler = place_creature_with_keywords(&mut game, 0, 3, 3, &[KeywordAbility::Trample]);
+        set_attacking(&mut game, trampler, 1);
+        // Blocked but all blockers removed
+        if let Some(entry) = game.battlefield.get_mut(&trampler) {
+            entry.attacking = Some(AttackingInfo {
+                target: AttackTarget::Player(1),
+                is_blocked: true,
+                blocked_by: Vec::new(),
+            });
+        }
+
+        let passive = PassiveDecisionProvider;
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].source, trampler);
+        assert_eq!(assignments[0].target, DamageTarget::Player(1));
+        assert_eq!(assignments[0].amount, 3);
+    }
+
+    #[test]
+    fn test_trample_not_enough_power_no_overflow() {
+        let mut game = GameState::new(2, 20);
+        let trampler = place_creature_with_keywords(&mut game, 0, 2, 2, &[KeywordAbility::Trample]);
+        let blocker = place_creature_with_pt(&mut game, 1, 1, 3);
+        set_attacking(&mut game, trampler, 1);
+        set_blocked_by(&mut game, trampler, vec![blocker]);
+        set_blocking(&mut game, blocker, vec![trampler]);
+
+        let passive = PassiveDecisionProvider;
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+
+        // Trampler (2 power) vs blocker (3 toughness): all 2 to blocker, 0 overflow
+        let to_blocker: Vec<_> = assignments.iter()
+            .filter(|a| a.source == trampler && a.target == DamageTarget::Object(blocker))
+            .collect();
+        let to_player: Vec<_> = assignments.iter()
+            .filter(|a| a.source == trampler && a.target == DamageTarget::Player(1))
+            .collect();
+        assert_eq!(to_blocker.len(), 1);
+        assert_eq!(to_blocker[0].amount, 2);
+        assert!(to_player.is_empty());
+    }
+
+    #[test]
+    fn test_trample_with_deathtouch() {
+        let mut game = GameState::new(2, 20);
+        let trampler = place_creature_with_keywords(
+            &mut game, 0, 4, 4,
+            &[KeywordAbility::Trample, KeywordAbility::Deathtouch],
+        );
+        let blocker = place_creature_with_pt(&mut game, 1, 2, 5);
+        set_attacking(&mut game, trampler, 1);
+        set_blocked_by(&mut game, trampler, vec![blocker]);
+        set_blocking(&mut game, blocker, vec![trampler]);
+
+        let passive = PassiveDecisionProvider;
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+
+        // Deathtouch: 1 is lethal. Trampler (4 power): 1 to blocker, 3 tramples
+        let to_blocker: Vec<_> = assignments.iter()
+            .filter(|a| a.source == trampler && a.target == DamageTarget::Object(blocker))
+            .collect();
+        let to_player: Vec<_> = assignments.iter()
+            .filter(|a| a.source == trampler && a.target == DamageTarget::Player(1))
+            .collect();
+        assert_eq!(to_blocker.len(), 1);
+        assert_eq!(to_blocker[0].amount, 1);
+        assert_eq!(to_player.len(), 1);
+        assert_eq!(to_player[0].amount, 3);
+    }
+
+    #[test]
+    fn test_no_trample_blocked_no_blockers_no_damage() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature_with_pt(&mut game, 0, 3, 3); // no trample
+        set_attacking(&mut game, attacker, 1);
+        if let Some(entry) = game.battlefield.get_mut(&attacker) {
+            entry.attacking = Some(AttackingInfo {
+                target: AttackTarget::Player(1),
+                is_blocked: true,
+                blocked_by: Vec::new(),
+            });
+        }
+
+        let passive = PassiveDecisionProvider;
+        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        // No trample, blocked with no blockers → no damage
         assert!(assignments.is_empty());
     }
 

@@ -2,6 +2,8 @@
 // declare blockers, and combat damage steps.
 // See rules 508, 509, 510.
 
+use std::collections::HashSet;
+
 use crate::engine::combat::resolution::assign_combat_damage;
 use crate::engine::combat::validation::{
     validate_attackers, validate_blockers,
@@ -11,6 +13,7 @@ use crate::events::event::GameEvent;
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::keywords::KeywordAbility;
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -35,11 +38,20 @@ impl GameState {
         validate_attackers(self, active, &proposed, &AttackConstraints::none())
             .map_err(|e| format!("Invalid attackers: {}", e))?;
 
+        // Pre-collect vigilance set to avoid borrow-checker conflict
+        // (has_keyword borrows self.objects, battlefield.get_mut borrows self.battlefield)
+        let vigilance_set: HashSet<ObjectId> = proposed.iter()
+            .filter(|(id, _)| self.has_keyword(*id, KeywordAbility::Vigilance))
+            .map(|(id, _)| *id)
+            .collect();
+
         // Apply: tap each attacker and set attacking info (rule 508.1f)
         for (creature_id, target) in &proposed {
-            // Tap the creature (rule 508.1f — tapping is not a cost, it just happens)
             if let Some(entry) = self.battlefield.get_mut(creature_id) {
-                entry.tapped = true;
+                // Rule 702.20b: Vigilance prevents tapping from attacking
+                if !vigilance_set.contains(creature_id) {
+                    entry.tapped = true;
+                }
                 entry.attacking = Some(AttackingInfo {
                     target: target.clone(),
                     is_blocked: false,
@@ -116,17 +128,25 @@ impl GameState {
     /// Combat damage turn-based action (rule 510).
     ///
     /// `first_strike_only`: if true, only first/double strike creatures deal damage.
-    /// Phase 3: this is a no-op when `first_strike_only` is true (no such creatures).
+    /// If no creature in combat has first strike or double strike, the first-strike
+    /// step is skipped entirely (returns Ok immediately).
     pub fn process_combat_damage(
         &mut self,
         decisions: &dyn DecisionProvider,
         first_strike_only: bool,
     ) -> Result<(), String> {
-        // Phase 3: first strike is always a no-op
         if first_strike_only {
-            // Phase 4: check if any creature has first/double strike
-            // If none, return Ok(()) immediately (same as now)
-            return Ok(());
+            // Check if any creature in combat has first strike or double strike
+            let any_first_strike = self.battlefield.values().any(|e| {
+                (e.attacking.is_some() || e.blocking.is_some())
+                && (self.has_keyword(e.object_id, KeywordAbility::FirstStrike)
+                    || self.has_keyword(e.object_id, KeywordAbility::DoubleStrike))
+            });
+
+            if !any_first_strike {
+                // No first/double strike creatures → skip this step entirely
+                return Ok(());
+            }
         }
 
         let active = self.active_player;
@@ -137,11 +157,27 @@ impl GameState {
             self,
             decisions,
             active,
-            false,
+            first_strike_only,
         );
 
         // Apply damage (mutating)
         self.apply_combat_damage(assignments)?;
+
+        // Track who dealt damage in the first-strike step
+        if first_strike_only {
+            // Collect IDs first to avoid borrow conflict
+            let fs_ids: Vec<ObjectId> = self.battlefield.values()
+                .filter(|e| {
+                    (e.attacking.is_some() || e.blocking.is_some())
+                    && (self.has_keyword(e.object_id, KeywordAbility::FirstStrike)
+                        || self.has_keyword(e.object_id, KeywordAbility::DoubleStrike))
+                })
+                .map(|e| e.object_id)
+                .collect();
+            for id in fs_ids {
+                self.dealt_first_strike_damage.insert(id);
+            }
+        }
 
         Ok(())
     }

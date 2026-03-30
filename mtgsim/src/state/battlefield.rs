@@ -24,6 +24,10 @@ pub struct BattlefieldEntity {
 
     // Creature-specific (only meaningful if the permanent is a creature)
     pub damage_marked: u32,
+    /// Set when this creature is dealt damage by a source with deathtouch.
+    /// Checked in SBA 704.5g: any nonzero damage from deathtouch is lethal.
+    /// Cleared in cleanup alongside damage_marked.
+    pub damaged_by_deathtouch: bool,
     pub power_modifier: i32,
     pub toughness_modifier: i32,
 
@@ -65,6 +69,7 @@ impl BattlefieldEntity {
             phased_out: false,
             summoning_sick: true,
             damage_marked: 0,
+            damaged_by_deathtouch: false,
             power_modifier: 0,
             toughness_modifier: 0,
             attacking: None,

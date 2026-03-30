@@ -4,6 +4,7 @@ use crate::objects::card_data::Cost;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::keywords::KeywordAbility;
 use crate::types::mana::ManaType;
 
 /// Shared cost payment logic.
@@ -51,9 +52,12 @@ impl GameState {
                 if entry.tapped {
                     return Err("Permanent is already tapped".to_string());
                 }
+                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
+                // tapping, unless they have haste.
                 if entry.summoning_sick {
                     let obj = self.get_object(source_id)?;
-                    if obj.card_data.types.contains(&CardType::Creature) {
+                    if obj.card_data.types.contains(&CardType::Creature)
+                        && !self.has_keyword(source_id, KeywordAbility::Haste) {
                         return Err("Creature has summoning sickness".to_string());
                     }
                 }
@@ -136,10 +140,12 @@ impl GameState {
                 if entry.tapped {
                     return Err("Permanent is already tapped".to_string());
                 }
-                // Summoning sickness only prevents creatures from tapping (rule 302.6)
+                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
+                // tapping, unless they have haste.
                 if entry.summoning_sick {
                     let obj = self.get_object(source_id)?;
-                    if obj.card_data.types.contains(&CardType::Creature) {
+                    if obj.card_data.types.contains(&CardType::Creature)
+                        && !self.has_keyword(source_id, KeywordAbility::Haste) {
                         return Err("Creature has summoning sickness".to_string());
                     }
                 }

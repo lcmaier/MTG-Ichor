@@ -74,6 +74,7 @@ impl GameState {
                 self.attacks_declared = false;
                 self.blockers_declared = false;
                 self.blocker_damage_divisions.clear();
+                self.dealt_first_strike_damage.clear();
             }
             _ => {}
         }
@@ -110,6 +111,7 @@ impl GameState {
                 // "until end of turn" / "this turn" effects (simultaneous)
                 for (_id, entry) in &mut self.battlefield {
                     entry.damage_marked = 0;
+                    entry.damaged_by_deathtouch = false;
                 }
                 // Future: end "until end of turn" continuous effects here
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::engine::resolve::ResolvedTarget;
+use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::effects::TargetSpec;
@@ -88,6 +89,25 @@ pub trait DecisionProvider {
         power: u64,
     ) -> Vec<(ObjectId, u64)>;
 
+    /// Choose how to divide a trampling attacker's damage among blockers and
+    /// the defending player/planeswalker.
+    ///
+    /// Each blocker must be assigned at least lethal damage (1 if `has_deathtouch`,
+    /// else toughness − damage_marked). The engine validates the result.
+    ///
+    /// Returns `(blocker_assignments, overflow_to_defender)` where the total
+    /// must equal `power`.
+    fn choose_trample_damage_assignment(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        attacker_id: ObjectId,
+        blockers: &[ObjectId],
+        defending_target: DamageTarget,
+        power: u64,
+        has_deathtouch: bool,
+    ) -> (Vec<(ObjectId, u64)>, u64);
+
     /// Choose how to allocate mana from the pool to pay the generic component
     /// of a mana cost. Returns a map of ManaType → amount to spend on generic.
     fn choose_generic_mana_allocation(
@@ -129,6 +149,10 @@ impl DecisionProvider for PassiveDecisionProvider {
         default_damage_assignment(game, blockers, power)
     }
 
+    fn choose_trample_damage_assignment(&self, game: &GameState, _player_id: PlayerId, _attacker_id: ObjectId, blockers: &[ObjectId], _defending_target: DamageTarget, power: u64, has_deathtouch: bool) -> (Vec<(ObjectId, u64)>, u64) {
+        default_trample_assignment(game, blockers, power, has_deathtouch)
+    }
+
     fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
         auto_allocate_generic(game, player_id, mana_cost)
             .unwrap_or_default()
@@ -144,6 +168,7 @@ pub struct ScriptedDecisionProvider {
     pub priority_decisions: std::cell::RefCell<Vec<PriorityAction>>,
     pub target_decisions: std::cell::RefCell<Vec<Vec<ResolvedTarget>>>,
     pub damage_assignment_decisions: std::cell::RefCell<Vec<Vec<(ObjectId, u64)>>>,
+    pub trample_damage_assignment_decisions: std::cell::RefCell<Vec<(Vec<(ObjectId, u64)>, u64)>>,
 }
 
 impl ScriptedDecisionProvider {
@@ -155,6 +180,7 @@ impl ScriptedDecisionProvider {
             priority_decisions: std::cell::RefCell::new(Vec::new()),
             target_decisions: std::cell::RefCell::new(Vec::new()),
             damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
+            trample_damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
@@ -221,6 +247,24 @@ impl DecisionProvider for ScriptedDecisionProvider {
         }
     }
 
+    fn choose_trample_damage_assignment(
+        &self,
+        game: &GameState,
+        _player_id: PlayerId,
+        _attacker_id: ObjectId,
+        blockers: &[ObjectId],
+        _defending_target: DamageTarget,
+        power: u64,
+        has_deathtouch: bool,
+    ) -> (Vec<(ObjectId, u64)>, u64) {
+        let mut decisions = self.trample_damage_assignment_decisions.borrow_mut();
+        if decisions.is_empty() {
+            default_trample_assignment(game, blockers, power, has_deathtouch)
+        } else {
+            decisions.remove(0)
+        }
+    }
+
     fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
         auto_allocate_generic(game, player_id, mana_cost)
             .unwrap_or_default()
@@ -276,6 +320,57 @@ pub fn default_damage_assignment(
     }
 
     result
+}
+
+/// Default trample damage assignment: assign lethal to each blocker in order,
+/// then overflow to the defending player.
+///
+/// If `has_deathtouch` is true, lethal damage is 1 (rule 702.2c).
+/// Otherwise, lethal = toughness − damage_marked.
+pub fn default_trample_assignment(
+    game: &GameState,
+    blockers: &[ObjectId],
+    power: u64,
+    has_deathtouch: bool,
+) -> (Vec<(ObjectId, u64)>, u64) {
+    let mut result = Vec::new();
+    let mut remaining = power;
+
+    let alive: Vec<ObjectId> = blockers.iter()
+        .copied()
+        .filter(|id| game.battlefield.contains_key(id))
+        .collect();
+
+    for blocker_id in &alive {
+        if remaining == 0 {
+            break;
+        }
+        let lethal = if has_deathtouch {
+            let damage_marked = game.battlefield.get(blocker_id)
+                .map(|e| e.damage_marked)
+                .unwrap_or(0);
+            if damage_marked > 0 { 0 } else { 1 }
+        } else {
+            let toughness = game.get_effective_toughness(*blocker_id).unwrap_or(0);
+            let damage_marked = game.battlefield.get(blocker_id)
+                .map(|e| e.damage_marked)
+                .unwrap_or(0);
+            if toughness > damage_marked as i32 {
+                (toughness - damage_marked as i32) as u64
+            } else {
+                0
+            }
+        };
+
+        let assign = remaining.min(lethal);
+        if assign > 0 {
+            result.push((*blocker_id, assign));
+            remaining -= assign;
+        }
+    }
+
+    // Remaining damage tramples through to the defending player
+    (result, remaining)
 }
 
 /// Convenience: greedy auto-allocation of generic mana from a player's pool.

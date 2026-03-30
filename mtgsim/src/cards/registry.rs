@@ -6,6 +6,7 @@ use crate::objects::card_data::CardData;
 use super::basic_lands;
 use super::alpha;
 use super::creatures;
+use super::keyword_creatures;
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -65,6 +66,19 @@ impl CardRegistry {
         registry.register("Hill Giant", creatures::hill_giant);
         registry.register("Savannah Lions", creatures::savannah_lions);
         registry.register("Earth Elemental", creatures::earth_elemental);
+
+        // Keyword creatures (Phase 4)
+        registry.register("Serra Angel", keyword_creatures::serra_angel);
+        registry.register("Thornweald Archer", keyword_creatures::thornweald_archer);
+        registry.register("Raging Cougar", keyword_creatures::raging_cougar);
+        registry.register("Wall of Stone", keyword_creatures::wall_of_stone);
+        registry.register("Elvish Archers", keyword_creatures::elvish_archers);
+        registry.register("Ridgetop Raptor", keyword_creatures::ridgetop_raptor);
+        registry.register("War Mammoth", keyword_creatures::war_mammoth);
+        registry.register("Knight of Meadowgrain", keyword_creatures::knight_of_meadowgrain);
+        registry.register("Rhox War Monk", keyword_creatures::rhox_war_monk);
+        registry.register("Giant Spider", keyword_creatures::giant_spider);
+        registry.register("Vampire Nighthawk", keyword_creatures::vampire_nighthawk);
 
         registry
     }
