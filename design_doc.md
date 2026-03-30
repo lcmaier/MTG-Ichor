@@ -1,6 +1,6 @@
 # MTG Simulator — Design Document
 
-> Last updated: 2026-03-29 (post-Phase 4, rev 4)
+> Last updated: 2026-03-30 (post-Phase 4.5, rev 5)
 > Project Goal: The ultimate goal for this project is a rules engine that is fast, 
 > correct, extensible, and managable, that a GUI could lay on top of for two humans 
 > to play over a network, or in a CLI/API where a bot is playing itself/another bot 
@@ -14,14 +14,16 @@ current status, and upcoming work. Update it as decisions are made.
 ## Table of Contents
 
 1. [Architecture Overview](#1-architecture-overview)
-2. [Current Status (Post-Phase 2)](#2-current-status)
+2. [Current Status (Post-Phase 4.5)](#2-current-status)
 3. [Pre-Phase 3 Work Items](#3-pre-phase-3-work-items)
 4. [Phase 3: Creatures & Combat](#4-phase-3)
 5. [Phase 4: Keywords](#5-phase-4)
-6. [Phase 5: Continuous Effects & Layers](#6-phase-5)
-7. [Phase 6: Triggered & Replacement Effects](#7-phase-6)
-8. [Excluded Cards](#8-excluded-cards)
-9. [Design Decisions Log](#9-design-decisions-log)
+6. [Phase 4.5: Oracle Helpers & Decision Providers](#6-phase-45)
+7. [Phase 5: Continuous Effects & Layers](#7-phase-5)
+8. [Phase 6: Triggered Abilities](#8-phase-6)
+9. [Phase 7: Replacement & Prevention Effects](#9-phase-7)
+10. [Excluded Cards](#10-excluded-cards)
+11. [Design Decisions Log](#11-design-decisions-log)
 
 ---
 
@@ -60,9 +62,9 @@ current status, and upcoming work. Update it as decisions are made.
 
 ---
 
-## 2. Current Status (Post-Phase 4)
+## 2. Current Status (Post-Phase 4.5)
 
-**Test count:** 217 (168 unit + 48 integration + 1 doc-test), zero warnings.
+**Test count:** 287 (238 unit + 48 integration + 1 doc-test), zero warnings. 500/500 fuzz games pass with zero errors/panics.
 
 ### What's implemented
 
@@ -89,12 +91,15 @@ current status, and upcoming work. Update it as decisions are made.
 | First-player skip  | ✅ Done     | `skip_next_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step`                                                                                                                                                         |
 | Card registry      | ✅ Done     | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs` + `cards/creatures.rs` + `cards/keyword_creatures.rs`                                                                                                                                                                     |
 | Events             | ✅ Done     | `events/event.rs` (GameEvent enum, EventLog)                                                                                                                                                                                                                                              |
-| DecisionProvider   | ✅ Done     | `ui/decision.rs` (trait + Passive + Scripted + auto_allocate_generic + choose_trample_damage_assignment)                                                                                                                                                                                  |
+| DecisionProvider   | ✅ Done     | `ui/decision.rs` (trait + Passive + Scripted + Dispatch + auto_allocate_generic + shared helpers)                                                                                                                                                                                         |
+| Oracle module      | ✅ Done     | `oracle/characteristics.rs` (has_keyword, is_creature, effective P/T), `oracle/legality.rs` (playable_lands, legal_attackers, legal_blockers), `oracle/board.rs`, `oracle/mana_helpers.rs` (find_mana_sources, castable_spells, activatable_abilities)                                     |
+| CLI play           | ✅ Done     | `ui/cli.rs` (CliDecisionProvider — all 8 methods via stdin/stdout), `ui/display.rs` (text formatting for CLI/logs)                                                                                                                                                                       |
+| Fuzz testing       | ✅ Done     | `ui/random.rs` (RandomDecisionProvider — all 8 methods, internal action queue), `bin/fuzz_games.rs` (N games of Random vs Random, --dump-events), `bin/cli_play.rs` (Human vs Random bot via DispatchDecisionProvider)                                                                   |
 | Combat validation  | ✅ Done     | `engine/combat/validation.rs` — validate_attackers, validate_blockers, AttackConstraints/BlockConstraints skeletons, effective characteristic helpers                                                                                                                                     |
 | Combat resolution  | ✅ Done     | `engine/combat/resolution.rs` — assign_combat_damage (read-only), apply_combat_damage (routes through GameAction::DealDamage)                                                                                                                                                             |
 | Combat steps       | ✅ Done     | `engine/combat/steps.rs` — process_declare_attackers, process_declare_blockers, process_combat_damage (wired into Game::run_turn)                                                                                                                                                         |
 
-### Cards implemented (24)
+### Cards implemented (24, unchanged from Phase 4)
 
 - **Basic lands:** Plains, Island, Swamp, Mountain, Forest
 - **Alpha spells:** Lightning Bolt, Ancestral Recall, Counterspell
@@ -490,28 +495,164 @@ Completed 2026-03-29. 10 keyword abilities implemented, 11 keyword-bearing creat
 
 ---
 
-## 6. Phase 5: Continuous Effects & Layer System
+## 6. Phase 4.5: Oracle Helpers & Decision Providers ✅ COMPLETED
 
-**Goal:** Effects that modify game state continuously (e.g. "all creatures get +1/+1", "+3/+3 until end of turn") and restrictions that prevent actions (Solemnity, Null Rod).
+**Goal:** Bridge Phase 4 and Phase 5 by building the oracle query module, mana helpers, display formatting, CLI and Random decision providers, fuzz testing harness, and CLI play binary. Infrastructure phase — no new cards.
+
+Completed 2026-03-30. 287 tests pass (238 unit + 48 integration + 1 doc-test). 500/500 fuzz games pass with zero errors/panics.
+
+### Design: Mana strategy for Decision Providers
+
+The engine doesn't auto-tap lands; tapping is a player decision (mana ability activation via `ActivateAbility`). Since `choose_priority_action` returns a single `PriorityAction` per call, multi-step "tap lands then cast" requires an **action-plan queue**.
+
+**Solution:** Both CLI and Random DPs use a two-part approach:
+
+1. **`oracle/mana_helpers.rs`** — Shared read-only query module:
+   - `find_mana_sources(game, player_id, mana_cost)` — Greedy algorithm: reserve colored sources first, then assign remaining to generic. Returns `None` if insufficient.
+   - `available_mana_sources(game, player_id)` — All mana sources whose costs can currently be paid. Checks per-ability costs (rule 605.1a/605.1b), not blanket tapped-state.
+   - `castable_spells(game, player_id)` — Spells in hand that pass timing + affordability (pool + tap combined via `remaining_cost_after_pool`).
+   - `activatable_abilities(game, player_id)` — Non-mana activated abilities affordable with pool + available sources.
+   - `passes_timing_check(game, player_id, card_id)` — Read-only mirror of `check_cast_legality`.
+
+2. **Internal action queue** — `RefCell<VecDeque<PriorityAction>>` on each DP. When casting: queue N `ActivateAbility` actions (land taps) followed by one `CastSpell`. Each activation is a separate priority action flowing through the normal engine loop.
+
+**Why:** Engine stays clean (no auto-tap), reusable (CLI, Random, future AI all use `oracle/mana_helpers`), extensible (cost modification queries the cost pipeline), correct (each mana ability activation is a real priority action).
+
+### Shared helpers in `ui/decision.rs`
+
+- `queue_tap_and_cast(queue, sources, card_id)` — Queue mana ability activations followed by `CastSpell`. Used by both CLI and Random DPs.
+- `is_action_still_valid(game, player_id, action)` — Best-effort staleness check for queued actions. If one action is stale, the entire plan is discarded (later actions assumed earlier ones would succeed).
+- `DispatchDecisionProvider` — Routes decisions to different providers per player. Enables any combination of human/bot/network players.
+
+### 4.5a. `oracle/mana_helpers.rs` + `oracle/legality.rs` expansion ✅
+
+- `oracle/mana_helpers.rs`: `find_mana_sources`, `available_mana_sources`, `castable_spells`, `activatable_abilities`, `passes_timing_check`, `remaining_cost_after_pool`, `can_afford_ability_costs`. 14 unit tests.
+- `oracle/legality.rs` expanded: `playable_lands`, `legal_attackers`, `legal_blockers`. 12 unit tests.
+
+### 4.5b. `CliDecisionProvider` (`ui/cli.rs`) ✅
+
+- All 8 `DecisionProvider` methods via stdin/stdout
+- Uses `oracle/mana_helpers` to show affordable spells and suggest land taps
+- Internal action queue for tap-and-cast sequences
+- Multiplayer-ready `choose_attackers` (auto-selects in 2-player, prompts in multiplayer)
+
+### 4.5c. `RandomDecisionProvider` (`ui/random.rs`) ✅
+
+- All 8 methods by making random **legal** choices
+- Internal `RefCell<VecDeque<PriorityAction>>` plan queue
+- ~85% land play probability, ~40% cast probability
+- Stale queue validation via shared `is_action_still_valid`
+- 5 unit tests
+
+### 4.5d. Fuzz harness (`bin/fuzz_games.rs`) ✅
+
+- Runs N games of Random vs Random with `std::panic::catch_unwind` per game
+- CLI args: `--games`, `--max-turns`, `--verbose`, `--dump-events <path>`
+- Reports: completed, errors, panics, hit-turn-limit, avg turns, max turns, time/game
+- Random deck generation from `CardRegistry` (~17 lands, ~23 nonlands)
+
+### 4.5e. CLI play binary (`bin/cli_play.rs`) ✅
+
+- Human (CLI, player 0) vs Random bot (player 1)
+- Uses `DispatchDecisionProvider` from library
+- Fixed test deck: Mountains, Forests, Grizzly Bears, Hill Giants, Lightning Bolts
+
+### 4.5f. Bug fixes from fuzz testing ✅
+
+1. `priority.rs`: `ActivateAbility` now checks ability type — routes mana abilities to `activate_mana_ability()` (rule 605, resolves immediately) instead of `activate_ability()` which rejected them.
+2. `oracle/mana_helpers.rs` `passes_timing_check`: Added ownership check (`obj.owner == player_id`) and zone check (`obj.zone == Hand`) to prevent suggesting opponent's spells.
+3. `ui/random.rs`: Added `is_action_still_valid()` to validate queued actions before returning them. Clears stale queue if a permanent was tapped or a card left hand between plan creation and execution.
+
+### Display formatting (`ui/display.rs`) ✅
+
+Moved from `oracle/display.rs` to `ui/display.rs` — oracle module is for read-only game state queries, display formatting is presentation logic that belongs in `ui/`.
+
+- `card_label`, `card_name`, `format_permanent` (with P/T, damage, keywords, non-keyword abilities, status flags)
+- `format_hand`, `format_battlefield` (grouped by type: Creatures, Lands, Other)
+- `format_stack` (with `<- top (resolves next)` and `<- bottom` markers)
+- `format_phase`, `format_player_summary`, `format_mana_pool`
+- `format_event`, `format_event_log` (for fuzz harness event dumps)
+- 10 unit tests
+
+---
+
+## 7. Phase 5: Continuous Effects & Layer System
+
+**Goal:** Effects that modify game state continuously (e.g. "all creatures get +1/+1", "+3/+3 until end of turn") and restrictions that prevent actions (Solemnity, Null Rod). All 7 layers implemented. Correctness-first, recompute-on-query (no caching).
+
+### Core types
+
+```rust
+struct ContinuousEffect {
+    id: EffectId,
+    source: ObjectId,              // permanent or spell that created it
+    timestamp: u64,                // from GameState::allocate_timestamp()
+    duration: Duration,
+    layer: Layer,
+    modification: Modification,    // what it does
+    applies_to: AppliesTo,         // which objects it affects
+    controller: PlayerId,
+    is_cda: bool,                  // characteristic-defining ability (rule 604.3)
+}
+
+enum Layer {
+    Copy,                          // Layer 1 — rule 613.1a
+    Control,                       // Layer 2 — rule 613.1b
+    Text,                          // Layer 3 — rule 613.1c
+    Type,                          // Layer 4 — rule 613.1d
+    Color,                         // Layer 5 — rule 613.1e
+    Ability,                       // Layer 6 — rule 613.1f
+    PowerToughness(PTSublayer),    // Layer 7 — rule 613.1g
+}
+
+enum PTSublayer {
+    CDA,       // 7a — CDAs that define P/T (e.g. Tarmogoyf)
+    SetBase,   // 7b — effects that set P/T to specific values
+    Modify,    // 7c — effects that modify P/T (+N/+N, -N/-N)
+    Switch,    // 7d — effects that switch P/T
+}
+
+enum Modification {
+    CopyOf(ObjectId),                                       // Layer 1
+    ChangeController(PlayerId),                             // Layer 2
+    ChangeText { from: String, to: String },                // Layer 3
+    AddTypes(Vec<CardType>), RemoveTypes(Vec<CardType>),    // Layer 4
+    AddSubtypes(Vec<Subtype>), RemoveSubtypes(Vec<Subtype>),
+    SetCreatureType(Vec<Subtype>),
+    SetColors(Vec<Color>), AddColors(Vec<Color>), RemoveColors(Vec<Color>),  // Layer 5
+    AddAbility(KeywordAbility), RemoveAbility(KeywordAbility),               // Layer 6
+    RemoveAllAbilities,
+    SetPT(i32, i32), ModifyPT(i32, i32), SwitchPT,         // Layer 7
+}
+
+enum AppliesTo {
+    Single(ObjectId),                      // "target creature" or "enchanted creature"
+    Filter(PermanentFilter, PlayerId),     // "creatures you control" / "white creatures"
+    All,                                   // "all creatures"
+    Self_,                                 // the source permanent itself
+}
+```
 
 ### The layer system (rule 613)
 
-Effects are applied in a strict order:
+Effects are applied in strict layer order: 1 (copy) → 2 (control) → 3 (text) → 4 (type) → 5 (color) → 6 (ability) → 7a-7d (P/T sublayers).
 
-1. Copy effects
-2. Control-changing effects
-3. Text-changing effects
-4. Type-changing effects
-5. Color-changing effects
-6. Ability-adding/removing effects
-7. Power/toughness effects (sublayers 7a-7e)
+Within each layer/sublayer, effects are ordered by:
+1. Dependency detection (rule 613.8) — structural analysis + hypothetical fallback
+2. Timestamp (rule 613.7) — ties broken by `BattlefieldEntity.timestamp`
 
-### Implementation plan
+### Dependency detection (rule 613.8)
 
-- `engine/layers.rs` — applies all continuous effects in layer order to produce "computed characteristics"
-- `objects/characteristics.rs` — the computed output (effective P/T, types, abilities, colors)
-- Duration tracking: `UntilEndOfTurn`, `WhileSourceOnBattlefield`, `Permanent`
-- Effects registered on `GameState` as a `Vec<ContinuousEffect>` with metadata (source, duration, layer, timestamp)
+**Hybrid algorithm:** structural analysis eliminates most pairs cheaply, hypothetical check runs only on candidates.
+
+1. **Collect** all active effects in this layer/sublayer
+2. **Static check** — Does B's `ModifiesCategory` overlap A's `FilterDependency`? If no overlap → independent.
+3. **CDA guard** (613.8a(c)) — If one is CDA and the other isn't → independent.
+4. **Hypothetical check** — Temporarily apply B, recompute A's `applies_to`, compare. If different → A depends on B.
+5. **Build DAG** — Edges: B → A (apply B before A).
+6. **Topological sort** — Ties by timestamp. Cycles (613.8b) → fall back to timestamp order.
+
+Implementation files: `engine/dependency.rs`, `types/continuous.rs`
 
 ### Cost restriction system
 
@@ -519,39 +660,81 @@ This phase also activates the `CostRestriction` framework designed in Section 3.
 
 Similarly, `AttackConstraint` and `BlockConstraint` (Section 4) are populated by continuous effects from this phase onward.
 
-### Cards to implement
+### Rule 613.11: Game-rule-modifying effects + cost pipeline
 
-- Giant Growth (+3/+3 until end of turn — layer 7c)
-- Glorious Anthem (Creatures you control get +1/+1 — layer 7a, static ability)
-- Honor of the Pure (White creatures you control get +1/+1 — filtered static)
+Static abilities like Thalia ("noncreature spells cost {1} more") create continuous effects that modify game rules rather than object characteristics. Wire into the `cast.rs` cost-modification pipeline (rule 601.2e):
 
----
+1. Start with base mana cost
+2. Apply cost increases (from 613.11 effects)
+3. Apply cost reductions
+4. Apply Trinisphere-style floors
+5. Lock final cost
 
-## 7. Phase 6: Triggered & Replacement Effects
+### Implementation sub-steps
 
-**Goal:** "When X happens, do Y" and "If X would happen, instead Y".
-
-### Triggered abilities
-
-- Event-driven: subscribe to `GameEvent` types
-- Placed on stack when triggered, controlled by source's controller
-- `perform_sba_and_triggers` in `engine/priority.rs` is already stubbed for this
-
-### Replacement effects
-
-- Checked before the original event occurs
-- Shield counters, damage prevention, "enters the battlefield tapped"
-- **"Skip your draw step" effects** (Omen Machine, Maralen of the Mornsong) are replacement effects, not boolean flags. The framework handles stacking multiple replacements and "if you would draw, instead..." chains.
-
-### Cards to implement
-
-- Soul Warden ("Whenever a creature enters the battlefield, you gain 1 life")
-- Thalia, Guardian of Thraben (cost increase — ties into cost modification pipeline from `engine/cast.rs`)
-- Omen Machine (replacement effect for draw + triggered ability for reveal-and-cast)
+- **5a** — `types/continuous.rs` + `GameState` field: `ContinuousEffect`, `Layer`, `Modification`, `AppliesTo` types. `continuous_effects: Vec<ContinuousEffect>` on `GameState`. `register_continuous_effect()`, `remove_effects_from_source()`, `effects_in_layer()`.
+- **5b** — Duration tracking + cleanup: `UntilEndOfTurn` removed in cleanup step. `WhileSourceOnBattlefield` removed on zone-change events. `Indefinite` persists until explicit removal.
+- **5c** — Layer engine core (`engine/layers.rs`): `compute_characteristics(game, object_id) -> EffectiveCharacteristics`. Processes layers 1-7 in order.
+- **5d** — Layer 7: P/T sublayers 7a-7d. **Update `oracle/characteristics::get_effective_power/toughness`** to route through layer engine. Remove `power_modifier`/`toughness_modifier` from `BattlefieldEntity`.
+- **5e** — Layer 6: Abilities. `compute_effective_keywords`. **Update `oracle/characteristics::has_keyword`** to route through layer engine.
+- **5f** — Layers 4-5: Type + color change. **Update `oracle/characteristics::is_creature`** to route through layer engine.
+- **5g** — Layer 2: Control-changing effects.
+- **5h** — Layers 1+3: Copy + text change (minimal scaffolding, expanded later).
+- **5i** — Dependency detection (`engine/dependency.rs`): `FilterDependency`, `ModifiesCategory` enums. Static + hypothetical hybrid algorithm. Topological sort with cycle fallback.
+- **5j** — Hook `resolve_primitive` → register effects: `ModifyPowerToughness` → layer 7c, `AddAbility`/`RemoveAbility` → layer 6, `SetPowerToughness` → layer 7b, `ChangeColor` → layer 5, `ChangeType` → layer 4, `GainControl` → layer 2.
+- **5k** — Rule 613.11 + cost modification pipeline in `cast.rs`.
+- **5l** — Cards: Giant Growth ({G}, instant, +3/+3 until end of turn), Glorious Anthem ({1}{W}{W}, enchantment, creatures you control get +1/+1), Honor of the Pure ({1}{W}, enchantment, white creatures you control get +1/+1), Clone ({3}{U}, creature, copy effect scaffold).
+- **5m** — Tests: unit tests in `layers.rs` + `dependency.rs`, integration tests for Giant Growth / Anthem / Honor / Clone, fuzz regressions with new cards.
 
 ---
 
-## 8. Excluded Cards
+## 8. Phase 6: Triggered Abilities
+
+**Goal:** "When/Whenever/At [event], [effect]" abilities that go on the stack (rule 603).
+
+### Key components
+
+- **TriggerCondition** enum: `OnETB(filter)`, `OnLTB(filter)`, `OnDeath(filter)`, `OnDamageDealt(filter)`, `OnLifeGained`, `OnSpellCast(filter)`, `AtBeginningOf(StepType)`, etc.
+- **TriggeredAbilityDef** on `CardData`: `trigger: TriggerCondition, effect: Effect`
+- **Trigger checking**: after each event batch (or SBA cycle), scan all permanents for matching triggers
+- **Stack placement**: triggered abilities go on stack in APNAP order (rule 603.3b)
+- **Delayed triggers**: created by spells/abilities, fire once (rule 603.7)
+
+### Integration point
+
+- `priority.rs` `perform_sba_and_triggers()` — already stubbed; triggers slot in here
+- After SBAs, scan `EventLog` for matching triggers, put on stack, resume priority
+
+### Cards to implement
+
+- **Soul Warden** ("Whenever a creature enters, you gain 1 life") — ETB trigger
+- **Blood Artist** ("Whenever a creature dies, target player loses 1 life and you gain 1 life") — death trigger
+- One "at beginning of upkeep" trigger TBD
+
+---
+
+## 9. Phase 7: Replacement & Prevention Effects
+
+**Goal:** "If X would happen, instead Y" and "prevent N damage" (rules 614-616).
+
+### Key components
+
+- **ReplacementEffect** struct: condition, replacement, source, duration, controller
+- **Prevention effect** is a subtype of replacement (rule 615)
+- **`apply_replacement_effects()`** inserted into `execute_action()` — the hook is already designed (`execute_action` → `apply_replacement_effects` → `perform_action`)
+- **Rule 616 ordering**: when multiple replacements apply, affected player/controller chooses
+- **Self-referential loop prevention** (rule 614.5): each replacement applies at most once per event
+- **"Skip your draw step" effects** (Omen Machine, Maralen) are replacement effects, not boolean flags. The framework handles stacking multiple replacements and "if you would draw, instead..." chains.
+
+### Cards to implement
+
+- **Fog** ("Prevent all combat damage this turn") — prevention shield
+- **Enters-tapped** effects (taplands) — ETB replacement
+- Additional TBD
+
+---
+
+## 10. Excluded Cards
 
 These cards are **explicitly out of scope** due to rules ambiguities or engine-breaking interactions. They are non-competitive and not worth the architectural complexity they would require.
 
@@ -565,7 +748,7 @@ Additional cards may be added to this list as development progresses. The genera
 
 ---
 
-## 9. Design Decisions Log
+## 11. Design Decisions Log
 
 | Date       | Decision                                             | Rationale                                                                                                                                                                                                                           |
 | ---------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -580,11 +763,17 @@ Additional cards may be added to this list as development progresses. The genera
 | 2026-03-29 | `GameConfig` struct now, `Format` trait later        | Covers 90% of formats with pure data; `Format` trait only needed when Commander/Brawl require behavioral differences. `Game` struct already structured for easy migration.                                                          |
 | 2026-03-29 | `Game` owns `DecisionProvider` dispatch              | Engine methods stay as pure state transforms. `Game::run_turn` is the only place that calls decision methods. No threading `DecisionProvider` through `advance_turn`.                                                               |
 | 2026-03-29 | Combat split: validation + resolution                | Once attackers/blockers are locked in, damage is deterministic. Validation is the complex part (constraints, forced attacks, evasion). Extensible via `AttackConstraint` / `BlockConstraint` lists populated by continuous effects. |
-| 2026-03-29 | `skip_next_draw` flag only for rule 103.8a           | In-game "skip draw" effects are replacement effects (Phase 6), not boolean flags. The flag is a one-time game-setup mechanism.                                                                                                      |
+| 2026-03-29 | `skip_next_draw` flag only for rule 103.8a           | In-game "skip draw" effects are replacement effects (Phase 7), not boolean flags. The flag is a one-time game-setup mechanism.                                                                                                      |
 | 2026-03-29 | Explicit excluded cards list                         | Season of the Witch, Panglacial Wurm, Selvala — non-competitive cards that require disproportionate architectural changes.                                                                                                          |
 | 2026-03-29 | Two-phase combat damage (compute then apply)         | `assign_combat_damage` is a read-only free function; `apply_combat_damage` mutates. Avoids borrow checker issues from reading battlefield while writing damage.                                                                     |
 | 2026-03-29 | Effective characteristic helpers on GameState        | `is_creature()`, `can_attack()`, `get_effective_power/toughness()` — combat code calls these instead of reading `card_data` directly, so Phase 5 layer-system swap is a single-point change.                                        |
 | 2026-03-29 | Permanent spell resolution: no re-push               | Fixed Phase 2 hack. Manual zone bookkeeping for permanent spells resolving to battlefield, consistent with instant/sorcery path.                                                                                                    |
+| 2026-03-30 | Oracle module separates read-only queries from engine | `oracle/` contains characteristics, legality, board, mana_helpers — all pure `&GameState` queries. Engine stays mutation-only. Single-point change for Phase 5 layer integration.                                                   |
+| 2026-03-30 | `display.rs` in `ui/`, not `oracle/`                 | Display formatting is presentation logic, not game-state queries. Oracle = "what is true", UI = "how to present it".                                                                                                                |
+| 2026-03-30 | Action-plan queue for mana ability + cast sequences   | DPs hold `RefCell<VecDeque<PriorityAction>>`. Each mana tap is a real priority action. Engine stays clean; no auto-tap.                                                                                                             |
+| 2026-03-30 | `DispatchDecisionProvider` routes by player ID       | Enables any combination of human/bot/network players in a single game. Replaces per-binary boilerplate with a reusable library type.                                                                                                |
+| 2026-03-30 | Phase restructuring: old Phase 6 split into 6+7      | Triggered abilities (stack-based, rule 603) and replacement effects (middleware-based, rules 614-616) are architecturally distinct. Separate phases reduce per-phase complexity.                                                     |
+| 2026-03-30 | Correctness-first layer system, no caching           | Recompute-on-query for all characteristics. Caching added later only if parallel AI self-play proves too slow.                                                                                                                      |
 
 ---
 
@@ -616,18 +805,40 @@ Phase 4: Keywords ✅
   4k   Integration tests (12 tests) ✅
   4l   Design doc update ✅
 
-Phase 5: Continuous Effects & Layers
-  5a   ContinuousEffect struct + duration tracking
-  5b   Layer application engine (rule 613)
-  5c   Computed characteristics
-  5d   "Until end of turn" effect cleanup
-  5e   CostRestriction activation (populate from continuous effects)
-  5f   AttackConstraint / BlockConstraint activation
-  5g   Cards: Giant Growth, Glorious Anthem, Honor of the Pure
+Phase 4.5: Oracle Helpers & Decision Providers ✅
+  4.5a oracle/mana_helpers.rs + oracle/legality.rs expansion ✅
+  4.5b CliDecisionProvider (ui/cli.rs) ✅
+  4.5c RandomDecisionProvider (ui/random.rs) ✅
+  4.5d Fuzz harness binary (bin/fuzz_games.rs) ✅
+  4.5e CLI play binary (bin/cli_play.rs) ✅
+  4.5f Bug fixes from fuzz/CLI testing ✅
+  ---  Design doc restructure ✅
 
-Phase 6: Triggered & Replacement Effects
-  6a   Trigger registration + event matching
-  6b   Triggered abilities on stack
-  6c   Replacement effect framework (including "skip draw" effects)
-  6d   Cards: Soul Warden, Thalia, Omen Machine
+Phase 5: Continuous Effects & Layer System
+  5a   types/continuous.rs + GameState field
+  5b   Duration tracking + cleanup hooks
+  5c   Layer engine core (engine/layers.rs)
+  5d   Layer 7: P/T sublayers (update oracle/characteristics)
+  5e   Layer 6: abilities (update oracle/characteristics)
+  5f   Layers 4-5: types + colors (update oracle/characteristics)
+  5g   Layer 2: control
+  5h   Layers 1+3: copy + text (scaffolding)
+  5i   Dependency detection (engine/dependency.rs)
+  5j   Hook resolve_primitive → register effects
+  5k   Rule 613.11 + cost modification pipeline
+  5l   Cards: Giant Growth, Glorious Anthem, Honor of the Pure, Clone
+  5m   Tests + fuzz regression
+
+Phase 6: Triggered Abilities
+  6a   TriggerCondition enum + TriggeredAbilityDef
+  6b   Trigger checking + event matching
+  6c   Stack placement (APNAP order)
+  6d   Delayed triggers
+  6e   Cards: Soul Warden, Blood Artist
+
+Phase 7: Replacement & Prevention Effects
+  7a   ReplacementEffect struct + apply_replacement_effects()
+  7b   Rule 616 ordering + loop prevention (614.5)
+  7c   Prevention effects (rule 615)
+  7d   Cards: Fog, enters-tapped lands
 ```
