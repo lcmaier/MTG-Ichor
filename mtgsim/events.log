@@ -1,0 +1,353 @@
+=== Game 1 (186 events) ===
+     0: ZoneChange: Lightning Bolt (01703a55) [P0] Library -> Hand
+     1: ZoneChange: Mountain (fc4bc22d) [P0] Library -> Hand
+     2: ZoneChange: Earth Elemental (82214e5d) [P0] Library -> Hand
+     3: ZoneChange: Mountain (3b6de833) [P0] Library -> Hand
+     4: ZoneChange: Ancestral Recall (2b0e4d78) [P0] Library -> Hand
+     5: ZoneChange: Hill Giant (b3f6756b) [P0] Library -> Hand
+     6: ZoneChange: Mountain (ad581ff9) [P0] Library -> Hand
+     7: ZoneChange: Forest (6e72eeac) [P1] Library -> Hand
+     8: ZoneChange: Giant Spider (63a55f5e) [P1] Library -> Hand
+     9: ZoneChange: Plains (02bd0bff) [P1] Library -> Hand
+    10: ZoneChange: Swamp (fbb93148) [P1] Library -> Hand
+    11: ZoneChange: Volcanic Upheaval (a99a54e3) [P1] Library -> Hand
+    12: ZoneChange: Island (49a40ed2) [P1] Library -> Hand
+    13: ZoneChange: Plains (af489587) [P1] Library -> Hand
+    14: ZoneChange: Island (c3762b33) [P0] Library -> Hand
+    15: ZoneChange: Mountain (fc4bc22d) [P0] Hand -> Battlefield
+    16: ZoneChange: Swamp (59793275) [P1] Library -> Hand
+    17: ZoneChange: Swamp (fbb93148) [P1] Hand -> Battlefield
+    18: ZoneChange: Lightning Bolt (01703a55) [P0] Hand -> Stack
+    19: SpellCast: P0 casts Lightning Bolt (01703a55)
+    20: DamageDealt: Lightning Bolt (01703a55) -> P0 for 3
+    21: LifeChanged: P0 20 -> 17
+    22: ZoneChange: Lightning Bolt (01703a55) [P0] Stack -> Graveyard
+    23: SpellResolved: Lightning Bolt (01703a55)
+    24: ZoneChange: Mountain (d3f6f9c5) [P0] Library -> Hand
+    25: ZoneChange: Mountain (d3f6f9c5) [P0] Hand -> Battlefield
+    26: ZoneChange: Earth Elemental (b9c21a14) [P1] Library -> Hand
+    27: ZoneChange: Plains (02bd0bff) [P1] Hand -> Battlefield
+    28: ZoneChange: Swamp (44c52f5e) [P0] Library -> Hand
+    29: ZoneChange: Mountain (3b6de833) [P0] Hand -> Battlefield
+    30: ZoneChange: Earth Elemental (dceffe58) [P1] Library -> Hand
+    31: ZoneChange: Island (49a40ed2) [P1] Hand -> Battlefield
+    32: ZoneChange: Plains (3d080964) [P0] Library -> Hand
+    33: ZoneChange: Mountain (ad581ff9) [P0] Hand -> Battlefield
+    34: ZoneChange: Island (a0008de1) [P1] Library -> Hand
+    35: ZoneChange: Swamp (59793275) [P1] Hand -> Battlefield
+    36: ZoneChange: Volcanic Upheaval (7d9f7eec) [P0] Library -> Hand
+    37: ZoneChange: Volcanic Upheaval (7d9f7eec) [P0] Hand -> Stack
+    38: SpellCast: P0 casts Volcanic Upheaval (7d9f7eec)
+    39: ZoneChange: Swamp (fbb93148) [P1] Battlefield -> Graveyard
+    40: ZoneChange: Volcanic Upheaval (7d9f7eec) [P0] Stack -> Graveyard
+    41: SpellResolved: Volcanic Upheaval (7d9f7eec)
+    42: ZoneChange: Swamp (44c52f5e) [P0] Hand -> Battlefield
+    43: ZoneChange: Forest (ea46c2bc) [P1] Library -> Hand
+    44: ZoneChange: Forest (6e72eeac) [P1] Hand -> Battlefield
+    45: ZoneChange: Raging Cougar (07e90166) [P0] Library -> Hand
+    46: ZoneChange: Island (c3762b33) [P0] Hand -> Battlefield
+    47: ZoneChange: Ancestral Recall (2b0e4d78) [P0] Hand -> Stack
+    48: SpellCast: P0 casts Ancestral Recall (2b0e4d78)
+    49: ZoneChange: Counterspell (399a5638) [P1] Library -> Hand
+    50: ZoneChange: Vampire Nighthawk (f811b01d) [P1] Library -> Hand
+    51: ZoneChange: Grizzly Bears (c5fd451d) [P1] Library -> Hand
+    52: ZoneChange: Ancestral Recall (2b0e4d78) [P0] Stack -> Graveyard
+    53: SpellResolved: Ancestral Recall (2b0e4d78)
+    54: ZoneChange: Plains (83fa0027) [P1] Library -> Hand
+    55: ZoneChange: Island (a0008de1) [P1] Hand -> Battlefield
+    56: ZoneChange: Counterspell (399a5638) [P1] Hand -> Stack
+    57: SpellCast: P1 casts Counterspell (399a5638)
+    58: ZoneChange: Counterspell (399a5638) [P1] Stack -> Graveyard
+    59: SpellFizzled: Counterspell (399a5638)
+    60: ZoneChange: Plains (83fa0027) [P1] Hand -> Graveyard
+    61: ZoneChange: Giant Spider (63a55f5e) [P1] Hand -> Graveyard
+    62: ZoneChange: Hill Giant (142c326a) [P0] Library -> Hand
+    63: ZoneChange: Plains (3d080964) [P0] Hand -> Battlefield
+    64: ZoneChange: Swamp (1406717b) [P1] Library -> Hand
+    65: ZoneChange: Forest (ea46c2bc) [P1] Hand -> Battlefield
+    66: ZoneChange: Earth Elemental (03496630) [P0] Library -> Hand
+    67: ZoneChange: Mountain (0d84cd19) [P1] Library -> Hand
+    68: ZoneChange: Mountain (0d84cd19) [P1] Hand -> Battlefield
+    69: ZoneChange: Volcanic Upheaval (a99a54e3) [P1] Hand -> Stack
+    70: SpellCast: P1 casts Volcanic Upheaval (a99a54e3)
+    71: ZoneChange: Mountain (fc4bc22d) [P0] Battlefield -> Graveyard
+    72: ZoneChange: Volcanic Upheaval (a99a54e3) [P1] Stack -> Graveyard
+    73: SpellResolved: Volcanic Upheaval (a99a54e3)
+    74: ZoneChange: Savannah Lions (c9ea3c39) [P0] Library -> Hand
+    75: ZoneChange: Counterspell (2b648bcf) [P1] Library -> Hand
+    76: ZoneChange: Counterspell (2b648bcf) [P1] Hand -> Stack
+    77: SpellCast: P1 casts Counterspell (2b648bcf)
+    78: ZoneChange: Counterspell (2b648bcf) [P1] Stack -> Graveyard
+    79: SpellFizzled: Counterspell (2b648bcf)
+    80: ZoneChange: Plains (af489587) [P1] Hand -> Battlefield
+    81: ZoneChange: Ridgetop Raptor (856377e2) [P0] Library -> Hand
+    82: ZoneChange: Giant Spider (9e8f1153) [P1] Library -> Hand
+    83: ZoneChange: Swamp (1406717b) [P1] Hand -> Battlefield
+    84: ZoneChange: Plains (642b1d20) [P0] Library -> Hand
+    85: ZoneChange: Plains (642b1d20) [P0] Hand -> Battlefield
+    86: ZoneChange: Mountain (6ca6b9cb) [P1] Library -> Hand
+    87: ZoneChange: Mountain (6ca6b9cb) [P1] Hand -> Battlefield
+    88: ZoneChange: Counterspell (d4c46af4) [P0] Library -> Hand
+    89: ZoneChange: Hill Giant (142c326a) [P0] Hand -> Graveyard
+    90: ZoneChange: Hill Giant (e63697c0) [P1] Library -> Hand
+    91: ZoneChange: Mountain (7ec1b74c) [P0] Library -> Hand
+    92: ZoneChange: Mountain (7ec1b74c) [P0] Hand -> Battlefield
+    93: ZoneChange: Vampire Nighthawk (3cf3e736) [P1] Library -> Hand
+    94: ZoneChange: Mountain (e89f661b) [P0] Library -> Hand
+    95: ZoneChange: Mountain (e89f661b) [P0] Hand -> Battlefield
+    96: ZoneChange: Forest (3510d047) [P1] Library -> Hand
+    97: ZoneChange: Forest (3510d047) [P1] Hand -> Battlefield
+    98: ZoneChange: Lightning Bolt (f915d3f0) [P0] Library -> Hand
+    99: ZoneChange: Lightning Bolt (f915d3f0) [P0] Hand -> Stack
+   100: SpellCast: P0 casts Lightning Bolt (f915d3f0)
+   101: DamageDealt: Lightning Bolt (f915d3f0) -> P1 for 3
+   102: LifeChanged: P1 20 -> 17
+   103: ZoneChange: Lightning Bolt (f915d3f0) [P0] Stack -> Graveyard
+   104: SpellResolved: Lightning Bolt (f915d3f0)
+   105: ZoneChange: Swamp (96f6afbd) [P1] Library -> Hand
+   106: ZoneChange: Swamp (96f6afbd) [P1] Hand -> Battlefield
+   107: ZoneChange: Forest (8cecdafb) [P0] Library -> Hand
+   108: ZoneChange: Forest (8cecdafb) [P0] Hand -> Battlefield
+   109: ZoneChange: Forest (4717b653) [P1] Library -> Hand
+   110: ZoneChange: Forest (4717b653) [P1] Hand -> Battlefield
+   111: ZoneChange: Forest (4b2f54c3) [P0] Library -> Hand
+   112: ZoneChange: Earth Elemental (82214e5d) [P0] Hand -> Graveyard
+   113: ZoneChange: Raging Cougar (02655ad0) [P1] Library -> Hand
+   114: ZoneChange: Raging Cougar (02655ad0) [P1] Hand -> Graveyard
+   115: ZoneChange: Grizzly Bears (4b0d5a2c) [P0] Library -> Hand
+   116: ZoneChange: Forest (4b2f54c3) [P0] Hand -> Battlefield
+   117: ZoneChange: Ancestral Recall (0914d0ff) [P1] Library -> Hand
+   118: ZoneChange: Ancestral Recall (0914d0ff) [P1] Hand -> Stack
+   119: SpellCast: P1 casts Ancestral Recall (0914d0ff)
+   120: ZoneChange: Ancestral Recall (c4780b26) [P1] Library -> Hand
+   121: ZoneChange: Knight of Meadowgrain (9eed63cc) [P1] Library -> Hand
+   122: ZoneChange: Knight of Meadowgrain (f6e1d0f8) [P1] Library -> Hand
+   123: ZoneChange: Ancestral Recall (0914d0ff) [P1] Stack -> Graveyard
+   124: SpellResolved: Ancestral Recall (0914d0ff)
+   125: ZoneChange: Ancestral Recall (c4780b26) [P1] Hand -> Stack
+   126: SpellCast: P1 casts Ancestral Recall (c4780b26)
+   127: ZoneChange: Forest (0142c5e9) [P0] Library -> Hand
+   128: ZoneChange: Island (2ef9136e) [P0] Library -> Hand
+   129: ZoneChange: Elvish Archers (c55863c7) [P0] Library -> Hand
+   130: ZoneChange: Ancestral Recall (c4780b26) [P1] Stack -> Graveyard
+   131: SpellResolved: Ancestral Recall (c4780b26)
+   132: ZoneChange: Knight of Meadowgrain (f6e1d0f8) [P1] Hand -> Graveyard
+   133: ZoneChange: Giant Spider (9e8f1153) [P1] Hand -> Graveyard
+   134: ZoneChange: Grizzly Bears (e83b37f5) [P0] Library -> Hand
+   135: ZoneChange: Island (2ef9136e) [P0] Hand -> Battlefield
+   136: ZoneChange: Counterspell (d4c46af4) [P0] Hand -> Stack
+   137: SpellCast: P0 casts Counterspell (d4c46af4)
+   138: ZoneChange: Counterspell (d4c46af4) [P0] Stack -> Graveyard
+   139: SpellFizzled: Counterspell (d4c46af4)
+   140: ZoneChange: Savannah Lions (c9ea3c39) [P0] Hand -> Graveyard
+   141: ZoneChange: Elvish Archers (c55863c7) [P0] Hand -> Graveyard
+   142: ZoneChange: Earth Elemental (938b3b80) [P1] Library -> Hand
+   143: ZoneChange: Grizzly Bears (c5fd451d) [P1] Hand -> Graveyard
+   144: ZoneChange: Plains (5852f96c) [P0] Library -> Hand
+   145: ZoneChange: Forest (0142c5e9) [P0] Hand -> Battlefield
+   146: ZoneChange: Knight of Meadowgrain (914bc642) [P1] Library -> Hand
+   147: ZoneChange: Knight of Meadowgrain (914bc642) [P1] Hand -> Graveyard
+   148: ZoneChange: War Mammoth (9fa85924) [P0] Library -> Hand
+   149: ZoneChange: Plains (5852f96c) [P0] Hand -> Battlefield
+   150: ZoneChange: Knight of Meadowgrain (d616d608) [P1] Library -> Hand
+   151: ZoneChange: Earth Elemental (938b3b80) [P1] Hand -> Graveyard
+   152: ZoneChange: Plains (2e7ae898) [P0] Library -> Hand
+   153: ZoneChange: Plains (2e7ae898) [P0] Hand -> Battlefield
+   154: ZoneChange: Mountain (23e2476b) [P1] Library -> Hand
+   155: ZoneChange: Mountain (23e2476b) [P1] Hand -> Battlefield
+   156: ZoneChange: Swamp (dfed9428) [P0] Library -> Hand
+   157: ZoneChange: Swamp (dfed9428) [P0] Hand -> Battlefield
+   158: ZoneChange: Ancestral Recall (40f29d25) [P1] Library -> Hand
+   159: ZoneChange: Ancestral Recall (40f29d25) [P1] Hand -> Stack
+   160: SpellCast: P1 casts Ancestral Recall (40f29d25)
+   161: ZoneChange: Volcanic Upheaval (e46c6cf5) [P0] Library -> Hand
+   162: ZoneChange: Giant Spider (d6ed3871) [P0] Library -> Hand
+   163: ZoneChange: Serra Angel (eef75a70) [P0] Library -> Hand
+   164: ZoneChange: Ancestral Recall (40f29d25) [P1] Stack -> Graveyard
+   165: SpellResolved: Ancestral Recall (40f29d25)
+   166: ZoneChange: Vampire Nighthawk (52865440) [P0] Library -> Hand
+   167: ZoneChange: Volcanic Upheaval (e46c6cf5) [P0] Hand -> Stack
+   168: SpellCast: P0 casts Volcanic Upheaval (e46c6cf5)
+   169: ZoneChange: Plains (02bd0bff) [P1] Battlefield -> Graveyard
+   170: ZoneChange: Volcanic Upheaval (e46c6cf5) [P0] Stack -> Graveyard
+   171: SpellResolved: Volcanic Upheaval (e46c6cf5)
+   172: ZoneChange: Serra Angel (eef75a70) [P0] Hand -> Graveyard
+   173: ZoneChange: Earth Elemental (03496630) [P0] Hand -> Graveyard
+   174: ZoneChange: War Mammoth (9fa85924) [P0] Hand -> Graveyard
+   175: ZoneChange: Earth Elemental (f6ed97c5) [P1] Library -> Hand
+   176: ZoneChange: Earth Elemental (dceffe58) [P1] Hand -> Graveyard
+   177: ZoneChange: Ancestral Recall (6bca5cce) [P0] Library -> Hand
+   178: ZoneChange: Ancestral Recall (6bca5cce) [P0] Hand -> Stack
+   179: SpellCast: P0 casts Ancestral Recall (6bca5cce)
+   180: ZoneChange: Thornweald Archer (ef65c577) [P0] Library -> Hand
+   181: ZoneChange: Earth Elemental (0b5a6db1) [P0] Library -> Hand
+   182: ZoneChange: Ancestral Recall (6bca5cce) [P0] Stack -> Graveyard
+   183: SpellResolved: Ancestral Recall (6bca5cce)
+   184: PlayerLost: P0 (DrawnFromEmptyLibrary)
+   185: StateBasedActionPerformed
+
+=== Game 2 (163 events) ===
+     0: ZoneChange: Lightning Bolt (df67b2e0) [P0] Library -> Hand
+     1: ZoneChange: Rhox War Monk (058308b2) [P0] Library -> Hand
+     2: ZoneChange: Vampire Nighthawk (68b17b4a) [P0] Library -> Hand
+     3: ZoneChange: Plains (73286f99) [P0] Library -> Hand
+     4: ZoneChange: Elvish Archers (9a836128) [P0] Library -> Hand
+     5: ZoneChange: Earth Elemental (ebd2447b) [P0] Library -> Hand
+     6: ZoneChange: Plains (3e305f76) [P0] Library -> Hand
+     7: ZoneChange: Thornweald Archer (4233abe6) [P1] Library -> Hand
+     8: ZoneChange: Knight of Meadowgrain (daf32aba) [P1] Library -> Hand
+     9: ZoneChange: Swamp (0e8158f2) [P1] Library -> Hand
+    10: ZoneChange: Plains (2585c359) [P1] Library -> Hand
+    11: ZoneChange: Ridgetop Raptor (20988a67) [P1] Library -> Hand
+    12: ZoneChange: Giant Spider (d55d807b) [P1] Library -> Hand
+    13: ZoneChange: Volcanic Upheaval (0364fba6) [P1] Library -> Hand
+    14: ZoneChange: Plains (3d34cf22) [P0] Library -> Hand
+    15: ZoneChange: Plains (3d34cf22) [P0] Hand -> Battlefield
+    16: ZoneChange: Ridgetop Raptor (99e1265d) [P1] Library -> Hand
+    17: ZoneChange: Plains (2585c359) [P1] Hand -> Battlefield
+    18: ZoneChange: Mountain (4c6fa7b5) [P0] Library -> Hand
+    19: ZoneChange: Plains (3e305f76) [P0] Hand -> Battlefield
+    20: ZoneChange: Island (66517151) [P1] Library -> Hand
+    21: ZoneChange: Island (66517151) [P1] Hand -> Battlefield
+    22: ZoneChange: Knight of Meadowgrain (6b86d740) [P0] Library -> Hand
+    23: ZoneChange: Mountain (4c6fa7b5) [P0] Hand -> Battlefield
+    24: ZoneChange: Lightning Bolt (df67b2e0) [P0] Hand -> Stack
+    25: SpellCast: P0 casts Lightning Bolt (df67b2e0)
+    26: DamageDealt: Lightning Bolt (df67b2e0) -> P1 for 3
+    27: LifeChanged: P1 20 -> 17
+    28: ZoneChange: Lightning Bolt (df67b2e0) [P0] Stack -> Graveyard
+    29: SpellResolved: Lightning Bolt (df67b2e0)
+    30: ZoneChange: Burst of Energy (b9231e80) [P1] Library -> Hand
+    31: ZoneChange: Burst of Energy (b9231e80) [P1] Hand -> Stack
+    32: SpellCast: P1 casts Burst of Energy (b9231e80)
+    33: ZoneChange: Burst of Energy (b9231e80) [P1] Stack -> Graveyard
+    34: SpellResolved: Burst of Energy (b9231e80)
+    35: ZoneChange: Swamp (0e8158f2) [P1] Hand -> Battlefield
+    36: ZoneChange: Elvish Archers (10a79a21) [P0] Library -> Hand
+    37: ZoneChange: Plains (73286f99) [P0] Hand -> Battlefield
+    38: ZoneChange: Rhox War Monk (dd94a490) [P1] Library -> Hand
+    39: ZoneChange: Vampire Nighthawk (2649b4c1) [P0] Library -> Hand
+    40: ZoneChange: Volcanic Upheaval (5615b535) [P1] Library -> Hand
+    41: ZoneChange: Rhox War Monk (dd94a490) [P1] Hand -> Graveyard
+    42: ZoneChange: War Mammoth (70d091af) [P0] Library -> Hand
+    43: ZoneChange: Elvish Archers (10a79a21) [P0] Hand -> Graveyard
+    44: ZoneChange: Earth Elemental (81b6aca2) [P1] Library -> Hand
+    45: ZoneChange: Giant Spider (d55d807b) [P1] Hand -> Graveyard
+    46: ZoneChange: Island (d6a14b47) [P0] Library -> Hand
+    47: ZoneChange: Island (d6a14b47) [P0] Hand -> Battlefield
+    48: ZoneChange: Hill Giant (3d0344eb) [P1] Library -> Hand
+    49: ZoneChange: Volcanic Upheaval (0364fba6) [P1] Hand -> Graveyard
+    50: ZoneChange: Knight of Meadowgrain (bb0c130e) [P0] Library -> Hand
+    51: ZoneChange: War Mammoth (70d091af) [P0] Hand -> Graveyard
+    52: ZoneChange: Swamp (df41cfd3) [P1] Library -> Hand
+    53: ZoneChange: Swamp (df41cfd3) [P1] Hand -> Battlefield
+    54: ZoneChange: Knight of Meadowgrain (663b2cd3) [P0] Library -> Hand
+    55: ZoneChange: Knight of Meadowgrain (663b2cd3) [P0] Hand -> Graveyard
+    56: ZoneChange: Elvish Archers (80a78f7f) [P1] Library -> Hand
+    57: ZoneChange: Earth Elemental (81b6aca2) [P1] Hand -> Graveyard
+    58: ZoneChange: Savannah Lions (d09f1b31) [P0] Library -> Hand
+    59: ZoneChange: Vampire Nighthawk (68b17b4a) [P0] Hand -> Graveyard
+    60: ZoneChange: Wall of Stone (3009bbef) [P1] Library -> Hand
+    61: ZoneChange: Hill Giant (3d0344eb) [P1] Hand -> Graveyard
+    62: ZoneChange: Ridgetop Raptor (87ae2c0c) [P0] Library -> Hand
+    63: ZoneChange: Knight of Meadowgrain (bb0c130e) [P0] Hand -> Graveyard
+    64: ZoneChange: Serra Angel (2e7888fe) [P1] Library -> Hand
+    65: ZoneChange: Serra Angel (2e7888fe) [P1] Hand -> Graveyard
+    66: ZoneChange: Swamp (75f066cf) [P0] Library -> Hand
+    67: ZoneChange: Swamp (75f066cf) [P0] Hand -> Battlefield
+    68: ZoneChange: Serra Angel (86e358a3) [P1] Library -> Hand
+    69: ZoneChange: Ridgetop Raptor (20988a67) [P1] Hand -> Graveyard
+    70: ZoneChange: Thornweald Archer (b7744a3b) [P0] Library -> Hand
+    71: ZoneChange: Elvish Archers (9a836128) [P0] Hand -> Graveyard
+    72: ZoneChange: Forest (9f5cf377) [P1] Library -> Hand
+    73: ZoneChange: Forest (9f5cf377) [P1] Hand -> Battlefield
+    74: ZoneChange: Forest (5602aec8) [P0] Library -> Hand
+    75: ZoneChange: Forest (5602aec8) [P0] Hand -> Battlefield
+    76: ZoneChange: Mountain (f741e5e5) [P1] Library -> Hand
+    77: ZoneChange: Mountain (f741e5e5) [P1] Hand -> Battlefield
+    78: ZoneChange: Volcanic Upheaval (5615b535) [P1] Hand -> Stack
+    79: SpellCast: P1 casts Volcanic Upheaval (5615b535)
+    80: ZoneChange: Swamp (df41cfd3) [P1] Battlefield -> Graveyard
+    81: ZoneChange: Volcanic Upheaval (5615b535) [P1] Stack -> Graveyard
+    82: SpellResolved: Volcanic Upheaval (5615b535)
+    83: ZoneChange: Mountain (2377414d) [P0] Library -> Hand
+    84: ZoneChange: Mountain (2377414d) [P0] Hand -> Battlefield
+    85: ZoneChange: Raging Cougar (c734e3c8) [P1] Library -> Hand
+    86: ZoneChange: Swamp (094725cb) [P0] Library -> Hand
+    87: ZoneChange: Swamp (094725cb) [P0] Hand -> Battlefield
+    88: ZoneChange: Island (76a4d006) [P1] Library -> Hand
+    89: ZoneChange: Island (76a4d006) [P1] Hand -> Battlefield
+    90: ZoneChange: Raging Cougar (8352eb4b) [P0] Library -> Hand
+    91: ZoneChange: Knight of Meadowgrain (6b86d740) [P0] Hand -> Graveyard
+    92: ZoneChange: War Mammoth (a8cf01aa) [P1] Library -> Hand
+    93: ZoneChange: Serra Angel (86e358a3) [P1] Hand -> Graveyard
+    94: ZoneChange: Swamp (0458500d) [P0] Library -> Hand
+    95: ZoneChange: Swamp (0458500d) [P0] Hand -> Battlefield
+    96: ZoneChange: Swamp (b9f26782) [P1] Library -> Hand
+    97: ZoneChange: Elvish Archers (80a78f7f) [P1] Hand -> Graveyard
+    98: ZoneChange: Plains (cd912737) [P0] Library -> Hand
+    99: ZoneChange: Plains (cd912737) [P0] Hand -> Battlefield
+   100: ZoneChange: Mountain (5632454a) [P1] Library -> Hand
+   101: ZoneChange: Mountain (5632454a) [P1] Hand -> Battlefield
+   102: ZoneChange: Raging Cougar (8f5c2980) [P0] Library -> Hand
+   103: ZoneChange: Raging Cougar (8352eb4b) [P0] Hand -> Graveyard
+   104: ZoneChange: Island (3e34cea4) [P1] Library -> Hand
+   105: ZoneChange: Island (3e34cea4) [P1] Hand -> Battlefield
+   106: ZoneChange: Burst of Energy (44c1529b) [P0] Library -> Hand
+   107: ZoneChange: Burst of Energy (44c1529b) [P0] Hand -> Stack
+   108: SpellCast: P0 casts Burst of Energy (44c1529b)
+   109: ZoneChange: Burst of Energy (44c1529b) [P0] Stack -> Graveyard
+   110: SpellResolved: Burst of Energy (44c1529b)
+   111: ZoneChange: Vampire Nighthawk (934124f0) [P1] Library -> Hand
+   112: ZoneChange: Swamp (b9f26782) [P1] Hand -> Battlefield
+   113: ZoneChange: Mountain (0f33858a) [P0] Library -> Hand
+   114: ZoneChange: Mountain (0f33858a) [P0] Hand -> Battlefield
+   115: ZoneChange: Plains (9013621a) [P1] Library -> Hand
+   116: ZoneChange: Plains (9013621a) [P1] Hand -> Battlefield
+   117: ZoneChange: Savannah Lions (b639cb4b) [P0] Library -> Hand
+   118: ZoneChange: Thornweald Archer (b7744a3b) [P0] Hand -> Graveyard
+   119: ZoneChange: Swamp (bf37acd9) [P1] Library -> Hand
+   120: ZoneChange: Swamp (bf37acd9) [P1] Hand -> Battlefield
+   121: ZoneChange: Elvish Archers (c76742a1) [P0] Library -> Hand
+   122: ZoneChange: Raging Cougar (8f5c2980) [P0] Hand -> Graveyard
+   123: ZoneChange: Rhox War Monk (75d9b369) [P1] Library -> Hand
+   124: ZoneChange: Knight of Meadowgrain (daf32aba) [P1] Hand -> Graveyard
+   125: ZoneChange: Mountain (bd912ec1) [P0] Library -> Hand
+   126: ZoneChange: Mountain (bd912ec1) [P0] Hand -> Battlefield
+   127: ZoneChange: Grizzly Bears (58ce6e00) [P1] Library -> Hand
+   128: ZoneChange: Rhox War Monk (75d9b369) [P1] Hand -> Graveyard
+   129: ZoneChange: Plains (703f376e) [P0] Library -> Hand
+   130: ZoneChange: Plains (703f376e) [P0] Hand -> Battlefield
+   131: ZoneChange: Ridgetop Raptor (74db1843) [P1] Library -> Hand
+   132: ZoneChange: Wall of Stone (3009bbef) [P1] Hand -> Graveyard
+   133: ZoneChange: Forest (802ec34e) [P0] Library -> Hand
+   134: ZoneChange: Forest (802ec34e) [P0] Hand -> Battlefield
+   135: ZoneChange: Swamp (ed68282c) [P1] Library -> Hand
+   136: ZoneChange: Swamp (ed68282c) [P1] Hand -> Battlefield
+   137: ZoneChange: War Mammoth (fa31cb6c) [P0] Library -> Hand
+   138: ZoneChange: Earth Elemental (ebd2447b) [P0] Hand -> Graveyard
+   139: ZoneChange: Elvish Archers (a708e4b0) [P1] Library -> Hand
+   140: ZoneChange: Ridgetop Raptor (99e1265d) [P1] Hand -> Graveyard
+   141: ZoneChange: Forest (861ccd33) [P0] Library -> Hand
+   142: ZoneChange: Forest (861ccd33) [P0] Hand -> Battlefield
+   143: ZoneChange: Forest (73c7fa33) [P1] Library -> Hand
+   144: ZoneChange: Forest (73c7fa33) [P1] Hand -> Battlefield
+   145: ZoneChange: Grizzly Bears (5254401c) [P0] Library -> Hand
+   146: ZoneChange: War Mammoth (fa31cb6c) [P0] Hand -> Graveyard
+   147: ZoneChange: Ridgetop Raptor (9929fa46) [P1] Library -> Hand
+   148: ZoneChange: Raging Cougar (c734e3c8) [P1] Hand -> Graveyard
+   149: ZoneChange: Counterspell (936ada15) [P0] Library -> Hand
+   150: ZoneChange: Counterspell (936ada15) [P0] Hand -> Graveyard
+   151: ZoneChange: Plains (e5b4ce65) [P1] Library -> Hand
+   152: ZoneChange: Plains (e5b4ce65) [P1] Hand -> Battlefield
+   153: ZoneChange: Forest (a454ff87) [P0] Library -> Hand
+   154: ZoneChange: Forest (a454ff87) [P0] Hand -> Battlefield
+   155: ZoneChange: Plains (e337f6a2) [P1] Library -> Hand
+   156: ZoneChange: Plains (e337f6a2) [P1] Hand -> Battlefield
+   157: ZoneChange: Hill Giant (5744e871) [P0] Library -> Hand
+   158: ZoneChange: Vampire Nighthawk (2649b4c1) [P0] Hand -> Graveyard
+   159: ZoneChange: Swamp (35edec6d) [P1] Library -> Hand
+   160: ZoneChange: Swamp (35edec6d) [P1] Hand -> Battlefield
+   161: PlayerLost: P0 (DrawnFromEmptyLibrary)
+   162: StateBasedActionPerformed
+

@@ -68,11 +68,21 @@ impl GameState {
                 }
 
                 PriorityAction::ActivateAbility(permanent_id, ability_id) => {
-                    // Find the ability index by ID
+                    // Find the ability by ID and check its type
                     let card_data = self.get_object(permanent_id)?.card_data.clone();
+                    let ability = card_data.abilities.iter()
+                        .find(|a| a.id == ability_id)
+                        .ok_or_else(|| format!("Ability {} not found on permanent {}", ability_id, permanent_id))?;
+
+                    if ability.ability_type == crate::objects::card_data::AbilityType::Mana {
+                        // Mana abilities resolve immediately (rule 605), no SBAs
+                        self.activate_mana_ability(current_priority, permanent_id, ability_id)?;
+                        return Ok(PriorityResult::ActionTaken);
+                    }
+
                     let ability_index = card_data.abilities.iter()
                         .position(|a| a.id == ability_id)
-                        .ok_or_else(|| format!("Ability {} not found on permanent {}", ability_id, permanent_id))?;
+                        .unwrap(); // safe: we just found it above
                     self.activate_ability(current_priority, permanent_id, ability_index, decisions)?;
                     self.perform_sba_and_triggers()?;
                     return Ok(PriorityResult::ActionTaken);

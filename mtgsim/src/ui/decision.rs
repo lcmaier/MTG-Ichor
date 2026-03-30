@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::get_effective_toughness;
+use crate::oracle::mana_helpers::ManaSource;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::effects::TargetSpec;
@@ -372,6 +373,182 @@ pub fn default_trample_assignment(
 
     // Remaining damage tramples through to the defending player
     (result, remaining)
+}
+
+// ---------------------------------------------------------------------------
+// Shared helpers for DecisionProvider implementations
+// ---------------------------------------------------------------------------
+
+/// Queue mana ability activations followed by a CastSpell action.
+///
+/// Both CLI and Random DPs use an internal `RefCell<VecDeque<PriorityAction>>`
+/// plan queue. When a player wants to cast a spell that needs land taps, we
+/// queue `ActivateAbility` for each mana source, then `CastSpell`. The first
+/// action is returned immediately; the rest are drained on subsequent
+/// `choose_priority_action` calls.
+pub fn queue_tap_and_cast(
+    queue: &std::cell::RefCell<std::collections::VecDeque<PriorityAction>>,
+    sources: &[ManaSource],
+    card_id: ObjectId,
+) -> PriorityAction {
+    let mut q = queue.borrow_mut();
+
+    // Queue mana ability activations (skip the first — we'll return it directly)
+    for source in sources.iter().skip(1) {
+        q.push_back(PriorityAction::ActivateAbility(
+            source.permanent_id,
+            source.ability_id,
+        ));
+    }
+
+    // Queue the cast spell action after all taps
+    q.push_back(PriorityAction::CastSpell(card_id));
+
+    // Return the first action immediately
+    if let Some(first) = sources.first() {
+        PriorityAction::ActivateAbility(first.permanent_id, first.ability_id)
+    } else {
+        // No tapping needed — cast directly
+        q.pop_front().unwrap_or(PriorityAction::Pass)
+    }
+}
+
+/// Check if a previously-queued action is still valid given the current game state.
+///
+/// This is a best-effort heuristic, not a full legality check. It catches the
+/// most common staleness cases (wrong zone, already tapped, wrong controller)
+/// without reimplementing full engine validation. False positives (action passes
+/// this check but fails in the engine) are caught by the engine's own checks
+/// and produce errors that the DP can handle.
+///
+/// If one queued action is stale, the entire plan should be discarded — later
+/// actions assumed the earlier ones would succeed (e.g. a CastSpell queued
+/// after ActivateAbility assumes the mana will be available).
+pub fn is_action_still_valid(game: &GameState, player_id: PlayerId, action: &PriorityAction) -> bool {
+    match action {
+        PriorityAction::Pass => true,
+        PriorityAction::PlayLand(card_id) => {
+            // Card must still be in hand and owned by player
+            game.objects.get(card_id)
+                .map(|o| o.owner == player_id && o.zone == crate::types::zones::Zone::Hand)
+                .unwrap_or(false)
+        }
+        PriorityAction::CastSpell(card_id) => {
+            // Card must still be in hand and owned by player
+            game.objects.get(card_id)
+                .map(|o| o.owner == player_id && o.zone == crate::types::zones::Zone::Hand)
+                .unwrap_or(false)
+        }
+        PriorityAction::ActivateAbility(permanent_id, _ability_id) => {
+            // Permanent must still be on battlefield and controlled by player.
+            // Note: we don't check tapped state here because some abilities
+            // (e.g. sacrifice) don't require untapping.
+            game.battlefield.get(permanent_id)
+                .map(|e| e.controller == player_id)
+                .unwrap_or(false)
+        }
+    }
+}
+
+/// A decision provider that dispatches to different providers per player.
+///
+/// Enables any combination of human/bot/network players in a single game.
+/// Each player is assigned a `Box<dyn DecisionProvider>` at construction time.
+/// All `DecisionProvider` methods route through `dp_for(player_id)`.
+pub struct DispatchDecisionProvider {
+    providers: Vec<Box<dyn DecisionProvider>>,
+}
+
+impl DispatchDecisionProvider {
+    /// Create a new dispatcher from a list of providers, one per player.
+    /// Provider at index 0 handles player 0, index 1 handles player 1, etc.
+    pub fn new(providers: Vec<Box<dyn DecisionProvider>>) -> Self {
+        DispatchDecisionProvider { providers }
+    }
+
+    fn dp_for(&self, player_id: PlayerId) -> &dyn DecisionProvider {
+        &*self.providers[player_id]
+    }
+}
+
+impl DecisionProvider for DispatchDecisionProvider {
+    fn choose_attackers(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+    ) -> Vec<(ObjectId, AttackTarget)> {
+        self.dp_for(player_id).choose_attackers(game, player_id)
+    }
+
+    fn choose_blockers(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+    ) -> Vec<(ObjectId, ObjectId)> {
+        self.dp_for(player_id).choose_blockers(game, player_id)
+    }
+
+    fn choose_discard(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+    ) -> Option<ObjectId> {
+        self.dp_for(player_id).choose_discard(game, player_id)
+    }
+
+    fn choose_priority_action(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+    ) -> PriorityAction {
+        self.dp_for(player_id).choose_priority_action(game, player_id)
+    }
+
+    fn choose_targets(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        target_spec: &TargetSpec,
+    ) -> Vec<ResolvedTarget> {
+        self.dp_for(player_id).choose_targets(game, player_id, target_spec)
+    }
+
+    fn choose_attacker_damage_assignment(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        attacker_id: ObjectId,
+        blockers: &[ObjectId],
+        power: u64,
+    ) -> Vec<(ObjectId, u64)> {
+        self.dp_for(player_id).choose_attacker_damage_assignment(
+            game, player_id, attacker_id, blockers, power,
+        )
+    }
+
+    fn choose_trample_damage_assignment(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        attacker_id: ObjectId,
+        blockers: &[ObjectId],
+        defending_target: DamageTarget,
+        power: u64,
+        has_deathtouch: bool,
+    ) -> (Vec<(ObjectId, u64)>, u64) {
+        self.dp_for(player_id).choose_trample_damage_assignment(
+            game, player_id, attacker_id, blockers, defending_target, power, has_deathtouch,
+        )
+    }
+
+    fn choose_generic_mana_allocation(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        mana_cost: &ManaCost,
+    ) -> HashMap<ManaType, u64> {
+        self.dp_for(player_id).choose_generic_mana_allocation(game, player_id, mana_cost)
+    }
 }
 
 /// Convenience: greedy auto-allocation of generic mana from a player's pool.

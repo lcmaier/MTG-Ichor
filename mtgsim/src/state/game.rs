@@ -34,6 +34,14 @@ pub struct Game {
 }
 
 impl Game {
+    /// Return a snapshot of the event log for external inspection (e.g. fuzz harness).
+    ///
+    /// Delegates to `ui::display::format_event_log` for human-readable output
+    /// with card names resolved from object IDs.
+    pub fn event_log_snapshot(&self) -> Vec<String> {
+        crate::ui::display::format_event_log(&self.state)
+    }
+
     /// Create a new game from config and decklists.
     ///
     /// Builds a `GameState` with the configured starting life and populates
