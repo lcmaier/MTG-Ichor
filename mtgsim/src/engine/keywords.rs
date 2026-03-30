@@ -5,6 +5,7 @@
 // assignment. Called from perform_action in actions.rs.
 
 use crate::events::event::{DamageTarget, GameEvent};
+use crate::oracle::characteristics::has_keyword;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordAbility;
@@ -24,7 +25,7 @@ pub fn apply_deathtouch_flag(
     target: &DamageTarget,
 ) {
     // Pre-check before mutable borrow (borrow checker: has_keyword reads objects)
-    if !game.has_keyword(source, KeywordAbility::Deathtouch) {
+    if !has_keyword(game, source, KeywordAbility::Deathtouch) {
         return;
     }
     if let DamageTarget::Object(id) = target {
@@ -46,7 +47,7 @@ pub fn apply_lifelink(
     source: ObjectId,
     amount: u64,
 ) -> Result<(), String> {
-    if !game.has_keyword(source, KeywordAbility::Lifelink) {
+    if !has_keyword(game, source, KeywordAbility::Lifelink) {
         return Ok(());
     }
     if let Some(entry) = game.battlefield.get(&source) {

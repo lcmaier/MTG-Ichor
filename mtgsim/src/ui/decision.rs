@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
+use crate::oracle::characteristics::get_effective_toughness;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::effects::TargetSpec;
@@ -295,7 +296,7 @@ pub fn default_damage_assignment(
         if remaining == 0 {
             break;
         }
-        let toughness = game.get_effective_toughness(*blocker_id).unwrap_or(0);
+        let toughness = get_effective_toughness(game, *blocker_id).unwrap_or(0);
         let damage_marked = game.battlefield.get(blocker_id)
             .map(|e| e.damage_marked)
             .unwrap_or(0);
@@ -351,7 +352,7 @@ pub fn default_trample_assignment(
                 .unwrap_or(0);
             if damage_marked > 0 { 0 } else { 1 }
         } else {
-            let toughness = game.get_effective_toughness(*blocker_id).unwrap_or(0);
+            let toughness = get_effective_toughness(game, *blocker_id).unwrap_or(0);
             let damage_marked = game.battlefield.get(blocker_id)
                 .map(|e| e.damage_marked)
                 .unwrap_or(0);

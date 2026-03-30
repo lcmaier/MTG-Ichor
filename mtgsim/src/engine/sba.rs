@@ -1,6 +1,6 @@
 use crate::events::event::{GameEvent, LossReason};
+use crate::oracle::characteristics::{is_creature, get_effective_toughness};
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
 use crate::types::ids::ObjectId;
 use crate::types::zones::Zone;
 
@@ -45,13 +45,9 @@ impl GameState {
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         let zero_toughness: Vec<ObjectId> = self.battlefield.keys()
             .filter(|id| {
-                if let Some(obj) = self.objects.get(id) {
-                    if obj.card_data.types.contains(&CardType::Creature) {
-                        let entry = self.battlefield.get(id).unwrap();
-                        let base_t = obj.card_data.toughness.unwrap_or(0);
-                        let effective_t = base_t + entry.toughness_modifier;
-                        return effective_t <= 0;
-                    }
+                if is_creature(self, **id) {
+                    let effective_t = get_effective_toughness(self, **id).unwrap_or(0);
+                    return effective_t <= 0;
                 }
                 false
             })
@@ -70,16 +66,13 @@ impl GameState {
         // deathtouch source is lethal.
         let lethal_damage: Vec<ObjectId> = self.battlefield.keys()
             .filter(|id| {
-                if let Some(obj) = self.objects.get(id) {
-                    if obj.card_data.types.contains(&CardType::Creature) {
-                        let entry = self.battlefield.get(id).unwrap();
-                        let base_t = obj.card_data.toughness.unwrap_or(0);
-                        let effective_t = base_t + entry.toughness_modifier;
-                        if effective_t <= 0 { return false; } // handled by 704.5f
-                        // Normal lethal damage OR any damage from deathtouch source
-                        return entry.damage_marked >= effective_t as u32
-                            || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
-                    }
+                if is_creature(self, **id) {
+                    let effective_t = get_effective_toughness(self, **id).unwrap_or(0);
+                    if effective_t <= 0 { return false; } // handled by 704.5f
+                    let entry = self.battlefield.get(id).unwrap();
+                    // Normal lethal damage OR any damage from deathtouch source
+                    return entry.damage_marked >= effective_t as u32
+                        || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
                 }
                 false
             })

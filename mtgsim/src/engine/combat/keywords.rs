@@ -7,6 +7,7 @@
 
 use crate::engine::combat::resolution::CombatDamageAssignment;
 use crate::events::event::DamageTarget;
+use crate::oracle::characteristics::{has_keyword, get_effective_toughness};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -41,12 +42,12 @@ pub fn should_deal_damage_this_step(
     first_strike_only: bool,
 ) -> bool {
     if first_strike_only {
-        game.has_keyword(creature_id, KeywordAbility::FirstStrike)
-            || game.has_keyword(creature_id, KeywordAbility::DoubleStrike)
+        has_keyword(game, creature_id, KeywordAbility::FirstStrike)
+            || has_keyword(game, creature_id, KeywordAbility::DoubleStrike)
     } else {
         // Normal step: skip if already dealt FS damage and not double strike
         if game.dealt_first_strike_damage.contains(&creature_id)
-            && !game.has_keyword(creature_id, KeywordAbility::DoubleStrike)
+            && !has_keyword(game, creature_id, KeywordAbility::DoubleStrike)
         {
             return false;
         }
@@ -69,7 +70,7 @@ pub fn lethal_damage_for(
     if source_has_deathtouch {
         return 1;
     }
-    let toughness = game.get_effective_toughness(target_id).unwrap_or(0);
+    let toughness = get_effective_toughness(game, target_id).unwrap_or(0);
     if toughness <= 0 {
         return 0;
     }
@@ -99,7 +100,7 @@ pub fn assign_trample_damage(
     damage: u64,
 ) -> Vec<CombatDamageAssignment> {
     let mut assignments = Vec::new();
-    let has_deathtouch = game.has_keyword(attacker_id, KeywordAbility::Deathtouch);
+    let has_deathtouch = has_keyword(game, attacker_id, KeywordAbility::Deathtouch);
     let defending_target = attack_target_to_damage_target(attack_target);
 
     let alive_blockers: Vec<ObjectId> = blocked_by

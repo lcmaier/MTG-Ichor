@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::objects::card_data::Cost;
+use crate::oracle::characteristics::has_keyword;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -57,7 +58,7 @@ impl GameState {
                 if entry.summoning_sick {
                     let obj = self.get_object(source_id)?;
                     if obj.card_data.types.contains(&CardType::Creature)
-                        && !self.has_keyword(source_id, KeywordAbility::Haste) {
+                        && !has_keyword(self, source_id, KeywordAbility::Haste) {
                         return Err("Creature has summoning sickness".to_string());
                     }
                 }
@@ -145,7 +146,7 @@ impl GameState {
                 if entry.summoning_sick {
                     let obj = self.get_object(source_id)?;
                     if obj.card_data.types.contains(&CardType::Creature)
-                        && !self.has_keyword(source_id, KeywordAbility::Haste) {
+                        && !has_keyword(self, source_id, KeywordAbility::Haste) {
                         return Err("Creature has summoning sickness".to_string());
                     }
                 }

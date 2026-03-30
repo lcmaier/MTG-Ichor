@@ -6,6 +6,7 @@ use crate::engine::combat::keywords::{
     assign_trample_damage, attack_target_to_damage_target, should_deal_damage_this_step,
 };
 use crate::events::event::DamageTarget;
+use crate::oracle::characteristics::{has_keyword, get_effective_power};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
@@ -47,14 +48,14 @@ pub fn assign_combat_damage(
                 continue;
             }
 
-            let power = game.get_effective_power(*id).unwrap_or(0);
+            let power = get_effective_power(game, *id).unwrap_or(0);
             if power <= 0 {
                 // Rule 510.1a: 0 or less power → no damage
                 continue;
             }
             let damage = power as u64;
 
-            let has_trample = game.has_keyword(*id, KeywordAbility::Trample);
+            let has_trample = has_keyword(game, *id, KeywordAbility::Trample);
 
             if !attacking_info.is_blocked {
                 // Unblocked attacker: damage goes to attack target (rule 510.1b)
@@ -116,7 +117,7 @@ pub fn assign_combat_damage(
                 continue;
             }
 
-            let power = game.get_effective_power(*id).unwrap_or(0);
+            let power = get_effective_power(game, *id).unwrap_or(0);
             if power <= 0 {
                 continue;
             }

@@ -270,15 +270,6 @@ impl GameState {
         self.players.len()
     }
 
-    // --- Zone queries ---
-
-    /// Get all object IDs on the battlefield controlled by a player
-    pub fn permanents_controlled_by(&self, player_id: PlayerId) -> Vec<ObjectId> {
-        self.battlefield.iter()
-            .filter(|(_, entry)| entry.controller == player_id)
-            .map(|(id, _)| *id)
-            .collect()
-    }
 }
 
 #[cfg(test)]

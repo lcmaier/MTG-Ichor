@@ -3,9 +3,10 @@
 
 use std::collections::HashMap;
 
+use crate::oracle::characteristics::{has_keyword, is_creature};
+use crate::oracle::legality::can_attack;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
 
@@ -142,60 +143,6 @@ impl BlockConstraints {
 }
 
 // ---------------------------------------------------------------------------
-// Effective characteristic helpers
-// ---------------------------------------------------------------------------
-// These read card_data directly in Phase 3. Phase 5 will replace them with
-// layer-system-aware lookups. Combat code calls these instead of reading
-// card_data fields directly, so the transition is a single-point change.
-
-impl GameState {
-    /// Check if a permanent has an effective keyword ability.
-    /// Phase 4: reads printed keywords from card_data.
-    /// Phase 5: layer-system-aware (granted/removed keywords from continuous effects).
-    pub fn has_keyword(&self, id: ObjectId, keyword: KeywordAbility) -> bool {
-        self.objects.get(&id)
-            .map(|obj| obj.card_data.keywords.contains(&keyword))
-            .unwrap_or(false)
-    }
-
-    /// Check if an object on the battlefield is currently a creature.
-    /// Phase 3: reads printed types. Phase 5: reads effective types from layer system.
-    pub fn is_creature(&self, id: ObjectId) -> bool {
-        self.objects.get(&id)
-            .map(|obj| obj.card_data.types.contains(&CardType::Creature))
-            .unwrap_or(false)
-    }
-
-    /// Check if a creature can attack (not summoning-sick, or has haste).
-    /// Rule 702.10b: Haste bypasses summoning sickness for attacking.
-    pub fn can_attack(&self, id: ObjectId) -> bool {
-        if let Some(entry) = self.battlefield.get(&id) {
-            !entry.summoning_sick || self.has_keyword(id, KeywordAbility::Haste)
-        } else {
-            false
-        }
-    }
-
-    /// Get effective power for a creature on the battlefield.
-    /// Phase 3: base + modifier. Phase 5: computed through layer system.
-    pub fn get_effective_power(&self, id: ObjectId) -> Option<i32> {
-        let obj = self.objects.get(&id)?;
-        let entry = self.battlefield.get(&id)?;
-        let base = obj.card_data.power?;
-        Some(base + entry.power_modifier)
-    }
-
-    /// Get effective toughness for a creature on the battlefield.
-    /// Phase 3: base + modifier. Phase 5: computed through layer system.
-    pub fn get_effective_toughness(&self, id: ObjectId) -> Option<i32> {
-        let obj = self.objects.get(&id)?;
-        let entry = self.battlefield.get(&id)?;
-        let base = obj.card_data.toughness?;
-        Some(base + entry.toughness_modifier)
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Attacker validation (rule 508.1)
 // ---------------------------------------------------------------------------
 
@@ -217,7 +164,7 @@ pub fn validate_attackers(
             .ok_or(CombatError::NotOnBattlefield(*creature_id))?;
 
         // 2. Must be a creature
-        if !game.is_creature(*creature_id) {
+        if !is_creature(game, *creature_id) {
             return Err(CombatError::NotACreature(*creature_id));
         }
 
@@ -232,12 +179,12 @@ pub fn validate_attackers(
         }
 
         // 5. Must not have summoning sickness (unless haste — Phase 4)
-        if !game.can_attack(*creature_id) {
+        if !can_attack(game, *creature_id) {
             return Err(CombatError::CreatureHasSummoningSickness(*creature_id));
         }
 
         // 6. Defender check (rule 702.3b)
-        if game.has_keyword(*creature_id, KeywordAbility::Defender) {
+        if has_keyword(game, *creature_id, KeywordAbility::Defender) {
             return Err(CombatError::HasDefender(*creature_id));
         }
 
@@ -337,7 +284,7 @@ pub fn validate_blockers(
             .ok_or(CombatError::NotOnBattlefield(*blocker_id))?;
 
         // 2. Must be a creature
-        if !game.is_creature(*blocker_id) {
+        if !is_creature(game, *blocker_id) {
             return Err(CombatError::NotACreature(*blocker_id));
         }
 
@@ -374,9 +321,9 @@ pub fn validate_blockers(
         }
 
         // 6. Flying evasion check (rule 702.9b)
-        if game.has_keyword(*attacker_id, KeywordAbility::Flying) {
-            if !game.has_keyword(*blocker_id, KeywordAbility::Flying)
-                && !game.has_keyword(*blocker_id, KeywordAbility::Reach) {
+        if has_keyword(game, *attacker_id, KeywordAbility::Flying) {
+            if !has_keyword(game, *blocker_id, KeywordAbility::Flying)
+                && !has_keyword(game, *blocker_id, KeywordAbility::Reach) {
                 return Err(CombatError::CantBlockFlyer(*blocker_id, *attacker_id));
             }
         }
@@ -442,7 +389,9 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
+    use crate::oracle::characteristics::has_keyword;
     use crate::state::battlefield::{AttackingInfo, BattlefieldEntity};
+    use crate::types::card_types::CardType;
     use crate::types::keywords::KeywordAbility;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
@@ -770,8 +719,8 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
 
-        assert!(game.has_keyword(id, KeywordAbility::Flying));
-        assert!(game.has_keyword(id, KeywordAbility::Vigilance));
+        assert!(has_keyword(&game, id, KeywordAbility::Flying));
+        assert!(has_keyword(&game, id, KeywordAbility::Vigilance));
     }
 
     #[test]
@@ -779,9 +728,9 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let creature_id = place_creature(&mut game, 0); // Grizzly Bears — no keywords
 
-        assert!(!game.has_keyword(creature_id, KeywordAbility::Flying));
-        assert!(!game.has_keyword(creature_id, KeywordAbility::Haste));
-        assert!(!game.has_keyword(creature_id, KeywordAbility::Trample));
+        assert!(!has_keyword(&game, creature_id, KeywordAbility::Flying));
+        assert!(!has_keyword(&game, creature_id, KeywordAbility::Haste));
+        assert!(!has_keyword(&game, creature_id, KeywordAbility::Trample));
     }
 
     // --- Flying / Reach tests (4b) ---

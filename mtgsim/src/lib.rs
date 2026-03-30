@@ -5,3 +5,4 @@ pub mod engine;
 pub mod events;
 pub mod cards;
 pub mod ui;
+pub mod oracle;
