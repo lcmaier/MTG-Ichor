@@ -176,7 +176,20 @@ pub enum CounterType {
     MinusOneMinusOne,
     Loyalty,
     Charge,
-    // Extensible
+    // Keyword counters (rule 122.1b)
+    Flying,
+    Deathtouch,
+    Lifelink,
+    Trample,
+    FirstStrike,
+    DoubleStrike,
+    Hexproof,
+    Indestructible,
+    Menace,
+    Reach,
+    Vigilance,
+    Haste,
+    // Non-evergreen counter types added as relevant cards are implemented
 }
 
 /// Type change description for ChangeType primitive
