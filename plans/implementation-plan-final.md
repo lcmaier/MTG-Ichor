@@ -100,7 +100,7 @@ L17 + L19 + L20 → L21
 
 ### Tier 1: Foundational Data Model (T01–T06)
 
-#### T01: Add counters to BattlefieldEntity + expand CounterType [P5-PREREQ]
+#### T01: Add counters to BattlefieldEntity + expand CounterType [P5-PREREQ] (DONE ✅)
 - **Scope:** Small
 - **Source:** E1 + E2
 - **Depends on:** none
