@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::effects::CounterType;
 
 /// Battlefield-specific state for a permanent.
 ///
@@ -35,7 +37,8 @@ pub struct BattlefieldEntity {
     pub attacking: Option<AttackingInfo>,
     pub blocking: Option<BlockingInfo>,
 
-    // Counters (future: HashMap<CounterType, u32>)
+    // Counters (rule 122)
+    pub counters: HashMap<CounterType, u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +77,7 @@ impl BattlefieldEntity {
             toughness_modifier: 0,
             attacking: None,
             blocking: None,
+            counters: HashMap::new(),
         }
     }
 
@@ -81,5 +85,94 @@ impl BattlefieldEntity {
     pub fn clear_combat_state(&mut self) {
         self.attacking = None;
         self.blocking = None;
+    }
+
+    /// Add `n` counters of the given type.
+    pub fn add_counters(&mut self, counter_type: CounterType, n: u32) {
+        let entry = self.counters.entry(counter_type).or_insert(0);
+        *entry += n;
+    }
+
+    /// Remove up to `n` counters of the given type. Returns the number actually removed.
+    pub fn remove_counters(&mut self, counter_type: CounterType, n: u32) -> u32 {
+        let entry = self.counters.entry(counter_type).or_insert(0);
+        let removed = (*entry).min(n);
+        *entry -= removed;
+        if *entry == 0 {
+            self.counters.remove(&counter_type);
+        }
+        removed
+    }
+
+    /// Returns the number of counters of the given type (0 if none).
+    pub fn counter_count(&self, counter_type: CounterType) -> u32 {
+        self.counters.get(&counter_type).copied().unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    fn make_entity() -> BattlefieldEntity {
+        BattlefieldEntity::new(Uuid::new_v4(), 0, 1)
+    }
+
+    #[test]
+    fn test_add_counters() {
+        let mut e = make_entity();
+        e.add_counters(CounterType::PlusOnePlusOne, 3);
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 3);
+        e.add_counters(CounterType::PlusOnePlusOne, 2);
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 5);
+    }
+
+    #[test]
+    fn test_remove_counters() {
+        let mut e = make_entity();
+        e.add_counters(CounterType::PlusOnePlusOne, 3);
+
+        let removed = e.remove_counters(CounterType::PlusOnePlusOne, 2);
+        assert_eq!(removed, 2);
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 1);
+
+        // Remove more than available — clamped at 0
+        let removed = e.remove_counters(CounterType::PlusOnePlusOne, 5);
+        assert_eq!(removed, 1);
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 0);
+
+        // Remove from empty — returns 0
+        let removed = e.remove_counters(CounterType::PlusOnePlusOne, 1);
+        assert_eq!(removed, 0);
+    }
+
+    #[test]
+    fn test_counter_count_default_zero() {
+        let e = make_entity();
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 0);
+        assert_eq!(e.counter_count(CounterType::Flying), 0);
+        assert_eq!(e.counter_count(CounterType::Loyalty), 0);
+    }
+
+    #[test]
+    fn test_multiple_counter_types() {
+        let mut e = make_entity();
+        e.add_counters(CounterType::PlusOnePlusOne, 2);
+        e.add_counters(CounterType::MinusOneMinusOne, 1);
+        e.add_counters(CounterType::Flying, 1);
+        e.add_counters(CounterType::Charge, 5);
+
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 2);
+        assert_eq!(e.counter_count(CounterType::MinusOneMinusOne), 1);
+        assert_eq!(e.counter_count(CounterType::Flying), 1);
+        assert_eq!(e.counter_count(CounterType::Charge), 5);
+        assert_eq!(e.counter_count(CounterType::Loyalty), 0);
+
+        // Remove one type, others unaffected
+        e.remove_counters(CounterType::PlusOnePlusOne, 2);
+        assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 0);
+        assert_eq!(e.counter_count(CounterType::MinusOneMinusOne), 1);
+        assert_eq!(e.counter_count(CounterType::Flying), 1);
     }
 }
