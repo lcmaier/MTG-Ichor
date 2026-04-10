@@ -71,9 +71,14 @@ pub enum ArtifactType {
     Fortification,
     Gold,
     Incubator,
+    Infinity,
     Junk,
+    Lander,
     Map,
+    Mutagen,
     Powerstone,
+    Spacecraft,
+    Stone,
     Treasure,
     Vehicle,
 }
@@ -113,9 +118,11 @@ pub enum LandType {
     Lair,
     Locus,
     Mine,
+    Planet,
     PowerPlant,
     Sphere,
     Tower,
+    Town,
     Urzas,
 }
 

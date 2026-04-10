@@ -3,3 +3,9 @@ mtgsim/target/
 
 # Local reference materials
 MTG-Rules/
+
+# Local planning materials
+atomic-tests/
+
+# log files
+.log

@@ -88,7 +88,7 @@ current status, and upcoming work. Update it as decisions are made.
 | SBAs               | ✅ Done     | `engine/sba.rs` — lethal damage, zero toughness, player loss flags (704.5a life ≤ 0, 704.5b empty library draw). Routes through EventLog, no println.                                                                                                                                     |
 | Game result        | ✅ Done     | `GameResult` enum (Winner/Draw). `Game::check_game_over()` reads `player_lost` flags set by SBAs.                                                                                                                                                                                         |
 | Discard to hand    | ✅ Done     | `Game::run_turn()` handles cleanup step discard via `DecisionProvider::choose_discard`                                                                                                                                                                                                    |
-| First-player skip  | ✅ Done     | `skip_next_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step`                                                                                                                                                         |
+| First-player skip  | ✅ Done     | `skip_first_draw` flag on `GameState`, set by `Game::new()` from `GameConfig::first_player_draws`, consumed in `process_draw_step`                                                                                                                                                         |
 | Card registry      | ✅ Done     | `cards/registry.rs` + `cards/basic_lands.rs` + `cards/alpha.rs` + `cards/creatures.rs` + `cards/keyword_creatures.rs`                                                                                                                                                                     |
 | Events             | ✅ Done     | `events/event.rs` (GameEvent enum, EventLog)                                                                                                                                                                                                                                              |
 | DecisionProvider   | ✅ Done     | `ui/decision.rs` (trait + Passive + Scripted + Dispatch + auto_allocate_generic + shared helpers)                                                                                                                                                                                         |
@@ -358,7 +358,7 @@ while self.state.players[active].hand.len() > max {
 
 **Problem:** Rule 103.8a — the starting player skips their first draw step.
 
-**Solution:** A `skip_next_draw: bool` flag on `GameState`, set during `Game::setup` based on `GameConfig::first_player_draws`. In `process_draw_step`, check and clear the flag.
+**Solution:** A `skip_first_draw: bool` flag on `GameState`, set during `Game::setup` based on `GameConfig::first_player_draws`. In `process_draw_step`, check and clear the flag.
 
 **Note on future "skip draw" effects:** This flag is *only* for the one-time game-setup rule 103.8a. In-game "skip your next draw" effects (e.g. Omen Machine, Maralen of the Mornsong) are **replacement effects** (Phase 6). They would use the replacement effect system, not additional boolean flags. The replacement effect framework naturally handles stacking multiple skip effects, "if you would draw, instead..." chains, etc.
 
@@ -703,7 +703,11 @@ Static abilities like Thalia ("noncreature spells cost {1} more") create continu
 ### Integration point
 
 - `priority.rs` `perform_sba_and_triggers()` — already stubbed; triggers slot in here
-- After SBAs, scan `EventLog` for matching triggers, put on stack, resume priority
+- After SBAs, the trigger scanner walks new entries in the **delta log** (`engine/delta_log.rs`), matches them against registered `TriggerKind` patterns, and places matching triggered abilities on the stack in APNAP order
+
+**IMPORTANT — Do NOT scan `EventLog` for trigger matching.** The event log is a diagnostic/UI artifact, not a source of truth for game mechanics. The correct approach: all state-mutating methods (`move_object`, `perform_action`, etc.) emit structured `GameDelta` entries into a dedicated **delta log** on `GameState`. The trigger scanner reads this log at well-defined checkpoints. This keeps the rules engine self-contained and the event log purely observational.
+
+**Architecture change (2026-04-06):** The original `pending_triggers: Vec<PendingTrigger>` push-based design has been replaced by the delta log approach (see `state-tracking-architecture.md`). Rationale: push-based triggers require every mutation site to explicitly know about every trigger condition, making state-based triggers (rule 603.8 — e.g., "whenever you have no cards in hand") impractical without O(state_triggers × mutations) polling at each substep. The delta log centralizes detection: mutation sites emit generic `GameDelta` entries with `(old, new)` pairs, and a single scanner runs pattern matching after event batches. This also unifies trigger detection with loop detection and voluntary shortcut validation (D26), avoiding three separate observation mechanisms.
 
 ### Cards to implement
 
@@ -763,7 +767,7 @@ Additional cards may be added to this list as development progresses. The genera
 | 2026-03-29 | `GameConfig` struct now, `Format` trait later        | Covers 90% of formats with pure data; `Format` trait only needed when Commander/Brawl require behavioral differences. `Game` struct already structured for easy migration.                                                          |
 | 2026-03-29 | `Game` owns `DecisionProvider` dispatch              | Engine methods stay as pure state transforms. `Game::run_turn` is the only place that calls decision methods. No threading `DecisionProvider` through `advance_turn`.                                                               |
 | 2026-03-29 | Combat split: validation + resolution                | Once attackers/blockers are locked in, damage is deterministic. Validation is the complex part (constraints, forced attacks, evasion). Extensible via `AttackConstraint` / `BlockConstraint` lists populated by continuous effects. |
-| 2026-03-29 | `skip_next_draw` flag only for rule 103.8a           | In-game "skip draw" effects are replacement effects (Phase 7), not boolean flags. The flag is a one-time game-setup mechanism.                                                                                                      |
+| 2026-03-29 | `skip_first_draw` flag only for rule 103.8a           | In-game "skip draw" effects are replacement effects (Phase 7), not boolean flags. The flag is a one-time game-setup mechanism.                                                                                                      |
 | 2026-03-29 | Explicit excluded cards list                         | Season of the Witch, Panglacial Wurm, Selvala — non-competitive cards that require disproportionate architectural changes.                                                                                                          |
 | 2026-03-29 | Two-phase combat damage (compute then apply)         | `assign_combat_damage` is a read-only free function; `apply_combat_damage` mutates. Avoids borrow checker issues from reading battlefield while writing damage.                                                                     |
 | 2026-03-29 | Effective characteristic helpers on GameState        | `is_creature()`, `can_attack()`, `get_effective_power/toughness()` — combat code calls these instead of reading `card_data` directly, so Phase 5 layer-system swap is a single-point change.                                        |
@@ -774,6 +778,8 @@ Additional cards may be added to this list as development progresses. The genera
 | 2026-03-30 | `DispatchDecisionProvider` routes by player ID       | Enables any combination of human/bot/network players in a single game. Replaces per-binary boilerplate with a reusable library type.                                                                                                |
 | 2026-03-30 | Phase restructuring: old Phase 6 split into 6+7      | Triggered abilities (stack-based, rule 603) and replacement effects (middleware-based, rules 614-616) are architecturally distinct. Separate phases reduce per-phase complexity.                                                     |
 | 2026-03-30 | Correctness-first layer system, no caching           | Recompute-on-query for all characteristics. Caching added later only if parallel AI self-play proves too slow.                                                                                                                      |
+| 2026-04-01 | Trigger system uses delta log, not EventLog | EventLog is a diagnostic/UI artifact. Trigger matching is driven by a structured **delta log** (`Vec<GameDelta>`) on GameState, populated by all state-mutating methods. Never scan EventLog for game-mechanical purposes. *(Updated 2026-04-06: replaced push-based `PendingTrigger` queue with delta log — see `state-tracking-architecture.md` for rationale.)* |
+| 2026-04-03 | `was_cast_at_non_sorcery_speed: bool` stored in `CastInfo` | Cast-time timing metadata belongs in `CastInfo` (general struct on `BattlefieldEntity`), not per-card storage. Computed at cast time: `!(is_active_player && is_main_phase && stack_is_empty)`. Used by Necromancy-style cards (307.5a). 1 bool per permanent, avoids polymorphism/bespoke storage. Same pattern as `was_kicked`. |
 
 ---
 

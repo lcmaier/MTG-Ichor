@@ -1,7 +1,6 @@
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
 use crate::types::effects::TargetSpec;
 use crate::types::zones::Zone;
 
@@ -56,11 +55,7 @@ impl GameState {
         // zone transitions manually to avoid move_object double-removing.
         if entry.is_spell {
             let obj = self.get_object(object_id)?;
-            let is_permanent_type = obj.card_data.types.contains(&CardType::Creature)
-                || obj.card_data.types.contains(&CardType::Artifact)
-                || obj.card_data.types.contains(&CardType::Enchantment)
-                || obj.card_data.types.contains(&CardType::Planeswalker)
-                || obj.card_data.types.contains(&CardType::Land);
+            let is_permanent_type = obj.card_data.types.iter().any(|t| t.is_permanent());
 
             if is_permanent_type {
                 // Permanent spell: move to battlefield.

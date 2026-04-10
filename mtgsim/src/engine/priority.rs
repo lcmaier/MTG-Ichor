@@ -118,14 +118,21 @@ impl GameState {
 
     /// Perform state-based actions and put triggered abilities on stack (rule 117.5).
     ///
-    /// Loops until no more SBAs are performed and no abilities trigger.
-    /// Triggered abilities are stubbed for Phase 6.
+    /// 117.5 procedure:
+    /// 1. Repeat SBAs until none are performed (704.3).
+    /// 2. Put triggered abilities on the stack (603.3).
+    /// 3. If any triggers were placed, go back to step 1.
+    /// 4. Otherwise, the player who would receive priority does so.
     fn perform_sba_and_triggers(&mut self) -> Result<(), String> {
         loop {
-            let sba_performed = self.check_state_based_actions()?;
-            // Phase 6: put triggered abilities on the stack here
-            let triggers_placed = false; // stub
-            if !sba_performed && !triggers_placed {
+            // Step 1: Exhaust all SBAs (rule 704.3)
+            self.check_state_based_actions_loop()?;
+
+            // Step 2: Place triggered abilities on the stack (rule 603.3)
+            let triggers_placed = false; // Phase 7 stub
+
+            // Step 3: If no triggers were placed, we're stable
+            if !triggers_placed {
                 break;
             }
         }
