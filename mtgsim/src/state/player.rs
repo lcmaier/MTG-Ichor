@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::ManaPool;
 
@@ -21,6 +23,10 @@ pub struct PlayerState {
     pub lands_per_turn: u32,
     pub lands_played_this_turn: u32,
 
+    // Counters tracked on the player (not on any game object)
+    pub poison_counters: u32,
+    pub commander_damage_taken: HashMap<ObjectId, u32>,
+
     // SBA flags — these are ONLY for state-based action checks (rule 704).
     // General per-turn tracking (e.g. "cast a spell this turn") should live
     // in a separate TurnTracker struct when needed.
@@ -39,6 +45,8 @@ impl PlayerState {
             max_hand_size: 7,
             lands_per_turn: 1,
             lands_played_this_turn: 0,
+            poison_counters: 0,
+            commander_damage_taken: HashMap::new(),
             has_drawn_from_empty_library: false,
         }
     }
@@ -66,6 +74,18 @@ mod tests {
         assert!(player.library.is_empty());
         assert!(player.hand.is_empty());
         assert!(player.graveyard.is_empty());
+    }
+
+    #[test]
+    fn test_player_poison_counters_default() {
+        let player = PlayerState::new(0, 20);
+        assert_eq!(player.poison_counters, 0);
+    }
+
+    #[test]
+    fn test_player_commander_damage_default() {
+        let player = PlayerState::new(0, 20);
+        assert!(player.commander_damage_taken.is_empty());
     }
 
     #[test]
