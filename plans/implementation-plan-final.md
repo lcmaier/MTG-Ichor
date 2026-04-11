@@ -272,7 +272,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T11: LifeChanged event — add source field
+#### T11: LifeChanged event — add source field (DONE ✅)
 - **Scope:** Small
 - **Source:** E14
 - **Depends on:** none

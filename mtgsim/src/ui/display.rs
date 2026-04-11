@@ -419,8 +419,12 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         PermanentLeftBattlefield { object_id } => {
             format!("LTB: {}", obj_name(game, *object_id))
         }
-        LifeChanged { player_id, old, new } => {
-            format!("LifeChanged: P{} {} -> {}", player_id, old, new)
+        LifeChanged { player_id, old, new, source } => {
+            let src = match source {
+                Some(id) => format!(" (source: {})", obj_name(game, *id)),
+                None => String::new(),
+            };
+            format!("LifeChanged: P{} {} -> {}{}", player_id, old, new, src)
         }
         AttackersDeclared { attackers } => {
             let names: Vec<String> = attackers.iter().map(|id| obj_name(game, *id)).collect();

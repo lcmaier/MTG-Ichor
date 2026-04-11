@@ -133,6 +133,7 @@ impl GameState {
                         player_id: *pid,
                         old: new_life + amount as i64,
                         new: new_life,
+                        source: Some(source),
                     });
                 }
 
@@ -147,7 +148,7 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::GainLife { player, amount, .. } => {
+            GameAction::GainLife { player, amount, source } => {
                 if amount == 0 {
                     return Ok(());
                 }
@@ -160,6 +161,7 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
+                    source: Some(source),
                 });
 
                 Ok(())
@@ -178,6 +180,7 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
+                    source: None,
                 });
 
                 Ok(())
@@ -391,5 +394,124 @@ mod tests {
         assert_eq!(game.players[1].life_total, 18);
         // Player 0 should NOT have gained life
         assert_eq!(game.players[0].life_total, 20);
+    }
+
+    // --- T11: LifeChanged source field tests ---
+
+    #[test]
+    fn test_life_changed_event_includes_source() {
+        // Deal combat damage with a lifelink creature; the resulting
+        // LifeChanged events should carry the creature as source.
+        let (mut game, lifelinker) = setup_game_with_lifelink_creature();
+
+        game.execute_action(GameAction::DealDamage {
+            source: lifelinker,
+            target: DamageTarget::Player(1),
+            amount: 2,
+            is_combat: true,
+        }).unwrap();
+
+        // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (lifelink gain for P0)
+        let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
+            if let GameEvent::LifeChanged { player_id, old, new, source } = e {
+                Some((*player_id, *old, *new, *source))
+            } else {
+                None
+            }
+        }).collect();
+
+        assert_eq!(life_events.len(), 2);
+
+        // P0 gained 2 life from lifelink (emitted first, inside apply_lifelink)
+        let (pid, old, new, src) = life_events[0];
+        assert_eq!(pid, 0);
+        assert_eq!(old, 20);
+        assert_eq!(new, 22);
+        assert_eq!(src, Some(lifelinker));
+
+        // P1 lost 2 life from damage (emitted after keyword hooks)
+        let (pid, old, new, src) = life_events[1];
+        assert_eq!(pid, 1);
+        assert_eq!(old, 20);
+        assert_eq!(new, 18);
+        assert_eq!(src, Some(lifelinker));
+    }
+
+    #[test]
+    fn test_simultaneous_lifelink() {
+        // Two lifelink creatures deal damage; each produces its own LifeChanged event.
+        let mut game = GameState::new(2, 20);
+
+        let make_lifelinker = |game: &mut GameState, name: &str| -> ObjectId {
+            let data = CardDataBuilder::new(name)
+                .mana_cost(crate::types::mana::ManaCost::single(ManaType::White, 1, 1))
+                .color(crate::types::colors::Color::White)
+                .card_type(CardType::Creature)
+                .power_toughness(2, 2)
+                .keyword(KeywordAbility::Lifelink)
+                .build();
+            let obj = GameObject::new(data, 0, Zone::Battlefield);
+            let id = obj.id;
+            game.add_object(obj);
+            game.place_on_battlefield(id, 0);
+            id
+        };
+
+        let creature_a = make_lifelinker(&mut game, "Lifelinker A");
+        let creature_b = make_lifelinker(&mut game, "Lifelinker B");
+
+        // Both deal combat damage to opponent
+        game.execute_action(GameAction::DealDamage {
+            source: creature_a,
+            target: DamageTarget::Player(1),
+            amount: 2,
+            is_combat: true,
+        }).unwrap();
+        game.execute_action(GameAction::DealDamage {
+            source: creature_b,
+            target: DamageTarget::Player(1),
+            amount: 2,
+            is_combat: true,
+        }).unwrap();
+
+        // P1 took 4 total damage
+        assert_eq!(game.players[1].life_total, 16);
+        // P0 gained 4 total life from lifelink
+        assert_eq!(game.players[0].life_total, 24);
+
+        // Collect all LifeChanged events for P0 (lifelink gains)
+        let lifelink_gains: Vec<_> = game.events.events().iter().filter_map(|e| {
+            if let GameEvent::LifeChanged { player_id: 0, source, .. } = e {
+                Some(*source)
+            } else {
+                None
+            }
+        }).collect();
+
+        assert_eq!(lifelink_gains.len(), 2);
+        assert_eq!(lifelink_gains[0], Some(creature_a));
+        assert_eq!(lifelink_gains[1], Some(creature_b));
+    }
+
+    #[test]
+    fn test_lose_life_event_has_no_source() {
+        // LoseLife (e.g., paying life as a cost) has no source object.
+        let (mut game, _) = setup_game_with_creature();
+
+        game.execute_action(GameAction::LoseLife {
+            player: 0,
+            amount: 3,
+        }).unwrap();
+
+        let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
+            if let GameEvent::LifeChanged { source, .. } = e {
+                Some(*source)
+            } else {
+                None
+            }
+        }).collect();
+
+        assert_eq!(life_events.len(), 1);
+        assert_eq!(life_events[0], None);
     }
 }
