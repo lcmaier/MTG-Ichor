@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Total ticket count:** 45 (24 active Part 1 tickets + 21 Part 2 tickets)
-- **Scope breakdown:** 14 Small, 23 Medium, 8 Large
+- **Total ticket count:** 48 (27 active Part 1 tickets + 21 Part 2 tickets)
+- **Scope breakdown:** 14 Small, 25 Medium, 9 Large
 - **Part 1:** Pre-Phase 5 engine fixes (T01–T22, T15b, T21a–T21d) covering E1–E48 + combat requirements solver (508.1d/509.1c)
 - **Part 2:** Phase 5 continuous effects & layer system (L01–L21) covering W1–W15, PC1–PC12, §5a–§5m, plus E31 (LKI, deferred from Part 1)
 - **Organization:** Part 1 tickets are grouped by tier (data model → state tracking → SBAs → casting → zone/combat/damage). Part 2 tickets follow Sub-Plan 5A/5B/5C structure. The Execution Order section linearizes across both parts with parallelism annotations.
@@ -27,6 +27,7 @@ T01 [P5-PREREQ] || T02 || T03 || T04 || T05 [P5-PREREQ] || T06
 ```
 T09 [P5-PREREQ] → T10
 T11 || T12                    (parallel with T09/T10)
+T12 → T12b                   (T12b parallel with Tier 2)
 ```
 
 ### Tier 3: SBAs (after Tier 1 deps)
@@ -38,11 +39,17 @@ T13 (after T01,T03) || T14 (after T01) || T15 (after T04) || T15b (after T04) ||
 ```
 T17 → T18
 T19 || T20                    (parallel with T17/T18)
+T12b + T17 → T12c            (after casting pipeline + sidecar)
 ```
 
 ### Tier 5: Zone, Combat, Damage, Targeting (parallel with Tier 4)
 ```
 T21a (after T17) || T21b || T21c (after T01,T02) || T21d (after T21b) || T22
+```
+
+### Cross-Cutting: Mana Restrictions Cards
+```
+T12c → T12d                  (steps 1-5 after T12c; step 6 after L04)
 ```
 
 ### [GATE 1] — After Tier 1 data model tickets complete
@@ -221,7 +228,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-### Tier 2: State Tracking (T09–T12)
+### Tier 2: State Tracking (T09–T12, T12b)
 
 #### T09: Summoning sickness — controller_since_turn [P5-PREREQ] (DONE ✅)
 - **Scope:** Medium
@@ -290,7 +297,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T12: Mana spending restrictions — design spike
+#### T12: Mana spending restrictions — design spike (DONE ✅)
 - **Scope:** Small (document output, no production code)
 - **Source:** E15
 - **Depends on:** none
@@ -298,23 +305,42 @@ L17 + L19 + L20 → L21
 - **Steps:**
   1. Write a design document (`plans/mana-restrictions-design.md`) that resolves the open questions below and recommends a concrete implementation approach.
   2. The document should include: data model, API surface, interaction with existing `ManaPool`/`pay_costs`/`mana_helpers`, test plan, and a migration strategy (how to adopt without breaking existing callers).
-  3. Once the design doc is approved, a follow-up implementation ticket (T12b) will be created.
-- **Open questions to resolve:**
-  1. **Where does restriction metadata live?** On `ManaPool` itself, or on `PlayerState` as a parallel structure?
-  2. **How do restrictions compose?** If mana has restriction A ("only for creatures") and a Trinisphere-like effect is active, does the restricted mana count toward the minimum?
-  3. **Can restricted mana pay partial costs?** E.g., Cavern produces {G} restricted to creature spells. Creature costs {1}{G} — can restricted {G} pay the colored component while unrestricted mana pays generic?
-  4. **Multi-restriction mana:** Boseiju produces mana that can only be spent on instants or cards with channel. Is that one restriction with OR semantics, or two separate units?
-  5. **DP interaction:** Auto-prefer restricted when eligible (conserve unrestricted)? Or ask the player? How does this affect `choose_generic_mana_allocation`?
-  6. **Interaction with cost modification:** If Thalia adds {1} to a creature spell and Cavern gives creature-only mana, the extra {1} is payable with restricted mana. Does the cost modification pipeline need to know about restrictions?
-- **Analysis of Option 2 (parallel restriction map) imprecision:**
-  - Option 2 keeps a flat `HashMap<ManaType, u64>` for unrestricted mana + a `Vec<RestrictedManaUnit>` for restricted.
-  - **Where it works:** Cavern produces restricted {G}. Pool has `{G: 1}` unrestricted + `[{G, 1, CreatureOnly}]`. Casting a creature for {G}{G}: spend restricted first (matches), then unrestricted. Correct.
-  - **Where it gets imprecise:** Pool has `{G: 2}` unrestricted + `[{G, 1, CreatureOnly}]`. Cast creature for {G}, then instant for {G}. Optimal play: restricted for creature, unrestricted for instant. But if engine auto-spends unrestricted first (because creature matches both pools), it wastes unrestricted and the instant can't use restricted mana. **This is a DP strategy problem, not a correctness problem** — the engine should let the DP choose which pool to draw from, or default to "prefer restricted when eligible."
-  - **Clarification:** Mana is either restricted or unrestricted — it cannot be both. A single mana production event might produce multiple mana units, some restricted and some not (e.g., a hypothetical land that taps for {G}{G} where one is restricted and one isn't), but each individual unit of mana has exactly one status. Option 2 handles this cleanly: unrestricted goes into the flat pool, restricted goes into the Vec. The **true limit** of Option 2 is that it can't distinguish *which specific source* produced unrestricted mana — but no current or foreseeable card needs source-level tracking for unrestricted mana.
-- **Codebase verification:** Confirmed `ManaPool` is a flat count structure (per `types/mana.rs`). No restriction infrastructure exists.
-- **Tests:** N/A (design document only)
-- **Acceptance:** Design document written, open questions resolved, approach approved
+  3. Once the design doc is approved, follow-up implementation tickets (T12b, T12c, T12d) will be created.
+- **Open questions resolved:**
+  1. **Where does restriction metadata live?** On `ManaPool` as a `special: Vec<(ManaAtom, u64)>` counted-group sidecar.
+  2. **How do restrictions compose?** Cost modification is independent. Restricted mana counts toward Trinisphere's minimum if the restriction is satisfied.
+  3. **Multi-restriction mana:** Single `ManaRestriction` with OR within `OnlyForSpellTypes`. `AnyOf` for cross-category OR.
+  4. **Interaction with cost modification:** No interaction needed. Clean separation at 601.2e (modify cost) vs 601.2h (pay cost). Grants flow downstream.
+- **Acceptance:** Design document written, all 4 open questions resolved, approach approved ✅
 - **Commit:** `docs: mana spending restrictions design spike (E15)`
+
+---
+
+#### T12b: ManaPool sidecar — types and methods
+- **Scope:** Medium
+- **Source:** E15 (implementation phase A from `plans/mana-restrictions-design.md` §10)
+- **Depends on:** T12
+- **Files:** `types/mana.rs` (modify), `types/effects.rs` (modify)
+- **Steps:**
+  1. Add `special: Vec<(ManaAtom, u64)>` and `last_spent_grants: Vec<ManaGrant>` fields to `ManaPool`.
+  2. Implement `add_special` (coalesces identical atoms), `has_special`, `special_atoms`, `drain_spent_grants`.
+  3. Implement `empty_with_reason` with `BlanketPersistenceSet` parameter. Keep `empty()` as test convenience (`BlanketPersistenceSet::none()`).
+  4. Implement `can_pay_with_context` and `pay_with_plan`.
+  5. Add new types: `SpendContext`, `SpendPurpose`, `ManaPaymentPlan`, `ManaEmptyReason`, `BlanketPersistenceSet`, `PersistenceExpiry`. `ManaPersistence` has two variants: `Normal` and `UntilEndOf` (no `Indefinite`).
+  6. Expand `ManaRestriction` enum: `OnlyForSpellTypes`, `OnlyForAbilityTypes`, `AnyOf`, `OnlyForCreatureType`.
+  7. Add `ManaRestriction::allows()` (private) and `ManaAtom::allows_spend()` (private).
+- **Design reference:** `plans/mana-restrictions-design.md` §3 (Data Model), §4 (API Surface)
+- **Tests:**
+  - `test_add_special_atom` — add restricted atom, verify `has_special()` and `special_atoms()`
+  - `test_special_coalesce_identical_atoms` — 5 identical atoms → one group with count 5
+  - `test_amount_for_with_eligible_special` — creature-only {G} + creature context → counts
+  - `test_can_pay_with_context_uses_special` — restricted mana makes otherwise-unpayable cost payable
+  - `test_pay_with_plan_mixed` — some from simple, some from special
+  - `test_pay_with_plan_collects_grants` — spent atoms' grants appear in `drain_spent_grants()`
+  - `test_empty_with_reason_step_no_blanket` — normal empties, time-gated persists
+  - `test_restriction_allows_spell_type_match` / `_mismatch` / `_any_of` / `_creature_type`
+- **Acceptance:** All existing tests pass unchanged + new unit tests pass + 0 warnings
+- **Commit:** `mana: add ManaPool sidecar for restricted/granted mana (T12b)`
 
 ---
 
@@ -443,7 +469,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-### Tier 4: Casting & Activation (T17–T20b)
+### Tier 4: Casting & Activation (T17–T20b, T12c)
 
 #### T17: Alternative/additional cost framework — type definitions
 - **Scope:** Medium
@@ -631,6 +657,31 @@ L17 + L19 + L20 → L21
 - **What Part 2 will do:** Define `LKISnapshot` as a wrapper around `EffectiveCharacteristics` + `owner`, `zone`, `counters`, `card_data`. Hook `move_object` to snapshot before zone change. Provide `query_lki()`. Wire into `resolve_primitive` for dead-source lookups.
 - **Design analysis preserved:** The full LKI deep dive (when LKI is used, snapshot lifetime decision, phased approach, complexity concerns) is documented in this ticket's git history and should be carried forward into the Part 2 ticket.
 - **No Part 1 ticket depends on T20b.**
+
+---
+
+#### T12c: Mana restrictions — engine integration
+- **Scope:** Medium
+- **Source:** E15 (implementation phase B from `plans/mana-restrictions-design.md` §10)
+- **Depends on:** T12b, T17
+- **Files:** `engine/costs.rs` (modify), `engine/cast.rs` (modify), `engine/mana.rs` (modify), `ui/decision.rs` (modify), `oracle/mana_helpers.rs` (modify), `types/effects.rs` (modify)
+- **Steps:**
+  1. Add `ManaProducedMeta` to `ManaOutput`. Default `special: None`.
+  2. Update `resolve_mana_effect` to route special mana to `add_special`.
+  3. Add `ManaPaymentPlan::simple_only(HashMap<ManaType, u64>)` constructor.
+  4. Change `pay_costs` signature to take `Option<&ManaPaymentPlan>` instead of `&HashMap`. Update all call sites to use `Some(&ManaPaymentPlan::simple_only(...))`. Mana-free costs pass `None`.
+  5. Add `build_default_payment_plan` to `ui/decision.rs`.
+  6. Replace `choose_generic_mana_allocation` with `choose_mana_payment` on `DecisionProvider`. All existing DPs delegate to `build_default_payment_plan`. **Trait method count stays at 8** (replace, not add).
+  7. Update `castable_spells` to use `can_pay_with_context`. Build `SpendContext` from `oracle::characteristics` (effective types, not raw `card_data`).
+  8. Deprecate `can_pay()` and `pay()` with `#[deprecated]`.
+- **Design reference:** `plans/mana-restrictions-design.md` §5 (Integration Points)
+- **Tests:**
+  - `test_pay_costs_with_mana_plan` — `pay_costs` with `ManaPaymentPlan` end-to-end
+  - `test_pay_costs_backward_compat` — `simple_only` works like old `generic_allocation`
+  - `test_build_default_payment_plan_no_special` — identical to `auto_allocate_generic`
+  - `test_build_default_payment_plan_prefers_special` — eligible restricted mana used first
+- **Acceptance:** All existing tests pass (with updated call sites) + new tests pass + 0 warnings + `#[deprecated]` on old methods
+- **Commit:** `mana: integrate restriction-aware payment into engine (T12c)`
 
 ---
 
@@ -825,6 +876,35 @@ L17 + L19 + L20 → L21
   - `test_requirement_not_maximized_rejected` — two requirements both satisfiable, only one satisfied → rejected
 - **Acceptance:** All existing tests pass + new tests pass + 0 warnings
 - **Commit:** `engine: combat requirements solver — attack/block requirement maximization (508.1d, 509.1c)`
+
+---
+
+### Cross-Cutting: Mana Restrictions Cards (T12d)
+
+#### T12d: First restricted-mana cards + persistence
+- **Scope:** Large
+- **Source:** E15 (implementation phase C from `plans/mana-restrictions-design.md` §10)
+- **Depends on:** T12c; blanket persistence (step 6) depends on L04
+- **Files:** `cards/` (new card files), `engine/cast.rs` (modify), `engine/turns.rs` (modify), `engine/mana.rs` (modify)
+- **Steps:**
+  1. Implement Cavern of Souls (or simpler test card) with `ManaOutput.special`.
+  2. Wire grant application in `cast_spell`: call `drain_spent_grants()` after `pay_costs`, apply grants (e.g., uncounterable) to stack entry.
+  3. Update `empty()` call sites in `turns.rs` to `empty_with_reason()` with `BlanketPersistenceSet::none()` (no blanket effects yet).
+  4. Implement Birgi or test persistent-mana card (time-gated: `UntilEndOf(EndOfTurn)`).
+  5. Remove deprecated `can_pay()` and `pay()` methods.
+  6. *(After L04)* Implement `build_blanket_persistence_set()` querying continuous effects. Wire Omnath/Upwelling as static abilities producing blanket persistence.
+- **Design reference:** `plans/mana-restrictions-design.md` §7 (Grants), §3.3 (Persistence)
+- **Note:** Steps 1–5 can execute after T12c without waiting for Phase 5. Step 6 is gated on L04 and can be a follow-up commit within the same ticket.
+- **Tests:**
+  - `test_cavern_mana_pays_creature` / `_rejected_for_instant` / `_grant_uncounterable`
+  - `test_thalia_boseiju_grant_flow` — Thalia taxes 0-mana instant, Boseiju mana pays + grants uncounterable
+  - `test_doubling_cube_does_not_inherit_restrictions` — doubled mana is unrestricted
+  - `test_persistence_birgi` — `UntilEndOf(EndOfTurn)` survives phase transition
+  - `test_birgi_mana_survives_birgi_dying` — atom metadata persists after source dies
+  - `test_omnath_blanket_persistence` / `_omnath_dies_mana_empties` — blanket via continuous effects
+  - `test_fuzz_games_with_restricted_mana` — fuzz harness with restricted-mana lands
+- **Acceptance:** All tests pass + fuzz harness 500/500 with restricted-mana decks + 0 warnings
+- **Commit:** `mana: first restricted-mana cards + persistence (T12d)`
 
 ---
 
@@ -1366,7 +1446,8 @@ graph LR
         T09["T09 controller_since_turn [P5-PREREQ]"]
         T10["T10 untap sickness"]
         T11["T11 LifeChanged source"]
-        T12["T12 mana restrictions spike"]
+        T12["T12 mana restrictions spike ✅"]
+        T12b["T12b ManaPool sidecar"]
     end
 
     subgraph "Tier 3 — SBAs"
@@ -1382,6 +1463,7 @@ graph LR
         T18["T18 601.2 pipeline"]
         T19["T19 activation restrictions"]
         T20["T20 linked abilities"]
+        T12c["T12c engine integration"]
     end
 
     subgraph "Tier 5 — Zone/Combat/Damage"
@@ -1392,7 +1474,16 @@ graph LR
         T22["T22 duration + targeting"]
     end
 
+    subgraph "Cross-Cutting — Mana Restrictions"
+        T12d["T12d restricted cards + persistence"]
+    end
+
     T09 --> T10
+    T12 --> T12b
+    T12b --> T12c
+    T17 --> T12c
+    T12c --> T12d
+    L04 -.->|blanket persistence| T12d
     T01 --> T13
     T03 --> T13
     T01 --> T14
@@ -1497,7 +1588,8 @@ L01 → L03 → L04 → L06 (+ T01) → L07 → L08 (+ L02) → L17 (+ L10, L11,
 | Branch | Tickets | Joins at |
 |--------|---------|----------|
 | **Data model** | T02, T03, T04, T05, T06 (all parallel with T01) | Various Tier 3/5 deps |
-| **State tracking** | T09 → T10, T11, T12 (parallel with Tier 1) | T09 joins at L11 |
+| **State tracking** | T09 → T10, T11, T12 → T12b (parallel with Tier 1) | T09 joins at L11 |
+| **Mana restrictions** | T12b + T17 → T12c (Tier 4) → T12d (cross-cutting; step 6 after L04) | T12d step 6 joins at L04 |
 | **SBAs** | T13, T14, T15, T15b, T16 (after Tier 1 deps) | No Phase 5 deps |
 | **Casting** | T17 → T18, T19, T20 (parallel with SBAs) | T17 joins at T21a |
 | **Combat/damage** | T21a, T21b → T21d, T21c (parallel) | No Phase 5 deps |
@@ -1614,6 +1706,9 @@ L01 → L03 → L04 → L06 (+ T01) → L07 → L08 (+ L02) → L17 (+ L10, L11,
 | E13 | {Q} summoning sickness check | T10 | ✅ |
 | E14 | LifeChanged event source field | T11 | ✅ |
 | E15 | Mana spending restrictions (design spike) | T12 | ✅ |
+| E15 | Mana spending restrictions (sidecar impl) | T12b | |
+| E15 | Mana spending restrictions (engine integration) | T12c | |
+| E15 | Mana spending restrictions (cards + persistence) | T12d | |
 | E16 | Counter annihilation SBA | T13 | ✅ |
 | E17 | Token cease-to-exist SBA | T13 | ✅ |
 | E18 | Legend rule SBA | T14 | ✅ |
