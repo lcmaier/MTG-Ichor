@@ -64,6 +64,11 @@ impl GameState {
                 if !entry.tapped {
                     return Err("Permanent is not tapped".to_string());
                 }
+                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
+                // paying {Q} (untap symbol), unless they have haste.
+                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                    return Err("Creature has summoning sickness".to_string());
+                }
                 Ok(())
             }
             Cost::Mana(mana_cost) => {
@@ -149,6 +154,11 @@ impl GameState {
                     .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
                 if !entry.tapped {
                     return Err("Permanent is not tapped".to_string());
+                }
+                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
+                // paying {Q} (untap symbol), unless they have haste.
+                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                    return Err("Creature has summoning sickness".to_string());
                 }
                 let entry = self.battlefield.get_mut(&source_id).unwrap();
                 entry.tapped = false;
@@ -267,5 +277,95 @@ mod tests {
         let (mut game, forest_id) = setup_with_forest();
         let no_alloc = HashMap::new();
         assert!(game.pay_costs(&[Cost::PayLife(21)], 0, forest_id, &no_alloc).is_err());
+    }
+
+    // --- Cost::Untap ({Q}) summoning sickness tests (T10 / E13) ---
+
+    fn setup_creature_on_turn(turn: u32, keywords: Vec<crate::types::keywords::KeywordAbility>) -> (GameState, crate::types::ids::ObjectId) {
+        let mut game = GameState::new(2, 20);
+        game.turn_number = turn;
+        let mut builder = CardDataBuilder::new("Test Creature")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2);
+        for kw in keywords {
+            builder = builder.keyword(kw);
+        }
+        let data = builder.build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let mut entry = BattlefieldEntity::new(id, 0, 0, turn);
+        // Start tapped so {Q} (untap) is payable resource-wise
+        entry.tapped = true;
+        game.battlefield.insert(id, entry);
+        (game, id)
+    }
+
+    #[test]
+    fn test_untap_cost_blocked_by_summoning_sickness() {
+        // Creature enters on turn 1, game is on turn 1 → summoning sick → can't pay {Q}
+        let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
+        let no_alloc = HashMap::new();
+        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("summoning sickness"));
+    }
+
+    #[test]
+    fn test_untap_cost_allowed_with_haste() {
+        // Creature with haste enters on turn 1, game is on turn 1 → haste bypasses sickness
+        let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordAbility::Haste]);
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc).unwrap();
+        assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
+    }
+
+    #[test]
+    fn test_untap_cost_allowed_on_noncreature() {
+        // Artifact (non-creature) with {Q} cost — no summoning sickness restriction
+        let mut game = GameState::new(2, 20);
+        game.turn_number = 1;
+        let data = CardDataBuilder::new("Test Artifact")
+            .card_type(CardType::Artifact)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let mut entry = BattlefieldEntity::new(id, 0, 0, 1);
+        entry.tapped = true;
+        game.battlefield.insert(id, entry);
+
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::Untap], 0, id, &no_alloc).unwrap();
+        assert!(!game.battlefield.get(&id).unwrap().tapped);
+    }
+
+    #[test]
+    fn test_untap_cost_blocked_by_control_change() {
+        // Creature entered on turn 1, control changes on turn 3 → sick again on turn 3
+        let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
+        // Advance to turn 3 so creature is no longer sick from ETB
+        game.turn_number = 3;
+        // Simulate control change on turn 3
+        game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
+
+        let no_alloc = HashMap::new();
+        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("summoning sickness"));
+    }
+
+    #[test]
+    fn test_untap_cost_allowed_control_change_haste() {
+        // Creature with haste, control changes on turn 3 → haste bypasses
+        let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordAbility::Haste]);
+        game.turn_number = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
+
+        let no_alloc = HashMap::new();
+        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc).unwrap();
+        assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 }
