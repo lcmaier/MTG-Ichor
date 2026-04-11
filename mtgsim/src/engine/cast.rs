@@ -100,8 +100,8 @@ impl GameState {
             // (sacrifice, discard), can_pay_costs validates feasibility; pay_costs
             // then executes atomically, guaranteed to succeed by the pre-check.
             if let Err(e) = self.can_pay_costs(&costs, player_id, card_id) {
-                // Rollback: move card back to hand (no costs to refund)
-                self.stack_entries.remove(&card_id);
+                // Rollback: move card back to hand (no costs to refund).
+                // move_object → remove_from_zone_collection cleans up stack_entries.
                 self.move_object(card_id, Zone::Hand)?;
                 return Err(e);
             }

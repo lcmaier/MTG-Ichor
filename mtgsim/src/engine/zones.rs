@@ -152,7 +152,7 @@ impl GameState {
     // --- Internal helpers ---
 
     /// Remove an object ID from the zone's collection
-    fn remove_from_zone_collection(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
+    pub(crate) fn remove_from_zone_collection(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         match zone {
             Zone::Library => {
                 let owner = self.get_object(id)?.owner;
@@ -191,6 +191,7 @@ impl GameState {
             Zone::Stack => {
                 if let Some(pos) = self.stack.iter().position(|&x| x == id) {
                     self.stack.remove(pos);
+                    self.stack_entries.remove(&id);
                     Ok(())
                 } else {
                     Err(format!("Object {} not found on stack", id))

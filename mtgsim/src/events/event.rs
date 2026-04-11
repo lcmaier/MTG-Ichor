@@ -74,6 +74,15 @@ pub enum GameEvent {
     // --- Player loss ---
     PlayerLost { player_id: PlayerId, reason: LossReason },
 
+    // --- Counters ---
+    /// +1/+1 and -1/-1 counters annihilated each other on a permanent (rule 704.5q).
+    CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
+
+    // --- Tokens ---
+    /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
+    /// Not a zone change — the token is simply removed from the game.
+    TokenCeasedToExist { object_id: ObjectId },
+
     // --- State-based ---
     StateBasedActionPerformed,
 }

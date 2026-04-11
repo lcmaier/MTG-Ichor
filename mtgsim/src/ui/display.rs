@@ -457,6 +457,12 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         PlayerLost { player_id, reason } => {
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }
+        CountersAnnihilated { object_id, pairs_removed } => {
+            format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
+        }
+        TokenCeasedToExist { object_id } => {
+            format!("TokenCeasedToExist: {}", obj_name(game, *object_id))
+        }
         StateBasedActionPerformed => "StateBasedActionPerformed".to_string(),
     }
 }

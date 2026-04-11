@@ -222,6 +222,13 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Copy effect infrastructure for Layer 1
 - Prevention shield tracking
 
+**Retrofit note — zone-destination hardcoding:** Multiple engine paths currently hardcode a destination zone that replacement effects could alter. When the `execute_action → apply_replacement_effects → perform_action` middleware lands, these must all route through it:
+- **SBA creature death (704.5f/g):** `sba.rs` calls `move_object(id, Zone::Graveyard)` — Rest in Peace would redirect to exile.
+- **Spell resolution (608.3):** `stack.rs` sends instants/sorceries to graveyard, permanents to battlefield — Flashback/Escape would redirect to exile.
+- **Counterspelling (701.6a):** `resolve.rs` sends countered spells to graveyard — self-replacement effects per rule 614.15 (e.g. Dissipate "exile instead") or global replacements (Rest in Peace) would redirect.
+- **Stack resolution pop-first pattern:** The pop-first design in `stack.rs` (removing the spell from the stack Vec before resolution effects execute) remains correct — the replacement layer intercepts the *destination* step, not the removal step. Similarly, counter effects that remove by position are fine; only the subsequent zone move needs replacement awareness.
+- All three cases share the same architecture: a known default destination (graveyard/battlefield) that replacement effects modify. No special-casing needed per case — the middleware intercepts `move_object` uniformly.
+
 **Risk/complexity:** **High.** Replacement effects interact with nearly every state mutation. The ordering rule (616) requires player choice when multiple replacements apply to the same event. Self-referential loop prevention adds bookkeeping. Copy effects are notoriously complex (copiable values, "as enters" timing, copy of copy).
 
 ---
