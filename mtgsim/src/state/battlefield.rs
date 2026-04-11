@@ -22,7 +22,13 @@ pub struct BattlefieldEntity {
     pub flipped: bool,
     pub face_down: bool,
     pub phased_out: bool,
-    pub summoning_sick: bool,
+    /// The turn number when this permanent entered the battlefield.
+    pub entered_battlefield_turn: u32,
+    /// The turn number when the current controller gained control.
+    /// Used for summoning sickness: a creature has summoning sickness if
+    /// `controller_since_turn >= game.turn_number` (entered this turn).
+    /// Convention: 0 = pregame (rule 103.6 Leylines), so 0 >= 1 is false → not sick.
+    pub controller_since_turn: u32,
 
     // Creature-specific (only meaningful if the permanent is a creature)
     pub damage_marked: u32,
@@ -71,7 +77,7 @@ pub enum AttackTarget {
 }
 
 impl BattlefieldEntity {
-    pub fn new(object_id: ObjectId, controller: PlayerId, timestamp: u64) -> Self {
+    pub fn new(object_id: ObjectId, controller: PlayerId, timestamp: u64, current_turn: u32) -> Self {
         BattlefieldEntity {
             object_id,
             controller,
@@ -80,7 +86,8 @@ impl BattlefieldEntity {
             flipped: false,
             face_down: false,
             phased_out: false,
-            summoning_sick: true,
+            entered_battlefield_turn: current_turn,
+            controller_since_turn: current_turn,
             damage_marked: 0,
             damaged_by_deathtouch: false,
             power_modifier: 0,
@@ -143,7 +150,7 @@ mod tests {
     use uuid::Uuid;
 
     fn make_entity() -> BattlefieldEntity {
-        BattlefieldEntity::new(Uuid::new_v4(), 0, 1)
+        BattlefieldEntity::new(Uuid::new_v4(), 0, 1, 1)
     }
 
     #[test]
@@ -208,8 +215,8 @@ mod tests {
         let host_id = Uuid::new_v4();
         let attachment_id = Uuid::new_v4();
 
-        let mut host = BattlefieldEntity::new(host_id, 0, 1);
-        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2);
+        let mut host = BattlefieldEntity::new(host_id, 0, 1, 1);
+        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2, 1);
 
         // Attach: set attached_to on attachment, add to host's attached_by
         attachment.attach_to(host_id);
@@ -224,8 +231,8 @@ mod tests {
         let host_id = Uuid::new_v4();
         let attachment_id = Uuid::new_v4();
 
-        let mut host = BattlefieldEntity::new(host_id, 0, 1);
-        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2);
+        let mut host = BattlefieldEntity::new(host_id, 0, 1, 1);
+        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2, 1);
 
         // Attach
         attachment.attach_to(host_id);

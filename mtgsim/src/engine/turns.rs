@@ -144,7 +144,7 @@ impl GameState {
     // --- Step processors ---
 
     /// Untap step: untap all permanents controlled by the active player,
-    /// remove summoning sickness, reset land drops (rule 502)
+    /// reset land drops (rule 502)
     fn process_untap_step(&mut self) -> Result<(), String> {
         let active = self.active_player;
 
@@ -152,11 +152,10 @@ impl GameState {
         let player = self.get_player_mut(active)?;
         player.reset_lands_played();
 
-        // Untap permanents and clear summoning sickness
+        // Untap permanents controlled by the active player
         for (_id, entry) in &mut self.battlefield {
             if entry.controller == active {
                 entry.tapped = false;
-                entry.summoning_sick = false;
             }
         }
 
@@ -277,10 +276,7 @@ mod tests {
             .build();
         let forest = GameObject::new(forest_data, 0, crate::types::zones::Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        let mut entry = crate::state::battlefield::BattlefieldEntity::new(forest_id, 0, 0);
-        entry.tapped = true;
-        entry.summoning_sick = true;
-        game.battlefield.insert(forest_id, entry);
+        game.place_on_battlefield(forest_id, 0).tapped = true;
 
         // We're at Beginning/Untap already — process it by advancing to next step
         game.advance_turn().unwrap(); // Untap -> Upkeep (triggers untap processing for Upkeep's on_step_begin, but untap ran first)
@@ -304,7 +300,6 @@ mod tests {
         // We already entered it, so check:
         let entry = game.battlefield.get(&forest_id).unwrap();
         assert!(!entry.tapped, "Forest should be untapped after untap step");
-        assert!(!entry.summoning_sick, "Forest should not be summoning sick after untap step");
     }
 
     #[test]

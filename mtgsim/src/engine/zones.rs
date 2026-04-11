@@ -1,5 +1,4 @@
 use crate::events::event::GameEvent;
-use crate::state::battlefield::BattlefieldEntity;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -265,9 +264,7 @@ impl GameState {
         if zone == Zone::Battlefield {
             let obj = self.get_object(id)?;
             let controller = obj.owner; // default controller is owner
-            let ts = self.allocate_timestamp();
-            let entry = BattlefieldEntity::new(id, controller, ts);
-            self.battlefield.insert(id, entry);
+            self.place_on_battlefield(id, controller);
         }
         Ok(())
     }
@@ -281,9 +278,7 @@ impl GameState {
         id: ObjectId,
         controller: PlayerId,
     ) -> Result<(), String> {
-        let ts = self.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, controller, ts);
-        self.battlefield.insert(id, entry);
+        self.place_on_battlefield(id, controller);
         Ok(())
     }
 
@@ -456,8 +451,7 @@ mod tests {
         // Create a forest on the battlefield
         let forest = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        let entry = crate::state::battlefield::BattlefieldEntity::new(forest_id, 0, 0);
-        game.battlefield.insert(forest_id, entry);
+        game.place_on_battlefield(forest_id, 0);
 
         // Move to graveyard
         game.move_object(forest_id, Zone::Graveyard).unwrap();
@@ -474,14 +468,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        let host_entry = crate::state::battlefield::BattlefieldEntity::new(host_id, 0, 0);
-        game.battlefield.insert(host_id, host_entry);
+        game.place_on_battlefield(host_id, 0);
 
         // Create an "attachment" (e.g. Equipment) on the battlefield
         let equip = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let equip_id = game.add_object(equip);
-        let equip_entry = crate::state::battlefield::BattlefieldEntity::new(equip_id, 0, 1);
-        game.battlefield.insert(equip_id, equip_entry);
+        game.place_on_battlefield(equip_id, 0);
 
         // Wire up attachment relationship
         game.battlefield.get_mut(&equip_id).unwrap().attach_to(host_id);
@@ -507,14 +499,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        let host_entry = crate::state::battlefield::BattlefieldEntity::new(host_id, 0, 0);
-        game.battlefield.insert(host_id, host_entry);
+        game.place_on_battlefield(host_id, 0);
 
         // Create an attachment on the battlefield
         let aura = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let aura_id = game.add_object(aura);
-        let aura_entry = crate::state::battlefield::BattlefieldEntity::new(aura_id, 0, 1);
-        game.battlefield.insert(aura_id, aura_entry);
+        game.place_on_battlefield(aura_id, 0);
 
         // Wire up attachment relationship
         game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);

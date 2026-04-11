@@ -402,8 +402,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, player_id, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, player_id, ts, 0);
         game.battlefield.insert(id, entry);
         (id, ability_id)
     }
@@ -420,8 +419,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, player_id, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, player_id, ts, 0);
         game.battlefield.insert(id, entry);
         (id, ability_id)
     }
@@ -584,8 +582,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
         entry.tapped = true; // tapped — but ability doesn't require tap
         game.battlefield.insert(id, entry);
 

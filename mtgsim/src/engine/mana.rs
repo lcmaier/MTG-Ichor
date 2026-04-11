@@ -110,8 +110,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0, 0);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, 0, 0);
         game.battlefield.insert(id, entry);
 
         (game, id, ability_id)

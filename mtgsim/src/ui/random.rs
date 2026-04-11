@@ -334,8 +334,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, player_id, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, player_id, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }
@@ -402,8 +401,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 1, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 1, ts, 0);
         game.battlefield.insert(id, entry);
 
         let dp = RandomDecisionProvider::new();

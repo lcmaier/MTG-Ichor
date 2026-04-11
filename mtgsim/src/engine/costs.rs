@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
 use crate::objects::card_data::Cost;
-use crate::oracle::characteristics::has_keyword;
+use crate::oracle::characteristics::{has_summoning_sickness, is_creature};
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
 use crate::types::mana::ManaType;
 
 /// Shared cost payment logic.
@@ -55,12 +53,8 @@ impl GameState {
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // tapping, unless they have haste.
-                if entry.summoning_sick {
-                    let obj = self.get_object(source_id)?;
-                    if obj.card_data.types.contains(&CardType::Creature)
-                        && !has_keyword(self, source_id, KeywordAbility::Haste) {
-                        return Err("Creature has summoning sickness".to_string());
-                    }
+                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                    return Err("Creature has summoning sickness".to_string());
                 }
                 Ok(())
             }
@@ -143,12 +137,8 @@ impl GameState {
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // tapping, unless they have haste.
-                if entry.summoning_sick {
-                    let obj = self.get_object(source_id)?;
-                    if obj.card_data.types.contains(&CardType::Creature)
-                        && !has_keyword(self, source_id, KeywordAbility::Haste) {
-                        return Err("Creature has summoning sickness".to_string());
-                    }
+                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                    return Err("Creature has summoning sickness".to_string());
                 }
                 let entry = self.battlefield.get_mut(&source_id).unwrap();
                 entry.tapped = true;
@@ -219,8 +209,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0, 0);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, 0, 0);
         game.battlefield.insert(id, entry);
         (game, id)
     }

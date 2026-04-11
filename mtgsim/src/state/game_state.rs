@@ -237,6 +237,20 @@ impl GameState {
         ts
     }
 
+    // --- Battlefield convenience ---
+
+    /// Create a `BattlefieldEntity` for the given object and insert it onto the
+    /// battlefield. Allocates a fresh timestamp and uses the current turn number.
+    /// Returns a mutable reference to the inserted entry so callers can tweak
+    /// fields (e.g. `entry.tapped = true`) without a second lookup.
+    pub fn place_on_battlefield(&mut self, id: ObjectId, controller: PlayerId) -> &mut BattlefieldEntity {
+        let ts = self.allocate_timestamp();
+        let current_turn = self.turn_number;
+        let entry = BattlefieldEntity::new(id, controller, ts, current_turn);
+        self.battlefield.insert(id, entry);
+        self.battlefield.get_mut(&id).unwrap()
+    }
+
     // --- Object management ---
 
     /// Register a game object in the central store

@@ -63,8 +63,7 @@ fn place_creature_on_battlefield(
     let id = obj.id;
     game.state.add_object(obj);
     let ts = game.state.allocate_timestamp();
-    let mut entry = mtgsim::state::battlefield::BattlefieldEntity::new(id, owner, ts);
-    entry.summoning_sick = false;
+    let entry = mtgsim::state::battlefield::BattlefieldEntity::new(id, owner, ts, 0);
     game.state.battlefield.insert(id, entry);
     id
 }
@@ -392,10 +391,7 @@ fn test_summoning_sick_cannot_attack() {
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
     let bears_id = obj.id;
     game.state.add_object(obj);
-    let ts = game.state.allocate_timestamp();
-    let entry = mtgsim::state::battlefield::BattlefieldEntity::new(bears_id, 0, ts);
-    // summoning_sick = true by default
-    game.state.battlefield.insert(bears_id, entry);
+    game.state.place_on_battlefield(bears_id, 0); // entered this turn = summoning sick
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 

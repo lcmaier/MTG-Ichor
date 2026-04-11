@@ -27,6 +27,23 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
         .unwrap_or(false)
 }
 
+/// Check if a permanent has summoning sickness.
+/// A permanent has summoning sickness if its controller gained control of it
+/// on the current turn (controller_since_turn >= turn_number) and it doesn't
+/// have haste. Convention: controller_since_turn = 0 is a pregame sentinel
+/// (rule 103.6), so 0 >= 1 is false → not sick.
+pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
+    if let Some(entry) = game.battlefield.get(&id) {
+        if entry.controller_since_turn >= game.turn_number {
+            !has_keyword(game, id, KeywordAbility::Haste)
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
 /// Get effective power for a creature on the battlefield.
 /// Phase 3: base + modifier. Phase 5: computed through layer system.
 pub fn get_effective_power(game: &GameState, id: ObjectId) -> Option<i32> {
@@ -50,7 +67,6 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
     use crate::types::colors::Color;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
@@ -136,8 +152,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        game.battlefield.insert(id, BattlefieldEntity::new(id, 0, ts));
+        game.place_on_battlefield(id, 0);
 
         assert_eq!(get_effective_power(&game, id), Some(2));
     }
@@ -152,10 +167,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.power_modifier = 3;
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0).power_modifier = 3;
 
         assert_eq!(get_effective_power(&game, id), Some(5));
     }
@@ -170,8 +182,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        game.battlefield.insert(id, BattlefieldEntity::new(id, 0, ts));
+        game.place_on_battlefield(id, 0);
 
         assert_eq!(get_effective_toughness(&game, id), Some(2));
     }

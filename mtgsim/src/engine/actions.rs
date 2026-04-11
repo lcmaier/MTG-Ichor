@@ -215,7 +215,6 @@ mod tests {
     use crate::events::event::DamageTarget;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::*;
     use crate::types::keywords::KeywordAbility;
     use crate::types::mana::ManaType;
@@ -234,8 +233,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0);
 
         (game, id)
     }
@@ -342,8 +340,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0);
 
         (game, id)
     }

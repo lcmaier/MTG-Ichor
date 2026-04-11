@@ -110,7 +110,6 @@ impl GameState {
 mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
     use crate::state::game_state::GameState;
     use crate::types::card_types::*;
     use crate::types::colors::Color;
@@ -132,10 +131,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(bears_id, 0, 0);
-        entry.summoning_sick = false;
-        entry.damage_marked = 2; // lethal for a 2/2
-        game.battlefield.insert(bears_id, entry);
+        game.place_on_battlefield(bears_id, 0).damage_marked = 2; // lethal for a 2/2
 
         // SBA should destroy the creature
         let performed = game.check_state_based_actions().unwrap();
@@ -157,10 +153,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0, 0);
-        entry.damage_marked = 1; // only 1 damage
-        entry.damaged_by_deathtouch = true; // but from deathtouch
-        game.battlefield.insert(id, entry);
+        let bf = game.place_on_battlefield(id, 0);
+        bf.damage_marked = 1; // only 1 damage
+        bf.damaged_by_deathtouch = true; // but from deathtouch
 
         let performed = game.check_state_based_actions().unwrap();
         assert!(performed);
@@ -181,10 +176,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0, 0);
-        entry.damage_marked = 0;
-        entry.damaged_by_deathtouch = true;
-        game.battlefield.insert(id, entry);
+        let bf = game.place_on_battlefield(id, 0);
+        bf.damage_marked = 0;
+        bf.damaged_by_deathtouch = true;
 
         let performed = game.check_state_based_actions().unwrap();
         assert!(!performed);
@@ -204,8 +198,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(bears_id, 0, 0);
-        game.battlefield.insert(bears_id, entry);
+        game.place_on_battlefield(bears_id, 0);
 
         let performed = game.check_state_based_actions().unwrap();
         assert!(!performed);

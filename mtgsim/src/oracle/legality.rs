@@ -1,6 +1,6 @@
 // Read-only legality queries — can a creature attack, block, etc.
 
-use crate::oracle::characteristics::{has_keyword, is_creature};
+use crate::oracle::characteristics::{has_keyword, has_summoning_sickness, is_creature};
 use crate::state::game_state::{GameState, PhaseType};
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -9,8 +9,8 @@ use crate::types::keywords::KeywordAbility;
 /// Check if a creature can attack (not summoning-sick, or has haste).
 /// Rule 702.10b: Haste bypasses summoning sickness for attacking.
 pub fn can_attack(game: &GameState, id: ObjectId) -> bool {
-    if let Some(entry) = game.battlefield.get(&id) {
-        !entry.summoning_sick || has_keyword(game, id, KeywordAbility::Haste)
+    if game.battlefield.contains_key(&id) {
+        !has_summoning_sickness(game, id)
     } else {
         false
     }
@@ -124,8 +124,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         assert!(can_attack(&game, id));
@@ -141,9 +140,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts); // summoning_sick = true
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
 
         assert!(!can_attack(&game, id));
     }
@@ -159,9 +156,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts); // summoning_sick = true
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
 
         assert!(can_attack(&game, id));
     }
@@ -242,8 +237,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let attackers = legal_attackers(&game, 0);
@@ -263,8 +257,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         assert!(legal_attackers(&game, 0).is_empty());
@@ -281,8 +274,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 
@@ -302,8 +294,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let blockers = legal_blockers(&game, 0);
@@ -321,7 +312,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
+        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 

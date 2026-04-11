@@ -415,8 +415,7 @@ mod tests {
         obj.id = id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, owner, ts);
-        entry.summoning_sick = false; // simulate having been here since turn start
+        let entry = BattlefieldEntity::new(id, owner, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }
@@ -427,9 +426,7 @@ mod tests {
         let mut obj = GameObject::new(data, owner, Zone::Battlefield);
         obj.id = id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, owner, ts); // summoning_sick = true by default
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, owner); // entered this turn = summoning sick
         id
     }
 
@@ -466,8 +463,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let result = validate_attackers(
@@ -696,8 +692,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, owner, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, owner, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }
@@ -824,9 +819,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts); // summoning_sick = true
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
 
         let result = validate_attackers(
             &game, 0,
@@ -860,9 +853,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts); // summoning_sick = true
-        game.battlefield.insert(id, entry);
+        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
 
         // Should be able to pay tap cost despite summoning sickness
         let result = game.can_pay_costs(

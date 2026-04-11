@@ -98,7 +98,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-### Tier 1: Foundational Data Model (T01–T06)
+### Tier 1: Foundational Data Model (T01–T06) (DONE ✅)
 
 #### T01: Add counters to BattlefieldEntity + expand CounterType [P5-PREREQ] (DONE ✅)
 - **Scope:** Small
@@ -158,7 +158,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T04: Add attachment tracking to BattlefieldEntity
+#### T04: Add attachment tracking to BattlefieldEntity (DONE ✅)
 - **Scope:** Medium
 - **Source:** E6
 - **Depends on:** none

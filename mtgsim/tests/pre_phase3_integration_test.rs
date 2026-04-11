@@ -49,8 +49,7 @@ fn put_land_on_battlefield(
     let id = obj.id;
     let ts = game.allocate_timestamp();
     game.add_object(obj);
-    let mut entry = BattlefieldEntity::new(id, player, ts);
-    entry.summoning_sick = false;
+    let entry = BattlefieldEntity::new(id, player, ts, 0);
     game.battlefield.insert(id, entry);
     id
 }

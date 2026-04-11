@@ -387,8 +387,8 @@ mod tests {
 
         game.resolve_top_of_stack().unwrap();
 
-        let entry = game.battlefield.get(&bears_id).unwrap();
-        assert!(entry.summoning_sick);
+        // Creature entered on turn 1, turn_number is 1, so it has summoning sickness
+        assert!(crate::oracle::characteristics::has_summoning_sickness(&game, bears_id));
     }
 
     #[test]
@@ -467,7 +467,7 @@ mod tests {
         let creature_id = creature.id;
         let ts = game.allocate_timestamp();
         game.add_object(creature);
-        game.battlefield.insert(creature_id, crate::state::battlefield::BattlefieldEntity::new(creature_id, 1, ts));
+        game.battlefield.insert(creature_id, crate::state::battlefield::BattlefieldEntity::new(creature_id, 1, ts, 1));
 
         // Put Bolt on stack targeting the creature
         let bolt_id = put_spell_on_stack(

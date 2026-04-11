@@ -16,7 +16,6 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::CardType;
     use crate::types::zones::Zone;
 
@@ -34,14 +33,12 @@ mod tests {
         let obj0 = GameObject::new(data.clone(), 0, Zone::Battlefield);
         let id0 = obj0.id;
         game.add_object(obj0);
-        let ts0 = game.allocate_timestamp();
-        game.battlefield.insert(id0, BattlefieldEntity::new(id0, 0, ts0));
+        game.place_on_battlefield(id0, 0);
 
         let obj1 = GameObject::new(data, 1, Zone::Battlefield);
         let id1 = obj1.id;
         game.add_object(obj1);
-        let ts1 = game.allocate_timestamp();
-        game.battlefield.insert(id1, BattlefieldEntity::new(id1, 1, ts1));
+        game.place_on_battlefield(id1, 1);
 
         let p0 = permanents_controlled_by(&game, 0);
         assert_eq!(p0.len(), 1);
