@@ -53,7 +53,7 @@ pub enum GameEvent {
     PermanentLeftBattlefield { object_id: ObjectId },
 
     // --- Life ---
-    LifeChanged { player_id: PlayerId, old: i64, new: i64 },
+    LifeChanged { player_id: PlayerId, old: i64, new: i64, source: Option<ObjectId> },
 
     // --- Combat ---
     AttackersDeclared { attackers: Vec<ObjectId> },
