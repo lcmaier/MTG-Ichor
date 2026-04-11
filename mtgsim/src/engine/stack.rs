@@ -69,6 +69,10 @@ impl GameState {
                 let owner = self.get_object(object_id)?.owner;
                 self.get_object_mut(object_id)?.zone = Zone::Battlefield;
                 self.init_zone_state_with_controller(object_id, controller)?;
+                // Carry X value from the stack entry to the permanent (rule 107.3f)
+                if let Some(bf_entry) = self.battlefield.get_mut(&object_id) {
+                    bf_entry.x_value = entry.x_value;
+                }
                 self.events.emit(GameEvent::ZoneChange {
                     object_id,
                     owner,
@@ -400,6 +404,55 @@ mod tests {
         // Stack should be completely empty — no re-push artifact
         assert!(game.stack.is_empty());
         assert!(game.stack_entries.is_empty());
+    }
+
+    /// Helper: put a permanent spell on the stack with a specific x_value.
+    fn put_permanent_on_stack_with_x(
+        game: &mut GameState,
+        card_data: std::sync::Arc<crate::objects::card_data::CardData>,
+        controller: usize,
+        x_value: Option<u64>,
+    ) -> crate::types::ids::ObjectId {
+        let obj = GameObject::new(card_data, controller, Zone::Stack);
+        let id = obj.id;
+        game.add_object(obj);
+        game.stack.push(id);
+        game.stack_entries.insert(id, StackEntry {
+            object_id: id,
+            controller,
+            chosen_targets: Vec::new(),
+            chosen_modes: Vec::new(),
+            x_value,
+            effect: Effect::Sequence(vec![]),
+            is_spell: true,
+        });
+        id
+    }
+
+    #[test]
+    fn test_x_value_carried_to_permanent() {
+        let mut game = GameState::new(2, 20);
+        let card = CardDataBuilder::new("Hangarback Walker")
+            .card_type(CardType::Creature)
+            .power_toughness(0, 0)
+            .build();
+        let id = put_permanent_on_stack_with_x(&mut game, card, 0, Some(3));
+
+        game.resolve_top_of_stack().unwrap();
+
+        let bf_entry = game.battlefield.get(&id).unwrap();
+        assert_eq!(bf_entry.x_value, Some(3));
+    }
+
+    #[test]
+    fn test_x_value_none_for_non_x_spell() {
+        let mut game = GameState::new(2, 20);
+        let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
+
+        game.resolve_top_of_stack().unwrap();
+
+        let bf_entry = game.battlefield.get(&bears_id).unwrap();
+        assert_eq!(bf_entry.x_value, None);
     }
 
     #[test]

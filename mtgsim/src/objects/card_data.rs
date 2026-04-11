@@ -29,6 +29,10 @@ pub struct CardData {
     pub defense: Option<i32>,
     pub abilities: Vec<AbilityDef>,
     pub keywords: HashSet<KeywordAbility>,
+    /// Color indicator (rule 204) — used for cards with no mana cost that have
+    /// an intrinsic color (e.g., back faces of DFCs, Ancestral Vision suspend).
+    /// None means no color indicator; color is derived from mana cost instead.
+    pub color_indicator: Option<Vec<Color>>,
 }
 
 /// The type of an ability
@@ -128,6 +132,7 @@ impl CardDataBuilder {
                 defense: None,
                 abilities: Vec::new(),
                 keywords: HashSet::new(),
+                color_indicator: None,
             },
         }
     }
@@ -180,6 +185,11 @@ impl CardDataBuilder {
 
     pub fn keyword(mut self, keyword: KeywordAbility) -> Self {
         self.data.keywords.insert(keyword);
+        self
+    }
+
+    pub fn color_indicator(mut self, colors: Vec<Color>) -> Self {
+        self.data.color_indicator = Some(colors);
         self
     }
 
@@ -263,5 +273,28 @@ mod tests {
         assert!(bears.types.contains(&CardType::Creature));
         assert_eq!(bears.power, Some(2));
         assert_eq!(bears.toughness, Some(2));
+    }
+
+    #[test]
+    fn test_card_data_color_indicator_none_default() {
+        let card = CardDataBuilder::new("Test Card").build();
+        assert!(card.color_indicator.is_none());
+    }
+
+    #[test]
+    fn test_card_data_color_indicator_set() {
+        let card = CardDataBuilder::new("Archangel Avacyn")
+            .color_indicator(vec![Color::Red])
+            .build();
+        let indicator = card.color_indicator.as_ref().unwrap();
+        assert_eq!(indicator.len(), 1);
+        assert_eq!(indicator[0], Color::Red);
+
+        // Multi-color indicator
+        let card2 = CardDataBuilder::new("Nicol Bolas Back")
+            .color_indicator(vec![Color::Blue, Color::Black, Color::Red])
+            .build();
+        let indicator2 = card2.color_indicator.as_ref().unwrap();
+        assert_eq!(indicator2.len(), 3);
     }
 }
