@@ -122,7 +122,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T02: Add player counters (poison, commander damage)
+#### T02: Add player counters (poison, commander damage) (DONE ✅)
 - **Scope:** Small
 - **Source:** E3
 - **Depends on:** none
@@ -140,7 +140,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T03: Add is_token and is_copy flags to GameObject
+#### T03: Add is_token and is_copy flags to GameObject (DONE ✅)
 - **Scope:** Small
 - **Source:** E4 + E5
 - **Depends on:** none
@@ -178,7 +178,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T05: Add color_indicator to CardData [P5-PREREQ]
+#### T05: Add color_indicator to CardData [P5-PREREQ] (DONE ✅)
 - **Scope:** Small
 - **Source:** E7
 - **Depends on:** none
@@ -197,7 +197,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T06: Add x_value to BattlefieldEntity + carry from StackEntry
+#### T06: Add x_value to BattlefieldEntity + carry from StackEntry (DONE ✅)
 - **Scope:** Small
 - **Source:** E9
 - **Depends on:** none

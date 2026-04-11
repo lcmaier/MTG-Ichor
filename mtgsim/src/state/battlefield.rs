@@ -39,6 +39,10 @@ pub struct BattlefieldEntity {
 
     // Counters (rule 122)
     pub counters: HashMap<CounterType, u32>,
+
+    /// The value of X chosen when this permanent was cast (rule 107.3f).
+    /// Carried from StackEntry on resolution. None for non-X spells.
+    pub x_value: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +82,7 @@ impl BattlefieldEntity {
             attacking: None,
             blocking: None,
             counters: HashMap::new(),
+            x_value: None,
         }
     }
 

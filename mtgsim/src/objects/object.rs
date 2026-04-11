@@ -24,6 +24,10 @@ pub struct GameObject {
     pub card_data: Arc<CardData>,
     /// Current zone this object is in
     pub zone: Zone,
+    /// True if this object is a token (created by an effect, not a real card)
+    pub is_token: bool,
+    /// True if this object is a copy of another object
+    pub is_copy: bool,
 }
 
 impl GameObject {
@@ -34,11 +38,41 @@ impl GameObject {
             owner,
             card_data,
             zone,
+            is_token: false,
+            is_copy: false,
         }
     }
 
     /// Create a new game object in the library (most common creation path — building a deck)
     pub fn in_library(card_data: Arc<CardData>, owner: PlayerId) -> Self {
         Self::new(card_data, owner, Zone::Library)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::objects::card_data::CardDataBuilder;
+
+    #[test]
+    fn test_game_object_default_not_token() {
+        let card = CardDataBuilder::new("Test Card").build();
+        let obj = GameObject::new(card, 0, Zone::Hand);
+        assert!(!obj.is_token);
+    }
+
+    #[test]
+    fn test_game_object_default_not_copy() {
+        let card = CardDataBuilder::new("Test Card").build();
+        let obj = GameObject::new(card, 0, Zone::Hand);
+        assert!(!obj.is_copy);
+    }
+
+    #[test]
+    fn test_in_library_default_not_token_or_copy() {
+        let card = CardDataBuilder::new("Test Card").build();
+        let obj = GameObject::in_library(card, 0);
+        assert!(!obj.is_token);
+        assert!(!obj.is_copy);
     }
 }
