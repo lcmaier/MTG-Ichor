@@ -223,7 +223,7 @@ L17 + L19 + L20 → L21
 
 ### Tier 2: State Tracking (T09–T12)
 
-#### T09: Summoning sickness — controller_since_turn [P5-PREREQ]
+#### T09: Summoning sickness — controller_since_turn [P5-PREREQ] (DONE ✅)
 - **Scope:** Medium
 - **Source:** E12
 - **Depends on:** none
@@ -252,7 +252,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T10: {Q} (Untap symbol) summoning sickness check
+#### T10: {Q} (Untap symbol) summoning sickness check (DONE ✅)
 - **Scope:** Small
 - **Source:** E13
 - **Depends on:** T09
