@@ -214,8 +214,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, owner, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, owner, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }
@@ -366,8 +365,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, owner, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, owner, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }

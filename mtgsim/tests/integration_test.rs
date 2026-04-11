@@ -202,10 +202,7 @@ fn test_sba_integration_with_turn_structure() {
     let bears = GameObject::new(bears_data.clone(), 0, Zone::Battlefield);
     let bears_id = bears.id;
     game.add_object(bears);
-    let mut entry = mtgsim::state::battlefield::BattlefieldEntity::new(bears_id, 0, 0);
-    entry.damage_marked = 3;
-    entry.summoning_sick = false;
-    game.battlefield.insert(bears_id, entry);
+    game.place_on_battlefield(bears_id, 0).damage_marked = 3;
 
     game.check_state_based_actions_loop().unwrap();
 

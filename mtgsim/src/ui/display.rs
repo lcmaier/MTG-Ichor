@@ -66,11 +66,8 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
     if entry.tapped {
         flags.push("tapped");
     }
-    if entry.summoning_sick && is_creature(game, id) {
-        let has_haste = has_keyword(game, id, KeywordAbility::Haste);
-        if !has_haste {
-            flags.push("sick");
-        }
+    if is_creature(game, id) && crate::oracle::characteristics::has_summoning_sickness(game, id) {
+        flags.push("sick");
     }
     if entry.attacking.is_some() {
         flags.push("attacking");
@@ -499,8 +496,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let display = format_permanent(&game, id);
@@ -518,7 +514,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
+        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 
@@ -566,8 +562,7 @@ mod tests {
         let bears_id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(bears_id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(bears_id, 0, ts, 0);
         game.battlefield.insert(bears_id, entry);
 
         // Add a land
@@ -580,8 +575,7 @@ mod tests {
         let forest_id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(forest_id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(forest_id, 0, ts, 0);
         game.battlefield.insert(forest_id, entry);
 
         let output = format_battlefield(&game, 0);
@@ -679,8 +673,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts);
-        entry.summoning_sick = false;
+        let entry = BattlefieldEntity::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let display = format_permanent(&game, id);

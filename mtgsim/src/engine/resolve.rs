@@ -362,7 +362,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0);
+        let entry = BattlefieldEntity::new(id, 0, 0, 1);
         game.battlefield.insert(id, entry);
 
         (game, id)

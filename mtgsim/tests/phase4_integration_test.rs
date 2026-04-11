@@ -37,8 +37,7 @@ fn place_creature(
     let id = obj.id;
     game.add_object(obj);
     let ts = game.allocate_timestamp();
-    let mut entry = BattlefieldEntity::new(id, owner, ts);
-    entry.summoning_sick = false;
+    let entry = BattlefieldEntity::new(id, owner, ts, 0);
     game.battlefield.insert(id, entry);
     id
 }
@@ -52,9 +51,7 @@ fn place_creature_sick(
     let obj = GameObject::new(data, owner, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
-    let ts = game.allocate_timestamp();
-    let entry = BattlefieldEntity::new(id, owner, ts); // summoning_sick = true
-    game.battlefield.insert(id, entry);
+    game.place_on_battlefield(id, owner); // entered this turn = summoning sick
     id
 }
 
@@ -369,8 +366,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     let trampler = obj.id;
     game.add_object(obj);
     let ts = game.allocate_timestamp();
-    let mut entry = BattlefieldEntity::new(trampler, 0, ts);
-    entry.summoning_sick = false;
+    let entry = BattlefieldEntity::new(trampler, 0, ts, 0);
     game.battlefield.insert(trampler, entry);
 
     let blocker = place_creature(&mut game, 1, creatures::grizzly_bears); // 2/2

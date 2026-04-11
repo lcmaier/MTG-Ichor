@@ -291,7 +291,7 @@ mod tests {
         let id = obj.id;
         let ts = game.allocate_timestamp();
         game.add_object(obj);
-        game.battlefield.insert(id, BattlefieldEntity::new(id, 0, ts));
+        game.battlefield.insert(id, BattlefieldEntity::new(id, 0, ts, 1));
         (game, id)
     }
 
