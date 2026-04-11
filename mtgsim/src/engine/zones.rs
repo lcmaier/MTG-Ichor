@@ -30,11 +30,12 @@ impl GameState {
             return Ok(()); // no-op
         }
 
+        // Clean up zone-specific state for the old zone (before removal,
+        // so we can still read the departing entity's state)
+        self.cleanup_zone_state(id, from);
+
         // Remove from old zone's collection
         self.remove_from_zone_collection(id, from)?;
-
-        // Clean up zone-specific state for the old zone
-        self.cleanup_zone_state(id, from);
 
         // Add to new zone's collection
         self.add_to_zone_collection(id, to)?;
@@ -288,12 +289,35 @@ impl GameState {
 
     /// Clean up zone-specific state when leaving a zone.
     ///
-    /// Note: the BattlefieldEntity itself is already removed by
-    /// `remove_from_zone_collection`. This hook exists for future
-    /// zone-exit cleanup (e.g., detaching auras, removing counters).
-    fn cleanup_zone_state(&mut self, _id: ObjectId, _zone: Zone) {
-        // Battlefield removal is handled by remove_from_zone_collection.
-        // Future: detach auras, remove equipment grants, etc.
+    /// Called BEFORE remove_from_zone_collection so we can still read
+    /// the departing entity's state. The BattlefieldEntity itself is
+    /// removed afterwards by remove_from_zone_collection.
+    fn cleanup_zone_state(&mut self, id: ObjectId, zone: Zone) {
+        if zone == Zone::Battlefield {
+            // Collect attachment info before mutating
+            let (attached_to, attached_by) = {
+                if let Some(entry) = self.battlefield.get(&id) {
+                    (entry.attached_to, entry.attached_by.clone())
+                } else {
+                    return;
+                }
+            };
+
+            // If this permanent was attached to a host, remove it from the host's attached_by
+            if let Some(host_id) = attached_to {
+                if let Some(host) = self.battlefield.get_mut(&host_id) {
+                    host.attached_by.retain(|&aid| aid != id);
+                }
+            }
+
+            // If this permanent had things attached to it, clear their attached_to
+            // (Aura SBAs will handle the resulting unattached auras)
+            for attachment_id in attached_by {
+                if let Some(attachment) = self.battlefield.get_mut(&attachment_id) {
+                    attachment.attached_to = None;
+                }
+            }
+        }
     }
 }
 
@@ -441,5 +465,67 @@ mod tests {
         assert!(!game.battlefield.contains_key(&forest_id));
         assert_eq!(game.players[0].graveyard.len(), 1);
         assert_eq!(game.get_object(forest_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    #[test]
+    fn test_zone_exit_detaches() {
+        let mut game = GameState::new(2, 20);
+
+        // Create a host creature on the battlefield
+        let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
+        let host_id = game.add_object(host);
+        let host_entry = crate::state::battlefield::BattlefieldEntity::new(host_id, 0, 0);
+        game.battlefield.insert(host_id, host_entry);
+
+        // Create an "attachment" (e.g. Equipment) on the battlefield
+        let equip = GameObject::new(make_forest(), 0, Zone::Battlefield);
+        let equip_id = game.add_object(equip);
+        let equip_entry = crate::state::battlefield::BattlefieldEntity::new(equip_id, 0, 1);
+        game.battlefield.insert(equip_id, equip_entry);
+
+        // Wire up attachment relationship
+        game.battlefield.get_mut(&equip_id).unwrap().attach_to(host_id);
+        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(equip_id);
+
+        // Verify setup
+        assert_eq!(game.battlefield.get(&equip_id).unwrap().attached_to, Some(host_id));
+        assert_eq!(game.battlefield.get(&host_id).unwrap().attached_by, vec![equip_id]);
+
+        // Host leaves the battlefield — attachment's attached_to should be cleared
+        game.move_object(host_id, Zone::Graveyard).unwrap();
+
+        assert!(!game.battlefield.contains_key(&host_id));
+        // Equipment stays on battlefield but is no longer attached
+        let equip_entry = game.battlefield.get(&equip_id).unwrap();
+        assert_eq!(equip_entry.attached_to, None);
+    }
+
+    #[test]
+    fn test_zone_exit_attachment_leaves() {
+        let mut game = GameState::new(2, 20);
+
+        // Create a host creature on the battlefield
+        let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
+        let host_id = game.add_object(host);
+        let host_entry = crate::state::battlefield::BattlefieldEntity::new(host_id, 0, 0);
+        game.battlefield.insert(host_id, host_entry);
+
+        // Create an attachment on the battlefield
+        let aura = GameObject::new(make_forest(), 0, Zone::Battlefield);
+        let aura_id = game.add_object(aura);
+        let aura_entry = crate::state::battlefield::BattlefieldEntity::new(aura_id, 0, 1);
+        game.battlefield.insert(aura_id, aura_entry);
+
+        // Wire up attachment relationship
+        game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
+        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
+
+        // Attachment leaves the battlefield — host's attached_by should be updated
+        game.move_object(aura_id, Zone::Graveyard).unwrap();
+
+        assert!(!game.battlefield.contains_key(&aura_id));
+        // Host stays, but no longer has anything attached
+        let host_entry = game.battlefield.get(&host_id).unwrap();
+        assert!(host_entry.attached_by.is_empty());
     }
 }
