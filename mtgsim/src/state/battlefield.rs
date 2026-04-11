@@ -43,6 +43,12 @@ pub struct BattlefieldEntity {
     /// The value of X chosen when this permanent was cast (rule 107.3f).
     /// Carried from StackEntry on resolution. None for non-X spells.
     pub x_value: Option<u64>,
+
+    // Attachment tracking (rule 301.5, 303.4)
+    /// The permanent this is attached to (for Auras, Equipment, Fortifications).
+    pub attached_to: Option<ObjectId>,
+    /// Permanents attached to this one (Auras, Equipment, Fortifications targeting this).
+    pub attached_by: Vec<ObjectId>,
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +89,8 @@ impl BattlefieldEntity {
             blocking: None,
             counters: HashMap::new(),
             x_value: None,
+            attached_to: None,
+            attached_by: Vec::new(),
         }
     }
 
@@ -112,6 +120,20 @@ impl BattlefieldEntity {
     /// Returns the number of counters of the given type (0 if none).
     pub fn counter_count(&self, counter_type: CounterType) -> u32 {
         self.counters.get(&counter_type).copied().unwrap_or(0)
+    }
+
+    /// Attach this permanent to a host permanent.
+    /// Sets `self.attached_to` to the host's ID.
+    /// The caller is responsible for adding this permanent's ID to the host's `attached_by`.
+    pub fn attach_to(&mut self, host: ObjectId) {
+        self.attached_to = Some(host);
+    }
+
+    /// Detach this permanent from its host.
+    /// Clears `self.attached_to`.
+    /// The caller is responsible for removing this permanent's ID from the host's `attached_by`.
+    pub fn detach(&mut self) {
+        self.attached_to = None;
     }
 }
 
@@ -179,5 +201,48 @@ mod tests {
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 0);
         assert_eq!(e.counter_count(CounterType::MinusOneMinusOne), 1);
         assert_eq!(e.counter_count(CounterType::Flying), 1);
+    }
+
+    #[test]
+    fn test_attachment_tracking_basic() {
+        let host_id = Uuid::new_v4();
+        let attachment_id = Uuid::new_v4();
+
+        let mut host = BattlefieldEntity::new(host_id, 0, 1);
+        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2);
+
+        // Attach: set attached_to on attachment, add to host's attached_by
+        attachment.attach_to(host_id);
+        host.attached_by.push(attachment_id);
+
+        assert_eq!(attachment.attached_to, Some(host_id));
+        assert_eq!(host.attached_by, vec![attachment_id]);
+    }
+
+    #[test]
+    fn test_detach_clears_both_sides() {
+        let host_id = Uuid::new_v4();
+        let attachment_id = Uuid::new_v4();
+
+        let mut host = BattlefieldEntity::new(host_id, 0, 1);
+        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2);
+
+        // Attach
+        attachment.attach_to(host_id);
+        host.attached_by.push(attachment_id);
+
+        // Detach
+        attachment.detach();
+        host.attached_by.retain(|&id| id != attachment_id);
+
+        assert_eq!(attachment.attached_to, None);
+        assert!(host.attached_by.is_empty());
+    }
+
+    #[test]
+    fn test_attachment_defaults_none() {
+        let e = make_entity();
+        assert_eq!(e.attached_to, None);
+        assert!(e.attached_by.is_empty());
     }
 }
