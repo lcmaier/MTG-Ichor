@@ -60,6 +60,7 @@ pub fn apply_lifelink(
             player_id: controller,
             old: old_life,
             new: new_life,
+            source: Some(source),
         });
     }
     Ok(())
