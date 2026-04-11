@@ -1,4 +1,5 @@
 use crate::state::game_state::{GameState, Phase, PhaseType, StepType, next_step, next_phase};
+use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 
 /// Turn structure engine.
 ///
@@ -60,8 +61,10 @@ impl GameState {
 
     fn on_phase_end(&mut self, phase_type: PhaseType) -> Result<(), String> {
         // Mana pools empty at end of each phase (rule 106.4)
+        // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
+        let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
-            player.mana_pool.empty();
+            player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
         }
 
         // Phase-specific cleanup
@@ -125,8 +128,10 @@ impl GameState {
 
     fn on_step_end(&mut self, step_type: StepType) -> Result<(), String> {
         // Mana pools empty at end of each step (rule 106.4)
+        // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
+        let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
-            player.mana_pool.empty();
+            player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
         }
 
         match step_type {
