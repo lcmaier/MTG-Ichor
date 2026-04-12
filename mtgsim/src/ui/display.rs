@@ -470,6 +470,12 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
         }
+        AuraDied { object_id, owner } => {
+            format!("AuraDied: {} [P{}]", obj_name(game, *object_id), owner)
+        }
+        EquipmentDetached { equipment_id, former_host } => {
+            format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
+        }
         TokenCeasedToExist { object_id } => {
             format!("TokenCeasedToExist: {}", obj_name(game, *object_id))
         }

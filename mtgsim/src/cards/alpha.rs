@@ -16,7 +16,7 @@ use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::*;
 use crate::types::ids::new_ability_id;
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::mana::{ManaCost, ManaType};
 
 /// Lightning Bolt — {R}
 /// Instant

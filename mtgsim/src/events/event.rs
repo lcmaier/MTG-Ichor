@@ -84,6 +84,14 @@ pub enum GameEvent {
     /// +1/+1 and -1/-1 counters annihilated each other on a permanent (rule 704.5q).
     CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
 
+    // --- Attachment SBAs ---
+    /// An Aura was put into its owner's graveyard by SBA 704.5m/704.5n
+    /// (unattached or attached to an illegal/missing object).
+    AuraDied { object_id: ObjectId, owner: PlayerId },
+    /// An Equipment or Fortification was detached by SBA 704.5p
+    /// (attached to a non-creature). Equipment stays on battlefield.
+    EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
+
     // --- Tokens ---
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.
