@@ -110,6 +110,21 @@ pub trait DecisionProvider {
         has_deathtouch: bool,
     ) -> (Vec<(ObjectId, u64)>, u64);
 
+    /// Choose which legendary permanent to keep when the legend rule (704.5j)
+    /// finds duplicates. The controller has multiple legendaries with the same name;
+    /// they choose one to keep and the rest go to the graveyard.
+    ///
+    /// TODO: This is structurally "choose 1 from N objects." Future needs (stack
+    /// ordering, scry top/bottom, modal choices) will likely motivate a generic
+    /// `choose_n_from_m` method. Defer generalization until the second instance
+    /// arises, then batch-refactor all impls.
+    fn choose_legend_to_keep(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        legendaries: &[ObjectId],
+    ) -> ObjectId;
+
     /// Choose how to allocate mana from the pool to pay the generic component
     /// of a mana cost. Returns a map of ManaType → amount to spend on generic.
     fn choose_generic_mana_allocation(
@@ -153,6 +168,15 @@ impl DecisionProvider for PassiveDecisionProvider {
 
     fn choose_trample_damage_assignment(&self, game: &GameState, _player_id: PlayerId, _attacker_id: ObjectId, blockers: &[ObjectId], _defending_target: DamageTarget, power: u64, has_deathtouch: bool) -> (Vec<(ObjectId, u64)>, u64) {
         default_trample_assignment(game, blockers, power, has_deathtouch)
+    }
+
+    fn choose_legend_to_keep(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        legendaries: &[ObjectId],
+    ) -> ObjectId {
+        legendaries[0]
     }
 
     fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
@@ -265,6 +289,17 @@ impl DecisionProvider for ScriptedDecisionProvider {
         } else {
             decisions.remove(0)
         }
+    }
+
+    fn choose_legend_to_keep(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        legendaries: &[ObjectId],
+    ) -> ObjectId {
+        // Keep the first one (most recently added to the scripted decisions,
+        // or just the first in the list as a default)
+        legendaries[0]
     }
 
     fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
@@ -539,6 +574,15 @@ impl DecisionProvider for DispatchDecisionProvider {
         self.dp_for(player_id).choose_trample_damage_assignment(
             game, player_id, attacker_id, blockers, defending_target, power, has_deathtouch,
         )
+    }
+
+    fn choose_legend_to_keep(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        legendaries: &[ObjectId],
+    ) -> ObjectId {
+        self.dp_for(player_id).choose_legend_to_keep(game, player_id, legendaries)
     }
 
     fn choose_generic_mana_allocation(

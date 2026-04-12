@@ -709,6 +709,16 @@ Static abilities like Thalia ("noncreature spells cost {1} more") create continu
 
 **Architecture change (2026-04-06):** The original `pending_triggers: Vec<PendingTrigger>` push-based design has been replaced by the delta log approach (see `state-tracking-architecture.md`). Rationale: push-based triggers require every mutation site to explicitly know about every trigger condition, making state-based triggers (rule 603.8 — e.g., "whenever you have no cards in hand") impractical without O(state_triggers × mutations) polling at each substep. The delta log centralizes detection: mutation sites emit generic `GameDelta` entries with `(old, new)` pairs, and a single scanner runs pattern matching after event batches. This also unifies trigger detection with loop detection and voluntary shortcut validation (D26), avoiding three separate observation mechanisms.
 
+### EventLog relationship
+
+The `EventLog` (`events/event.rs`) will become a **projection** of the delta log once Phase 6 is built. Currently, mutation sites manually call `self.events.emit(...)` — this is scaffolding. In the final design:
+
+1. Mutation methods emit **deltas only** (no manual `events.emit()`).
+2. At checkpoints (post-SBA, post-resolution), a **projection function** converts new deltas into human-readable `GameEvent` entries for the EventLog.
+3. The trigger scanner reads the same deltas independently.
+
+This guarantees single-source-of-truth semantics. Existing type-specific events like `CreatureDied`, `PlaneswalkerDied`, and `LegendRuleSacrificed` are display conveniences — trigger detection uses the zone-transition delta plus **last-known characteristics** (rule 603.10) to match triggers, not event type. This correctly handles multi-type permanents (e.g. Gideon dying triggers both "when a creature dies" and "when a planeswalker is put into a graveyard" from a single delta).
+
 ### Cards to implement
 
 - **Soul Warden** ("Whenever a creature enters, you gain 1 life") — ETB trigger
@@ -780,6 +790,8 @@ Additional cards may be added to this list as development progresses. The genera
 | 2026-03-30 | Correctness-first layer system, no caching           | Recompute-on-query for all characteristics. Caching added later only if parallel AI self-play proves too slow.                                                                                                                      |
 | 2026-04-01 | Trigger system uses delta log, not EventLog | EventLog is a diagnostic/UI artifact. Trigger matching is driven by a structured **delta log** (`Vec<GameDelta>`) on GameState, populated by all state-mutating methods. Never scan EventLog for game-mechanical purposes. *(Updated 2026-04-06: replaced push-based `PendingTrigger` queue with delta log — see `state-tracking-architecture.md` for rationale.)* |
 | 2026-04-03 | `was_cast_at_non_sorcery_speed: bool` stored in `CastInfo` | Cast-time timing metadata belongs in `CastInfo` (general struct on `BattlefieldEntity`), not per-card storage. Computed at cast time: `!(is_active_player && is_main_phase && stack_is_empty)`. Used by Necromancy-style cards (307.5a). 1 bool per permanent, avoids polymorphism/bespoke storage. Same pattern as `was_kicked`. |
+| 2026-04-11 | EventLog is derived from delta log, not independently emitted | Currently the EventLog is populated by manual `events.emit()` calls at each mutation site. In Phase 6, when the delta log is built, the EventLog will become a **projection** of the delta log: mutation methods emit deltas only, and a projection function at well-defined checkpoints converts new deltas into `GameEvent` entries for display/logging. This eliminates dual-emit fragility and guarantees EventLog can never disagree with the trigger scanner about what happened. The manual `events.emit()` calls are scaffolding until Phase 6. |
+| 2026-04-11 | No type-specific death events for trigger detection | `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed` are display/logging conveniences only. They must NOT be used for trigger matching. The correct model: the delta log records one zone-transition delta (`Battlefield → Graveyard`), and the trigger scanner inspects the object's **last-known characteristics** (rule 603.10) to determine which triggers fire. For multi-type permanents (e.g. Gideon as both creature and planeswalker), both "when a creature dies" and "when a planeswalker is put into a graveyard" triggers match from the same delta — no need for multiple events. |
 
 ---
 

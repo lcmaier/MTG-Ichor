@@ -187,7 +187,7 @@ fn test_first_strike_kills_before_normal_damage() {
     game.dealt_first_strike_damage.insert(archers);
 
     // Bears now have 2 damage marked on 2 toughness — SBA kills them
-    game.check_state_based_actions().unwrap();
+    game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
     assert!(!game.battlefield.contains_key(&bears));
 
     // Normal damage step: archers already dealt (FS only), bears are dead
@@ -286,7 +286,7 @@ fn test_deathtouch_trades_up() {
     assert_eq!(game.battlefield.get(&archer).unwrap().damage_marked, 3);
 
     // SBA: both should die
-    game.check_state_based_actions().unwrap();
+    game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
     assert!(!game.battlefield.contains_key(&archer));
     assert!(!game.battlefield.contains_key(&giant));
 }
@@ -391,7 +391,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
 
     // Apply and check SBA
     game.apply_combat_damage(assignments).unwrap();
-    game.check_state_based_actions().unwrap();
+    game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
 
     // Blocker should be dead (1 deathtouch damage)
     assert!(!game.battlefield.contains_key(&blocker));

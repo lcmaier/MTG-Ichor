@@ -248,7 +248,31 @@ impl GameState {
         let current_turn = self.turn_number;
         let entry = BattlefieldEntity::new(id, controller, ts, current_turn);
         self.battlefield.insert(id, entry);
+
+        self.init_etb_counters(id);
+
         self.battlefield.get_mut(&id).unwrap()
+    }
+
+    /// Set initial counters for a permanent entering the battlefield.
+    ///
+    /// Currently handles:
+    /// - Planeswalker loyalty (rule 306.5b): set loyalty counters equal to
+    ///   printed loyalty. Replacement effects (e.g. Doubling Season) will
+    ///   intercept this in the replacement-effect layer (Phase 7+).
+    ///
+    /// Future: Sagas (lore counters), other ETB counter patterns.
+    fn init_etb_counters(&mut self, id: ObjectId) {
+        if let Some(obj) = self.objects.get(&id) {
+            if obj.card_data.types.contains(&crate::types::card_types::CardType::Planeswalker) {
+                if let Some(loyalty) = obj.card_data.loyalty {
+                    if loyalty > 0 {
+                        self.battlefield.get_mut(&id).unwrap()
+                            .add_counters(crate::types::effects::CounterType::Loyalty, loyalty as u32);
+                    }
+                }
+            }
+        }
     }
 
     // --- Object management ---

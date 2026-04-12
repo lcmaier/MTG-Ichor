@@ -19,6 +19,15 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordAbility) -> b
         .unwrap_or(false)
 }
 
+/// Get the effective name of a game object.
+/// Phase 5 Pre: returns card_data.name (printed name).
+/// Phase 5: will route through L1 copy effects.
+pub fn get_effective_name(game: &GameState, id: ObjectId) -> String {
+    game.objects.get(&id)
+        .map(|obj| obj.card_data.name.clone())
+        .unwrap_or_default()
+}
+
 /// Check if an object on the battlefield is currently a creature.
 /// Phase 3: reads printed types. Phase 5: reads effective types from layer system.
 pub fn is_creature(game: &GameState, id: ObjectId) -> bool {

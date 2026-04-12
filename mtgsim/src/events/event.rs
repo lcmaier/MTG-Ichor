@@ -71,6 +71,12 @@ pub enum GameEvent {
     // --- Creatures ---
     CreatureDied { creature_id: ObjectId, owner: PlayerId },
 
+    // --- Permanents put into graveyard by SBA ---
+    /// A planeswalker was put into its owner's graveyard by SBA (704.5i, 0 loyalty).
+    PlaneswalkerDied { object_id: ObjectId, owner: PlayerId },
+    /// A permanent was put into its owner's graveyard by the legend rule (704.5j).
+    LegendRuleSacrificed { object_id: ObjectId, owner: PlayerId },
+
     // --- Player loss ---
     PlayerLost { player_id: PlayerId, reason: LossReason },
 
