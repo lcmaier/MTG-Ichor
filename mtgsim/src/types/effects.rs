@@ -26,14 +26,6 @@ pub enum AmountExpr {
     DamageDealt,
 }
 
-/// How counts are determined (e.g. "draw N cards", "mill N")
-#[derive(Debug, Clone, PartialEq)]
-pub enum CountExpr {
-    Fixed(u64),
-    Variable,
-    CountOf(Selector),
-}
-
 /// Which objects an effect queries or iterates over
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
@@ -229,9 +221,9 @@ pub enum Primitive {
     /// Shuffle into owner's library
     ShuffleIntoLibrary,
     /// Mill N cards (rule 701.17)
-    Mill(CountExpr),
+    Mill(AmountExpr),
     /// Discard N cards (rule 701.9)
-    Discard(CountExpr),
+    Discard(AmountExpr),
 
     // === Damage & life ===
     /// Deal damage (rule 120)
@@ -243,11 +235,11 @@ pub enum Primitive {
 
     // === Card flow ===
     /// Draw N cards
-    DrawCards(CountExpr),
+    DrawCards(AmountExpr),
     /// Scry N (rule 701.22)
-    Scry(CountExpr),
+    Scry(AmountExpr),
     /// Surveil N (rule 701.25)
-    Surveil(CountExpr),
+    Surveil(AmountExpr),
 
     // === Mana ===
     /// Produce mana (for mana abilities, rule 605)
@@ -255,13 +247,13 @@ pub enum Primitive {
 
     // === Counters ===
     /// Add N counters of a type to target
-    AddCounters(CounterType, CountExpr),
+    AddCounters(CounterType, AmountExpr),
     /// Remove N counters of a type from target
-    RemoveCounters(CounterType, CountExpr),
+    RemoveCounters(CounterType, AmountExpr),
 
     // === Tokens ===
     /// Create N tokens (rule 701.7)
-    CreateToken(TokenDef, CountExpr),
+    CreateToken(TokenDef, AmountExpr),
 
     // === Combat ===
     /// Two creatures fight (rule 701.14)
@@ -334,7 +326,7 @@ pub enum Effect {
     ForEach(Selector, Box<Effect>),
 
     /// "Do this N times"
-    Repeat(CountExpr, Box<Effect>),
+    Repeat(AmountExpr, Box<Effect>),
 
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),

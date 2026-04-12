@@ -226,7 +226,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
 
         let bears = CardDataBuilder::new("Grizzly Bears")
-            .mana_cost(crate::types::mana::ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::Green], 1))
             .color(crate::types::colors::Color::Green)
             .card_type(CardType::Creature)
             .subtype(Subtype::Creature(CreatureType::Bear))
@@ -333,7 +333,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
 
         let data = CardDataBuilder::new("Lifelink Creature")
-            .mana_cost(crate::types::mana::ManaCost::single(ManaType::White, 1, 1))
+            .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::White], 1))
             .color(crate::types::colors::Color::White)
             .card_type(CardType::Creature)
             .power_toughness(2, 3)
@@ -444,7 +444,7 @@ mod tests {
 
         let make_lifelinker = |game: &mut GameState, name: &str| -> ObjectId {
             let data = CardDataBuilder::new(name)
-                .mana_cost(crate::types::mana::ManaCost::single(ManaType::White, 1, 1))
+                .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::White], 1))
                 .color(crate::types::colors::Color::White)
                 .card_type(CardType::Creature)
                 .power_toughness(2, 2)

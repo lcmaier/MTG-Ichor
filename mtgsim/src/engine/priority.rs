@@ -173,7 +173,7 @@ mod tests {
         let bolt_data = CardDataBuilder::new("Lightning Bolt")
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::single(ManaType::Red, 1, 0))
+            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,

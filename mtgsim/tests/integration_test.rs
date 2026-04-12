@@ -190,7 +190,7 @@ fn test_sba_integration_with_turn_structure() {
     build_test_deck(&mut game, 1, basic_lands::mountain, 10);
 
     let bears_data = mtgsim::objects::card_data::CardDataBuilder::new("Grizzly Bears")
-        .mana_cost(mtgsim::types::mana::ManaCost::single(ManaType::Green, 1, 1))
+        .mana_cost(mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1))
         .color(mtgsim::types::colors::Color::Green)
         .card_type(mtgsim::types::card_types::CardType::Creature)
         .subtype(mtgsim::types::card_types::Subtype::Creature(

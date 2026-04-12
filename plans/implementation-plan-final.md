@@ -228,7 +228,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-### Tier 2: State Tracking (T09–T12, T12b)
+### Tier 2: State Tracking (T09–T12, T12b) (DONE ✅)
 
 #### T09: Summoning sickness — controller_since_turn [P5-PREREQ] (DONE ✅)
 - **Scope:** Medium
@@ -316,7 +316,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T12b: ManaPool sidecar — types and methods
+#### T12b: ManaPool sidecar — types and methods (DONE ✅)
 - **Scope:** Medium
 - **Source:** E15 (implementation phase A from `plans/mana-restrictions-design.md` §10)
 - **Depends on:** T12
@@ -346,7 +346,7 @@ L17 + L19 + L20 → L21
 
 ### Tier 3: State-Based Actions (T13–T16, T15b)
 
-#### T13: Counter annihilation + token cease-to-exist SBAs
+#### T13: Counter annihilation + token cease-to-exist SBAs (DONE ✅)
 - **Scope:** Small
 - **Source:** E16 + E17
 - **Depends on:** T01 (counters), T03 (is_token)
@@ -366,7 +366,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T14: Legend rule + planeswalker loyalty SBAs
+#### T14: Legend rule + planeswalker loyalty SBAs (DONE ✅)
 - **Scope:** Medium
 - **Source:** E18 + E20
 - **Depends on:** T01 (counters for loyalty)
@@ -594,6 +594,7 @@ L17 + L19 + L20 → L21
   - `test_legality_check_runs_post_proposal` — timing check passes, but post-proposal check (e.g., illegal mode) rejects and rolls back
 - **Acceptance:** All existing tests pass + new tests pass + 0 warnings
 - **Commit:** `engine: 601.2-compliant casting pipeline, casting restrictions, cost pipeline stub (E25 part 2, E26–E28)`
+- **Follow-up (Phase 5-Pre session):** `TargetSpec` conflates targeting information with effect recipient. `TargetSpec::You` means "no targeting, apply to controller" but the name implies targeting. The engine handles this correctly today (`resolve_player_for_self` maps `None`/`You` → `ctx.controller`, targeting validation short-circuits for both). When T18 rewrites the casting pipeline and targeting validation, split into `EffectRecipient` (Controller, EachPlayer, EachOpponent, TargetedBy(TargetSpec)) so `Effect::Atom` becomes `Atom(Primitive, EffectRecipient)`. Non-targeting spells like Night's Whisper would use `EffectRecipient::Controller` instead of `TargetSpec::You`.
 
 ---
 
@@ -1303,6 +1304,7 @@ L17 + L19 + L20 → L21
 - **Depends on:** L08, L10, L11, L14
 - **Files:** `cards/phase5_t1.rs` (modify)
 - **Steps:**
+  0. **CardDataBuilder color auto-derivation (from Phase 5-Pre session):** In `CardDataBuilder::build()`, auto-derive `colors` from `mana_cost` symbols per rules 202.2/105.3, eliminating redundant manual `.color()` calls. Add a `colors_explicitly_set: bool` flag to the builder; if false at `build()` time, derive colors from colored `ManaSymbol`s in the cost. Keep `.color()` for overrides (Devoid, colorless artifacts with colored activation costs, etc.). Remove `.color()` from all existing card definitions that don't need an override. Add tests: `test_build_derives_color_from_cost`, `test_build_explicit_color_overrides`, `test_build_colorless_no_cost`.
   1. **Honor of the Pure** — {1}{W} Enchantment. Static: L7c ModifyPT(1,1) on white creatures you control.
   2. **Tarmogoyf** — {1}{G} Creature—Lhurgoyf. **PC11:** `is_cda: true` on P/T ability. L7a SetPTDynamic(GraveyardCardTypes). Implement computation: count distinct CardType values across all graveyards; power=count, toughness=count+1.
   3. **Urborg** — Legendary Land. Static: L4 AddSubtypes(Swamp) on all lands. PC7: grants {T}: Add {B}.

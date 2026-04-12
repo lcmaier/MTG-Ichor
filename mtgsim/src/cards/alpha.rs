@@ -16,7 +16,7 @@ use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::*;
 use crate::types::ids::new_ability_id;
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 /// Lightning Bolt — {R}
 /// Instant
@@ -25,7 +25,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
     CardDataBuilder::new("Lightning Bolt")
         .card_type(CardType::Instant)
         .color(Color::Red)
-        .mana_cost(ManaCost::single(ManaType::Red, 1, 0))
+        .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
@@ -45,13 +45,13 @@ pub fn ancestral_recall() -> Arc<CardData> {
     CardDataBuilder::new("Ancestral Recall")
         .card_type(CardType::Instant)
         .color(Color::Blue)
-        .mana_cost(ManaCost::single(ManaType::Blue, 1, 0))
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::DrawCards(CountExpr::Fixed(3)),
+                Primitive::DrawCards(AmountExpr::Fixed(3)),
                 TargetSpec::Player(TargetCount::Exactly(1)),
             ),
         })
@@ -65,7 +65,7 @@ pub fn counterspell() -> Arc<CardData> {
     CardDataBuilder::new("Counterspell")
         .card_type(CardType::Instant)
         .color(Color::Blue)
-        .mana_cost(ManaCost::single(ManaType::Blue, 2, 0))
+        .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 0))
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
@@ -85,7 +85,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
     CardDataBuilder::new("Burst of Energy")
         .card_type(CardType::Instant)
         .color(Color::White)
-        .mana_cost(ManaCost::single(ManaType::White, 1, 0))
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
@@ -105,7 +105,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
     CardDataBuilder::new("Volcanic Upheaval")
         .card_type(CardType::Instant)
         .color(Color::Red)
-        .mana_cost(ManaCost::single(ManaType::Red, 1, 3))
+        .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,

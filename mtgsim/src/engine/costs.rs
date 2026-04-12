@@ -244,7 +244,7 @@ mod tests {
     fn test_pay_mana_cost_specific() {
         let (mut game, _) = setup_with_forest();
         game.players[0].mana_pool.add(ManaType::Green, 2);
-        let cost = ManaCost::single(ManaType::Green, 1, 0);
+        let cost = ManaCost::build(&[ManaType::Green], 0);
         let no_alloc = HashMap::new();
         game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &no_alloc).unwrap();
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
@@ -256,7 +256,7 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Green, 2);
         game.players[0].mana_pool.add(ManaType::Red, 1);
         // Cost: {1}{G} — player chooses to spend Red for generic
-        let cost = ManaCost::single(ManaType::Green, 1, 1);
+        let cost = ManaCost::build(&[ManaType::Green], 1);
         let mut alloc = HashMap::new();
         alloc.insert(ManaType::Red, 1);
         game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &alloc).unwrap();

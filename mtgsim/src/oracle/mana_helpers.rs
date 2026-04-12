@@ -435,7 +435,7 @@ mod tests {
     fn test_find_mana_sources_single_green() {
         let mut game = GameState::new(2, 20);
         place_forest(&mut game, 0);
-        let cost = ManaCost::single(ManaType::Green, 1, 0); // {G}
+        let cost = ManaCost::build(&[ManaType::Green], 0); // {G}
         let result = find_mana_sources(&game, 0, &cost);
         assert!(result.is_some());
         assert_eq!(result.unwrap().len(), 1);
@@ -446,7 +446,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         place_forest(&mut game, 0);
         place_forest(&mut game, 0);
-        let cost = ManaCost::single(ManaType::Green, 1, 1); // {1}{G}
+        let cost = ManaCost::build(&[ManaType::Green], 1); // {1}{G}
         let result = find_mana_sources(&game, 0, &cost);
         assert!(result.is_some());
         assert_eq!(result.unwrap().len(), 2);
@@ -456,7 +456,7 @@ mod tests {
     fn test_find_mana_sources_insufficient() {
         let mut game = GameState::new(2, 20);
         place_forest(&mut game, 0);
-        let cost = ManaCost::single(ManaType::Red, 1, 0); // {R} — no mountains
+        let cost = ManaCost::build(&[ManaType::Red], 0); // {R} — no mountains
         let result = find_mana_sources(&game, 0, &cost);
         assert!(result.is_none());
     }
@@ -503,7 +503,7 @@ mod tests {
         let bolt = CardDataBuilder::new("Lightning Bolt")
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::single(ManaType::Red, 1, 0))
+            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
@@ -534,7 +534,7 @@ mod tests {
         let bolt = CardDataBuilder::new("Lightning Bolt")
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::single(ManaType::Red, 1, 0))
+            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
@@ -643,7 +643,7 @@ mod tests {
         // A spell costing {1}{R}
         let spell = CardDataBuilder::new("Shock Plus")
             .card_type(CardType::Instant)
-            .mana_cost(ManaCost::single(ManaType::Red, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Red], 1))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
@@ -674,7 +674,7 @@ mod tests {
 
         let sorcery = CardDataBuilder::new("Lava Axe")
             .card_type(CardType::Sorcery)
-            .mana_cost(ManaCost::single(ManaType::Red, 1, 4))
+            .mana_cost(ManaCost::build(&[ManaType::Red], 4))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,

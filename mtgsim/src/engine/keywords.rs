@@ -79,7 +79,7 @@ mod tests {
     fn setup_creature(game: &mut GameState, keywords: &[KeywordAbility]) -> ObjectId {
         let mut builder = CardDataBuilder::new("Test Creature")
             .card_type(CardType::Creature)
-            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(2, 3);
         for kw in keywords {
             builder = builder.keyword(*kw);

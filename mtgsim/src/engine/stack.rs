@@ -165,7 +165,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, CountExpr, Effect, Primitive, TargetSpec, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, TargetSpec, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
 
@@ -173,7 +173,7 @@ mod tests {
         CardDataBuilder::new("Lightning Bolt")
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::single(ManaType::Red, 1, 0))
+            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
@@ -190,13 +190,13 @@ mod tests {
         CardDataBuilder::new("Ancestral Recall")
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Blue)
-            .mana_cost(ManaCost::single(ManaType::Blue, 1, 0))
+            .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
             .ability(AbilityDef {
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
-                    Primitive::DrawCards(CountExpr::Fixed(3)),
+                    Primitive::DrawCards(AmountExpr::Fixed(3)),
                     TargetSpec::Player(TargetCount::Exactly(1)),
                 ),
             })
@@ -329,7 +329,7 @@ mod tests {
         CardDataBuilder::new("Grizzly Bears")
             .card_type(CardType::Creature)
             .color(crate::types::colors::Color::Green)
-            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(2, 2)
             .build()
     }
