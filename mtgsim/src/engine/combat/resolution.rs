@@ -207,7 +207,7 @@ mod tests {
         let data = CardDataBuilder::new("Test Creature")
             .card_type(CardType::Creature)
             .color(Color::Green)
-            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(power, toughness)
             .build();
         let obj = GameObject::new(data, owner, Zone::Battlefield);
@@ -355,7 +355,7 @@ mod tests {
         let mut builder = CardDataBuilder::new("Test Creature")
             .card_type(CardType::Creature)
             .color(Color::Green)
-            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(power, toughness);
         for kw in keywords {
             builder = builder.keyword(*kw);

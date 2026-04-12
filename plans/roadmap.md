@@ -293,6 +293,8 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Card breadth: 50+ new cards across all types
 - Pregame actions (rule 103.6): additive hook in `Game::setup()` after mulligans for "begin the game with on battlefield" effects (Leylines). Uses `controller_since_turn = 0` sentinel from T09 — no retrofit needed.
 
+**Builder follow-up:** `CardDataBuilder::mana_ability_single` only handles "tap: add one mana of type X." Generalize to accept a `ManaOutput` directly when implementing Sol Ring, multi-mana lands, or choice-of-color producers (e.g. `mana_ability(costs, ManaOutput)`).
+
 **Estimated ticket count:** ~40–50
 
 **Cards unblocked:**

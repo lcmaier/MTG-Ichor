@@ -289,10 +289,10 @@ fn test_can_pay_costs_validates_correctly() {
 
     // Mana cost check
     game.players[0].mana_pool.add(ManaType::Red, 1);
-    let red_cost = Cost::Mana(ManaCost::single(ManaType::Red, 1, 0));
+    let red_cost = Cost::Mana(ManaCost::build(&[ManaType::Red], 0));
     assert!(game.can_pay_costs(&[red_cost.clone()], 0, land_id).is_ok());
 
-    let two_red = Cost::Mana(ManaCost::single(ManaType::Red, 2, 0));
+    let two_red = Cost::Mana(ManaCost::build(&[ManaType::Red, ManaType::Red], 0));
     assert!(game.can_pay_costs(&[two_red], 0, land_id).is_err());
 
     // Life cost check

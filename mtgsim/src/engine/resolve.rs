@@ -2,7 +2,7 @@ use crate::engine::actions::GameAction;
 use crate::events::event::DamageTarget;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, CountExpr, Effect, Primitive, TargetSpec,
+    AmountExpr, Effect, Primitive, TargetSpec,
 };
 use crate::types::ids::{ObjectId, PlayerId};
 
@@ -108,8 +108,8 @@ impl GameState {
                 Ok(())
             }
 
-            Primitive::DrawCards(count_expr) => {
-                let count = self.evaluate_count(count_expr, ctx)?;
+            Primitive::DrawCards(amount_expr) => {
+                let count = self.evaluate_amount(amount_expr, ctx)?;
                 // Drawing targets the controller (TargetSpec::You or None)
                 let player_id = self.resolve_player_for_self(target_spec, ctx);
                 for _ in 0..count {
@@ -294,24 +294,6 @@ impl GameState {
         }
     }
 
-    // --- Helper: evaluate CountExpr ---
-
-    fn evaluate_count(
-        &self,
-        expr: &CountExpr,
-        _ctx: &ResolutionContext,
-    ) -> Result<u64, String> {
-        match expr {
-            CountExpr::Fixed(n) => Ok(*n),
-            CountExpr::Variable => {
-                Err("Variable (X) count resolution not yet implemented".to_string())
-            }
-            CountExpr::CountOf(_selector) => {
-                Err("CountOf count resolution not yet implemented".to_string())
-            }
-        }
-    }
-
     // --- Helper: determine which player an effect applies to ---
 
     /// For effects that target "you" (the controller) or use TargetSpec::None,
@@ -352,7 +334,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
 
         let bears = CardDataBuilder::new("Grizzly Bears")
-            .mana_cost(crate::types::mana::ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::Green], 1))
             .color(crate::types::colors::Color::Green)
             .card_type(CardType::Creature)
             .subtype(Subtype::Creature(CreatureType::Bear))
@@ -422,7 +404,7 @@ mod tests {
         }
 
         let draw = Effect::Atom(
-            Primitive::DrawCards(CountExpr::Fixed(2)),
+            Primitive::DrawCards(AmountExpr::Fixed(2)),
             TargetSpec::You,
         );
         let ctx = bolt_ctx(bears_id, vec![]);
@@ -467,7 +449,7 @@ mod tests {
                 TargetSpec::Any(crate::types::effects::TargetCount::Exactly(1)),
             ),
             Effect::Atom(
-                Primitive::DrawCards(CountExpr::Fixed(1)),
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
                 TargetSpec::You,
             ),
         ]);

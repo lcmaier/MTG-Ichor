@@ -401,7 +401,7 @@ mod tests {
         let data = CardDataBuilder::new("Grizzly Bears")
             .card_type(CardType::Creature)
             .color(Color::Green)
-            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data.clone(), owner, Zone::Battlefield);
@@ -705,7 +705,7 @@ mod tests {
         let data = CardDataBuilder::new("Serra Angel")
             .card_type(CardType::Creature)
             .color(Color::White)
-            .mana_cost(ManaCost::single(ManaType::White, 2, 3))
+            .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
             .power_toughness(4, 4)
             .keyword(KeywordAbility::Flying)
             .keyword(KeywordAbility::Vigilance)

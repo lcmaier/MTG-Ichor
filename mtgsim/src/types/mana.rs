@@ -127,22 +127,27 @@ impl ManaCost {
         ManaCost { symbols }
     }
 
-    /// Convenience constructor for a mono-colored cost.
+    /// Build a mana cost from colored pips and a generic count.
     ///
-    /// e.g. `ManaCost::single(ManaType::Red, 1, 0)` = {R}
-    /// e.g. `ManaCost::single(ManaType::Green, 1, 1)` = {1}{G}
-    pub fn single(mana_type: ManaType, colored: u8, generic: u8) -> Self {
-        let mut symbols = Vec::with_capacity((generic + colored) as usize);
+    /// This is the canonical constructor for mana costs.
+    /// Symbols are stored in conventional MTG ordering: generic first,
+    /// then colored in the order provided (caller should use WUBRG).
+    ///
+    /// e.g. `ManaCost::build(&[ManaType::Red], 0)` = {R}
+    /// e.g. `ManaCost::build(&[ManaType::Green], 1)` = {1}{G}
+    /// e.g. `ManaCost::build(&[ManaType::Blue, ManaType::Black], 2)` = {2}{U}{B}
+    /// e.g. `ManaCost::build(&[ManaType::Red, ManaType::Red], 0)` = {R}{R}
+    pub fn build(colored: &[ManaType], generic: u8) -> Self {
+        let mut symbols = Vec::with_capacity(generic as usize + colored.len());
         for _ in 0..generic {
             symbols.push(ManaSymbol::Generic);
         }
-        let sym = if mana_type == ManaType::Colorless {
-            ManaSymbol::Colorless
-        } else {
-            ManaSymbol::Colored(mana_type)
-        };
-        for _ in 0..colored {
-            symbols.push(sym);
+        for &t in colored {
+            symbols.push(if t == ManaType::Colorless {
+                ManaSymbol::Colorless
+            } else {
+                ManaSymbol::Colored(t)
+            });
         }
         ManaCost { symbols }
     }
@@ -870,20 +875,49 @@ mod tests {
 
     #[test]
     fn test_mana_cost_display() {
-        let cost = ManaCost::single(ManaType::Red, 1, 0);
+        let cost = ManaCost::build(&[ManaType::Red], 0);
         assert_eq!(format!("{}", cost), "{R}");
 
-        let cost2 = ManaCost::single(ManaType::Green, 1, 1);
+        let cost2 = ManaCost::build(&[ManaType::Green], 1);
         assert_eq!(format!("{}", cost2), "{1}{G}");
     }
 
     #[test]
     fn test_mana_cost_mana_value() {
-        let bolt_cost = ManaCost::single(ManaType::Red, 1, 0);
+        let bolt_cost = ManaCost::build(&[ManaType::Red], 0);
         assert_eq!(bolt_cost.mana_value(), 1);
 
-        let bears_cost = ManaCost::single(ManaType::Green, 1, 1);
+        let bears_cost = ManaCost::build(&[ManaType::Green], 1);
         assert_eq!(bears_cost.mana_value(), 2);
+    }
+
+    #[test]
+    fn test_mana_cost_multi() {
+        // {2}{U}{B} = Urza's Guilt
+        let cost = ManaCost::build(&[ManaType::Blue, ManaType::Black], 2);
+        assert_eq!(cost.mana_value(), 4);
+        assert_eq!(cost.generic_count(), 2);
+        assert_eq!(cost.colored_count(ManaType::Blue), 1);
+        assert_eq!(cost.colored_count(ManaType::Black), 1);
+        assert_eq!(format!("{}", cost), "{2}{U}{B}");
+    }
+
+    #[test]
+    fn test_mana_cost_multi_no_generic() {
+        // {G}{W}{U} = Rhox War Monk style
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::White, ManaType::Blue], 0);
+        assert_eq!(cost.mana_value(), 3);
+        assert_eq!(cost.generic_count(), 0);
+        assert_eq!(format!("{}", cost), "{G}{W}{U}");
+    }
+
+    #[test]
+    fn test_mana_cost_multi_heavy_generic() {
+        // {5}{U}{B}
+        let cost = ManaCost::build(&[ManaType::Blue, ManaType::Black], 5);
+        assert_eq!(cost.mana_value(), 7);
+        assert_eq!(cost.generic_count(), 5);
+        assert_eq!(format!("{}", cost), "{5}{U}{B}");
     }
 
     #[test]
@@ -920,10 +954,10 @@ mod tests {
         let mut pool = ManaPool::new();
         pool.add(ManaType::Red, 1);
 
-        let bolt = ManaCost::single(ManaType::Red, 1, 0);
+        let bolt = ManaCost::build(&[ManaType::Red], 0);
         assert!(pool.can_pay(&bolt));
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         assert!(!pool.can_pay(&bears));
     }
 
@@ -933,7 +967,7 @@ mod tests {
         pool.add(ManaType::Green, 1);
         pool.add(ManaType::Red, 1);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         assert!(pool.can_pay(&bears));
     }
 
@@ -943,7 +977,7 @@ mod tests {
         pool.add(ManaType::Green, 2);
         pool.add(ManaType::Red, 1);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         // Player chooses to spend Red for the generic cost (save Green)
         let mut alloc = HashMap::new();
         alloc.insert(ManaType::Red, 1);
@@ -958,7 +992,7 @@ mod tests {
         let mut pool = ManaPool::new();
         pool.add(ManaType::Green, 3);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         // Player pays generic with Green too
         let mut alloc = HashMap::new();
         alloc.insert(ManaType::Green, 1);
@@ -972,7 +1006,7 @@ mod tests {
         let mut pool = ManaPool::new();
         pool.add(ManaType::Red, 1);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         let alloc = HashMap::new();
         assert!(pool.pay(&bears, &alloc).is_err());
         // Pool should be unchanged after failed payment
@@ -985,7 +1019,7 @@ mod tests {
         pool.add(ManaType::Green, 2);
         pool.add(ManaType::Red, 1);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         // Allocation sums to 2, but generic cost is 1
         let mut alloc = HashMap::new();
         alloc.insert(ManaType::Red, 1);
@@ -999,7 +1033,7 @@ mod tests {
         pool.add(ManaType::Green, 1); // need 1G specific, 0 left for generic
         pool.add(ManaType::Red, 1);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         // Try to allocate Green for generic — but only 1G exists and it's needed for specific
         let mut alloc = HashMap::new();
         alloc.insert(ManaType::Green, 1);
@@ -1011,7 +1045,7 @@ mod tests {
         let mut pool = ManaPool::new();
         pool.add(ManaType::Red, 1);
 
-        let bolt = ManaCost::single(ManaType::Red, 1, 0);
+        let bolt = ManaCost::build(&[ManaType::Red], 0);
         assert!(pool.pay_specific_only(&bolt).is_ok());
         assert_eq!(pool.amount(ManaType::Red), 0);
     }
@@ -1021,7 +1055,7 @@ mod tests {
         let mut pool = ManaPool::new();
         pool.add(ManaType::Green, 2);
 
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         assert!(pool.pay_specific_only(&bears).is_err());
     }
 
@@ -1163,7 +1197,7 @@ mod tests {
         let mut pool = ManaPool::new();
         // Only 1 unrestricted green — can't pay {1}{G} alone
         pool.add(ManaType::Green, 1);
-        let bears = ManaCost::single(ManaType::Green, 1, 1);
+        let bears = ManaCost::build(&[ManaType::Green], 1);
         assert!(!pool.can_pay(&bears)); // old can_pay doesn't see special
 
         // Add creature-only green → now {1}{G} creature spell is payable
@@ -1179,7 +1213,7 @@ mod tests {
         pool.add_special(creature_only_green_atom());
 
         // {1}{G} instant: creature-only green can't be used
-        let cost = ManaCost::single(ManaType::Green, 1, 1);
+        let cost = ManaCost::build(&[ManaType::Green], 1);
         let ctx = instant_spend_ctx();
         assert!(!pool.can_pay_with_context(&cost, &ctx));
     }

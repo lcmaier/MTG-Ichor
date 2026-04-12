@@ -22,7 +22,7 @@ pub fn grizzly_bears() -> Arc<CardData> {
     CardDataBuilder::new("Grizzly Bears")
         .card_type(CardType::Creature)
         .color(Color::Green)
-        .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 2)
         .build()
 }
@@ -34,7 +34,7 @@ pub fn hill_giant() -> Arc<CardData> {
     CardDataBuilder::new("Hill Giant")
         .card_type(CardType::Creature)
         .color(Color::Red)
-        .mana_cost(ManaCost::single(ManaType::Red, 1, 3))
+        .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .power_toughness(3, 3)
         .build()
 }
@@ -46,7 +46,7 @@ pub fn savannah_lions() -> Arc<CardData> {
     CardDataBuilder::new("Savannah Lions")
         .card_type(CardType::Creature)
         .color(Color::White)
-        .mana_cost(ManaCost::single(ManaType::White, 1, 0))
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .power_toughness(2, 1)
         .build()
 }
@@ -58,7 +58,7 @@ pub fn earth_elemental() -> Arc<CardData> {
     CardDataBuilder::new("Earth Elemental")
         .card_type(CardType::Creature)
         .color(Color::Red)
-        .mana_cost(ManaCost::single(ManaType::Red, 2, 3))
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 3))
         .power_toughness(4, 5)
         .build()
 }

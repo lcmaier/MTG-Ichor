@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn test_build_creature() {
         let bears = CardDataBuilder::new("Grizzly Bears")
-            .mana_cost(ManaCost::single(ManaType::Green, 1, 1))
+            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .color(Color::Green)
             .card_type(CardType::Creature)
             .subtype(Subtype::Creature(crate::types::card_types::CreatureType::Bear))
