@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{get_effective_name, is_creature, get_effective_toughness};
 use crate::state::game_state::GameState;
-use crate::types::card_types::{CardType, Supertype};
+use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
 use crate::types::zones::Zone;
@@ -160,6 +160,102 @@ impl GameState {
 
         // 704.5k — World rule
         // (future SBAs added here as needed)
+
+        // 704.5m — Aura not attached to anything → owner's graveyard
+        // 704.5n — Aura attached to an illegal object → owner's graveyard
+        //
+        // Collect aura IDs in a single pass to avoid borrow-checker issues:
+        // we need &self.objects for subtype checks but &mut self for move_object.
+        let auras_to_graveyard: Vec<ObjectId> = self.battlefield.iter()
+            .filter_map(|(&id, entry)| {
+                let obj = self.objects.get(&id)?;
+                if !obj.card_data.subtypes.contains(&Subtype::Enchantment(EnchantmentType::Aura)) {
+                    return None;
+                }
+                match entry.attached_to {
+                    // 704.5m: Aura not attached to anything
+                    None => Some(id),
+                    // 704.5n: host no longer on the battlefield
+                    // TODO: check enchant restriction once Aura targeting model is implemented (T15b).
+                    Some(host_id) if !self.battlefield.contains_key(&host_id) => Some(id),
+                    _ => None,
+                }
+            })
+            .collect();
+
+        for id in auras_to_graveyard {
+            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
+            self.move_object(id, Zone::Graveyard)?;
+            self.events.emit(GameEvent::AuraDied { object_id: id, owner });
+            self.events.emit(GameEvent::StateBasedActionPerformed);
+            any_performed = true;
+        }
+
+        // 704.5p — Equipment/Fortification attached to non-creature → unattach
+        // Equipment stays on the battlefield; only the attachment is broken.
+        let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield.iter()
+            .filter_map(|(&id, entry)| {
+                let obj = self.objects.get(&id)?;
+                let has_equip = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Equipment));
+                let has_fort = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Fortification));
+                if !has_equip && !has_fort { return None; }
+                let host_id = entry.attached_to?;
+                if !is_creature(self, host_id) {
+                    Some((id, host_id))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for (equip_id, host_id) in equip_bad_host {
+            if let Some(entry) = self.battlefield.get_mut(&equip_id) {
+                entry.detach();
+            }
+            if let Some(host) = self.battlefield.get_mut(&host_id) {
+                host.attached_by.retain(|&aid| aid != equip_id);
+            }
+            self.events.emit(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
+            self.events.emit(GameEvent::StateBasedActionPerformed);
+            any_performed = true;
+        }
+
+        // 704.5q (attachment catch-all) — If a permanent that's neither an Aura,
+        // Equipment, nor Fortification is attached to another permanent, it becomes
+        // unattached. This catches illegal attachment state that may arise from
+        // type-changing effects.
+        let illegal_attachments: Vec<(ObjectId, ObjectId)> = self.battlefield.iter()
+            .filter_map(|(&id, entry)| {
+                let obj = self.objects.get(&id)?;
+                let is_aura = obj.card_data.subtypes.contains(&Subtype::Enchantment(EnchantmentType::Aura));
+                let is_equip = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Equipment));
+                let is_fort = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Fortification));
+                if is_aura || is_equip || is_fort {
+                    return None;
+                }
+                let host_id = entry.attached_to?;
+                Some((id, host_id))
+            })
+            .collect();
+
+        for (att_id, host_id) in illegal_attachments {
+            if let Some(entry) = self.battlefield.get_mut(&att_id) {
+                entry.detach();
+            }
+            if let Some(host) = self.battlefield.get_mut(&host_id) {
+                host.attached_by.retain(|&aid| aid != att_id);
+            }
+            self.events.emit(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
+            self.events.emit(GameEvent::StateBasedActionPerformed);
+            any_performed = true;
+        }
+
+        // TODO: 704.5p — An Aura that is also a creature can't enchant anything.
+        // If this occurs, the Aura becomes unattached and remains on the battlefield as a creature. 
+        // Relevant when L4 type-changing effects (e.g., a hypothetical
+        // non-Aura-excluding Opalescence variant) add Creature to an Aura. Bestow
+        // (702.103) avoids this by being only an aura if cast for a Bestow cost, switching over
+        // to creature if it becomes unattached for any reason. Implement when L4 type-changing + Aura cards coexist.
 
         // 704.5q — +1/+1 and -1/-1 counter annihilation
         // If a permanent has both +1/+1 and -1/-1 counters, remove pairs
@@ -646,5 +742,237 @@ mod tests {
         assert!(performed);
         assert!(!game.battlefield.contains_key(&pw_id));
         assert_eq!(game.get_object(pw_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    // -----------------------------------------------------------------------
+    // T15: Aura/Equipment legality SBAs (704.5m, 704.5n, 704.5p)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_sba_unattached_aura_dies() {
+        // 704.5m — An Aura on the battlefield not attached to anything goes to graveyard.
+        let mut game = GameState::new(2, 20);
+
+        let aura_data = CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+            .build();
+        let obj = GameObject::new(aura_data, 0, Zone::Battlefield);
+        let aura_id = obj.id;
+        game.add_object(obj);
+        // Place on battlefield with no attached_to (simulates losing its host)
+        game.place_on_battlefield(aura_id, 0);
+        assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+        assert!(!game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
+
+        // Verify AuraDied event was emitted
+        let has_event = game.events.events().iter().any(|e| {
+            matches!(e, crate::events::event::GameEvent::AuraDied { object_id, .. } if *object_id == aura_id)
+        });
+        assert!(has_event);
+    }
+
+    #[test]
+    fn test_sba_aura_host_left_battlefield() {
+        // 704.5n — Aura attached to an object no longer on the battlefield goes to graveyard.
+        let mut game = GameState::new(2, 20);
+
+        // Create a host creature
+        let host_data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build();
+        let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
+        let host_id = host_obj.id;
+        game.add_object(host_obj);
+        game.place_on_battlefield(host_id, 0);
+
+        // Create an aura attached to the host
+        let aura_data = CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+            .build();
+        let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
+        let aura_id = aura_obj.id;
+        game.add_object(aura_obj);
+        game.place_on_battlefield(aura_id, 0);
+
+        // Wire up attachment
+        game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
+        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
+
+        // Verify setup
+        assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, Some(host_id));
+
+        // No SBA triggered yet — aura is legally attached
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(!performed);
+
+        // Now remove the host (simulating destruction)
+        game.move_object(host_id, Zone::Graveyard).unwrap();
+        assert!(!game.battlefield.contains_key(&host_id));
+
+        // cleanup_zone_state should have cleared the aura's attached_to
+        // since the host left. But 704.5m catches unattached auras anyway.
+        // Either way, the SBA should put the aura in the graveyard.
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+        assert!(!game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    #[test]
+    fn test_sba_equipment_on_noncreature_unattaches() {
+        // 704.5p — Equipment attached to a non-creature unattaches but stays on battlefield.
+        let mut game = GameState::new(2, 20);
+
+        // Create a non-creature permanent (a land)
+        let land_data = CardDataBuilder::new("Forest")
+            .card_type(CardType::Land)
+            .build();
+        let land_obj = GameObject::new(land_data, 0, Zone::Battlefield);
+        let land_id = land_obj.id;
+        game.add_object(land_obj);
+        game.place_on_battlefield(land_id, 0);
+
+        // Create an equipment
+        let equip_data = CardDataBuilder::new("Bonesplitter")
+            .card_type(CardType::Artifact)
+            .subtype(Subtype::Artifact(ArtifactType::Equipment))
+            .build();
+        let equip_obj = GameObject::new(equip_data, 0, Zone::Battlefield);
+        let equip_id = equip_obj.id;
+        game.add_object(equip_obj);
+        game.place_on_battlefield(equip_id, 0);
+
+        // Illegally attach equipment to the land
+        game.battlefield.get_mut(&equip_id).unwrap().attach_to(land_id);
+        game.battlefield.get_mut(&land_id).unwrap().attached_by.push(equip_id);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+
+        // Equipment should be unattached but still on the battlefield
+        assert!(game.battlefield.contains_key(&equip_id));
+        assert_eq!(game.battlefield.get(&equip_id).unwrap().attached_to, None);
+
+        // Land should no longer have equipment in attached_by
+        assert!(game.battlefield.get(&land_id).unwrap().attached_by.is_empty());
+
+        // Verify EquipmentDetached event
+        let has_event = game.events.events().iter().any(|e| {
+            matches!(e, crate::events::event::GameEvent::EquipmentDetached { equipment_id, former_host }
+                if *equipment_id == equip_id && *former_host == land_id)
+        });
+        assert!(has_event);
+    }
+
+    #[test]
+    fn test_sba_equipment_on_creature_stays() {
+        // Equipment legally attached to a creature — no SBA.
+        let mut game = GameState::new(2, 20);
+
+        let creature_data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build();
+        let creature_obj = GameObject::new(creature_data, 0, Zone::Battlefield);
+        let creature_id = creature_obj.id;
+        game.add_object(creature_obj);
+        game.place_on_battlefield(creature_id, 0);
+
+        let equip_data = CardDataBuilder::new("Bonesplitter")
+            .card_type(CardType::Artifact)
+            .subtype(Subtype::Artifact(ArtifactType::Equipment))
+            .build();
+        let equip_obj = GameObject::new(equip_data, 0, Zone::Battlefield);
+        let equip_id = equip_obj.id;
+        game.add_object(equip_obj);
+        game.place_on_battlefield(equip_id, 0);
+
+        // Legally attach
+        game.battlefield.get_mut(&equip_id).unwrap().attach_to(creature_id);
+        game.battlefield.get_mut(&creature_id).unwrap().attached_by.push(equip_id);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(!performed);
+        assert!(game.battlefield.contains_key(&equip_id));
+        assert_eq!(game.battlefield.get(&equip_id).unwrap().attached_to, Some(creature_id));
+    }
+
+    #[test]
+    fn test_sba_illegal_attachment_catchall() {
+        // 704.5q catch-all — A permanent that is not an Aura, Equipment, or
+        // Fortification but is somehow attached to another permanent gets unattached.
+        let mut game = GameState::new(2, 20);
+
+        let host_data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build();
+        let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
+        let host_id = host_obj.id;
+        game.add_object(host_obj);
+        game.place_on_battlefield(host_id, 0);
+
+        // A plain creature illegally attached to the host
+        let att_data = CardDataBuilder::new("Hill Giant")
+            .card_type(CardType::Creature)
+            .power_toughness(3, 3)
+            .build();
+        let att_obj = GameObject::new(att_data, 0, Zone::Battlefield);
+        let att_id = att_obj.id;
+        game.add_object(att_obj);
+        game.place_on_battlefield(att_id, 0);
+
+        // Wire up illegal attachment
+        game.battlefield.get_mut(&att_id).unwrap().attach_to(host_id);
+        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(att_id);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+
+        // Attachment should be broken, both permanents stay on battlefield
+        assert!(game.battlefield.contains_key(&att_id));
+        assert!(game.battlefield.contains_key(&host_id));
+        assert_eq!(game.battlefield.get(&att_id).unwrap().attached_to, None);
+        assert!(game.battlefield.get(&host_id).unwrap().attached_by.is_empty());
+    }
+
+    #[test]
+    fn test_sba_aura_attached_stays() {
+        // An Aura properly attached to a permanent — no SBA.
+        let mut game = GameState::new(2, 20);
+
+        let host_data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build();
+        let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
+        let host_id = host_obj.id;
+        game.add_object(host_obj);
+        game.place_on_battlefield(host_id, 0);
+
+        let aura_data = CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+            .build();
+        let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
+        let aura_id = aura_obj.id;
+        game.add_object(aura_obj);
+        game.place_on_battlefield(aura_id, 0);
+
+        // Attach
+        game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
+        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(!performed);
+        assert!(game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, Some(host_id));
     }
 }
