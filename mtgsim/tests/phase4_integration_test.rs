@@ -4,6 +4,8 @@
 //! flying evasion, reach, haste, vigilance, first/double strike,
 //! trample, lifelink, deathtouch, and defender.
 
+mod common;
+
 use std::sync::Arc;
 
 use mtgsim::cards::creatures;
@@ -32,14 +34,7 @@ fn place_creature(
     owner: PlayerId,
     card_factory: fn() -> Arc<CardData>,
 ) -> ObjectId {
-    let data = card_factory();
-    let obj = GameObject::new(data, owner, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
-    let ts = game.allocate_timestamp();
-    let entry = BattlefieldEntity::new(id, owner, ts, 0);
-    game.battlefield.insert(id, entry);
-    id
+    common::put_on_battlefield(game, card_factory(), owner)
 }
 
 fn place_creature_sick(

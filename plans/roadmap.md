@@ -202,6 +202,8 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Damage prevention ("prevent the next N damage", Fog)
 - "If you would draw a card, instead..." (replacement draw effects)
 
+**`Effect::Simultaneous` vs `Effect::Sequence` distinction:** Today, `Effect::Sequence` is used for both "X and Y" (simultaneous instructions, e.g. Night's Whisper: "You draw two cards and lose 2 life") and "X. Then Y" (sequential instructions, e.g. "Draw two cards. Then each player loses two life"). The engine treats both identically — correct for now, since SBAs only fire after full spell resolution regardless. When replacement effects arrive, the distinction becomes observable: a replacement on "whenever you would draw" applies differently to a simultaneous event (whole event is one unit) vs sequential instructions (each instruction is a separate event). At that point, add `Effect::Simultaneous(Vec<Effect>)` and migrate cards accordingly. Test cards in test/definition files will likely be rewritten into proper set folders anyway, so the refactor cost is bounded.
+
 **Estimated ticket count:** ~30–35
 
 **Cards unblocked:**
@@ -306,6 +308,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Flashback/Kicker cards
 - Search effects (fetch lands, tutors)
 - Mill cards, discard effects
+- Ritual spells (Dark Ritual, Pyretic Ritual) — `ProduceMana` already works on spell abilities, just needs a card definition
 - Leyline cycle (pregame actions via D27)
 
 **Risk/complexity:** Medium individually (most primitives are straightforward zone movements or counter manipulation), but **volume is high**. The risk is in integration — each new primitive must interact correctly with replacement effects, triggered abilities, and the layer system.

@@ -1,10 +1,9 @@
 use std::collections::HashSet;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Effect, ManaOutput, Primitive, TargetSpec};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput, Primitive, TargetSpec};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
@@ -201,15 +200,15 @@ impl CardDataBuilder {
     /// Shorthand: add a mana ability that taps to produce one mana of the given type.
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
-        let mut mana_produced = HashMap::new();
-        mana_produced.insert(mana_type, 1);
-
         self.data.abilities.push(AbilityDef {
             id: crate::types::ids::new_ability_id(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],
             effect: Effect::Atom(
-                Primitive::ProduceMana(ManaOutput { mana: mana_produced }),
+                Primitive::ProduceMana(ManaOutput {
+                    mana: vec![(mana_type, AmountExpr::Fixed(1))],
+                    special: vec![],
+                }),
                 TargetSpec::None,
             ),
         });

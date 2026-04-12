@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use super::colors::Color;
 use super::ids::PlayerId;
 use super::keywords::KeywordAbility;
-use super::mana::ManaType;
+use super::mana::{ManaAtom, ManaType};
 
 // ---------------------------------------------------------------------------
 // Supporting types
@@ -57,6 +55,7 @@ pub enum PermanentFilter {
     ByColor(Color),
     ByController(PlayerRef),
     And(Box<PermanentFilter>, Box<PermanentFilter>),
+    Not(Box<PermanentFilter>),
 }
 
 /// Filter for matching cards (extensible)
@@ -135,10 +134,22 @@ pub enum TargetCount {
     UpTo(u32),
 }
 
-/// Mana output from a mana ability
+/// Mana output from a mana ability or mana-producing spell.
+///
+/// Dual-track, mirroring `ManaPool`:
+/// - `mana`: fast-path unrestricted mana (added via `pool.add()`)
+/// - `special`: sidecar atoms with restrictions, grants, or persistence
+///   (added via `pool.add_special()`)
+///
+/// Amounts use `AmountExpr` so they can be evaluated at resolution time
+/// (e.g. "Add {G} equal to target creature's power" → `TargetPower`).
+/// Most cards use `AmountExpr::Fixed`.
+///
+/// Most cards only use `mana`. Cards like Cavern of Souls use `special`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ManaOutput {
-    pub mana: HashMap<ManaType, u64>,
+    pub mana: Vec<(ManaType, AmountExpr)>,
+    pub special: Vec<ManaAtom>,
 }
 
 /// Zone filter for Search effects

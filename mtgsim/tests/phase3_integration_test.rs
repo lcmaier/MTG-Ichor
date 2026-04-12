@@ -4,6 +4,8 @@
 //! declare blockers, combat damage, SBA lethal damage, and game-over via
 //! combat damage.
 
+mod common;
+
 use std::sync::Arc;
 
 use mtgsim::cards::alpha;
@@ -12,7 +14,6 @@ use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::objects::object::GameObject;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game::{Decklist, Game, GameResult};
 use mtgsim::state::game_config::GameConfig;
@@ -24,7 +25,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::{PassiveDecisionProvider, PriorityAction, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Phase-specific helpers (operate on Game wrapper, delegate to common)
 // ---------------------------------------------------------------------------
 
 fn make_test_deck(creatures: Vec<fn() -> Arc<CardData>>, lands: usize) -> Decklist {
@@ -58,23 +59,12 @@ fn place_creature_on_battlefield(
     owner: PlayerId,
     card_factory: fn() -> Arc<CardData>,
 ) -> ObjectId {
-    let data = card_factory();
-    let obj = mtgsim::objects::object::GameObject::new(data, owner, Zone::Battlefield);
-    let id = obj.id;
-    game.state.add_object(obj);
-    let ts = game.state.allocate_timestamp();
-    let entry = mtgsim::state::battlefield::BattlefieldEntity::new(id, owner, ts, 0);
-    game.state.battlefield.insert(id, entry);
-    id
+    common::put_on_battlefield(&mut game.state, card_factory(), owner)
 }
 
 /// Put a card into a player's hand (for casting spells like Lightning Bolt).
 fn put_in_hand(game: &mut Game, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
-    let obj = GameObject::new(card_data, player, Zone::Hand);
-    let id = obj.id;
-    game.state.add_object(obj);
-    game.state.players[player].hand.push(id);
-    id
+    common::put_in_hand(&mut game.state, card_data, player)
 }
 
 // ---------------------------------------------------------------------------

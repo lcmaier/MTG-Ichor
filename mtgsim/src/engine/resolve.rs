@@ -142,9 +142,16 @@ impl GameState {
             }
 
             Primitive::ProduceMana(output) => {
+                // Evaluate dynamic amounts before taking &mut player
+                let resolved: Vec<_> = output.mana.iter()
+                    .map(|(mt, expr)| Ok((*mt, self.evaluate_amount(expr, ctx)?)))
+                    .collect::<Result<_, String>>()?;
                 let player = self.get_player_mut(ctx.controller)?;
-                for (mana_type, amount) in &output.mana {
-                    player.mana_pool.add(*mana_type, *amount);
+                for (mana_type, amount) in resolved {
+                    player.mana_pool.add(mana_type, amount);
+                }
+                for atom in &output.special {
+                    player.mana_pool.add_special(atom.clone());
                 }
                 Ok(())
             }
