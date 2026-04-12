@@ -480,6 +480,24 @@ impl DecisionProvider for CliDecisionProvider {
         default_trample_assignment(game, blockers, power, has_deathtouch)
     }
 
+    fn choose_legend_to_keep(
+        &self,
+        game: &GameState,
+        _player_id: PlayerId,
+        legendaries: &[ObjectId],
+    ) -> ObjectId {
+        println!("\n--- Legend Rule ---");
+        println!("You control multiple legendary permanents with the same name.");
+        println!("Choose one to keep (the rest go to the graveyard):");
+        for (i, &id) in legendaries.iter().enumerate() {
+            println!("  {}: {}", i, display::format_permanent(game, id));
+        }
+        match read_usize("Keep which?", legendaries.len()) {
+            Some(idx) => legendaries[idx],
+            None => legendaries[0],
+        }
+    }
+
     fn choose_generic_mana_allocation(
         &self,
         game: &GameState,

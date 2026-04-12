@@ -29,7 +29,7 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<PriorityResult, String> {
         // --- Rule 117.5: SBAs before granting priority ---
-        self.perform_sba_and_triggers()?;
+        self.perform_sba_and_triggers(decisions)?;
 
         let num_players = self.num_players();
         let mut consecutive_passes = 0;
@@ -51,7 +51,7 @@ impl GameState {
                             self.resolve_top_of_stack()?;
                             // After resolution, active player gets priority (117.3b)
                             // Run SBAs again before granting (117.5)
-                            self.perform_sba_and_triggers()?;
+                            self.perform_sba_and_triggers(decisions)?;
                             return Ok(PriorityResult::StackResolved);
                         }
                     }
@@ -63,7 +63,7 @@ impl GameState {
                     self.cast_spell(current_priority, card_id, decisions)?;
                     // Player who acted gets priority again (117.3c)
                     // Run SBAs before granting priority again
-                    self.perform_sba_and_triggers()?;
+                    self.perform_sba_and_triggers(decisions)?;
                     return Ok(PriorityResult::ActionTaken);
                 }
 
@@ -84,7 +84,7 @@ impl GameState {
                         .position(|a| a.id == ability_id)
                         .unwrap(); // safe: we just found it above
                     self.activate_ability(current_priority, permanent_id, ability_index, decisions)?;
-                    self.perform_sba_and_triggers()?;
+                    self.perform_sba_and_triggers(decisions)?;
                     return Ok(PriorityResult::ActionTaken);
                 }
 
@@ -123,10 +123,10 @@ impl GameState {
     /// 2. Put triggered abilities on the stack (603.3).
     /// 3. If any triggers were placed, go back to step 1.
     /// 4. Otherwise, the player who would receive priority does so.
-    fn perform_sba_and_triggers(&mut self) -> Result<(), String> {
+    fn perform_sba_and_triggers(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
         loop {
             // Step 1: Exhaust all SBAs (rule 704.3)
-            self.check_state_based_actions_loop()?;
+            self.check_state_based_actions_loop(decisions)?;
 
             // Step 2: Place triggered abilities on the stack (rule 603.3)
             let triggers_placed = false; // Phase 7 stub

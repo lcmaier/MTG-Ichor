@@ -130,7 +130,7 @@ fn test_sba_flags_player_loss_zero_life() {
     let mut game = GameState::new(2, 20);
     game.players[0].life_total = 0;
 
-    let performed = game.check_state_based_actions().unwrap();
+    let performed = game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
     assert!(performed);
     assert!(game.player_lost[0]);
     assert!(!game.player_lost[1]);
@@ -145,7 +145,7 @@ fn test_sba_flags_player_loss_empty_library() {
     let mut game = GameState::new(2, 20);
     game.players[1].has_drawn_from_empty_library = true;
 
-    let performed = game.check_state_based_actions().unwrap();
+    let performed = game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
     assert!(performed);
     assert!(!game.player_lost[0]);
     assert!(game.player_lost[1]);

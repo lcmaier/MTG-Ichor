@@ -295,6 +295,16 @@ impl DecisionProvider for RandomDecisionProvider {
         default_trample_assignment(game, blockers, power, has_deathtouch)
     }
 
+    fn choose_legend_to_keep(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        legendaries: &[ObjectId],
+    ) -> ObjectId {
+        // Keep the first one (arbitrary — random bot doesn't care)
+        legendaries[0]
+    }
+
     fn choose_generic_mana_allocation(
         &self,
         game: &GameState,

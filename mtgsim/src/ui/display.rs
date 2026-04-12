@@ -454,6 +454,12 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         CreatureDied { creature_id, owner } => {
             format!("CreatureDied: {} [P{}]", obj_name(game, *creature_id), owner)
         }
+        PlaneswalkerDied { object_id, owner } => {
+            format!("PlaneswalkerDied: {} [P{}]", obj_name(game, *object_id), owner)
+        }
+        LegendRuleSacrificed { object_id, owner } => {
+            format!("LegendRuleSacrificed: {} [P{}]", obj_name(game, *object_id), owner)
+        }
         PlayerLost { player_id, reason } => {
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }
