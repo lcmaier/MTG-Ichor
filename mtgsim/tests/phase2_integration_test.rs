@@ -3,68 +3,18 @@
 //! Tests here exercise the full casting → stack → resolution pipeline,
 //! including priority passing, fizzling, and all five Phase 2 cards.
 
-use std::sync::Arc;
+mod common;
 
 use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::engine::resolve::ResolvedTarget;
-use mtgsim::objects::card_data::CardData;
-use mtgsim::objects::object::GameObject;
-use mtgsim::state::battlefield::BattlefieldEntity;
-use mtgsim::state::game_state::{GameState, PhaseType};
-use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn setup_two_player_game() -> GameState {
-    let mut game = GameState::new(2, 20);
-    game.phase = mtgsim::state::game_state::Phase::new(PhaseType::Precombat);
-    game.active_player = 0;
-    game
-}
-
-/// Put a card into a player's hand and register it in the game.
-fn put_in_hand(game: &mut GameState, card_data: Arc<CardData>, player: usize) -> ObjectId {
-    let obj = GameObject::new(card_data, player, Zone::Hand);
-    let id = obj.id;
-    game.add_object(obj);
-    game.players[player].hand.push(id);
-    id
-}
-
-/// Put a land onto the battlefield for a player.
-fn put_land_on_battlefield(
-    game: &mut GameState,
-    land_fn: fn() -> Arc<CardData>,
-    player: usize,
-) -> ObjectId {
-    let card_data = land_fn();
-    let obj = GameObject::new(card_data, player, Zone::Battlefield);
-    let id = obj.id;
-    let ts = game.allocate_timestamp();
-    game.add_object(obj);
-    let entry = BattlefieldEntity::new(id, player, ts, 0);
-    game.battlefield.insert(id, entry);
-    id
-}
-
-/// Give a player some cards in their library (for draw effects).
-fn fill_library(game: &mut GameState, player: usize, count: usize) {
-    for _ in 0..count {
-        let card = mtgsim::objects::card_data::CardDataBuilder::new("Dummy Card").build();
-        let obj = GameObject::new(card, player, Zone::Library);
-        let id = obj.id;
-        game.add_object(obj);
-        game.players[player].library.push(id);
-    }
-}
+use common::{setup_two_player_game, put_in_hand, put_land_on_battlefield, fill_library};
 
 // ---------------------------------------------------------------------------
 // Test 1: Cast and resolve Lightning Bolt targeting a player

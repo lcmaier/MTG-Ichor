@@ -32,24 +32,34 @@ impl GameState {
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
 
-        // Find the spell ability on the card
-        let spell_ability = card_data.abilities.iter()
+        // Find the spell ability on the card.
+        // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
+        // may not have a spell ability — they resolve by entering the
+        // battlefield. Use an empty Sequence as a no-op effect.
+        let (effect, target_spec) = if let Some(spell_ability) = card_data.abilities.iter()
             .find(|a| a.ability_type == AbilityType::Spell)
-            .ok_or_else(|| format!("Card '{}' has no spell ability", card_data.name))?;
-        let effect = spell_ability.effect.clone();
-        let target_spec = match &effect {
-            crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
-            crate::types::effects::Effect::Sequence(effects) => {
-                // For sequence effects, use the target spec from the first atom
-                effects.iter().find_map(|e| {
-                    if let crate::types::effects::Effect::Atom(_, ts) = e {
-                        Some(ts.clone())
-                    } else {
-                        None
-                    }
-                }).unwrap_or(TargetSpec::None)
-            }
-            _ => TargetSpec::None,
+        {
+            let effect = spell_ability.effect.clone();
+            let target_spec = match &effect {
+                crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
+                crate::types::effects::Effect::Sequence(effects) => {
+                    // For sequence effects, use the target spec from the first atom
+                    effects.iter().find_map(|e| {
+                        if let crate::types::effects::Effect::Atom(_, ts) = e {
+                            Some(ts.clone())
+                        } else {
+                            None
+                        }
+                    }).unwrap_or(TargetSpec::None)
+                }
+                _ => TargetSpec::None,
+            };
+            (effect, target_spec)
+        } else if card_data.types.iter().any(|t| t.is_permanent()) {
+            // Permanent spell with no spell ability — resolves by ETB alone
+            (crate::types::effects::Effect::Sequence(Vec::new()), TargetSpec::None)
+        } else {
+            return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
 
         // --- 2. Move to stack (rule 601.2a) ---

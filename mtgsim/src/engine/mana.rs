@@ -58,9 +58,15 @@ impl GameState {
 
     /// Resolve the effect of a mana ability.
     ///
-    /// Currently handles ProduceMana directly. As the effect system grows,
-    /// complex mana abilities (Metalworker, Selvala) will route through the
-    /// general effect resolution pipeline instead.
+    /// Mana abilities resolve immediately without the stack (rule 605.3b),
+    /// so game state cannot change between activation and resolution.
+    /// Dynamic `AmountExpr` variants (e.g. Selvala's "X = greatest power
+    /// among creatures you control") are safe to evaluate here — no
+    /// targeting context is needed, only board-state queries. Currently
+    /// only `Fixed` is wired up; when Selvala-style abilities arrive,
+    /// add a local evaluate path for non-targeting `AmountExpr` variants
+    /// (CountOf, etc.) and error only on target-dependent ones
+    /// (TargetPower, TargetToughness).
     fn resolve_mana_effect(
         &mut self,
         effect: &Effect,
@@ -69,8 +75,17 @@ impl GameState {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
                 let player = self.get_player_mut(player_id)?;
-                for (mana_type, amount) in &output.mana {
-                    player.mana_pool.add(*mana_type, *amount);
+                for (mana_type, amount_expr) in &output.mana {
+                    let amount = match amount_expr {
+                        crate::types::effects::AmountExpr::Fixed(n) => *n,
+                        other => return Err(format!(
+                            "Mana abilities only support Fixed amounts, got {:?}", other
+                        )),
+                    };
+                    player.mana_pool.add(*mana_type, amount);
+                }
+                for atom in &output.special {
+                    player.mana_pool.add_special(atom.clone());
                 }
                 Ok(())
             }

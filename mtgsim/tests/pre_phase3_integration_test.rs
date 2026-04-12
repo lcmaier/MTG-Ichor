@@ -1,6 +1,8 @@
 //! Pre-Phase 3 Integration Tests: Game lifecycle, loss handling, discard,
 //! draw skip, cost validation, and rollback.
 
+mod common;
+
 use std::sync::Arc;
 
 use mtgsim::cards::alpha;
@@ -8,19 +10,19 @@ use mtgsim::cards::basic_lands;
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::battlefield::BattlefieldEntity;
-use mtgsim::state::game::{ Decklist, Game, GameResult};
+use mtgsim::state::game::{Decklist, Game, GameResult};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType};
-use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::{
     PassiveDecisionProvider, PriorityAction, ScriptedDecisionProvider,
 };
 
+use common::{put_in_hand, put_land_on_battlefield};
+
 // ---------------------------------------------------------------------------
-// Helpers
+// Phase-specific helpers
 // ---------------------------------------------------------------------------
 
 fn make_forest() -> Arc<CardData> {
@@ -29,29 +31,6 @@ fn make_forest() -> Arc<CardData> {
 
 fn make_test_decklist(count: usize) -> Decklist {
     (0..count).map(|_| make_forest()).collect()
-}
-
-fn put_in_hand(game: &mut GameState, card_data: Arc<CardData>, player: usize) -> ObjectId {
-    let obj = GameObject::new(card_data, player, Zone::Hand);
-    let id = obj.id;
-    game.add_object(obj);
-    game.players[player].hand.push(id);
-    id
-}
-
-fn put_land_on_battlefield(
-    game: &mut GameState,
-    land_fn: fn() -> Arc<CardData>,
-    player: usize,
-) -> ObjectId {
-    let card_data = land_fn();
-    let obj = GameObject::new(card_data, player, Zone::Battlefield);
-    let id = obj.id;
-    let ts = game.allocate_timestamp();
-    game.add_object(obj);
-    let entry = BattlefieldEntity::new(id, player, ts, 0);
-    game.battlefield.insert(id, entry);
-    id
 }
 
 // ---------------------------------------------------------------------------

@@ -132,13 +132,15 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
                 _,
             ) = &ability.effect
             {
-                for (&mana_type, &amount) in &output.mana {
-                    if amount > 0 {
-                        sources.push(ManaSource {
-                            permanent_id: *id,
-                            ability_id: ability.id,
-                            produces: mana_type,
-                        });
+                for (mana_type, amount_expr) in &output.mana {
+                    if let crate::types::effects::AmountExpr::Fixed(amount) = amount_expr {
+                        if *amount > 0 {
+                            sources.push(ManaSource {
+                                permanent_id: *id,
+                                ability_id: ability.id,
+                                produces: *mana_type,
+                            });
+                        }
                     }
                 }
             }
@@ -558,12 +560,9 @@ mod tests {
     fn test_available_mana_sources_sacrifice_ability_on_tapped_creature() {
         // A tapped creature with "Sacrifice: Add {U}{R}" should still be a valid source
         use crate::objects::card_data::{AbilityType, Cost};
-        use crate::types::effects::{ManaOutput, Primitive, Effect, TargetSpec};
+        use crate::types::effects::{AmountExpr, ManaOutput, Primitive, Effect, TargetSpec};
 
         let mut game = GameState::new(2, 20);
-        let mut mana_produced = std::collections::HashMap::new();
-        mana_produced.insert(ManaType::Blue, 1u64);
-        mana_produced.insert(ManaType::Red, 1u64);
 
         let card = CardDataBuilder::new("Morgue Toad")
             .card_type(CardType::Creature)
@@ -573,7 +572,13 @@ mod tests {
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::SacrificeSelf],
                 effect: Effect::Atom(
-                    Primitive::ProduceMana(ManaOutput { mana: mana_produced }),
+                    Primitive::ProduceMana(ManaOutput {
+                        mana: vec![
+                            (ManaType::Blue, AmountExpr::Fixed(1)),
+                            (ManaType::Red, AmountExpr::Fixed(1)),
+                        ],
+                        special: vec![],
+                    }),
                     TargetSpec::None,
                 ),
             })

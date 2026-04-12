@@ -15,11 +15,11 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 pub enum PriorityAction {
     /// Pass priority without taking an action
     Pass,
-    /// Cast a spell from hand
+    /// Cast a spell from a zone it can be cast from
     CastSpell(ObjectId),
     /// Activate an activated ability on a permanent
     ActivateAbility(ObjectId, AbilityId),
-    /// Play a land from hand
+    /// Play a land from a zone it could be played from
     PlayLand(ObjectId),
 }
 

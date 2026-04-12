@@ -230,6 +230,10 @@ impl GameState {
                 let matches_b = self.permanent_matches_filter(id, b)?;
                 Ok(matches_a && matches_b)
             }
+            PermanentFilter::Not(inner) => {
+                let matches = self.permanent_matches_filter(id, inner)?;
+                Ok(!matches)
+            }
         }
     }
 

@@ -132,8 +132,7 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
                 ) = ability.effect
                 {
                     let mana_str: Vec<String> = output.mana.iter()
-                        .filter(|(_, amt)| **amt > 0)
-                        .map(|(mt, amt)| {
+                        .filter_map(|(mt, expr)| {
                             let letter = match mt {
                                 crate::types::mana::ManaType::White => "W",
                                 crate::types::mana::ManaType::Blue => "U",
@@ -142,10 +141,15 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
                                 crate::types::mana::ManaType::Green => "G",
                                 crate::types::mana::ManaType::Colorless => "C",
                             };
-                            if *amt == 1 {
-                                format!("{{{}}}", letter)
-                            } else {
-                                format!("{}{}", amt, letter)
+                            match expr {
+                                crate::types::effects::AmountExpr::Fixed(0) => None,
+                                crate::types::effects::AmountExpr::Fixed(1) => {
+                                    Some(format!("{{{}}}", letter))
+                                }
+                                crate::types::effects::AmountExpr::Fixed(amt) => {
+                                    Some(format!("{}{}", amt, letter))
+                                }
+                                _ => Some(format!("{{?{}}}", letter)),
                             }
                         })
                         .collect();
