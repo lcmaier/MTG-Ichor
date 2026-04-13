@@ -283,26 +283,18 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.place_on_battlefield(forest_id, 0).tapped = true;
 
-        // We're at Beginning/Untap already — process it by advancing to next step
-        game.advance_turn().unwrap(); // Untap -> Upkeep (triggers untap processing for Upkeep's on_step_begin, but untap ran first)
-
-        // Actually, untap processing happens when the untap step begins.
-        // Since we started *at* untap, the on_step_begin already fired during game creation... 
-        // Let's verify by cycling to the next turn's untap step
-        // Go through the rest of the turn
+        // Advance past turn 1 (on_step_begin already fired for current untap)
+        game.advance_turn().unwrap();
         for _ in 0..12 {
             game.advance_turn().unwrap();
         }
 
-        // Now we're at turn 2, player 1's untap step
         // Advance through player 1's full turn
         for _ in 0..13 {
             game.advance_turn().unwrap();
         }
 
-        // Now at turn 3, player 0's untap step — this should untap the forest
-        // The untap step processing runs on_step_begin when we enter it
-        // We already entered it, so check:
+        // Turn 3, player 0's untap step — forest should be untapped
         let entry = game.battlefield.get(&forest_id).unwrap();
         assert!(!entry.tapped, "Forest should be untapped after untap step");
     }

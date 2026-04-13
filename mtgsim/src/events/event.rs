@@ -108,6 +108,10 @@ pub enum LossReason {
     LifeReachedZero,
     /// Attempted to draw from an empty library (rule 704.5b)
     DrawnFromEmptyLibrary,
+    /// Accumulated 10 or more poison counters (rule 704.5c)
+    PoisonCounters,
+    /// Dealt 21 or more combat damage by a single commander (rule 704.5)
+    CommanderDamage,
 }
 
 /// What damage is being dealt to

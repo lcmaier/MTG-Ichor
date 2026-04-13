@@ -436,7 +436,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T16: Remaining SBAs — poison, commander, indestructible, cleanup re-loop (DONE ✅)
+#### T16: Remaining SBAs — poison, commander, indestructible, cleanup re-loop
 - **Scope:** Small
 - **Source:** E21 + E22 + E23 + E24
 - **Depends on:** T02 (player counters), T01 (for indestructible check context)
