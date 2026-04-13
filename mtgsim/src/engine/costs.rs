@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::objects::card_data::Cost;
+use crate::types::costs::Cost;
 use crate::oracle::characteristics::{has_summoning_sickness, is_creature};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -200,7 +200,8 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::objects::card_data::{CardDataBuilder, Cost};
+    use crate::objects::card_data::CardDataBuilder;
+    use crate::types::costs::Cost;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::BattlefieldEntity;
     use crate::state::game_state::GameState;

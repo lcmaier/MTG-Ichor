@@ -344,7 +344,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-### Tier 3: State-Based Actions (T13–T16, T15b)
+### Tier 3: State-Based Actions (T13–T16, T15b) (DONE ✅)
 
 #### T13: Counter annihilation + token cease-to-exist SBAs (DONE ✅)
 - **Scope:** Small
@@ -436,7 +436,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T16: Remaining SBAs — poison, commander, indestructible, cleanup re-loop
+#### T16: Remaining SBAs — poison, commander, indestructible, cleanup re-loop (DONE ✅)
 - **Scope:** Small
 - **Source:** E21 + E22 + E23 + E24
 - **Depends on:** T02 (player counters), T01 (for indestructible check context)
@@ -462,7 +462,7 @@ L17 + L19 + L20 → L21
 
 ### Tier 4: Casting & Activation (T17–T20b, T12c)
 
-#### T17: Alternative/additional cost framework — type definitions
+#### T17: Alternative/additional cost framework — type definitions (DONE ✅)
 - **Scope:** Medium
 - **Source:** E25 (part 1 of 2)
 - **Depends on:** none

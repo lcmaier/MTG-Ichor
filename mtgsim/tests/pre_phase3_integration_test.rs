@@ -251,7 +251,7 @@ fn test_cast_spell_rollback_on_insufficient_mana() {
 
 #[test]
 fn test_can_pay_costs_validates_correctly() {
-    use mtgsim::objects::card_data::Cost;
+    use mtgsim::types::costs::Cost;
     use mtgsim::types::mana::ManaCost;
 
     let mut game = GameState::new(2, 20);

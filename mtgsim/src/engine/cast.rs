@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::events::event::GameEvent;
-use crate::objects::card_data::{AbilityType, Cost};
+use crate::objects::card_data::AbilityType;
+use crate::types::costs::Cost;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
@@ -83,6 +84,8 @@ impl GameState {
             x_value: None,
             effect,
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         };
         self.stack_entries.insert(card_id, entry);
 
@@ -206,6 +209,8 @@ impl GameState {
             x_value: None,
             effect,
             is_spell: false,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         };
         self.stack_entries.insert(ability_obj_id, stack_entry);
 

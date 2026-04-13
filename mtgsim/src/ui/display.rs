@@ -632,6 +632,8 @@ mod tests {
             x_value: None,
             effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))),
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
 
         let output = format_stack(&game);
@@ -660,6 +662,8 @@ mod tests {
             x_value: None,
             effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))),
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
 
         let recall = CardDataBuilder::new("Ancestral Recall")
@@ -677,6 +681,8 @@ mod tests {
             x_value: None,
             effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))),
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
 
         let output = format_stack(&game);

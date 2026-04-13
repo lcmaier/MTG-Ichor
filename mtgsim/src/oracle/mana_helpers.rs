@@ -355,13 +355,13 @@ fn can_afford_ability_costs(
     game: &GameState,
     player_id: PlayerId,
     source_id: ObjectId,
-    costs: &[crate::objects::card_data::Cost],
+    costs: &[crate::types::costs::Cost],
 ) -> bool {
     let pool = &game.players[player_id].mana_pool;
 
     for cost in costs {
         match cost {
-            crate::objects::card_data::Cost::Mana(mana_cost) => {
+            crate::types::costs::Cost::Mana(mana_cost) => {
                 if pool.can_pay(mana_cost) {
                     continue;
                 }
@@ -559,7 +559,8 @@ mod tests {
     #[test]
     fn test_available_mana_sources_sacrifice_ability_on_tapped_creature() {
         // A tapped creature with "Sacrifice: Add {U}{R}" should still be a valid source
-        use crate::objects::card_data::{AbilityType, Cost};
+        use crate::objects::card_data::AbilityType;
+        use crate::types::costs::Cost;
         use crate::types::effects::{AmountExpr, ManaOutput, Primitive, Effect, EffectRecipient};
 
         let mut game = GameState::new(2, 20);

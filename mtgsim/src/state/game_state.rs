@@ -5,6 +5,7 @@ use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::player::PlayerState;
+use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::Effect;
 use crate::types::ids::{ObjectId, PlayerId};
 
@@ -31,6 +32,12 @@ pub struct StackEntry {
     /// Whether this is a spell (true) or an ability (false).
     /// Spells go to graveyard after resolution; abilities cease to exist.
     pub is_spell: bool,
+    /// The alternative cost chosen for this spell, if any (rule 118.9).
+    /// At most one alternative cost may be chosen per cast.
+    pub chosen_alternative_cost: Option<AlternativeCost>,
+    /// Additional costs that were paid for this spell (rule 118.8).
+    /// Multiple additional costs can be paid (e.g. kicker + buyback).
+    pub additional_costs_paid: Vec<AdditionalCost>,
 }
 
 /// The complete state of a game of Magic.
@@ -349,5 +356,25 @@ mod tests {
         assert_eq!(next_phase(PhaseType::Combat), PhaseType::Postcombat);
         assert_eq!(next_phase(PhaseType::Postcombat), PhaseType::Ending);
         assert_eq!(next_phase(PhaseType::Ending), PhaseType::Beginning);
+    }
+
+    #[test]
+    fn test_stack_entry_default_no_alt_cost() {
+        use crate::engine::resolve::ResolvedTarget;
+        use crate::types::effects::Effect;
+
+        let entry = StackEntry {
+            object_id: crate::types::ids::new_object_id(),
+            controller: 0,
+            chosen_targets: Vec::<ResolvedTarget>::new(),
+            chosen_modes: Vec::new(),
+            x_value: None,
+            effect: Effect::Sequence(vec![]),
+            is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
+        };
+        assert!(entry.chosen_alternative_cost.is_none());
+        assert!(entry.additional_costs_paid.is_empty());
     }
 }

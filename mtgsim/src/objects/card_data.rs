@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{AmountExpr, Effect, ManaOutput, Primitive, EffectRecipient, SelectionFilter};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::{ManaCost, ManaType};
@@ -35,6 +36,12 @@ pub struct CardData {
     /// What this Aura can legally enchant (rule 303.4).
     /// None for non-Aura cards.
     pub enchant_filter: Option<SelectionFilter>,
+    /// Alternative costs this card can be cast for (rule 118.9).
+    /// A player may choose at most one when casting.
+    pub alternative_costs: Vec<AlternativeCost>,
+    /// Additional costs this card can optionally pay (rule 118.8).
+    /// Multiple may be paid in a single cast (e.g. kicker + buyback).
+    pub additional_costs: Vec<AdditionalCost>,
 }
 
 /// The type of an ability
@@ -62,35 +69,6 @@ pub struct AbilityDef {
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect: Effect,
-}
-
-/// Costs that must be paid to activate an ability or cast a spell.
-///
-/// Only `Tap`, `Mana`, `SacrificeSelf`, and `PayLife` are fully implemented.
-/// Other variants exist for forward-compatibility; `can_pay_costs` and
-/// `pay_single_cost` return `Err("not yet implemented")` for them.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Cost {
-    /// Tap the source permanent
-    Tap,
-    /// Untap the source permanent (Devoted Druid)
-    Untap,
-    /// Pay a mana cost
-    Mana(ManaCost),
-    /// Pay N life
-    PayLife(u64),
-    /// Sacrifice the source permanent
-    SacrificeSelf,
-    /// Sacrifice N permanents matching a filter ("Sacrifice a creature")
-    Sacrifice(crate::types::effects::PermanentFilter, u32),
-    /// Discard N cards matching a filter ("Discard a card")
-    Discard(crate::types::effects::CardFilter, u32),
-    /// Exile N cards from your graveyard matching a filter
-    ExileFromGraveyard(crate::types::effects::CardFilter, u32),
-    /// Remove N counters of a type from the source
-    RemoveCounters(crate::types::effects::CounterType, u32),
-    /// Add N counters of a type to the source (e.g. blight counters)
-    AddCounters(crate::types::effects::CounterType, u32),
 }
 
 // Effect and Primitive types are defined in types::effects and re-exported here
@@ -136,6 +114,8 @@ impl CardDataBuilder {
                 keywords: HashSet::new(),
                 color_indicator: None,
                 enchant_filter: None,
+                alternative_costs: Vec::new(),
+                additional_costs: Vec::new(),
             },
         }
     }
@@ -238,6 +218,16 @@ impl CardDataBuilder {
         self
     }
 
+    pub fn alternative_cost(mut self, cost: AlternativeCost) -> Self {
+        self.data.alternative_costs.push(cost);
+        self
+    }
+
+    pub fn additional_cost(mut self, cost: AdditionalCost) -> Self {
+        self.data.additional_costs.push(cost);
+        self
+    }
+
     pub fn build(self) -> Arc<CardData> {
         Arc::new(self.data)
     }
@@ -304,5 +294,42 @@ mod tests {
             .build();
         let indicator2 = card2.color_indicator.as_ref().unwrap();
         assert_eq!(indicator2.len(), 3);
+    }
+
+    #[test]
+    fn test_card_data_default_no_costs() {
+        let card = CardDataBuilder::new("Vanilla Creature").build();
+        assert!(card.alternative_costs.is_empty());
+        assert!(card.additional_costs.is_empty());
+    }
+
+    #[test]
+    fn test_card_data_with_kicker() {
+        let card = CardDataBuilder::new("Goblin Bushwhacker")
+            .card_type(CardType::Creature)
+            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
+            .additional_cost(AdditionalCost::Kicker(vec![Cost::Mana(
+                ManaCost::build(&[ManaType::Red], 0),
+            )]))
+            .build();
+
+        assert_eq!(card.additional_costs.len(), 1);
+        assert!(matches!(&card.additional_costs[0], AdditionalCost::Kicker(_)));
+        assert!(card.alternative_costs.is_empty());
+    }
+
+    #[test]
+    fn test_card_data_with_alternative_cost() {
+        let card = CardDataBuilder::new("Force of Will")
+            .card_type(CardType::Instant)
+            .alternative_cost(AlternativeCost::Custom(
+                "Exile a blue card and pay 1 life".to_string(),
+                vec![Cost::PayLife(1)],
+            ))
+            .build();
+
+        assert_eq!(card.alternative_costs.len(), 1);
+        assert!(matches!(&card.alternative_costs[0], AlternativeCost::Custom(_, _)));
+        assert!(card.additional_costs.is_empty());
     }
 }

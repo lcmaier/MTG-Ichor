@@ -5,4 +5,5 @@ pub mod card_types;
 pub mod zones;
 pub mod keywords;
 pub mod keyword_actions;
+pub mod costs;
 pub mod effects;
