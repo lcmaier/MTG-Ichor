@@ -6,6 +6,7 @@
 
 use crate::objects::card_data::AbilityType;
 use crate::state::game_state::GameState;
+use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
@@ -170,15 +171,26 @@ pub fn castable_spells(
         };
 
         // Must have a spell ability
-        let has_spell = obj.card_data.abilities.iter()
-            .any(|a| a.ability_type == AbilityType::Spell);
-        if !has_spell {
+        let spell_ability = obj.card_data.abilities.iter()
+            .find(|a| a.ability_type == AbilityType::Spell);
+        if spell_ability.is_none() && !obj.card_data.types.iter().any(|t| t.is_permanent()) {
             continue;
         }
 
         // Timing check (sorcery-speed vs instant)
         if !passes_timing_check(game, player_id, card_id) {
             continue;
+        }
+
+        // Target legality check (rule 601.2c): can't cast a spell that
+        // requires targets if no legal target exists.
+        if let Some(ability) = spell_ability {
+            let recipient = spell_recipient(&ability.effect);
+            if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) = recipient {
+                if !game.has_any_legal_choice(f, None) {
+                    continue;
+                }
+            }
         }
 
         // Check mana affordability
@@ -378,6 +390,26 @@ fn can_afford_ability_costs(
         }
     }
     true
+}
+
+/// Extract the targeting EffectRecipient from a spell's effect tree.
+///
+/// Mirrors the logic in `cast.rs` — for an Atom, take the recipient directly;
+/// for a Sequence, take the recipient from the first Atom (the targeting atom).
+fn spell_recipient(effect: &crate::types::effects::Effect) -> EffectRecipient {
+    match effect {
+        crate::types::effects::Effect::Atom(_, r) => r.clone(),
+        crate::types::effects::Effect::Sequence(effects) => {
+            effects.iter().find_map(|e| {
+                if let crate::types::effects::Effect::Atom(_, r) = e {
+                    Some(r.clone())
+                } else {
+                    None
+                }
+            }).unwrap_or(EffectRecipient::Implicit)
+        }
+        _ => EffectRecipient::Implicit,
+    }
 }
 
 #[cfg(test)]

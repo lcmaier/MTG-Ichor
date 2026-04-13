@@ -269,6 +269,18 @@ impl GameState {
                 // TODO: filter by hexproof/shroud once T22 lands
                 !self.players.is_empty()
             }
+            SelectionFilter::Any => {
+                // "Any target" = creature or planeswalker on battlefield, OR player
+                if !self.players.is_empty() {
+                    return true;
+                }
+                self.battlefield.keys()
+                    .filter(|&&id| Some(id) != exclude_id)
+                    .any(|&id| {
+                        let candidate = ResolvedTarget::Object(id);
+                        self.validate_selection(filter, &candidate).is_ok()
+                    })
+            }
             _ => self.battlefield.keys()
                 .filter(|&&id| Some(id) != exclude_id)
                 .any(|&id| {
