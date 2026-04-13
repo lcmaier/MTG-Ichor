@@ -7,6 +7,7 @@ use super::basic_lands;
 use super::alpha;
 use super::creatures;
 use super::keyword_creatures;
+use super::phase5_pre_cards;
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -79,6 +80,13 @@ impl CardRegistry {
         registry.register("Rhox War Monk", keyword_creatures::rhox_war_monk);
         registry.register("Giant Spider", keyword_creatures::giant_spider);
         registry.register("Vampire Nighthawk", keyword_creatures::vampire_nighthawk);
+
+        // Phase 5 pre cards
+        registry.register("Isamaru, Hound of Konda", phase5_pre_cards::isamaru_hound_of_konda);
+        registry.register("Night's Whisper", phase5_pre_cards::nights_whisper);
+        registry.register("Doom Blade", phase5_pre_cards::doom_blade);
+        registry.register("Angel's Mercy", phase5_pre_cards::angels_mercy);
+        registry.register("Dark Ritual", phase5_pre_cards::dark_ritual);
 
         registry
     }

@@ -30,10 +30,14 @@ use crate::ui::decision::{
 ///
 /// Uses an internal `VecDeque<PriorityAction>` plan queue for tap-then-cast
 /// sequences. When the queue is empty and `choose_priority_action` is called:
-/// 1. **Land check**: play a land with ~85% probability. The `playable_lands`
+/// 1. **Land check**: always play a land if possible. The `playable_lands`
 ///    oracle query already enforces timing (active player, main phase, stack
 ///    empty, land drop available) — see `oracle::legality::playable_lands`.
-/// 2. **Cast or pass**: ~40% try to cast a random affordable spell, ~60% pass.
+/// 2. **Cast or pass**: phase-aware probability. During main phases (where
+///    sorcery-speed spells are legal), ~80% try to cast. During non-main
+///    steps (instant-only window), ~30% try to cast. This prevents the
+///    bot from burning through instants in the many non-main priority
+///    passes, biasing the game toward creature/sorcery action.
 ///
 /// The queue is validated on drain: `is_action_still_valid()` catches stale
 /// plans (e.g. a permanent was tapped between queue creation and execution).
@@ -79,16 +83,23 @@ impl DecisionProvider for RandomDecisionProvider {
 
         let mut rng = rand::rng();
 
-        // 1. Land check: play a land with ~85% probability if we can
+        // 1. Land check: always play a land if we can
         let lands = playable_lands(game, player_id);
-        if !lands.is_empty() && rng.random_bool(0.85) {
+        if !lands.is_empty() {
             let &land_id = lands.choose(&mut rng).unwrap();
             return PriorityAction::PlayLand(land_id);
         }
 
-        // 2. Cast or pass: ~40% try to cast
+        // 2. Cast or pass: phase-aware probability
+        //    Main phase = sorcery-speed window → 80% (exercise creatures/sorceries)
+        //    Non-main steps = instant-only → 30% (conserve instants)
+        let is_main = matches!(
+            game.phase.phase_type,
+            crate::state::game_state::PhaseType::Precombat | crate::state::game_state::PhaseType::Postcombat
+        );
+        let cast_prob = if is_main { 0.80 } else { 0.30 };
         let castable = castable_spells(game, player_id);
-        if !castable.is_empty() && rng.random_bool(0.40) {
+        if !castable.is_empty() && rng.random_bool(cast_prob) {
             let idx = rng.random_range(0..castable.len());
             let (card_id, ref sources) = castable[idx];
             return queue_tap_and_cast(&self.action_queue, sources, card_id);
@@ -256,9 +267,15 @@ impl DecisionProvider for RandomDecisionProvider {
                 }
             }
             SelectionFilter::Permanent(_) => {
-                // Random permanent
-                let perms: Vec<ObjectId> =
-                    game.battlefield.keys().copied().collect();
+                // Random permanent that matches the filter
+                let perms: Vec<ObjectId> = game
+                    .battlefield
+                    .keys()
+                    .copied()
+                    .filter(|&id| {
+                        game.validate_selection(filter, &ResolvedTarget::Object(id)).is_ok()
+                    })
+                    .collect();
                 if let Some(&id) = perms.choose(&mut rng) {
                     vec![ResolvedTarget::Object(id)]
                 } else {
