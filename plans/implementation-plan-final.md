@@ -37,9 +37,9 @@ T13 (after T01,T03) || T14 (after T01) || T15 (after T04) || T15b (after T04) ||
 
 ### Tier 4: Casting & Activation (parallel with Tier 3)
 ```
-T17 → T18
-T19 || T20                    (parallel with T17/T18)
-T12b + T17 → T12c            (after casting pipeline + sidecar)
+T17 → T18a → {T18b, T18c, T18d}  (T18b/c/d parallel after T18a)
+T19 || T20                        (parallel with T17/T18a–d)
+T12b + T17 → T12c                (after casting pipeline + sidecar)
 ```
 
 ### Tier 5: Zone, Combat, Damage, Targeting (parallel with Tier 4)
@@ -509,42 +509,157 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T18: Casting pipeline — 601.2 compliance + casting restrictions
-- **Scope:** Large
-- **Source:** E25 (part 2 of 2) + E26 + E27 + E28
+#### T18: Casting pipeline — 601.2 compliance + casting restrictions (SPLIT into T18a–T18d)
+
+> **Split rationale (2026-04-13):** The original T18 combined 4 E-items, restructured the most complex engine file, added 5+ DP methods, and covered ~35 ATOMs across orthogonal concerns. It has been split into four sub-tickets with a clear dependency graph: `T17 → T18a → {T18b, T18c, T18d}` (T18b/c/d are parallel after T18a).
+
+##### 601.2 Comparison: Rules vs Current Code vs T18a–d
+
+| Rule | Requires | Current `cast.rs` | Sub-ticket | Deferred? |
+|------|----------|-------------------|------------|-----------|
+| **601.2a** | Move to stack; apply continuous effects modifying spell characteristics on stack entry | ✅ `move_object(card_id, Zone::Stack)` | T18a (no change) | Continuous effects on stack entry → Phase 5 |
+| **601.2b** | Choose modes; announce splice; announce alt/additional costs; announce X; announce hybrid/Phyrexian mana choices | ❌ No mode choice. X hardcoded to None. No alt/add cost. No hybrid/Phyrexian. | T18a (X value, alt/add cost choice), T18b (modes) | Hybrid mana, Phyrexian mana, splice → later tickets |
+| **601.2c** | Choose targets (may vary based on modes/costs chosen in 601.2b) | ✅ `choose_targets` via DP, `validate_targets` | T18b (conditional targets, target uniqueness) | — |
+| **601.2d** | Divide/distribute effects among targets | ❌ Not implemented | T18c (`choose_distribution` DP method) | — |
+| **601.2e** | Legality check *after* proposal (601.2a–d) | ⚠️ Runs *before* proposal (before `move_object`) | T18a (split into pre- + post-proposal) | — |
+| **601.2f** | Determine total cost: base/alt + additional + increases − reductions, then lock | ❌ Uses `card_data.mana_cost` directly | T18a (cost assembly + passthrough stub) | Full pipeline → L15 (Phase 5 Layers) |
+| **601.2g** | Player may activate mana abilities before paying | ❌ No explicit mana ability window | T18a (TODO comment) | Explicit mana ability window → later |
+| **601.2h** | Pay total cost (deterministic first, then random/library) | ✅ `pay_costs` | T18a (assembled cost), T18c (payment ordering) | — |
+| **601.2i** | Apply cast-modification effects; spell becomes cast; triggers fire | ✅ `SpellCast` event emitted | T18a (no change) | Cast-trigger firing → Phase 7 |
+
+##### Design note: Two-tier legality check (601.2e)
+
+The pre-proposal check (timing, zone, ownership) is a **fast path** that catches ~99% of illegal casts cheaply before any state mutation. The post-proposal check (601.2e) is a **safety net** that runs after modes/targets/costs are chosen — it costs almost nothing when it passes. This two-tier pattern mirrors the mana system (pool check vs. full affordability). Both tiers are needed:
+- **Correctness:** 601.2e is required by the CR. Continuous effects can make a proposed spell illegal after choices are made.
+- **Speed:** The fast path prevents expensive work; the post-check is cheap since all info is already gathered.
+- **Extensibility:** Once layers exist (Phase 5), continuous effects *will* create situations where post-proposal checking is load-bearing (e.g. Thalia making a spell unaffordable after cost assembly).
+
+##### Follow-up note (EffectRecipient)
+
+~~`TargetSpec` conflates targeting information with effect recipient.~~ **COMPLETED EARLY (T15b MR, 2026-04-12).** `TargetSpec` has been refactored into `EffectRecipient` with variants `Implicit`, `Controller`, `Target(SelectionFilter, TargetCount)`, `Choose(SelectionFilter, TargetCount)`. `Effect::Atom` is now `Atom(Primitive, EffectRecipient)`. `Target` = MTG targeting rules apply (hexproof/shroud/protection, fizzle). `Choose` = non-targeting selection (rule 303.4a Aura ETB, etc.). Variable renamed `target_spec` → `recipient` across 14 files. T18a–d can build directly on the existing `EffectRecipient` infrastructure.
+
+---
+
+#### T18a: Pipeline restructure + X value + cost assembly + rollback
+- **Scope:** Medium
+- **Source:** E25 (part 2 of 2, structural), E26
 - **Depends on:** T17
-- **Files:** `engine/cast.rs` (modify), `ui/decision.rs` (modify), `objects/card_data.rs` (modify)
-
-##### 601.2 Comparison: Rules vs Current Code vs This Ticket
-
-| Rule | Requires | Current `cast.rs` | This ticket | Deferred? |
-|------|----------|-------------------|-------------|-----------|
-| **601.2a** | Move to stack; apply continuous effects modifying spell characteristics on stack entry | ✅ `move_object(card_id, Zone::Stack)` | No change | Continuous effects on stack entry → Phase 5 |
-| **601.2b** | Choose modes; announce splice; announce alt/additional costs; announce X; announce hybrid/Phyrexian mana choices | ❌ No mode choice. X hardcoded to None. No alt/add cost. No hybrid/Phyrexian. | Add: mode choice via DP, X value via DP, alt/add cost choice via DP | Hybrid mana, Phyrexian mana, splice → later tickets |
-| **601.2c** | Choose targets (may vary based on modes/costs chosen in 601.2b) | ✅ `choose_targets` via DP, `validate_targets` | Update: target requirements may change based on chosen mode/kicker | — |
-| **601.2d** | Divide/distribute effects among targets | ❌ Not implemented | Add: `choose_distribution` DP method for effects like Arc Lightning | — |
-| **601.2e** | Legality check *after* proposal (601.2a–d) | ⚠️ Runs *before* proposal (before `move_object`) | Split: pre-proposal check (timing/zone) stays early; post-proposal check (legal given chosen modes/targets) runs after 601.2d | — |
-| **601.2f** | Determine total cost: base/alt + additional + increases − reductions, then lock | ❌ Uses `card_data.mana_cost` directly | Add cost modification pipeline stub (passthrough) | Full pipeline → Phase 5 continuous effects |
-| **601.2g** | Player may activate mana abilities before paying | ❌ No explicit mana ability window | Note as TODO — DPs currently pre-activate during priority | Explicit mana ability window → later |
-| **601.2h** | Pay total cost (deterministic first, then random/library) | ✅ `pay_costs` | Update to pay assembled total cost, not just printed cost | Cost payment ordering → when library-moving costs exist |
-| **601.2i** | Apply cast-modification effects; spell becomes cast; triggers fire | ✅ `SpellCast` event emitted | No change | Cast-trigger firing → Phase 6 |
-
+- **Files:** `engine/cast.rs` (modify), `ui/decision.rs` (modify)
+- **ATOMs:** 601.2-001, 601.2b-002, 601.2b-004, 601.2b-007, 601.2e-001, 601.2f-003, 601.2h-001, 601.5-001, 601.5-002, 107.3a-001, 107.3m-001, 602.2-002
 - **Steps:**
-  1. **Restructure `cast_spell` to follow 601.2a–i ordering:**
-     - **601.2a:** Move to stack (existing).
-     - **601.2b — Modes:** Add `choose_modes(game, player_id, modal_options) -> Vec<usize>` to `DecisionProvider` (default: empty vec). Call when spell's effect is `Effect::Modal`. Store in `StackEntry.chosen_modes`.
-     - **601.2b — X value:** Add `choose_x_value(game, player_id, card_id) -> u32` to `DecisionProvider` (default: 0). Call when `card_data.mana_cost` contains an X symbol (or card has variable cost). Store in `StackEntry.x_value`.
-     - **601.2b — Alt/add costs:** Ask DP for alt cost choice and additional cost choices (methods from T17). Store on StackEntry.
-     - **601.2c — Targets:** Existing target choice. Update to pass chosen modes/additional costs so conditional targets (e.g., kicker targets) can be included.
-     - **601.2d — Distribution:** Add `choose_distribution(game, player_id, total: u32, targets: Vec<ResolvedTarget>) -> Vec<(ResolvedTarget, u32)>` to `DecisionProvider` (default: distribute evenly). Call when spell has `Primitive::DealDamage` with `AmountExpr::Divide`.
-     - **601.2e — Post-proposal legality:** Move the full legality check to *after* 601.2d. Keep a lightweight pre-check before 601.2a (timing + zone only) to fail fast.
-     - **601.2f — Assemble total cost:** `assemble_total_cost(game, player_id, card_data, chosen_alt, chosen_additional, x_value) -> Vec<Cost>`. For now: if alt cost chosen, use alt cost mana; else use base mana cost. Concatenate additional cost components. Apply `apply_cost_modifications()` (passthrough stub). Lock.
+  1. **Restructure `cast_spell` to follow 601.2a–i ordering.** The current function does legality → move → targets → pay. Reorder to:
+     - **Pre-proposal check** (lightweight): timing + zone + ownership. Fail fast.
+     - **601.2a:** Move to stack (existing `move_object`).
+     - **601.2b — Alt/add costs:** Ask DP for alt cost choice and additional cost choices (methods from T17). Store on StackEntry. Enforce only-one-alt-cost rule (118.9a).
+     - **601.2b — X value:** Add `choose_x_value(game, player_id, card_id) -> u64` to `DecisionProvider` (default: 0). Call when `card_data.mana_cost` contains an X symbol (or card has variable cost). Store in `StackEntry.x_value`. Handle `{X}{X}` costing twice the chosen X.
+     - **601.2c — Targets:** Placeholder call (existing `choose_targets`). T18b will expand this.
+     - **601.2d — Distribution:** Placeholder. T18c will implement.
+     - **601.2e — Post-proposal legality:** Full legality check *after* 601.2a–d. On failure, roll back: move card from stack to hand, remove StackEntry, restore any state. Uses GameState snapshot (clone mutable portions before 601.2a; restore on failure — see Discrepancy §11).
+     - **601.2f — Assemble total cost:** `assemble_total_cost(card_data, chosen_alt, chosen_additional, x_value) -> Vec<Cost>`. If alt cost chosen, use alt cost's `Vec<Cost>`; else use base mana cost. Concatenate additional cost mana components (from `AdditionalCost` payloads). Integrate X value into the mana cost's generic component. Apply `apply_cost_modifications()` (passthrough stub). Lock.
      - **601.2g — Mana ability window:** Add `// TODO: explicit mana ability activation window (rule 601.2g)` comment.
      - **601.2h — Pay total cost:** Call `pay_costs` with the assembled total. **Cross-ref T12:** Once mana spending restrictions exist, the cost payment step must know whether the spell being cast matches any restriction on pool mana. The `pay_costs` call will need access to the spell's characteristics (types, name, etc.) to determine which restricted mana is eligible. This is a key integration point between T12's design and this ticket — the design spike should specify the `pay_costs` API change needed.
      - **601.2i — Finalize:** Emit `SpellCast` event (existing).
-  2. **No-mana-cost guard (E27):** In the pre-proposal legality check, if `card_data.mana_cost.is_none()` and no alternative cost is being offered, return Err. Note: per rule 601.3a, if an alt cost *exists* on the card, the player may begin casting even if the base cost is None.
-  3. **Legendary sorcery restriction (E28):** In `check_cast_legality`, if card has `Supertype::Legendary` and any type in `{Instant, Sorcery}`, check that the caster controls a legendary creature or planeswalker. If not, return Err.
-  4. **Casting restrictions (E28 extended):** Add `CastingRestriction` enum to `objects/card_data.rs`:
+  2. **Cost modification pipeline stub (E26):** Create `apply_cost_modifications(game, player_id, base_costs) -> Vec<Cost>` that currently returns `base_costs` unchanged. Document the pipeline as comments:
+     ```
+     // 1. Start with base mana cost (or alternative cost)
+     // 2. Add additional costs
+     // 3. Apply cost increases (e.g. Thalia)
+     // 4. Apply cost reductions (e.g. Goblin Electromancer), player chooses order
+     // 5. Apply Trinisphere-style minimum floors
+     // 6. Lock final cost
+     ```
+     Full pipeline implementation → L15 (Phase 5 Layers).
+  3. **New DP methods:** `choose_x_value`, `choose_alternative_cost`, `choose_additional_costs` — all with default implementations so existing DPs don't break.
+- **Codebase verification:** Confirmed `cast.rs` has TODO at line 80 for cost modification pipeline. `check_cast_legality` at lines 222-260 runs before `move_object` (timing issue per 601.2e). No X value or alt/add cost wiring exists. `StackEntry` already has `chosen_alternative_cost`, `additional_costs_paid`, `x_value`, and `chosen_modes` fields (from T17).
+- **Tests:**
+  - `test_x_value_announced_via_dp` — X value flows from DP to StackEntry
+  - `test_x_value_in_additional_cost` — X in kicker cost assembled correctly
+  - `test_xx_cost_doubles_x` — `{X}{X}` spell with X=3 costs 6 generic
+  - `test_legality_check_runs_post_proposal` — timing check passes, but post-proposal check rejects and rolls back
+  - `test_rollback_restores_hand_and_stack` — failed cast returns card to hand, removes StackEntry
+  - `test_cost_assembly_base_plus_additional` — kicker mana added to base cost
+  - `test_cost_assembly_alt_cost_replaces_base` — alt cost substitutes for mana cost
+  - `test_cost_lock_in` — assembled cost is used for payment, not raw mana cost
+  - `test_cost_modification_passthrough` — stub returns base cost unchanged
+  - `test_cost_phase_illegality_no_rewind` — changes during payment (601.2f–h) don't cause rollback (601.5-002)
+- **Acceptance:** All existing tests pass + new tests pass + 0 warnings
+- **Commit:** `engine: restructure cast_spell to 601.2a-i, add X value, cost assembly, rollback (T18a)`
+
+---
+
+#### T18b: Mode choice + conditional targets + target rules
+- **Scope:** Medium
+- **Source:** E25 (part 2 of 2, mode/target features)
+- **Depends on:** T18a
+- **Files:** `engine/cast.rs` (modify), `ui/decision.rs` (modify), `engine/targeting.rs` (modify)
+- **ATOMs:** 601.2b-001, 601.2b-003, 601.2c-002, 601.2c-003, 601.2c-004, 601.2c-006, 601.2c-007, 601.4-001, 115.3-001, 115.3-002, 115.3/4-001, 115.3/4-002, 115.6-001, 604.5-001, 604.5-002, 604.6-001, 604.6-002
+- **Steps:**
+  1. **Mode choice via DP:** Add `choose_modes(game, player_id, modal_count, mode_count) -> Vec<usize>` to `DecisionProvider` (default: `vec![0]` for "choose one" spells). Call when spell's effect is `Effect::Modal`. Store in `StackEntry.chosen_modes`. Validate count matches `ModalCount` (exactly N, up to N, any number if kicked — 601.4 look-ahead).
+  2. **Conditional targets:** Update target-choosing step to pass `chosen_modes` and `additional_costs_paid` so conditional targets can be included/excluded. A kicker spell with "if kicked, target creature" should not require a target when unkicked, and should require one when kicked. A modal spell only requires targets for chosen modes.
+  3. **Target uniqueness per instance (rule 115.3):** Enforce that a single "target [type]" instance can't choose the same object twice (sad path). But *different* target instances can share a target (Decimate targeting an artifact creature for both "target artifact" and "target creature").
+  4. **"Up to N" targets (rule 115.6):** When `TargetCount::UpTo(n)`, allow 0 targets chosen. Spell still resolves (it just does nothing to the absent targets).
+  5. **All-targets-legal precondition:** For spells with multiple required target slots (like Decimate), verify in the pre-proposal check that at least one legal choice exists for each slot. If not, the spell can't be cast. This is the rule behind Decimate's reminder text: *(You can't cast this spell unless you have legal choices for all its targets.)*
+  6. **601.4 intra-step look-ahead:** When choosing modes in 601.2b, the DP may consider kicker intent (additional cost choice happens in the same step). Implementation: pass available additional costs to `choose_modes` so the DP can factor them in.
+- **Tests:**
+  - `test_mode_choice_via_dp` — modal spell stores chosen modes on StackEntry
+  - `test_modal_single_mode_resolves_correctly` — chosen mode's effect runs, others don't
+  - `test_only_one_alt_cost_per_spell` — attempting two alt costs rejected (118.9a)
+  - `test_conditional_target_present_when_kicked` — kicker spell requires target when kicked
+  - `test_conditional_target_absent_when_not_kicked` — unkicked spell has no target requirement
+  - `test_kicker_changes_target_legality` — Bloodchief's Thirst: kicked removes CMC restriction
+  - `test_target_uniqueness_same_instance` — same "target creature" can't pick same creature twice
+  - `test_target_shared_across_instances` — artifact creature can be "target artifact" and "target creature"
+  - `test_up_to_zero_targets_resolves` — "up to 2 targets" with 0 chosen → spell resolves (no-op)
+  - `test_modal_plus_kicker_look_ahead` — Inscription of Abundance: multiple modes allowed when kicker intended
+  - `test_all_targets_must_be_legal_to_cast` — Decimate can't be cast without legal targets for all 4 slots
+- **Acceptance:** All existing tests pass + new tests pass + 0 warnings
+- **Commit:** `engine: mode choice, conditional targets, target uniqueness rules (T18b)`
+
+---
+
+#### T18c: Distribution + Cost::Sacrifice + payment ordering + partial resolution
+- **Scope:** Medium
+- **Source:** E25 (part 2 of 2, distribution), rules 601.2d, 601.2h, 608.2b/d/i
+- **Depends on:** T18a (pipeline must exist). Parallel with T18b and T18d.
+- **Files:** `engine/cast.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), `ui/decision.rs` (modify)
+- **ATOMs:** 601.2d-001, 601.2d-002, 601.2h-003, 608.2b-002, 608.2b-005, 608.2d-002, 608.2d-003, 608.2i-001, 118.6-001
+- **Steps:**
+  1. **Implement `Cost::Sacrifice(PermanentFilter, u32)` in `costs.rs`:** Currently returns `"not yet implemented"` in both `check_cost_resource` and `pay_single_cost`. Implement:
+     - `check_cost_resource`: verify player controls ≥ N permanents matching the filter.
+     - `pay_single_cost`: call `choose_sacrifice` on DP, validate choices match filter + count, then `move_object` each to graveyard.
+     - Add `choose_sacrifice(game, player_id, filter, count) -> Vec<ObjectId>` to `DecisionProvider` (default: pick first N matching). This makes `AdditionalCost::Kicker(vec![Cost::Sacrifice(Creature, 1)])` fully functional.
+  2. **Distribution via DP:** Add `choose_distribution(game, player_id, total: u32, targets: &[ResolvedTarget]) -> Vec<(ResolvedTarget, u32)>` to `DecisionProvider` (default: distribute as evenly as possible, remainder to first target). Call when spell has a divisible effect (e.g. `Primitive::DealDamage` with `AmountExpr::Divide`). Store distribution on StackEntry (new field: `pub distribution: Vec<(ResolvedTarget, u32)>`).
+  3. **Distribution validation:** Each target must receive ≥1 of the divided amount. Total must equal the full amount. Reject and re-prompt (or error) on violation.
+  4. **Cost payment ordering via DP:** Add `choose_cost_payment_order(game, player_id, costs: &[Cost]) -> Vec<usize>` to `DecisionProvider` (default: return indices in order). The order matters when sacrifice-as-cost interacts with mana costs (ATOM-601.2h-003: Omnath + Momentous Fall). Sort deterministic costs (sacrifice, tap, life) before random/library costs per 601.2h, then let DP choose order within each category.
+  5. **Partial-target resolution (608.2b):** When resolving a multi-target spell where some targets have become illegal, resolve the remaining targets normally. Do not fizzle the whole spell unless *all* targets are illegal. Update `resolve_effect` to skip effects whose target is gone but continue with effects for legal targets. Test with Decimate pattern (4 independent targets, one becomes illegal → other 3 still destroy) and Jagged Lightning / Plague Spores patterns.
+  6. **Resolution-time untargeted distribution (608.2d/608.2i):** For effects that distribute at resolution rather than cast time (e.g., "choose how to distribute N damage among any number of targets"), call DP at resolution. Historical look-back (608.2i): effects referencing "the amount of damage dealt" use the cast-time locked value, not a recalculated one.
+- **Test cards:** Decimate ({2}{R}{G} Sorcery — "Destroy target artifact, target creature, target enchantment, and target land"), Arc Lightning ({2}{R} Sorcery — "Deal 3 damage divided as you choose among one, two, or three targets"), Altar's Reap ({1}{B} Instant — "As an additional cost, sacrifice a creature. Draw two cards"), Plague Spores ({4}{B}{R} Sorcery — "Destroy target nonblack creature and target land. They can't be regenerated").
+- **Tests:**
+  - `test_distribution_choice_via_dp` — Arc Lightning distributes 2+1 among two targets
+  - `test_distribution_zero_rejected` — distributing 3+0+0 among 3 targets rejected
+  - `test_distribution_sum_matches_total` — 2+2 for a "deal 3" effect rejected
+  - `test_sacrifice_as_cost_implemented` — Altar's Reap sacrifices creature, draws 2
+  - `test_sacrifice_as_cost_no_legal_target` — can't cast Altar's Reap with no creatures
+  - `test_cost_payment_ordering` — Momentous Fall: sacrifice-first vs mana-first produces different outcomes
+  - `test_partial_target_resolution` — Decimate: one target illegal → other 3 resolve
+  - `test_resolution_time_distribution` — distribution chosen at resolution for untargeted divide
+  - `test_historical_look_back` — 608.2i: damage reference uses locked-in value
+  - `test_unpayable_mana_cost_fails` — spell with no way to pay mana cost is rejected (118.6)
+- **Acceptance:** All existing tests pass + new tests pass + 0 warnings
+- **Commit:** `engine: distribution, Cost::Sacrifice, payment ordering, partial resolution (T18c)`
+
+---
+
+#### T18d: Casting restrictions + no-mana-cost guard + legendary sorcery
+- **Scope:** Small
+- **Source:** E27 + E28
+- **Depends on:** T18a (post-proposal legality check must exist). Parallel with T18b and T18c.
+- **Files:** `engine/cast.rs` (modify), `objects/card_data.rs` (modify)
+- **ATOMs:** 202.1b-001, 205.4e-001, 205.4e-002, 118.9a-001
+- **Steps:**
+  1. **No-mana-cost guard (E27):** In the pre-proposal legality check, if `card_data.mana_cost.is_none()` and no alternative cost is being offered, return Err. Note: per rule 601.3a, if an alt cost *exists* on the card, the player may begin casting even if the base cost is None.
+  2. **Legendary sorcery restriction (E28):** In `check_cast_legality`, if card has `Supertype::Legendary` and any type in `{Instant, Sorcery}`, check that the caster controls a legendary creature or planeswalker. If not, return Err.
+  3. **Casting restrictions (E28 extended):** Add `CastingRestriction` enum to `objects/card_data.rs`:
      ```rust
      pub enum CastingRestriction {
          OnlyDuringCombat,
@@ -560,17 +675,7 @@ L17 + L19 + L20 → L21
      }
      ```
      Add `pub casting_restrictions: Vec<CastingRestriction>` to `CardData`. These are self-imposed restrictions like Berserk's "Cast only before the combat damage step" or Illusory Angel's "Cast only if you've cast another spell this turn." Enforce in the post-proposal legality check. **Note:** These are distinct from T19's `ActivationRestriction` (which applies to activated abilities, not spells).
-  5. **Cost modification pipeline stub (E26):** Create `apply_cost_modifications(game, player_id, base_costs) -> Vec<Cost>` that currently returns `base_costs` unchanged. Document the 5-step pipeline as comments:
-     ```
-     // 1. Start with base mana cost (or alternative cost)
-     // 2. Add additional costs
-     // 3. Apply cost increases (e.g. Thalia)
-     // 4. Apply cost reductions (e.g. Goblin Electromancer), player chooses order
-     // 5. Apply Trinisphere-style minimum floors
-     // 6. Lock final cost
-     ```
-  6. **New DP methods summary:** `choose_modes`, `choose_x_value`, `choose_distribution`, `choose_alternative_cost`, `choose_additional_costs` — all with default implementations so existing DPs don't break.
-- **Codebase verification:** Confirmed `cast.rs` has TODO at line 80 for cost modification pipeline. `check_cast_legality` at lines 222-260 runs before `move_object` (timing issue per 601.2e). No mode choice, X value, or distribution choice exists.
+  4. **Mana ability window TODO (601.2g):** If not already added by T18a, ensure the `// TODO: explicit mana ability activation window (rule 601.2g)` comment exists in the pipeline.
 - **Tests:**
   - `test_no_mana_cost_card_rejected` — card with mana_cost: None can't be cast normally
   - `test_no_mana_cost_with_alt_cost_allowed` — card with alt cost can be cast despite no base mana cost
@@ -578,14 +683,8 @@ L17 + L19 + L20 → L21
   - `test_legendary_sorcery_allowed_with_legendary` — allowed with legendary creature
   - `test_casting_restriction_only_during_combat` — Berserk-style restriction enforced
   - `test_casting_restriction_condition` — Illusory Angel-style "cast another spell" condition
-  - `test_cost_modification_passthrough` — stub returns base cost unchanged
-  - `test_x_value_announced_via_dp` — X value flows from DP to StackEntry
-  - `test_mode_choice_via_dp` — modal spell stores chosen modes
-  - `test_distribution_choice_via_dp` — Arc Lightning distributes damage among targets
-  - `test_legality_check_runs_post_proposal` — timing check passes, but post-proposal check (e.g., illegal mode) rejects and rolls back
 - **Acceptance:** All existing tests pass + new tests pass + 0 warnings
-- **Commit:** `engine: 601.2-compliant casting pipeline, casting restrictions, cost pipeline stub (E25 part 2, E26–E28)`
-- **Follow-up (Phase 5-Pre session):** ~~`TargetSpec` conflates targeting information with effect recipient.~~ **COMPLETED EARLY (T15b MR, 2026-04-12).** `TargetSpec` has been refactored into `EffectRecipient` with variants `Implicit`, `Controller`, `Target(SelectionFilter, TargetCount)`, `Choose(SelectionFilter, TargetCount)`. `Effect::Atom` is now `Atom(Primitive, EffectRecipient)`. `Target` = MTG targeting rules apply (hexproof/shroud/protection, fizzle). `Choose` = non-targeting selection (rule 303.4a Aura ETB, etc.). Variable renamed `target_spec` → `recipient` across 14 files. T18 no longer needs to perform this split — it can build on the existing `EffectRecipient` infrastructure for mode choice, X value, and distribution.
+- **Commit:** `engine: casting restrictions, no-mana-cost guard, legendary sorcery (T18d)`
 
 ---
 
@@ -594,7 +693,7 @@ L17 + L19 + L20 → L21
 - **Source:** E29 + E33
 - **Depends on:** none
 - **Files:** `objects/card_data.rs` (modify), `engine/cast.rs` (modify), `engine/priority.rs` (modify), `oracle/mana_helpers.rs` (modify)
-- **Note:** This ticket covers restrictions on **activated abilities** (rule 602), NOT self-imposed spell casting restrictions like Berserk's "Cast only before the combat damage step." Spell casting restrictions are handled by `CastingRestriction` on `CardData` in T18. The two concepts are parallel:
+- **Note:** This ticket covers restrictions on **activated abilities** (rule 602), NOT self-imposed spell casting restrictions like Berserk's "Cast only before the combat damage step." Spell casting restrictions are handled by `CastingRestriction` on `CardData` in T18d. The two concepts are parallel:
   - `ActivationRestriction` → on `AbilityDef` → checked in `activate_ability`
   - `CastingRestriction` → on `CardData` → checked in `check_cast_legality`
 - **Steps:**
@@ -1453,7 +1552,10 @@ graph LR
 
     subgraph "Tier 4 — Casting"
         T17["T17 alt/add cost types"]
-        T18["T18 601.2 pipeline"]
+        T18a["T18a pipeline restructure"]
+        T18b["T18b modes + targets"]
+        T18c["T18c distribution + sacrifice"]
+        T18d["T18d casting restrictions"]
         T19["T19 activation restrictions"]
         T20["T20 linked abilities"]
         T12c["T12c engine integration"]
@@ -1484,7 +1586,10 @@ graph LR
     T04 --> T15b
     T02 --> T16
     T01 --> T16
-    T17 --> T18
+    T17 --> T18a
+    T18a --> T18b
+    T18a --> T18c
+    T18a --> T18d
     T17 --> T21a
     T01 --> T21c
     T02 --> T21c
@@ -1584,7 +1689,7 @@ L01 → L03 → L04 → L06 (+ T01) → L07 → L08 (+ L02) → L17 (+ L10, L11,
 | **State tracking** | T09 → T10, T11, T12 → T12b (parallel with Tier 1) | T09 joins at L11 |
 | **Mana restrictions** | T12b + T17 → T12c (Tier 4) → T12d (cross-cutting; step 6 after L04) | T12d step 6 joins at L04 |
 | **SBAs** | T13, T14, T15, T15b, T16 (after Tier 1 deps) | No Phase 5 deps |
-| **Casting** | T17 → T18, T19, T20 (parallel with SBAs) | T17 joins at T21a |
+| **Casting** | T17 → T18a → {T18b, T18c, T18d}, T19, T20 (parallel with SBAs) | T17 joins at T21a |
 | **Combat/damage** | T21a, T21b → T21d, T21c (parallel) | No Phase 5 deps |
 | **Duration stubs** | T22 (parallel) | Coordinates with L02 |
 | **Layer 6** | L09 (after L04) | Joins at L13, L19 |
@@ -1631,8 +1736,8 @@ L01 → L03 → L04 → L06 (+ T01) → L07 → L08 (+ L02) → L17 (+ L10, L11,
   - 500/500 fuzz games pass (re-run with same harness)
   - **[P5-PREREQ] verification:** T01, T05, T09 confirmed merged
   - Duration expiry hooks in `turns.rs` placed (T22 step 4)
-  - Cost modification pipeline stub exists (T18 step 5)
-  - `DecisionProvider` trait has new methods with defaults (T14, T18)
+  - Cost modification pipeline stub exists (T18a step 2)
+  - `DecisionProvider` trait has new methods with defaults (T14, T18a–c)
 - **Significance:** Green light for Part 2. No Part 2 ticket may begin before Gate 2 passes.
 
 ### Gate 3: Sub-Plan 5A Complete — Giant Growth + Anthem Working
@@ -1711,10 +1816,10 @@ L01 → L03 → L04 → L06 (+ T01) → L07 → L08 (+ L02) → L17 (+ L10, L11,
 | E22 | Commander damage loss SBA | T16 | ✅ |
 | E23 | Indestructible SBA + Destroy guard | T16 | ✅ |
 | E24 | Cleanup SBA re-loop | T16 | ✅ |
-| E25 | Alternative/additional cost framework | T17+T18 | ✅ |
-| E26 | Cost modification pipeline stub | T18 | ✅ |
-| E27 | No-mana-cost casting guard | T18 | ✅ |
-| E28 | Legendary spell restriction + CastingRestriction | T18 | ✅ |
+| E25 | Alternative/additional cost framework | T17+T18a | ✅ |
+| E26 | Cost modification pipeline stub | T18a | ✅ |
+| E27 | No-mana-cost casting guard | T18d | ✅ |
+| E28 | Legendary spell restriction + CastingRestriction | T18d | ✅ |
 | E29 | Activation restrictions on AbilityDef | T19 | ✅ |
 | E30 | Linked abilities infrastructure | T20 | ✅ |
 | E31 | Last Known Information (LKI) system | L18 *(deferred)* | ✅ |
@@ -1839,14 +1944,15 @@ Actual population from continuous effects/designations (goad, Lure, etc.) still 
 ### 7. T22 Step 5 — `lands_per_turn` Needs Computed Query — RESOLVED
 ~~The chapter 3 audit (F18, rule 305.2) identifies that `lands_per_turn` must be modifiable by continuous effects. T22 creates a passthrough, L15 should compute the real value.~~ **Resolved:** L15 has been expanded from Small to Medium. It now includes step 4 (F18) which adds `effective_lands_per_turn: HashMap<PlayerId, u32>` to GameState, recomputed in the post-layer pass from base (1) + active continuous effects. `oracle::get_effective_lands_per_turn` (created by T22 as a passthrough) is replaced with the real computation. `playable_lands` in `oracle/legality.rs` reads the effective value. See L15 ticket step 4 for details.
 
-### 9. T18 Scope — Consider Splitting
+### 9. T18 Scope — SPLIT DONE (2026-04-13)
 
-T18 (casting pipeline 601.2 compliance) combines 4 E-items (E25 part 2, E26, E27, E28), restructures the most complex file in the engine (`cast.rs`), adds 5 new DP methods, and includes 11 tests. This is a lot of orthogonal concerns for one ticket. **Recommended split if implementation proves unwieldy:**
-- **T18a:** 601.2 pipeline restructuring + mode choice + X value (E25 part 2)
-- **T18b:** Casting restrictions (CastingRestriction enum + legendary sorcery + enforcement) (E28)
-- **T18c:** Cost modification pipeline stub (E26 + E27)
+~~T18 (casting pipeline 601.2 compliance) combines 4 E-items (E25 part 2, E26, E27, E28), restructures the most complex file in the engine (`cast.rs`), adds 5 new DP methods, and includes 11 tests. This is a lot of orthogonal concerns for one ticket.~~ **Split completed.** T18 has been split into four sub-tickets:
+- **T18a:** Pipeline restructure + X value + cost assembly + rollback (E25p2 structural, E26)
+- **T18b:** Mode choice + conditional targets + target uniqueness rules (E25p2 modes/targets)
+- **T18c:** Distribution + Cost::Sacrifice + payment ordering + partial resolution (E25p2 distribution, 601.2d/h, 608.2b/d/i)
+- **T18d:** Casting restrictions + no-mana-cost guard + legendary sorcery (E27, E28)
 
-No change to dependencies — T18a/b/c would all depend on T17 and have no mutual dependencies. The split is optional; if the implementer finds the scope manageable as-is, a single ticket is fine.
+Dependency graph: `T17 → T18a → {T18b, T18c, T18d}`. T18b/c/d are parallel after T18a.
 
 ### 10. Test Count Estimates
 - **Pre-plan baseline:** 287 tests (238 unit + 48 integration + 1 doc-test)
@@ -1874,7 +1980,7 @@ No change to dependencies — T18a/b/c would all depend on T17 and have no mutua
 | `ProtectionQuality` enum + `matches_quality()` | META-7B-02 | Phase 5-Pre (T22) | **T22 step 8 ✅** | Four variants: `Color`, `CardType`, `Subtype`, `All`. Targeting validation uses source characteristics. |
 | `EvasionRestriction` + `BlockerFilter` enum | META-7B-01 | Phase 5-Pre (T21b) / Phase 8 | **T21b ✅** | Three-category framework (per-pair, per-pair contextual, count-based). Shadow/Fear/Intimidate/Skulk/Horsemanship/Landwalk/Menace all covered. Phase 8 cards populate the framework. |
 | Menace enforcement in `validate_blockers` | *(existing code bug)* | Immediate | **T21b step 2 (Category C) ✅** | Min-blockers count check in `validate_full_block_assignment`. |
-| Casting rollback via GameState snapshot | META-GAMESTATE-SNAPSHOT | Phase 5-Pre (T18) | **T18 step 1 ✅ (implicit)** | See Discrepancy §11 below for the explicit rollback mechanism note added to T18. |
+| Casting rollback via GameState snapshot | META-GAMESTATE-SNAPSHOT | Phase 5-Pre (T18a) | **T18a step 1 ✅ (implicit)** | See Discrepancy §11 below for the explicit rollback mechanism note added to T18a. |
 | `ObjectRef` with epoch-stamp for stale references | META-EPOCH-STAMP | Phase 5-Pre (T22) | **Superseded** | See Discrepancy §12 below. Rule 400.7 "new object" semantics are handled behaviorally by stable `ObjectId` + LKI (L18), not by an explicit epoch-stamp type. |
 | Prototype + Perpetual base characteristic overrides | *(roadmap line 109)* | Phase 9 | **Deferred items D20a/D20b added** | See Discrepancy §13 below. Prototype and Perpetual are architecturally distinct — split into separate mechanisms. No Phase 5 scaffolding needed. |
 | `TurnEventLog` for multi-condition triggers | META-MULTI-CONDITION-TRIGGERS | Phase 7 | **Roadmap Phase 7 ✅** | Superseded by delta log architecture (`engine/delta_log.rs`). Trigger scanner reads structured `GameDelta` entries, not a raw event log. Documented in `design_doc.md §8`, `roadmap.md` Phase 7 infrastructure. |
@@ -1890,9 +1996,9 @@ No change to dependencies — T18a/b/c would all depend on T17 and have no mutua
 
 ---
 
-### 11. T18 — Casting Rollback Mechanism (META-GAMESTATE-SNAPSHOT)
+### 11. T18a — Casting Rollback Mechanism (META-GAMESTATE-SNAPSHOT)
 
-T18 step 1 restructures `cast_spell` to follow 601.2a–i ordering. Step 601.2a moves the spell to the stack *before* the full legality check (601.2e). If the post-proposal legality check fails, the engine must undo the stack placement. **Rollback mechanism:** Use `GameState::clone()` before 601.2a, restore on failure. This is a coarse-grained snapshot — acceptable because casting failures are rare and the clone is shallow (only the state that matters is the object's zone + stack contents). A finer-grained `UndoEntry` approach (recording only the zone change) is an optimization for later if profiling shows clone cost is material. The `GameState::clone()` approach is consistent with how `fuzz_games.rs` already clones state for parallel evaluation.
+T18a step 1 restructures `cast_spell` to follow 601.2a–i ordering. Step 601.2a moves the spell to the stack *before* the full legality check (601.2e). If the post-proposal legality check fails, the engine must undo the stack placement. **Rollback mechanism:** Use `GameState::clone()` before 601.2a, restore on failure. This is a coarse-grained snapshot — acceptable because casting failures are rare and the clone is shallow (only the state that matters is the object's zone + stack contents). A finer-grained `UndoEntry` approach (recording only the zone change) is an optimization for later if profiling shows clone cost is material. The `GameState::clone()` approach is consistent with how `fuzz_games.rs` already clones state for parallel evaluation.
 
 ### 12. ObjectRef Epoch-Stamp — SUPERSEDED
 
@@ -2024,9 +2130,9 @@ Added to Part 2 Deferred Items table as D20a and D20b.
 
 ### 14. TargetSpec → EffectRecipient Refactor — COMPLETED EARLY (2026-04-12)
 
-The T18 follow-up note proposed splitting `TargetSpec` into `EffectRecipient` during the T18 casting pipeline rewrite. This refactor was completed early during the T15b MR, before T18 began. **Impact across the plan:**
+The original T18 follow-up note proposed splitting `TargetSpec` into `EffectRecipient` during the T18 casting pipeline rewrite. This refactor was completed early during the T15b MR, before T18 began. **Impact across the plan:**
 
-- **T18:** No longer needs to perform the split. `EffectRecipient` with `Target`/`Choose`/`Implicit`/`Controller` variants is already in place. T18 can build directly on this for mode choice, X value, and distribution.
+- **T18a–d:** No longer need to perform the split. `EffectRecipient` with `Target`/`Choose`/`Implicit`/`Controller` variants is already in place. T18a–d can build directly on this for mode choice, X value, and distribution.
 - **T20:** Mana ability debug assertion should check for `EffectRecipient::Target(_, _)` instead of the deleted `TargetSpec::None`.
 - **T22:** Hexproof/shroud/protection checks must only apply to `EffectRecipient::Target`, not `Choose`. The validation path already dispatches both — the keyword checks need to be gated inside the `Target`-specific path.
 - **Discrepancy §5:** No `TargetContext` enum was created. `EffectRecipient::Choose` serves the same purpose.
