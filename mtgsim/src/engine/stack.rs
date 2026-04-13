@@ -1,8 +1,10 @@
-use crate::engine::resolve::ResolutionContext;
+use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
-use crate::types::effects::TargetSpec;
+use crate::types::card_types::{EnchantmentType, Subtype};
+use crate::types::effects::EffectRecipient;
 use crate::types::zones::Zone;
+use crate::ui::decision::DecisionProvider;
 
 impl GameState {
     /// Resolve the top entry on the stack (rule 608).
@@ -17,7 +19,7 @@ impl GameState {
     /// 4. Resolve the effect via resolve_effect().
     /// 5. Post-resolution: move spell to graveyard or remove ability (608.2n).
     /// 6. Emit SpellResolved event.
-    pub fn resolve_top_of_stack(&mut self) -> Result<(), String> {
+    pub fn resolve_top_of_stack(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         if self.stack.is_empty() {
             return Err("Cannot resolve: stack is empty".to_string());
         }
@@ -33,10 +35,10 @@ impl GameState {
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
         // --- Re-validate targets (rule 608.2b) ---
-        let target_spec = self.extract_target_spec(&entry.effect);
-        let has_targets = !matches!(target_spec, TargetSpec::None | TargetSpec::You);
+        let recipient = self.extract_recipient(&entry.effect);
+        let has_targets = matches!(recipient, EffectRecipient::Target(_, _));
 
-        if has_targets && !self.any_targets_still_legal(&target_spec, &entry.chosen_targets) {
+        if has_targets && !self.any_targets_still_legal(&recipient, &entry.chosen_targets) {
             // All targets illegal — spell/ability fizzles (is countered by game rules)
             self.handle_fizzle(object_id, &entry)?;
             return Ok(());
@@ -48,7 +50,7 @@ impl GameState {
             controller: entry.controller,
             targets: entry.chosen_targets.clone(),
         };
-        self.resolve_effect(&entry.effect, &ctx)?;
+        self.resolve_effect(&entry.effect, &ctx, dp)?;
 
         // --- Post-resolution (rule 608.2n) ---
         // We already removed the object from self.stack above, so we handle
@@ -67,6 +69,8 @@ impl GameState {
                 // controlled the spell on the stack when it resolved.
                 let controller = entry.controller;
                 let owner = self.get_object(object_id)?.owner;
+
+                // --- Enter the battlefield ---
                 self.get_object_mut(object_id)?.zone = Zone::Battlefield;
                 self.init_zone_state_with_controller(object_id, controller)?;
                 // Carry X value from the stack entry to the permanent (rule 107.3f)
@@ -83,6 +87,31 @@ impl GameState {
                     object_id,
                     controller,
                 });
+
+                // Rule 303.4f: Aura spell resolves → enters attached to its
+                // target.  The fizzle check (608.2b) at the top of this
+                // function guarantees the target is still legal — if it
+                // weren't, the spell would have fizzled before reaching here.
+                let is_aura = self.get_object(object_id)
+                    .map(|o| o.card_data.subtypes.contains(
+                        &Subtype::Enchantment(EnchantmentType::Aura)))
+                    .unwrap_or(false);
+                if is_aura {
+                    let host_id = match entry.chosen_targets.first().copied() {
+                        Some(ResolvedTarget::Object(id)) => id,
+                        _ => return Err(format!(
+                            "Aura {} resolved from stack with no Object target — \
+                             this should have been caught by the fizzle check",
+                            object_id
+                        )),
+                    };
+                    if let Some(aura_bf) = self.battlefield.get_mut(&object_id) {
+                        aura_bf.attach_to(host_id);
+                    }
+                    if let Some(host_bf) = self.battlefield.get_mut(&host_id) {
+                        host_bf.attached_by.push(object_id);
+                    }
+                }
             } else {
                 // Instant/sorcery: move to owner's graveyard
                 let owner = self.get_object(object_id)?.owner;
@@ -140,8 +169,8 @@ impl GameState {
         Ok(())
     }
 
-    /// Extract the TargetSpec from an Effect for re-validation purposes.
-    fn extract_target_spec(&self, effect: &crate::types::effects::Effect) -> TargetSpec {
+    /// Extract the EffectRecipient from an Effect for re-validation purposes.
+    fn extract_recipient(&self, effect: &crate::types::effects::Effect) -> EffectRecipient {
         match effect {
             crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
             crate::types::effects::Effect::Sequence(effects) => {
@@ -151,9 +180,9 @@ impl GameState {
                     } else {
                         None
                     }
-                }).unwrap_or(TargetSpec::None)
+                }).unwrap_or(EffectRecipient::Implicit)
             }
-            _ => TargetSpec::None,
+            _ => EffectRecipient::Implicit,
         }
     }
 }
@@ -165,9 +194,14 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, TargetSpec, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
+    use crate::ui::decision::PassiveDecisionProvider;
+
+    fn passive_dp() -> PassiveDecisionProvider {
+        PassiveDecisionProvider
+    }
 
     fn make_bolt() -> std::sync::Arc<crate::objects::card_data::CardData> {
         CardDataBuilder::new("Lightning Bolt")
@@ -180,7 +214,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    TargetSpec::Any(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
             .build()
@@ -197,7 +231,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(3)),
-                    TargetSpec::Player(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
             })
             .build()
@@ -241,7 +275,7 @@ mod tests {
             vec![ResolvedTarget::Player(1)],
         );
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         // Player 1 should have lost 3 life
         assert_eq!(game.players[1].life_total, 17);
@@ -272,7 +306,7 @@ mod tests {
             vec![ResolvedTarget::Player(0)],
         );
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         // Player 0 should have drawn 3 cards
         assert_eq!(game.players[0].hand.len(), 3);
@@ -284,7 +318,7 @@ mod tests {
     #[test]
     fn test_resolve_empty_stack_error() {
         let mut game = GameState::new(2, 20);
-        assert!(game.resolve_top_of_stack().is_err());
+        assert!(game.resolve_top_of_stack(&passive_dp()).is_err());
     }
 
     #[test]
@@ -316,12 +350,12 @@ mod tests {
         );
 
         // Resolve top — should be Bolt (LIFO)
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
         assert_eq!(game.players[1].life_total, 17); // Bolt did 3
         assert_eq!(game.players[1].hand.len(), 0); // Recall hasn't resolved
 
         // Resolve next — should be Recall
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
         assert_eq!(game.players[1].hand.len(), 3); // Recall drew 3
     }
 
@@ -361,7 +395,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         // Creature should be on the battlefield, not on the stack or in graveyard
         assert_eq!(game.get_object(bears_id).unwrap().zone, Zone::Battlefield);
@@ -385,7 +419,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         // Creature entered on turn 1, turn_number is 1, so it has summoning sickness
         assert!(crate::oracle::characteristics::has_summoning_sickness(&game, bears_id));
@@ -399,7 +433,7 @@ mod tests {
         // Verify it's on the stack before resolution
         assert!(game.stack.contains(&bears_id));
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         // Stack should be completely empty — no re-push artifact
         assert!(game.stack.is_empty());
@@ -438,7 +472,7 @@ mod tests {
             .build();
         let id = put_permanent_on_stack_with_x(&mut game, card, 0, Some(3));
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         let bf_entry = game.battlefield.get(&id).unwrap();
         assert_eq!(bf_entry.x_value, Some(3));
@@ -449,10 +483,99 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
 
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         let bf_entry = game.battlefield.get(&bears_id).unwrap();
         assert_eq!(bf_entry.x_value, None);
+    }
+
+    fn make_pacifism() -> std::sync::Arc<crate::objects::card_data::CardData> {
+        use crate::types::card_types::{EnchantmentType, Subtype};
+        use crate::types::effects::SelectionFilter;
+        CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+            .color(crate::types::colors::Color::White)
+            .mana_cost(ManaCost::build(&[ManaType::White], 1))
+            .enchant_filter(SelectionFilter::Creature)
+            .build()
+    }
+
+    /// Helper: put a permanent spell on the stack with chosen targets.
+    fn put_permanent_on_stack_with_targets(
+        game: &mut GameState,
+        card_data: std::sync::Arc<crate::objects::card_data::CardData>,
+        controller: usize,
+        targets: Vec<ResolvedTarget>,
+    ) -> crate::types::ids::ObjectId {
+        let obj = GameObject::new(card_data, controller, Zone::Stack);
+        let id = obj.id;
+        game.add_object(obj);
+        game.stack.push(id);
+        game.stack_entries.insert(id, StackEntry {
+            object_id: id,
+            controller,
+            chosen_targets: targets,
+            chosen_modes: Vec::new(),
+            x_value: None,
+            effect: Effect::Sequence(vec![]),
+            is_spell: true,
+        });
+        id
+    }
+
+    #[test]
+    fn test_aura_attaches_to_target_on_resolve() {
+        // Rule 303.4f: Aura spell resolves → attached_to set to target creature.
+        let mut game = GameState::new(2, 20);
+
+        // Put a creature on the battlefield
+        let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
+        let creature_id = creature.id;
+        game.add_object(creature);
+        game.place_on_battlefield(creature_id, 1);
+
+        // Put Pacifism on the stack targeting the creature
+        let aura_id = put_permanent_on_stack_with_targets(
+            &mut game,
+            make_pacifism(),
+            0,
+            vec![ResolvedTarget::Object(creature_id)],
+        );
+
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
+
+        // Aura should be on the battlefield
+        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Battlefield);
+        assert!(game.battlefield.contains_key(&aura_id));
+
+        // Aura should be attached to the creature
+        let aura_entry = game.battlefield.get(&aura_id).unwrap();
+        assert_eq!(aura_entry.attached_to, Some(creature_id));
+    }
+
+    #[test]
+    fn test_aura_host_in_attached_by() {
+        // Rule 303.4f: host's attached_by includes the Aura.
+        let mut game = GameState::new(2, 20);
+
+        let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
+        let creature_id = creature.id;
+        game.add_object(creature);
+        game.place_on_battlefield(creature_id, 1);
+
+        let aura_id = put_permanent_on_stack_with_targets(
+            &mut game,
+            make_pacifism(),
+            0,
+            vec![ResolvedTarget::Object(creature_id)],
+        );
+
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
+
+        // Host should have the Aura in its attached_by list
+        let host_entry = game.battlefield.get(&creature_id).unwrap();
+        assert!(host_entry.attached_by.contains(&aura_id));
     }
 
     #[test]
@@ -481,7 +604,7 @@ mod tests {
         game.move_object(creature_id, Zone::Graveyard).unwrap();
 
         // Resolve — Bolt should fizzle
-        game.resolve_top_of_stack().unwrap();
+        game.resolve_top_of_stack(&passive_dp()).unwrap();
 
         // Player 1's life should be unchanged (bolt didn't redirect to player)
         assert_eq!(game.players[1].life_total, 20);

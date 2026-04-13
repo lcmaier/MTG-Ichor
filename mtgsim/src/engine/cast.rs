@@ -5,7 +5,7 @@ use crate::objects::card_data::{AbilityType, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
-use crate::types::effects::TargetSpec;
+use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
 use crate::types::zones::Zone;
@@ -36,11 +36,11 @@ impl GameState {
         // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
         // may not have a spell ability — they resolve by entering the
         // battlefield. Use an empty Sequence as a no-op effect.
-        let (effect, target_spec) = if let Some(spell_ability) = card_data.abilities.iter()
+        let (effect, recipient) = if let Some(spell_ability) = card_data.abilities.iter()
             .find(|a| a.ability_type == AbilityType::Spell)
         {
             let effect = spell_ability.effect.clone();
-            let target_spec = match &effect {
+            let recipient = match &effect {
                 crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
                 crate::types::effects::Effect::Sequence(effects) => {
                     // For sequence effects, use the target spec from the first atom
@@ -50,14 +50,14 @@ impl GameState {
                         } else {
                             None
                         }
-                    }).unwrap_or(TargetSpec::None)
+                    }).unwrap_or(EffectRecipient::Implicit)
                 }
-                _ => TargetSpec::None,
+                _ => EffectRecipient::Implicit,
             };
-            (effect, target_spec)
+            (effect, recipient)
         } else if card_data.types.iter().any(|t| t.is_permanent()) {
             // Permanent spell with no spell ability — resolves by ETB alone
-            (crate::types::effects::Effect::Sequence(Vec::new()), TargetSpec::None)
+            (crate::types::effects::Effect::Sequence(Vec::new()), EffectRecipient::Implicit)
         } else {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
@@ -66,9 +66,9 @@ impl GameState {
         self.move_object(card_id, Zone::Stack)?;
 
         // --- 3. Choose targets (rule 601.2c) ---
-        let targets = if target_spec != TargetSpec::None && target_spec != TargetSpec::You {
-            let chosen = decisions.choose_targets(self, player_id, &target_spec);
-            self.validate_targets(&target_spec, &chosen)?;
+        let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
+            let chosen = decisions.choose_targets(self, player_id, &recipient);
+            self.validate_targets(&recipient, &chosen)?;
             chosen
         } else {
             Vec::new()
@@ -175,9 +175,9 @@ impl GameState {
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs.clone();
-        let target_spec = match &effect {
+        let recipient = match &effect {
             crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
-            _ => TargetSpec::None,
+            _ => EffectRecipient::Implicit,
         };
 
         // Create a new object on the stack representing the ability (rule 602.2a)
@@ -189,9 +189,9 @@ impl GameState {
         self.stack.push(ability_obj_id);
 
         // Choose targets
-        let targets = if target_spec != TargetSpec::None && target_spec != TargetSpec::You {
-            let chosen = decisions.choose_targets(self, player_id, &target_spec);
-            self.validate_targets(&target_spec, &chosen)?;
+        let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
+            let chosen = decisions.choose_targets(self, player_id, &recipient);
+            self.validate_targets(&recipient, &chosen)?;
             chosen
         } else {
             Vec::new()
@@ -277,7 +277,7 @@ mod tests {
     use crate::engine::resolve::ResolvedTarget;
     use crate::objects::card_data::{AbilityDef, CardDataBuilder};
     use crate::types::card_types::*;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, TargetSpec, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::decision::ScriptedDecisionProvider;
 
@@ -292,7 +292,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    TargetSpec::Any(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
             .build()
@@ -378,7 +378,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(5)),
-                    TargetSpec::Player(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
             })
             .build();

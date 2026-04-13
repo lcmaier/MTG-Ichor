@@ -20,11 +20,12 @@
 
 ### By the Numbers
 
-- **Tests:** 287 (238 unit + 48 integration + 1 doc-test), zero warnings
+- **Tests:** 370 (312 unit + 48 integration + 1 doc-test + 9 pre-Phase3), zero warnings *(updated 2026-04-12)*
 - **Fuzz:** 500/500 games pass (Random vs Random), zero errors/panics
 - **Cards:** 24 (5 basic lands, 5 spells, 4 vanilla creatures, 11 keyword creatures)
-- **DecisionProvider methods:** 8 (all implemented for CLI, Random, Scripted, Passive, Dispatch)
+- **DecisionProvider methods:** 9 (all implemented for CLI, Random, Scripted, Passive, Dispatch) *(+choose_legend_to_keep from T14)*
 - **Effect primitives implemented:** 9 of ~35 (DealDamage, DrawCards, GainLife, LoseLife, ProduceMana, CounterSpell, CounterAbility, Destroy, Untap)
+- **Phase 5 Pre-Work tickets completed:** T14, T15, T15b, T16, plus TargetSpec→EffectRecipient refactor
 
 ### What Works End-to-End Today
 
@@ -116,7 +117,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 
 **Infrastructure added:**
 - `CastInfo` carried from stack to permanent (enables "if kicked" / "if evoked")
-- `EnchantRestriction` for aura targeting model
+- `enchant_filter: Option<SelectionFilter>` on `CardData` for aura attachment validation (unified with `validate_selection` — no separate `EnchantRestriction` type)
 - `ActivationRestriction` + `activation_zone` on `AbilityDef`
 - `CastingRestriction` on `CardData`
 - `ProtectionQuality` enum
@@ -126,7 +127,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 
 **Risk/complexity:** Medium. Largest tickets are T18 (601.2 casting pipeline — consider splitting into T18a/b/c) and T21b (combat evasion + requirements). Most tickets are isolated data model additions with localized blast radius. The mana spending restrictions design spike (T12) produces a document, not code.
 
-**Estimated test count after completion:** ~420 (287 existing + ~133 new)
+**Estimated test count after completion:** ~470+ (370 current as of 2026-04-12 + ~100 from remaining ~20 tickets)
 
 ---
 
@@ -465,7 +466,7 @@ These items span multiple phases:
 | **"Can't" overrides "can"** | All phases | Design principle, not a deliverable |
 | **Perpetual/Alchemy** | Phase 5-Pre (scaffold: `Arc<CardRegistry>` on GameState), Phase 7 (zone-agnostic trigger scanner), Phase 9 (full implementation) | Prototype: `PrototypeStats` on CardData + bool on CastInfo (D20a). Perpetual: `Vec<PerpetualMod>` on GameObject (D20b). Intensity: standalone `Option<u32>` on GameObject. Boon: emblem + use counter. Draft pool: `DraftPool` on GameState. See `alchemy-mechanics-audit.md` for full per-mechanic analysis. |
 | **Protection** | Phase 5 Pre-Work (targeting), Phase 6 (damage prevention), Phase 8 (blocking, attachment) | Three-aspect keyword |
-| **Aura/Equipment** | Phase 5 Pre-Work (SBAs, attachment tracking), Phase 6 (ETB attachment replacement), Phase 8 (equip/enchant abilities) | Progressive build-out |
+| **Aura/Equipment** | Phase 5 Pre-Work (SBAs, attachment tracking, `enchant_filter` + `validate_selection`), Phase 6 (ETB attachment replacement), Phase 8 (equip/enchant abilities) | Progressive build-out. T15b completed: `enchant_filter: Option<SelectionFilter>` on CardData, unified validation via `validate_selection`, `has_any_legal_choice` pre-check, `attach_aura_on_etb` helper. |
 | **Divergent loop shortcutting (727)** | Phase 7 (iteration cap + `GameNumber` stub), Phase 9 (full `GameNumber` enum + `LoopDeclaration` + `Relative` comparisons) | Safety cap first, expressive math later |
 
 ---
@@ -475,7 +476,7 @@ These items span multiple phases:
 ### Milestone 1: Engine Audit Complete
 **Trigger:** All 24 Phase 5 Pre-Work tickets merged
 **Criteria:**
-- ~420 tests pass, 0 warnings
+- ~470+ tests pass, 0 warnings
 - 500/500 fuzz games pass
 - All 48 E-items addressed (3 resolved in-place, 1 deferred to Phase 5 Layers)
 - Counters, attachments, summoning sickness rework, hexproof/shroud/protection all functional

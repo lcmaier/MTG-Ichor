@@ -2,9 +2,10 @@ use crate::engine::actions::GameAction;
 use crate::events::event::DamageTarget;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, Effect, Primitive, TargetSpec,
+    AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter,
 };
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
 ///
@@ -43,15 +44,16 @@ impl GameState {
         &mut self,
         effect: &Effect,
         ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         match effect {
-            Effect::Atom(primitive, target_spec) => {
-                self.resolve_primitive(primitive, target_spec, ctx)
+            Effect::Atom(primitive, recipient) => {
+                self.resolve_primitive(primitive, recipient, ctx, dp)
             }
 
             Effect::Sequence(effects) => {
                 for sub in effects {
-                    self.resolve_effect(sub, ctx)?;
+                    self.resolve_effect(sub, ctx, dp)?;
                 }
                 Ok(())
             }
@@ -85,8 +87,9 @@ impl GameState {
     fn resolve_primitive(
         &mut self,
         primitive: &Primitive,
-        target_spec: &TargetSpec,
+        recipient: &EffectRecipient,
         ctx: &ResolutionContext,
+        _dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         match primitive {
             // === Phase 2 primitives ===
@@ -110,8 +113,8 @@ impl GameState {
 
             Primitive::DrawCards(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
-                // Drawing targets the controller (TargetSpec::You or None)
-                let player_id = self.resolve_player_for_self(target_spec, ctx);
+                // Drawing targets the controller (EffectRecipient::Controller or None)
+                let player_id = self.resolve_player_for_self(recipient, ctx);
                 for _ in 0..count {
                     self.execute_action(GameAction::DrawCard {
                         player: player_id,
@@ -122,7 +125,7 @@ impl GameState {
 
             Primitive::GainLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                let player_id = self.resolve_player_for_self(target_spec, ctx);
+                let player_id = self.resolve_player_for_self(recipient, ctx);
                 self.execute_action(GameAction::GainLife {
                     player: player_id,
                     amount,
@@ -133,7 +136,7 @@ impl GameState {
 
             Primitive::LoseLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                let player_id = self.resolve_player_for_self(target_spec, ctx);
+                let player_id = self.resolve_player_for_self(recipient, ctx);
                 self.execute_action(GameAction::LoseLife {
                     player: player_id,
                     amount,
@@ -301,19 +304,99 @@ impl GameState {
         }
     }
 
+    // --- Helper: Aura non-stack ETB (rule 303.4a) ---
+
+    /// When an Aura enters the battlefield *not* from the stack (e.g.
+    /// returned from graveyard by an effect), it doesn't target — the
+    /// controller chooses a legal object to attach to (rule 303.4a).
+    ///
+    /// If no legal host exists the Aura stays unattached; the 704.5m SBA
+    /// will move it to the graveyard on the next SBA check.
+    ///
+    /// This must be called *after* the Aura is already on the battlefield
+    /// (i.e. after `move_object` / `place_on_battlefield`).
+    ///
+    /// Returns `Ok(true)` if a host was chosen and attached, `Ok(false)` if
+    /// no host was chosen (Aura left unattached for SBA), or `Err` on a
+    /// hard failure.
+    pub fn attach_aura_on_etb(
+        &mut self,
+        aura_id: ObjectId,
+        controller: PlayerId,
+        dp: &dyn DecisionProvider,
+    ) -> Result<bool, String> {
+        use crate::types::card_types::{EnchantmentType, Subtype};
+        use crate::types::effects::{EffectRecipient, TargetCount};
+
+        let obj = self.get_object(aura_id)?;
+
+        // Only applies to Auras.
+        if !obj.card_data.subtypes.contains(
+            &Subtype::Enchantment(EnchantmentType::Aura),
+        ) {
+            return Ok(false);
+        }
+
+        // Read the enchant filter directly from card data.
+        let filter = match &obj.card_data.enchant_filter {
+            Some(f) => f.clone(),
+            // Aura with no enchant_filter — card data bug.
+            // Fall back to "enchant permanent" so the game doesn't crash,
+            // but warn loudly so we catch it.
+            None => {
+                let name = &self.get_object(aura_id)?.card_data.name;
+                eprintln!(
+                    "[WARN] Aura {:?} (id={}) has no enchant_filter set — \
+                     falling back to \"enchant permanent\". This is a card data bug.",
+                    name, aura_id
+                );
+                SelectionFilter::Permanent(
+                    crate::types::effects::PermanentFilter::All,
+                )
+            }
+        };
+
+        // Pre-check: is there at least one legal host?
+        // Skip the DP prompt entirely if not — no point asking the player
+        // to choose from an empty set.
+        if !self.has_any_legal_choice(&filter, Some(aura_id)) {
+            // No legal host exists. Aura stays unattached; 704.5m SBA
+            // will put it into the graveyard.
+            return Ok(false);
+        }
+
+        let recipient = EffectRecipient::Choose(filter, TargetCount::Exactly(1));
+        let choices = dp.choose_targets(self, controller, &recipient);
+
+        if let Some(ResolvedTarget::Object(host_id)) = choices.first() {
+            let host_id = *host_id;
+            if let Some(aura_bf) = self.battlefield.get_mut(&aura_id) {
+                aura_bf.attach_to(host_id);
+            }
+            if let Some(host_bf) = self.battlefield.get_mut(&host_id) {
+                host_bf.attached_by.push(aura_id);
+            }
+            Ok(true)
+        } else {
+            // No legal host chosen — Aura stays unattached.
+            // 704.5m SBA will put it into the graveyard.
+            Ok(false)
+        }
+    }
+
     // --- Helper: determine which player an effect applies to ---
 
-    /// For effects that target "you" (the controller) or use TargetSpec::None,
+    /// For effects that target "you" (the controller) or use EffectRecipient::Implicit,
     /// returns the controller. For targeted player effects, returns the first
     /// player target.
     fn resolve_player_for_self(
         &self,
-        target_spec: &TargetSpec,
+        recipient: &EffectRecipient,
         ctx: &ResolutionContext,
     ) -> PlayerId {
-        match target_spec {
-            TargetSpec::None | TargetSpec::You => ctx.controller,
-            TargetSpec::Player(_) => {
+        match recipient {
+            EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
+            EffectRecipient::Target(SelectionFilter::Player, _) => {
                 // Use the first resolved player target
                 for t in &ctx.targets {
                     if let ResolvedTarget::Player(pid) = t {
@@ -365,17 +448,21 @@ mod tests {
         }
     }
 
+    fn passive_dp() -> crate::ui::decision::PassiveDecisionProvider {
+        crate::ui::decision::PassiveDecisionProvider
+    }
+
     #[test]
     fn test_deal_damage_to_creature() {
         let (mut game, bears_id) = setup_game_with_creature();
 
         let bolt = Effect::Atom(
             Primitive::DealDamage(AmountExpr::Fixed(3)),
-            TargetSpec::Any(crate::types::effects::TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
         );
 
         let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Object(bears_id)]);
-        game.resolve_effect(&bolt, &ctx).unwrap();
+        game.resolve_effect(&bolt, &ctx, &passive_dp()).unwrap();
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
     }
@@ -386,11 +473,11 @@ mod tests {
 
         let bolt = Effect::Atom(
             Primitive::DealDamage(AmountExpr::Fixed(3)),
-            TargetSpec::Any(crate::types::effects::TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
         );
 
         let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Player(1)]);
-        game.resolve_effect(&bolt, &ctx).unwrap();
+        game.resolve_effect(&bolt, &ctx, &passive_dp()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
     }
@@ -412,10 +499,10 @@ mod tests {
 
         let draw = Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(2)),
-            TargetSpec::You,
+            EffectRecipient::Controller,
         );
         let ctx = bolt_ctx(bears_id, vec![]);
-        game.resolve_effect(&draw, &ctx).unwrap();
+        game.resolve_effect(&draw, &ctx, &passive_dp()).unwrap();
 
         assert_eq!(game.players[0].hand.len(), 2);
         assert_eq!(game.players[0].library.len(), 3);
@@ -427,10 +514,10 @@ mod tests {
 
         let heal = Effect::Atom(
             Primitive::GainLife(AmountExpr::Fixed(5)),
-            TargetSpec::You,
+            EffectRecipient::Controller,
         );
         let ctx = bolt_ctx(bears_id, vec![]);
-        game.resolve_effect(&heal, &ctx).unwrap();
+        game.resolve_effect(&heal, &ctx, &passive_dp()).unwrap();
 
         assert_eq!(game.players[0].life_total, 25);
     }
@@ -453,18 +540,121 @@ mod tests {
         let effect = Effect::Sequence(vec![
             Effect::Atom(
                 Primitive::DealDamage(AmountExpr::Fixed(2)),
-                TargetSpec::Any(crate::types::effects::TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
             ),
             Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                TargetSpec::You,
+                EffectRecipient::Controller,
             ),
         ]);
 
         let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Player(1)]);
-        game.resolve_effect(&effect, &ctx).unwrap();
+        game.resolve_effect(&effect, &ctx, &passive_dp()).unwrap();
 
         assert_eq!(game.players[1].life_total, 18);
         assert_eq!(game.players[0].hand.len(), 1);
+    }
+
+    // --- attach_aura_on_etb tests (rule 303.4a) ---
+
+    fn make_pacifism() -> std::sync::Arc<crate::objects::card_data::CardData> {
+        CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(crate::types::card_types::EnchantmentType::Aura))
+            .color(crate::types::colors::Color::White)
+            .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::White], 1))
+            .enchant_filter(SelectionFilter::Creature)
+            .build()
+    }
+
+    #[test]
+    fn test_aura_etb_non_stack_chooses_host() {
+        // Rule 303.4a: Aura entering the battlefield not from the stack —
+        // controller chooses a legal host. No targeting rules apply.
+        let mut game = GameState::new(2, 20);
+
+        // Put a creature on the battlefield (valid host)
+        let creature = GameObject::new(
+            CardDataBuilder::new("Grizzly Bears")
+                .card_type(CardType::Creature)
+                .power_toughness(2, 2)
+                .build(),
+            1,
+            Zone::Battlefield,
+        );
+        let creature_id = creature.id;
+        game.add_object(creature);
+        game.place_on_battlefield(creature_id, 1);
+
+        // Put the Aura on the battlefield (simulating a non-stack ETB)
+        let aura = GameObject::new(make_pacifism(), 0, Zone::Battlefield);
+        let aura_id = aura.id;
+        game.add_object(aura);
+        game.place_on_battlefield(aura_id, 0);
+
+        // Script the DP to choose the creature as host
+        let dp = crate::ui::decision::ScriptedDecisionProvider::new();
+        dp.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(creature_id)]);
+
+        let attached = game.attach_aura_on_etb(aura_id, 0, &dp).unwrap();
+        assert!(attached);
+
+        // Aura should be attached to the creature
+        let aura_bf = game.battlefield.get(&aura_id).unwrap();
+        assert_eq!(aura_bf.attached_to, Some(creature_id));
+
+        // Host should list the Aura
+        let host_bf = game.battlefield.get(&creature_id).unwrap();
+        assert!(host_bf.attached_by.contains(&aura_id));
+    }
+
+    #[test]
+    fn test_aura_etb_non_stack_no_legal_host() {
+        // Rule 303.4a + 704.5m: Aura enters with no legal host —
+        // stays unattached, SBA will handle it.
+        let mut game = GameState::new(2, 20);
+
+        // No creatures on the battlefield — Pacifism has no legal host
+
+        // Put the Aura on the battlefield (simulating a non-stack ETB)
+        let aura = GameObject::new(make_pacifism(), 0, Zone::Battlefield);
+        let aura_id = aura.id;
+        game.add_object(aura);
+        game.place_on_battlefield(aura_id, 0);
+
+        // PassiveDP returns empty — no host chosen
+        let attached = game.attach_aura_on_etb(aura_id, 0, &passive_dp()).unwrap();
+        assert!(!attached);
+
+        // Aura is still on battlefield but unattached
+        assert!(game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
+
+        // SBA should now kill it (704.5m)
+        let performed = game.check_state_based_actions(&passive_dp()).unwrap();
+        assert!(performed);
+        assert!(!game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    #[test]
+    fn test_attach_aura_on_etb_non_aura_is_noop() {
+        // Non-Aura permanents should return Ok(false) and do nothing.
+        let mut game = GameState::new(2, 20);
+
+        let creature = GameObject::new(
+            CardDataBuilder::new("Grizzly Bears")
+                .card_type(CardType::Creature)
+                .power_toughness(2, 2)
+                .build(),
+            0,
+            Zone::Battlefield,
+        );
+        let creature_id = creature.id;
+        game.add_object(creature);
+        game.place_on_battlefield(creature_id, 0);
+
+        let result = game.attach_aura_on_etb(creature_id, 0, &passive_dp()).unwrap();
+        assert!(!result);
     }
 }

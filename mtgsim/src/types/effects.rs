@@ -52,8 +52,11 @@ pub enum PlayerRef {
 pub enum PermanentFilter {
     All,
     ByType(crate::types::card_types::CardType),
+    BySubtype(crate::types::card_types::Subtype),
     ByColor(Color),
     ByController(PlayerRef),
+    /// Power less than or equal to N (for "creature with power N or less")
+    PowerLE(i32),
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     Not(Box<PermanentFilter>),
 }
@@ -104,30 +107,49 @@ pub enum ModalCount {
     Any,
 }
 
-/// Targeting specification for an effect atom
+/// What an effect acts on.
 ///
-/// For Phase 2, this covers the basics: target creature, target player,
-/// "any target" (creature or player). Future phases add target permanent,
-/// target spell, etc.
+/// Separates two orthogonal concerns that were previously conflated:
+/// - **Who/what** the effect acts on (filter + count)
+/// - **Whether targeting rules apply** (hexproof/shroud/protection)
+///
+/// `Target` = the MTG rules concept of "targeting" (hexproof, shroud,
+/// protection all apply; fizzles if target becomes illegal).
+/// `Choose` = "choose" / non-targeting selection (rule 303.4a — Aura ETB
+/// without casting; hexproof/shroud do NOT apply, does NOT fizzle).
 #[derive(Debug, Clone, PartialEq)]
-pub enum TargetSpec {
-    /// No target (e.g. "draw a card")
-    None,
-    /// The controller of this spell/ability
-    You,
-    /// Target creature
-    Creature(TargetCount),
-    /// Target player
-    Player(TargetCount),
-    /// "any target" — creature, player, or planeswalker
-    Any(TargetCount),
-    /// Target permanent matching a filter
-    Permanent(PermanentFilter, TargetCount),
-    /// Target spell on the stack
-    Spell(TargetCount),
+pub enum EffectRecipient {
+    /// No object involved (e.g. mana abilities, "draw a card" with no target)
+    Implicit,
+    /// The controller of this spell/ability (e.g. Night's Whisper "you draw",
+    /// Angel's Mercy "you gain"). Not targeting.
+    Controller,
+    /// Select with targeting rules — hexproof/shroud/protection apply,
+    /// fizzles if all targets become illegal (rule 608.2b).
+    Target(SelectionFilter, TargetCount),
+    /// Select without targeting rules — "choose" (rule 303.4a, etc.).
+    /// Hexproof/shroud/protection do NOT apply.  Does not fizzle.
+    Choose(SelectionFilter, TargetCount),
 }
 
-/// How many targets to choose
+/// What kind of object(s) can be selected.
+///
+/// Shared by both `Target` and `Choose` variants of `EffectRecipient`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SelectionFilter {
+    /// Creature on the battlefield
+    Creature,
+    /// Player
+    Player,
+    /// "any target" — creature, player, or planeswalker
+    Any,
+    /// Permanent matching a filter
+    Permanent(PermanentFilter),
+    /// Spell on the stack
+    Spell,
+}
+
+/// How many targets/choices to select
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetCount {
     Exactly(u32),
@@ -316,7 +338,7 @@ pub enum Primitive {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     /// Apply a primitive to resolved targets
-    Atom(Primitive, TargetSpec),
+    Atom(Primitive, EffectRecipient),
 
     /// Execute effects in order (e.g. "deal 3 damage and draw a card")
     Sequence(Vec<Effect>),

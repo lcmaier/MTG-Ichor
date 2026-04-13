@@ -388,7 +388,7 @@ mod tests {
     use crate::state::battlefield::BattlefieldEntity;
     use crate::state::game_state::{GameState, Phase, PhaseType};
     use crate::types::card_types::*;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, TargetSpec, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
 
@@ -512,7 +512,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    TargetSpec::Any(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
             .build();
@@ -543,7 +543,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    TargetSpec::Any(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
             .build();
@@ -560,7 +560,7 @@ mod tests {
     fn test_available_mana_sources_sacrifice_ability_on_tapped_creature() {
         // A tapped creature with "Sacrifice: Add {U}{R}" should still be a valid source
         use crate::objects::card_data::{AbilityType, Cost};
-        use crate::types::effects::{AmountExpr, ManaOutput, Primitive, Effect, TargetSpec};
+        use crate::types::effects::{AmountExpr, ManaOutput, Primitive, Effect, EffectRecipient};
 
         let mut game = GameState::new(2, 20);
 
@@ -579,7 +579,7 @@ mod tests {
                         ],
                         special: vec![],
                     }),
-                    TargetSpec::None,
+                    EffectRecipient::Implicit,
                 ),
             })
             .build();
@@ -655,7 +655,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(2)),
-                    TargetSpec::Any(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
             .build();
@@ -686,7 +686,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(5)),
-                    TargetSpec::Player(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
             })
             .build();

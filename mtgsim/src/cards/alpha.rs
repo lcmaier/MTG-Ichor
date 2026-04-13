@@ -32,7 +32,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DealDamage(AmountExpr::Fixed(3)),
-                TargetSpec::Any(TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -52,7 +52,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(3)),
-                TargetSpec::Player(TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -72,7 +72,7 @@ pub fn counterspell() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::CounterSpell,
-                TargetSpec::Spell(TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -92,7 +92,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::Untap,
-                TargetSpec::Permanent(PermanentFilter::All, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -112,8 +112,8 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::Destroy,
-                TargetSpec::Permanent(
-                    PermanentFilter::ByType(CardType::Land),
+                EffectRecipient::Target(SelectionFilter::Permanent(
+                    PermanentFilter::ByType(CardType::Land)),
                     TargetCount::Exactly(1),
                 ),
             ),

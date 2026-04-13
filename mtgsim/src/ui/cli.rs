@@ -13,7 +13,7 @@ use crate::oracle::legality::{legal_attackers, legal_blockers, playable_lands};
 use crate::oracle::mana_helpers::castable_spells;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::effects::TargetSpec;
+use crate::types::effects::{EffectRecipient, SelectionFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::ui::decision::{
@@ -351,14 +351,14 @@ impl DecisionProvider for CliDecisionProvider {
         &self,
         game: &GameState,
         _player_id: PlayerId,
-        target_spec: &TargetSpec,
+        recipient: &EffectRecipient,
     ) -> Vec<ResolvedTarget> {
         println!("\n--- Choose Targets ---");
-        println!("Target spec: {:?}", target_spec);
+        println!("Target spec: {:?}", recipient);
 
-        match target_spec {
-            TargetSpec::None | TargetSpec::You => Vec::new(),
-            TargetSpec::Player(_) => {
+        match recipient {
+            EffectRecipient::Implicit | EffectRecipient::Controller => Vec::new(),
+            EffectRecipient::Target(SelectionFilter::Player, _) => {
                 println!("Players:");
                 for pid in 0..game.num_players() {
                     println!(
@@ -372,7 +372,7 @@ impl DecisionProvider for CliDecisionProvider {
                     None => Vec::new(),
                 }
             }
-            TargetSpec::Creature(_) => {
+            EffectRecipient::Target(SelectionFilter::Creature, _) => {
                 let creatures: Vec<ObjectId> = game
                     .battlefield
                     .keys()
@@ -388,7 +388,7 @@ impl DecisionProvider for CliDecisionProvider {
                     None => Vec::new(),
                 }
             }
-            TargetSpec::Any(_) => {
+            EffectRecipient::Target(SelectionFilter::Any, _) => {
                 println!("Players:");
                 for pid in 0..game.num_players() {
                     println!(
@@ -432,7 +432,7 @@ impl DecisionProvider for CliDecisionProvider {
                 Vec::new()
             }
             _ => {
-                println!("Unsupported target spec {:?}, returning empty.", target_spec);
+                println!("Unsupported target spec {:?}, returning empty.", recipient);
                 Vec::new()
             }
         }

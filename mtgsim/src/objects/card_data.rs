@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, ManaOutput, Primitive, TargetSpec};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput, Primitive, EffectRecipient, SelectionFilter};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
@@ -32,6 +32,9 @@ pub struct CardData {
     /// an intrinsic color (e.g., back faces of DFCs, Ancestral Vision suspend).
     /// None means no color indicator; color is derived from mana cost instead.
     pub color_indicator: Option<Vec<Color>>,
+    /// What this Aura can legally enchant (rule 303.4).
+    /// None for non-Aura cards.
+    pub enchant_filter: Option<SelectionFilter>,
 }
 
 /// The type of an ability
@@ -132,6 +135,7 @@ impl CardDataBuilder {
                 abilities: Vec::new(),
                 keywords: HashSet::new(),
                 color_indicator: None,
+                enchant_filter: None,
             },
         }
     }
@@ -209,7 +213,7 @@ impl CardDataBuilder {
                     mana: vec![(mana_type, AmountExpr::Fixed(1))],
                     special: vec![],
                 }),
-                TargetSpec::None,
+                EffectRecipient::Implicit,
             ),
         });
 
@@ -226,6 +230,11 @@ impl CardDataBuilder {
             self.data.rules_text = format!("{{T}}: Add {}.", mana_symbol);
         }
 
+        self
+    }
+
+    pub fn enchant_filter(mut self, filter: SelectionFilter) -> Self {
+        self.data.enchant_filter = Some(filter);
         self
     }
 

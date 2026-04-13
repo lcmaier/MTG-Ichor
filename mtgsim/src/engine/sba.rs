@@ -4,6 +4,7 @@ use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{get_effective_name, is_creature, get_effective_toughness};
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
+use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
 use crate::types::zones::Zone;
@@ -175,10 +176,20 @@ impl GameState {
                 match entry.attached_to {
                     // 704.5m: Aura not attached to anything
                     None => Some(id),
-                    // 704.5n: host no longer on the battlefield
-                    // TODO: check enchant restriction once Aura targeting model is implemented (T15b).
-                    Some(host_id) if !self.battlefield.contains_key(&host_id) => Some(id),
-                    _ => None,
+                    Some(host_id) => {
+                        // 704.5n: host no longer on the battlefield
+                        if !self.battlefield.contains_key(&host_id) {
+                            return Some(id);
+                        }
+                        // 704.5n: host doesn't match enchant filter
+                        if let Some(filter) = &obj.card_data.enchant_filter {
+                            let candidate = ResolvedTarget::Object(host_id);
+                            if self.validate_selection(filter, &candidate).is_err() {
+                                return Some(id);
+                            }
+                        }
+                        None
+                    }
                 }
             })
             .collect();
@@ -317,6 +328,7 @@ impl GameState {
         Ok(())
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -974,5 +986,72 @@ mod tests {
         assert!(!performed);
         assert!(game.battlefield.contains_key(&aura_id));
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, Some(host_id));
+    }
+
+    #[test]
+    fn test_aura_etb_no_legal_target_dies() {
+        // An Aura enters the battlefield with no legal host (attached_to = None).
+        // SBA 704.5m should send it to the graveyard.
+        let mut game = GameState::new(2, 20);
+
+        let aura_data = CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+            .enchant_filter(crate::types::effects::SelectionFilter::Creature)
+            .build();
+        let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
+        let aura_id = aura_obj.id;
+        game.add_object(aura_obj);
+        game.place_on_battlefield(aura_id, 0);
+
+        // Aura is on the battlefield but not attached to anything
+        assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+        assert!(!game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    #[test]
+    fn test_enchant_filter_creature_only() {
+        // Aura with SelectionFilter::Creature attached to a non-creature (a land).
+        // SBA 704.5n should detect the illegal attachment and send the Aura to the graveyard.
+        let mut game = GameState::new(2, 20);
+
+        // Create a land (non-creature) on the battlefield
+        let land_data = CardDataBuilder::new("Forest")
+            .card_type(CardType::Land)
+            .build();
+        let land_obj = GameObject::new(land_data, 0, Zone::Battlefield);
+        let land_id = land_obj.id;
+        game.add_object(land_obj);
+        game.place_on_battlefield(land_id, 0);
+
+        // Create an Aura with "Enchant creature" attached to the land
+        let aura_data = CardDataBuilder::new("Pacifism")
+            .card_type(CardType::Enchantment)
+            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+            .enchant_filter(crate::types::effects::SelectionFilter::Creature)
+            .build();
+        let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
+        let aura_id = aura_obj.id;
+        game.add_object(aura_obj);
+        game.place_on_battlefield(aura_id, 0);
+
+        // Wire up illegal attachment (Aura enchanting a land with "Enchant creature")
+        game.battlefield.get_mut(&aura_id).unwrap().attach_to(land_id);
+        game.battlefield.get_mut(&land_id).unwrap().attached_by.push(aura_id);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+
+        // Aura should be in the graveyard
+        assert!(!game.battlefield.contains_key(&aura_id));
+        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
+
+        // Land should still be on the battlefield, with no attachments
+        assert!(game.battlefield.contains_key(&land_id));
+        assert!(game.battlefield.get(&land_id).unwrap().attached_by.is_empty());
     }
 }
