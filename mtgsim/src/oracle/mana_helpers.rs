@@ -6,6 +6,7 @@
 
 use crate::objects::card_data::AbilityType;
 use crate::state::game_state::GameState;
+use crate::types::card_types::CardType;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -169,6 +170,11 @@ pub fn castable_spells(
             Some(o) => o,
             None => continue,
         };
+
+        // Lands are never cast — they're played via the special action (rule 305.1)
+        if obj.card_data.types.contains(&CardType::Land) {
+            continue;
+        }
 
         // Must have a spell ability
         let spell_ability = obj.card_data.abilities.iter()
