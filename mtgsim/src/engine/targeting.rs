@@ -281,6 +281,11 @@ impl GameState {
                         self.validate_selection(filter, &candidate).is_ok()
                     })
             }
+            SelectionFilter::Spell => {
+                // Spells live on the stack, not the battlefield
+                self.stack.iter()
+                    .any(|&id| Some(id) != exclude_id)
+            }
             _ => self.battlefield.keys()
                 .filter(|&&id| Some(id) != exclude_id)
                 .any(|&id| {

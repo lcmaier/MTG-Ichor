@@ -8,4 +8,4 @@ MTG-Rules/
 atomic-tests/
 
 # log files
-.log
+*.log

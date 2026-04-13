@@ -283,8 +283,16 @@ impl DecisionProvider for RandomDecisionProvider {
                 }
             }
             SelectionFilter::Spell => {
-                // Random spell on the stack
-                if let Some(&id) = game.stack.choose(&mut rng) {
+                // Random spell on the stack, excluding the top entry
+                // (the spell being cast — it's already on the stack when
+                // choose_targets is called, and a spell can't target itself,
+                // rule 114.5).
+                let top = game.stack.last().copied();
+                let candidates: Vec<ObjectId> = game.stack.iter()
+                    .copied()
+                    .filter(|&id| Some(id) != top)
+                    .collect();
+                if let Some(&id) = candidates.choose(&mut rng) {
                     vec![ResolvedTarget::Object(id)]
                 } else {
                     Vec::new()
