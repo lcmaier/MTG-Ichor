@@ -614,7 +614,7 @@ mod tests {
     #[test]
     fn test_format_stack_single_item_marker() {
         use crate::state::game_state::StackEntry;
-        use crate::types::effects::{Effect, Primitive, AmountExpr, TargetSpec, TargetCount};
+        use crate::types::effects::{Effect, Primitive, AmountExpr, EffectRecipient, SelectionFilter, TargetCount};
 
         let mut game = GameState::new(2, 20);
         let bolt = CardDataBuilder::new("Lightning Bolt")
@@ -630,7 +630,7 @@ mod tests {
             chosen_targets: Vec::new(),
             chosen_modes: Vec::new(),
             x_value: None,
-            effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), TargetSpec::Any(TargetCount::Exactly(1))),
+            effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))),
             is_spell: true,
         });
 
@@ -641,7 +641,7 @@ mod tests {
     #[test]
     fn test_format_stack_two_items_markers() {
         use crate::state::game_state::StackEntry;
-        use crate::types::effects::{Effect, Primitive, AmountExpr, TargetSpec, TargetCount};
+        use crate::types::effects::{Effect, Primitive, AmountExpr, EffectRecipient, SelectionFilter, TargetCount};
 
         let mut game = GameState::new(2, 20);
 
@@ -658,7 +658,7 @@ mod tests {
             chosen_targets: Vec::new(),
             chosen_modes: Vec::new(),
             x_value: None,
-            effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), TargetSpec::Any(TargetCount::Exactly(1))),
+            effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))),
             is_spell: true,
         });
 
@@ -675,7 +675,7 @@ mod tests {
             chosen_targets: Vec::new(),
             chosen_modes: Vec::new(),
             x_value: None,
-            effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), TargetSpec::Any(TargetCount::Exactly(1))),
+            effect: Effect::Atom(Primitive::DealDamage(AmountExpr::Fixed(3)), EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))),
             is_spell: true,
         });
 

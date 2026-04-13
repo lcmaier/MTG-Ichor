@@ -15,7 +15,7 @@ use crate::oracle::legality::{legal_attackers, legal_blockers, playable_lands};
 use crate::oracle::mana_helpers::castable_spells;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::effects::TargetSpec;
+use crate::types::effects::{EffectRecipient, SelectionFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::ui::decision::{
@@ -199,18 +199,23 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         game: &GameState,
         _player_id: PlayerId,
-        target_spec: &TargetSpec,
+        recipient: &EffectRecipient,
     ) -> Vec<ResolvedTarget> {
         let mut rng = rand::rng();
 
-        match target_spec {
-            TargetSpec::None | TargetSpec::You => Vec::new(),
-            TargetSpec::Player(_) => {
+        // Extract the filter — Target and Choose select identically here.
+        let filter = match recipient {
+            EffectRecipient::Implicit | EffectRecipient::Controller => return Vec::new(),
+            EffectRecipient::Target(f, _) | EffectRecipient::Choose(f, _) => f,
+        };
+
+        match filter {
+            SelectionFilter::Player => {
                 // Random player
                 let pid = rng.random_range(0..game.num_players());
                 vec![ResolvedTarget::Player(pid)]
             }
-            TargetSpec::Creature(_) => {
+            SelectionFilter::Creature => {
                 // Random creature on the battlefield
                 let creatures: Vec<ObjectId> = game
                     .battlefield
@@ -226,7 +231,7 @@ impl DecisionProvider for RandomDecisionProvider {
                     Vec::new()
                 }
             }
-            TargetSpec::Any(_) => {
+            SelectionFilter::Any => {
                 // Randomly pick player or creature
                 let creatures: Vec<ObjectId> = game
                     .battlefield
@@ -250,7 +255,7 @@ impl DecisionProvider for RandomDecisionProvider {
                     vec![ResolvedTarget::Object(creatures[idx])]
                 }
             }
-            TargetSpec::Permanent(_, _) => {
+            SelectionFilter::Permanent(_) => {
                 // Random permanent
                 let perms: Vec<ObjectId> =
                     game.battlefield.keys().copied().collect();
@@ -260,7 +265,7 @@ impl DecisionProvider for RandomDecisionProvider {
                     Vec::new()
                 }
             }
-            TargetSpec::Spell(_) => {
+            SelectionFilter::Spell => {
                 // Random spell on the stack
                 if let Some(&id) = game.stack.choose(&mut rng) {
                     vec![ResolvedTarget::Object(id)]
@@ -382,7 +387,7 @@ mod tests {
         let targets = dp.choose_targets(
             &game,
             0,
-            &TargetSpec::Player(crate::types::effects::TargetCount::Exactly(1)),
+            &EffectRecipient::Target(SelectionFilter::Player, crate::types::effects::TargetCount::Exactly(1)),
         );
         assert_eq!(targets.len(), 1);
         match targets[0] {

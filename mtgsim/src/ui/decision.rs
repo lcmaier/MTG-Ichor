@@ -6,7 +6,7 @@ use crate::oracle::characteristics::get_effective_toughness;
 use crate::oracle::mana_helpers::ManaSource;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::effects::TargetSpec;
+use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
@@ -70,7 +70,7 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player_id: PlayerId,
-        target_spec: &TargetSpec,
+        recipient: &EffectRecipient,
     ) -> Vec<ResolvedTarget>;
 
     /// Choose how to divide an attacker's combat damage among multiple blockers.
@@ -158,7 +158,7 @@ impl DecisionProvider for PassiveDecisionProvider {
         PriorityAction::Pass
     }
 
-    fn choose_targets(&self, _game: &GameState, _player_id: PlayerId, _target_spec: &TargetSpec) -> Vec<ResolvedTarget> {
+    fn choose_targets(&self, _game: &GameState, _player_id: PlayerId, _recipient: &EffectRecipient) -> Vec<ResolvedTarget> {
         Vec::new()
     }
 
@@ -248,7 +248,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
         }
     }
 
-    fn choose_targets(&self, _game: &GameState, _player_id: PlayerId, _target_spec: &TargetSpec) -> Vec<ResolvedTarget> {
+    fn choose_targets(&self, _game: &GameState, _player_id: PlayerId, _recipient: &EffectRecipient) -> Vec<ResolvedTarget> {
         let mut decisions = self.target_decisions.borrow_mut();
         if decisions.is_empty() {
             Vec::new()
@@ -543,9 +543,9 @@ impl DecisionProvider for DispatchDecisionProvider {
         &self,
         game: &GameState,
         player_id: PlayerId,
-        target_spec: &TargetSpec,
+        recipient: &EffectRecipient,
     ) -> Vec<ResolvedTarget> {
-        self.dp_for(player_id).choose_targets(game, player_id, target_spec)
+        self.dp_for(player_id).choose_targets(game, player_id, recipient)
     }
 
     fn choose_attacker_damage_assignment(

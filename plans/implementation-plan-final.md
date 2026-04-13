@@ -390,7 +390,7 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T15: Aura/Equipment legality SBAs
+#### T15: Aura/Equipment legality SBAs (DONE ✅)
 - **Scope:** Medium
 - **Source:** E19
 - **Depends on:** T04 (attachment tracking)
@@ -411,41 +411,32 @@ L17 + L19 + L20 → L21
 
 ---
 
-#### T15b: Aura attachment logic (rule 303.4f)
+#### T15b: Aura attachment logic (rule 303.4f) (DONE ✅)
 - **Scope:** Small
 - **Source:** Dependency surfaced by T15 (not an E-item — infrastructure for future Aura cards)
 - **Depends on:** T04 (attachment tracking)
-- **Note:** T15 and T15b are independent after T04 and can run in parallel. T15's 704.5n TODO comment is filled in by T15b step 4, but T15 does not block T15b — the TODO is a forward reference, not a prerequisite.
-- **Files:** `objects/card_data.rs` (modify), `engine/stack.rs` (modify), `engine/zones.rs` (modify)
+- **Note:** T15 and T15b are independent after T04 and can run in parallel.
+- **Files:** `objects/card_data.rs` (modify), `types/effects.rs` (modify), `engine/stack.rs` (modify), `engine/resolve.rs` (modify), `engine/sba.rs` (modify), `engine/targeting.rs` (modify)
 - **Steps:**
-  1. Add a structured enchant restriction to Aura cards. Define:
-     ```rust
-     pub enum EnchantRestriction {
-         Creature,
-         Player,
-         Permanent,
-         PermanentWithType(CardType),
-         PermanentWithSubtype(Subtype),
-         CreatureWithPowerLE(i32),
-         Land,
-         Custom(String), // fallback
-     }
-     ```
-     Add `pub enchant_restriction: Option<EnchantRestriction>` to `CardData`. Non-Aura cards leave this as `None`.
-  2. **Aura ETB from stack (rule 303.4f):** When an Aura spell resolves on the stack, it doesn't just enter the battlefield — it enters *attached to* its target. In `engine/stack.rs`, after permanent resolution for an Aura-subtyped spell, set `attached_to` on the new `BattlefieldEntity` to the resolved target (from `entry.chosen_targets`). Add the Aura's `object_id` to the host's `attached_by`.
-  3. **Aura ETB without targeting (rule 303.4a):** When an Aura enters the battlefield *not* from the stack (e.g., returned from graveyard by an effect), it doesn't target — the controller chooses a legal object to attach to. If no legal object exists, the Aura goes to the graveyard (SBA from T15 handles this). Reuse the existing `choose_targets` DP method with a `TargetContext::EnchantmentPlacement` variant (or equivalent) to distinguish this from spell targeting — the DP sees the same target selection UI, but the engine knows not to apply "target" rules (hexproof/shroud don't apply since this isn't targeting per 303.4a). Add `TargetContext` enum to `types/effects.rs` if it doesn't exist: `enum TargetContext { SpellCast, AbilityActivation, EnchantmentPlacement }`.
-  4. Update T15's 704.5n SBA to use `enchant_restriction` for the full legality check (replaces the TODO comment).
+  1. **Enchant filter on CardData.** Added `pub enchant_filter: Option<SelectionFilter>` to `CardData`. Uses `SelectionFilter` directly — no intermediate `EnchantRestriction` enum. `PermanentFilter` extended with `BySubtype(Subtype)` and `PowerLE(i32)` variants to cover all enchant restriction cases. Builder method: `.enchant_filter(SelectionFilter::Creature)`.
+  2. **Aura ETB from stack (rule 303.4f).** In `engine/stack.rs`, after permanent resolution for an Aura-subtyped spell, set `attached_to` on the `BattlefieldEntity` to the resolved target (from `entry.chosen_targets`). Aura's `object_id` added to host's `attached_by`.
+  3. **Aura ETB without targeting (rule 303.4a).** Added `attach_aura_on_etb(aura_id, controller, dp)` to `engine/resolve.rs`. Reads `enchant_filter` directly, pre-checks via `has_any_legal_choice` (extracted to `targeting.rs` as `pub(crate)` helper), then asks DP to choose via `EffectRecipient::Choose(filter, TargetCount::Exactly(1))`. No `TargetContext` enum needed — the `Choose` vs `Target` distinction in `EffectRecipient` already conveys that targeting rules don't apply (hexproof/shroud don't apply per 303.4a). Returns `Ok(false)` if no legal host; SBA 704.5m handles cleanup.
+  4. **SBA 704.5n updated.** Uses `validate_selection(filter, &ResolvedTarget::Object(host_id))` for the full legality check — single validation path for targeting, SBA, and Aura ETB. Deleted the intermediate `check_enchant_restriction()` function (~50 lines).
+- **Design decision:** Initially created an `EnchantRestriction` enum with `to_selection_filter()` bridge method. Immediately recognized as an anti-pattern (parallel type hierarchy) and refactored to use `SelectionFilter` directly on `CardData`. The `EnchantRestriction` enum was deleted in the same MR.
 - **Tests:**
   - `test_aura_attaches_to_target_on_resolve` — Aura spell resolves, attached_to set to target
   - `test_aura_host_in_attached_by` — host's attached_by includes the Aura
   - `test_aura_etb_no_legal_target_dies` — Aura enters without legal host, SBA removes it
-  - `test_enchant_restriction_creature_only` — Aura with EnchantRestriction::Creature rejects non-creature
-- **Acceptance:** All existing tests pass + new tests pass + 0 warnings
-- **Commit:** `engine: Aura attachment logic and EnchantRestriction (303.4f)`
+  - `test_enchant_filter_creature_only` — Aura with SelectionFilter::Creature rejects non-creature
+  - `test_aura_etb_non_stack_chooses_host` — rule 303.4a: Aura ETB not from stack, chooses host
+  - `test_aura_etb_non_stack_no_legal_host` — no legal host, returns Ok(false), SBA kills
+  - `test_aura_etb_non_aura_noop` — non-Aura permanent returns Ok(false), no-op
+- **Acceptance:** 370 tests pass, 0 warnings
+- **Commit:** `engine: Aura attachment logic, enchant_filter on CardData, unified validate_selection (303.4f)`
 
 ---
 
-#### T16: Remaining SBAs — poison, commander, indestructible, cleanup re-loop
+#### T16: Remaining SBAs — poison, commander, indestructible, cleanup re-loop (DONE ✅)
 - **Scope:** Small
 - **Source:** E21 + E22 + E23 + E24
 - **Depends on:** T02 (player counters), T01 (for indestructible check context)
@@ -594,7 +585,7 @@ L17 + L19 + L20 → L21
   - `test_legality_check_runs_post_proposal` — timing check passes, but post-proposal check (e.g., illegal mode) rejects and rolls back
 - **Acceptance:** All existing tests pass + new tests pass + 0 warnings
 - **Commit:** `engine: 601.2-compliant casting pipeline, casting restrictions, cost pipeline stub (E25 part 2, E26–E28)`
-- **Follow-up (Phase 5-Pre session):** `TargetSpec` conflates targeting information with effect recipient. `TargetSpec::You` means "no targeting, apply to controller" but the name implies targeting. The engine handles this correctly today (`resolve_player_for_self` maps `None`/`You` → `ctx.controller`, targeting validation short-circuits for both). When T18 rewrites the casting pipeline and targeting validation, split into `EffectRecipient` (Controller, EachPlayer, EachOpponent, TargetedBy(TargetSpec)) so `Effect::Atom` becomes `Atom(Primitive, EffectRecipient)`. Non-targeting spells like Night's Whisper would use `EffectRecipient::Controller` instead of `TargetSpec::You`.
+- **Follow-up (Phase 5-Pre session):** ~~`TargetSpec` conflates targeting information with effect recipient.~~ **COMPLETED EARLY (T15b MR, 2026-04-12).** `TargetSpec` has been refactored into `EffectRecipient` with variants `Implicit`, `Controller`, `Target(SelectionFilter, TargetCount)`, `Choose(SelectionFilter, TargetCount)`. `Effect::Atom` is now `Atom(Primitive, EffectRecipient)`. `Target` = MTG targeting rules apply (hexproof/shroud/protection, fizzle). `Choose` = non-targeting selection (rule 303.4a Aura ETB, etc.). Variable renamed `target_spec` → `recipient` across 14 files. T18 no longer needs to perform this split — it can build on the existing `EffectRecipient` infrastructure for mode choice, X value, and distribution.
 
 ---
 
@@ -641,7 +632,7 @@ L17 + L19 + L20 → L21
 - **Files:** `objects/card_data.rs` (modify), `state/game_state.rs` (modify), `engine/resolve.rs` (modify)
 - **Steps:**
   1. **Linked abilities (E30):** Add `pub linked_group: Option<u32>` to `AbilityDef`. Add `pub linked_ability_data: HashMap<(ObjectId, u32), Vec<ObjectId>>` to `GameState`. When an ability with a linked group resolves and affects objects, record them in the map. The paired ability reads from the map.
-  2. **Mana ability debug assertion (E32):** In `CardDataBuilder::build()`, add `#[cfg(debug_assertions)]` check: if any ability has `ability_type == Mana` and its effect references targets (non-`TargetSpec::None`), emit a warning via `eprintln!` or `debug_assert!`.
+  2. **Mana ability debug assertion (E32):** In `CardDataBuilder::build()`, add `#[cfg(debug_assertions)]` check: if any ability has `ability_type == Mana` and its effect uses `EffectRecipient::Target(_, _)` (mana abilities cannot target per rule 605.1a), emit a warning via `eprintln!` or `debug_assert!`. *(Note: `TargetSpec` was refactored to `EffectRecipient` in the T15b MR — `Implicit` and `Controller` are non-targeting, `Target` is targeting.)*
 - **Codebase verification:** Confirmed `AbilityDef` has no `linked_group`. `CardDataBuilder::build()` at `card_data.rs:223-225` does no validation.
 - **Tests:**
   - `test_linked_ability_data_stored` — resolve linked ability, data recorded
@@ -798,8 +789,8 @@ L17 + L19 + L20 → L21
   3. **Duration::UntilEndOfYourNextTurn (bonus):** Add `UntilEndOfYourNextTurn` variant. Not in the E-list but common enough to warrant adding now. Reference card: Wrenn's Resolve ({1}{R} Sorcery — "Exile the top two cards of your library. Until the end of your next turn, you may play those cards."). Expires at the cleanup step of the specified player's next turn.
   4. **Duration expiry hooks (E42):** In `engine/turns.rs`, add calls to `remove_expired_effects(duration)` at phase/step boundaries. Create `GameState::remove_expired_effects(&mut self, expired_duration: Duration)` that removes continuous effects (from the future `continuous_effects` Vec) matching the duration. For now, this is a stub — the Vec doesn't exist until Phase 5. But the hooks in `turns.rs` should be placed: `UntilEndOfCombat` at end of combat phase, `UntilEndOfTurn`/`ThisTurn` at cleanup step, `UntilYourNextTurn` at the start of that player's next turn, `UntilEndOfYourNextTurn` at the cleanup step of that player's next turn.
   5. **lands_per_turn dynamic (E45):** The field `lands_per_turn: u32` already exists on `PlayerState` (confirmed at `player.rs:21`), initialized to 1. However, per F18 (chapter 3 audit, rule 305.2), continuous effects like Exploration and Azusa can increase this number, and those effects have durations, can stack, and can be removed mid-turn. A simple mutable field that effects write to is insufficient — `lands_per_turn` needs to be *computed* like other effective characteristics. **This ticket's scope:** (a) Ensure `oracle/legality.rs` `playable_lands` reads from a query function (not a hardcoded 1 or a raw field read). (b) Create `oracle::get_effective_lands_per_turn(game, player_id) -> u32` that currently returns `player.lands_per_turn` as a passthrough. (c) Document that Phase 5's L15 (post-layer pass) should compute this value from base (1) + active continuous effects that grant additional land plays, analogous to how player action restrictions are recomputed after each layer pass. The raw `lands_per_turn` field on `PlayerState` becomes the *base* value; the oracle function returns the *effective* value. This matches the pattern established by `get_effective_power`/`get_effective_toughness` routing through `compute_characteristics`.
-  6. **Hexproof (E46):** In `engine/targeting.rs`, update `validate_creature_target`, `validate_any_target`, and `validate_permanent_target` to check for `KeywordAbility::Hexproof`. If the target has hexproof and the spell/ability controller is an opponent, return Err. This requires passing `controller: PlayerId` into the validation methods (or into `validate_targets`).
-  7. **Shroud (E47):** Same as hexproof but blocks ALL targeting (including own controller). Add check for `KeywordAbility::Shroud` — if target has shroud, always return Err.
+  6. **Hexproof (E46):** In `engine/targeting.rs`, update `validate_creature_target`, `validate_any_target`, and `validate_permanent_target` to check for `KeywordAbility::Hexproof`. If the target has hexproof and the spell/ability controller is an opponent, return Err. This requires passing `controller: PlayerId` into the validation methods (or into `validate_targets`). **Important (post-T15b):** The `EffectRecipient::Target` vs `Choose` distinction already exists. Hexproof/shroud/protection checks must ONLY apply to `Target` effects, NOT `Choose` effects (rule 303.4a — Aura ETB choosing is not targeting). `validate_selection` dispatches both; the hexproof/shroud/protection logic should be gated inside the `Target`-specific validation path. `has_any_legal_choice` in `targeting.rs` will also need updating to respect hexproof/shroud for `Target`-originated queries vs `Choose`-originated queries.
+  7. **Shroud (E47):** Same as hexproof but blocks ALL targeting (including own controller). Add check for `KeywordAbility::Shroud` — if target has shroud, always return Err. Same `Target`-only gating applies.
   8. **Protection targeting restriction (E48):** Add a `Protection` representation. Currently `KeywordAbility::Protection` exists but is not parameterized. For the targeting check, we need to know "protection from what." Options: (a) add `ProtectionQuality` enum and store on the card data, or (b) use a separate field. Recommend: add `pub protection_from: Vec<ProtectionQuality>` to `CardData` where:
      ```rust
      pub enum ProtectionQuality {
@@ -1833,7 +1824,7 @@ T15b (Aura attachment logic) is infrastructure surfaced by T15, not sourced from
 - All [P5-PREREQ] tickets (T01, T05, T09) are in Part 1 and appear in Gate 2 verification.
 
 ### 5. DecisionProvider Trait Growth
-Part 1 adds: `choose_legend_to_keep`, `choose_modes`, `choose_x_value`, `choose_distribution`, `choose_alternative_cost`, `choose_additional_costs` (~6 new methods). All have default implementations. `ScriptedDecisionProvider` and `RandomDecisionProvider` will need updates for any non-default behavior. No blocking issue — the default impls prevent compilation failures. **Note:** Aura ETB without targeting (T15b step 3) reuses `choose_targets` with a `TargetContext::EnchantmentPlacement` discriminant rather than adding a separate DP method — the Aura's controller is making a target-like selection, just without targeting rules (hexproof/shroud don't apply per 303.4a).
+Part 1 adds: `choose_legend_to_keep`, `choose_modes`, `choose_x_value`, `choose_distribution`, `choose_alternative_cost`, `choose_additional_costs` (~6 new methods). All have default implementations. `ScriptedDecisionProvider` and `RandomDecisionProvider` will need updates for any non-default behavior. No blocking issue — the default impls prevent compilation failures. **Note (updated 2026-04-12):** ~~Aura ETB without targeting (T15b step 3) reuses `choose_targets` with a `TargetContext::EnchantmentPlacement` discriminant~~ **Actual implementation:** No `TargetContext` enum was created. Instead, the `EffectRecipient::Choose(SelectionFilter, TargetCount)` variant conveys that targeting rules don't apply. `attach_aura_on_etb` in `resolve.rs` passes a `Choose` variant to the DP's `choose_targets` method — the DP sees the same target selection UI, and the engine knows not to apply hexproof/shroud/protection rules because it's a `Choose`, not a `Target`.
 
 ### 6. Combat Requirements Architecture — Attack (508.1d) and Block (509.1c) — RESOLVED
 
@@ -1859,8 +1850,9 @@ No change to dependencies — T18a/b/c would all depend on T17 and have no mutua
 
 ### 10. Test Count Estimates
 - **Pre-plan baseline:** 287 tests (238 unit + 48 integration + 1 doc-test)
-- **Post-Part 1 estimate:** ~420 tests (+133 from 24 tickets, includes T21d's 11 tests)
-- **Post-Part 2 estimate:** ~504+ tests (+84 from 21 tickets, includes L12 and L15 expansions)
+- **Current actual (2026-04-12):** 370 tests (312 unit + 48 integration + 1 doc-test + 9 pre-Phase3). T14, T15b, T16, and EffectRecipient refactor complete.
+- **Post-Part 1 estimate:** ~470+ tests (370 current + ~100 from remaining ~20 tickets)
+- **Post-Part 2 estimate:** ~554+ tests (+84 from 21 tickets, includes L12 and L15 expansions)
 - **Fuzz:** 500+ games at Gate 2 and Gate 5
 
 ---
@@ -2027,6 +2019,20 @@ L04's `compute_characteristics` should include:
 No struct definitions needed in Phase 5. Both mechanisms are Phase 9, and no Phase 5 ticket depends on them. The TODO comments mark the insertion points.
 
 Added to Part 2 Deferred Items table as D20a and D20b.
+
+---
+
+### 14. TargetSpec → EffectRecipient Refactor — COMPLETED EARLY (2026-04-12)
+
+The T18 follow-up note proposed splitting `TargetSpec` into `EffectRecipient` during the T18 casting pipeline rewrite. This refactor was completed early during the T15b MR, before T18 began. **Impact across the plan:**
+
+- **T18:** No longer needs to perform the split. `EffectRecipient` with `Target`/`Choose`/`Implicit`/`Controller` variants is already in place. T18 can build directly on this for mode choice, X value, and distribution.
+- **T20:** Mana ability debug assertion should check for `EffectRecipient::Target(_, _)` instead of the deleted `TargetSpec::None`.
+- **T22:** Hexproof/shroud/protection checks must only apply to `EffectRecipient::Target`, not `Choose`. The validation path already dispatches both — the keyword checks need to be gated inside the `Target`-specific path.
+- **Discrepancy §5:** No `TargetContext` enum was created. `EffectRecipient::Choose` serves the same purpose.
+- **14 files, 109 match sites** updated. Variable renamed `target_spec` → `recipient` everywhere. `validate_selection` dispatcher added. Fizzle fix: `Choose` effects no longer participate in 608.2b fizzle check.
+
+**No tickets were skipped or reduced in scope.** The refactor was additive infrastructure that happened to align with T15b's needs (Aura ETB choosing).
 
 ---
 

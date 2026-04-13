@@ -305,7 +305,7 @@ fn test_counterspell_cleans_up_stack_entries() {
     game.cast_spell(1, cs_id, &decisions).unwrap();
 
     // Resolve counterspell (top of stack)
-    game.resolve_top_of_stack().unwrap();
+    game.resolve_top_of_stack(&PassiveDecisionProvider).unwrap();
 
     // Bolt's stack entry should be cleaned up
     assert!(!game.stack_entries.contains_key(&bolt_id));

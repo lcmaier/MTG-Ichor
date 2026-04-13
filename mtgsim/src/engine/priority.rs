@@ -48,7 +48,7 @@ impl GameState {
                         if self.stack.is_empty() {
                             return Ok(PriorityResult::PhaseEnds);
                         } else {
-                            self.resolve_top_of_stack()?;
+                            self.resolve_top_of_stack(decisions)?;
                             // After resolution, active player gets priority (117.3b)
                             // Run SBAs again before granting (117.5)
                             self.perform_sba_and_triggers(decisions)?;
@@ -148,7 +148,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::PhaseType;
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, TargetSpec, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::decision::ScriptedDecisionProvider;
 
@@ -180,7 +180,7 @@ mod tests {
                 costs: Vec::new(),
                 effect: Effect::Atom(
                     Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    TargetSpec::Player(TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
             })
             .build();

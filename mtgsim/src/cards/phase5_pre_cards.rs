@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, ManaOutput, PermanentFilter, Primitive, TargetCount, TargetSpec};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput, PermanentFilter, Primitive, TargetCount, EffectRecipient, SelectionFilter};
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -36,11 +36,11 @@ pub fn nights_whisper() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(2)), 
-                    TargetSpec::You
+                    EffectRecipient::Controller
                 ),
                 Effect::Atom(
                     Primitive::LoseLife(AmountExpr::Fixed(2)),
-                    TargetSpec::You
+                    EffectRecipient::Controller
                 )
             ])
         })
@@ -61,11 +61,11 @@ pub fn doom_blade() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::Destroy,
-                TargetSpec::Permanent(
+                EffectRecipient::Target(SelectionFilter::Permanent(
                     PermanentFilter::And(
                         Box::new(PermanentFilter::ByType(CardType::Creature)),
                         Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByColor(Color::Black))))
-                    ),
+                    )),
                     TargetCount::Exactly(1)
                 )
             )
@@ -82,7 +82,7 @@ pub fn angels_mercy() -> Arc<CardData> {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), TargetSpec::You)
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller)
         })
         .build()
 }
@@ -104,7 +104,7 @@ pub fn dark_ritual() -> Arc<CardData> {
                     mana: vec![(ManaType::Black, AmountExpr::Fixed(3))],
                     special: vec![],
                 }),
-                TargetSpec::None,
+                EffectRecipient::Implicit,
             ),
         })
         .build()
