@@ -298,7 +298,7 @@ pub fn validate_blockers(
             return Err(CombatError::CreatureIsTapped(*blocker_id));
         }
 
-        // 5. The attacker must actually be attacking this player
+        // 5. The attacker must be attacking this player
         if let Some(attacker_entry) = game.battlefield.get(attacker_id) {
             if let Some(ref attacking_info) = attacker_entry.attacking {
                 match &attacking_info.target {

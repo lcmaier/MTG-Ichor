@@ -218,10 +218,13 @@ impl GameState {
             Primitive::Destroy => {
                 // Destroy target permanent (rule 701.7a).
                 // Moves the permanent from battlefield to its owner's graveyard.
-                // TODO: check for indestructible (Phase 5)
+                // Indestructible permanents can't be destroyed (rule 702.12b).
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
+                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordAbility::Indestructible) {
+                                continue;
+                            }
                             self.execute_action(GameAction::ZoneChange {
                                 object: *id,
                                 from: crate::types::zones::Zone::Battlefield,
@@ -553,6 +556,44 @@ mod tests {
 
         assert_eq!(game.players[1].life_total, 18);
         assert_eq!(game.players[0].hand.len(), 1);
+    }
+
+    // --- Indestructible guard tests ---
+
+    #[test]
+    fn test_sba_indestructible_survives_destroy() {
+        // 702.12b — Destroy effect does nothing to an indestructible permanent.
+        let mut game = GameState::new(2, 20);
+
+        let data = CardDataBuilder::new("Darksteel Myr")
+            .card_type(CardType::Creature)
+            .subtype(Subtype::Creature(CreatureType::Myr))
+            .power_toughness(0, 1)
+            .keyword(crate::types::keywords::KeywordAbility::Indestructible)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let target_id = obj.id;
+        game.add_object(obj);
+        let entry = BattlefieldEntity::new(target_id, 0, 0, 1);
+        game.battlefield.insert(target_id, entry);
+
+        // Create a source for the destroy effect
+        let bolt_data = CardDataBuilder::new("Doom Blade")
+            .card_type(CardType::Instant)
+            .build();
+        let bolt_obj = GameObject::new(bolt_data, 0, Zone::Hand);
+        let source_id = bolt_obj.id;
+        game.add_object(bolt_obj);
+
+        let destroy = Effect::Atom(
+            Primitive::Destroy,
+            EffectRecipient::Target(SelectionFilter::Creature, crate::types::effects::TargetCount::Exactly(1)),
+        );
+        let ctx = bolt_ctx(source_id, vec![ResolvedTarget::Object(target_id)]);
+        game.resolve_effect(&destroy, &ctx, &passive_dp()).unwrap();
+
+        // Creature should still be on the battlefield
+        assert!(game.battlefield.contains_key(&target_id));
     }
 
     // --- attach_aura_on_etb tests (rule 303.4a) ---

@@ -143,19 +143,41 @@ impl Game {
                 | (PhaseType::Combat, Some(StepType::CombatDamage))
             );
 
-            let gets_priority = !skipped_by_508_8 && !matches!(
+            // Rule 514.3a: Cleanup normally doesn't grant priority, but if
+            // SBAs are performed during cleanup, players get priority and then
+            // a new cleanup step begins (re-remove damage, re-discard, re-check).
+            let is_cleanup = matches!(
                 (phase_type, step),
-                (PhaseType::Beginning, Some(StepType::Untap))      // rule 502.3
-                | (PhaseType::Ending, Some(StepType::Cleanup))     // rule 514.3
+                (PhaseType::Ending, Some(StepType::Cleanup))
             );
 
-            if gets_priority {
-                self.state.run_priority_loop(decisions)?;
+            if is_cleanup {
+                // Rule 514.3a: repeat while SBAs fire during cleanup
+                while self.state.check_state_based_actions(decisions)? {
+                    self.state.check_state_based_actions_loop(decisions)?;
+                    self.state.run_priority_loop(decisions)?;
 
-                // 3. Game-over check after each priority round
-                if let Some(result) = self.check_game_over() {
-                    self.result = Some(result);
-                    return Ok(());
+                    if let Some(result) = self.check_game_over() {
+                        self.result = Some(result);
+                        return Ok(());
+                    }
+
+                    self.perform_cleanup_actions(decisions)?;
+                }
+            } else {
+                let gets_priority = !skipped_by_508_8 && !matches!(
+                    (phase_type, step),
+                    (PhaseType::Beginning, Some(StepType::Untap))  // rule 502.3
+                );
+
+                if gets_priority {
+                    self.state.run_priority_loop(decisions)?;
+
+                    // 3. Game-over check after each priority round
+                    if let Some(result) = self.check_game_over() {
+                        self.result = Some(result);
+                        return Ok(());
+                    }
                 }
             }
 
@@ -270,6 +292,23 @@ impl Game {
         None
     }
 
+    /// Perform cleanup step actions: remove damage from all permanents,
+    /// clear deathtouch flags, and discard to hand size (rules 514.1 + 514.2).
+    /// Extracted for reuse in cleanup SBA re-loop (rule 514.3a).
+    fn perform_cleanup_actions(
+        &mut self,
+        decisions: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        // Rule 514.2: Remove all damage and end "until end of turn" effects
+        for (_id, entry) in &mut self.state.battlefield {
+            entry.damage_marked = 0;
+            entry.damaged_by_deathtouch = false;
+        }
+        // Rule 514.1: Discard to hand size
+        self.handle_cleanup_discard(decisions)?;
+        Ok(())
+    }
+
     /// Handle cleanup step discard to hand size (rule 514.1).
     fn handle_cleanup_discard(
         &mut self,
@@ -282,7 +321,7 @@ impl Game {
             let card_id = decisions.choose_discard(&self.state, active)
                 .ok_or("Player must choose a card to discard")?;
 
-            // Verify the chosen card is actually in hand
+            // Verify the chosen card is in hand
             if !self.state.players[active].hand.contains(&card_id) {
                 return Err("Chosen card is not in hand".to_string());
             }
@@ -405,6 +444,31 @@ mod tests {
         game.state.player_lost[0] = true;
         game.state.player_lost[1] = true;
         assert_eq!(game.check_game_over(), Some(GameResult::Draw));
+    }
+
+    #[test]
+    fn test_cleanup_sba_reloop() {
+        // Rule 514.3a: cleanup SBA re-loop path exercises without panic.
+        // Poison SBA fires during first priority round, ending the game.
+        let config = GameConfig::test();
+        let mut game = Game::new(
+            config,
+            vec![make_test_decklist(20), make_test_decklist(20)],
+        ).unwrap();
+
+        let decisions = PassiveDecisionProvider;
+        game.setup(&decisions).unwrap();
+
+        // Turn completes normally with no SBAs during cleanup
+        let starting_turn = game.state.turn_number;
+        game.run_turn(&decisions).unwrap();
+        assert_eq!(game.state.turn_number, starting_turn + 1);
+
+        // Set poison to 10; SBA fires during priority, player 1 loses
+        game.state.players[1].poison_counters = 10;
+        game.run_turn(&decisions).unwrap();
+        assert!(game.is_over());
+        assert_eq!(game.result, Some(GameResult::Winner(0)));
     }
 
     #[test]

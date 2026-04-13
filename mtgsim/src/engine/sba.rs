@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::events::event::{GameEvent, LossReason};
-use crate::oracle::characteristics::{get_effective_name, is_creature, get_effective_toughness};
+use crate::oracle::characteristics::{get_effective_name, has_keyword, is_creature, get_effective_toughness};
+use crate::types::keywords::KeywordAbility;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::resolve::ResolvedTarget;
@@ -51,6 +52,36 @@ impl GameState {
             }
         }
 
+        // 704.5c — Player with 10 or more poison counters loses the game
+        for i in 0..self.players.len() {
+            if self.players[i].poison_counters >= 10 && !self.player_lost[i] {
+                self.player_lost[i] = true;
+                self.events.emit(GameEvent::PlayerLost {
+                    player_id: i,
+                    reason: LossReason::PoisonCounters,
+                });
+                self.events.emit(GameEvent::StateBasedActionPerformed);
+                any_performed = true;
+            }
+        }
+
+        // 704.5 — Player who has been dealt 21 or more combat damage by a single
+        // commander loses the game (Commander variant rule)
+        for i in 0..self.players.len() {
+            if !self.player_lost[i] {
+                let lost = self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21);
+                if lost {
+                    self.player_lost[i] = true;
+                    self.events.emit(GameEvent::PlayerLost {
+                        player_id: i,
+                        reason: LossReason::CommanderDamage,
+                    });
+                    self.events.emit(GameEvent::StateBasedActionPerformed);
+                    any_performed = true;
+                }
+            }
+        }
+
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         let zero_toughness: Vec<ObjectId> = self.battlefield.keys()
             .filter(|id| {
@@ -89,8 +120,12 @@ impl GameState {
             .collect();
 
         for id in lethal_damage {
+            // Indestructible creatures are not destroyed by lethal damage (rule 702.12b)
+            if has_keyword(self, id, KeywordAbility::Indestructible) {
+                continue;
+            }
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            // TODO: check for indestructible / regeneration
+            // TODO: check for regeneration
             self.move_object(id, Zone::Graveyard)?;
             self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
@@ -1011,6 +1046,85 @@ mod tests {
         assert!(performed);
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
+    }
+
+    // -----------------------------------------------------------------------
+    // T16: Poison, commander damage, indestructible SBA tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_sba_poison_10_loses() {
+        // 704.5c — A player with 10 or more poison counters loses the game.
+        let mut game = GameState::new(2, 20);
+        game.players[0].poison_counters = 10;
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+        assert!(game.player_lost[0]);
+        assert!(!game.player_lost[1]);
+
+        // Verify correct LossReason
+        let has_event = game.events.events().iter().any(|e| {
+            matches!(e, crate::events::event::GameEvent::PlayerLost {
+                player_id: 0,
+                reason: crate::events::event::LossReason::PoisonCounters,
+            })
+        });
+        assert!(has_event);
+    }
+
+    #[test]
+    fn test_sba_poison_9_survives() {
+        // 704.5c — A player with 9 poison counters does NOT lose.
+        let mut game = GameState::new(2, 20);
+        game.players[0].poison_counters = 9;
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(!performed);
+        assert!(!game.player_lost[0]);
+    }
+
+    #[test]
+    fn test_sba_commander_damage_21_loses() {
+        // Commander variant: 21+ combat damage from a single commander → lose.
+        let mut game = GameState::new(2, 20);
+
+        // Create a fake commander object ID
+        let commander_id = crate::types::ids::new_object_id();
+        game.players[1].commander_damage_taken.insert(commander_id, 21);
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        assert!(performed);
+        assert!(game.player_lost[1]);
+
+        let has_event = game.events.events().iter().any(|e| {
+            matches!(e, crate::events::event::GameEvent::PlayerLost {
+                player_id: 1,
+                reason: crate::events::event::LossReason::CommanderDamage,
+            })
+        });
+        assert!(has_event);
+    }
+
+    #[test]
+    fn test_sba_indestructible_survives_lethal_damage() {
+        // 702.12b — Indestructible creatures are NOT destroyed by lethal damage.
+        let mut game = GameState::new(2, 20);
+
+        let data = CardDataBuilder::new("Darksteel Colossus")
+            .card_type(CardType::Creature)
+            .power_toughness(11, 11)
+            .keyword(crate::types::keywords::KeywordAbility::Indestructible)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0).damage_marked = 11; // lethal for an 11/11
+
+        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        // No SBA should destroy it
+        assert!(!performed);
+        assert!(game.battlefield.contains_key(&id));
     }
 
     #[test]

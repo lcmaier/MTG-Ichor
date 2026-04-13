@@ -359,10 +359,6 @@ mod tests {
         let _ = game.players[0].mana_pool.remove(ManaType::Red, 1);
 
         assert!(game.cast_spell(0, card_id, &decisions).is_err());
-        // Card should NOT have moved — it's still in hand
-        // (move_object happened before pay, so we need to handle this;
-        // but for Phase 2, we accept this limitation per the plan:
-        // "validate legality upfront before mutating state")
     }
 
     #[test]
