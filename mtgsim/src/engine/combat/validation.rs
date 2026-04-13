@@ -857,7 +857,7 @@ mod tests {
 
         // Should be able to pay tap cost despite summoning sickness
         let result = game.can_pay_costs(
-            &[crate::objects::card_data::Cost::Tap],
+            &[crate::types::costs::Cost::Tap],
             0,
             id,
         );

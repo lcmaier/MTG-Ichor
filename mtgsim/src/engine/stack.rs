@@ -261,6 +261,8 @@ mod tests {
             x_value: None,
             effect,
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
         id
     }
@@ -386,6 +388,8 @@ mod tests {
             x_value: None,
             effect: Effect::Sequence(vec![]),
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
         id
     }
@@ -459,6 +463,8 @@ mod tests {
             x_value,
             effect: Effect::Sequence(vec![]),
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
         id
     }
@@ -520,6 +526,8 @@ mod tests {
             x_value: None,
             effect: Effect::Sequence(vec![]),
             is_spell: true,
+            chosen_alternative_cost: None,
+            additional_costs_paid: Vec::new(),
         });
         id
     }
