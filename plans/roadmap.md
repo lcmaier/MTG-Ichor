@@ -21,7 +21,7 @@
 ### By the Numbers
 
 - **Tests:** 370 (312 unit + 48 integration + 1 doc-test + 9 pre-Phase3), zero warnings *(updated 2026-04-12)*
-- **Fuzz:** 500/500 games pass (Random vs Random), zero errors/panics
+- **Fuzz:** 200/200 games pass (Random vs Random), zero errors/panics, ~32 spells/game, ~10 combats w/ attackers/game *(updated 2026-04-13)*
 - **Cards:** 24 (5 basic lands, 5 spells, 4 vanilla creatures, 11 keyword creatures)
 - **DecisionProvider methods:** 9 (all implemented for CLI, Random, Scripted, Passive, Dispatch) *(+choose_legend_to_keep from T14)*
 - **Effect primitives implemented:** 9 of ~35 (DealDamage, DrawCards, GainLife, LoseLife, ProduceMana, CounterSpell, CounterAbility, Destroy, Untap)
@@ -468,6 +468,48 @@ These items span multiple phases:
 | **Protection** | Phase 5 Pre-Work (targeting), Phase 6 (damage prevention), Phase 8 (blocking, attachment) | Three-aspect keyword |
 | **Aura/Equipment** | Phase 5 Pre-Work (SBAs, attachment tracking, `enchant_filter` + `validate_selection`), Phase 6 (ETB attachment replacement), Phase 8 (equip/enchant abilities) | Progressive build-out. T15b completed: `enchant_filter: Option<SelectionFilter>` on CardData, unified validation via `validate_selection`, `has_any_legal_choice` pre-check, `attach_aura_on_etb` helper. |
 | **Divergent loop shortcutting (727)** | Phase 7 (iteration cap + `GameNumber` stub), Phase 9 (full `GameNumber` enum + `LoopDeclaration` + `Relative` comparisons) | Safety cap first, expressive math later |
+
+---
+
+## Fuzz Harness Upgrade Roadmap
+
+> Added 2026-04-13. Tracks planned improvements to `bin/fuzz_games.rs` and `ui/random.rs`.
+
+### Current State
+
+- **Deck generation:** 60-card color-coherent decks (1–2 colors, 24 lands / 36 nonlands from matching colors)
+- **RandomDecisionProvider:** Phase-aware cast probability (80% main / 30% non-main), 100% land play, 50% attack chance per legal attacker
+- **Target legality:** `castable_spells` checks `has_any_legal_choice` before allowing targeted spells; `choose_targets` respects `PermanentFilter` and excludes self from `Spell` targets
+- **Reproducibility:** `--seed` flag derives per-game seeds from a master RNG
+- **Observability:** `--dump-events` writes full event logs; per-game action stats (spells cast, lands played, combat w/ attackers, creatures died, damage events, total damage, life changes) with aggregate averages
+- **Scale:** 200/200 games, 0 errors, ~32 spells/game, ~10 combats w/ attackers/game
+
+### Planned Upgrades
+
+#### Deck Generation Improvements
+- **3-color decks:** Allow 3-color combinations (currently 1–2). Adjust land base to produce all three colors reliably (e.g., 8/8/8 split for 3-color). Gate on having enough cards in the pool to make 3-color decks viable.
+- **Mana curve awareness:** Weight nonland selection toward a reasonable mana curve (more 2-drops than 5-drops) instead of uniform random. Prevents games where a player draws only expensive spells.
+- **Singleton mode:** Option to generate singleton (highlander) decks for wider card coverage per game.
+- **New-card weighting:** When new cards are added to the registry, bias deck generation toward including at least 1–2 copies of each new card. Ensures fuzz games exercise newly implemented cards rather than replaying games that could have been run before the addition. Could be driven by a `--new-cards` flag or a `CardRegistry` "recently added" tag.
+- **Scaling with card pool:** As new cards are registered (Phase 5 Layers Tier 1/2, Phase 6+), auto-include them. Currently requires manual `registry.register()` calls.
+
+#### Event Log Overhaul — Delta Log
+- **Structured delta log:** Replace the current flat `GameEvent` text dump with a structured delta log that records the *diff* between game states at each event. Each entry captures zone changes, life total deltas, battlefield additions/removals, stack changes, and mana pool deltas as structured data (not display strings).
+- **Machine-readable format:** Output as JSON or similar structured format so external tools (visualization, AI training, regression diffing) can consume it without parsing human-readable text.
+- **Snapshot checkpoints:** Periodically emit full game state snapshots (e.g., every N events or at phase boundaries) so a reader can reconstruct state at any point without replaying from event 0.
+- **Regression diffing:** Given two seeds with the same deck, diff their delta logs to pinpoint exactly where a code change altered game behavior. Useful for verifying that refactors are behavior-preserving.
+
+#### RandomDecisionProvider Improvements
+- **Smarter blocking:** Currently doesn't block. Add heuristic blocking (e.g., block when a favorable trade exists, or randomly with some probability).
+- **Mulligan decisions:** Currently always keeps. Implement basic mulligan logic (e.g., mulligan hands with 0–1 or 6–7 lands).
+- **Ability activation:** When activated abilities beyond mana abilities exist (Phase 5+), the DP needs to consider activating them during priority.
+- **Enchantment/artifact awareness:** Phase-aware casting should also bias toward playing enchantments/artifacts during main phases when they're sorcery-speed.
+
+#### Harness Infrastructure
+- **Parallel fuzz:** Run games on multiple threads. `Game` is self-contained; needs only thread-safe seeding.
+- **Regression test extraction:** Ability to "promote" a failing seed into a named integration test automatically.
+- **Coverage tracking:** Track which card names were actually cast (not just in deck) across all games, to ensure every registered card gets exercised.
+- **Error categorization:** When errors occur, categorize them (targeting error, mana error, SBA error, panic) and report counts by category.
 
 ---
 

@@ -46,6 +46,21 @@ pub enum AlternativeCost {
     Custom(String, Vec<Cost>),
 }
 
+impl AlternativeCost {
+    /// Extract the cost payload from any variant.
+    pub fn costs(&self) -> &[Cost] {
+        match self {
+            AlternativeCost::Flashback(c)
+            | AlternativeCost::Overload(c)
+            | AlternativeCost::Dash(c)
+            | AlternativeCost::Escape(c)
+            | AlternativeCost::Evoke(c)
+            | AlternativeCost::Bestow(c)
+            | AlternativeCost::Custom(_, c) => c,
+        }
+    }
+}
+
 /// An additional cost that can be paid on top of a spell's mana cost (rule 118.8).
 ///
 /// A spell may have multiple additional costs, each optionally paid.
@@ -59,4 +74,26 @@ pub enum AdditionalCost {
     Bargain,
     Strive(Vec<Cost>),
     Custom(String, Vec<Cost>),
+}
+
+impl AdditionalCost {
+    /// Extract the cost payload from any variant.
+    ///
+    /// Variants without an explicit `Vec<Cost>` (e.g. `Casualty`, `Bargain`)
+    /// return an empty slice **temporarily**. Both decompose into sacrifice
+    /// primitives once `PermanentFilter` supports the required predicates:
+    /// - `Casualty(n)` → `Sacrifice(power_n_or_greater, 1)`
+    /// - `Bargain` → `Sacrifice(artifact_or_enchantment_or_token, 1)`
+    /// After cost primitive consolidation, every variant will return a
+    /// non-empty slice and the empty-slice fallback can be removed.
+    pub fn costs(&self) -> &[Cost] {
+        match self {
+            AdditionalCost::Kicker(c)
+            | AdditionalCost::Buyback(c)
+            | AdditionalCost::Entwine(c)
+            | AdditionalCost::Strive(c)
+            | AdditionalCost::Custom(_, c) => c,
+            AdditionalCost::Casualty(_) | AdditionalCost::Bargain => &[],
+        }
+    }
 }

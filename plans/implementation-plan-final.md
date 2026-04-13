@@ -1464,6 +1464,8 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 - **Acceptance:** 500+ fuzz games pass.
 - **Commit:** `test: fuzz regression with Phase 5 cards (§5m)`
 
+> **Current state (2026-04-13):** Cast probability is already phase-aware (80% main / 30% non-main). Land play is 100%. Deck gen produces 60-card color-coherent 1–2 color decks. Seed control (`--seed`), event dump (`--dump-events`), and per-game action stats are all implemented. Target legality checks in `castable_spells` and `choose_targets` prevent illegal casts (Doom Blade on black creatures, Counterspell on empty stack, self-targeting, etc.). See **Fuzz Harness Upgrade Roadmap** in `roadmap.md` for planned future improvements.
+
 ---
 
 ### Plan Corrections Applied (Part 2)

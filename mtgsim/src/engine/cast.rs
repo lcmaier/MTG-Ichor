@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::engine::costs::assemble_total_cost;
 use crate::events::event::GameEvent;
 use crate::objects::card_data::AbilityType;
 use crate::types::costs::Cost;
@@ -9,25 +10,31 @@ use crate::types::card_types::CardType;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
+use crate::types::mana::ManaCost;
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
     /// Cast a spell from hand onto the stack (rule 601.2).
     ///
-    /// Steps:
-    /// 1. Legality check (601.3) — correct zone, timing, player
+    /// Steps follow CR 601.2a–i:
+    /// 1. Pre-proposal legality check (rule 601.3)
     /// 2. Move to stack (601.2a)
-    /// 3. Choose targets (601.2c) via DecisionProvider
-    /// 4. Pay costs (601.2f-h) — mana cost from CardData
-    /// 5. Emit SpellCast event (601.2i)
+    /// 3. Choose alternative cost, additional costs, X value (601.2b)
+    /// 4. Choose targets (601.2c)
+    /// 5. Distribution placeholder (601.2d — T18c)
+    /// 6. Post-proposal legality check with rollback (601.2e)
+    /// 7. Assemble total cost (601.2f)
+    /// 8. Mana ability window placeholder (601.2g)
+    /// 9. Pay total cost (601.2h)
+    /// 10. Emit SpellCast event (601.2i)
     pub fn cast_spell(
         &mut self,
         player_id: PlayerId,
         card_id: ObjectId,
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        // --- 1. Legality checks (rule 601.3) ---
+        // --- Pre-proposal legality check (rule 601.3) ---
         self.check_cast_legality(player_id, card_id)?;
 
         // Snapshot data we need before moving the card
@@ -63,69 +70,134 @@ impl GameState {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
 
-        // --- 2. Move to stack (rule 601.2a) ---
+        // --- 601.2a: Move to stack ---
         self.move_object(card_id, Zone::Stack)?;
 
-        // --- 3. Choose targets (rule 601.2c) ---
+        // --- 601.2b: Choose alternative cost, additional costs, X value ---
+        let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
+            decisions.choose_alternative_cost(self, player_id, &card_data.alternative_costs)
+        } else {
+            None
+        };
+
+        // Validate alt cost index is in range
+        if let Some(idx) = chosen_alt_cost_idx {
+            if idx >= card_data.alternative_costs.len() {
+                self.move_object(card_id, Zone::Hand)?;
+                return Err(format!(
+                    "Alternative cost index {} out of range (card has {})",
+                    idx, card_data.alternative_costs.len()
+                ));
+            }
+        }
+
+        let chosen_additional_cost_indices = if !card_data.additional_costs.is_empty() {
+            decisions.choose_additional_costs(self, player_id, &card_data.additional_costs)
+        } else {
+            Vec::new()
+        };
+
+        // Validate additional cost indices are in range
+        for &idx in &chosen_additional_cost_indices {
+            if idx >= card_data.additional_costs.len() {
+                self.move_object(card_id, Zone::Hand)?;
+                return Err(format!(
+                    "Additional cost index {} out of range (card has {})",
+                    idx, card_data.additional_costs.len()
+                ));
+            }
+        }
+
+        // Choose X value if the cost has X symbols (rule 107.3a)
+        let base_mana_cost = card_data.mana_cost.clone()
+            .unwrap_or_else(ManaCost::zero);
+        let x_count = base_mana_cost.x_count();
+        let x_value = if x_count > 0 {
+            decisions.choose_x_value(self, player_id, x_count)
+        } else {
+            0
+        };
+
+        // --- 601.2c: Choose targets ---
         let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
             let chosen = decisions.choose_targets(self, player_id, &recipient);
-            self.validate_targets(&recipient, &chosen)?;
+            if let Err(e) = self.validate_targets(&recipient, &chosen) {
+                self.move_object(card_id, Zone::Hand)?;
+                return Err(e);
+            }
             chosen
         } else {
             Vec::new()
         };
 
-        // --- Create StackEntry ---
+        // --- 601.2d: Distribution placeholder (T18c) ---
+
+        // --- Create StackEntry with all proposal data ---
+        let chosen_alt = chosen_alt_cost_idx.map(|idx| card_data.alternative_costs[idx].clone());
+        let chosen_additional: Vec<_> = chosen_additional_cost_indices.iter()
+            .map(|&idx| card_data.additional_costs[idx].clone())
+            .collect();
+
         let entry = StackEntry {
             object_id: card_id,
             controller: player_id,
             chosen_targets: targets,
             chosen_modes: Vec::new(),
-            x_value: None,
+            x_value: if x_count > 0 { Some(x_value) } else { None },
             effect,
             is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
+            chosen_alternative_cost: chosen_alt.clone(),
+            additional_costs_paid: chosen_additional.clone(),
         };
         self.stack_entries.insert(card_id, entry);
 
-        // --- 4. Determine and pay costs (rule 601.2e-h) ---
+        // --- 601.2e: Post-proposal legality check ---
+        // At this point the only mutations are: card moved to stack + StackEntry created.
+        // No costs paid yet. If the proposal is illegal, rollback via move_object(Hand)
+        // which also cleans up the StackEntry.
         //
-        // TODO(Phase N - Cost Modification Pipeline):
-        // Rule 601.2e requires determining the *total* cost of a spell after
-        // all modifications. The full pipeline is:
-        //   1. Start with base mana cost (or alternative cost like Flashback)
-        //   2. Apply cost increases (e.g. Thalia: "noncreature spells cost {1} more")
-        //   3. Apply cost reductions (e.g. Goblin Electromancer)
-        //   4. Apply Trinisphere-style minimum floors
-        //   5. Lock in the final cost
-        //
-        // This will require a `determine_total_cost(&self, card_id) -> ManaCost`
-        // method that queries continuous effects on the GameState. For now we
-        // just use the card's printed mana cost directly.
-        if let Some(ref mana_cost) = card_data.mana_cost {
-            let costs = vec![Cost::Mana(mana_cost.clone())];
+        // Currently a no-op (the pre-proposal check is sufficient for the cards we
+        // support). Future: validate that chosen targets are still legal after all
+        // proposal choices are made, and that the assembled cost is payable.
 
-            // Pre-check: can we pay? If not, roll back the card from the stack.
-            // IMPORTANT: can_pay_costs is read-only — no costs have been paid yet.
-            // The only mutation so far is moving the card to the stack (step 2),
-            // so rollback only needs to undo that. For future complex costs
-            // (sacrifice, discard), can_pay_costs validates feasibility; pay_costs
-            // then executes atomically, guaranteed to succeed by the pre-check.
-            if let Err(e) = self.can_pay_costs(&costs, player_id, card_id) {
-                // Rollback: move card back to hand (no costs to refund).
-                // move_object → remove_from_zone_collection cleans up stack_entries.
-                self.move_object(card_id, Zone::Hand)?;
-                return Err(e);
-            }
+        // --- 601.2f: Assemble total cost ---
+        let additional_refs: Vec<_> = chosen_additional.iter().collect();
+        let total_costs = assemble_total_cost(
+            &base_mana_cost,
+            chosen_alt.as_ref(),
+            &additional_refs,
+            x_value,
+        );
 
-            let generic_allocation = decisions.choose_generic_mana_allocation(
-                self, player_id, mana_cost,
-            );
-            self.pay_costs(&costs, player_id, card_id, &generic_allocation)?;
+        // --- 601.2g: Mana ability window ---
+        // TODO: Allow the player to activate mana abilities here before payment.
+        // Currently mana abilities are activated before cast_spell via the
+        // priority action queue in the DecisionProvider.
+
+        // --- 601.2h: Pay total cost ---
+        // Pre-check: can we pay? If not, roll back.
+        if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
+            // Rollback: move card back to hand. move_object cleans up stack_entries.
+            self.move_object(card_id, Zone::Hand)?;
+            return Err(e);
         }
 
-        // --- 5. Emit SpellCast event (rule 601.2i) ---
+        // Find the mana cost component for generic allocation
+        let mana_cost_for_alloc = total_costs.iter().find_map(|c| {
+            if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None }
+        }).unwrap_or_else(ManaCost::zero);
+
+        let generic_allocation = if mana_cost_for_alloc.generic_count() > 0 {
+            decisions.choose_generic_mana_allocation(
+                self, player_id, &mana_cost_for_alloc,
+            )
+        } else {
+            HashMap::new()
+        };
+
+        self.pay_costs(&total_costs, player_id, card_id, &generic_allocation)?;
+
+        // --- 601.2i: Emit SpellCast event ---
         self.events.emit(GameEvent::SpellCast {
             spell_id: card_id,
             caster: player_id,
@@ -401,5 +473,200 @@ mod tests {
         game.phase = crate::state::game_state::Phase::new(PhaseType::Combat);
         game.cast_spell(0, card_id, &decisions).unwrap();
         assert!(game.stack.contains(&card_id));
+    }
+
+    // --- T18a: X value, alternative cost, additional cost, rollback tests ---
+
+    fn make_x_spell() -> std::sync::Arc<crate::objects::card_data::CardData> {
+        use crate::types::mana::ManaSymbol;
+        // Blaze: {X}{R} — deal X damage to any target
+        CardDataBuilder::new("Blaze")
+            .card_type(CardType::Sorcery)
+            .color(crate::types::colors::Color::Red)
+            .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
+            .ability(AbilityDef {
+                id: crate::types::ids::new_ability_id(),
+                ability_type: AbilityType::Spell,
+                costs: Vec::new(),
+                effect: Effect::Atom(
+                    Primitive::DealDamage(AmountExpr::Variable),
+                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+                ),
+            })
+            .build()
+    }
+
+    #[test]
+    fn test_cast_x_spell_x_equals_3() {
+        let mut game = GameState::new(2, 20);
+        let blaze = make_x_spell();
+        let obj = GameObject::new(blaze, 0, Zone::Hand);
+        let card_id = obj.id;
+        game.add_object(obj);
+        game.players[0].hand.push(card_id);
+        // Need {R} + 3 generic = 4 total mana
+        game.players[0].mana_pool.add(ManaType::Red, 4);
+        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.active_player = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.x_value_decisions.borrow_mut().push(3);
+        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        // Card on stack
+        assert!(game.stack.contains(&card_id));
+        // X value stored in StackEntry
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert_eq!(entry.x_value, Some(3));
+        // Mana spent: 1 Red + 3 generic (from Red pool) = 4 Red total
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
+    }
+
+    #[test]
+    fn test_cast_x_spell_x_equals_0() {
+        let mut game = GameState::new(2, 20);
+        let blaze = make_x_spell();
+        let obj = GameObject::new(blaze, 0, Zone::Hand);
+        let card_id = obj.id;
+        game.add_object(obj);
+        game.players[0].hand.push(card_id);
+        // Only need {R} for X=0
+        game.players[0].mana_pool.add(ManaType::Red, 1);
+        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.active_player = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.x_value_decisions.borrow_mut().push(0);
+        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert_eq!(entry.x_value, Some(0));
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
+    }
+
+    #[test]
+    fn test_cast_x_spell_insufficient_mana_rollback() {
+        let mut game = GameState::new(2, 20);
+        let blaze = make_x_spell();
+        let obj = GameObject::new(blaze, 0, Zone::Hand);
+        let card_id = obj.id;
+        game.add_object(obj);
+        game.players[0].hand.push(card_id);
+        // Only 2 Red, but X=3 needs 4 total
+        game.players[0].mana_pool.add(ManaType::Red, 2);
+        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.active_player = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.x_value_decisions.borrow_mut().push(3);
+        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+
+        let result = game.cast_spell(0, card_id, &decisions);
+        assert!(result.is_err());
+
+        // Card should be back in hand (rollback)
+        assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Hand);
+        assert!(game.players[0].hand.contains(&card_id));
+        assert!(!game.stack.contains(&card_id));
+        assert!(!game.stack_entries.contains_key(&card_id));
+        // Mana should not have been spent
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 2);
+    }
+
+    #[test]
+    fn test_cast_with_alternative_cost() {
+        use crate::types::costs::AlternativeCost;
+
+        // Card with alt cost: "Pay 3 life instead of mana cost"
+        let card = CardDataBuilder::new("Force Spike Variant")
+            .card_type(CardType::Instant)
+            .color(crate::types::colors::Color::Blue)
+            .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
+            .ability(AbilityDef {
+                id: crate::types::ids::new_ability_id(),
+                ability_type: AbilityType::Spell,
+                costs: Vec::new(),
+                effect: Effect::Sequence(Vec::new()),
+            })
+            .alternative_cost(AlternativeCost::Custom(
+                "Pay 3 life".to_string(),
+                vec![Cost::PayLife(3)],
+            ))
+            .build();
+
+        let mut game = GameState::new(2, 20);
+        let obj = GameObject::new(card, 0, Zone::Hand);
+        let card_id = obj.id;
+        game.add_object(obj);
+        game.players[0].hand.push(card_id);
+        // No mana needed — paying life instead
+        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.active_player = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.alternative_cost_decisions.borrow_mut().push(Some(0)); // choose alt cost index 0
+
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        // Card on stack
+        assert!(game.stack.contains(&card_id));
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert!(entry.chosen_alternative_cost.is_some());
+        // Life paid
+        assert_eq!(game.players[0].life_total, 17);
+    }
+
+    #[test]
+    fn test_cast_with_kicker_additional_cost() {
+        use crate::types::costs::AdditionalCost;
+
+        // Card: {1}{R} with kicker {R}
+        let card = CardDataBuilder::new("Goblin Bushwhacker")
+            .card_type(CardType::Creature)
+            .color(crate::types::colors::Color::Red)
+            .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+            .power_toughness(1, 1)
+            .additional_cost(AdditionalCost::Kicker(vec![
+                Cost::Mana(ManaCost::build(&[ManaType::Red], 0)),
+            ]))
+            .build();
+
+        let mut game = GameState::new(2, 20);
+        let obj = GameObject::new(card, 0, Zone::Hand);
+        let card_id = obj.id;
+        game.add_object(obj);
+        game.players[0].hand.push(card_id);
+        // Need {1}{R} (base) + {R} (kicker) = 3 red total
+        game.players[0].mana_pool.add(ManaType::Red, 3);
+        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.active_player = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.additional_cost_decisions.borrow_mut().push(vec![0]); // pay kicker
+
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        assert!(game.stack.contains(&card_id));
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert_eq!(entry.additional_costs_paid.len(), 1);
+        assert!(matches!(&entry.additional_costs_paid[0], AdditionalCost::Kicker(_)));
+        // All 3 red mana spent
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
+    }
+
+    #[test]
+    fn test_cast_normal_cost_no_x_no_alt() {
+        // Verify the normal path still sets x_value=None and no alt/additional
+        let (mut game, card_id, decisions) = setup_for_casting();
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert_eq!(entry.x_value, None);
+        assert!(entry.chosen_alternative_cost.is_none());
+        assert!(entry.additional_costs_paid.is_empty());
     }
 }

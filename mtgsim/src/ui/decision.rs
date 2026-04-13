@@ -6,6 +6,7 @@ use crate::oracle::characteristics::get_effective_toughness;
 use crate::oracle::mana_helpers::ManaSource;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
+use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -133,6 +134,57 @@ pub trait DecisionProvider {
         player_id: PlayerId,
         mana_cost: &ManaCost,
     ) -> HashMap<ManaType, u64>;
+
+    /// Choose the value of X for a spell with {X} in its mana cost (rule 107.3a).
+    ///
+    /// Called once per cast. The `x_count` parameter is the number of X symbols
+    /// in the cost (usually 1, but 2 for cards like Hangarback Walker).
+    /// The returned value is the chosen X; the total mana added to the cost
+    /// is `x_value * x_count` generic mana.
+    ///
+    /// Default: returns 0 (for test providers that don't care about X).
+    fn choose_x_value(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        _x_count: u8,
+    ) -> u64 {
+        0
+    }
+
+    /// Choose an alternative cost to use instead of the spell's mana cost
+    /// (rule 118.9). At most one alternative cost may be chosen per cast.
+    ///
+    /// `available` contains the alternative costs defined on the card.
+    /// Return `None` to pay the normal mana cost, or `Some(index)` to choose
+    /// the alternative cost at that index in the `available` slice.
+    ///
+    /// Default: returns `None` (always pay normal cost).
+    fn choose_alternative_cost(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        _available: &[AlternativeCost],
+    ) -> Option<usize> {
+        None
+    }
+
+    /// Choose which additional costs to pay on top of the base cost
+    /// (rule 118.8). Multiple additional costs may be paid simultaneously
+    /// (e.g. kicker + buyback).
+    ///
+    /// `available` contains the additional costs defined on the card.
+    /// Return the indices of the costs the player wants to pay.
+    ///
+    /// Default: returns empty vec (pay no additional costs).
+    fn choose_additional_costs(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        _available: &[AdditionalCost],
+    ) -> Vec<usize> {
+        Vec::new()
+    }
 }
 
 /// A test-oriented decision provider that returns empty decisions (no attacks, no blocks).
@@ -195,6 +247,9 @@ pub struct ScriptedDecisionProvider {
     pub target_decisions: std::cell::RefCell<Vec<Vec<ResolvedTarget>>>,
     pub damage_assignment_decisions: std::cell::RefCell<Vec<Vec<(ObjectId, u64)>>>,
     pub trample_damage_assignment_decisions: std::cell::RefCell<Vec<(Vec<(ObjectId, u64)>, u64)>>,
+    pub x_value_decisions: std::cell::RefCell<Vec<u64>>,
+    pub alternative_cost_decisions: std::cell::RefCell<Vec<Option<usize>>>,
+    pub additional_cost_decisions: std::cell::RefCell<Vec<Vec<usize>>>,
 }
 
 impl ScriptedDecisionProvider {
@@ -207,6 +262,9 @@ impl ScriptedDecisionProvider {
             target_decisions: std::cell::RefCell::new(Vec::new()),
             damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
             trample_damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
+            x_value_decisions: std::cell::RefCell::new(Vec::new()),
+            alternative_cost_decisions: std::cell::RefCell::new(Vec::new()),
+            additional_cost_decisions: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
@@ -305,6 +363,48 @@ impl DecisionProvider for ScriptedDecisionProvider {
     fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
         auto_allocate_generic(game, player_id, mana_cost)
             .unwrap_or_default()
+    }
+
+    fn choose_x_value(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        _x_count: u8,
+    ) -> u64 {
+        let mut decisions = self.x_value_decisions.borrow_mut();
+        if decisions.is_empty() {
+            0
+        } else {
+            decisions.remove(0)
+        }
+    }
+
+    fn choose_alternative_cost(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        _available: &[AlternativeCost],
+    ) -> Option<usize> {
+        let mut decisions = self.alternative_cost_decisions.borrow_mut();
+        if decisions.is_empty() {
+            None
+        } else {
+            decisions.remove(0)
+        }
+    }
+
+    fn choose_additional_costs(
+        &self,
+        _game: &GameState,
+        _player_id: PlayerId,
+        _available: &[AdditionalCost],
+    ) -> Vec<usize> {
+        let mut decisions = self.additional_cost_decisions.borrow_mut();
+        if decisions.is_empty() {
+            Vec::new()
+        } else {
+            decisions.remove(0)
+        }
     }
 }
 
@@ -592,6 +692,33 @@ impl DecisionProvider for DispatchDecisionProvider {
         mana_cost: &ManaCost,
     ) -> HashMap<ManaType, u64> {
         self.dp_for(player_id).choose_generic_mana_allocation(game, player_id, mana_cost)
+    }
+
+    fn choose_x_value(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        x_count: u8,
+    ) -> u64 {
+        self.dp_for(player_id).choose_x_value(game, player_id, x_count)
+    }
+
+    fn choose_alternative_cost(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        available: &[AlternativeCost],
+    ) -> Option<usize> {
+        self.dp_for(player_id).choose_alternative_cost(game, player_id, available)
+    }
+
+    fn choose_additional_costs(
+        &self,
+        game: &GameState,
+        player_id: PlayerId,
+        available: &[AdditionalCost],
+    ) -> Vec<usize> {
+        self.dp_for(player_id).choose_additional_costs(game, player_id, available)
     }
 }
 
