@@ -23,7 +23,7 @@
 - **Tests:** 370 (312 unit + 48 integration + 1 doc-test + 9 pre-Phase3), zero warnings *(updated 2026-04-12)*
 - **Fuzz:** 200/200 games pass (Random vs Random), zero errors/panics, ~32 spells/game, ~10 combats w/ attackers/game *(updated 2026-04-13)*
 - **Cards:** 24 (5 basic lands, 5 spells, 4 vanilla creatures, 11 keyword creatures)
-- **DecisionProvider methods:** 9 (all implemented for CLI, Random, Scripted, Passive, Dispatch) *(+choose_legend_to_keep from T14)*
+- **DecisionProvider methods:** 12 typed methods currently (CLI, Random, Scripted, Passive, Dispatch). **SPECIAL-1 refactor** will replace all typed methods with 4 generic primitives (`pick_n`, `pick_number`, `allocate`, `choose_ordering`) + `ChoiceContext` enum. See `plans/atomic-tests/supplemental-docs/decision-provider-refactor.md`.
 - **Effect primitives implemented:** 9 of ~35 (DealDamage, DrawCards, GainLife, LoseLife, ProduceMana, CounterSpell, CounterAbility, Destroy, Untap)
 - **Phase 5 Pre-Work tickets completed:** T14, T15, T15b, T16, plus TargetSpec→EffectRecipient refactor
 
@@ -111,7 +111,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Combat requirements solver (508.1d / 509.1c)
 - Mana spending restrictions design spike
 
-**Ticket count:** 24 active (T01–T22, T15b, T21a–T21d). Scope: 10 Small, 10 Medium, 4 Large.
+**Ticket count:** 25 active (T01–T22, T15b, SPECIAL-1, T21a–T21d). Scope: 10 Small, 11 Medium, 4 Large.
 
 **Cards unblocked:** None directly (infrastructure phase), but unblocks all future card types: planeswalkers, auras, equipment, token producers, infect/toxic creatures, legendary permanents.
 
@@ -124,6 +124,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Cost modification pipeline stub (passthrough, ready for Phase 5 layer)
 - Duration expiry hook sites in `turns.rs`
 - `get_effective_lands_per_turn` oracle function (passthrough, computed in Phase 5 layer)
+- `DecisionProvider` refactored to 4 generic primitives + `ChoiceContext`/`ChoiceOption` enums + typed `ask_*` free functions (SPECIAL-1)
 
 **Risk/complexity:** Medium. Largest tickets are T18 (601.2 casting pipeline — consider splitting into T18a/b/c) and T21b (combat evasion + requirements). Most tickets are isolated data model additions with localized blast radius. The mana spending restrictions design spike (T12) produces a document, not code.
 
@@ -276,7 +277,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Delayed trigger registry
 - `perform_sba_and_triggers()` in priority loop (stub already exists)
 - Per-turn tracker system (storm count, spells cast, etc.)
-- `GameNumber` type stub (`type GameNumber = u64` initially) + trigger iteration cap (`MAX_TRIGGER_ITERATIONS`) for divergent loop safety. `DecisionProvider::declare_loop_count()` method returning `u64` for now. Full symbolic `GameNumber` enum deferred to Phase 9.
+- `GameNumber` type stub (`type GameNumber = u64` initially) + trigger iteration cap (`MAX_TRIGGER_ITERATIONS`) for divergent loop safety. Loop count declaration uses `ask_declare_loop_count` via `pick_number` (SPECIAL-1 DP surface). Full symbolic `GameNumber` enum deferred to Phase 9. See `decision-provider-refactor.md` §9 for integration analysis.
 
 > **Architecture change (2026-04-06):** The original `pending_triggers: Vec<PendingTrigger>` push-based design has been replaced by the delta log approach from `state-tracking-architecture.md`. Rationale: push-based triggers require every mutation site to know about every trigger condition, making state-based triggers (rule 603.8) impractical without O(state_triggers × mutations) polling. The delta log centralizes detection: mutation sites emit generic deltas, and a single scanner runs pattern matching at checkpoints. This also unifies trigger detection with loop detection and shortcut validation, avoiding three separate observation mechanisms.
 
@@ -333,7 +334,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Monarch/Initiative designations
 - Perpetual/Alchemy mechanics (see below)
 - Prototype (702.160) — `PrototypeStats` on `CardData` + `cast_as_prototype: bool` via `CastInfo` (zone-sidecar scoped, stripped on zone change). See `implementation-plan-final.md` D20a.
-- `GameNumber` full implementation: `Finite(u64)` / `Shortcut { id, iterations, per_iteration }` / `Relative { base, multiplier, offset }` enum with `PartialOrd`. Enables representing and comparing arbitrarily large quantities from shortcut loops (rule 727). `LoopDeclaration` type for `DecisionProvider::declare_loop_count()` supporting both concrete values and "match+N" relative declarations. Promotes the Phase 7 `u64` stub to the full compositional type.
+- `GameNumber` full implementation: `Finite(u64)` / `Shortcut { id, iterations, per_iteration }` / `Relative { base, multiplier, offset }` enum with `PartialOrd` (not `Ord` — `Relative` values from unrelated loops are incomparable). Enables representing and comparing arbitrarily large quantities from shortcut loops (rule 727). `LoopDeclaration` type (`Concrete(u64)` / `MatchPlusN { target_declaration, offset }`) for loop count declaration via `ask_declare_loop_count` → `pick_number`. `pick_number` return type promotes from `u64` to `GameNumber` (type alias promotion, mechanical change across 4 DP impls). See `decision-provider-refactor.md` §8.4 and §9 for full integration analysis.
 
 **Estimated ticket count:** ~30–40
 
@@ -348,7 +349,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - **Intensity** — standalone `Option<u32>` field on `GameObject` (NOT a PerpetualMod). Read as a value by abilities, incremented by "intensify" actions. Initialized from `CardData.starting_intensity`.
 - **Boon** — reuses emblem infrastructure (command-zone `GameObject` with triggered ability). Extend emblem sidecar with `uses_remaining: Option<u32>`. No separate BoonState needed.
 - **Specialize** — `PerpetualMod::ReplaceCardData(Arc<CardData>)`. Full card identity replacement that persists across zones. Independent of DFC face system.
-- **New `DecisionProvider` methods:** `choose_draft_pick`, `choose_heist_card`, `choose_specialize_color`.
+- **New `ChoiceKind` variants + `ask_*` functions:** `ChoiceKind::DraftPick`, `ChoiceKind::HeistCard`, `ChoiceKind::SpecializeColor` + corresponding `ask_choose_draft_pick`, `ask_choose_heist_card`, `ask_choose_specialize_color` in `ui/ask.rs`. No DP trait changes needed (uses existing 4 generic methods from SPECIAL-1).
 
 Perpetual modifications are **ordered and heterogeneous** — a card can accumulate multiple perpetual effects mixing set and modify operations. Order matters: "power becomes 0" then "+1/+2" ≠ "+1/+2" then "power becomes 0". Implementation: `perpetual_modifications: Vec<PerpetualMod>` on `GameObject`, applied in order by `compute_characteristics()` after CardData base but before the layer loop. `PerpetualMod` is an enum covering SetPower, ModifyPower, SetColors, AddAbility, RemoveAbility, RemoveAllAbilities, etc. — extended with ~3-4 new variants for Alchemy: `AddColor`, `ReplaceCardData`, and keyword-specific variants if keywords/abilities aren't unified. This is architecturally **separate** from Prototype (which uses a bool + static CardData field). See `implementation-plan-final.md` D20b and `session-8-audit-response.md` Round 2 for background.
 
@@ -362,7 +363,7 @@ Perpetual modifications are **ordered and heterogeneous** — a card can accumul
 
 **Key deliverables:**
 - Web GUI (Wasm + framework TBD) — targeting a middle ground between XMage (functional but ugly) and Arena (beautiful but slow). TUI rejected: MtG's complexity makes graphical presentation significantly easier for humans.
-- AI engine interacting via a well-defined API layer over `DecisionProvider` — the same trait that drives CLI/Random/Scripted, exposed as a structured API (REST/gRPC/direct Rust call) so AI implementations can be developed independently without engine coupling.
+- AI engine interacting via a well-defined API layer over `DecisionProvider` — the same 4-method trait (`pick_n`, `pick_number`, `allocate`, `choose_ordering`) that drives CLI/Random/Scripted, exposed as a structured API (REST/gRPC/direct Rust call). `ChoiceContext`/`ChoiceOption` are trivially serializable with serde. AI implementations can match on `ChoiceKind` for specialized heuristics or use generic logic across all decision types.
 - Network play (stretch goal) — WebSocket for real-time, protocol TBD.
 - Layer system caching and performance optimization (profile-driven — see Performance Analysis appendix).
 - Parallel fuzz testing.
@@ -430,7 +431,7 @@ All deferred items from both audit documents are mapped below. None are orphaned
 | D23 | "Can't gain life" / "Can't lose life" | Phase 8 | Prohibition effects |
 | D24 | Player-leaves-game cleanup | Phase 9 | Multiplayer only |
 | D25 | Land+other-type casting restriction (300.2a) | Phase 8 | One guard in `cast.rs` |
-| D26 | Divergent loop shortcutting + `GameNumber` (rule 727) | **Phase 7** (stub) / **Phase 9** (full) | Trigger iteration cap in Phase 7; full symbolic `GameNumber` enum with `Relative` support in Phase 9. Needed for Astral Dragon + Parallel Lives class combos and infinity-vs-infinity races. |
+| D26 | Divergent loop shortcutting + `GameNumber` (rule 727) | **Phase 7** (stub) / **Phase 9** (full) | Trigger iteration cap in Phase 7; full symbolic `GameNumber` enum with `Relative` support in Phase 9. Needed for Astral Dragon + Parallel Lives class combos and infinity-vs-infinity races. Integrates cleanly with SPECIAL-1 DP surface: loop interactions map to `pick_n` + `pick_number` with new `ChoiceKind` variants. `pick_number` return type evolves `u64` → `GameNumber` in Phase 9 (§8.4). See `decision-provider-refactor.md` §9. |
 | D27 | Pregame actions (103.6) | Phase 8 | "Begin the game with on battlefield" (Leylines). Additive hook in `Game::setup()` after mulligans: check opening hands, ask DP, place onto battlefield with `controller_since_turn = 0` (sentinel, see T09). No architectural retrofit — purely additive. Summoning sickness interaction correct by design: pregame permanents that later become creatures (e.g. via Opalescence) pass the `controller_since_turn >= turn_number` check since `0 >= 1` is `false`. |
 
 #### From Session 6b (D1–D17)
@@ -467,7 +468,8 @@ These items span multiple phases:
 | **Perpetual/Alchemy** | Phase 5-Pre (scaffold: `Arc<CardRegistry>` on GameState), Phase 7 (zone-agnostic trigger scanner), Phase 9 (full implementation) | Prototype: `PrototypeStats` on CardData + bool on CastInfo (D20a). Perpetual: `Vec<PerpetualMod>` on GameObject (D20b). Intensity: standalone `Option<u32>` on GameObject. Boon: emblem + use counter. Draft pool: `DraftPool` on GameState. See `alchemy-mechanics-audit.md` for full per-mechanic analysis. |
 | **Protection** | Phase 5 Pre-Work (targeting), Phase 6 (damage prevention), Phase 8 (blocking, attachment) | Three-aspect keyword |
 | **Aura/Equipment** | Phase 5 Pre-Work (SBAs, attachment tracking, `enchant_filter` + `validate_selection`), Phase 6 (ETB attachment replacement), Phase 8 (equip/enchant abilities) | Progressive build-out. T15b completed: `enchant_filter: Option<SelectionFilter>` on CardData, unified validation via `validate_selection`, `has_any_legal_choice` pre-check, `attach_aura_on_etb` helper. |
-| **Divergent loop shortcutting (727)** | Phase 7 (iteration cap + `GameNumber` stub), Phase 9 (full `GameNumber` enum + `LoopDeclaration` + `Relative` comparisons) | Safety cap first, expressive math later |
+| **Divergent loop shortcutting (727)** | Phase 7 (iteration cap + `GameNumber` stub), Phase 9 (full `GameNumber` enum + `LoopDeclaration` + `Relative` comparisons) | Safety cap first, expressive math later. SPECIAL-1 integration confirmed: loop DP interactions use `pick_n`/`pick_number`, `pick_number` return type promotes `u64`→`GameNumber` in Phase 9. See `decision-provider-refactor.md` §9. |
+| **DecisionProvider refactor** | Phase 5 Pre-Work (SPECIAL-1: 4 generic primitives), Phase 7+ (new `ChoiceKind` variants as needed) | SPECIAL-1 replaces all typed DP methods with `pick_n`/`pick_number`/`allocate`/`choose_ordering` + `ChoiceContext`. Each subsequent phase adds new `ChoiceKind` variants + `ask_*` functions, zero DP impl changes. |
 
 ---
 

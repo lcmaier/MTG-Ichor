@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Total ticket count:** 48 (27 active Part 1 tickets + 21 Part 2 tickets)
-- **Scope breakdown:** 14 Small, 25 Medium, 9 Large
+- **Total ticket count:** 49 (28 active Part 1 tickets + 21 Part 2 tickets)
+- **Scope breakdown:** 14 Small, 26 Medium, 9 Large
 - **Part 1:** Pre-Phase 5 engine fixes (T01–T22, T15b, T21a–T21d) covering E1–E48 + combat requirements solver (508.1d/509.1c)
 - **Part 2:** Phase 5 continuous effects & layer system (L01–L21) covering W1–W15, PC1–PC12, §5a–§5m, plus E31 (LKI, deferred from Part 1)
 - **Organization:** Part 1 tickets are grouped by tier (data model → state tracking → SBAs → casting → zone/combat/damage). Part 2 tickets follow Sub-Plan 5A/5B/5C structure. The Execution Order section linearizes across both parts with parallelism annotations.
@@ -37,9 +37,9 @@ T13 (after T01,T03) || T14 (after T01) || T15 (after T04) || T15b (after T04) ||
 
 ### Tier 4: Casting & Activation (parallel with Tier 3)
 ```
-T17 → T18a → {T18b, T18c, T18d}  (T18b/c/d parallel after T18a)
-T19 || T20                        (parallel with T17/T18a–d)
-T12b + T17 → T12c                (after casting pipeline + sidecar)
+T17 → T18a → SPECIAL-1 → {T18b, T18c, T18d}  (SPECIAL-1 = DP refactor; T18b/c/d parallel after SPECIAL-1)
+T19 || T20                                    (parallel with T17/T18a–d, SPECIAL-1)
+T12b + T17 → T12c                            (after casting pipeline + sidecar)
 ```
 
 ### Tier 5: Zone, Combat, Damage, Targeting (parallel with Tier 4)
@@ -540,7 +540,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
-#### T18a: Pipeline restructure + X value + cost assembly + rollback
+#### T18a: Pipeline restructure + X value + cost assembly + rollback (DONE ✅)
 - **Scope:** Medium
 - **Source:** E25 (part 2 of 2, structural), E26
 - **Depends on:** T17
@@ -587,14 +587,56 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
+#### SPECIAL-1: DecisionProvider refactor — 4-primitive generic trait
+- **Scope:** Medium
+- **Source:** DP scalability analysis (2026-04-13). Design doc: `plans/atomic-tests/supplemental-docs/decision-provider-refactor.md`
+- **Depends on:** T18a (current DP methods for X/alt/additional costs exist and are tested)
+- **Discovery:** Identified during T18a implementation — MtG's decision space is too large for typed DP methods. Cross-cutting refactor, not specific to the casting pipeline.
+- **Rationale:** MtG requires 100+ distinct decision types when accounting for the full card pool. The current typed-methods approach would require 100+ trait methods, each propagated across 5 implementations. This refactor replaces all typed methods with 4 generic primitives (`pick_n`, `pick_number`, `allocate`, `choose_ordering`) plus a `ChoiceContext` enum for semantic labeling. Engine call sites use typed `ask_*` free functions that pack/unpack context. Adding a new decision type = 1 new `ChoiceKind` variant + 1 new `ask_*` function, zero changes to any DP implementation.
+- **Files:** `ui/choice_types.rs` (create), `ui/ask.rs` (create), `ui/mod.rs` (modify), `ui/decision.rs` (rewrite trait + ScriptedDP + DispatchDP), `ui/cli.rs` (rewrite impl), `ui/random.rs` (rewrite impl), `engine/cast.rs` (modify call sites), `engine/priority.rs` (modify), `engine/combat/steps.rs` (modify), `engine/sba.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), all test files (update scripted DP usage)
+- **Steps:**
+  1. **Create `ui/choice_types.rs`:** Define `ChoiceKind` (`#[non_exhaustive]` enum with ~25 initial variants covering all current + planned decision types), `ChoiceContext` (kind only — no prompt string; display formatting belongs in DP impls), and `ChoiceOption` (enum: Object, Player, Action, AttackerTarget, BlockerAttacker, CostOption, Number, Color, CreatureType, CardName, CounterType, ManaType). `NameCard` variant on `ChoiceKind` uses `pick_number` with `CardRegistry` index for performance (see design doc §8.7).
+  2. **Rewrite `DecisionProvider` trait in `ui/decision.rs`:** Replace all 12 typed methods with 4 generic methods: `pick_n`, `pick_number`, `allocate`, `choose_ordering`. Delete old method signatures and defaults.
+  3. **Create `ui/ask.rs`:** Typed free functions (`ask_choose_priority_action`, `ask_choose_attackers`, `ask_choose_blockers`, `ask_choose_targets`, `ask_choose_x_value`, `ask_choose_alternative_cost`, `ask_choose_additional_costs`, `ask_choose_generic_mana_allocation`, `ask_choose_discard`, `ask_choose_legend_to_keep`, `ask_choose_attacker_damage_assignment`, `ask_choose_trample_damage_assignment`). Each constructs `ChoiceContext` + `ChoiceOption` vec, calls the appropriate DP method, validates response, and returns typed result. Include validation: bounds checks, index range, allocation sum, permutation completeness.
+  4. **Rewrite `ScriptedDecisionProvider`:** Replace ~12 `RefCell<Vec<_>>` queues with single `RefCell<VecDeque<ScriptedExpectation>>`. Each expectation pairs `ExpectedKind` (either `Any` or `Expect(ChoiceKind)`) with `ScriptedResponse` (PickN/Number/Allocation/Ordering). Add `expect_pick_n(kind, indices)`, `expect_number(kind, n)`, `expect_allocation(kind, alloc)`, `expect_ordering(kind, order)` helpers that assert incoming `ChoiceKind` matches. Also provide `script_pick_n`, `script_number`, `script_allocation`, `script_ordering` convenience methods that use `ExpectedKind::Any` for don't-care tests. `Drop` impl asserts queue is empty (unconsumed expectations = test bug). Update all existing tests to use new scripting API.
+  5. **Rewrite `CliDecisionProvider`:** 4 methods. `pick_n` shows options + bounds, reads indices. `pick_number` shows range, reads number. `allocate` shows buckets, reads values. `choose_ordering` shows items, reads permutation.
+  6. **Rewrite `RandomDecisionProvider`:** 4 methods. `pick_n` shuffles + truncates. `pick_number` picks in range. `allocate` distributes randomly. `choose_ordering` shuffles.
+  7. **Rewrite `DispatchDecisionProvider`:** Forward all 4 methods by player_id index.
+  8. **Update all engine call sites:** Replace `decisions.choose_X(...)` with `ask_choose_X(decisions, ...)`. Touch: `cast.rs`, `priority.rs`, `combat/steps.rs`, `sba.rs`, `costs.rs`, `resolve.rs`.
+  9. **Update all tests:** Mechanical replacement of scripted DP setup. Verify all existing tests pass with identical game logic.
+- **Design decisions:**
+  - `choose_priority_action` becomes `ask_choose_priority_action` which enumerates legal actions via oracle helpers and calls `pick_n(bounds: (1,1))`. The DP no longer needs its own oracle calls for priority.
+  - `#[non_exhaustive]` on `ChoiceKind` ensures match arms have catch-all. Adding variants is non-breaking.
+  - Validation in `ask_*` functions: invalid DP responses panic in debug builds, preventing silent illegal states.
+  - Serde derives on `ChoiceContext`/`ChoiceOption`/response types for future network serialization.
+- **Tests:**
+  - `test_pick_n_returns_correct_indices` — scripted pick_n returns expected selections
+  - `test_pick_number_returns_value` — scripted pick_number returns expected value
+  - `test_allocate_returns_distribution` — scripted allocate returns expected allocation
+  - `test_choose_ordering_returns_permutation` — scripted ordering returns expected order
+  - `test_ask_choose_attackers_roundtrip` — ask function packs options, DP picks, ask unpacks typed result
+  - `test_ask_choose_x_value_roundtrip` — X value flows through ask→DP→result correctly
+  - `test_validation_rejects_out_of_bounds` — ask function panics on invalid index
+  - `test_validation_rejects_wrong_count` — ask function panics on wrong selection count
+  - `test_validation_rejects_bad_allocation_sum` — ask function panics on mismatched total
+  - `test_dispatch_routes_by_player` — DispatchDP forwards to correct inner DP
+  - `test_scripted_wrong_kind_panics` — expect_pick_n(DeclareAttackers) panics when engine asks ChooseTargets
+  - `test_scripted_unconsumed_panics` — leftover expectations in queue panic on Drop
+  - `test_scripted_empty_queue_panics` — DP call with empty queue panics with descriptive message
+  - All existing integration tests pass unchanged (game logic unaffected)
+- **Acceptance:** All existing tests pass (with updated scripted DP calls) + new tests pass + 0 warnings + fuzz harness 200/200
+- **Commit:** `ui: refactor DecisionProvider to 4 generic primitives with ChoiceContext (SPECIAL-1)`
+
+---
+
 #### T18b: Mode choice + conditional targets + target rules
 - **Scope:** Medium
 - **Source:** E25 (part 2 of 2, mode/target features)
-- **Depends on:** T18a
-- **Files:** `engine/cast.rs` (modify), `ui/decision.rs` (modify), `engine/targeting.rs` (modify)
+- **Depends on:** SPECIAL-1 (DP refactor provides generic trait; mode choice adds `ChoiceKind::ChooseModes` + `ask_choose_modes`)
+- **Files:** `engine/cast.rs` (modify), `ui/ask.rs` (modify), `ui/choice_types.rs` (modify), `engine/targeting.rs` (modify)
 - **ATOMs:** 601.2b-001, 601.2b-003, 601.2c-002, 601.2c-003, 601.2c-004, 601.2c-006, 601.2c-007, 601.4-001, 115.3-001, 115.3-002, 115.3/4-001, 115.3/4-002, 115.6-001, 604.5-001, 604.5-002, 604.6-001, 604.6-002
 - **Steps:**
-  1. **Mode choice via DP:** Add `choose_modes(game, player_id, modal_count, mode_count) -> Vec<usize>` to `DecisionProvider` (default: `vec![0]` for "choose one" spells). Call when spell's effect is `Effect::Modal`. Store in `StackEntry.chosen_modes`. Validate count matches `ModalCount` (exactly N, up to N, any number if kicked — 601.4 look-ahead).
+  1. **Mode choice via DP:** Add `ChoiceKind::ChooseModes { min, max }` variant to `ChoiceKind` and `ask_choose_modes` free function in `ui/ask.rs`. Call when spell's effect is `Effect::Modal`. Store in `StackEntry.chosen_modes`. Validate count matches `ModalCount` (exactly N, up to N, any number if kicked — 601.4 look-ahead).
   2. **Conditional targets:** Update target-choosing step to pass `chosen_modes` and `additional_costs_paid` so conditional targets can be included/excluded. A kicker spell with "if kicked, target creature" should not require a target when unkicked, and should require one when kicked. A modal spell only requires targets for chosen modes.
   3. **Target uniqueness per instance (rule 115.3):** Enforce that a single "target [type]" instance can't choose the same object twice (sad path). But *different* target instances can share a target (Decimate targeting an artifact creature for both "target artifact" and "target creature").
   4. **"Up to N" targets (rule 115.6):** When `TargetCount::UpTo(n)`, allow 0 targets chosen. Spell still resolves (it just does nothing to the absent targets).
@@ -620,17 +662,17 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 #### T18c: Distribution + Cost::Sacrifice + payment ordering + partial resolution
 - **Scope:** Medium
 - **Source:** E25 (part 2 of 2, distribution), rules 601.2d, 601.2h, 608.2b/d/i
-- **Depends on:** T18a (pipeline must exist). Parallel with T18b and T18d.
-- **Files:** `engine/cast.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), `ui/decision.rs` (modify)
+- **Depends on:** SPECIAL-1 (DP refactor provides generic trait). Parallel with T18b and T18d.
+- **Files:** `engine/cast.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), `ui/ask.rs` (modify), `ui/choice_types.rs` (modify)
 - **ATOMs:** 601.2d-001, 601.2d-002, 601.2h-003, 608.2b-002, 608.2b-005, 608.2d-002, 608.2d-003, 608.2i-001, 118.6-001
 - **Steps:**
   1. **Implement `Cost::Sacrifice(PermanentFilter, u32)` in `costs.rs`:** Currently returns `"not yet implemented"` in both `check_cost_resource` and `pay_single_cost`. Implement:
      - `check_cost_resource`: verify player controls ≥ N permanents matching the filter.
      - `pay_single_cost`: call `choose_sacrifice` on DP, validate choices match filter + count, then `move_object` each to graveyard.
-     - Add `choose_sacrifice(game, player_id, filter, count) -> Vec<ObjectId>` to `DecisionProvider` (default: pick first N matching). This makes `AdditionalCost::Kicker(vec![Cost::Sacrifice(Creature, 1)])` fully functional.
-  2. **Distribution via DP:** Add `choose_distribution(game, player_id, total: u32, targets: &[ResolvedTarget]) -> Vec<(ResolvedTarget, u32)>` to `DecisionProvider` (default: distribute as evenly as possible, remainder to first target). Call when spell has a divisible effect (e.g. `Primitive::DealDamage` with `AmountExpr::Divide`). Store distribution on StackEntry (new field: `pub distribution: Vec<(ResolvedTarget, u32)>`).
+     - Add `ChoiceKind::ChooseSacrifice` variant and `ask_choose_sacrifice` free function in `ui/ask.rs`. This makes `AdditionalCost::Kicker(vec![Cost::Sacrifice(Creature, 1)])` fully functional.
+  2. **Distribution via DP:** Add `ChoiceKind::ChooseDistribution` variant and `ask_choose_distribution` free function in `ui/ask.rs`. Uses `allocate` DP method. Call when spell has a divisible effect (e.g. `Primitive::DealDamage` with `AmountExpr::Divide`). Store distribution on StackEntry (new field: `pub distribution: Vec<(ResolvedTarget, u32)>`).
   3. **Distribution validation:** Each target must receive ≥1 of the divided amount. Total must equal the full amount. Reject and re-prompt (or error) on violation.
-  4. **Cost payment ordering via DP:** Add `choose_cost_payment_order(game, player_id, costs: &[Cost]) -> Vec<usize>` to `DecisionProvider` (default: return indices in order). The order matters when sacrifice-as-cost interacts with mana costs (ATOM-601.2h-003: Omnath + Momentous Fall). Sort deterministic costs (sacrifice, tap, life) before random/library costs per 601.2h, then let DP choose order within each category.
+  4. **Cost payment ordering via DP:** Add `ChoiceKind::CostPaymentOrder` variant and `ask_choose_cost_payment_order` free function in `ui/ask.rs`. Uses `choose_ordering` DP method. The order matters when sacrifice-as-cost interacts with mana costs (ATOM-601.2h-003: Omnath + Momentous Fall). Sort deterministic costs (sacrifice, tap, life) before random/library costs per 601.2h, then let DP choose order within each category.
   5. **Partial-target resolution (608.2b):** When resolving a multi-target spell where some targets have become illegal, resolve the remaining targets normally. Do not fizzle the whole spell unless *all* targets are illegal. Update `resolve_effect` to skip effects whose target is gone but continue with effects for legal targets. Test with Decimate pattern (4 independent targets, one becomes illegal → other 3 still destroy) and Jagged Lightning / Plague Spores patterns.
   6. **Resolution-time untargeted distribution (608.2d/608.2i):** For effects that distribute at resolution rather than cast time (e.g., "choose how to distribute N damage among any number of targets"), call DP at resolution. Historical look-back (608.2i): effects referencing "the amount of damage dealt" use the cast-time locked value, not a recalculated one.
 - **Test cards:** Decimate ({2}{R}{G} Sorcery — "Destroy target artifact, target creature, target enchantment, and target land"), Arc Lightning ({2}{R} Sorcery — "Deal 3 damage divided as you choose among one, two, or three targets"), Altar's Reap ({1}{B} Instant — "As an additional cost, sacrifice a creature. Draw two cards"), Plague Spores ({4}{B}{R} Sorcery — "Destroy target nonblack creature and target land. They can't be regenerated").
@@ -653,7 +695,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 #### T18d: Casting restrictions + no-mana-cost guard + legendary sorcery
 - **Scope:** Small
 - **Source:** E27 + E28
-- **Depends on:** T18a (post-proposal legality check must exist). Parallel with T18b and T18c.
+- **Depends on:** T18a (post-proposal legality check must exist), SPECIAL-1 (if any DP calls needed). Parallel with T18b and T18c.
 - **Files:** `engine/cast.rs` (modify), `objects/card_data.rs` (modify)
 - **ATOMs:** 202.1b-001, 205.4e-001, 205.4e-002, 118.9a-001
 - **Steps:**
