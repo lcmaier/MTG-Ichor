@@ -111,7 +111,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 - Combat requirements solver (508.1d / 509.1c)
 - Mana spending restrictions design spike
 
-**Ticket count:** 25 active (T01–T22, T15b, SPECIAL-1, T21a–T21d). Scope: 10 Small, 11 Medium, 4 Large.
+**Ticket count:** 27 active (T01–T22, T15b, SPECIAL-1a/b/c, T21a–T21d). Scope: 10 Small, 11 Medium, 4 Large.
 
 **Cards unblocked:** None directly (infrastructure phase), but unblocks all future card types: planeswalkers, auras, equipment, token producers, infect/toxic creatures, legendary permanents.
 
@@ -469,7 +469,7 @@ These items span multiple phases:
 | **Protection** | Phase 5 Pre-Work (targeting), Phase 6 (damage prevention), Phase 8 (blocking, attachment) | Three-aspect keyword |
 | **Aura/Equipment** | Phase 5 Pre-Work (SBAs, attachment tracking, `enchant_filter` + `validate_selection`), Phase 6 (ETB attachment replacement), Phase 8 (equip/enchant abilities) | Progressive build-out. T15b completed: `enchant_filter: Option<SelectionFilter>` on CardData, unified validation via `validate_selection`, `has_any_legal_choice` pre-check, `attach_aura_on_etb` helper. |
 | **Divergent loop shortcutting (727)** | Phase 7 (iteration cap + `GameNumber` stub), Phase 9 (full `GameNumber` enum + `LoopDeclaration` + `Relative` comparisons) | Safety cap first, expressive math later. SPECIAL-1 integration confirmed: loop DP interactions use `pick_n`/`pick_number`, `pick_number` return type promotes `u64`→`GameNumber` in Phase 9. See `decision-provider-refactor.md` §9. |
-| **DecisionProvider refactor** | Phase 5 Pre-Work (SPECIAL-1: 4 generic primitives), Phase 7+ (new `ChoiceKind` variants as needed) | SPECIAL-1 replaces all typed DP methods with `pick_n`/`pick_number`/`allocate`/`choose_ordering` + `ChoiceContext`. Each subsequent phase adds new `ChoiceKind` variants + `ask_*` functions, zero DP impl changes. |
+| **DecisionProvider refactor** | Phase 5 Pre-Work (SPECIAL-1a/b/c: 4 generic primitives), Phase 7+ (new `ChoiceKind` variants as needed) | SPECIAL-1a (types + trait + ask + ScriptedDP) → SPECIAL-1b (CLI/Random/Dispatch impls) → SPECIAL-1c (engine migration + old trait deletion). Each subsequent phase adds new `ChoiceKind` variants + `ask_*` functions, zero DP impl changes. |
 
 ---
 

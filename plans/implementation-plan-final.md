@@ -37,8 +37,8 @@ T13 (after T01,T03) || T14 (after T01) || T15 (after T04) || T15b (after T04) ||
 
 ### Tier 4: Casting & Activation (parallel with Tier 3)
 ```
-T17 → T18a → SPECIAL-1 → {T18b, T18c, T18d}  (SPECIAL-1 = DP refactor; T18b/c/d parallel after SPECIAL-1)
-T19 || T20                                    (parallel with T17/T18a–d, SPECIAL-1)
+T17 → T18a → SPECIAL-1a → SPECIAL-1b → SPECIAL-1c → {T18b, T18c, T18d}  (SPECIAL-1a/b/c = DP refactor split; T18b/c/d parallel after SPECIAL-1c)
+T19 || T20                                    (parallel with T17/T18a–d, SPECIAL-1a/b/c)
 T12b + T17 → T12c                            (after casting pipeline + sidecar)
 ```
 
@@ -587,26 +587,21 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
-#### SPECIAL-1: DecisionProvider refactor — 4-primitive generic trait
+#### SPECIAL-1a: DP refactor — types, trait, ask functions, ScriptedDP
 - **Scope:** Medium
 - **Source:** DP scalability analysis (2026-04-13). Design doc: `plans/atomic-tests/supplemental-docs/decision-provider-refactor.md`
 - **Depends on:** T18a (current DP methods for X/alt/additional costs exist and are tested)
 - **Discovery:** Identified during T18a implementation — MtG's decision space is too large for typed DP methods. Cross-cutting refactor, not specific to the casting pipeline.
 - **Rationale:** MtG requires 100+ distinct decision types when accounting for the full card pool. The current typed-methods approach would require 100+ trait methods, each propagated across 5 implementations. This refactor replaces all typed methods with 4 generic primitives (`pick_n`, `pick_number`, `allocate`, `choose_ordering`) plus a `ChoiceContext` enum for semantic labeling. Engine call sites use typed `ask_*` free functions that pack/unpack context. Adding a new decision type = 1 new `ChoiceKind` variant + 1 new `ask_*` function, zero changes to any DP implementation.
-- **Files:** `ui/choice_types.rs` (create), `ui/ask.rs` (create), `ui/mod.rs` (modify), `ui/decision.rs` (rewrite trait + ScriptedDP + DispatchDP), `ui/cli.rs` (rewrite impl), `ui/random.rs` (rewrite impl), `engine/cast.rs` (modify call sites), `engine/priority.rs` (modify), `engine/combat/steps.rs` (modify), `engine/sba.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), all test files (update scripted DP usage)
+- **Compilability note:** During SPECIAL-1a the old trait methods remain on `DecisionProvider` (not deleted yet). The new 4-method trait is introduced as `GenericDecisionProvider` (or a separate trait). The old trait continues to compile. `ask_*` functions call the new trait. `ScriptedDecisionProvider` implements both traits. This keeps the codebase compiling and all existing tests passing without touching engine call sites or CLI/Random impls.
+- **Files:** `ui/choice_types.rs` (create), `ui/ask.rs` (create), `ui/mod.rs` (modify), `ui/decision.rs` (add new trait + ScriptedDP new-trait impl)
 - **Steps:**
-  1. **Create `ui/choice_types.rs`:** Define `ChoiceKind` (`#[non_exhaustive]` enum with ~25 initial variants covering all current + planned decision types), `ChoiceContext` (kind only — no prompt string; display formatting belongs in DP impls), and `ChoiceOption` (enum: Object, Player, Action, AttackerTarget, BlockerAttacker, CostOption, Number, Color, CreatureType, CardName, CounterType, ManaType). `NameCard` variant on `ChoiceKind` uses `pick_number` with `CardRegistry` index for performance (see design doc §8.7).
-  2. **Rewrite `DecisionProvider` trait in `ui/decision.rs`:** Replace all 12 typed methods with 4 generic methods: `pick_n`, `pick_number`, `allocate`, `choose_ordering`. Delete old method signatures and defaults.
-  3. **Create `ui/ask.rs`:** Typed free functions (`ask_choose_priority_action`, `ask_choose_attackers`, `ask_choose_blockers`, `ask_choose_targets`, `ask_choose_x_value`, `ask_choose_alternative_cost`, `ask_choose_additional_costs`, `ask_choose_generic_mana_allocation`, `ask_choose_discard`, `ask_choose_legend_to_keep`, `ask_choose_attacker_damage_assignment`, `ask_choose_trample_damage_assignment`). Each constructs `ChoiceContext` + `ChoiceOption` vec, calls the appropriate DP method, validates response, and returns typed result. Include validation: bounds checks, index range, allocation sum, permutation completeness.
-  4. **Rewrite `ScriptedDecisionProvider`:** Replace ~12 `RefCell<Vec<_>>` queues with single `RefCell<VecDeque<ScriptedExpectation>>`. Each expectation pairs `ExpectedKind` (either `Any` or `Expect(ChoiceKind)`) with `ScriptedResponse` (PickN/Number/Allocation/Ordering). Add `expect_pick_n(kind, indices)`, `expect_number(kind, n)`, `expect_allocation(kind, alloc)`, `expect_ordering(kind, order)` helpers that assert incoming `ChoiceKind` matches. Also provide `script_pick_n`, `script_number`, `script_allocation`, `script_ordering` convenience methods that use `ExpectedKind::Any` for don't-care tests. `Drop` impl asserts queue is empty (unconsumed expectations = test bug). Update all existing tests to use new scripting API.
-  5. **Rewrite `CliDecisionProvider`:** 4 methods. `pick_n` shows options + bounds, reads indices. `pick_number` shows range, reads number. `allocate` shows buckets, reads values. `choose_ordering` shows items, reads permutation.
-  6. **Rewrite `RandomDecisionProvider`:** 4 methods. `pick_n` shuffles + truncates. `pick_number` picks in range. `allocate` distributes randomly. `choose_ordering` shuffles.
-  7. **Rewrite `DispatchDecisionProvider`:** Forward all 4 methods by player_id index.
-  8. **Update all engine call sites:** Replace `decisions.choose_X(...)` with `ask_choose_X(decisions, ...)`. Touch: `cast.rs`, `priority.rs`, `combat/steps.rs`, `sba.rs`, `costs.rs`, `resolve.rs`.
-  9. **Update all tests:** Mechanical replacement of scripted DP setup. Verify all existing tests pass with identical game logic.
+  1. **Create `ui/choice_types.rs`:** Define `ChoiceKind` (enum with ~25 initial variants covering all current + planned decision types; exhaustive matching, no `#[non_exhaustive]` — see design_doc.md §11 2026-04-14 entry), `ChoiceContext` (kind only — no prompt string; display formatting belongs in DP impls), and `ChoiceOption` (enum: Object, Player, Action, AttackerTarget, BlockerAttacker, CostOption, Number, Color, CreatureType, CardName, CounterType, ManaType). `NameCard` variant on `ChoiceKind` uses `pick_number` with `CardRegistry` index for performance (see design doc §8.7).
+  2. **Add new `DecisionProvider` trait (4 generic methods) in `ui/decision.rs`:** Temporarily coexists with the old trait (renamed `LegacyDecisionProvider` or kept as-is with a `// DEPRECATED` comment). New trait has: `pick_n`, `pick_number`, `allocate`, `choose_ordering`. Old trait is NOT deleted yet — that happens in SPECIAL-1c.
+  3. **Create `ui/ask.rs`:** Typed free functions (`ask_choose_priority_action`, `ask_choose_attackers`, `ask_choose_blockers`, `ask_choose_targets`, `ask_choose_x_value`, `ask_choose_alternative_cost`, `ask_choose_additional_costs`, `ask_choose_generic_mana_allocation`, `ask_choose_discard`, `ask_choose_legend_to_keep`, `ask_choose_attacker_damage_assignment`, `ask_choose_trample_damage_assignment`). Each constructs `ChoiceContext` + `ChoiceOption` vec, calls the new DP trait, validates response, and returns typed result. Include validation: bounds checks, index range, allocation sum, permutation completeness.
+  4. **Rewrite `ScriptedDecisionProvider`:** Replace ~12 `RefCell<Vec<_>>` queues with single `RefCell<VecDeque<ScriptedExpectation>>`. Each expectation pairs a mandatory `ChoiceKind` (discriminant-matched, fields ignored) with `ScriptedResponse` (PickN/Number/Allocation/Ordering). No `Any` fallback — every test must state what decision it expects. Add `expect_pick_n(kind, indices)`, `expect_number(kind, n)`, `expect_allocation(kind, alloc)`, `expect_ordering(kind, order)` helpers. `Drop` impl asserts queue is empty (unconsumed expectations = test bug). Panic messages include expected vs actual `ChoiceKind` for clear diagnostics. Old trait impl on ScriptedDP also kept (delegates to queues, preserving existing tests).
 - **Design decisions:**
-  - `choose_priority_action` becomes `ask_choose_priority_action` which enumerates legal actions via oracle helpers and calls `pick_n(bounds: (1,1))`. The DP no longer needs its own oracle calls for priority.
-  - `#[non_exhaustive]` on `ChoiceKind` ensures match arms have catch-all. Adding variants is non-breaking.
+  - `ChoiceKind` uses exhaustive matching (no `#[non_exhaustive]`). Single-crate project — compiler flags every match site when a variant is added. Revisit if project becomes multi-crate.
   - Validation in `ask_*` functions: invalid DP responses panic in debug builds, preventing silent illegal states.
   - Serde derives on `ChoiceContext`/`ChoiceOption`/response types for future network serialization.
 - **Tests:**
@@ -619,20 +614,56 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
   - `test_validation_rejects_out_of_bounds` — ask function panics on invalid index
   - `test_validation_rejects_wrong_count` — ask function panics on wrong selection count
   - `test_validation_rejects_bad_allocation_sum` — ask function panics on mismatched total
-  - `test_dispatch_routes_by_player` — DispatchDP forwards to correct inner DP
   - `test_scripted_wrong_kind_panics` — expect_pick_n(DeclareAttackers) panics when engine asks ChooseTargets
   - `test_scripted_unconsumed_panics` — leftover expectations in queue panic on Drop
   - `test_scripted_empty_queue_panics` — DP call with empty queue panics with descriptive message
-  - All existing integration tests pass unchanged (game logic unaffected)
-- **Acceptance:** All existing tests pass (with updated scripted DP calls) + new tests pass + 0 warnings + fuzz harness 200/200
-- **Commit:** `ui: refactor DecisionProvider to 4 generic primitives with ChoiceContext (SPECIAL-1)`
+  - All existing tests pass unchanged (old trait still works)
+- **Acceptance:** All existing tests pass + new unit tests pass + 0 warnings
+- **Commit:** `ui: add 4-primitive DecisionProvider trait, ChoiceKind, ask_* functions, ScriptedDP (SPECIAL-1a)`
+
+---
+
+#### SPECIAL-1b: DP refactor — CLI, Random, Dispatch implementations
+- **Scope:** Small
+- **Depends on:** SPECIAL-1a (new trait + choice types exist)
+- **Files:** `ui/cli.rs` (rewrite impl), `ui/random.rs` (rewrite impl), `ui/decision.rs` (DispatchDP rewrite)
+- **Steps:**
+  1. **Rewrite `CliDecisionProvider`:** Implement new 4-method trait. `pick_n` matches on `ChoiceKind` for prompt formatting, shows options + bounds, reads indices. `pick_number` shows range, reads number. `allocate` shows buckets, reads values. `choose_ordering` shows items, reads permutation. Old trait impl kept temporarily (delegates to new methods where possible).
+  2. **Rewrite `RandomDecisionProvider`:** Implement new 4-method trait. `pick_n` shuffles + truncates. `pick_number` picks in range. `allocate` distributes randomly. `choose_ordering` shuffles. Old trait impl kept temporarily.
+  3. **Rewrite `DispatchDecisionProvider`:** Forward all 4 new-trait methods by player_id index. Old trait forwarding kept temporarily.
+- **Design decisions:**
+  - `choose_priority_action` becomes `ask_choose_priority_action` which enumerates legal actions via oracle helpers and calls `pick_n(bounds: (1,1))`. The DP no longer needs its own oracle calls for priority. CLI/Random `choose_priority_action` old-trait impls remain until SPECIAL-1c migrates engine call sites.
+- **Tests:**
+  - `test_dispatch_routes_by_player` — DispatchDP forwards to correct inner DP via new trait
+  - Fuzz harness 200/200 — RandomDP via new trait produces legal games
+  - All existing tests still pass (old trait impls still present)
+- **Acceptance:** All existing tests pass + new tests pass + 0 warnings + fuzz harness 200/200
+- **Commit:** `ui: implement 4-primitive trait for CLI, Random, Dispatch DPs (SPECIAL-1b)`
+
+---
+
+#### SPECIAL-1c: DP refactor — engine migration + old trait deletion
+- **Scope:** Medium (mechanical but wide-reaching)
+- **Depends on:** SPECIAL-1b (all DP impls have new trait)
+- **Files:** `ui/decision.rs` (delete old trait), `engine/cast.rs` (modify call sites), `engine/priority.rs` (modify), `engine/combat/steps.rs` (modify), `engine/sba.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), all test files (update scripted DP usage)
+- **Steps:**
+  1. **Update all engine call sites:** Replace `decisions.choose_X(...)` with `ask_choose_X(decisions, ...)`. Touch: `cast.rs`, `priority.rs`, `combat/steps.rs`, `sba.rs`, `costs.rs`, `resolve.rs`. Engine functions change parameter type from `&dyn DecisionProvider` (old) to `&dyn DecisionProvider` (new — same name, different trait after deletion).
+  2. **Update all tests:** Mechanical replacement of scripted DP setup from old queue-per-method style to `expect_pick_n(kind, response)` style. Every test now uses explicit `ChoiceKind` expectations.
+  3. **Delete old trait:** Remove all old trait method signatures and their impls from Scripted/CLI/Random/Dispatch. The old trait ceases to exist. Only the 4-method trait remains, named `DecisionProvider`.
+  4. **Clean up:** Remove any shim/adapter code from SPECIAL-1a/1b. Ensure `ui/decision.rs` exports only the final clean trait.
+- **Tests:**
+  - All existing integration tests pass with updated scripted DP calls
+  - All existing unit tests pass with updated scripted DP calls
+  - Game logic completely unaffected — only the DP calling convention changed
+- **Acceptance:** All existing tests pass (with new-style scripted DP calls) + 0 warnings + fuzz harness 200/200 + no references to old trait remain in codebase
+- **Commit:** `ui: migrate engine to 4-primitive DP, delete legacy trait (SPECIAL-1c)`
 
 ---
 
 #### T18b: Mode choice + conditional targets + target rules
 - **Scope:** Medium
 - **Source:** E25 (part 2 of 2, mode/target features)
-- **Depends on:** SPECIAL-1 (DP refactor provides generic trait; mode choice adds `ChoiceKind::ChooseModes` + `ask_choose_modes`)
+- **Depends on:** SPECIAL-1c (DP refactor complete; mode choice adds `ChoiceKind::ChooseModes` + `ask_choose_modes`)
 - **Files:** `engine/cast.rs` (modify), `ui/ask.rs` (modify), `ui/choice_types.rs` (modify), `engine/targeting.rs` (modify)
 - **ATOMs:** 601.2b-001, 601.2b-003, 601.2c-002, 601.2c-003, 601.2c-004, 601.2c-006, 601.2c-007, 601.4-001, 115.3-001, 115.3-002, 115.3/4-001, 115.3/4-002, 115.6-001, 604.5-001, 604.5-002, 604.6-001, 604.6-002
 - **Steps:**
@@ -662,7 +693,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 #### T18c: Distribution + Cost::Sacrifice + payment ordering + partial resolution
 - **Scope:** Medium
 - **Source:** E25 (part 2 of 2, distribution), rules 601.2d, 601.2h, 608.2b/d/i
-- **Depends on:** SPECIAL-1 (DP refactor provides generic trait). Parallel with T18b and T18d.
+- **Depends on:** SPECIAL-1c (DP refactor complete). Parallel with T18b and T18d.
 - **Files:** `engine/cast.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), `ui/ask.rs` (modify), `ui/choice_types.rs` (modify)
 - **ATOMs:** 601.2d-001, 601.2d-002, 601.2h-003, 608.2b-002, 608.2b-005, 608.2d-002, 608.2d-003, 608.2i-001, 118.6-001
 - **Steps:**
@@ -695,7 +726,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 #### T18d: Casting restrictions + no-mana-cost guard + legendary sorcery
 - **Scope:** Small
 - **Source:** E27 + E28
-- **Depends on:** T18a (post-proposal legality check must exist), SPECIAL-1 (if any DP calls needed). Parallel with T18b and T18c.
+- **Depends on:** T18a (post-proposal legality check must exist), SPECIAL-1c (if any DP calls needed). Parallel with T18b and T18c.
 - **Files:** `engine/cast.rs` (modify), `objects/card_data.rs` (modify)
 - **ATOMs:** 202.1b-001, 205.4e-001, 205.4e-002, 118.9a-001
 - **Steps:**

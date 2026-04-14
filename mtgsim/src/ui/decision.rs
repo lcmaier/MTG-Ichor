@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::mem::discriminant;
 
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
@@ -10,6 +12,8 @@ use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 
 /// What a player chooses to do when they have priority.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -781,4 +785,261 @@ pub fn auto_allocate_generic(
     }
 
     Ok(allocation)
+}
+
+// ===========================================================================
+// NEW 4-PRIMITIVE GENERIC DECISION PROVIDER TRAIT
+// ===========================================================================
+//
+// This trait replaces the typed-method DecisionProvider trait (above).
+// During the transition (SPECIAL-1a/1b), both traits coexist:
+// - The old `DecisionProvider` trait is used by all engine call sites.
+// - The new `GenericDecisionProvider` trait is used by `ask_*` functions.
+// - ScriptedDecisionProvider implements BOTH traits.
+// SPECIAL-1c will migrate engine call sites to `ask_*` functions and
+// delete the old trait, renaming this to `DecisionProvider`.
+
+/// The 4-primitive decision provider trait.
+///
+/// Every MtG decision decomposes into one of these four shapes:
+/// - `pick_n`: select N items from a list (attackers, targets, discard, etc.)
+/// - `pick_number`: choose a number in a range (X value, loop count, etc.)
+/// - `allocate`: distribute a total across buckets (damage, mana, etc.)
+/// - `choose_ordering`: reorder a list (scry, stack ordering, etc.)
+///
+/// `ChoiceContext` carries the semantic kind so impls can specialize.
+pub trait GenericDecisionProvider {
+    /// Pick N items from a list of options. Bounds: (min, max) selections.
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize>;
+
+    /// Pick a number in an inclusive range.
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64;
+
+    /// Distribute a total across buckets. Sum of returned vec must equal total.
+    /// `per_bucket_mins` has one entry per bucket: bucket[i] must receive >= per_bucket_mins[i].
+    /// For uniform minimums, pass `&vec![min; buckets.len()]`.
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+    ) -> Vec<u64>;
+
+    /// Order a list of items. Returns indices in desired order.
+    fn choose_ordering(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        items: &[ChoiceOption],
+    ) -> Vec<usize>;
+}
+
+// ---------------------------------------------------------------------------
+// Scripted GenericDecisionProvider for tests
+// ---------------------------------------------------------------------------
+
+/// A single scripted expectation: what kind of decision we expect, and what to return.
+#[derive(Debug)]
+pub struct ScriptedExpectation {
+    /// The ChoiceKind we expect the engine to ask for (discriminant match, fields ignored).
+    /// No `Any` fallback — every scripted decision must declare what it expects.
+    pub expected_kind: ChoiceKind,
+    pub response: ScriptedResponse,
+}
+
+/// The response shape for a scripted expectation.
+#[derive(Debug)]
+pub enum ScriptedResponse {
+    PickN(Vec<usize>),
+    Number(u64),
+    Allocation(Vec<u64>),
+    Ordering(Vec<usize>),
+}
+
+/// A test-oriented generic decision provider with a single queue of
+/// `ScriptedExpectation`s. Each expectation pairs a mandatory `ChoiceKind`
+/// (discriminant-matched) with a `ScriptedResponse`.
+///
+/// Every test must state what decision it expects — this is the entire point
+/// of the self-documenting design.
+pub struct GenericScriptedDecisionProvider {
+    queue: RefCell<VecDeque<ScriptedExpectation>>,
+}
+
+impl GenericScriptedDecisionProvider {
+    pub fn new() -> Self {
+        GenericScriptedDecisionProvider {
+            queue: RefCell::new(VecDeque::new()),
+        }
+    }
+
+    /// Enqueue a pick_n expectation.
+    pub fn expect_pick_n(&self, kind: ChoiceKind, indices: Vec<usize>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::PickN(indices),
+        });
+    }
+
+    /// Enqueue a pick_number expectation.
+    pub fn expect_number(&self, kind: ChoiceKind, n: u64) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Number(n),
+        });
+    }
+
+    /// Enqueue an allocate expectation.
+    pub fn expect_allocation(&self, kind: ChoiceKind, alloc: Vec<u64>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Allocation(alloc),
+        });
+    }
+
+    /// Enqueue a choose_ordering expectation.
+    pub fn expect_ordering(&self, kind: ChoiceKind, order: Vec<usize>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Ordering(order),
+        });
+    }
+
+    /// Pop the front expectation, assert the kind matches, assert the response
+    /// variant matches the method being called, and return the response.
+    fn pop_and_validate(&self, actual_kind: &ChoiceKind, method_name: &str) -> ScriptedResponse {
+        let mut queue = self.queue.borrow_mut();
+        let expectation = queue.pop_front().unwrap_or_else(|| {
+            panic!(
+                "GenericScriptedDecisionProvider: unexpected {} call (kind: {:?}), no scripted response in queue",
+                method_name, actual_kind
+            )
+        });
+
+        assert_eq!(
+            discriminant(&expectation.expected_kind),
+            discriminant(actual_kind),
+            "GenericScriptedDecisionProvider: kind mismatch — expected {:?}, got {:?}",
+            expectation.expected_kind,
+            actual_kind,
+        );
+
+        expectation.response
+    }
+
+    /// Returns true if the queue is empty (all expectations consumed).
+    pub fn is_empty(&self) -> bool {
+        self.queue.borrow().is_empty()
+    }
+
+    /// Returns the number of remaining expectations.
+    pub fn remaining(&self) -> usize {
+        self.queue.borrow().len()
+    }
+}
+
+impl Drop for GenericScriptedDecisionProvider {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            let remaining = self.queue.borrow().len();
+            assert_eq!(
+                remaining, 0,
+                "GenericScriptedDecisionProvider dropped with {} unconsumed expectation(s) — \
+                 test bug: scripted expectations were enqueued but never consumed by DP calls",
+                remaining,
+            );
+        }
+    }
+}
+
+impl GenericDecisionProvider for GenericScriptedDecisionProvider {
+    fn pick_n(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        context: &ChoiceContext,
+        _options: &[ChoiceOption],
+        _bounds: (usize, usize),
+    ) -> Vec<usize> {
+        let response = self.pop_and_validate(&context.kind, "pick_n");
+        match response {
+            ScriptedResponse::PickN(indices) => indices,
+            other => panic!(
+                "GenericScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
+                other
+            ),
+        }
+    }
+
+    fn pick_number(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        context: &ChoiceContext,
+        _min: u64,
+        _max: u64,
+    ) -> u64 {
+        let response = self.pop_and_validate(&context.kind, "pick_number");
+        match response {
+            ScriptedResponse::Number(n) => n,
+            other => panic!(
+                "GenericScriptedDecisionProvider: pick_number called but scripted response is {:?}, expected Number",
+                other
+            ),
+        }
+    }
+
+    fn allocate(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        context: &ChoiceContext,
+        _total: u64,
+        _buckets: &[ChoiceOption],
+        _per_bucket_mins: &[u64],
+    ) -> Vec<u64> {
+        let response = self.pop_and_validate(&context.kind, "allocate");
+        match response {
+            ScriptedResponse::Allocation(alloc) => alloc,
+            other => panic!(
+                "GenericScriptedDecisionProvider: allocate called but scripted response is {:?}, expected Allocation",
+                other
+            ),
+        }
+    }
+
+    fn choose_ordering(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        context: &ChoiceContext,
+        _items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        let response = self.pop_and_validate(&context.kind, "choose_ordering");
+        match response {
+            ScriptedResponse::Ordering(order) => order,
+            other => panic!(
+                "GenericScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected Ordering",
+                other
+            ),
+        }
+    }
 }
