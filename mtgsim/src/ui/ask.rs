@@ -776,4 +776,264 @@ mod tests {
         let actions = vec![PriorityAction::Pass];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
     }
+
+    // --- GenericDispatchDecisionProvider routing ---
+
+    #[test]
+    fn test_dispatch_routes_by_player() {
+        use crate::ui::decision::GenericDispatchDecisionProvider;
+
+        let dp0 = GenericScriptedDecisionProvider::new();
+        let dp1 = GenericScriptedDecisionProvider::new();
+
+        // Player 0 should get action index 0, player 1 should get index 1
+        dp0.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        dp1.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+
+        let dispatch = GenericDispatchDecisionProvider::new(vec![
+            Box::new(dp0),
+            Box::new(dp1),
+        ]);
+
+        let game = test_game_state();
+        let actions = vec![
+            PriorityAction::Pass,
+            PriorityAction::PlayLand(crate::types::ids::new_object_id()),
+        ];
+
+        // Player 0 chooses index 0 → Pass
+        let result0 = ask_choose_priority_action(&dispatch, &game, 0, &actions);
+        assert!(matches!(result0, PriorityAction::Pass));
+
+        // Player 1 chooses index 1 → PlayLand
+        let result1 = ask_choose_priority_action(&dispatch, &game, 1, &actions);
+        assert!(matches!(result1, PriorityAction::PlayLand(_)));
+    }
+
+    // --- RandomDecisionProvider generic trait ---
+
+    #[test]
+    fn test_random_pick_n_respects_bounds() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::DeclareAttackers,
+        };
+        let options = vec![
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+        ];
+
+        // Run multiple times to exercise random selection
+        for _ in 0..20 {
+            let result = dp.pick_n(&game, 0, &ctx, &options, (1, 2));
+            assert!(
+                result.len() >= 1 && result.len() <= 2,
+                "pick_n returned {} selections, expected 1-2",
+                result.len()
+            );
+            for &idx in &result {
+                assert!(idx < options.len(), "index {} out of range", idx);
+            }
+            // Check no duplicates
+            let mut unique = result.clone();
+            unique.sort();
+            unique.dedup();
+            assert_eq!(unique.len(), result.len(), "duplicates in pick_n result");
+        }
+    }
+
+    #[test]
+    fn test_random_pick_n_exact_bounds() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::PriorityAction,
+        };
+        let options = vec![
+            ChoiceOption::Action(PriorityAction::Pass),
+            ChoiceOption::Action(PriorityAction::Pass),
+        ];
+
+        // When bounds are (1,1), always returns exactly 1
+        for _ in 0..10 {
+            let result = dp.pick_n(&game, 0, &ctx, &options, (1, 1));
+            assert_eq!(result.len(), 1);
+        }
+    }
+
+    #[test]
+    fn test_random_pick_number_x_value_self_limits() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state(); // 2 players, 20 life, no permanents
+        let spell_id = crate::types::ids::new_object_id();
+
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::ChooseXValue { spell_id, x_count: 1 },
+        };
+
+        // No mana in pool, no lands on battlefield → reasonable max is 0
+        // So the result should be min (0)
+        for _ in 0..10 {
+            let result = dp.pick_number(&game, 0, &ctx, 0, u64::MAX);
+            // With empty pool and no lands, should return 0
+            assert_eq!(result, 0, "X value should be 0 with no mana sources");
+        }
+    }
+
+    #[test]
+    fn test_random_allocate_sums_correctly() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::AssignCombatDamage {
+                attacker_id: crate::types::ids::new_object_id(),
+            },
+        };
+        let buckets = vec![
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+        ];
+        let mins = vec![0, 0];
+
+        for _ in 0..20 {
+            let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins);
+            assert_eq!(alloc.len(), 2);
+            assert_eq!(alloc.iter().sum::<u64>(), 5, "allocate sum must equal total");
+        }
+    }
+
+    #[test]
+    fn test_random_allocate_respects_minimums() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::AssignTrampleDamage {
+                attacker_id: crate::types::ids::new_object_id(),
+                defending_target: crate::events::event::DamageTarget::Player(1),
+            },
+        };
+        let buckets = vec![
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Player(1),
+        ];
+        let mins = vec![3, 0]; // First bucket needs at least 3
+
+        for _ in 0..20 {
+            let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins);
+            assert_eq!(alloc.len(), 2);
+            assert_eq!(alloc.iter().sum::<u64>(), 5);
+            assert!(alloc[0] >= 3, "bucket 0 must have at least 3, got {}", alloc[0]);
+        }
+    }
+
+    #[test]
+    fn test_random_choose_ordering_is_permutation() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::PriorityAction, // placeholder kind
+        };
+        let items = vec![
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+        ];
+
+        for _ in 0..20 {
+            let order = dp.choose_ordering(&game, 0, &ctx, &items);
+            assert_eq!(order.len(), items.len());
+            let mut sorted = order.clone();
+            sorted.sort();
+            assert_eq!(sorted, vec![0, 1, 2], "ordering must be a permutation");
+        }
+    }
+
+    // --- PassiveDecisionProvider generic trait ---
+
+    #[test]
+    fn test_passive_pick_n_returns_first_min() {
+        use crate::ui::decision::PassiveDecisionProvider;
+
+        let dp = PassiveDecisionProvider;
+        let game = test_game_state();
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::PriorityAction,
+        };
+        let options = vec![
+            ChoiceOption::Action(PriorityAction::Pass),
+            ChoiceOption::Action(PriorityAction::Pass),
+        ];
+        let result = dp.pick_n(&game, 0, &ctx, &options, (1, 1));
+        assert_eq!(result, vec![0]);
+    }
+
+    #[test]
+    fn test_passive_pick_number_returns_min() {
+        use crate::ui::decision::PassiveDecisionProvider;
+
+        let dp = PassiveDecisionProvider;
+        let game = test_game_state();
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::ChooseXValue {
+                spell_id: crate::types::ids::new_object_id(),
+                x_count: 1,
+            },
+        };
+        assert_eq!(dp.pick_number(&game, 0, &ctx, 0, 100), 0);
+        assert_eq!(dp.pick_number(&game, 0, &ctx, 5, 100), 5);
+    }
+
+    #[test]
+    fn test_passive_allocate_dumps_to_first_bucket() {
+        use crate::ui::decision::PassiveDecisionProvider;
+
+        let dp = PassiveDecisionProvider;
+        let game = test_game_state();
+        let ctx = ChoiceContext {
+            kind: ChoiceKind::AssignCombatDamage {
+                attacker_id: crate::types::ids::new_object_id(),
+            },
+        };
+        let buckets = vec![
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+        ];
+        let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &[0, 0]);
+        assert_eq!(alloc, vec![5, 0]);
+    }
+
+    #[test]
+    fn test_passive_ordering_is_identity() {
+        use crate::ui::decision::PassiveDecisionProvider;
+
+        let dp = PassiveDecisionProvider;
+        let game = test_game_state();
+        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let items = vec![
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            ChoiceOption::Object(crate::types::ids::new_object_id()),
+        ];
+        let order = dp.choose_ordering(&game, 0, &ctx, &items);
+        assert_eq!(order, vec![0, 1, 2]);
+    }
 }

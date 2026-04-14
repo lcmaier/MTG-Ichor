@@ -726,6 +726,133 @@ impl DecisionProvider for DispatchDecisionProvider {
     }
 }
 
+// ===========================================================================
+// GenericDecisionProvider implementations for Passive and Dispatch
+// ===========================================================================
+
+impl GenericDecisionProvider for PassiveDecisionProvider {
+    fn pick_n(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        // Pick the first `min` options (or fewer if not enough options)
+        let count = bounds.0.min(options.len());
+        (0..count).collect()
+    }
+
+    fn pick_number(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        min: u64,
+        _max: u64,
+    ) -> u64 {
+        min
+    }
+
+    fn allocate(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+    ) -> Vec<u64> {
+        if buckets.is_empty() {
+            return Vec::new();
+        }
+        // Start with minimums, dump all remaining into the first bucket
+        let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
+        let min_sum: u64 = alloc.iter().sum();
+        let remaining = total.saturating_sub(min_sum);
+        alloc[0] += remaining;
+        alloc
+    }
+
+    fn choose_ordering(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        // Identity ordering
+        (0..items.len()).collect()
+    }
+}
+
+/// A generic decision provider that dispatches to different providers per player.
+///
+/// This is the `GenericDecisionProvider` analogue of `DispatchDecisionProvider`.
+/// During the SPECIAL-1a/1b transition both exist; SPECIAL-1c will merge them
+/// into a single `DispatchDecisionProvider` that only implements the 4-method trait.
+pub struct GenericDispatchDecisionProvider {
+    providers: Vec<Box<dyn GenericDecisionProvider>>,
+}
+
+impl GenericDispatchDecisionProvider {
+    /// Create a new dispatcher from a list of generic providers, one per player.
+    pub fn new(providers: Vec<Box<dyn GenericDecisionProvider>>) -> Self {
+        GenericDispatchDecisionProvider { providers }
+    }
+
+    fn dp_for(&self, player_id: PlayerId) -> &dyn GenericDecisionProvider {
+        &*self.providers[player_id]
+    }
+}
+
+impl GenericDecisionProvider for GenericDispatchDecisionProvider {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.dp_for(player).pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64 {
+        self.dp_for(player).pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+    ) -> Vec<u64> {
+        self.dp_for(player).allocate(game, player, context, total, buckets, per_bucket_mins)
+    }
+
+    fn choose_ordering(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        self.dp_for(player).choose_ordering(game, player, context, items)
+    }
+}
+
 /// Convenience: greedy auto-allocation of generic mana from a player's pool.
 ///
 /// Calculates surplus mana after reserving for specific (colored) symbols,
