@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use rand::Rng;
-use rand::seq::IndexedRandom;
+use rand::seq::{IndexedRandom, SliceRandom};
 
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
@@ -18,9 +18,11 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{EffectRecipient, SelectionFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
+use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::{
     auto_allocate_generic, default_damage_assignment, default_trample_assignment,
-    is_action_still_valid, queue_tap_and_cast, DecisionProvider, PriorityAction,
+    is_action_still_valid, queue_tap_and_cast, DecisionProvider, GenericDecisionProvider,
+    PriorityAction,
 };
 
 /// A decision provider that makes random legal choices.
@@ -342,6 +344,129 @@ impl DecisionProvider for RandomDecisionProvider {
         mana_cost: &ManaCost,
     ) -> HashMap<ManaType, u64> {
         auto_allocate_generic(game, player_id, mana_cost).unwrap_or_default()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GenericDecisionProvider implementation (new 4-method trait)
+// ---------------------------------------------------------------------------
+
+impl GenericDecisionProvider for RandomDecisionProvider {
+    fn pick_n(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        if options.is_empty() || bounds.1 == 0 {
+            return Vec::new();
+        }
+        let mut rng = rand::rng();
+        let count = if bounds.0 == bounds.1 {
+            bounds.0
+        } else {
+            rng.random_range(bounds.0..=bounds.1)
+        };
+        let mut indices: Vec<usize> = (0..options.len()).collect();
+        indices.shuffle(&mut rng);
+        indices.truncate(count);
+        indices.sort(); // stable ordering for determinism in tests
+        indices
+    }
+
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64 {
+        let mut rng = rand::rng();
+
+        // For ChooseXValue, self-limit based on available mana to avoid
+        // degenerate rollback loops in fuzz testing. The ask function passes
+        // (0, u64::MAX) — we inspect game state for a reasonable upper bound.
+        if let ChoiceKind::ChooseXValue { .. } = &context.kind {
+            let pool_total: u64 = game.players.get(player)
+                .map(|p| p.mana_pool.total())
+                .unwrap_or(0);
+            // Count untapped lands as potential mana sources
+            let untapped_lands: u64 = game.battlefield.iter()
+                .filter(|(_, e)| {
+                    e.controller == player && !e.tapped
+                })
+                .filter(|(id, _)| {
+                    game.objects.get(id)
+                        .map(|o| o.card_data.types.contains(&crate::types::card_types::CardType::Land))
+                        .unwrap_or(false)
+                })
+                .count() as u64;
+            let reasonable_max = pool_total + untapped_lands;
+            let effective_max = reasonable_max.min(max);
+            if effective_max <= min {
+                return min;
+            }
+            return rng.random_range(min..=effective_max);
+        }
+
+        // General case: pick in the given range
+        // Guard against u64::MAX range causing overflow
+        if max == u64::MAX && min == 0 {
+            // Pick a small reasonable number to avoid degenerate behavior
+            return rng.random_range(0..=20);
+        }
+        rng.random_range(min..=max)
+    }
+
+    fn allocate(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+    ) -> Vec<u64> {
+        let n = buckets.len();
+        if n == 0 {
+            return Vec::new();
+        }
+
+        // Start with minimums
+        let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
+        let min_sum: u64 = alloc.iter().sum();
+        let mut remaining = total.saturating_sub(min_sum);
+
+        // Distribute remaining randomly across buckets
+        let mut rng = rand::rng();
+        while remaining > 0 {
+            let bucket = rng.random_range(0..n);
+            let give = if remaining == 1 {
+                1
+            } else {
+                rng.random_range(1..=remaining)
+            };
+            alloc[bucket] += give;
+            remaining -= give;
+        }
+
+        alloc
+    }
+
+    fn choose_ordering(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        let mut rng = rand::rng();
+        let mut indices: Vec<usize> = (0..items.len()).collect();
+        indices.shuffle(&mut rng);
+        indices
     }
 }
 
