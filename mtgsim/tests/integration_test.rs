@@ -204,7 +204,7 @@ fn test_sba_integration_with_turn_structure() {
     game.add_object(bears);
     game.place_on_battlefield(bears_id, 0).damage_marked = 3;
 
-    game.check_state_based_actions_loop(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
+    game.check_state_based_actions_loop(&mtgsim::ui::decision::ScriptedDecisionProvider::new()).unwrap();
 
     assert!(!game.battlefield.contains_key(&bears_id));
     assert_eq!(game.players[0].graveyard.len(), 1);

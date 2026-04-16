@@ -1,10 +1,17 @@
 // Read-only legality queries — can a creature attack, block, etc.
+//
+// All functions here are pure reads against `&GameState`. They never mutate.
+// For priority actions, the candidate list is an **overapproximation** —
+// false positives are harmless (engine rejects via rollback), false negatives
+// are bugs. See `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`.
 
 use crate::oracle::characteristics::{has_keyword, has_summoning_sickness, is_creature};
+use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
 use crate::state::game_state::{GameState, PhaseType};
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
+use crate::ui::decision::PriorityAction;
 
 /// Check if a creature can attack (not summoning-sick, or has haste).
 /// Rule 702.10b: Haste bypasses summoning sickness for attacking.
@@ -102,6 +109,99 @@ pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
             Some(*id)
         })
         .collect()
+}
+
+/// Build the candidate list of priority actions for a player.
+///
+/// This is an **overapproximation**: every action returned passes static
+/// legality checks (timing, zone, tap-state) but may fail dynamic checks
+/// (mana affordability, complex cost payability). The engine's execution +
+/// rollback handles false positives.
+///
+/// Always includes `Pass` as the first option.
+pub fn candidate_priority_actions(game: &GameState, player_id: PlayerId) -> Vec<PriorityAction> {
+    let mut actions = vec![PriorityAction::Pass];
+
+    // Playable lands — exact (land drop count is static state)
+    for land_id in playable_lands(game, player_id) {
+        actions.push(PriorityAction::PlayLand(land_id));
+    }
+
+    // Castable spells — overapproximation (affordability is heuristic)
+    for (spell_id, _sources) in castable_spells(game, player_id) {
+        actions.push(PriorityAction::CastSpell(spell_id));
+    }
+
+    // Activatable abilities — overapproximation (affordability is heuristic)
+    for (_source_id, _ability_index, ability_id) in activatable_abilities(game, player_id) {
+        actions.push(PriorityAction::ActivateAbility(_source_id, ability_id));
+    }
+
+    actions
+}
+
+/// Enumerate all legal selections for an `EffectRecipient`.
+///
+/// Returns every `ResolvedTarget` that passes `validate_selection` for the
+/// given filter. Used by `ask_select_recipients` to build the options list.
+///
+/// `exclude_id`: optionally exclude an object (e.g. the Aura itself for
+/// enchant-selection, or the spell being cast for "target spell" effects).
+pub fn enumerate_legal_selections(
+    game: &GameState,
+    filter: &crate::types::effects::SelectionFilter,
+    exclude_id: Option<ObjectId>,
+) -> Vec<crate::engine::resolve::ResolvedTarget> {
+    use crate::engine::resolve::ResolvedTarget;
+    use crate::types::effects::SelectionFilter;
+
+    let mut selections = Vec::new();
+
+    match filter {
+        SelectionFilter::Player => {
+            for pid in 0..game.num_players() {
+                selections.push(ResolvedTarget::Player(pid));
+            }
+        }
+        SelectionFilter::Any => {
+            // Players
+            for pid in 0..game.num_players() {
+                selections.push(ResolvedTarget::Player(pid));
+            }
+            // Creatures and planeswalkers on battlefield
+            for &id in game.battlefield.keys() {
+                if Some(id) == exclude_id {
+                    continue;
+                }
+                let candidate = ResolvedTarget::Object(id);
+                if game.validate_selection(filter, &candidate).is_ok() {
+                    selections.push(candidate);
+                }
+            }
+        }
+        SelectionFilter::Spell => {
+            for &id in &game.stack {
+                if Some(id) == exclude_id {
+                    continue;
+                }
+                selections.push(ResolvedTarget::Object(id));
+            }
+        }
+        // Creature, Permanent(_), or other battlefield-based filters
+        _ => {
+            for &id in game.battlefield.keys() {
+                if Some(id) == exclude_id {
+                    continue;
+                }
+                let candidate = ResolvedTarget::Object(id);
+                if game.validate_selection(filter, &candidate).is_ok() {
+                    selections.push(candidate);
+                }
+            }
+        }
+    }
+
+    selections
 }
 
 #[cfg(test)]

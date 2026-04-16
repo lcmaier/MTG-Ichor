@@ -1,6 +1,8 @@
+use crate::oracle::legality::candidate_priority_actions;
 use crate::state::game_state::GameState;
-use crate::ui::decision::{DecisionProvider, PriorityAction};
 use crate::types::zones::Zone;
+use crate::ui::ask::ask_choose_priority_action;
+use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// Result of a single priority round.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +40,8 @@ impl GameState {
         loop {
             self.priority_player = current_priority;
 
-            let action = decisions.choose_priority_action(self, current_priority);
+            let candidates = candidate_priority_actions(self, current_priority);
+            let action = ask_choose_priority_action(decisions, self, current_priority, &candidates);
 
             match action {
                 PriorityAction::Pass => {
@@ -143,13 +146,13 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::resolve::ResolvedTarget;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::objects::object::GameObject;
     use crate::state::game_state::PhaseType;
     use crate::types::card_types::CardType;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
+    use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
 
     #[test]
@@ -157,7 +160,9 @@ mod tests {
         let mut game = GameState::new(2, 20);
         game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
         let decisions = ScriptedDecisionProvider::new();
-        // Both players will pass (default ScriptedDecisionProvider behavior)
+        // Both players pass (index 0 = Pass)
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
@@ -191,20 +196,22 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Red, 1);
 
         let decisions = ScriptedDecisionProvider::new();
-        // Player 0 casts bolt, then both pass to let it resolve
-        decisions.priority_decisions.borrow_mut().push(
-            PriorityAction::CastSpell(card_id),
-        );
-        decisions.target_decisions.borrow_mut().push(
-            vec![ResolvedTarget::Player(1)],
-        );
+        // Player 0 casts bolt (index 1 in [Pass, CastSpell(card_id)])
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        // Target: Player(1) is at index 1 in [Player(0), Player(1)]
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            spell_id: card_id,
+        }, vec![1]);
 
-        // First round: player 0 casts bolt
+        // First round: player 0 casts bolt (returns ActionTaken immediately)
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::ActionTaken);
         assert!(game.stack.contains(&card_id));
 
-        // Second round: both pass (default), stack resolves
+        // Second round: both pass, stack resolves
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::StackResolved);
 
@@ -212,6 +219,8 @@ mod tests {
         assert_eq!(game.players[1].life_total, 17);
 
         // Third round: empty stack, both pass -> phase ends
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
     }
@@ -221,6 +230,9 @@ mod tests {
         let mut game = GameState::new(2, 20);
         game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
         let decisions = ScriptedDecisionProvider::new();
+        // Both players pass — phase ends
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
         game.run_priority_loop(&decisions).unwrap();
         // Should complete without error — phase ended

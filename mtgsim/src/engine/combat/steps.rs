@@ -11,10 +11,12 @@ use crate::engine::combat::validation::{
 };
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::has_keyword;
+use crate::oracle::legality::{legal_attackers, legal_blockers};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
+use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -28,7 +30,21 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<bool, String> {
         let active = self.active_player;
-        let proposed = decisions.choose_attackers(self, active);
+        // Build legal attacker-target pairs (each legal attacker × each opponent)
+        // TODO: Cartesian product scales as O(creatures × targets). With planeswalkers
+        // and battles as attack targets, even 2-player games can grow large. Consider a
+        // two-step approach: (1) pick which creatures attack, (2) assign each a target.
+        // This keeps options O(creatures + creatures) instead of O(creatures × targets).
+        let attacker_ids = legal_attackers(self, active);
+        let legal_pairs: Vec<(ObjectId, AttackTarget)> = attacker_ids
+            .into_iter()
+            .flat_map(|id| {
+                (0..self.num_players())
+                    .filter(|&pid| pid != active)
+                    .map(move |pid| (id, AttackTarget::Player(pid)))
+            })
+            .collect();
+        let proposed = ask_choose_attackers(decisions, self, active, &legal_pairs);
 
         if proposed.is_empty() {
             return Ok(false);
@@ -83,7 +99,16 @@ impl GameState {
         let defending_players: Vec<PlayerId> = self.get_defending_players();
 
         for defender in defending_players {
-            let proposed = decisions.choose_blockers(self, defender);
+            // Build legal blocker-attacker pairs
+            let blocker_ids = legal_blockers(self, defender);
+            let attackers_in_combat: Vec<ObjectId> = self.battlefield.iter()
+                .filter_map(|(id, e)| e.attacking.as_ref().map(|_| *id))
+                .collect();
+            let legal_block_pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
+                .iter()
+                .flat_map(|&bid| attackers_in_combat.iter().map(move |&aid| (bid, aid)))
+                .collect();
+            let proposed = ask_choose_blockers(decisions, self, defender, &legal_block_pairs);
 
             if proposed.is_empty() {
                 continue;

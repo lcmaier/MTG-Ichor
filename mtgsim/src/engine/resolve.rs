@@ -368,8 +368,12 @@ impl GameState {
             return Ok(false);
         }
 
-        let recipient = EffectRecipient::Choose(filter, TargetCount::Exactly(1));
-        let choices = dp.choose_targets(self, controller, &recipient);
+        let recipient = EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(1));
+        let legal = crate::oracle::legality::enumerate_legal_selections(self, &filter, Some(aura_id));
+        let choices = crate::ui::ask::ask_select_recipients(
+            dp, self, controller, &recipient, aura_id,
+            &legal, 1, 1,
+        );
 
         if let Some(ResolvedTarget::Object(host_id)) = choices.first() {
             let host_id = *host_id;
@@ -451,8 +455,8 @@ mod tests {
         }
     }
 
-    fn passive_dp() -> crate::ui::decision::PassiveDecisionProvider {
-        crate::ui::decision::PassiveDecisionProvider
+    fn test_dp() -> crate::ui::decision::ScriptedDecisionProvider {
+        crate::ui::decision::ScriptedDecisionProvider::new()
     }
 
     #[test]
@@ -465,7 +469,7 @@ mod tests {
         );
 
         let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Object(bears_id)]);
-        game.resolve_effect(&bolt, &ctx, &passive_dp()).unwrap();
+        game.resolve_effect(&bolt, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
     }
@@ -480,7 +484,7 @@ mod tests {
         );
 
         let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Player(1)]);
-        game.resolve_effect(&bolt, &ctx, &passive_dp()).unwrap();
+        game.resolve_effect(&bolt, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
     }
@@ -505,7 +509,7 @@ mod tests {
             EffectRecipient::Controller,
         );
         let ctx = bolt_ctx(bears_id, vec![]);
-        game.resolve_effect(&draw, &ctx, &passive_dp()).unwrap();
+        game.resolve_effect(&draw, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.players[0].hand.len(), 2);
         assert_eq!(game.players[0].library.len(), 3);
@@ -520,7 +524,7 @@ mod tests {
             EffectRecipient::Controller,
         );
         let ctx = bolt_ctx(bears_id, vec![]);
-        game.resolve_effect(&heal, &ctx, &passive_dp()).unwrap();
+        game.resolve_effect(&heal, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.players[0].life_total, 25);
     }
@@ -552,7 +556,7 @@ mod tests {
         ]);
 
         let ctx = bolt_ctx(bears_id, vec![ResolvedTarget::Player(1)]);
-        game.resolve_effect(&effect, &ctx, &passive_dp()).unwrap();
+        game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
 
         assert_eq!(game.players[1].life_total, 18);
         assert_eq!(game.players[0].hand.len(), 1);
@@ -590,7 +594,7 @@ mod tests {
             EffectRecipient::Target(SelectionFilter::Creature, crate::types::effects::TargetCount::Exactly(1)),
         );
         let ctx = bolt_ctx(source_id, vec![ResolvedTarget::Object(target_id)]);
-        game.resolve_effect(&destroy, &ctx, &passive_dp()).unwrap();
+        game.resolve_effect(&destroy, &ctx, &test_dp()).unwrap();
 
         // Creature should still be on the battlefield
         assert!(game.battlefield.contains_key(&target_id));
@@ -635,7 +639,17 @@ mod tests {
 
         // Script the DP to choose the creature as host
         let dp = crate::ui::decision::ScriptedDecisionProvider::new();
-        dp.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(creature_id)]);
+        // Legal selections: [Object(creature_id)] — index 0
+        dp.expect_pick_n(
+            crate::ui::choice_types::ChoiceKind::SelectRecipients {
+                recipient: crate::types::effects::EffectRecipient::Choose(
+                    SelectionFilter::Creature,
+                    crate::types::effects::TargetCount::Exactly(1),
+                ),
+                spell_id: aura_id,
+            },
+            vec![0],
+        );
 
         let attached = game.attach_aura_on_etb(aura_id, 0, &dp).unwrap();
         assert!(attached);
@@ -664,7 +678,7 @@ mod tests {
         game.place_on_battlefield(aura_id, 0);
 
         // PassiveDP returns empty — no host chosen
-        let attached = game.attach_aura_on_etb(aura_id, 0, &passive_dp()).unwrap();
+        let attached = game.attach_aura_on_etb(aura_id, 0, &test_dp()).unwrap();
         assert!(!attached);
 
         // Aura is still on battlefield but unattached
@@ -672,7 +686,7 @@ mod tests {
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
 
         // SBA should now kill it (704.5m)
-        let performed = game.check_state_based_actions(&passive_dp()).unwrap();
+        let performed = game.check_state_based_actions(&test_dp()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
@@ -695,7 +709,7 @@ mod tests {
         game.add_object(creature);
         game.place_on_battlefield(creature_id, 0);
 
-        let result = game.attach_aura_on_etb(creature_id, 0, &passive_dp()).unwrap();
+        let result = game.attach_aura_on_etb(creature_id, 0, &test_dp()).unwrap();
         assert!(!result);
     }
 }

@@ -10,12 +10,14 @@ use mtgsim::cards::basic_lands;
 use mtgsim::cards::creatures;
 use mtgsim::cards::phase5_pre_cards;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
+use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use common::{setup_two_player_game, put_in_hand, put_on_battlefield, fill_library};
@@ -50,7 +52,16 @@ fn test_nights_whisper_draw_and_life_loss() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(whisper_id));
+    // [Pass, CastSpell(whisper_id)] → idx 1
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    // {1}{B}: pool has [Black(1), Colorless(1)], allocate 1 generic → [0, 1]
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![0, 1],
+    );
+    // Both pass → resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -67,19 +78,22 @@ fn test_nights_whisper_draw_and_life_loss() {
 fn test_nights_whisper_sorcery_speed_wrong_phase() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 10);
-    let whisper_id = put_in_hand(&mut game, phase5_pre_cards::nights_whisper(), 0);
+    let _whisper_id = put_in_hand(&mut game, phase5_pre_cards::nights_whisper(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     // Set to combat phase — sorcery can't be cast here
     game.phase = mtgsim::state::game_state::Phase::new(PhaseType::Combat);
 
+    // Sorcery can't be cast in combat — not in candidates, both pass
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(whisper_id));
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     let result = game.run_priority_round(&decisions);
-    // Should fail — sorcery during combat
-    assert!(result.is_err() || game.stack.is_empty());
+    // Should pass through — both players pass, stack empty → AllPassed
+    assert!(result.is_ok());
+    assert!(game.stack.is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +108,15 @@ fn test_angels_mercy_gains_life() {
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(mercy_id));
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    // {2}{W}{W}: pool has [White(2), Colorless(2)], allocate 2 generic → [0, 2]
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![0, 2],
+    );
+    // Both pass → resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -113,7 +135,10 @@ fn test_dark_ritual_adds_three_black_mana() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(ritual_id));
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    // Both pass → resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -131,7 +156,7 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(ritual_id));
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
 
     // Cast — it should go on the stack
     let result = game.run_priority_round(&decisions).unwrap();
@@ -141,7 +166,9 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     // Mana hasn't been added yet — still on the stack
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 0);
 
-    // Now resolve
+    // Now resolve (both pass)
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 3);
@@ -162,8 +189,29 @@ fn test_doom_blade_destroys_nonblack_creature() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(blade_id));
-    decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(target_id)]);
+    // [Pass, CastSpell(blade_id)] → idx 1
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    // Target: legal selections = [Object(target_id)] (only nonblack creature) → idx 0
+    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+        recipient: EffectRecipient::Target(
+            SelectionFilter::Permanent(PermanentFilter::And(
+                Box::new(PermanentFilter::ByType(CardType::Creature)),
+                Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByColor(
+                    mtgsim::types::colors::Color::Black,
+                )))),
+            )),
+            TargetCount::Exactly(1),
+        ),
+        spell_id: blade_id,
+    }, vec![0]);
+    // {1}{B}: pool has [Black(1), Colorless(1)], allocate 1 generic → [0, 1]
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![0, 1],
+    );
+    // Both pass → resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -177,24 +225,24 @@ fn test_doom_blade_destroys_nonblack_creature() {
 #[test]
 fn test_doom_blade_rejects_black_creature() {
     let mut game = setup_two_player_game();
-    // Put a black creature on the battlefield — use a creature and add black color
+    // Put a black creature on the battlefield
     let black_creature_data = CardDataBuilder::new("Black Knight")
         .card_type(CardType::Creature)
         .color(mtgsim::types::colors::Color::Black)
         .power_toughness(2, 2)
         .build();
     let target_id = put_on_battlefield(&mut game, black_creature_data, 1);
-    let blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
+    let _blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(blade_id));
-    decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(target_id)]);
-
-    // Casting should fail — target is a black creature
-    let result = game.run_priority_round(&decisions);
-    assert!(result.is_err());
+    // castable_spells filters out Doom Blade because has_any_legal_choice
+    // finds no nonblack creatures. So CastSpell should NOT appear.
+    let actions = candidate_priority_actions(&game, 0);
+    assert!(
+        !actions.iter().any(|a| matches!(a, PriorityAction::CastSpell(_))),
+        "Doom Blade should not be castable when only target is a black creature",
+    );
     // Black creature still alive
     assert!(game.battlefield.contains_key(&target_id));
 }
@@ -205,17 +253,17 @@ fn test_doom_blade_rejects_noncreature_permanent() {
     // A land is a noncreature permanent — Doom Blade can't target it
     let land_id = put_on_battlefield(&mut game, basic_lands::forest(), 1);
 
-    let blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
+    let _blade_id = put_in_hand(&mut game, phase5_pre_cards::doom_blade(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(blade_id));
-    decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(land_id)]);
-
-    // Casting should fail — target is not a creature
-    let result = game.run_priority_round(&decisions);
-    assert!(result.is_err());
+    // castable_spells filters out Doom Blade because has_any_legal_choice
+    // finds no nonblack creatures (only a land). CastSpell should NOT appear.
+    let actions = candidate_priority_actions(&game, 0);
+    assert!(
+        !actions.iter().any(|a| matches!(a, PriorityAction::CastSpell(_))),
+        "Doom Blade should not be castable when only permanent is a noncreature",
+    );
     assert!(game.battlefield.contains_key(&land_id));
 }
 
@@ -239,14 +287,17 @@ fn test_isamaru_legend_rule_second_copy_dies() {
     game.players[0].mana_pool.add(ManaType::White, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(second_id));
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    // Both pass → resolve. SBAs fire after resolution and detect legend rule.
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // LegendRule fires during SBA check after resolution: keep first (index 0)
+    decisions.expect_pick_n(ChoiceKind::LegendRule {
+        legend_name: "Isamaru, Hound of Konda".to_string(),
+    }, vec![0]);
 
-    // Cast and resolve — second Isamaru enters the battlefield
+    // Cast and resolve — second Isamaru enters, SBAs kill one
     cast_and_resolve(&mut game, &decisions);
-
-    // Both should be on the battlefield momentarily, but SBAs run during
-    // the next priority check. Run the SBA loop explicitly.
-    game.check_state_based_actions_loop(&decisions).unwrap();
 
     // ScriptedDecisionProvider keeps the first legendary (legendaries[0]).
     // One Isamaru should remain, one should be in the graveyard.

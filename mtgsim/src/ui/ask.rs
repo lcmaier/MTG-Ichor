@@ -1,5 +1,5 @@
 //! Typed `ask_*` free functions — the engine-side bridge to the 4-primitive
-//! `GenericDecisionProvider` trait.
+//! `DecisionProvider` trait.
 //!
 //! Each function:
 //! 1. Constructs a `ChoiceContext` with the appropriate `ChoiceKind`
@@ -22,7 +22,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use super::decision::{GenericDecisionProvider, PriorityAction};
+use super::decision::{DecisionProvider, PriorityAction};
 
 // ===========================================================================
 // Validation helpers
@@ -87,12 +87,13 @@ fn validate_pick_number(value: u64, min: u64, max: u64, context_desc: &str) {
 }
 
 /// Validate allocate response: length matches buckets, sum equals total,
-/// each bucket >= its per-bucket minimum.
+/// each bucket >= its per-bucket minimum and <= its per-bucket maximum.
 fn validate_allocation(
     alloc: &[u64],
     buckets_len: usize,
     total: u64,
     per_bucket_mins: &[u64],
+    per_bucket_maxs: Option<&[u64]>,
     context_desc: &str,
 ) {
     assert_eq!(
@@ -113,6 +114,17 @@ fn validate_allocation(
         buckets_len,
     );
 
+    if let Some(maxs) = per_bucket_maxs {
+        assert_eq!(
+            maxs.len(),
+            buckets_len,
+            "ask_{}: per_bucket_maxs length {} != buckets length {}",
+            context_desc,
+            maxs.len(),
+            buckets_len,
+        );
+    }
+
     let sum: u64 = alloc.iter().sum();
     assert_eq!(
         sum, total,
@@ -129,6 +141,16 @@ fn validate_allocation(
             i,
             per_bucket_mins[i],
         );
+        if let Some(maxs) = per_bucket_maxs {
+            assert!(
+                val <= maxs[i],
+                "ask_{}: DP allocated {} to bucket {} but maximum is {}",
+                context_desc,
+                val,
+                i,
+                maxs[i],
+            );
+        }
     }
 }
 
@@ -176,7 +198,7 @@ fn validate_ordering(order: &[usize], items_len: usize, context_desc: &str) {
 /// The engine enumerates all legal actions and passes them as options.
 /// Returns the chosen `PriorityAction`.
 pub fn ask_choose_priority_action(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     legal_actions: &[PriorityAction],
@@ -200,7 +222,7 @@ pub fn ask_choose_priority_action(
 /// Choose which creatures to declare as attackers.
 /// Returns a list of (attacker_id, attack_target) pairs.
 pub fn ask_choose_attackers(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     legal: &[(ObjectId, AttackTarget)],
@@ -223,7 +245,7 @@ pub fn ask_choose_attackers(
 /// Choose which creatures to declare as blockers.
 /// Returns a list of (blocker_id, attacker_id) pairs.
 pub fn ask_choose_blockers(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     legal: &[(ObjectId, ObjectId)],
@@ -248,7 +270,7 @@ pub fn ask_choose_blockers(
 /// Uses `allocate` with all-zero per-bucket minimums (2025 rules: no
 /// ordering/lethal-first constraint — player freely divides).
 pub fn ask_choose_attacker_damage_assignment(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     attacker_id: ObjectId,
@@ -263,8 +285,8 @@ pub fn ask_choose_attacker_damage_assignment(
         kind: ChoiceKind::AssignCombatDamage { attacker_id },
     };
     let mins = vec![0u64; buckets.len()];
-    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins);
-    validate_allocation(&alloc, buckets.len(), power, &mins, "choose_attacker_damage_assignment");
+    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
+    validate_allocation(&alloc, buckets.len(), power, &mins, None, "choose_attacker_damage_assignment");
     blockers
         .iter()
         .zip(alloc.iter())
@@ -282,7 +304,7 @@ pub fn ask_choose_attacker_damage_assignment(
 ///
 /// Returns `(blocker_assignments, overflow_to_defender)`.
 pub fn ask_choose_trample_damage_assignment(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     attacker_id: ObjectId,
@@ -290,6 +312,7 @@ pub fn ask_choose_trample_damage_assignment(
     defending_target: DamageTarget,
     power: u64,
     per_blocker_mins: &[u64],
+    per_bucket_maxs: Option<&[u64]>,
 ) -> (Vec<(ObjectId, u64)>, u64) {
     // Buckets: one per blocker + one for the defending target (min 0)
     let mut buckets: Vec<ChoiceOption> = blockers
@@ -311,8 +334,8 @@ pub fn ask_choose_trample_damage_assignment(
             defending_target: defending_target.clone(),
         },
     };
-    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins);
-    validate_allocation(&alloc, buckets.len(), power, &mins, "choose_trample_damage_assignment");
+    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
+    validate_allocation(&alloc, buckets.len(), power, &mins, per_bucket_maxs, "choose_trample_damage_assignment");
 
     let blocker_assignments: Vec<(ObjectId, u64)> = blockers
         .iter()
@@ -336,7 +359,7 @@ pub fn ask_choose_trample_damage_assignment(
 /// back the entire cast attempt at payment time (601.2h). Each DP is free
 /// to use game state to self-limit (e.g. Random DP checks pool + sources).
 pub fn ask_choose_x_value(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     spell_id: ObjectId,
@@ -354,7 +377,7 @@ pub fn ask_choose_x_value(
 /// Choose an alternative cost (rule 118.9).
 /// Returns `None` for normal cost, or `Some(index)` for chosen alt cost.
 pub fn ask_choose_alternative_cost(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     available: &[AlternativeCost],
@@ -383,7 +406,7 @@ pub fn ask_choose_alternative_cost(
 /// Choose which additional costs to pay (rule 118.8).
 /// Returns indices into `available`.
 pub fn ask_choose_additional_costs(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     available: &[AdditionalCost],
@@ -413,7 +436,7 @@ pub fn ask_choose_additional_costs(
 /// `legal_selections` contains every legal recipient (objects AND players).
 /// Returns the chosen `ResolvedTarget`s.
 pub fn ask_select_recipients(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     recipient: &EffectRecipient,
@@ -451,7 +474,7 @@ pub fn ask_select_recipients(
 /// Choose how to allocate mana from the pool to pay generic mana.
 /// Returns a map of ManaType → amount.
 pub fn ask_choose_generic_mana_allocation(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     mana_cost: &ManaCost,
@@ -471,26 +494,19 @@ pub fn ask_choose_generic_mana_allocation(
         },
     };
     let mins = vec![0u64; buckets.len()];
-    let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins);
+    let maxs: Vec<u64> = available_types.iter().map(|(_, amt)| *amt).collect();
+    let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
     validate_allocation(
         &alloc,
         buckets.len(),
         generic_count,
         &mins,
+        Some(&maxs),
         "choose_generic_mana_allocation",
     );
 
-    // Validate each allocation doesn't exceed the available amount
-    for (i, amount) in alloc.iter().enumerate() {
-        let (mt, available) = available_types[i];
-        assert!(
-            *amount <= available,
-            "ask_choose_generic_mana_allocation: allocated {} of {:?} but only {} available",
-            *amount,
-            mt,
-            available,
-        );
-    }
+    // per_bucket_maxs already enforces that each allocation doesn't exceed
+    // the available amount — no post-hoc check needed.
 
     available_types
         .iter()
@@ -507,7 +523,7 @@ pub fn ask_choose_generic_mana_allocation(
 /// Choose a card to discard (cleanup step discard-to-hand-size).
 /// Returns the ObjectId of the chosen card, or None if hand is empty.
 pub fn ask_choose_discard(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     hand: &[ObjectId],
@@ -526,7 +542,7 @@ pub fn ask_choose_discard(
 
 /// Choose which legendary permanent to keep (rule 704.5j legend rule).
 pub fn ask_choose_legend_to_keep(
-    dp: &dyn GenericDecisionProvider,
+    dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     legend_name: &str,
@@ -558,7 +574,7 @@ pub fn ask_choose_legend_to_keep(
 mod tests {
     use super::*;
     use crate::state::game_state::GameState;
-    use crate::ui::decision::GenericScriptedDecisionProvider;
+    use crate::ui::decision::ScriptedDecisionProvider;
 
     fn test_game_state() -> GameState {
         GameState::new(2, 20)
@@ -568,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_pick_n_returns_correct_index() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
 
@@ -584,7 +600,7 @@ mod tests {
 
     #[test]
     fn test_pick_number_returns_value() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         dp.expect_number(
@@ -599,7 +615,7 @@ mod tests {
 
     #[test]
     fn test_allocate_returns_distribution() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
@@ -615,7 +631,7 @@ mod tests {
 
     #[test]
     fn test_trample_allocation_respects_per_bucket_mins() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let attacker = crate::types::ids::new_object_id();
         let blocker_a = crate::types::ids::new_object_id();
@@ -635,6 +651,7 @@ mod tests {
             DamageTarget::Player(1),
             5,
             &[2, 1], // per-blocker lethal minimums
+            None,
         );
         assert_eq!(blockers, vec![(blocker_a, 2), (blocker_b, 1)]);
         assert_eq!(overflow, 2);
@@ -643,7 +660,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "DP allocated 1 to bucket 0 but minimum is 2")]
     fn test_trample_rejects_below_per_bucket_min() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let attacker = crate::types::ids::new_object_id();
         let blocker = crate::types::ids::new_object_id();
@@ -661,6 +678,7 @@ mod tests {
             DamageTarget::Player(1),
             5,
             &[2], // blocker needs at least 2
+            None,
         );
     }
 
@@ -671,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_ask_choose_attackers_roundtrip() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
@@ -691,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_ask_choose_x_value_roundtrip() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         dp.expect_number(
@@ -707,7 +725,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "DP returned index 5 but only 2 options available")]
     fn test_validation_rejects_out_of_bounds() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![5]);
         let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
@@ -717,7 +735,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "DP returned 2 selections, expected 1-1")]
     fn test_validation_rejects_wrong_count() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0, 1]);
         let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
@@ -727,7 +745,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "allocation sum is 4 but total should be 3")]
     fn test_validation_rejects_bad_allocation_sum() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
@@ -743,7 +761,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "kind mismatch")]
     fn test_scripted_wrong_kind_panics() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
         // Engine asks for PriorityAction but we expected DeclareAttackers
@@ -756,7 +774,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "unconsumed expectation")]
     fn test_scripted_unconsumed_panics() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
         // Only consume one
@@ -771,26 +789,26 @@ mod tests {
     #[test]
     #[should_panic(expected = "no scripted response in queue")]
     fn test_scripted_empty_queue_panics() {
-        let dp = GenericScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
     }
 
-    // --- GenericDispatchDecisionProvider routing ---
+    // --- DispatchDecisionProvider routing ---
 
     #[test]
     fn test_dispatch_routes_by_player() {
-        use crate::ui::decision::GenericDispatchDecisionProvider;
+        use crate::ui::decision::DispatchDecisionProvider;
 
-        let dp0 = GenericScriptedDecisionProvider::new();
-        let dp1 = GenericScriptedDecisionProvider::new();
+        let dp0 = ScriptedDecisionProvider::new();
+        let dp1 = ScriptedDecisionProvider::new();
 
         // Player 0 should get action index 0, player 1 should get index 1
         dp0.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         dp1.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
 
-        let dispatch = GenericDispatchDecisionProvider::new(vec![
+        let dispatch = DispatchDecisionProvider::new(vec![
             Box::new(dp0),
             Box::new(dp1),
         ]);
@@ -909,7 +927,7 @@ mod tests {
         let mins = vec![0, 0];
 
         for _ in 0..20 {
-            let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins);
+            let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins, None);
             assert_eq!(alloc.len(), 2);
             assert_eq!(alloc.iter().sum::<u64>(), 5, "allocate sum must equal total");
         }
@@ -935,7 +953,7 @@ mod tests {
         let mins = vec![3, 0]; // First bucket needs at least 3
 
         for _ in 0..20 {
-            let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins);
+            let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins, None);
             assert_eq!(alloc.len(), 2);
             assert_eq!(alloc.iter().sum::<u64>(), 5);
             assert!(alloc[0] >= 3, "bucket 0 must have at least 3, got {}", alloc[0]);
@@ -967,73 +985,4 @@ mod tests {
         }
     }
 
-    // --- PassiveDecisionProvider generic trait ---
-
-    #[test]
-    fn test_passive_pick_n_returns_first_min() {
-        use crate::ui::decision::PassiveDecisionProvider;
-
-        let dp = PassiveDecisionProvider;
-        let game = test_game_state();
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::PriorityAction,
-        };
-        let options = vec![
-            ChoiceOption::Action(PriorityAction::Pass),
-            ChoiceOption::Action(PriorityAction::Pass),
-        ];
-        let result = dp.pick_n(&game, 0, &ctx, &options, (1, 1));
-        assert_eq!(result, vec![0]);
-    }
-
-    #[test]
-    fn test_passive_pick_number_returns_min() {
-        use crate::ui::decision::PassiveDecisionProvider;
-
-        let dp = PassiveDecisionProvider;
-        let game = test_game_state();
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::ChooseXValue {
-                spell_id: crate::types::ids::new_object_id(),
-                x_count: 1,
-            },
-        };
-        assert_eq!(dp.pick_number(&game, 0, &ctx, 0, 100), 0);
-        assert_eq!(dp.pick_number(&game, 0, &ctx, 5, 100), 5);
-    }
-
-    #[test]
-    fn test_passive_allocate_dumps_to_first_bucket() {
-        use crate::ui::decision::PassiveDecisionProvider;
-
-        let dp = PassiveDecisionProvider;
-        let game = test_game_state();
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::AssignCombatDamage {
-                attacker_id: crate::types::ids::new_object_id(),
-            },
-        };
-        let buckets = vec![
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-        ];
-        let alloc = dp.allocate(&game, 0, &ctx, 5, &buckets, &[0, 0]);
-        assert_eq!(alloc, vec![5, 0]);
-    }
-
-    #[test]
-    fn test_passive_ordering_is_identity() {
-        use crate::ui::decision::PassiveDecisionProvider;
-
-        let dp = PassiveDecisionProvider;
-        let game = test_game_state();
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
-        let items = vec![
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-        ];
-        let order = dp.choose_ordering(&game, 0, &ctx, &items);
-        assert_eq!(order, vec![0, 1, 2]);
-    }
 }

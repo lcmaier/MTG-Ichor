@@ -2,14 +2,9 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::mem::discriminant;
 
-use crate::engine::resolve::ResolvedTarget;
-use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::get_effective_toughness;
 use crate::oracle::mana_helpers::ManaSource;
-use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::costs::{AdditionalCost, AlternativeCost};
-use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
@@ -28,389 +23,8 @@ pub enum PriorityAction {
     PlayLand(ObjectId),
 }
 
-/// Abstraction for player decisions.
-///
-/// The engine calls methods on this trait whenever it needs a player to make
-/// a choice. Implementations can be:
-/// - CLI (interactive terminal play)
-/// - Programmatic (for tests — pre-scripted decisions)
-/// - AI (bot players)
-/// - Network (remote player over a protocol)
-///
-/// This keeps the engine completely decoupled from input/output.
-pub trait DecisionProvider {
-    /// Choose which creatures to declare as attackers.
-    /// Returns a list of (attacker_id, attack_target) pairs.
-    fn choose_attackers(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> Vec<(ObjectId, AttackTarget)>;
 
-    /// Choose which creatures to declare as blockers.
-    /// Returns a list of (blocker_id, attacker_id) pairs.
-    fn choose_blockers(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> Vec<(ObjectId, ObjectId)>;
 
-    /// Choose a card from hand to discard (e.g., cleanup step discard to hand size).
-    /// Returns the ObjectId of the card to discard.
-    fn choose_discard(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> Option<ObjectId>;
-
-    /// Choose what to do when the player has priority.
-    fn choose_priority_action(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> PriorityAction;
-
-    /// Choose targets for a spell or ability being cast/activated.
-    fn choose_targets(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        recipient: &EffectRecipient,
-    ) -> Vec<ResolvedTarget>;
-
-    /// Choose how to divide an attacker's combat damage among multiple blockers.
-    /// Called when an attacker with `power` is blocked by 2+ creatures.
-    ///
-    /// Under 2025 rules (510.1c), the attacking player freely divides damage
-    /// among blocking creatures with no ordering or lethal-first constraint.
-    ///
-    /// Returns a Vec<(blocker_id, damage_amount)> that must:
-    /// - Sum to `power`
-    /// - Only target blockers in `blockers`
-    fn choose_attacker_damage_assignment(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        attacker_id: ObjectId,
-        blockers: &[ObjectId],
-        power: u64,
-    ) -> Vec<(ObjectId, u64)>;
-
-    /// Choose how to divide a trampling attacker's damage among blockers and
-    /// the defending player/planeswalker.
-    ///
-    /// Each blocker must be assigned at least lethal damage (1 if `has_deathtouch`,
-    /// else toughness − damage_marked). The engine validates the result.
-    ///
-    /// Returns `(blocker_assignments, overflow_to_defender)` where the total
-    /// must equal `power`.
-    fn choose_trample_damage_assignment(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        attacker_id: ObjectId,
-        blockers: &[ObjectId],
-        defending_target: DamageTarget,
-        power: u64,
-        has_deathtouch: bool,
-    ) -> (Vec<(ObjectId, u64)>, u64);
-
-    /// Choose which legendary permanent to keep when the legend rule (704.5j)
-    /// finds duplicates. The controller has multiple legendaries with the same name;
-    /// they choose one to keep and the rest go to the graveyard.
-    ///
-    /// TODO: This is structurally "choose 1 from N objects." Future needs (stack
-    /// ordering, scry top/bottom, modal choices) will likely motivate a generic
-    /// `choose_n_from_m` method. Defer generalization until the second instance
-    /// arises, then batch-refactor all impls.
-    fn choose_legend_to_keep(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        legendaries: &[ObjectId],
-    ) -> ObjectId;
-
-    /// Choose how to allocate mana from the pool to pay the generic component
-    /// of a mana cost. Returns a map of ManaType → amount to spend on generic.
-    fn choose_generic_mana_allocation(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        mana_cost: &ManaCost,
-    ) -> HashMap<ManaType, u64>;
-
-    /// Choose the value of X for a spell with {X} in its mana cost (rule 107.3a).
-    ///
-    /// Called once per cast. The `x_count` parameter is the number of X symbols
-    /// in the cost (usually 1, but 2 for cards like Hangarback Walker).
-    /// The returned value is the chosen X; the total mana added to the cost
-    /// is `x_value * x_count` generic mana.
-    ///
-    /// Default: returns 0 (for test providers that don't care about X).
-    fn choose_x_value(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        _x_count: u8,
-    ) -> u64 {
-        0
-    }
-
-    /// Choose an alternative cost to use instead of the spell's mana cost
-    /// (rule 118.9). At most one alternative cost may be chosen per cast.
-    ///
-    /// `available` contains the alternative costs defined on the card.
-    /// Return `None` to pay the normal mana cost, or `Some(index)` to choose
-    /// the alternative cost at that index in the `available` slice.
-    ///
-    /// Default: returns `None` (always pay normal cost).
-    fn choose_alternative_cost(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        _available: &[AlternativeCost],
-    ) -> Option<usize> {
-        None
-    }
-
-    /// Choose which additional costs to pay on top of the base cost
-    /// (rule 118.8). Multiple additional costs may be paid simultaneously
-    /// (e.g. kicker + buyback).
-    ///
-    /// `available` contains the additional costs defined on the card.
-    /// Return the indices of the costs the player wants to pay.
-    ///
-    /// Default: returns empty vec (pay no additional costs).
-    fn choose_additional_costs(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        _available: &[AdditionalCost],
-    ) -> Vec<usize> {
-        Vec::new()
-    }
-}
-
-/// A test-oriented decision provider that returns empty decisions (no attacks, no blocks).
-/// Useful for tests that just need the turn loop to advance without interaction.
-pub struct PassiveDecisionProvider;
-
-impl DecisionProvider for PassiveDecisionProvider {
-    fn choose_attackers(&self, _game: &GameState, _player_id: PlayerId) -> Vec<(ObjectId, AttackTarget)> {
-        Vec::new()
-    }
-
-    fn choose_blockers(&self, _game: &GameState, _player_id: PlayerId) -> Vec<(ObjectId, ObjectId)> {
-        Vec::new()
-    }
-
-    fn choose_discard(&self, game: &GameState, player_id: PlayerId) -> Option<ObjectId> {
-        // Auto-discard the last card in hand (simple default for tests)
-        game.players.get(player_id)
-            .and_then(|p| p.hand.last().copied())
-    }
-
-    fn choose_priority_action(&self, _game: &GameState, _player_id: PlayerId) -> PriorityAction {
-        PriorityAction::Pass
-    }
-
-    fn choose_targets(&self, _game: &GameState, _player_id: PlayerId, _recipient: &EffectRecipient) -> Vec<ResolvedTarget> {
-        Vec::new()
-    }
-
-    fn choose_attacker_damage_assignment(&self, game: &GameState, _player_id: PlayerId, _attacker_id: ObjectId, blockers: &[ObjectId], power: u64) -> Vec<(ObjectId, u64)> {
-        default_damage_assignment(game, blockers, power)
-    }
-
-    fn choose_trample_damage_assignment(&self, game: &GameState, _player_id: PlayerId, _attacker_id: ObjectId, blockers: &[ObjectId], _defending_target: DamageTarget, power: u64, has_deathtouch: bool) -> (Vec<(ObjectId, u64)>, u64) {
-        default_trample_assignment(game, blockers, power, has_deathtouch)
-    }
-
-    fn choose_legend_to_keep(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        legendaries: &[ObjectId],
-    ) -> ObjectId {
-        legendaries[0]
-    }
-
-    fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
-        auto_allocate_generic(game, player_id, mana_cost)
-            .unwrap_or_default()
-    }
-}
-
-/// A test-oriented decision provider with pre-scripted decisions.
-/// Decisions are consumed in order as they're requested.
-pub struct ScriptedDecisionProvider {
-    pub attack_decisions: std::cell::RefCell<Vec<Vec<(ObjectId, AttackTarget)>>>,
-    pub block_decisions: std::cell::RefCell<Vec<Vec<(ObjectId, ObjectId)>>>,
-    pub discard_decisions: std::cell::RefCell<Vec<Option<ObjectId>>>,
-    pub priority_decisions: std::cell::RefCell<Vec<PriorityAction>>,
-    pub target_decisions: std::cell::RefCell<Vec<Vec<ResolvedTarget>>>,
-    pub damage_assignment_decisions: std::cell::RefCell<Vec<Vec<(ObjectId, u64)>>>,
-    pub trample_damage_assignment_decisions: std::cell::RefCell<Vec<(Vec<(ObjectId, u64)>, u64)>>,
-    pub x_value_decisions: std::cell::RefCell<Vec<u64>>,
-    pub alternative_cost_decisions: std::cell::RefCell<Vec<Option<usize>>>,
-    pub additional_cost_decisions: std::cell::RefCell<Vec<Vec<usize>>>,
-}
-
-impl ScriptedDecisionProvider {
-    pub fn new() -> Self {
-        ScriptedDecisionProvider {
-            attack_decisions: std::cell::RefCell::new(Vec::new()),
-            block_decisions: std::cell::RefCell::new(Vec::new()),
-            discard_decisions: std::cell::RefCell::new(Vec::new()),
-            priority_decisions: std::cell::RefCell::new(Vec::new()),
-            target_decisions: std::cell::RefCell::new(Vec::new()),
-            damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
-            trample_damage_assignment_decisions: std::cell::RefCell::new(Vec::new()),
-            x_value_decisions: std::cell::RefCell::new(Vec::new()),
-            alternative_cost_decisions: std::cell::RefCell::new(Vec::new()),
-            additional_cost_decisions: std::cell::RefCell::new(Vec::new()),
-        }
-    }
-}
-
-impl DecisionProvider for ScriptedDecisionProvider {
-    fn choose_attackers(&self, _game: &GameState, _player_id: PlayerId) -> Vec<(ObjectId, AttackTarget)> {
-        let mut decisions = self.attack_decisions.borrow_mut();
-        if decisions.is_empty() {
-            Vec::new()
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_blockers(&self, _game: &GameState, _player_id: PlayerId) -> Vec<(ObjectId, ObjectId)> {
-        let mut decisions = self.block_decisions.borrow_mut();
-        if decisions.is_empty() {
-            Vec::new()
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_discard(&self, _game: &GameState, _player_id: PlayerId) -> Option<ObjectId> {
-        let mut decisions = self.discard_decisions.borrow_mut();
-        if decisions.is_empty() {
-            None
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_priority_action(&self, _game: &GameState, _player_id: PlayerId) -> PriorityAction {
-        let mut decisions = self.priority_decisions.borrow_mut();
-        if decisions.is_empty() {
-            PriorityAction::Pass
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_targets(&self, _game: &GameState, _player_id: PlayerId, _recipient: &EffectRecipient) -> Vec<ResolvedTarget> {
-        let mut decisions = self.target_decisions.borrow_mut();
-        if decisions.is_empty() {
-            Vec::new()
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_attacker_damage_assignment(
-        &self,
-        game: &GameState,
-        _player_id: PlayerId,
-        _attacker_id: ObjectId,
-        blockers: &[ObjectId],
-        power: u64,
-    ) -> Vec<(ObjectId, u64)> {
-        let mut decisions = self.damage_assignment_decisions.borrow_mut();
-        if decisions.is_empty() {
-            default_damage_assignment(game, blockers, power)
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_trample_damage_assignment(
-        &self,
-        game: &GameState,
-        _player_id: PlayerId,
-        _attacker_id: ObjectId,
-        blockers: &[ObjectId],
-        _defending_target: DamageTarget,
-        power: u64,
-        has_deathtouch: bool,
-    ) -> (Vec<(ObjectId, u64)>, u64) {
-        let mut decisions = self.trample_damage_assignment_decisions.borrow_mut();
-        if decisions.is_empty() {
-            default_trample_assignment(game, blockers, power, has_deathtouch)
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_legend_to_keep(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        legendaries: &[ObjectId],
-    ) -> ObjectId {
-        // Keep the first one (most recently added to the scripted decisions,
-        // or just the first in the list as a default)
-        legendaries[0]
-    }
-
-    fn choose_generic_mana_allocation(&self, game: &GameState, player_id: PlayerId, mana_cost: &ManaCost) -> HashMap<ManaType, u64> {
-        auto_allocate_generic(game, player_id, mana_cost)
-            .unwrap_or_default()
-    }
-
-    fn choose_x_value(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        _x_count: u8,
-    ) -> u64 {
-        let mut decisions = self.x_value_decisions.borrow_mut();
-        if decisions.is_empty() {
-            0
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_alternative_cost(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        _available: &[AlternativeCost],
-    ) -> Option<usize> {
-        let mut decisions = self.alternative_cost_decisions.borrow_mut();
-        if decisions.is_empty() {
-            None
-        } else {
-            decisions.remove(0)
-        }
-    }
-
-    fn choose_additional_costs(
-        &self,
-        _game: &GameState,
-        _player_id: PlayerId,
-        _available: &[AdditionalCost],
-    ) -> Vec<usize> {
-        let mut decisions = self.additional_cost_decisions.borrow_mut();
-        if decisions.is_empty() {
-            Vec::new()
-        } else {
-            decisions.remove(0)
-        }
-    }
-}
 
 /// Convenience: default damage assignment for an attacker blocked by multiple creatures.
 ///
@@ -589,6 +203,11 @@ pub fn is_action_still_valid(game: &GameState, player_id: PlayerId, action: &Pri
     }
 }
 
+
+// ===========================================================================
+// DecisionProvider implementation for Dispatch
+// ===========================================================================
+
 /// A decision provider that dispatches to different providers per player.
 ///
 /// Enables any combination of human/bot/network players in a single game.
@@ -599,8 +218,7 @@ pub struct DispatchDecisionProvider {
 }
 
 impl DispatchDecisionProvider {
-    /// Create a new dispatcher from a list of providers, one per player.
-    /// Provider at index 0 handles player 0, index 1 handles player 1, etc.
+    /// Create a new dispatcher from a list of generic providers, one per player.
     pub fn new(providers: Vec<Box<dyn DecisionProvider>>) -> Self {
         DispatchDecisionProvider { providers }
     }
@@ -611,203 +229,6 @@ impl DispatchDecisionProvider {
 }
 
 impl DecisionProvider for DispatchDecisionProvider {
-    fn choose_attackers(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> Vec<(ObjectId, AttackTarget)> {
-        self.dp_for(player_id).choose_attackers(game, player_id)
-    }
-
-    fn choose_blockers(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> Vec<(ObjectId, ObjectId)> {
-        self.dp_for(player_id).choose_blockers(game, player_id)
-    }
-
-    fn choose_discard(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> Option<ObjectId> {
-        self.dp_for(player_id).choose_discard(game, player_id)
-    }
-
-    fn choose_priority_action(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-    ) -> PriorityAction {
-        self.dp_for(player_id).choose_priority_action(game, player_id)
-    }
-
-    fn choose_targets(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        recipient: &EffectRecipient,
-    ) -> Vec<ResolvedTarget> {
-        self.dp_for(player_id).choose_targets(game, player_id, recipient)
-    }
-
-    fn choose_attacker_damage_assignment(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        attacker_id: ObjectId,
-        blockers: &[ObjectId],
-        power: u64,
-    ) -> Vec<(ObjectId, u64)> {
-        self.dp_for(player_id).choose_attacker_damage_assignment(
-            game, player_id, attacker_id, blockers, power,
-        )
-    }
-
-    fn choose_trample_damage_assignment(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        attacker_id: ObjectId,
-        blockers: &[ObjectId],
-        defending_target: DamageTarget,
-        power: u64,
-        has_deathtouch: bool,
-    ) -> (Vec<(ObjectId, u64)>, u64) {
-        self.dp_for(player_id).choose_trample_damage_assignment(
-            game, player_id, attacker_id, blockers, defending_target, power, has_deathtouch,
-        )
-    }
-
-    fn choose_legend_to_keep(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        legendaries: &[ObjectId],
-    ) -> ObjectId {
-        self.dp_for(player_id).choose_legend_to_keep(game, player_id, legendaries)
-    }
-
-    fn choose_generic_mana_allocation(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        mana_cost: &ManaCost,
-    ) -> HashMap<ManaType, u64> {
-        self.dp_for(player_id).choose_generic_mana_allocation(game, player_id, mana_cost)
-    }
-
-    fn choose_x_value(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        x_count: u8,
-    ) -> u64 {
-        self.dp_for(player_id).choose_x_value(game, player_id, x_count)
-    }
-
-    fn choose_alternative_cost(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        available: &[AlternativeCost],
-    ) -> Option<usize> {
-        self.dp_for(player_id).choose_alternative_cost(game, player_id, available)
-    }
-
-    fn choose_additional_costs(
-        &self,
-        game: &GameState,
-        player_id: PlayerId,
-        available: &[AdditionalCost],
-    ) -> Vec<usize> {
-        self.dp_for(player_id).choose_additional_costs(game, player_id, available)
-    }
-}
-
-// ===========================================================================
-// GenericDecisionProvider implementations for Passive and Dispatch
-// ===========================================================================
-
-impl GenericDecisionProvider for PassiveDecisionProvider {
-    fn pick_n(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        options: &[ChoiceOption],
-        bounds: (usize, usize),
-    ) -> Vec<usize> {
-        // Pick the first `min` options (or fewer if not enough options)
-        let count = bounds.0.min(options.len());
-        (0..count).collect()
-    }
-
-    fn pick_number(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        min: u64,
-        _max: u64,
-    ) -> u64 {
-        min
-    }
-
-    fn allocate(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        per_bucket_mins: &[u64],
-    ) -> Vec<u64> {
-        if buckets.is_empty() {
-            return Vec::new();
-        }
-        // Start with minimums, dump all remaining into the first bucket
-        let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
-        let min_sum: u64 = alloc.iter().sum();
-        let remaining = total.saturating_sub(min_sum);
-        alloc[0] += remaining;
-        alloc
-    }
-
-    fn choose_ordering(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        items: &[ChoiceOption],
-    ) -> Vec<usize> {
-        // Identity ordering
-        (0..items.len()).collect()
-    }
-}
-
-/// A generic decision provider that dispatches to different providers per player.
-///
-/// This is the `GenericDecisionProvider` analogue of `DispatchDecisionProvider`.
-/// During the SPECIAL-1a/1b transition both exist; SPECIAL-1c will merge them
-/// into a single `DispatchDecisionProvider` that only implements the 4-method trait.
-pub struct GenericDispatchDecisionProvider {
-    providers: Vec<Box<dyn GenericDecisionProvider>>,
-}
-
-impl GenericDispatchDecisionProvider {
-    /// Create a new dispatcher from a list of generic providers, one per player.
-    pub fn new(providers: Vec<Box<dyn GenericDecisionProvider>>) -> Self {
-        GenericDispatchDecisionProvider { providers }
-    }
-
-    fn dp_for(&self, player_id: PlayerId) -> &dyn GenericDecisionProvider {
-        &*self.providers[player_id]
-    }
-}
-
-impl GenericDecisionProvider for GenericDispatchDecisionProvider {
     fn pick_n(
         &self,
         game: &GameState,
@@ -838,8 +259,9 @@ impl GenericDecisionProvider for GenericDispatchDecisionProvider {
         total: u64,
         buckets: &[ChoiceOption],
         per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        self.dp_for(player).allocate(game, player, context, total, buckets, per_bucket_mins)
+        self.dp_for(player).allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
     fn choose_ordering(
@@ -915,16 +337,8 @@ pub fn auto_allocate_generic(
 }
 
 // ===========================================================================
-// NEW 4-PRIMITIVE GENERIC DECISION PROVIDER TRAIT
+// 4-PRIMITIVE DECISION PROVIDER TRAIT
 // ===========================================================================
-//
-// This trait replaces the typed-method DecisionProvider trait (above).
-// During the transition (SPECIAL-1a/1b), both traits coexist:
-// - The old `DecisionProvider` trait is used by all engine call sites.
-// - The new `GenericDecisionProvider` trait is used by `ask_*` functions.
-// - ScriptedDecisionProvider implements BOTH traits.
-// SPECIAL-1c will migrate engine call sites to `ask_*` functions and
-// delete the old trait, renaming this to `DecisionProvider`.
 
 /// The 4-primitive decision provider trait.
 ///
@@ -935,7 +349,7 @@ pub fn auto_allocate_generic(
 /// - `choose_ordering`: reorder a list (scry, stack ordering, etc.)
 ///
 /// `ChoiceContext` carries the semantic kind so impls can specialize.
-pub trait GenericDecisionProvider {
+pub trait DecisionProvider {
     /// Pick N items from a list of options. Bounds: (min, max) selections.
     fn pick_n(
         &self,
@@ -958,7 +372,9 @@ pub trait GenericDecisionProvider {
 
     /// Distribute a total across buckets. Sum of returned vec must equal total.
     /// `per_bucket_mins` has one entry per bucket: bucket[i] must receive >= per_bucket_mins[i].
+    /// `per_bucket_maxs`, if Some, has one entry per bucket: bucket[i] must receive <= per_bucket_maxs[i].
     /// For uniform minimums, pass `&vec![min; buckets.len()]`.
+    /// Pass `None` for maxs when no upper bound is needed.
     fn allocate(
         &self,
         game: &GameState,
@@ -967,6 +383,7 @@ pub trait GenericDecisionProvider {
         total: u64,
         buckets: &[ChoiceOption],
         per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64>;
 
     /// Order a list of items. Returns indices in desired order.
@@ -980,7 +397,7 @@ pub trait GenericDecisionProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Scripted GenericDecisionProvider for tests
+// Scripted DecisionProvider for tests
 // ---------------------------------------------------------------------------
 
 /// A single scripted expectation: what kind of decision we expect, and what to return.
@@ -1007,13 +424,13 @@ pub enum ScriptedResponse {
 ///
 /// Every test must state what decision it expects — this is the entire point
 /// of the self-documenting design.
-pub struct GenericScriptedDecisionProvider {
+pub struct ScriptedDecisionProvider {
     queue: RefCell<VecDeque<ScriptedExpectation>>,
 }
 
-impl GenericScriptedDecisionProvider {
+impl ScriptedDecisionProvider {
     pub fn new() -> Self {
-        GenericScriptedDecisionProvider {
+        ScriptedDecisionProvider {
             queue: RefCell::new(VecDeque::new()),
         }
     }
@@ -1050,21 +467,22 @@ impl GenericScriptedDecisionProvider {
         });
     }
 
-    /// Pop the front expectation, assert the kind matches, assert the response
-    /// variant matches the method being called, and return the response.
+    /// Pop the front expectation and validate. Panics if queue is empty or
+    /// kind doesn't match — every DP call must have a corresponding expectation.
     fn pop_and_validate(&self, actual_kind: &ChoiceKind, method_name: &str) -> ScriptedResponse {
         let mut queue = self.queue.borrow_mut();
-        let expectation = queue.pop_front().unwrap_or_else(|| {
-            panic!(
-                "GenericScriptedDecisionProvider: unexpected {} call (kind: {:?}), no scripted response in queue",
+        let expectation = match queue.pop_front() {
+            Some(e) => e,
+            None => panic!(
+                "ScriptedDecisionProvider: unexpected {} call (kind: {:?}), no scripted response in queue",
                 method_name, actual_kind
-            )
-        });
+            ),
+        };
 
         assert_eq!(
             discriminant(&expectation.expected_kind),
             discriminant(actual_kind),
-            "GenericScriptedDecisionProvider: kind mismatch — expected {:?}, got {:?}",
+            "ScriptedDecisionProvider: kind mismatch — expected {:?}, got {:?}",
             expectation.expected_kind,
             actual_kind,
         );
@@ -1081,15 +499,36 @@ impl GenericScriptedDecisionProvider {
     pub fn remaining(&self) -> usize {
         self.queue.borrow().len()
     }
+
+    /// Enqueue all priority passes for one full empty turn (no creatures,
+    /// no spells cast). The turn structure yields 8 priority points where
+    /// both players pass:
+    ///
+    ///   Upkeep, Draw, Precombat, BeginCombat, DeclareAttackers,
+    ///   EndCombat, Postcombat, End
+    ///
+    /// = 8 × 2 players = 16 passes total.
+    ///
+    /// DeclareBlockers / FirstStrikeDamage / CombatDamage are skipped
+    /// when no attackers are declared (rule 508.8). Untap and Cleanup
+    /// never grant priority.
+    pub fn queue_empty_turn_passes(&self) {
+        for _ in 0..16 {
+            self.expect_pick_n(
+                crate::ui::choice_types::ChoiceKind::PriorityAction,
+                vec![0],
+            );
+        }
+    }
 }
 
-impl Drop for GenericScriptedDecisionProvider {
+impl Drop for ScriptedDecisionProvider {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             let remaining = self.queue.borrow().len();
             assert_eq!(
                 remaining, 0,
-                "GenericScriptedDecisionProvider dropped with {} unconsumed expectation(s) — \
+                "ScriptedDecisionProvider dropped with {} unconsumed expectation(s) — \
                  test bug: scripted expectations were enqueued but never consumed by DP calls",
                 remaining,
             );
@@ -1097,7 +536,7 @@ impl Drop for GenericScriptedDecisionProvider {
     }
 }
 
-impl GenericDecisionProvider for GenericScriptedDecisionProvider {
+impl DecisionProvider for ScriptedDecisionProvider {
     fn pick_n(
         &self,
         _game: &GameState,
@@ -1106,11 +545,10 @@ impl GenericDecisionProvider for GenericScriptedDecisionProvider {
         _options: &[ChoiceOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
-        let response = self.pop_and_validate(&context.kind, "pick_n");
-        match response {
+        match self.pop_and_validate(&context.kind, "pick_n") {
             ScriptedResponse::PickN(indices) => indices,
             other => panic!(
-                "GenericScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
+                "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
                 other
             ),
         }
@@ -1124,11 +562,10 @@ impl GenericDecisionProvider for GenericScriptedDecisionProvider {
         _min: u64,
         _max: u64,
     ) -> u64 {
-        let response = self.pop_and_validate(&context.kind, "pick_number");
-        match response {
+        match self.pop_and_validate(&context.kind, "pick_number") {
             ScriptedResponse::Number(n) => n,
             other => panic!(
-                "GenericScriptedDecisionProvider: pick_number called but scripted response is {:?}, expected Number",
+                "ScriptedDecisionProvider: pick_number called but scripted response is {:?}, expected Number",
                 other
             ),
         }
@@ -1142,12 +579,12 @@ impl GenericDecisionProvider for GenericScriptedDecisionProvider {
         _total: u64,
         _buckets: &[ChoiceOption],
         _per_bucket_mins: &[u64],
+        _per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        let response = self.pop_and_validate(&context.kind, "allocate");
-        match response {
+        match self.pop_and_validate(&context.kind, "allocate") {
             ScriptedResponse::Allocation(alloc) => alloc,
             other => panic!(
-                "GenericScriptedDecisionProvider: allocate called but scripted response is {:?}, expected Allocation",
+                "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected Allocation",
                 other
             ),
         }
@@ -1160,11 +597,10 @@ impl GenericDecisionProvider for GenericScriptedDecisionProvider {
         context: &ChoiceContext,
         _items: &[ChoiceOption],
     ) -> Vec<usize> {
-        let response = self.pop_and_validate(&context.kind, "choose_ordering");
-        match response {
+        match self.pop_and_validate(&context.kind, "choose_ordering") {
             ScriptedResponse::Ordering(order) => order,
             other => panic!(
-                "GenericScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected Ordering",
+                "ScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected Ordering",
                 other
             ),
         }

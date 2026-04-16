@@ -12,17 +12,17 @@ use mtgsim::cards::alpha;
 use mtgsim::cards::creatures;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game::{Decklist, Game, GameResult};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{PhaseType, StepType};
 use mtgsim::types::card_types::CardType;
+use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision::{PassiveDecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Phase-specific helpers (operate on Game wrapper, delegate to common)
@@ -97,8 +97,8 @@ fn test_unblocked_attacker_deals_damage() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Place a 2/2 creature on the battlefield for player 0
     let bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
@@ -109,15 +109,9 @@ fn test_unblocked_attacker_deals_damage() {
     // Now run through the combat phase with a scripted decision provider
     // that attacks with the bears
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(bears_id, AttackTarget::Player(1))]
-    );
-    // No blocks (player 1 has no creatures)
-    scripted.block_decisions.borrow_mut().push(vec![]);
-    // Priority: all pass
-    for _ in 0..20 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    // Legal pairs: [(bears_id, Player(1))] — index 0
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    // No blocks (player 1 has no creatures) — no DeclareBlockers call when legal_block_pairs is empty
 
     // Process declare attackers
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -159,8 +153,8 @@ fn test_blocked_creatures_trade() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Player 0: 2/2 attacker
     let attacker = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
@@ -170,12 +164,10 @@ fn test_blocked_creatures_trade() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(attacker, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(
-        vec![(blocker, attacker)]
-    );
+    // Legal pairs: [(attacker, Player(1))] — index 0
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    // Legal block pairs: [(blocker, attacker)] — index 0
+    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     // Declare attackers
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -202,9 +194,9 @@ fn test_blocked_creatures_trade() {
     assert_eq!(game.state.battlefield.get(&blocker).unwrap().damage_marked, 2);
 
     // Run priority loop — SBAs fire automatically (rule 117.5), killing both
-    for _ in 0..10 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    // Both pass once after SBAs (no actions available)
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     // Both creatures should be in graveyard, not on battlefield
@@ -230,8 +222,8 @@ fn test_bigger_creature_survives() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Player 0: 3/3 attacker (Hill Giant)
     let attacker = place_creature_on_battlefield(&mut game, 0, creatures::hill_giant);
@@ -241,12 +233,8 @@ fn test_bigger_creature_survives() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(attacker, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(
-        vec![(blocker, attacker)]
-    );
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
     game.state.advance_turn().unwrap();
@@ -262,9 +250,8 @@ fn test_bigger_creature_survives() {
     assert_eq!(game.state.battlefield.get(&blocker).unwrap().damage_marked, 3);
 
     // Run priority loop — SBAs fire, killing Bears but not Hill Giant
-    for _ in 0..10 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     // Bears die, Hill Giant survives
@@ -286,8 +273,8 @@ fn test_overkill_damage_both_die() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Player 0: Grizzly Bears (2/2)
     let bears = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
@@ -297,12 +284,8 @@ fn test_overkill_damage_both_die() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(bears, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(
-        vec![(lions, bears)]
-    );
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
     game.state.advance_turn().unwrap();
@@ -318,9 +301,8 @@ fn test_overkill_damage_both_die() {
     assert_eq!(game.state.battlefield.get(&lions).unwrap().damage_marked, 2);
 
     // Run priority loop — SBAs fire, both should die
-    for _ in 0..10 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     // Both creatures dead
@@ -346,13 +328,27 @@ fn test_no_attackers_no_damage() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     let _bears = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
 
-    // Run an entire turn with passive decisions (no attacks)
-    game.run_turn(&passive).unwrap();
+    game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
+
+    // Run an entire turn — all players pass all priority (no attacks).
+    // Turn priority points: Upkeep, Draw, Precombat, BeginCombat,
+    //   DeclareAttackers (TBA + priority), EndCombat, Postcombat, End.
+    // Bears is not summoning-sick (placed before run_turn), so
+    // ask_choose_attackers fires. We choose no attackers.
+    for _ in 0..8 { // Upkeep(2) + Draw(2) + Precombat(2) + BeginCombat(2)
+        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    }
+    // DeclareAttackers TBA: choose no attackers
+    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![]);
+    for _ in 0..8 { // DeclareAttackers priority(2) + EndCombat(2) + Postcombat(2) + End(2)
+        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    }
+    game.run_turn(&dp).unwrap();
 
     // No damage should have been dealt
     assert_eq!(game.state.players[0].life_total, 20);
@@ -373,8 +369,8 @@ fn test_summoning_sick_cannot_attack() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Place creature that IS summoning sick
     let data = creatures::grizzly_bears();
@@ -385,15 +381,13 @@ fn test_summoning_sick_cannot_attack() {
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
+    // Summoning-sick creature is filtered out by legal_attackers,
+    // so process_declare_attackers sees no legal pairs and returns Ok(false).
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(bears_id, AttackTarget::Player(1))]
-    );
-
-    // Should fail validation
     let result = game.state.process_declare_attackers(&scripted);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().contains("summoning sickness"));
+    assert_eq!(result.unwrap(), false);
+    // Creature should NOT be attacking
+    assert!(game.state.battlefield.get(&bears_id).unwrap().attacking.is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -410,21 +404,18 @@ fn test_combat_damage_kills_player() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Set player 1 to 2 life so a single 2/2 attack kills them
     game.state.players[1].life_total = 2;
 
-    let bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
+    let _bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(bears_id, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(vec![]);
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
     game.state.advance_turn().unwrap();
@@ -438,9 +429,8 @@ fn test_combat_damage_kills_player() {
     assert_eq!(game.state.players[1].life_total, 0);
 
     // Run priority loop — SBAs fire, flagging player 1 as lost
-    for _ in 0..10 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
     assert!(game.state.player_lost[1]);
 
@@ -463,21 +453,16 @@ fn test_combat_state_cleared_after_combat() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     let bears_id = place_creature_on_battlefield(&mut game, 0, creatures::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(bears_id, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(vec![]);
-    for _ in 0..20 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    // No blocks (player 1 has no creatures) — no DeclareBlockers call when legal_block_pairs is empty
 
     game.state.process_declare_attackers(&scripted).unwrap();
 
@@ -528,8 +513,8 @@ fn test_damage_persists_bolt_in_second_main_kills() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Player 0: Earth Elemental (4/5)
     let elemental = place_creature_on_battlefield(&mut game, 0, creatures::earth_elemental);
@@ -540,12 +525,8 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(elemental, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(
-        vec![(lions, elemental)]
-    );
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     // Declare attackers
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -565,9 +546,8 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     assert_eq!(game.state.battlefield.get(&lions).unwrap().damage_marked, 4);
 
     // Run priority → SBAs kill Lions, Elemental survives
-    for _ in 0..10 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     assert!(game.state.battlefield.contains_key(&elemental));
@@ -584,16 +564,23 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     game.state.players[1].mana_pool.add(ManaType::Red, 1);
 
     // Player 1 casts bolt targeting Elemental
+    // Player 0 is active → gets priority first, passes (no castable spells)
     let bolt_scripted = ScriptedDecisionProvider::new();
-    bolt_scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass); // player 0 passes
-    bolt_scripted.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(bolt_id)); // player 1 casts
-    bolt_scripted.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(elemental)]);
-    // After cast, both pass to resolve
-    for _ in 0..10 {
-        bolt_scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]); // Player 0 passes
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]); // Player 1 casts bolt
+    // Target elemental at idx 2 in [Player(0), Player(1), Object(elemental)] for Any
+    bolt_scripted.expect_pick_n(ChoiceKind::SelectRecipients {
+        recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+        spell_id: bolt_id,
+    }, vec![2]);
+    // Both pass → resolve
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // After resolve, SBAs kill Elemental. Both pass → phase ends
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
-    // Run priority loop: cast bolt → resolve → SBAs fire
+    // Run priority loop: P0 pass → P1 cast bolt → all pass → resolve → SBAs fire
     game.state.run_priority_loop(&bolt_scripted).unwrap();
 
     // Elemental now has 2 (combat) + 3 (bolt) = 5 damage ≥ 5 toughness → dead
@@ -621,24 +608,20 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
             make_test_deck(vec![], 20),
         ],
     ).unwrap();
-    let passive = PassiveDecisionProvider;
-    game.setup(&passive).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Player 0: Earth Elemental (4/5)
     let elemental = place_creature_on_battlefield(&mut game, 0, creatures::earth_elemental);
     // Player 1: Savannah Lions (2/1)
-    let lions = place_creature_on_battlefield(&mut game, 1, creatures::savannah_lions);
+    let _lions = place_creature_on_battlefield(&mut game, 1, creatures::savannah_lions);
 
     // Advance to DeclareAttackers
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(elemental, AttackTarget::Player(1))]
-    );
-    scripted.block_decisions.borrow_mut().push(
-        vec![(lions, elemental)]
-    );
+    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     // Run combat
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -650,22 +633,14 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Run priority → SBAs kill Lions
-    for _ in 0..10 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     assert!(game.state.battlefield.contains_key(&elemental));
     assert_eq!(game.state.battlefield.get(&elemental).unwrap().damage_marked, 2);
 
-    // Now advance through the rest of this turn (postcombat, end, cleanup)
-    // and into the next turn's upkeep. Cleanup clears damage (rule 514.2).
-    // We need enough priority passes for each step.
-    for _ in 0..40 {
-        scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
-
-    // Advance to next turn's Upkeep step
+    // Advance to next turn's Upkeep step (advance_turn moves state machine, no priority granted)
     // Turn structure: EndCombat → Postcombat → End(EndStep) → End(Cleanup) → Beginning(Untap) → Beginning(Upkeep)
     advance_to_step(&mut game, PhaseType::Beginning, Some(StepType::Upkeep));
 
@@ -679,11 +654,19 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     // It's now player 1's turn (active player rotated after cleanup).
     // Active player gets priority first, so player 1 casts immediately.
     let bolt_scripted = ScriptedDecisionProvider::new();
-    bolt_scripted.priority_decisions.borrow_mut().push(PriorityAction::CastSpell(bolt_id)); // player 1 (active) casts
-    bolt_scripted.target_decisions.borrow_mut().push(vec![ResolvedTarget::Object(elemental)]);
-    for _ in 0..10 {
-        bolt_scripted.priority_decisions.borrow_mut().push(PriorityAction::Pass);
-    }
+    // CastSpell at idx 1 in [Pass, CastSpell(bolt_id)]
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    // Target elemental at idx 2 in [Player(0), Player(1), Object(elemental)] for Any
+    bolt_scripted.expect_pick_n(ChoiceKind::SelectRecipients {
+        recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+        spell_id: bolt_id,
+    }, vec![2]);
+    // Both pass → resolve
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // After resolve, SBAs check (elemental survives). Both pass → phase ends
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     // Run priority loop: cast bolt → resolve → SBAs check
     game.state.run_priority_loop(&bolt_scripted).unwrap();

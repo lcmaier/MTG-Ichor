@@ -12,6 +12,11 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::ManaCost;
 use crate::types::zones::Zone;
+use crate::oracle::legality::enumerate_legal_selections;
+use crate::ui::ask::{
+    ask_choose_alternative_cost, ask_choose_additional_costs,
+    ask_choose_x_value, ask_select_recipients, ask_choose_generic_mana_allocation,
+};
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -75,7 +80,7 @@ impl GameState {
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
-            decisions.choose_alternative_cost(self, player_id, &card_data.alternative_costs)
+            ask_choose_alternative_cost(decisions, self, player_id, &card_data.alternative_costs)
         } else {
             None
         };
@@ -92,7 +97,7 @@ impl GameState {
         }
 
         let chosen_additional_cost_indices = if !card_data.additional_costs.is_empty() {
-            decisions.choose_additional_costs(self, player_id, &card_data.additional_costs)
+            ask_choose_additional_costs(decisions, self, player_id, &card_data.additional_costs)
         } else {
             Vec::new()
         };
@@ -113,14 +118,26 @@ impl GameState {
             .unwrap_or_else(ManaCost::zero);
         let x_count = base_mana_cost.x_count();
         let x_value = if x_count > 0 {
-            decisions.choose_x_value(self, player_id, x_count)
+            ask_choose_x_value(decisions, self, player_id, card_id, x_count as u64)
         } else {
             0
         };
 
         // --- 601.2c: Choose targets ---
         let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
-            let chosen = decisions.choose_targets(self, player_id, &recipient);
+            let (filter, count) = match &recipient {
+                EffectRecipient::Target(f, c) | EffectRecipient::Choose(f, c) => (f, c),
+                _ => unreachable!(),
+            };
+            let legal = enumerate_legal_selections(self, filter, Some(card_id));
+            let (min_sel, max_sel) = match count {
+                crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
+                crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
+            };
+            let chosen = ask_select_recipients(
+                decisions, self, player_id, &recipient, card_id,
+                &legal, min_sel, max_sel,
+            );
             if let Err(e) = self.validate_targets(&recipient, &chosen) {
                 self.move_object(card_id, Zone::Hand)?;
                 return Err(e);
@@ -188,8 +205,15 @@ impl GameState {
         }).unwrap_or_else(ManaCost::zero);
 
         let generic_allocation = if mana_cost_for_alloc.generic_count() > 0 {
-            decisions.choose_generic_mana_allocation(
-                self, player_id, &mana_cost_for_alloc,
+            let mut available: Vec<(crate::types::mana::ManaType, u64)> = self.players[player_id]
+                .mana_pool.available().iter()
+                .filter(|(_, amt)| **amt > 0)
+                .map(|(mt, amt)| (*mt, *amt))
+                .collect();
+            available.sort_by_key(|(mt, _)| *mt as u8);
+            ask_choose_generic_mana_allocation(
+                decisions, self, player_id, &mana_cost_for_alloc,
+                &available, mana_cost_for_alloc.generic_count() as u64,
             )
         } else {
             HashMap::new()
@@ -265,7 +289,19 @@ impl GameState {
 
         // Choose targets
         let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
-            let chosen = decisions.choose_targets(self, player_id, &recipient);
+            let (filter, count) = match &recipient {
+                EffectRecipient::Target(f, c) | EffectRecipient::Choose(f, c) => (f, c),
+                _ => unreachable!(),
+            };
+            let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id));
+            let (min_sel, max_sel) = match count {
+                crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
+                crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
+            };
+            let chosen = ask_select_recipients(
+                decisions, self, player_id, &recipient, ability_obj_id,
+                &legal, min_sel, max_sel,
+            );
             self.validate_targets(&recipient, &chosen)?;
             chosen
         } else {
@@ -356,6 +392,7 @@ mod tests {
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
+    use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
 
     fn make_bolt() -> std::sync::Arc<crate::objects::card_data::CardData> {
@@ -389,7 +426,11 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: card_id,
+        }, vec![1]);
 
         (game, card_id, decisions)
     }
@@ -510,8 +551,17 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.x_value_decisions.borrow_mut().push(3);
-        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1 }, 3);
+        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: card_id,
+        }, vec![1]);
+        // 3 generic from Red pool → [3]
+        decisions.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![3],
+        );
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -538,8 +588,12 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.x_value_decisions.borrow_mut().push(0);
-        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1 }, 0);
+        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: card_id,
+        }, vec![1]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -562,8 +616,12 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.x_value_decisions.borrow_mut().push(3);
-        decisions.target_decisions.borrow_mut().push(vec![ResolvedTarget::Player(1)]);
+        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1 }, 3);
+        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: card_id,
+        }, vec![1]);
 
         let result = game.cast_spell(0, card_id, &decisions);
         assert!(result.is_err());
@@ -608,7 +666,8 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.alternative_cost_decisions.borrow_mut().push(Some(0)); // choose alt cost index 0
+        // Options: [NormalCost, AlternativeCost(Custom(...))] — index 1 = first alt cost
+        decisions.expect_pick_n(ChoiceKind::ChooseAlternativeCost, vec![1]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -646,7 +705,13 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.additional_cost_decisions.borrow_mut().push(vec![0]); // pay kicker
+        // Options: [AdditionalCost::Kicker(...)] — index 0 = first (only) additional cost
+        decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts, vec![0]);
+        // 1 generic from Red pool → [1]
+        decisions.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![1],
+        );
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
