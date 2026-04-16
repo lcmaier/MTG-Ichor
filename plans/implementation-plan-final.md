@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Total ticket count:** 49 (28 active Part 1 tickets + 21 Part 2 tickets)
-- **Scope breakdown:** 14 Small, 26 Medium, 9 Large
+- **Total ticket count:** 51 (30 active Part 1 tickets + 21 Part 2 tickets)
+- **Scope breakdown:** 15 Small, 27 Medium, 9 Large (SPECIAL-5 Small, SPECIAL-6 Small–Medium added 2026-04-16)
 - **Part 1:** Pre-Phase 5 engine fixes (T01–T22, T15b, T21a–T21d) covering E1–E48 + combat requirements solver (508.1d/509.1c)
 - **Part 2:** Phase 5 continuous effects & layer system (L01–L21) covering W1–W15, PC1–PC12, §5a–§5m, plus E31 (LKI, deferred from Part 1)
 - **Organization:** Part 1 tickets are grouped by tier (data model → state tracking → SBAs → casting → zone/combat/damage). Part 2 tickets follow Sub-Plan 5A/5B/5C structure. The Execution Order section linearizes across both parts with parallelism annotations.
@@ -38,6 +38,11 @@ T13 (after T01,T03) || T14 (after T01) || T15 (after T04) || T15b (after T04) ||
 ### Tier 4: Casting & Activation (parallel with Tier 3)
 ```
 T17 → T18a → SPECIAL-1a → SPECIAL-1b → SPECIAL-1c → {T18b, T18c, T18d}  (SPECIAL-1a/b/c = DP refactor split; T18b/c/d parallel after SPECIAL-1c)
+SPECIAL-2 (priority retry on failed cast) — non-blocking QoL, pick up anytime after SPECIAL-1c test migration
+SPECIAL-3 (shared test helpers for common DP script sequences) — non-blocking QoL, pick up anytime after SPECIAL-1c
+SPECIAL-4 (CounterSpell/CounterAbility cleanup — use move_object) — non-blocking cleanup, pick up anytime
+SPECIAL-5 (DP validation + contract property tests — Classes A/D) — non-blocking QoL, pick up anytime after SPECIAL-1c
+SPECIAL-6 (ask_* option enumeration tests — Class C, living ticket) — non-blocking QoL, pick up anytime after SPECIAL-1c
 T19 || T20                                    (parallel with T17/T18a–d, SPECIAL-1a/b/c)
 T12b + T17 → T12c                            (after casting pipeline + sidecar)
 ```
@@ -89,6 +94,42 @@ L17 + L19 + L20 → L21
 ```
 
 ### [GATE 5] — All tickets complete. Full regression pass.
+
+---
+
+## Testing Conventions
+
+> Adopted 2026-04-16 following the DP refactor (SPECIAL-1a/b/c). Companion doc: `plans/test-strategy-post-dp-refactor.md`.
+
+### Test class taxonomy
+Every new test belongs to one of five classes. Ticket `Tests` bullets should tag tests by class (A/B/C/D/E) so reviewers can verify coverage at a glance.
+
+| Class | Purpose | Typical location |
+|-------|---------|------------------|
+| **A** | Validation / negative: `validate_*` or `ask_*` rejects bad DP responses (`#[should_panic]` / `Result::Err` assertions) | `src/ui/ask.rs::tests`, `src/ui/random.rs::tests` |
+| **B** | Decision sequence: assert the exact order and `ChoiceKind` of DP calls for an engine flow | integration tests (`tests/*`) |
+| **C** | Option enumeration: assert the `ChoiceOption` list the engine presents to the DP for a given game state | `src/ui/ask.rs::tests` or `tests/ask_enumeration_test.rs` |
+| **D** | Contract property: `RandomDecisionProvider` responses always satisfy the 4-primitive contract | `src/ui/random.rs::tests`, fuzz harness |
+| **E** | Regression for scenarios previously masked by `PassiveDecisionProvider` (specific-choice semantics) | colocated with the engine module under test |
+
+### Per-ticket coverage rules
+When a ticket does any of the following, it **must** land the corresponding test(s) in the same PR:
+
+- **Adds/modifies an `ask_*` function** → at least one Class C test.
+- **Adds a `ChoiceKind` variant** → at least one Class B test exercising it end-to-end, plus a Class A test if the variant introduces new validation (e.g., new bounds or per-bucket constraints).
+- **Adds a `SelectionFilter` or `PermanentFilter` variant** → at least one Class C test asserting the filter's inclusion/exclusion behavior.
+- **Adds a new multi-step engine flow** (cast pipeline changes, new SBA, new trigger checkpoint, new combat step) → at least one Class B test asserting the DP call sequence.
+- **Adds a new primitive input constraint** (new `per_bucket_mins`/`per_bucket_maxs` use site, new bounds) → at least one Class A test asserting the constraint rejects invalid responses.
+- **Adds a `RandomDecisionProvider`-visible `ChoiceKind`** → fuzz harness smoke run (200 games) must pass in the ticket's acceptance criteria.
+- **Replaces a former `PassiveDecisionProvider`-masked default** (legacy scaffolding only; should be rare post-SPECIAL-1c) → at least one Class E test.
+
+### Standing rules
+1. **Write the failing test first for DP/`ask_*` surface changes.** Retrofits are what SPECIAL-1c was; avoid repeating.
+2. **Never weaken or delete an existing test without explicit direction.** Tests are contracts.
+3. **`ScriptedDecisionProvider` requires explicit expectations.** No silent defaults. If the engine asks for a decision the test didn't anticipate, that's a bug (in the test or the engine) — diagnose, don't paper over.
+4. **Keep `ChoiceKind` exhaustive and meaningful.** Resist catch-all variants. Every variant should carry enough semantic context that `ask_*` and validation can be written against it.
+5. **Fuzz harness is the living Class D suite.** Debug-mode contract assertions inside `ask_*` wrappers (landing in SPECIAL-5) keep it honest.
+6. **Report full test counts in ticket summaries:** `N new, X unit + Y integration + Z doc-test = T total`.
 
 ---
 
@@ -633,6 +674,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
   3. **Rewrite `DispatchDecisionProvider`:** Forward all 4 new-trait methods by player_id index. Old trait forwarding kept temporarily.
 - **Design decisions:**
   - `choose_priority_action` becomes `ask_choose_priority_action` which enumerates legal actions via oracle helpers and calls `pick_n(bounds: (1,1))`. The DP no longer needs its own oracle calls for priority. CLI/Random `choose_priority_action` old-trait impls remain until SPECIAL-1c migrates engine call sites.
+  - **RandomDP `pick_number` for `ChooseXValue`:** `ask_choose_x_value` passes `(0, u64::MAX)` — affordability is enforced by casting pipeline rollback, not by the ask function. The Random DP must NOT blindly pick in that range. Instead, it should inspect `GameState` (mana pool + known mana sources) to self-compute a reasonable upper bound for X, then pick within `[0, reasonable_max]`. This keeps the `ask_*` API clean (no `affordable_hint` parameter) while avoiding degenerate rollback loops in fuzz testing.
 - **Tests:**
   - `test_dispatch_routes_by_player` — DispatchDP forwards to correct inner DP via new trait
   - Fuzz harness 200/200 — RandomDP via new trait produces legal games
@@ -660,6 +702,77 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
+#### SPECIAL-3: Shared test helpers for common DP script sequences
+- **Scope:** Small
+- **Source:** SPECIAL-1c audit (2026-04-15)
+- **Depends on:** SPECIAL-1c (test migration complete)
+- **Files:** `src/ui/scripted.rs` (create — or `tests/common/scripted.rs`), `ui/decision.rs` (modify), test files (modify imports)
+- **Steps:**
+  1. Extract `ScriptedDecisionProvider` and helpers like `queue_empty_turn_passes` from `ui/decision.rs` into a dedicated `src/ui/scripted.rs` module. `decision.rs` stays clean as the trait definition + production helpers only.
+  2. Add common sequence helpers alongside `queue_empty_turn_passes`: `queue_turn_passes_with_no_attacks` (16 passes + 1 empty DeclareAttackers), `queue_cast_and_resolve(spell_index)` (pick spell + 2 passes to resolve), and any other recurring patterns identified during migration.
+  3. Update all test imports to use the new module location.
+- **Tests:** All existing tests pass unchanged after extraction.
+- **Acceptance:** All tests pass + 0 warnings + `decision.rs` contains no test-only infrastructure
+- **Commit:** `ui: extract ScriptedDecisionProvider and test helpers into scripted.rs (SPECIAL-3)`
+
+---
+
+#### SPECIAL-4: CounterSpell/CounterAbility cleanup — use move_object
+- **Scope:** Small
+- **Source:** SPECIAL-1c audit (2026-04-15), phase2_integration_test.rs review
+- **Depends on:** none
+- **Files:** `engine/resolve.rs` (modify)
+- **Steps:**
+  1. **`Primitive::CounterSpell`:** Replace the manual `stack.remove()` + `stack_entries.remove()` + `graveyard.push()` + `obj.zone = Graveyard` + manual `ZoneChange` event emission with a single `move_object(countered_id, Zone::Graveyard)` call. `move_object` already handles stack cleanup, zone field update, zone-change events, and `cleanup_zone_state`. Keep the `SpellCountered` event emission after the move.
+  2. **`Primitive::CounterAbility`:** Replace the manual `stack.remove()` + `stack_entries.remove()` + `objects.remove()` with `move_object` to a sink zone (or direct removal if abilities have no destination zone). Review whether `move_object` handles ability objects correctly — abilities on the stack are not cards and should cease to exist, not go to graveyard. If `move_object` doesn't support this, add a `remove_from_stack(id)` helper that consolidates the cleanup. Keep `AbilityCountered` event emission.
+  3. **Test:** Add `test_counter_creature_spell_mid_resolution` — counter a creature spell, verify it goes to graveyard (not battlefield), stack is clean, no dangling `stack_entries`.
+- **Tests:**
+  - All existing counter-related tests pass unchanged
+  - `test_counter_creature_spell_mid_resolution` — new regression test
+- **Acceptance:** All tests pass + 0 warnings + no manual stack/zone manipulation in CounterSpell/CounterAbility
+- **Commit:** `engine: CounterSpell/CounterAbility use move_object instead of manual stack manipulation (SPECIAL-4)`
+
+---
+
+#### SPECIAL-5: DP validation + contract property tests (Classes A + D)
+- **Scope:** Small
+- **Source:** `plans/test-strategy-post-dp-refactor.md` §3 (Classes A, D), SPECIAL-1c follow-up
+- **Depends on:** SPECIAL-1c (4-primitive trait is the canonical DP surface)
+- **Discovery:** The DP refactor made invalid-response testing tractable for the first time. Without a dedicated validation/contract suite, bugs in `validate_*` or `RandomDecisionProvider` will surface as confusing integration failures downstream. Cheap to write, high leverage.
+- **Files:** `src/ui/ask.rs` (extend tests module), `src/ui/random.rs` (extend tests module), `tests/dp_contract_test.rs` (create — optional, or keep inline)
+- **Steps:**
+  1. **Class A — `validate_allocation` negatives (`#[should_panic]` or `Result::Err` assertions):** sum != total; bucket below `per_bucket_mins`; bucket above `per_bucket_maxs`; wrong bucket count. Some already exist (trample tests) — backfill the rest and keep them colocated in `ask.rs::tests`.
+  2. **Class A — `pick_n` bound checks:** index out of `options.len()` range → panic via `ask_*` wrapper; count < min or > max → panic; repeated index when uniqueness required. Assert via a minimal `ScriptedDecisionProvider` returning a crafted bad response.
+  3. **Class A — `pick_number` bound checks:** result < min or > max → panic.
+  4. **Class A — `choose_ordering`:** non-permutation response (duplicate or missing index) → panic.
+  5. **Class D — `RandomDecisionProvider` contract property tests:** run 200 iterations each of `pick_n`, `pick_number`, `allocate`, `choose_ordering` with randomized valid inputs (random option counts, random bounds, random per-bucket mins/maxs). Assert every response satisfies the primitive's contract. Use a seeded RNG for determinism.
+  6. **Fuzz harness assertion:** add a debug-mode contract check inside `ask_*` wrappers (or a post-call `validate_*` call) so the existing 200-game fuzz harness also exercises the contracts on every DP response in realistic game states.
+- **Tests added:** ~12–15 total (5 Class A + 4 Class A for pick_n/number/ordering + 3 Class D property + 2 regression from fuzz if any surface).
+- **Acceptance:** All existing tests pass + new tests pass + 0 warnings + fuzz harness 200/200.
+- **Commit:** `ui: add DP validation and contract property tests (SPECIAL-5)`
+
+---
+
+#### SPECIAL-6: `ask_*` option enumeration tests (Class C, living ticket)
+- **Scope:** Small–Medium (initial landing), living thereafter
+- **Source:** `plans/test-strategy-post-dp-refactor.md` §3 Class C, SPECIAL-1c follow-up
+- **Depends on:** SPECIAL-1c
+- **Discovery:** The `ask_*` layer now builds `ChoiceOption` lists from game state before any DP implementation sees them. This is the correct place to assert "the engine presents the right options." These tests catch a category of bug (wrong options enumerated) that DP-level sequence tests fundamentally cannot see. Highest long-term leverage as `SelectionFilter`/keyword/type surface grows (Phases 5–8).
+- **Files:** `src/ui/ask.rs` (extend tests module), or `tests/ask_enumeration_test.rs` (create if test module gets too large)
+- **Guiding principle:** one enumeration test per `ask_*` function per non-trivial enumeration branch. Set up game state, invoke the `ask_*` wrapper with a `ScriptedDecisionProvider` returning index 0 (content-agnostic), and **assert the `options` the engine offered** — either by intercepting via a capturing DP or by indirect verification (e.g., assert the DP was not asked when no legal option exists).
+- **Initial scope (landing PR):**
+  1. `ask_choose_attackers` — only untapped, non-summoning-sick, non-defender creatures appear; vigilance creatures still listed; haste creatures appear even when newly ETB'd; creatures controlled by non-active players excluded.
+  2. `ask_choose_blockers` — only untapped creatures of defending player appear; tapped creatures excluded; flying attackers filter blocker candidates per-pair (post-SPECIAL-1c §15c fix if applied).
+  3. `ask_choose_priority_action` — Pass always first; PlayLand appears only in main phase with land drop remaining and empty stack; CastSpell appears only when affordable; ActivateAbility appears only for abilities whose costs are payable.
+  4. `ask_select_objects` — `SelectionFilter::Creature` excludes non-creatures; `SelectionFilter::Permanent(PermanentFilter::BySubtype(...))` filters correctly; `SelectionFilter::Player` enumerates all players including controller.
+  5. `ask_choose_legend_to_keep` — only duplicates listed; singleton legends never trigger the ask.
+- **Living extension rule:** every future ticket that adds or modifies an `ask_*` function, a `ChoiceKind` variant, a `SelectionFilter` variant, or a `PermanentFilter` variant must add at least one Class C test in the same PR. This is added to Testing Conventions (see §Testing Conventions).
+- **Tests added:** ~8–12 initially. Expected to grow with each phase.
+- **Acceptance:** All existing tests pass + new enumeration tests pass + 0 warnings + Testing Conventions updated to require Class C coverage for future `ask_*` changes.
+- **Commit:** `ui: add ask_* option enumeration tests (SPECIAL-6)`
+
+---
+
 #### T18b: Mode choice + conditional targets + target rules
 - **Scope:** Medium
 - **Source:** E25 (part 2 of 2, mode/target features)
@@ -673,6 +786,8 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
   4. **"Up to N" targets (rule 115.6):** When `TargetCount::UpTo(n)`, allow 0 targets chosen. Spell still resolves (it just does nothing to the absent targets).
   5. **All-targets-legal precondition:** For spells with multiple required target slots (like Decimate), verify in the pre-proposal check that at least one legal choice exists for each slot. If not, the spell can't be cast. This is the rule behind Decimate's reminder text: *(You can't cast this spell unless you have legal choices for all its targets.)*
   6. **601.4 intra-step look-ahead:** When choosing modes in 601.2b, the DP may consider kicker intent (additional cost choice happens in the same step). Implementation: pass available additional costs to `choose_modes` so the DP can factor them in.
+  7. **Per-atom targeting for multi-recipient sequences (replaces first-atom-only extraction):** The current `cast_spell` extracts `recipient` from the first `Effect::Atom` in a `Sequence`. This is wrong: a spell like "You draw two cards. Target opponent discards two cards" has `Controller` on atom 0 and `Target` on atom 1, causing the target prompt to be skipped entirely (L127 bug, see Discrepancy §15). **Fix:** Scan ALL atoms in an `Effect::Sequence`, collect a `Vec<(atom_index, EffectRecipient)>` of targeting requirements. For each `Target`/`Choose` recipient, enumerate legal selections and prompt the DP. Store per-atom target sets on `StackEntry` (new field: `pub targets_per_atom: Vec<Vec<ResolvedTarget>>`). Resolution reads from the appropriate slot. Atoms with `Implicit`/`Controller` get empty target lists.
+  8. **Optional-cost-dependent targeting:** Alternative costs and additional costs (kicker, entwine) can add or change targeting requirements on a spell. A spell with "if kicked, target creature gets +2/+2" has no target when unkicked but gains one when kicked. **This means the target-collection step (601.2c) must run AFTER cost choices (601.2b) and must consult `chosen_modes`, `chosen_alt_cost`, and `chosen_additional_costs` to determine which atoms require targets.** Similarly, an alt cost that changes the spell's effect (e.g. overload replaces "target" with "each") can remove targeting requirements entirely. The per-atom scan from step 7 must be filtered through the cost/mode selection.
 - **Tests:**
   - `test_mode_choice_via_dp` — modal spell stores chosen modes on StackEntry
   - `test_modal_single_mode_resolves_correctly` — chosen mode's effect runs, others don't
@@ -685,6 +800,10 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
   - `test_up_to_zero_targets_resolves` — "up to 2 targets" with 0 chosen → spell resolves (no-op)
   - `test_modal_plus_kicker_look_ahead` — Inscription of Abundance: multiple modes allowed when kicker intended
   - `test_all_targets_must_be_legal_to_cast` — Decimate can't be cast without legal targets for all 4 slots
+  - `test_per_atom_targeting_sequence` — "You draw 2. Target opponent discards 2" — Controller atom has no target, Target atom prompts for opponent
+  - `test_first_atom_controller_second_atom_target` — L127 regression: first atom is Controller, second is Target — target selection not skipped
+  - `test_kicker_adds_target_requirement` — unkicked spell has 0 targets, kicked spell prompts for 1
+  - `test_alt_cost_changes_targeting` — overload alt cost removes targeting (targets all instead)
 - **Acceptance:** All existing tests pass + new tests pass + 0 warnings
 - **Commit:** `engine: mode choice, conditional targets, target uniqueness rules (T18b)`
 
@@ -2042,7 +2161,7 @@ Dependency graph: `T17 → T18a → {T18b, T18c, T18d}`. T18b/c/d are parallel a
 
 ---
 
-## Pass0 Architectural Decisions — Cross-Reference
+### Pass0 Architectural Decisions — Cross-Reference
 
 > Source: `plans/atomic-tests/pass0-dependency-map.md` Section 8.
 > Updated: 2026-04-10, after atomic test catalog triage and merge pipeline abandonment.
@@ -2214,6 +2333,76 @@ The original T18 follow-up note proposed splitting `TargetSpec` into `EffectReci
 - **14 files, 109 match sites** updated. Variable renamed `target_spec` → `recipient` everywhere. `validate_selection` dispatcher added. Fizzle fix: `Choose` effects no longer participate in 608.2b fizzle check.
 
 **No tickets were skipped or reduced in scope.** The refactor was additive infrastructure that happened to align with T15b's needs (Aura ETB choosing).
+
+---
+
+### 15. SPECIAL-1c Post-Migration Audit — Findings (2026-04-14)
+
+After completing the engine-side migration from the old typed `DecisionProvider` methods to the new `ask_*` / 4-primitive trait, an audit revealed three issues:
+
+#### 15a. L127 Bug — First-Atom-Only Recipient Extraction
+
+`cast_spell` at `engine/cast.rs:127` extracts `recipient` from the first `Effect::Atom` in a `Sequence` and skips target selection if it's `Implicit` or `Controller`. This is wrong for multi-atom sequences where a later atom has a `Target`/`Choose` recipient (e.g. "You draw two cards. Target opponent discards two cards" — first atom is `Controller`, second is `Target`). The target prompt is silently skipped.
+
+**Fix:** T18b step 7 (per-atom targeting) replaces the first-atom-only extraction with a scan of ALL atoms. Until T18b, no existing cards exercise this pattern (all current spell abilities have a single atom or a sequence where the first atom carries the targeting). **Severity:** latent bug, no gameplay impact yet.
+
+#### 15b. Priority Retry Gap — Failed Cast/Activate Errors Out
+
+When `ask_choose_priority_action` returns `CastSpell(id)` or `ActivateAbility(id, aid)` and the subsequent execution fails (can't pay costs, targets become illegal, etc.), `priority.rs` propagates the `Err` upward instead of re-prompting the player. Per rule 601.2e/601.5, a failed cast attempt should roll back game state and the player should receive priority again to make a different choice.
+
+**Current behavior:** `cast_spell` partially rolls back (moves card from stack back to hand on target validation failure), but `run_priority_round` treats any `Err` from `cast_spell` as terminal and returns it to the caller. A human player at the CLI who selects "Cast Spell" and then can't pay has no way to back out — the game errors.
+
+**Severity:** Real usability bug. Affects all DPs (CLI, Random, Scripted). Random DP works around it via `is_action_still_valid` pre-check, but this is a heuristic that doesn't catch all failure modes.
+
+**Design for fix (new ticket SPECIAL-2):**
+
+The priority loop must catch execution failures and retry:
+
+```rust
+// In run_priority_round, CastSpell arm:
+PriorityAction::CastSpell(card_id) => {
+    match self.cast_spell(current_priority, card_id, decisions) {
+        Ok(()) => {
+            self.perform_sba_and_triggers(decisions)?;
+            return Ok(PriorityResult::ActionTaken);
+        }
+        Err(_e) => {
+            // Cast failed — player gets priority again.
+            // Game state was rolled back by cast_spell.
+            // Do NOT reset consecutive_passes — a failed cast is not
+            // a game action; if the player subsequently passes, that's
+            // still a consecutive pass.
+            continue;
+        }
+    }
+}
+```
+
+Same pattern applies to `ActivateAbility`. The `PlayLand` arm can use the same pattern but land plays rarely fail (static legality is exact).
+
+**Deeper walkback (long-term UX):** Allowing the DP to cancel *during* the casting pipeline (e.g., a CLI player who starts casting, sees the target list, and decides not to cast) requires either a sentinel "cancel" return from `pick_n`/`pick_number` or a cancellation-aware middleware wrapper. Both are non-trivial. This is a long-term UX priority (D27), not a near-term concern.
+
+**Where to schedule:** SPECIAL-2 is a non-blocking quality-of-life fix — small scope (~20 lines of engine code + 3-4 tests), no ticket depends on it. Can be picked up opportunistically whenever convenient. Not gated on any phase.
+
+#### 15c. Blocker Candidate Overapproximation — Flying/Reach Not Pre-Filtered
+
+`legal_blockers()` in `oracle/legality.rs` returns all untapped creatures controlled by the defender, without checking flying/reach compatibility against specific attackers. The cross-product `(blocker, attacker)` in `process_declare_blockers` includes illegal pairs like "ground creature blocks flyer." These are caught by `validate_blockers()` post-selection, so correctness is maintained, but the DP sees options it can't legally pick.
+
+**Severity:** Low — validation catches it. But becomes a UX issue for CLI (confusing options) and an efficiency issue for Random DP (wasted retries). The fix is straightforward: filter the `legal_block_pairs` cross-product through the flying/reach per-pair check before passing to `ask_choose_blockers`. This is a refinement that can be done anytime — no ticket dependency.
+
+---
+
+### 16. Deferred Items — Part 1 Additions (2026-04-14)
+
+| D# | Summary |
+|----|---------|
+| D26 | Priority action retry on failed cast/activate — `run_priority_round` should catch `Err` from `cast_spell`/`activate_ability` and re-prompt instead of propagating. See Discrepancy §15b. Ticket: SPECIAL-2. Non-blocking QoL, pick up anytime. |
+| D27 | Mid-pipeline cast cancellation — allow DP to cancel during 601.2b–c (target selection, cost choices). Long-term UX priority. Requires sentinel return value or cancellation-aware middleware wrapper. See Discrepancy §15b. |
+| D28 | Shared test helpers — extract `ScriptedDecisionProvider` from `decision.rs` into dedicated module, add common DP script sequence helpers (`queue_turn_passes_with_no_attacks`, `queue_cast_and_resolve`, etc.). Ticket: SPECIAL-3. Non-blocking QoL, pick up anytime after SPECIAL-1c. |
+| D29 | CounterSpell/CounterAbility cleanup — replace manual stack/zone manipulation in `resolve.rs` with `move_object`. Ticket: SPECIAL-4. Non-blocking cleanup, pick up anytime. |
+| D31 | DP validation + contract property tests (Classes A/D) — centralized `#[should_panic]` coverage for `validate_*` and property tests for `RandomDecisionProvider` against the 4-primitive contract. Ticket: SPECIAL-5. Non-blocking QoL, pick up anytime after SPECIAL-1c. |
+| D32 | `ask_*` option enumeration tests (Class C) — assert the engine presents correct `ChoiceOption` lists for each `ask_*` function. Living ticket; every future `ask_*`/`ChoiceKind`/`SelectionFilter`/`PermanentFilter` change must add at least one Class C test in the same PR. Ticket: SPECIAL-6. Non-blocking QoL, pick up anytime after SPECIAL-1c. |
+| D30 | Declare attackers Cartesian product refactor — `process_declare_attackers` builds `O(creatures × targets)` pairs. With planeswalkers and battles as attack targets (T21b+), even 2-player games can grow large. Refactor to two-step approach: (1) pick which creatures attack, (2) assign each a target. Reduces options from `O(creatures × targets)` to `O(creatures + creatures)`. Relevant after T21b adds PW/battle attack targets. See TODO in `engine/combat/steps.rs:34-37`. |
 
 ---
 
