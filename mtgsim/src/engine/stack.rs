@@ -197,10 +197,10 @@ mod tests {
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
-    use crate::ui::decision::PassiveDecisionProvider;
+    use crate::ui::decision::ScriptedDecisionProvider;
 
-    fn passive_dp() -> PassiveDecisionProvider {
-        PassiveDecisionProvider
+    fn test_dp() -> ScriptedDecisionProvider {
+        ScriptedDecisionProvider::new()
     }
 
     fn make_bolt() -> std::sync::Arc<crate::objects::card_data::CardData> {
@@ -277,7 +277,7 @@ mod tests {
             vec![ResolvedTarget::Player(1)],
         );
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Player 1 should have lost 3 life
         assert_eq!(game.players[1].life_total, 17);
@@ -308,7 +308,7 @@ mod tests {
             vec![ResolvedTarget::Player(0)],
         );
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Player 0 should have drawn 3 cards
         assert_eq!(game.players[0].hand.len(), 3);
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn test_resolve_empty_stack_error() {
         let mut game = GameState::new(2, 20);
-        assert!(game.resolve_top_of_stack(&passive_dp()).is_err());
+        assert!(game.resolve_top_of_stack(&test_dp()).is_err());
     }
 
     #[test]
@@ -352,12 +352,12 @@ mod tests {
         );
 
         // Resolve top — should be Bolt (LIFO)
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
         assert_eq!(game.players[1].life_total, 17); // Bolt did 3
         assert_eq!(game.players[1].hand.len(), 0); // Recall hasn't resolved
 
         // Resolve next — should be Recall
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
         assert_eq!(game.players[1].hand.len(), 3); // Recall drew 3
     }
 
@@ -399,7 +399,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Creature should be on the battlefield, not on the stack or in graveyard
         assert_eq!(game.get_object(bears_id).unwrap().zone, Zone::Battlefield);
@@ -423,7 +423,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Creature entered on turn 1, turn_number is 1, so it has summoning sickness
         assert!(crate::oracle::characteristics::has_summoning_sickness(&game, bears_id));
@@ -437,7 +437,7 @@ mod tests {
         // Verify it's on the stack before resolution
         assert!(game.stack.contains(&bears_id));
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Stack should be completely empty — no re-push artifact
         assert!(game.stack.is_empty());
@@ -478,7 +478,7 @@ mod tests {
             .build();
         let id = put_permanent_on_stack_with_x(&mut game, card, 0, Some(3));
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         let bf_entry = game.battlefield.get(&id).unwrap();
         assert_eq!(bf_entry.x_value, Some(3));
@@ -489,7 +489,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears_id = put_permanent_on_stack(&mut game, make_grizzly_bears(), 0);
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         let bf_entry = game.battlefield.get(&bears_id).unwrap();
         assert_eq!(bf_entry.x_value, None);
@@ -551,7 +551,7 @@ mod tests {
             vec![ResolvedTarget::Object(creature_id)],
         );
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Aura should be on the battlefield
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Battlefield);
@@ -579,7 +579,7 @@ mod tests {
             vec![ResolvedTarget::Object(creature_id)],
         );
 
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Host should have the Aura in its attached_by list
         let host_entry = game.battlefield.get(&creature_id).unwrap();
@@ -612,7 +612,7 @@ mod tests {
         game.move_object(creature_id, Zone::Graveyard).unwrap();
 
         // Resolve — Bolt should fizzle
-        game.resolve_top_of_stack(&passive_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
 
         // Player 1's life should be unchanged (bolt didn't redirect to player)
         assert_eq!(game.players[1].life_total, 20);

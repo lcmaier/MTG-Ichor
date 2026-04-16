@@ -12,6 +12,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
+use crate::ui::ask::ask_choose_trample_damage_assignment;
 use crate::ui::decision::DecisionProvider;
 
 /// Convert an `AttackTarget` to a `DamageTarget`.
@@ -109,14 +110,55 @@ pub fn assign_trample_damage(
         .filter(|bid| game.battlefield.contains_key(bid))
         .collect();
 
-    let (blocker_assignments, overflow) = decisions.choose_trample_damage_assignment(
+    // Compute per-blocker minimums: 1 if deathtouch, else toughness − damage_marked
+    let per_blocker_mins: Vec<u64> = alive_blockers
+        .iter()
+        .map(|&bid| {
+            if has_deathtouch {
+                1
+            } else {
+                let toughness = get_effective_toughness(game, bid).unwrap_or(0) as u64;
+                let marked = game.battlefield.get(&bid).map(|e| e.damage_marked as u64).unwrap_or(0);
+                toughness.saturating_sub(marked)
+            }
+        })
+        .collect();
+
+    // Rule 702.19b: trample requires assigning at least lethal damage to
+    // each blocker before excess can trample through to the defending target.
+    //
+    // When power < sum(lethals), the attacker cannot meet the lethal
+    // requirement for all blockers, so NO overflow to the defender is
+    // possible. We express this via per_bucket_maxs: blocker buckets are
+    // uncapped, but the defending-target bucket is capped at 0. The DP
+    // freely divides among blockers with per-blocker mins dropped to 0
+    // (since the total can't satisfy them all anyway).
+    //
+    // Note on array lengths: we pass blocker-only mins (length =
+    // alive_blockers.len()) because ask_choose_trample_damage_assignment
+    // appends the defender's min (0) internally. But we pass maxs for ALL
+    // buckets (length = alive_blockers.len() + 1, including the defender)
+    // because ask.rs passes maxs straight through to dp.allocate().
+    let min_sum: u64 = per_blocker_mins.iter().sum();
+    let (effective_blocker_mins, maxs) = if min_sum > damage {
+        let mins = vec![0u64; alive_blockers.len()];
+        let mut maxs = vec![u64::MAX; alive_blockers.len() + 1];
+        *maxs.last_mut().unwrap() = 0; // defender bucket capped at 0
+        (mins, maxs)
+    } else {
+        (per_blocker_mins.clone(), vec![u64::MAX; alive_blockers.len() + 1])
+    };
+
+    let (blocker_assignments, overflow) = ask_choose_trample_damage_assignment(
+        decisions,
         game,
         active_player,
         attacker_id,
         &alive_blockers,
         defending_target.clone(),
         damage,
-        has_deathtouch,
+        &effective_blocker_mins,
+        Some(&maxs),
     );
 
     for (blocker_id, amount) in blocker_assignments {
@@ -149,7 +191,9 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
-    use crate::ui::decision::PassiveDecisionProvider;
+    use crate::events::event::DamageTarget;
+    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::decision::ScriptedDecisionProvider;
 
     fn place_creature_with_keywords(
         game: &mut GameState,
@@ -295,9 +339,17 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        let passive = PassiveDecisionProvider;
+        // Script allocation: [2 to blocker, 2 to player]
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage {
+                attacker_id: trampler,
+                defending_target: DamageTarget::Player(1),
+            },
+            vec![2, 2],
+        );
         let assignments = assign_trample_damage(
-            &game, &passive, 0, trampler, &[blocker],
+            &game, &scripted, 0, trampler, &[blocker],
             &AttackTarget::Player(1), 4,
         );
 
@@ -325,9 +377,17 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        let passive = PassiveDecisionProvider;
+        // Deathtouch: lethal=1. Script allocation: [1 to blocker, 3 to player]
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage {
+                attacker_id: trampler,
+                defending_target: DamageTarget::Player(1),
+            },
+            vec![1, 3],
+        );
         let assignments = assign_trample_damage(
-            &game, &passive, 0, trampler, &[blocker],
+            &game, &scripted, 0, trampler, &[blocker],
             &AttackTarget::Player(1), 4,
         );
 
@@ -353,9 +413,18 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        let passive = PassiveDecisionProvider;
+        // Power(2) < lethal(3): defender bucket maxed at 0, blocker mins dropped to 0.
+        // DP freely divides 2 among blockers. Script: [2 to blocker, 0 to player]
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage {
+                attacker_id: trampler,
+                defending_target: DamageTarget::Player(1),
+            },
+            vec![2, 0],
+        );
         let assignments = assign_trample_damage(
-            &game, &passive, 0, trampler, &[blocker],
+            &game, &scripted, 0, trampler, &[blocker],
             &AttackTarget::Player(1), 2,
         );
 

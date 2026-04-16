@@ -10,6 +10,7 @@ use crate::oracle::characteristics::{has_keyword, get_effective_power};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
+use crate::ui::ask::ask_choose_attacker_damage_assignment;
 use crate::ui::decision::DecisionProvider;
 
 /// A single combat damage assignment: source deals amount to target.
@@ -95,8 +96,8 @@ pub fn assign_combat_damage(
                 // Multiple blockers: delegate damage division to the player
                 // (rule 510.1c). Under 2025 rules, the player freely divides
                 // damage among blockers with no ordering constraint.
-                let division = decisions.choose_attacker_damage_assignment(
-                    game, active_player, *id, &attacking_info.blocked_by, damage,
+                let division = ask_choose_attacker_damage_assignment(
+                    decisions, game, active_player, *id, &attacking_info.blocked_by, damage,
                 );
 
                 for (blocker_id, amount) in division {
@@ -196,7 +197,8 @@ mod tests {
     use crate::types::keywords::KeywordAbility;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
-    use crate::ui::decision::PassiveDecisionProvider;
+    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::decision::ScriptedDecisionProvider;
 
     fn place_creature_with_pt(
         game: &mut GameState,
@@ -250,8 +252,8 @@ mod tests {
         let attacker = place_creature_with_pt(&mut game, 0, 3, 3);
         set_attacking(&mut game, attacker, 1);
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
 
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, attacker);
@@ -268,8 +270,8 @@ mod tests {
         set_blocked_by(&mut game, attacker, vec![blocker]);
         set_blocking(&mut game, blocker, vec![attacker]);
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
 
         // Attacker deals 2 to blocker, blocker deals 2 to attacker
         assert_eq!(assignments.len(), 2);
@@ -297,8 +299,8 @@ mod tests {
             });
         }
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         // No damage from attacker (blocked with no blockers remaining)
         assert!(assignments.is_empty());
     }
@@ -309,8 +311,8 @@ mod tests {
         let attacker = place_creature_with_pt(&mut game, 0, 0, 1);
         set_attacking(&mut game, attacker, 1);
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         assert!(assignments.is_empty());
     }
 
@@ -379,8 +381,8 @@ mod tests {
         set_attacking(&mut game, attacker, 1);
 
         // No first strike creatures → first_strike_only returns empty
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, true);
         assert!(assignments.is_empty());
     }
 
@@ -390,10 +392,10 @@ mod tests {
         let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordAbility::FirstStrike]);
         set_attacking(&mut game, fs, 1);
 
-        let passive = PassiveDecisionProvider;
+        let dp = ScriptedDecisionProvider::new();
 
         // First strike step: should deal damage
-        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        let assignments = assign_combat_damage(&game, &dp, 0, true);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, fs);
         assert_eq!(assignments[0].amount, 2);
@@ -402,7 +404,7 @@ mod tests {
         game.dealt_first_strike_damage.insert(fs);
 
         // Normal step: first striker already dealt, no double strike → skipped
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         assert!(assignments.is_empty());
     }
 
@@ -412,10 +414,10 @@ mod tests {
         let ds = place_creature_with_keywords(&mut game, 0, 1, 1, &[KeywordAbility::DoubleStrike]);
         set_attacking(&mut game, ds, 1);
 
-        let passive = PassiveDecisionProvider;
+        let dp = ScriptedDecisionProvider::new();
 
         // First strike step: double striker deals damage
-        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        let assignments = assign_combat_damage(&game, &dp, 0, true);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, ds);
         assert_eq!(assignments[0].amount, 1);
@@ -424,7 +426,7 @@ mod tests {
         game.dealt_first_strike_damage.insert(ds);
 
         // Normal step: double striker deals again
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, ds);
         assert_eq!(assignments[0].amount, 1);
@@ -436,14 +438,14 @@ mod tests {
         let normal = place_creature_with_pt(&mut game, 0, 3, 3);
         set_attacking(&mut game, normal, 1);
 
-        let passive = PassiveDecisionProvider;
+        let dp = ScriptedDecisionProvider::new();
 
         // First strike step: normal creature skipped
-        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        let assignments = assign_combat_damage(&game, &dp, 0, true);
         assert!(assignments.is_empty());
 
         // Normal step: normal creature deals damage
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, normal);
         assert_eq!(assignments[0].amount, 3);
@@ -457,17 +459,17 @@ mod tests {
         set_attacking(&mut game, fs, 1);
         set_attacking(&mut game, normal, 1);
 
-        let passive = PassiveDecisionProvider;
+        let dp = ScriptedDecisionProvider::new();
 
         // First strike step: only FS creature
-        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        let assignments = assign_combat_damage(&game, &dp, 0, true);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, fs);
 
         game.dealt_first_strike_damage.insert(fs);
 
         // Normal step: only normal creature (FS already dealt)
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, normal);
     }
@@ -481,10 +483,10 @@ mod tests {
         set_blocked_by(&mut game, attacker, vec![fs_blocker]);
         set_blocking(&mut game, fs_blocker, vec![attacker]);
 
-        let passive = PassiveDecisionProvider;
+        let dp = ScriptedDecisionProvider::new();
 
         // First strike step: only FS blocker deals damage
-        let assignments = assign_combat_damage(&game, &passive, 0, true);
+        let assignments = assign_combat_damage(&game, &dp, 0, true);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, fs_blocker);
         assert_eq!(assignments[0].target, DamageTarget::Object(attacker));
@@ -492,7 +494,7 @@ mod tests {
         game.dealt_first_strike_damage.insert(fs_blocker);
 
         // Normal step: attacker deals (it's normal), FS blocker doesn't
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, attacker);
         assert_eq!(assignments[0].target, DamageTarget::Object(fs_blocker));
@@ -509,8 +511,16 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        // Script trample allocation: [2 to blocker, 2 to player]
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage {
+                attacker_id: trampler,
+                defending_target: DamageTarget::Player(1),
+            },
+            vec![2, 2],
+        );
+        let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
         // Trampler (4 power) vs blocker (2 toughness): 2 to blocker, 2 tramples to player
         let to_blocker: Vec<_> = assignments.iter()
@@ -539,8 +549,8 @@ mod tests {
             });
         }
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
 
         assert_eq!(assignments.len(), 1);
         assert_eq!(assignments[0].source, trampler);
@@ -557,8 +567,16 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        // Power(2) < lethal(3), clamped mins=[2,0]. Script: [2 to blocker, 0 to player]
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage {
+                attacker_id: trampler,
+                defending_target: DamageTarget::Player(1),
+            },
+            vec![2, 0],
+        );
+        let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
         // Trampler (2 power) vs blocker (3 toughness): all 2 to blocker, 0 overflow
         let to_blocker: Vec<_> = assignments.iter()
@@ -584,8 +602,16 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        // Deathtouch: lethal=1. Script: [1 to blocker, 3 to player]
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage {
+                attacker_id: trampler,
+                defending_target: DamageTarget::Player(1),
+            },
+            vec![1, 3],
+        );
+        let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
         // Deathtouch: 1 is lethal. Trampler (4 power): 1 to blocker, 3 tramples
         let to_blocker: Vec<_> = assignments.iter()
@@ -613,8 +639,8 @@ mod tests {
             });
         }
 
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        let dp = ScriptedDecisionProvider::new();
+        let assignments = assign_combat_damage(&game, &dp, 0, false);
         // No trample, blocked with no blockers → no damage
         assert!(assignments.is_empty());
     }
@@ -630,12 +656,15 @@ mod tests {
         set_blocking(&mut game, b1, vec![attacker]);
         set_blocking(&mut game, b2, vec![attacker]);
 
-        // PassiveDecisionProvider uses default_damage_assignment which
-        // assigns lethal to each blocker in order as a strategic default.
-        let passive = PassiveDecisionProvider;
-        let assignments = assign_combat_damage(&game, &passive, 0, false);
+        // Use ScriptedDP to explicitly assign damage: 2 to b1 (lethal), 3 to b2
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignCombatDamage { attacker_id: attacker },
+            vec![2, 3],
+        );
+        let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
-        // Attacker (5 power) → default strategy: 2 to b1 (lethal), 3 to b2
+        // Attacker (5 power) → scripted: 2 to b1, 3 to b2
         let att_dmg: Vec<_> = assignments.iter().filter(|a| a.source == attacker).collect();
         assert_eq!(att_dmg.len(), 2);
         // Verify total damage sums to power

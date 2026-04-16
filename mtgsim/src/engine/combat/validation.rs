@@ -890,8 +890,10 @@ mod tests {
         );
 
         let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
-        scripted.attack_decisions.borrow_mut().push(
-            vec![(angel, AttackTarget::Player(1))],
+        // Legal pairs: [(angel, Player(1))] — index 0
+        scripted.expect_pick_n(
+            crate::ui::choice_types::ChoiceKind::DeclareAttackers,
+            vec![0],
         );
         game.process_declare_attackers(&scripted).unwrap();
 
@@ -907,8 +909,10 @@ mod tests {
         let bears = place_creature(&mut game, 0);
 
         let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
-        scripted.attack_decisions.borrow_mut().push(
-            vec![(bears, AttackTarget::Player(1))],
+        // Legal pairs: [(bears, Player(1))] — index 0
+        scripted.expect_pick_n(
+            crate::ui::choice_types::ChoiceKind::DeclareAttackers,
+            vec![0],
         );
         game.process_declare_attackers(&scripted).unwrap();
 

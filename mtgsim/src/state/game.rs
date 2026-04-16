@@ -6,6 +6,7 @@ use crate::state::game_config::GameConfig;
 use crate::state::game_state::{GameState, PhaseType, StepType};
 use crate::types::ids::PlayerId;
 use crate::types::zones::Zone;
+use crate::ui::ask::ask_choose_discard;
 use crate::ui::decision::DecisionProvider;
 
 /// A decklist: ordered list of card definitions that make up a player's deck.
@@ -318,7 +319,8 @@ impl Game {
         let max = self.state.players[active].max_hand_size as usize;
 
         while self.state.players[active].hand.len() > max {
-            let card_id = decisions.choose_discard(&self.state, active)
+            let hand: Vec<_> = self.state.players[active].hand.clone();
+            let card_id = ask_choose_discard(decisions, &self.state, active, &hand)
                 .ok_or("Player must choose a card to discard")?;
 
             // Verify the chosen card is in hand
@@ -346,7 +348,8 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
     use crate::types::mana::ManaType;
-    use crate::ui::decision::PassiveDecisionProvider;
+    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::decision::ScriptedDecisionProvider;
 
     fn make_test_decklist(count: usize) -> Decklist {
         (0..count)
@@ -391,7 +394,7 @@ mod tests {
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        let decisions = PassiveDecisionProvider;
+        let decisions = ScriptedDecisionProvider::new();
         game.setup(&decisions).unwrap();
 
         assert_eq!(game.state.players[0].hand.len(), 7);
@@ -456,16 +459,21 @@ mod tests {
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        let decisions = PassiveDecisionProvider;
+        let decisions = ScriptedDecisionProvider::new();
         game.setup(&decisions).unwrap();
+        game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
         // Turn completes normally with no SBAs during cleanup
         let starting_turn = game.state.turn_number;
+        decisions.queue_empty_turn_passes();
         game.run_turn(&decisions).unwrap();
         assert_eq!(game.state.turn_number, starting_turn + 1);
 
-        // Set poison to 10; SBA fires during priority, player 1 loses
+        // Set poison to 10; SBA fires during upkeep priority, player 1 loses
         game.state.players[1].poison_counters = 10;
+        // SBA kills player 1 during upkeep — only 2 passes consumed before game ends
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         game.run_turn(&decisions).unwrap();
         assert!(game.is_over());
         assert_eq!(game.result, Some(GameResult::Winner(0)));
@@ -479,10 +487,12 @@ mod tests {
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        let decisions = PassiveDecisionProvider;
+        let decisions = ScriptedDecisionProvider::new();
         game.setup(&decisions).unwrap();
+        game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
         let starting_turn = game.state.turn_number;
+        decisions.queue_empty_turn_passes();
         game.run_turn(&decisions).unwrap();
 
         assert_eq!(game.state.turn_number, starting_turn + 1);

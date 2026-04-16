@@ -23,7 +23,8 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordAbility;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision::{PassiveDecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,8 +145,10 @@ fn test_vigilance_doesnt_tap() {
     let angel = place_creature(&mut game, 0, keyword_creatures::serra_angel);
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.attack_decisions.borrow_mut().push(
-        vec![(angel, AttackTarget::Player(1))],
+    // Legal pairs: [(angel, Player(1))] — index 0
+    scripted.expect_pick_n(
+        mtgsim::ui::choice_types::ChoiceKind::DeclareAttackers,
+        vec![0],
     );
     game.process_declare_attackers(&scripted).unwrap();
 
@@ -168,10 +171,10 @@ fn test_first_strike_kills_before_normal_damage() {
     set_blocked_by(&mut game, archers, vec![bears]);
     set_blocking(&mut game, bears, vec![archers]);
 
-    let passive = PassiveDecisionProvider;
+    let dp = ScriptedDecisionProvider::new();
 
     // First strike step: archers (2 power, FS) deal damage
-    let assignments = assign_combat_damage(&game, &passive, 0, true);
+    let assignments = assign_combat_damage(&game, &dp, 0, true);
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].source, archers);
     assert_eq!(assignments[0].target, DamageTarget::Object(bears));
@@ -182,11 +185,11 @@ fn test_first_strike_kills_before_normal_damage() {
     game.dealt_first_strike_damage.insert(archers);
 
     // Bears now have 2 damage marked on 2 toughness — SBA kills them
-    game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
+    game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
     assert!(!game.battlefield.contains_key(&bears));
 
     // Normal damage step: archers already dealt (FS only), bears are dead
-    let assignments = assign_combat_damage(&game, &passive, 0, false);
+    let assignments = assign_combat_damage(&game, &dp, 0, false);
     // No damage from archers (already dealt FS, not double strike)
     // No damage from bears (dead)
     assert!(assignments.is_empty());
@@ -205,10 +208,10 @@ fn test_double_strike_deals_twice() {
     let raptor = place_creature(&mut game, 0, keyword_creatures::ridgetop_raptor);
     set_attacking(&mut game, raptor, 1);
 
-    let passive = PassiveDecisionProvider;
+    let dp = ScriptedDecisionProvider::new();
 
     // First strike step
-    let assignments = assign_combat_damage(&game, &passive, 0, true);
+    let assignments = assign_combat_damage(&game, &dp, 0, true);
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].amount, 2);
     game.apply_combat_damage(assignments).unwrap();
@@ -217,7 +220,7 @@ fn test_double_strike_deals_twice() {
     assert_eq!(game.players[1].life_total, 18);
 
     // Normal damage step (double strike deals again)
-    let assignments = assign_combat_damage(&game, &passive, 0, false);
+    let assignments = assign_combat_damage(&game, &dp, 0, false);
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].amount, 2);
     game.apply_combat_damage(assignments).unwrap();
@@ -238,8 +241,16 @@ fn test_trample_overflow_to_player() {
     set_blocked_by(&mut game, mammoth, vec![lions]);
     set_blocking(&mut game, lions, vec![mammoth]);
 
-    let passive = PassiveDecisionProvider;
-    let assignments = assign_combat_damage(&game, &passive, 0, false);
+    // Script trample allocation: [1 to lions (lethal), 2 to player]
+    let scripted = ScriptedDecisionProvider::new();
+    scripted.expect_allocation(
+        ChoiceKind::AssignTrampleDamage {
+            attacker_id: mammoth,
+            defending_target: DamageTarget::Player(1),
+        },
+        vec![1, 2],
+    );
+    let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
     // Mammoth (3 power, trample) vs Lions (2/1): 1 to lions (lethal), 2 tramples
     let to_lions: Vec<_> = assignments.iter()
@@ -267,8 +278,8 @@ fn test_deathtouch_trades_up() {
     set_blocked_by(&mut game, archer, vec![giant]);
     set_blocking(&mut game, giant, vec![archer]);
 
-    let passive = PassiveDecisionProvider;
-    let assignments = assign_combat_damage(&game, &passive, 0, false);
+    let dp = ScriptedDecisionProvider::new();
+    let assignments = assign_combat_damage(&game, &dp, 0, false);
 
     // Apply all combat damage
     game.apply_combat_damage(assignments).unwrap();
@@ -281,7 +292,7 @@ fn test_deathtouch_trades_up() {
     assert_eq!(game.battlefield.get(&archer).unwrap().damage_marked, 3);
 
     // SBA: both should die
-    game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
+    game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
     assert!(!game.battlefield.contains_key(&archer));
     assert!(!game.battlefield.contains_key(&giant));
 }
@@ -296,8 +307,8 @@ fn test_lifelink_heals_on_combat_damage() {
     let nighthawk = place_creature(&mut game, 0, keyword_creatures::vampire_nighthawk);
     set_attacking(&mut game, nighthawk, 1);
 
-    let passive = PassiveDecisionProvider;
-    let assignments = assign_combat_damage(&game, &passive, 0, false);
+    let dp = ScriptedDecisionProvider::new();
+    let assignments = assign_combat_damage(&game, &dp, 0, false);
     game.apply_combat_damage(assignments).unwrap();
 
     // Player 1 took 2 damage
@@ -369,8 +380,16 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     set_blocked_by(&mut game, trampler, vec![blocker]);
     set_blocking(&mut game, blocker, vec![trampler]);
 
-    let passive = PassiveDecisionProvider;
-    let assignments = assign_combat_damage(&game, &passive, 0, false);
+    // Deathtouch: lethal=1. Script: [1 to blocker, 3 to player]
+    let scripted = ScriptedDecisionProvider::new();
+    scripted.expect_allocation(
+        ChoiceKind::AssignTrampleDamage {
+            attacker_id: trampler,
+            defending_target: DamageTarget::Player(1),
+        },
+        vec![1, 3],
+    );
+    let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
     // Deathtouch: 1 damage is lethal. 4 power → 1 to blocker, 3 tramples to player
     let to_blocker: Vec<_> = assignments.iter()
@@ -386,7 +405,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
 
     // Apply and check SBA
     game.apply_combat_damage(assignments).unwrap();
-    game.check_state_based_actions(&mtgsim::ui::decision::PassiveDecisionProvider).unwrap();
+    game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
 
     // Blocker should be dead (1 deathtouch damage)
     assert!(!game.battlefield.contains_key(&blocker));

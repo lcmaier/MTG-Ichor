@@ -9,6 +9,7 @@ use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
 use crate::types::zones::Zone;
+use crate::ui::ask::ask_choose_legend_to_keep;
 use crate::ui::decision::DecisionProvider;
 
 /// State-Based Actions (rule 704)
@@ -173,10 +174,10 @@ impl GameState {
 
             // For each group with more than one, the controller chooses one to keep
             let mut to_remove: Vec<ObjectId> = Vec::new();
-            for ((_controller, _name), ids) in &legend_groups {
+            for ((_controller, name), ids) in &legend_groups {
                 if ids.len() > 1 {
                     let controller = self.battlefield.get(&ids[0]).unwrap().controller;
-                    let keep = decisions.choose_legend_to_keep(self, controller, ids);
+                    let keep = ask_choose_legend_to_keep(decisions, self, controller, name, ids);
                     for &id in ids {
                         if id != keep {
                             to_remove.push(id);
@@ -374,7 +375,8 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-    use crate::ui::decision::PassiveDecisionProvider;
+    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::decision::ScriptedDecisionProvider;
 
     #[test]
     fn test_sba_lethal_damage_destroys_creature() {
@@ -394,7 +396,7 @@ mod tests {
         game.place_on_battlefield(bears_id, 0).damage_marked = 2; // lethal for a 2/2
 
         // SBA should destroy the creature
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&bears_id));
         assert_eq!(game.players[0].graveyard.len(), 1);
@@ -417,7 +419,7 @@ mod tests {
         bf.damage_marked = 1; // only 1 damage
         bf.damaged_by_deathtouch = true; // but from deathtouch
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&id));
         assert_eq!(game.get_object(id).unwrap().zone, Zone::Graveyard);
@@ -440,7 +442,7 @@ mod tests {
         bf.damage_marked = 0;
         bf.damaged_by_deathtouch = true;
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&id));
     }
@@ -462,7 +464,7 @@ mod tests {
         entry.add_counters(crate::types::effects::CounterType::PlusOnePlusOne, 3);
         entry.add_counters(crate::types::effects::CounterType::MinusOneMinusOne, 2);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
 
         let entry = game.battlefield.get(&id).unwrap();
@@ -487,7 +489,7 @@ mod tests {
         entry.add_counters(crate::types::effects::CounterType::PlusOnePlusOne, 4);
         entry.add_counters(crate::types::effects::CounterType::MinusOneMinusOne, 4);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
 
         let entry = game.battlefield.get(&id).unwrap();
@@ -510,7 +512,7 @@ mod tests {
         game.add_object(obj);
         game.players[0].graveyard.push(id);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
 
         // Token should be completely removed from the game
@@ -539,7 +541,7 @@ mod tests {
         game.add_object(obj);
         game.place_on_battlefield(id, 0);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
 
         // Token should still exist
@@ -562,7 +564,7 @@ mod tests {
         game.add_object(obj);
         game.place_on_battlefield(bears_id, 0);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&bears_id));
     }
@@ -577,15 +579,15 @@ mod tests {
         // SBA should remove one (the default keeps the first).
         let mut game = GameState::new(2, 20);
 
-        let legend1_data = CardDataBuilder::new("Thalia, Guardian of Thraben")
+        let legend1_data = CardDataBuilder::new("Isamaru, Hound of Konda")
             .card_type(CardType::Creature)
             .supertype(Supertype::Legendary)
-            .power_toughness(2, 1)
+            .power_toughness(2, 2)
             .build();
-        let legend2_data = CardDataBuilder::new("Thalia, Guardian of Thraben")
+        let legend2_data = CardDataBuilder::new("Isamaru, Hound of Konda")
             .card_type(CardType::Creature)
             .supertype(Supertype::Legendary)
-            .power_toughness(2, 1)
+            .power_toughness(2, 2)
             .build();
 
         let obj1 = GameObject::new(legend1_data, 0, Zone::Battlefield);
@@ -602,7 +604,11 @@ mod tests {
         assert!(game.battlefield.contains_key(&id1));
         assert!(game.battlefield.contains_key(&id2));
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(ChoiceKind::LegendRule {
+            legend_name: "Isamaru, Hound of Konda".to_string(),
+        }, vec![0]);
+        let performed = game.check_state_based_actions(&dp).unwrap();
         assert!(performed);
 
         // Exactly one should remain, one should be in graveyard
@@ -638,7 +644,7 @@ mod tests {
         game.add_object(obj2);
         game.place_on_battlefield(id2, 0);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&id1));
         assert!(game.battlefield.contains_key(&id2));
@@ -670,7 +676,7 @@ mod tests {
         game.add_object(obj2);
         game.place_on_battlefield(id2, 1); // controller = player 1
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&id1));
         assert!(game.battlefield.contains_key(&id2));
@@ -711,7 +717,7 @@ mod tests {
             0
         );
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&pw_id));
         assert_eq!(game.get_object(pw_id).unwrap().zone, Zone::Graveyard);
@@ -732,7 +738,7 @@ mod tests {
         game.add_object(obj);
         game.place_on_battlefield(pw_id, 0);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&pw_id));
         assert_eq!(
@@ -785,7 +791,7 @@ mod tests {
             0
         );
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&pw_id));
         assert_eq!(game.get_object(pw_id).unwrap().zone, Zone::Graveyard);
@@ -811,7 +817,7 @@ mod tests {
         game.place_on_battlefield(aura_id, 0);
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
@@ -856,7 +862,7 @@ mod tests {
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, Some(host_id));
 
         // No SBA triggered yet — aura is legally attached
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
 
         // Now remove the host (simulating destruction)
@@ -866,7 +872,7 @@ mod tests {
         // cleanup_zone_state should have cleared the aura's attached_to
         // since the host left. But 704.5m catches unattached auras anyway.
         // Either way, the SBA should put the aura in the graveyard.
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
@@ -900,7 +906,7 @@ mod tests {
         game.battlefield.get_mut(&equip_id).unwrap().attach_to(land_id);
         game.battlefield.get_mut(&land_id).unwrap().attached_by.push(equip_id);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
 
         // Equipment should be unattached but still on the battlefield
@@ -945,7 +951,7 @@ mod tests {
         game.battlefield.get_mut(&equip_id).unwrap().attach_to(creature_id);
         game.battlefield.get_mut(&creature_id).unwrap().attached_by.push(equip_id);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&equip_id));
         assert_eq!(game.battlefield.get(&equip_id).unwrap().attached_to, Some(creature_id));
@@ -980,7 +986,7 @@ mod tests {
         game.battlefield.get_mut(&att_id).unwrap().attach_to(host_id);
         game.battlefield.get_mut(&host_id).unwrap().attached_by.push(att_id);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
 
         // Attachment should be broken, both permanents stay on battlefield
@@ -1017,7 +1023,7 @@ mod tests {
         game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
         game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&aura_id));
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, Some(host_id));
@@ -1042,7 +1048,7 @@ mod tests {
         // Aura is on the battlefield but not attached to anything
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
@@ -1058,7 +1064,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         game.players[0].poison_counters = 10;
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(game.player_lost[0]);
         assert!(!game.player_lost[1]);
@@ -1079,7 +1085,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         game.players[0].poison_counters = 9;
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(!game.player_lost[0]);
     }
@@ -1093,7 +1099,7 @@ mod tests {
         let commander_id = crate::types::ids::new_object_id();
         game.players[1].commander_damage_taken.insert(commander_id, 21);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
         assert!(game.player_lost[1]);
 
@@ -1121,7 +1127,7 @@ mod tests {
         game.add_object(obj);
         game.place_on_battlefield(id, 0).damage_marked = 11; // lethal for an 11/11
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         // No SBA should destroy it
         assert!(!performed);
         assert!(game.battlefield.contains_key(&id));
@@ -1157,7 +1163,7 @@ mod tests {
         game.battlefield.get_mut(&aura_id).unwrap().attach_to(land_id);
         game.battlefield.get_mut(&land_id).unwrap().attached_by.push(aura_id);
 
-        let performed = game.check_state_based_actions(&PassiveDecisionProvider).unwrap();
+        let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
 
         // Aura should be in the graveyard
