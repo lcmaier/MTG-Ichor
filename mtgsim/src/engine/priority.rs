@@ -40,10 +40,123 @@ impl GameState {
         loop {
             self.priority_player = current_priority;
 
-            let candidates = candidate_priority_actions(self, current_priority);
-            let action = ask_choose_priority_action(decisions, self, current_priority, &candidates);
+            // `candidate_priority_actions` is an overapproximation: it includes
+            // e.g. `CastSpell(id)` when affordability is heuristically met but
+            // the current mana pool can't actually cover the cost (see
+            // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`).
+            // Per that design (§2.2), the engine is responsible for retrying
+            // when execution rejects a DP-chosen action.
+            //
+            // Retry loop (D26 / SPECIAL-2):
+            //   - On execution failure, blacklist the specific action for this
+            //     priority window and re-prompt with the filtered list.
+            //   - Bound retries at `3 × candidates.len()` (minimum 6) and fall
+            //     back to `Pass` when the budget is exhausted. This prevents
+            //     infinite loops and gives RandomDP / buggy candidate filters
+            //     a diagnostic signal via stderr.
+            let all_candidates = candidate_priority_actions(self, current_priority);
+            let max_retries = all_candidates.len().saturating_mul(3).max(6);
+            let mut blacklist: Vec<PriorityAction> = Vec::new();
+            let mut retries: usize = 0;
 
-            match action {
+            // Choose an action and attempt execution; retry on failure.
+            // On success, `executed` holds the action that ran and (for
+            // ActivateAbility) whether it was a mana ability (which bypasses
+            // the post-action SBA pass, per rule 605).
+            let executed: (PriorityAction, bool) = loop {
+                let available: Vec<PriorityAction> = all_candidates
+                    .iter()
+                    .filter(|a| !blacklist.contains(a))
+                    .cloned()
+                    .collect();
+
+                // If every non-Pass candidate has been blacklisted (or the
+                // retry budget is exhausted), force a Pass. Pass is always
+                // safe — it has no execution path that can fail.
+                if available.is_empty() || retries >= max_retries {
+                    if retries >= max_retries {
+                        eprintln!(
+                            "WARN: priority retry budget ({}) exhausted for player {} — forcing Pass. \
+                             Blacklist size: {}. This is a diagnostic signal that `castable_spells` / \
+                             `activatable_abilities` may be too loose.",
+                            max_retries, current_priority, blacklist.len()
+                        );
+                    }
+                    break (PriorityAction::Pass, false);
+                }
+
+                let action = ask_choose_priority_action(
+                    decisions, self, current_priority, &available,
+                );
+
+                // Pass doesn't execute anything — accept it immediately.
+                if matches!(action, PriorityAction::Pass) {
+                    break (action, false);
+                }
+
+                // Attempt execution. On Err, the callee is required to leave
+                // game state clean (see `cast_spell` rollback via move_object,
+                // `activate_ability` via `rollback_ability_activation`).
+                let (exec_result, was_mana_ability) = match &action {
+                    PriorityAction::Pass => unreachable!(),
+                    PriorityAction::CastSpell(card_id) => (
+                        self.cast_spell(current_priority, *card_id, decisions),
+                        false,
+                    ),
+                    PriorityAction::PlayLand(card_id) => (
+                        self.play_land(current_priority, *card_id, Zone::Hand),
+                        false,
+                    ),
+                    PriorityAction::ActivateAbility(permanent_id, ability_id) => {
+                        // Dispatch mana-vs-non-mana. Mana abilities resolve
+                        // immediately (rule 605) and don't trigger SBAs.
+                        let card_data = match self.get_object(*permanent_id) {
+                            Ok(obj) => obj.card_data.clone(),
+                            Err(e) => {
+                                // Source disappeared — blacklist and retry.
+                                blacklist.push(action.clone());
+                                retries = retries.saturating_add(1);
+                                eprintln!(
+                                    "WARN: activate_ability source {} missing: {}",
+                                    permanent_id, e
+                                );
+                                continue;
+                            }
+                        };
+                        let is_mana = card_data.abilities.iter()
+                            .find(|a| a.id == *ability_id)
+                            .map(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana)
+                            .unwrap_or(false);
+                        let result = if is_mana {
+                            self.activate_mana_ability(current_priority, *permanent_id, *ability_id)
+                        } else {
+                            let idx = card_data.abilities.iter()
+                                .position(|a| a.id == *ability_id);
+                            match idx {
+                                Some(i) => self.activate_ability(
+                                    current_priority, *permanent_id, i, decisions,
+                                ),
+                                None => Err(format!(
+                                    "Ability {} not found on permanent {}",
+                                    ability_id, permanent_id
+                                )),
+                            }
+                        };
+                        (result, is_mana)
+                    }
+                };
+
+                match exec_result {
+                    Ok(()) => break (action, was_mana_ability),
+                    Err(_e) => {
+                        blacklist.push(action);
+                        retries = retries.saturating_add(1);
+                        // Loop again with tighter candidate list.
+                    }
+                }
+            };
+
+            match executed.0 {
                 PriorityAction::Pass => {
                     consecutive_passes += 1;
                     if consecutive_passes >= num_players {
@@ -62,39 +175,26 @@ impl GameState {
                     current_priority = (current_priority + 1) % num_players;
                 }
 
-                PriorityAction::CastSpell(card_id) => {
-                    self.cast_spell(current_priority, card_id, decisions)?;
-                    // Player who acted gets priority again (117.3c)
-                    // Run SBAs before granting priority again
+                PriorityAction::CastSpell(_) => {
+                    // Player who acted gets priority again (117.3c) — we
+                    // return and let the caller start a fresh round.
                     self.perform_sba_and_triggers(decisions)?;
                     return Ok(PriorityResult::ActionTaken);
                 }
 
-                PriorityAction::ActivateAbility(permanent_id, ability_id) => {
-                    // Find the ability by ID and check its type
-                    let card_data = self.get_object(permanent_id)?.card_data.clone();
-                    let ability = card_data.abilities.iter()
-                        .find(|a| a.id == ability_id)
-                        .ok_or_else(|| format!("Ability {} not found on permanent {}", ability_id, permanent_id))?;
-
-                    if ability.ability_type == crate::objects::card_data::AbilityType::Mana {
-                        // Mana abilities resolve immediately (rule 605), no SBAs
-                        self.activate_mana_ability(current_priority, permanent_id, ability_id)?;
-                        return Ok(PriorityResult::ActionTaken);
+                PriorityAction::ActivateAbility(_, _) => {
+                    // Mana abilities resolve immediately (rule 605) with no
+                    // SBA pass; other activated abilities go on the stack and
+                    // get the normal SBA sweep.
+                    if !executed.1 {
+                        self.perform_sba_and_triggers(decisions)?;
                     }
-
-                    let ability_index = card_data.abilities.iter()
-                        .position(|a| a.id == ability_id)
-                        .unwrap(); // safe: we just found it above
-                    self.activate_ability(current_priority, permanent_id, ability_index, decisions)?;
-                    self.perform_sba_and_triggers(decisions)?;
                     return Ok(PriorityResult::ActionTaken);
                 }
 
-                PriorityAction::PlayLand(card_id) => {
-                    self.play_land(current_priority, card_id, Zone::Hand)?;
-                    // Playing a land is a special action — player keeps priority (rule 116.2a)
-                    // but we return so the caller can loop back
+                PriorityAction::PlayLand(_) => {
+                    // Playing a land is a special action (rule 116.2a) —
+                    // player keeps priority, caller loops back.
                     return Ok(PriorityResult::ActionTaken);
                 }
             }

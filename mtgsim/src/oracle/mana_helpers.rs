@@ -92,16 +92,6 @@ pub fn find_mana_sources(
 /// (rule 605.1a/605.1b) — e.g. "Sacrifice this creature: Add {U}{R}" can
 /// be activated even if the creature is tapped. We check each ability's
 /// cost vector individually.
-///
-/// **Limitation:** For mana abilities whose costs include `Cost::Mana`, the
-/// check only looks at the current pool — it does NOT consider whether the
-/// player could generate the needed mana by activating *other* mana abilities
-/// first. A recursive "mana bootstrap" solver would be needed for that, but
-/// no cards in the current pool have mana-costing mana abilities, so this
-/// doesn't bite us yet.
-// TODO(Phase 5+): Implement mana-bootstrap solver for mana abilities that
-// themselves cost mana (e.g. "{1}, {T}: Add {G}{G}"). Requires computing
-// a dependency graph of mana sources and checking reachability.
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
     let mut sources = Vec::new();
 
@@ -222,13 +212,42 @@ pub fn castable_spells(
     result
 }
 
+/// Enumerate currently-activatable mana abilities for a player.
+///
+/// Returns `(permanent_id, ability_id)` for every mana ability on a permanent
+/// the player controls whose costs (typically tap) can be paid right now.
+/// Deduplicated by `(permanent_id, ability_id)` — a single ability that
+/// produces mana in multiple color modes (e.g. Cavern of Souls' "add any
+/// color") appears once. Mode selection, when applicable, is a follow-up
+/// choice inside the ability's activation (future work; no such cards in the
+/// current pool).
+///
+/// Used by the 601.2g / 602.1b mana-ability-window loop in `cast_spell` and
+/// `activate_ability`. The caller prompts the DP to pick one option to
+/// activate (or decline), then loops until the pool covers the cost.
+pub fn enumerate_activatable_mana_abilities(
+    game: &GameState,
+    player_id: PlayerId,
+) -> Vec<(ObjectId, AbilityId)> {
+    let mut seen: std::collections::HashSet<(ObjectId, AbilityId)> =
+        std::collections::HashSet::new();
+    let mut result = Vec::new();
+    for src in available_mana_sources(game, player_id) {
+        let key = (src.permanent_id, src.ability_id);
+        if seen.insert(key) {
+            result.push(key);
+        }
+    }
+    result
+}
+
 /// Color-sensitive subtraction of pool mana from a mana cost.
 ///
 /// For each colored symbol in the cost, if the pool has that color available
 /// (beyond what earlier symbols already consumed), skip the symbol. For generic
 /// symbols, subtract any excess pool mana. Returns a new ManaCost representing
 /// only the portion that must still be covered by tapping sources.
-fn remaining_cost_after_pool(
+pub(crate) fn remaining_cost_after_pool(
     cost: &ManaCost,
     pool: &crate::types::mana::ManaPool,
 ) -> ManaCost {
