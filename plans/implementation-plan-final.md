@@ -38,7 +38,9 @@ T13 (after T01,T03) || T14 (after T01) || T15 (after T04) || T15b (after T04) ||
 ### Tier 4: Casting & Activation (parallel with Tier 3)
 ```
 T17 → T18a → SPECIAL-1a → SPECIAL-1b → SPECIAL-1c → {T18b, T18c, T18d}  (SPECIAL-1a/b/c = DP refactor split; T18b/c/d parallel after SPECIAL-1c)
-SPECIAL-2 (priority retry on failed cast) — non-blocking QoL, pick up anytime after SPECIAL-1c test migration
+SPECIAL-2 (priority retry on failed cast + activate_ability rollback cleanliness) — LANDED 2026-04-16 (combined with 601.2g implementation; see §15b)
+SPECIAL-8 (blocker legality pre-filter + CR 509.1c retry loop) — gates fuzz-acceptance on all subsequent tickets (fuzz exits code 1 until landed). Scoped in §15c.
+SPECIAL-9 (consolidate propose/validate retry pattern — shared combinator) — pick up after SPECIAL-8 lands (third retry instance available); see D35 in §16.
 SPECIAL-3 (shared test helpers for common DP script sequences) — non-blocking QoL, pick up anytime after SPECIAL-1c
 SPECIAL-4 (CounterSpell/CounterAbility cleanup — use move_object) — non-blocking cleanup, pick up anytime
 SPECIAL-5 (DP validation + contract property tests — Classes A/D) — non-blocking QoL, pick up anytime after SPECIAL-1c
@@ -564,7 +566,7 @@ When a ticket does any of the following, it **must** land the corresponding test
 | **601.2d** | Divide/distribute effects among targets | ❌ Not implemented | T18c (`choose_distribution` DP method) | — |
 | **601.2e** | Legality check *after* proposal (601.2a–d) | ⚠️ Runs *before* proposal (before `move_object`) | T18a (split into pre- + post-proposal) | — |
 | **601.2f** | Determine total cost: base/alt + additional + increases − reductions, then lock | ❌ Uses `card_data.mana_cost` directly | T18a (cost assembly + passthrough stub) | Full pipeline → L15 (Phase 5 Layers) |
-| **601.2g** | Player may activate mana abilities before paying | ❌ No explicit mana ability window | T18a (TODO comment) | Explicit mana ability window → later |
+| **601.2g** | Player may activate mana abilities before paying | ✅ DP-prompted loop via `run_mana_ability_window` (landed 2026-04-16 with SPECIAL-2) | `GameState::run_mana_ability_window` in `engine/cast.rs`; `ChoiceKind::ManaAbilityWindow`; `ask_activate_mana_ability`; `enumerate_activatable_mana_abilities` | Mode selection for multi-output abilities (Cavern of Souls' "any color") — future when such cards are added |
 | **601.2h** | Pay total cost (deterministic first, then random/library) | ✅ `pay_costs` | T18a (assembled cost), T18c (payment ordering) | — |
 | **601.2i** | Apply cast-modification effects; spell becomes cast; triggers fire | ✅ `SpellCast` event emitted | T18a (no change) | Cast-trigger firing → Phase 7 |
 
@@ -597,7 +599,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
      - **601.2d — Distribution:** Placeholder. T18c will implement.
      - **601.2e — Post-proposal legality:** Full legality check *after* 601.2a–d. On failure, roll back: move card from stack to hand, remove StackEntry, restore any state. Uses GameState snapshot (clone mutable portions before 601.2a; restore on failure — see Discrepancy §11).
      - **601.2f — Assemble total cost:** `assemble_total_cost(card_data, chosen_alt, chosen_additional, x_value) -> Vec<Cost>`. If alt cost chosen, use alt cost's `Vec<Cost>`; else use base mana cost. Concatenate additional cost mana components (from `AdditionalCost` payloads). Integrate X value into the mana cost's generic component. Apply `apply_cost_modifications()` (passthrough stub). Lock.
-     - **601.2g — Mana ability window:** Add `// TODO: explicit mana ability activation window (rule 601.2g)` comment.
+     - **601.2g — Mana ability window:** ✅ LANDED 2026-04-16 (with SPECIAL-2). Implemented as `GameState::run_mana_ability_window` — a DP-prompted loop that calls `ask_activate_mana_ability` once per activation until the pool covers cost, the DP declines, or no abilities remain. Mirror loop in `activate_ability` at 602.1b. See §15b for rationale.
      - **601.2h — Pay total cost:** Call `pay_costs` with the assembled total. **Cross-ref T12:** Once mana spending restrictions exist, the cost payment step must know whether the spell being cast matches any restriction on pool mana. The `pay_costs` call will need access to the spell's characteristics (types, name, etc.) to determine which restricted mana is eligible. This is a key integration point between T12's design and this ticket — the design spike should specify the `pay_costs` API change needed.
      - **601.2i — Finalize:** Emit `SpellCast` event (existing).
   2. **Cost modification pipeline stub (E26):** Create `apply_cost_modifications(game, player_id, base_costs) -> Vec<Cost>` that currently returns `base_costs` unchanged. Document the pipeline as comments:
@@ -628,7 +630,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
-#### SPECIAL-1a: DP refactor — types, trait, ask functions, ScriptedDP
+#### SPECIAL-1a: DP refactor — types, trait, ask functions, ScriptedDP (DONE ✅)
 - **Scope:** Medium
 - **Source:** DP scalability analysis (2026-04-13). Design doc: `plans/atomic-tests/supplemental-docs/decision-provider-refactor.md`
 - **Depends on:** T18a (current DP methods for X/alt/additional costs exist and are tested)
@@ -664,7 +666,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
-#### SPECIAL-1b: DP refactor — CLI, Random, Dispatch implementations
+#### SPECIAL-1b: DP refactor — CLI, Random, Dispatch implementations (DONE ✅)
 - **Scope:** Small
 - **Depends on:** SPECIAL-1a (new trait + choice types exist)
 - **Files:** `ui/cli.rs` (rewrite impl), `ui/random.rs` (rewrite impl), `ui/decision.rs` (DispatchDP rewrite)
@@ -684,7 +686,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 
 ---
 
-#### SPECIAL-1c: DP refactor — engine migration + old trait deletion
+#### SPECIAL-1c: DP refactor — engine migration + old trait deletion (DONE ✅)
 - **Scope:** Medium (mechanical but wide-reaching)
 - **Depends on:** SPECIAL-1b (all DP impls have new trait)
 - **Files:** `ui/decision.rs` (delete old trait), `engine/cast.rs` (modify call sites), `engine/priority.rs` (modify), `engine/combat/steps.rs` (modify), `engine/sba.rs` (modify), `engine/costs.rs` (modify), `engine/resolve.rs` (modify), all test files (update scripted DP usage)
@@ -867,7 +869,7 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
      }
      ```
      Add `pub casting_restrictions: Vec<CastingRestriction>` to `CardData`. These are self-imposed restrictions like Berserk's "Cast only before the combat damage step" or Illusory Angel's "Cast only if you've cast another spell this turn." Enforce in the post-proposal legality check. **Note:** These are distinct from T19's `ActivationRestriction` (which applies to activated abilities, not spells).
-  4. **Mana ability window TODO (601.2g):** If not already added by T18a, ensure the `// TODO: explicit mana ability activation window (rule 601.2g)` comment exists in the pipeline.
+  4. **Mana ability window (601.2g):** ✅ Already landed 2026-04-16 via SPECIAL-2 combined commit. No T18a-left action.
 - **Tests:**
   - `test_no_mana_cost_card_rejected` — card with mana_cost: None can't be cast normally
   - `test_no_mana_cost_with_alt_cost_allowed` — card with alt cost can be cast despite no base mana cost
@@ -2354,7 +2356,21 @@ When `ask_choose_priority_action` returns `CastSpell(id)` or `ActivateAbility(id
 
 **Severity:** Real usability bug. Affects all DPs (CLI, Random, Scripted). Random DP works around it via `is_action_still_valid` pre-check, but this is a heuristic that doesn't catch all failure modes.
 
-**Design for fix (new ticket SPECIAL-2):**
+**STATUS (2026-04-16):** ✅ RESOLVED. SPECIAL-2 landed alongside 601.2g mana-ability window implementation. Details:
+- `run_priority_round` now runs a bounded retry loop (3× candidates count, min 6) that blacklists failed actions within a single priority window and falls back to `Pass` on budget exhaustion. Diagnostic `eprintln!` on exhaustion signals a likely `castable_spells`/`activatable_abilities` over-approximation bug.
+- `activate_ability` had a genuine rollback bug (stack object was orphaned if target validation or `pay_costs` failed after stack push). Fixed via new `rollback_ability_activation` helper called on every post-mutation failure path. `cast_spell` was already clean via `move_object(Zone::Hand)` cleanup.
+- The retry loop is **no longer load-bearing** for fuzz (which now casts spells via 601.2g) — it's a safety net for CLI UX and genuine unaffordability cases.
+- Mid-pipeline cancellation (D27) remains deferred.
+
+**601.2g termination model (refined 2026-04-16):** After an audit pass, the engine loop's original magic-number iteration guard was replaced with a principled argument:
+
+- **Engine (`run_mana_ability_window`):** terminates on (1) `can_pay_costs` OK, (2) DP declines (`None`), or (3) `enumerate_activatable_mana_abilities` empty after filtering a per-window failure blacklist. The failure blacklist guards against enumeration over-approximation / TOCTOU bugs and is bounded by `|initial_legal|`; no iteration counter or CR-violating cap.
+- **DP-side:** termination of the "DP keeps successfully activating forever" case is a DP-correctness property, not an engine invariant. The CR places no cap on how many mana abilities a player may activate during 601.2g.
+- **RandomDecisionProvider:** holds a single interior-mutable `Cell<Option<(ObjectId, u32)>>` tracking per-window activation count, capped at `WINDOW_ACTIVATION_CAP = 32`. Once hit, RandomDP returns empty (declines) and the engine exits the window cleanly. This is *not* the old stateful replay/queue design — it is a bounded policy-local counter on a single window. Documented at the top of `ui/random.rs`.
+- **Future AutoPayDP** (deferred) will replace the cap with a mana-bootstrap solver; the CLI path self-polices with no cap.
+- **ChoiceKind unchanged:** no extra field for activation count — the cap lives entirely inside RandomDP.
+
+**Original design (for reference):**
 
 The priority loop must catch execution failures and retry:
 
@@ -2384,11 +2400,42 @@ Same pattern applies to `ActivateAbility`. The `PlayLand` arm can use the same p
 
 **Where to schedule:** SPECIAL-2 is a non-blocking quality-of-life fix — small scope (~20 lines of engine code + 3-4 tests), no ticket depends on it. Can be picked up opportunistically whenever convenient. Not gated on any phase.
 
-#### 15c. Blocker Candidate Overapproximation — Flying/Reach Not Pre-Filtered
+#### 15c. Blocker Candidate Overapproximation — Flying/Reach Not Pre-Filtered + No Per-Blocker Uniqueness
 
 `legal_blockers()` in `oracle/legality.rs` returns all untapped creatures controlled by the defender, without checking flying/reach compatibility against specific attackers. The cross-product `(blocker, attacker)` in `process_declare_blockers` includes illegal pairs like "ground creature blocks flyer." These are caught by `validate_blockers()` post-selection, so correctness is maintained, but the DP sees options it can't legally pick.
 
-**Severity:** Low — validation catches it. But becomes a UX issue for CLI (confusing options) and an efficiency issue for Random DP (wasted retries). The fix is straightforward: filter the `legal_block_pairs` cross-product through the flying/reach per-pair check before passing to `ask_choose_blockers`. This is a refinement that can be done anytime — no ticket dependency.
+A second, more structural issue: `ask_choose_blockers` uses `pick_n(bounds=(0, legal.len()))` over the flat pair list. Nothing prevents the DP from picking two pairs with the same blocker-id (e.g. `(creature_X, attacker_1)` AND `(creature_X, attacker_2)`). Default MTG says a creature blocks at most one attacker unless it has Menace-opposite / multi-block keywords — validated post-hoc by `validate_blockers(&BlockConstraints::none())` which then errors.
+
+**STATUS (2026-04-16, post-601.2g):** Actively surfacing in fuzz. With fuzz now reaching combat (see §15b / SPECIAL-2 resolution), 200-game fuzz runs produce ~60% game-ending errors split roughly evenly between "cannot block more than 1 attacker(s)" and "can't block flyer (no flying or reach)". Zero panics — the engine correctly rejects invalid selections — but meaningful combat coverage in fuzz is blocked until this is fixed.
+
+**Severity (upgraded):** Medium. No longer just a CLI-UX nit; it's the dominant source of fuzz-harness errors and will block T21's combat-requirements solver from landing a clean fuzz baseline.
+
+**Design (SPECIAL-8, scoped 2026-04-16):** Two independent fixes, both rule-accurate, both preserving DP autonomy:
+
+1. **Legality pre-filter (engine, not strategy).** Extract `can_block(blocker, attacker, game) -> bool` from the body of `validate_blockers`. In `process_declare_blockers`, filter the cross-product through it *before* calling `ask_choose_blockers`. This removes *hard-illegal* pairs (flying/reach mismatch, protection, intimidate, landwalk-unblockability) that are never valid regardless of strategy. This is **not** the engine prescribing decision order — it's enforcing rules the DP can't legally violate. The DP still sees the full legal pair list and picks any subset in whatever order its reasoning prefers.
+
+2. **Retry on invalid proposal (CR 509.1c).** The rule: *"If, among other things, this set of blockers isn't legal, the defending player must choose a different set."* The current engine calls `validate_blockers` post-selection and propagates `Err` on failure, ending the game. Correct behavior is a bounded retry loop — exact same pattern as SPECIAL-2's `run_priority_round` retry:
+   ```
+   loop {
+       selection = ask_choose_blockers(dp, legal_pairs);
+       match validate_blockers(selection) {
+           Ok(_) => break,
+           Err(_) if budget > 0 => { budget -= 1; continue; }
+           Err(e) => return Err(e),  // diagnostic surface
+       }
+   }
+   ```
+   Retry budget ~10 attempts. This benefits *all* DPs: CLI users mis-sequencing, RandomDP hitting uniqueness violations, future AutoPayDP / MCTS with bugs.
+
+**Why this preserves DP autonomy:** the engine never prescribes an order in which to decide blocker assignments (no per-blocker loop). DPs see the full pair list and reason globally — matches real MTG play ("two blockers on the 5/5, one chump on the 3/3, leave my flyer back"). Per-blocker uniqueness (CR 509.1) is enforced by `validate_blockers` post-hoc, exactly as the rule prescribes.
+
+**Scope summary:**
+- **Must-do:** (1) extract `can_block`; (2) pre-filter cross-product; (3) CR 509.1c retry loop in `process_declare_blockers`; (4) tests — `can_block` per-keyword units, retry-recovers-from-invalid integration, fuzz 250 games green.
+- **Stretch (gate on fuzz measurements):** RandomDP self-dedup branch for `ChoiceKind::DeclareBlockers` *only if* retry-count metric shows RandomDP convergence is slow. Default: skip.
+- **Out of scope:** `ask_choose_blockers` reshape, per-blocker loop, banding/multi-block keyword prep, D30 attacker refactor, SPECIAL-9 retry-helper consolidation.
+- **Acceptance:** `cargo run --bin fuzz_games -- --games 250` exits 0, 0 errors, 0 panics. Retry-count logged for future tuning.
+
+**Priority:** SPECIAL-8 jumps the queue ahead of T18b/c/d. Rationale: fuzz currently exits code 1 on any clean run (errors > 0), and 68% error rate destroys signal-to-noise for every subsequent ticket's fuzz-acceptance gate.
 
 ---
 
@@ -2396,7 +2443,10 @@ Same pattern applies to `ActivateAbility`. The `PlayLand` arm can use the same p
 
 | D# | Summary |
 |----|---------|
-| D26 | Priority action retry on failed cast/activate — `run_priority_round` should catch `Err` from `cast_spell`/`activate_ability` and re-prompt instead of propagating. See Discrepancy §15b. Ticket: SPECIAL-2. Non-blocking QoL, pick up anytime. |
+| D26 | ✅ RESOLVED 2026-04-16. Priority action retry + `activate_ability` rollback cleanliness landed via SPECIAL-2, combined with 601.2g implementation. See §15b STATUS block. |
+| D33 | ➡️ PROMOTED to SPECIAL-8 (NEXT UP, 2026-04-16). Blocker legality pre-filter + CR 509.1c retry loop. Blocks fuzz signal-to-noise (68% error rate, exit code 1 on clean runs) for all subsequent tickets. Scoped design in §15c. |
+| D34 | 601.2g / 602.1b mana-ability window mode selection — `activate_mana_ability` currently has no mode argument; multi-output abilities (Cavern of Souls' "any color", Birds of Paradise if added, etc.) will need a nested mode prompt. No such cards in the current pool. Implement when the first multi-output mana ability is added. |
+| D35 | Consolidate propose/validate retry pattern — ticket SPECIAL-9. After SPECIAL-8 lands, three instances of the same "loop { propose; validate; ok→break / err→retry w/ budget }" shape exist: (a) `run_priority_round` retry on `cast_spell`/`activate_ability` failure (SPECIAL-2), (b) `process_declare_blockers` retry on `validate_blockers` failure (SPECIAL-8), (c) latent future: `process_declare_attackers` when PWs/battles make invalid proposals possible. Extract a shared `propose_and_validate<T>(propose_fn, validate_fn, budget) -> Result<T, RetryExhausted>` combinator. Optional sub-feature: hash-based proposal dedup to skip re-evaluating known-invalid proposal sets (generalization of SPECIAL-2's per-action blacklist from action-level to set-level). Low refactor pain if all three instances already share structure. Pick up after SPECIAL-8 lands. |
 | D27 | Mid-pipeline cast cancellation — allow DP to cancel during 601.2b–c (target selection, cost choices). Long-term UX priority. Requires sentinel return value or cancellation-aware middleware wrapper. See Discrepancy §15b. |
 | D28 | Shared test helpers — extract `ScriptedDecisionProvider` from `decision.rs` into dedicated module, add common DP script sequence helpers (`queue_turn_passes_with_no_attacks`, `queue_cast_and_resolve`, etc.). Ticket: SPECIAL-3. Non-blocking QoL, pick up anytime after SPECIAL-1c. |
 | D29 | CounterSpell/CounterAbility cleanup — replace manual stack/zone manipulation in `resolve.rs` with `move_object`. Ticket: SPECIAL-4. Non-blocking cleanup, pick up anytime. |
