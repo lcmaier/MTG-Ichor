@@ -8,12 +8,16 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::ManaCost;
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections;
+use crate::oracle::mana_helpers::{
+    enumerate_activatable_mana_abilities, remaining_cost_after_pool,
+};
 use crate::ui::ask::{
+    ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
     ask_choose_x_value, ask_select_recipients, ask_choose_generic_mana_allocation,
 };
@@ -187,9 +191,20 @@ impl GameState {
         );
 
         // --- 601.2g: Mana ability window ---
-        // TODO: Allow the player to activate mana abilities here before payment.
-        // Currently mana abilities are activated before cast_spell via the
-        // priority action queue in the DecisionProvider.
+        // Rule 601.2g / 605.1a: the player activates mana abilities to pay
+        // the cost. Each activation is a player decision — the engine does
+        // not auto-tap. This is the rules-correct implementation point for
+        // "tap lands before casting": instead of priority-level mana
+        // abilities (which the candidate list does not include), the engine
+        // prompts the casting player here, one ability at a time, until the
+        // pool covers the cost or the player declines.
+        //
+        // Loop termination: (a) pool covers cost — break, proceed to 601.2h;
+        // (b) DP declines (empty pick) — break, 601.2h will fail, rollback;
+        // (c) no abilities remain — break, 601.2h will fail, rollback;
+        // (d) loop guard trips — defensive bound to prevent infinite loops
+        //     from buggy DPs or stale enumeration.
+        self.run_mana_ability_window(player_id, card_id, &total_costs, decisions);
 
         // --- 601.2h: Pay total cost ---
         // Pre-check: can we pay? If not, roll back.
@@ -287,6 +302,10 @@ impl GameState {
         self.objects.insert(ability_obj_id, ability_obj);
         self.stack.push(ability_obj_id);
 
+        // From here on, any Err path must call `rollback_ability_activation`
+        // to keep game state clean (required by the priority-retry loop in
+        // `run_priority_round` — see D26 / SPECIAL-2).
+
         // Choose targets
         let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
             let (filter, count) = match &recipient {
@@ -302,7 +321,10 @@ impl GameState {
                 decisions, self, player_id, &recipient, ability_obj_id,
                 &legal, min_sel, max_sel,
             );
-            self.validate_targets(&recipient, &chosen)?;
+            if let Err(e) = self.validate_targets(&recipient, &chosen) {
+                self.rollback_ability_activation(ability_obj_id);
+                return Err(e);
+            }
             chosen
         } else {
             Vec::new()
@@ -322,11 +344,125 @@ impl GameState {
         };
         self.stack_entries.insert(ability_obj_id, stack_entry);
 
+        // --- 602.1b: Mana ability window ---
+        // Same rules-correct model as 601.2g for spells. The player activates
+        // mana abilities as needed to pay the activated-ability cost. Pool is
+        // filled in-place; caller's pay_costs below detects insufficiency and
+        // triggers rollback.
+        self.run_mana_ability_window(player_id, source_id, &ability_costs, decisions);
+
         // Pay ability costs
         let generic_allocation = HashMap::new();
-        self.pay_costs(&ability_costs, player_id, source_id, &generic_allocation)?;
+        if let Err(e) = self.pay_costs(&ability_costs, player_id, source_id, &generic_allocation) {
+            self.rollback_ability_activation(ability_obj_id);
+            return Err(e);
+        }
 
         Ok(())
+    }
+
+    /// Run the 601.2g / 602.1b mana-ability window for a pending spell or
+    /// activated ability.
+    ///
+    /// Prompts the player to activate mana abilities one at a time until
+    /// `total_costs` can be paid from the player's mana pool, the player
+    /// declines, or no activatable abilities remain. Does not roll back on
+    /// failure — the caller's post-window `can_pay_costs` / `pay_costs` step
+    /// handles rollback if the pool still doesn't cover the cost.
+    ///
+    /// # Mana-cost extraction
+    /// Only `Cost::Mana` is relevant to this window: rule 601.2g explicitly
+    /// restricts the activation-during-cost-payment window to *mana abilities*.
+    /// Non-mana costs (Cost::Tap, Cost::SacrificeSelf, Cost::PayLife, …) are
+    /// paid in 601.2h, which has no activation window. We extract the mana
+    /// component to build the `remaining_cost` context the DP sees.
+    ///
+    /// # Termination
+    /// Termination is a DP-correctness property, not an engine invariant. The
+    /// CR places no cap on how many mana abilities a player may activate
+    /// during 601.2g. The loop terminates when one of the following holds:
+    ///
+    /// 1. `can_pay_costs` succeeds (cost covered) → return.
+    /// 2. `ask_activate_mana_ability` returns `None` (DP declines) → return.
+    /// 3. `enumerate_activatable_mana_abilities` returns empty after filtering
+    ///    the failure blacklist → return.
+    ///
+    /// The **failure blacklist** guards against enumeration over-approximation
+    /// or TOCTOU bugs: if `activate_mana_ability` fails after enumeration said
+    /// the ability was legal, we blacklist `(perm_id, ability_id)` for the
+    /// remainder of this window so the DP can't pick it again. The blacklist
+    /// is bounded by `|initial_legal|`, so it cannot loop forever on failure.
+    ///
+    /// The only remaining infinite-loop risk is a buggy DP that keeps
+    /// successfully activating abilities forever (e.g., cycling mana-filter
+    /// abilities). That is a DP-correctness concern — `RandomDecisionProvider`
+    /// caps itself with an internal per-window counter; a future `AutoPayDP`
+    /// will use a mana-bootstrap solver; a human CLI user self-polices.
+    fn run_mana_ability_window(
+        &mut self,
+        player_id: PlayerId,
+        spell_or_ability_id: ObjectId,
+        total_costs: &[Cost],
+        decisions: &dyn DecisionProvider,
+    ) {
+        let mana_cost_for_window = total_costs
+            .iter()
+            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
+            .unwrap_or_else(ManaCost::zero);
+
+        let mut failed: std::collections::HashSet<(ObjectId, AbilityId)> =
+            std::collections::HashSet::new();
+
+        loop {
+            if self.can_pay_costs(total_costs, player_id, spell_or_ability_id).is_ok() {
+                return;
+            }
+
+            let legal: Vec<(ObjectId, AbilityId)> =
+                enumerate_activatable_mana_abilities(self, player_id)
+                    .into_iter()
+                    .filter(|k| !failed.contains(k))
+                    .collect();
+            if legal.is_empty() {
+                return; // caller's pay_costs will fail and roll back
+            }
+
+            let pool = &self.players[player_id].mana_pool;
+            let remaining = remaining_cost_after_pool(&mana_cost_for_window, pool);
+
+            match ask_activate_mana_ability(
+                decisions, self, player_id, spell_or_ability_id, &remaining, &legal,
+            ) {
+                Some((perm_id, ability_id)) => {
+                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id) {
+                        // Enumeration said this was legal but activation
+                        // failed — likely staleness or a `can_pay_ability_costs`
+                        // over-approximation bug. Blacklist so we can't loop
+                        // on it; the set is bounded by |initial legal|.
+                        eprintln!(
+                            "WARN: mana-ability activation failed in 601.2g window \
+                             (perm={}, ab={}): {}",
+                            perm_id, ability_id, e
+                        );
+                        failed.insert((perm_id, ability_id));
+                    }
+                }
+                None => {
+                    // DP declined; caller's pay_costs determines whether the
+                    // current pool suffices.
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Remove an ability object that was pushed onto the stack by a failed
+    /// `activate_ability` call. Used to keep state clean when target
+    /// validation or cost payment fails mid-activation (see D26 / SPECIAL-2).
+    fn rollback_ability_activation(&mut self, ability_obj_id: ObjectId) {
+        self.stack.retain(|&id| id != ability_obj_id);
+        self.stack_entries.remove(&ability_obj_id);
+        self.objects.remove(&ability_obj_id);
     }
 
     /// Check whether a player can legally begin casting a spell (rule 601.3).

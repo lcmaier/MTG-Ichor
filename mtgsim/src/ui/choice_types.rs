@@ -38,6 +38,22 @@ pub enum ChoiceKind {
     /// "choose" — the `EffectRecipient` field distinguishes them).
     SelectRecipients { recipient: EffectRecipient, spell_id: ObjectId },
     GenericManaAllocation { mana_cost: ManaCost },
+    /// 601.2g / 602.1b — "mana ability window" inside spell cast or ability
+    /// activation. The player may activate mana abilities (rule 605) to cover
+    /// the spell's / ability's cost. Asked repeatedly in a loop: each prompt
+    /// offers currently-available mana abilities; the DP picks one to activate
+    /// or declines (empty pick = stop). The engine exits the loop when the
+    /// pool covers the cost, the DP declines, or no abilities remain.
+    ///
+    /// This is the rules-correct mechanism for "tap lands to pay" — the
+    /// decision of *which* ability to activate is a player decision (605.1a),
+    /// preserving the engine invariant of not making strategic choices on
+    /// behalf of players. Examples that require this granularity:
+    /// - Cavern of Souls: choose between `{T}: add {C}` and `{T}: add any color`
+    /// - Multiple equivalent `{T}: add {B}` sources (artifact vs land matters
+    ///   for other spells like improvise or landfall triggers)
+    /// - Generic vs colored ordering with mixed mana producers
+    ManaAbilityWindow { spell_or_ability_id: ObjectId, remaining_cost: ManaCost },
 
     // --- State-Based & Cleanup ---
     DiscardToHandSize,

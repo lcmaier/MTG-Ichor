@@ -18,7 +18,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -71,10 +71,6 @@ fn validate_pick_n(
 /// TODO(Phase 9): When `GameNumber` replaces `u64` for symbolic/comparative
 /// values, this will need to use `GameNumber::gte`/`GameNumber::lte` instead
 /// of direct integer comparison.
-///
-/// Not yet used — `ask_choose_x_value` delegates affordability to rollback.
-/// Will be needed for future bounded `pick_number` callers (loop count, etc.).
-#[allow(dead_code)]
 fn validate_pick_number(value: u64, min: u64, max: u64, context_desc: &str) {
     assert!(
         value >= min && value <= max,
@@ -369,8 +365,10 @@ pub fn ask_choose_x_value(
         kind: ChoiceKind::ChooseXValue { spell_id, x_count },
     };
     let value = dp.pick_number(game, player, &ctx, 0, u64::MAX);
-    // Only reject truly impossible values (negative handled by u64 type).
-    // Affordability is enforced by rollback, not here.
+    // Contract check: value must be in [0, u64::MAX] — tautological for u64, but
+    // keeps the validate_* pattern wired in so fuzz harness exercises it. Affordability
+    // is enforced by the casting pipeline rollback (601.2h), not here.
+    validate_pick_number(value, 0, u64::MAX, "choose_x_value");
     value
 }
 
@@ -469,6 +467,53 @@ pub fn ask_select_recipients(
         "select_recipients",
     );
     indices.iter().map(|&i| legal_selections[i]).collect()
+}
+
+/// Prompt the casting/activating player for a mana ability to activate
+/// inside the 601.2g / 602.1b mana-ability window.
+///
+/// Bounds are `(0, 1)`: picking zero options means "stop activating" (the
+/// engine exits the loop; `pay_costs` will run with the current pool and
+/// fail if insufficient — caller must then roll back). Picking one option
+/// means "activate this ability"; the engine applies it and re-enters the
+/// loop to re-check whether the pool now covers the cost.
+///
+/// Options are presented as `ChoiceOption::Action(PriorityAction::ActivateAbility(...))`
+/// so DPs that already pattern-match on `PriorityAction` reuse the same
+/// inspection path. The `ChoiceContext` carries the `spell_or_ability_id`
+/// being paid for and the `remaining_cost` after pool — middleware DPs
+/// (future AutoTapDP) use that to plan tap sequences.
+pub fn ask_activate_mana_ability(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    spell_or_ability_id: ObjectId,
+    remaining_cost: &ManaCost,
+    legal: &[(ObjectId, AbilityId)],
+) -> Option<(ObjectId, AbilityId)> {
+    if legal.is_empty() {
+        return None;
+    }
+    let options: Vec<ChoiceOption> = legal
+        .iter()
+        .map(|(perm_id, ab_id)| {
+            ChoiceOption::Action(PriorityAction::ActivateAbility(*perm_id, *ab_id))
+        })
+        .collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id,
+            remaining_cost: remaining_cost.clone(),
+        },
+    };
+    // (0, 1): 0 = decline / stop, 1 = activate one ability
+    let indices = dp.pick_n(game, player, &ctx, &options, (0, 1));
+    validate_pick_n(&indices, options.len(), (0, 1), "activate_mana_ability");
+    if indices.is_empty() {
+        None
+    } else {
+        Some(legal[indices[0]])
+    }
 }
 
 /// Choose how to allocate mana from the pool to pay generic mana.
@@ -957,6 +1002,229 @@ mod tests {
             assert_eq!(alloc.len(), 2);
             assert_eq!(alloc.iter().sum::<u64>(), 5);
             assert!(alloc[0] >= 3, "bucket 0 must have at least 3, got {}", alloc[0]);
+        }
+    }
+
+    // ===========================================================================
+    // SPECIAL-5: Class A — validator negative tests (direct calls to validate_*)
+    // ===========================================================================
+
+    #[test]
+    #[should_panic(expected = "DP returned 2 allocations but 3 buckets provided")]
+    fn test_validation_rejects_wrong_bucket_count() {
+        let alloc = vec![1u64, 2];
+        let mins = vec![0u64; 3];
+        validate_allocation(&alloc, 3, 3, &mins, None, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "per_bucket_mins length 2 != buckets length 3")]
+    fn test_validation_rejects_mismatched_mins_length() {
+        let alloc = vec![1u64, 1, 1];
+        let mins = vec![0u64; 2]; // wrong length
+        validate_allocation(&alloc, 3, 3, &mins, None, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "per_bucket_maxs length 2 != buckets length 3")]
+    fn test_validation_rejects_mismatched_maxs_length() {
+        let alloc = vec![1u64, 1, 1];
+        let mins = vec![0u64; 3];
+        let maxs = vec![3u64; 2]; // wrong length
+        validate_allocation(&alloc, 3, 3, &mins, Some(&maxs), "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP allocated 5 to bucket 1 but maximum is 3")]
+    fn test_validation_rejects_above_per_bucket_max() {
+        let alloc = vec![0u64, 5];
+        let mins = vec![0u64, 0];
+        let maxs = vec![10u64, 3];
+        validate_allocation(&alloc, 2, 5, &mins, Some(&maxs), "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned duplicate index 1")]
+    fn test_validation_rejects_duplicate_pick_n_index() {
+        validate_pick_n(&[1, 1], 3, (2, 2), "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned 0 selections, expected 1-2")]
+    fn test_validation_rejects_count_below_min() {
+        validate_pick_n(&[], 5, (1, 2), "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned 5 but range is [0, 3]")]
+    fn test_validation_pick_number_above_max() {
+        validate_pick_number(5, 0, 3, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned 1 but range is [3, 10]")]
+    fn test_validation_pick_number_below_min() {
+        validate_pick_number(1, 3, 10, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned 2 indices but 3 items to order")]
+    fn test_validation_ordering_wrong_length() {
+        validate_ordering(&[0, 1], 3, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned duplicate index 1 in ordering")]
+    fn test_validation_ordering_duplicate() {
+        validate_ordering(&[0, 1, 1], 3, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "DP returned index 3 but only 3 items")]
+    fn test_validation_ordering_index_oob() {
+        validate_ordering(&[0, 1, 3], 3, "test");
+    }
+
+    // ===========================================================================
+    // SPECIAL-5: Class D — RandomDecisionProvider contract property tests
+    // ===========================================================================
+    //
+    // These run 200 iterations each, exercising the 4-primitive contract with
+    // randomized valid inputs. A seeded RNG drives input generation so failures
+    // are reproducible; the DP itself uses thread RNG for responses.
+
+    #[test]
+    fn test_random_dp_pick_n_contract_property() {
+        use crate::ui::random::RandomDecisionProvider;
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+        use rand::Rng;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+        let mut seeded = StdRng::seed_from_u64(0xD1CE_C04E);
+
+        for _ in 0..200 {
+            let n: usize = seeded.random_range(1..=8);
+            let lo: usize = seeded.random_range(0..=n);
+            let hi: usize = seeded.random_range(lo..=n);
+            let options: Vec<ChoiceOption> = (0..n)
+                .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
+                .collect();
+            let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+            let result = dp.pick_n(&game, 0, &ctx, &options, (lo, hi));
+
+            // Contract: length within bounds, indices in range, no duplicates
+            assert!(result.len() >= lo && result.len() <= hi,
+                "pick_n len {} not in [{}, {}]", result.len(), lo, hi);
+            let mut seen = vec![false; n];
+            for &i in &result {
+                assert!(i < n, "index {} >= options_len {}", i, n);
+                assert!(!seen[i], "duplicate index {}", i);
+                seen[i] = true;
+            }
+        }
+    }
+
+    #[test]
+    fn test_random_dp_pick_number_contract_property() {
+        use crate::ui::random::RandomDecisionProvider;
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+        use rand::Rng;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+        let mut seeded = StdRng::seed_from_u64(0xCAFE_F00D);
+
+        // Use a non-X ChoiceKind so pick_number uses the general branch (not
+        // the X-value self-limiting branch which clamps to game state).
+        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+
+        for _ in 0..200 {
+            let min: u64 = seeded.random_range(0..=50);
+            let max: u64 = seeded.random_range(min..=min + 100);
+            let result = dp.pick_number(&game, 0, &ctx, min, max);
+            assert!(result >= min && result <= max,
+                "pick_number {} not in [{}, {}]", result, min, max);
+        }
+    }
+
+    #[test]
+    fn test_random_dp_allocate_contract_property() {
+        use crate::ui::random::RandomDecisionProvider;
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+        use rand::Rng;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+        let mut seeded = StdRng::seed_from_u64(0xBEEF_F00D);
+
+        for _ in 0..200 {
+            let n: usize = seeded.random_range(1..=6);
+            // Per-bucket mins and maxs, with maxs >= mins, and a feasible total.
+            let mut mins = Vec::with_capacity(n);
+            let mut maxs = Vec::with_capacity(n);
+            let mut min_sum: u64 = 0;
+            let mut max_sum: u64 = 0;
+            for _ in 0..n {
+                let lo: u64 = seeded.random_range(0..=3);
+                let hi: u64 = seeded.random_range(lo..=lo + 5);
+                mins.push(lo);
+                maxs.push(hi);
+                min_sum += lo;
+                max_sum += hi;
+            }
+            let total: u64 = if min_sum == max_sum { min_sum }
+                else { seeded.random_range(min_sum..=max_sum) };
+
+            let buckets: Vec<ChoiceOption> = (0..n)
+                .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
+                .collect();
+            let ctx = ChoiceContext {
+                kind: ChoiceKind::AssignCombatDamage {
+                    attacker_id: crate::types::ids::new_object_id(),
+                },
+            };
+            let alloc = dp.allocate(&game, 0, &ctx, total, &buckets, &mins, Some(&maxs));
+
+            assert_eq!(alloc.len(), n, "alloc len mismatch");
+            let sum: u64 = alloc.iter().sum();
+            assert_eq!(sum, total, "alloc sum {} != total {}", sum, total);
+            for (i, &v) in alloc.iter().enumerate() {
+                assert!(v >= mins[i], "bucket {} value {} < min {}", i, v, mins[i]);
+                assert!(v <= maxs[i], "bucket {} value {} > max {}", i, v, maxs[i]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_random_dp_ordering_contract_property() {
+        use crate::ui::random::RandomDecisionProvider;
+        use rand::SeedableRng;
+        use rand::rngs::StdRng;
+        use rand::Rng;
+
+        let dp = RandomDecisionProvider::new();
+        let game = test_game_state();
+        let mut seeded = StdRng::seed_from_u64(0xFACE_B00C);
+
+        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+
+        for _ in 0..200 {
+            let n: usize = seeded.random_range(0..=10);
+            let items: Vec<ChoiceOption> = (0..n)
+                .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
+                .collect();
+            let order = dp.choose_ordering(&game, 0, &ctx, &items);
+            assert_eq!(order.len(), n, "ordering length mismatch");
+            let mut seen = vec![false; n];
+            for &i in &order {
+                assert!(i < n, "ordering index {} >= n {}", i, n);
+                assert!(!seen[i], "duplicate index {} in ordering", i);
+                seen[i] = true;
+            }
         }
     }
 

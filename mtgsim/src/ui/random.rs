@@ -1,14 +1,31 @@
 // Random DecisionProvider — makes random legal choices for fuzz testing.
 //
-// Uses an internal action queue for tap-then-cast sequences. All choices
-// are random but *legal* — the DP queries oracle helpers to find valid
-// options before selecting among them.
+// Implements the 4-primitive `DecisionProvider` trait by picking uniformly at
+// random among the options the engine presents. Holds one piece of interior-
+// mutable state: a per-mana-ability-window activation counter used to cap
+// pathological filter-ability chains during fuzz (see `pick_n` below). This
+// is NOT the plan/queue-based replay state of the old stateful RandomDP — it
+// is a bounded, single-window, policy-local counter.
+//
+// Tap-before-cast sequencing is *not* RandomDP's concern — the engine runs
+// the 601.2g / 602.1b mana-ability-window loop inside `cast_spell` and
+// `activate_ability`, prompting this DP once per mana-ability activation.
+// During that loop RandomDP always picks an activation (never randomly
+// declines) up to `WINDOW_ACTIVATION_CAP`, after which it declines so the
+// engine bails out cleanly.
+//
+// Auto-tap as a *strategic* concern (choose which dual land to tap, whether
+// to save a Cavern of Souls for an uncounterable creature later) is a
+// future middleware DP concern, not this type's job — see
+// `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md` §4.
+
+use std::cell::Cell;
 
 use rand::Rng;
 use rand::seq::SliceRandom;
 
 use crate::state::game_state::GameState;
-use crate::types::ids::PlayerId;
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
 
@@ -19,12 +36,25 @@ use crate::ui::decision::DecisionProvider;
 ///
 /// Implements the 4-primitive `DecisionProvider` trait. The `ask_*` functions
 /// in `ui::ask` handle semantic context; this provider just picks randomly
-/// among the options presented to it.
-pub struct RandomDecisionProvider;
+/// among the options presented to it — with one exception: during a
+/// `ChoiceKind::ManaAbilityWindow`, it always activates (never randomly
+/// declines) until the per-window activation cap is hit, at which point it
+/// declines so the 601.2g / 602.1b loop exits and the engine rolls back any
+/// unpayable cost. See `pick_n` for details.
+pub struct RandomDecisionProvider {
+    /// Current mana-ability window tracker: `(spell_or_ability_id, activations_so_far)`.
+    /// Resets when a new window id is seen. See `pick_n` for the rationale.
+    window: Cell<Option<(ObjectId, u32)>>,
+}
 
 impl RandomDecisionProvider {
+    /// Max activations per mana-ability window before RandomDP declines.
+    /// Bounds pathological filter-ability chains during fuzz without
+    /// constraining legitimate mana plans (real plans rarely exceed ~10).
+    pub const WINDOW_ACTIVATION_CAP: u32 = 32;
+
     pub fn new() -> Self {
-        RandomDecisionProvider
+        RandomDecisionProvider { window: Cell::new(None) }
     }
 }
 
@@ -39,7 +69,7 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _context: &ChoiceContext,
+        context: &ChoiceContext,
         options: &[ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
@@ -47,6 +77,30 @@ impl DecisionProvider for RandomDecisionProvider {
             return Vec::new();
         }
         let mut rng = rand::rng();
+
+        // During a `ManaAbilityWindow`, RandomDP always picks an activation
+        // (never randomly declines) so fuzz exercises full cost-payment
+        // paths. Termination is controlled by the engine via
+        // `can_pay_costs` success / enumeration-empty / failure blacklist,
+        // plus the per-window activation cap here as a safety net against
+        // pathological filter-ability chains (e.g., `{1}: Add one mana of
+        // any color` cycled forever). Once the cap is hit we return empty
+        // (decline), letting the engine exit the window; any unpayable cost
+        // then triggers clean rollback via the caller.
+        if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } = &context.kind {
+            let (win_id, count) = match self.window.get() {
+                Some((id, n)) if id == *spell_or_ability_id => (id, n),
+                _ => (*spell_or_ability_id, 0),
+            };
+            if count >= Self::WINDOW_ACTIVATION_CAP {
+                self.window.set(Some((win_id, count)));
+                return Vec::new();
+            }
+            let idx = rng.random_range(0..options.len());
+            self.window.set(Some((win_id, count + 1)));
+            return vec![idx];
+        }
+
         let count = if bounds.0 == bounds.1 {
             bounds.0
         } else {

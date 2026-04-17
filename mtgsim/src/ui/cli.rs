@@ -97,6 +97,13 @@ impl DecisionProvider for CliDecisionProvider {
             ChoiceKind::ChooseAdditionalCosts => "Choose additional costs (indices, or none):".to_string(),
             ChoiceKind::SelectRecipients { .. } => "Choose targets (indices):".to_string(),
             ChoiceKind::DiscardToHandSize => "Choose card to discard:".to_string(),
+            ChoiceKind::ManaAbilityWindow { remaining_cost, .. } => {
+                format!(
+                    "Mana ability window: activate a mana ability to pay {} more, \
+                     or leave blank to stop:",
+                    remaining_cost
+                )
+            }
             ChoiceKind::LegendRule { legend_name } => {
                 format!("Legend rule: choose which '{}' to keep:", legend_name)
             }
