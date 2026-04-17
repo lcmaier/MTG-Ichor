@@ -106,6 +106,36 @@ impl DecisionProvider for RandomDecisionProvider {
         } else {
             rng.random_range(bounds.0..=bounds.1)
         };
+
+        // SPECIAL-8 stretch: for `DeclareBlockers`, dedup on blocker-id so
+        // RandomDP converges to a legal set in one shot instead of thrashing
+        // the engine's CR 509.1c retry loop. Each blocker can block at most
+        // one attacker by default (no Menace-opposite / multi-block keywords
+        // yet). The engine's retry loop remains a safety net — this branch
+        // just accelerates convergence.
+        if matches!(context.kind, ChoiceKind::DeclareBlockers) {
+            let mut shuffled: Vec<usize> = (0..options.len()).collect();
+            shuffled.shuffle(&mut rng);
+            let mut used_blockers: std::collections::HashSet<ObjectId> =
+                std::collections::HashSet::new();
+            let mut picked: Vec<usize> = Vec::new();
+            for idx in shuffled {
+                if picked.len() >= count {
+                    break;
+                }
+                if let ChoiceOption::BlockerAttacker(blocker, _) = &options[idx] {
+                    if used_blockers.insert(*blocker) {
+                        picked.push(idx);
+                    }
+                } else {
+                    // Unexpected option shape — include anyway (engine will validate).
+                    picked.push(idx);
+                }
+            }
+            picked.sort();
+            return picked;
+        }
+
         let mut indices: Vec<usize> = (0..options.len()).collect();
         indices.shuffle(&mut rng);
         indices.truncate(count);

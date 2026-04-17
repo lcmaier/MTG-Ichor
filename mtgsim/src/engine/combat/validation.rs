@@ -204,7 +204,7 @@ pub fn validate_attackers(
     }
 
     // Set-level constraint checks (rule 508.1c-d)
-    check_attack_constraints(proposed, constraints)?;
+    check_attack_set_constraints(proposed, constraints)?;
 
     Ok(())
 }
@@ -213,7 +213,7 @@ pub fn validate_attackers(
 ///
 /// Phase 3: this is a no-op when constraints is `AttackConstraints::none()`.
 /// Phase 4/5 will populate constraints from keywords and continuous effects.
-fn check_attack_constraints(
+fn check_attack_set_constraints(
     proposed: &[(ObjectId, AttackTarget)],
     constraints: &AttackConstraints,
 ) -> Result<(), CombatError> {
@@ -262,6 +262,65 @@ fn check_attack_constraints(
 }
 
 // ---------------------------------------------------------------------------
+// Per-pair blocker legality (SPECIAL-8)
+// ---------------------------------------------------------------------------
+
+/// Check whether a given `(blocker, attacker)` pair is *hard-legal* — i.e.
+/// the pair passes every rule that depends only on the two creatures and
+/// the current attack target (flying/reach evasion, attacker actually
+/// attacking `defender`, blocker untapped, both on battlefield, etc.).
+///
+/// Per-creature uniqueness (CR 509.1 — "a creature can't block more than
+/// one attacker unless it has an ability such as menace") is **set-level**
+/// and therefore is NOT checked here. That remains in `validate_blockers`.
+///
+/// Used by `process_declare_blockers` to pre-filter the cross product of
+/// blocker × attacker pairs before prompting the DP, so the DP never sees
+/// pairs that are illegal regardless of strategy.
+///
+/// References: CR 509.1a, 509.1b, 702.9b (flying), 702.17b (reach).
+pub fn can_block(
+    game: &GameState,
+    defender: PlayerId,
+    blocker_id: ObjectId,
+    attacker_id: ObjectId,
+) -> Result<(), CombatError> {
+    let entry = game.battlefield.get(&blocker_id)
+        .ok_or(CombatError::NotOnBattlefield(blocker_id))?;
+    if !is_creature(game, blocker_id) {
+        return Err(CombatError::NotACreature(blocker_id));
+    }
+    if entry.controller != defender {
+        return Err(CombatError::NotControlledByPlayer(blocker_id, defender));
+    }
+    if entry.tapped {
+        return Err(CombatError::CreatureIsTapped(blocker_id));
+    }
+
+    // Attacker must be on the battlefield and attacking this defender.
+    let att_entry = game.battlefield.get(&attacker_id)
+        .ok_or(CombatError::NotOnBattlefield(attacker_id))?;
+    let attacking_info = att_entry.attacking.as_ref()
+        .ok_or(CombatError::AttackerNotAttackingThisPlayer(blocker_id, attacker_id))?;
+    match &attacking_info.target {
+        AttackTarget::Player(pid) if *pid == defender => {}
+        _ => {
+            return Err(CombatError::AttackerNotAttackingThisPlayer(blocker_id, attacker_id));
+        }
+    }
+
+    // Flying evasion (rule 702.9b / 702.17b).
+    if has_keyword(game, attacker_id, KeywordAbility::Flying)
+        && !has_keyword(game, blocker_id, KeywordAbility::Flying)
+        && !has_keyword(game, blocker_id, KeywordAbility::Reach)
+    {
+        return Err(CombatError::CantBlockFlyer(blocker_id, attacker_id));
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Blocker validation (rule 509.1)
 // ---------------------------------------------------------------------------
 
@@ -279,56 +338,12 @@ pub fn validate_blockers(
     let mut block_counts: HashMap<ObjectId, usize> = HashMap::new();
 
     for (blocker_id, attacker_id) in proposed {
-        // 1. Blocker must be on the battlefield
-        let entry = game.battlefield.get(blocker_id)
-            .ok_or(CombatError::NotOnBattlefield(*blocker_id))?;
+        // Per-pair hard legality (shared with the pre-filter in
+        // `process_declare_blockers`): zone/type/controller/tap + attacker
+        // actually attacking `player_id` + flying/reach evasion.
+        can_block(game, player_id, *blocker_id, *attacker_id)?;
 
-        // 2. Must be a creature
-        if !is_creature(game, *blocker_id) {
-            return Err(CombatError::NotACreature(*blocker_id));
-        }
-
-        // 3. Controlled by the defending player
-        if entry.controller != player_id {
-            return Err(CombatError::NotControlledByPlayer(*blocker_id, player_id));
-        }
-
-        // 4. Must be untapped
-        if entry.tapped {
-            return Err(CombatError::CreatureIsTapped(*blocker_id));
-        }
-
-        // 5. The attacker must be attacking this player
-        if let Some(attacker_entry) = game.battlefield.get(attacker_id) {
-            if let Some(ref attacking_info) = attacker_entry.attacking {
-                match &attacking_info.target {
-                    AttackTarget::Player(pid) => {
-                        if *pid != player_id {
-                            return Err(CombatError::AttackerNotAttackingThisPlayer(*blocker_id, *attacker_id));
-                        }
-                    }
-                    _ => {
-                        // Phase 3: only player attacks supported
-                        return Err(CombatError::AttackerNotAttackingThisPlayer(*blocker_id, *attacker_id));
-                    }
-                }
-            } else {
-                // Attacker isn't attacking at all
-                return Err(CombatError::AttackerNotAttackingThisPlayer(*blocker_id, *attacker_id));
-            }
-        } else {
-            return Err(CombatError::NotOnBattlefield(*attacker_id));
-        }
-
-        // 6. Flying evasion check (rule 702.9b)
-        if has_keyword(game, *attacker_id, KeywordAbility::Flying) {
-            if !has_keyword(game, *blocker_id, KeywordAbility::Flying)
-                && !has_keyword(game, *blocker_id, KeywordAbility::Reach) {
-                return Err(CombatError::CantBlockFlyer(*blocker_id, *attacker_id));
-            }
-        }
-
-        // 7. Count blocks per creature
+        // Set-level: count blocks per creature (CR 509.1).
         let count = block_counts.entry(*blocker_id).or_insert(0);
         *count += 1;
         let max = constraints.max_blocks_for(*blocker_id);
@@ -338,7 +353,7 @@ pub fn validate_blockers(
     }
 
     // Set-level constraint checks
-    check_block_constraints(proposed, constraints)?;
+    check_block_set_constraints(proposed, constraints)?;
 
     Ok(())
 }
@@ -346,7 +361,7 @@ pub fn validate_blockers(
 /// Check set-level block constraints.
 ///
 /// Phase 3: no-op with `BlockConstraints::none()`.
-fn check_block_constraints(
+fn check_block_set_constraints(
     proposed: &[(ObjectId, ObjectId)],
     constraints: &BlockConstraints,
 ) -> Result<(), CombatError> {
@@ -919,5 +934,154 @@ mod tests {
         // Bears should be tapped
         assert!(game.battlefield.get(&bears).unwrap().tapped);
         assert!(game.battlefield.get(&bears).unwrap().attacking.is_some());
+    }
+
+    // --- can_block per-pair pre-filter tests (SPECIAL-8 / CR 509.1) ---
+
+    #[test]
+    fn test_can_block_basic_ok() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature(&mut game, 0);
+        let blocker = place_creature(&mut game, 1);
+        set_attacking(&mut game, attacker, 1);
+
+        assert!(can_block(&game, 1, blocker, attacker).is_ok());
+    }
+
+    #[test]
+    fn test_can_block_ground_vs_flyer_rejected() {
+        let mut game = GameState::new(2, 20);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 2, 2);
+        let ground = place_creature(&mut game, 1);
+        set_attacking(&mut game, flyer, 1);
+
+        assert_eq!(
+            can_block(&game, 1, ground, flyer),
+            Err(CombatError::CantBlockFlyer(ground, flyer)),
+        );
+    }
+
+    #[test]
+    fn test_can_block_reach_blocks_flyer() {
+        let mut game = GameState::new(2, 20);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 2, 2);
+        let spider = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Reach], 1, 3);
+        set_attacking(&mut game, flyer, 1);
+
+        assert!(can_block(&game, 1, spider, flyer).is_ok());
+    }
+
+    #[test]
+    fn test_can_block_flyer_blocks_flyer() {
+        let mut game = GameState::new(2, 20);
+        let a = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 2, 2);
+        let b = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Flying], 2, 2);
+        set_attacking(&mut game, a, 1);
+
+        assert!(can_block(&game, 1, b, a).is_ok());
+    }
+
+    #[test]
+    fn test_can_block_attacker_not_attacking_rejected() {
+        let mut game = GameState::new(2, 20);
+        let not_attacking = place_creature(&mut game, 0);
+        let blocker = place_creature(&mut game, 1);
+        // `not_attacking` never calls set_attacking — it's not in combat.
+
+        assert_eq!(
+            can_block(&game, 1, blocker, not_attacking),
+            Err(CombatError::AttackerNotAttackingThisPlayer(blocker, not_attacking)),
+        );
+    }
+
+    #[test]
+    fn test_can_block_attacker_attacking_other_defender_rejected() {
+        let mut game = GameState::new(3, 20);
+        let attacker = place_creature(&mut game, 0);
+        let blocker = place_creature(&mut game, 1);
+        set_attacking(&mut game, attacker, 2); // attacking player 2, not 1
+
+        assert_eq!(
+            can_block(&game, 1, blocker, attacker),
+            Err(CombatError::AttackerNotAttackingThisPlayer(blocker, attacker)),
+        );
+    }
+
+    #[test]
+    fn test_can_block_tapped_blocker_rejected() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature(&mut game, 0);
+        let blocker = place_creature(&mut game, 1);
+        set_attacking(&mut game, attacker, 1);
+        game.battlefield.get_mut(&blocker).unwrap().tapped = true;
+
+        assert_eq!(
+            can_block(&game, 1, blocker, attacker),
+            Err(CombatError::CreatureIsTapped(blocker)),
+        );
+    }
+
+    #[test]
+    fn test_can_block_wrong_controller_rejected() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature(&mut game, 0);
+        let own_creature = place_creature(&mut game, 0); // controlled by attacker's player
+        set_attacking(&mut game, attacker, 1);
+
+        assert_eq!(
+            can_block(&game, 1, own_creature, attacker),
+            Err(CombatError::NotControlledByPlayer(own_creature, 1)),
+        );
+    }
+
+    // --- CR 509.1c retry loop test (SPECIAL-8) ---
+
+    #[test]
+    fn test_declare_blockers_retries_on_invalid_proposal() {
+        // Scenario: defender has one blocker, attacker has two creatures in
+        // combat. DP first proposes blocker-blocks-both (duplicate — violates
+        // default 1-block-per-creature rule), then proposes a legal single
+        // block. Retry loop must accept the second proposal.
+        let mut game = GameState::new(2, 20);
+        let att1 = place_creature(&mut game, 0);
+        let att2 = place_creature(&mut game, 0);
+        let blocker = place_creature(&mut game, 1);
+        set_attacking(&mut game, att1, 1);
+        set_attacking(&mut game, att2, 1);
+
+        // legal_block_pairs will be ordered by HashMap iteration — we can
+        // derive the index-of-each-pair at runtime to build the DP script.
+        let blocker_ids = crate::oracle::legality::legal_blockers(&game, 1);
+        let attackers_in_combat: Vec<ObjectId> = game.battlefield.iter()
+            .filter_map(|(id, e)| e.attacking.as_ref().map(|_| *id))
+            .collect();
+        let pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
+            .iter()
+            .flat_map(|&bid| attackers_in_combat.iter().map(move |&aid| (bid, aid)))
+            .filter(|&(bid, aid)| can_block(&game, 1, bid, aid).is_ok())
+            .collect();
+        assert_eq!(pairs.len(), 2, "expected 2 legal pairs (blocker × 2 attackers)");
+        let idx_att1 = pairs.iter().position(|p| *p == (blocker, att1)).unwrap();
+
+        let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
+        // Invalid: pick both pairs — blocker is used twice.
+        scripted.expect_pick_n(
+            crate::ui::choice_types::ChoiceKind::DeclareBlockers,
+            vec![0, 1],
+        );
+        // Retry: pick just the pair where blocker blocks att1.
+        scripted.expect_pick_n(
+            crate::ui::choice_types::ChoiceKind::DeclareBlockers,
+            vec![idx_att1],
+        );
+
+        game.process_declare_blockers(&scripted).unwrap();
+
+        // Blocker should be blocking att1 only.
+        let binfo = game.battlefield.get(&blocker).unwrap().blocking.as_ref().unwrap();
+        assert_eq!(binfo.blocking, vec![att1]);
+        // att2 should not have been blocked.
+        let att2_info = game.battlefield.get(&att2).unwrap().attacking.as_ref().unwrap();
+        assert!(!att2_info.is_blocked);
     }
 }
