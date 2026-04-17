@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use crate::engine::combat::resolution::assign_combat_damage;
 use crate::engine::combat::validation::{
-    validate_attackers, validate_blockers,
+    can_block, validate_attackers, validate_blockers,
     AttackConstraints, BlockConstraints,
 };
 use crate::events::event::GameEvent;
@@ -99,7 +99,14 @@ impl GameState {
         let defending_players: Vec<PlayerId> = self.get_defending_players();
 
         for defender in defending_players {
-            // Build legal blocker-attacker pairs
+            // Build legal blocker-attacker pairs, pre-filtered via `can_block`
+            // (SPECIAL-8 / §15c). The pre-filter strips *hard-illegal* pairs
+            // (flying/reach mismatch, attacker not attacking this defender,
+            // tapped/wrong-controller blocker, etc.) so the DP never sees a
+            // pair it can't legally pick regardless of strategy. Per-blocker
+            // uniqueness (CR 509.1) is *set-level* and is not pre-filterable
+            // on individual pairs — it's enforced by `validate_blockers` and
+            // the retry loop below.
             let blocker_ids = legal_blockers(self, defender);
             let attackers_in_combat: Vec<ObjectId> = self.battlefield.iter()
                 .filter_map(|(id, e)| e.attacking.as_ref().map(|_| *id))
@@ -107,16 +114,43 @@ impl GameState {
             let legal_block_pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
                 .iter()
                 .flat_map(|&bid| attackers_in_combat.iter().map(move |&aid| (bid, aid)))
+                .filter(|&(bid, aid)| can_block(self, defender, bid, aid).is_ok())
                 .collect();
-            let proposed = ask_choose_blockers(decisions, self, defender, &legal_block_pairs);
+
+            // CR 509.1c: "If, among other things, this set of blockers isn't
+            // legal, the defending player must choose a different set."
+            // Bounded retry loop (budget = 10). On validation failure we
+            // re-prompt the DP with the same pre-filtered pair list; on
+            // budget exhaustion we surface the final error (rare — indicates
+            // a DP that can't converge). Same pattern as SPECIAL-2's
+            // run_priority_round retry; candidate for SPECIAL-9 consolidation.
+            const BLOCKER_RETRY_BUDGET: u32 = 10;
+            let mut retries: u32 = 0;
+            let proposed = loop {
+                let candidate = ask_choose_blockers(
+                    decisions, self, defender, &legal_block_pairs,
+                );
+                match validate_blockers(
+                    self, defender, &candidate, &BlockConstraints::none(),
+                ) {
+                    Ok(()) => break candidate,
+                    Err(e) => {
+                        if retries >= BLOCKER_RETRY_BUDGET {
+                            eprintln!(
+                                "WARN: blocker retry budget ({}) exhausted for player {} — \
+                                 last error: {}. Legal pairs: {}.",
+                                BLOCKER_RETRY_BUDGET, defender, e, legal_block_pairs.len()
+                            );
+                            return Err(format!("Invalid blockers: {}", e));
+                        }
+                        retries = retries.saturating_add(1);
+                    }
+                }
+            };
 
             if proposed.is_empty() {
                 continue;
             }
-
-            // Validate
-            validate_blockers(self, defender, &proposed, &BlockConstraints::none())
-                .map_err(|e| format!("Invalid blockers: {}", e))?;
 
             // Apply: set blocking info and update attacker's blocked_by
             for (blocker_id, attacker_id) in &proposed {
