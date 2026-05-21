@@ -184,7 +184,7 @@ impl GameState {
                 Ok(())
             }
             Cost::SacrificeSelf => {
-                self.move_object(source_id, crate::types::zones::Zone::Graveyard)
+                self.change_zone(source_id, crate::types::zones::Zone::Graveyard)
             }
             Cost::Sacrifice(_, _)
             | Cost::Discard(_, _)

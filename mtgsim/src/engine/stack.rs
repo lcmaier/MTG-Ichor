@@ -71,6 +71,15 @@ impl GameState {
                 let owner = self.get_object(object_id)?.owner;
 
                 // --- Enter the battlefield ---
+                // REPLACEMENT-BYPASS: we already popped the object from the
+                // stack Vec at the top of this function (pop-first pattern so
+                // in-flight effects don't see the resolving object), so
+                // `change_zone` / `move_object` can't be used here —
+                // they would try to remove from the stack a second time.
+                // When the Phase 6 replacement pipeline lands, this site will
+                // need its own ZoneChange dispatch that skips the stack-Vec
+                // removal step. Tracked in codebase-state.md → Deferred
+                // Migrations → Before Replacement.
                 self.get_object_mut(object_id)?.zone = Zone::Battlefield;
                 self.init_zone_state_with_controller(object_id, controller)?;
                 // Carry X value from the stack entry to the permanent (rule 107.3f)
@@ -113,7 +122,9 @@ impl GameState {
                     }
                 }
             } else {
-                // Instant/sorcery: move to owner's graveyard
+                // Instant/sorcery: move to owner's graveyard.
+                // REPLACEMENT-BYPASS: same rationale as the battlefield path
+                // above — object was already popped from the stack Vec.
                 let owner = self.get_object(object_id)?.owner;
                 self.get_object_mut(object_id)?.zone = Zone::Graveyard;
                 self.get_player_mut(owner)?.graveyard.push(object_id);
@@ -147,7 +158,9 @@ impl GameState {
         entry: &crate::state::game_state::StackEntry,
     ) -> Result<(), String> {
         if entry.is_spell {
-            // Move to graveyard manually (already removed from stack Vec)
+            // Move to graveyard manually (already removed from stack Vec).
+            // REPLACEMENT-BYPASS: same stack-pop-first rationale as the
+            // battlefield/graveyard paths in `resolve_top_of_stack`.
             let owner = self.get_object(object_id)?.owner;
             self.get_object_mut(object_id)?.zone = Zone::Graveyard;
             self.get_player_mut(owner)?.graveyard.push(object_id);
