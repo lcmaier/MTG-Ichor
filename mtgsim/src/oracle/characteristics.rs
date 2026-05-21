@@ -1,38 +1,34 @@
 // Read-only game state queries for object characteristics.
 //
-// These functions inspect GameState and return derived information about
-// an object's effective characteristics. Phase 5 will replace the
-// implementations with layer-system-aware lookups; all consumers call
-// these functions so the transition is a single-point change.
+// All functions route through `compute_characteristics` from the layer system.
+// This module is the single-point interface that the rest of the engine calls.
 
+use crate::engine::layers::compute::compute_characteristics;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordAbility;
 
 /// Check if a permanent has an effective keyword ability.
-/// Phase 4: reads printed keywords from card_data.
-/// Phase 5: layer-system-aware (granted/removed keywords from continuous effects).
+/// Routes through the layer system — accounts for granted/removed keywords.
 pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordAbility) -> bool {
-    game.objects.get(&id)
-        .map(|obj| obj.card_data.keywords.contains(&keyword))
+    compute_characteristics(game, id)
+        .map(|chars| chars.keywords.contains(&keyword))
         .unwrap_or(false)
 }
 
 /// Get the effective name of a game object.
-/// Phase 5 Pre: returns card_data.name (printed name).
-/// Phase 5: will route through L1 copy effects.
 pub fn get_effective_name(game: &GameState, id: ObjectId) -> String {
-    game.objects.get(&id)
-        .map(|obj| obj.card_data.name.clone())
+    compute_characteristics(game, id)
+        .map(|chars| chars.name)
         .unwrap_or_default()
 }
 
 /// Check if an object on the battlefield is currently a creature.
-/// Phase 3: reads printed types. Phase 5: reads effective types from layer system.
+/// Routes through the layer system — accounts for type-changing effects.
 pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
-    game.objects.get(&id)
-        .map(|obj| obj.card_data.types.contains(&CardType::Creature))
+    compute_characteristics(game, id)
+        .map(|chars| chars.types.contains(&CardType::Creature))
         .unwrap_or(false)
 }
 
@@ -54,21 +50,21 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
 }
 
 /// Get effective power for a creature on the battlefield.
-/// Phase 3: base + modifier. Phase 5: computed through layer system.
+/// Routes through the layer system — accounts for P/T modifications,
+/// counters, and set-P/T effects.
 pub fn get_effective_power(game: &GameState, id: ObjectId) -> Option<i32> {
-    let obj = game.objects.get(&id)?;
-    let entry = game.battlefield.get(&id)?;
-    let base = obj.card_data.power?;
-    Some(base + entry.power_modifier)
+    // Only return power for battlefield objects (maintains existing behavior)
+    game.battlefield.get(&id)?;
+    compute_characteristics(game, id)?.power
 }
 
 /// Get effective toughness for a creature on the battlefield.
-/// Phase 3: base + modifier. Phase 5: computed through layer system.
+/// Routes through the layer system — accounts for P/T modifications,
+/// counters, and set-P/T effects.
 pub fn get_effective_toughness(game: &GameState, id: ObjectId) -> Option<i32> {
-    let obj = game.objects.get(&id)?;
-    let entry = game.battlefield.get(&id)?;
-    let base = obj.card_data.toughness?;
-    Some(base + entry.toughness_modifier)
+    // Only return toughness for battlefield objects (maintains existing behavior)
+    game.battlefield.get(&id)?;
+    compute_characteristics(game, id)?.toughness
 }
 
 #[cfg(test)]

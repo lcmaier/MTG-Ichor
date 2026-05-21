@@ -4,6 +4,7 @@ use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
+use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::Effect;
@@ -105,6 +106,9 @@ pub struct GameState {
     /// If true, the first draw step is skipped (one-time flag for game setup).
     /// In-game "skip draw" effects use the replacement effect system (Phase 6).
     pub skip_first_draw: bool,
+
+    // --- Continuous effects registry (CR 613) ---
+    pub continuous_effects: ContinuousEffectRegistry,
 
     // --- Event log ---
     pub events: EventLog,
@@ -233,6 +237,7 @@ impl GameState {
             next_timestamp: 0,
             player_lost: vec![false; num_players],
             skip_first_draw: false,
+            continuous_effects: ContinuousEffectRegistry::new(),
             events: EventLog::new(),
         }
     }
