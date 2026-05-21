@@ -328,7 +328,7 @@ impl Game {
                 return Err("Chosen card is not in hand".to_string());
             }
 
-            self.state.move_object(card_id, Zone::Graveyard)?;
+            self.state.change_zone(card_id, Zone::Graveyard)?;
         }
 
         Ok(())

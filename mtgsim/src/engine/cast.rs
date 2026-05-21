@@ -80,7 +80,7 @@ impl GameState {
         };
 
         // --- 601.2a: Move to stack ---
-        self.move_object(card_id, Zone::Stack)?;
+        self.change_zone(card_id, Zone::Stack)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
@@ -92,7 +92,7 @@ impl GameState {
         // Validate alt cost index is in range
         if let Some(idx) = chosen_alt_cost_idx {
             if idx >= card_data.alternative_costs.len() {
-                self.move_object(card_id, Zone::Hand)?;
+                self.change_zone(card_id, Zone::Hand)?;
                 return Err(format!(
                     "Alternative cost index {} out of range (card has {})",
                     idx, card_data.alternative_costs.len()
@@ -109,7 +109,7 @@ impl GameState {
         // Validate additional cost indices are in range
         for &idx in &chosen_additional_cost_indices {
             if idx >= card_data.additional_costs.len() {
-                self.move_object(card_id, Zone::Hand)?;
+                self.change_zone(card_id, Zone::Hand)?;
                 return Err(format!(
                     "Additional cost index {} out of range (card has {})",
                     idx, card_data.additional_costs.len()
@@ -143,7 +143,7 @@ impl GameState {
                 &legal, min_sel, max_sel,
             );
             if let Err(e) = self.validate_targets(&recipient, &chosen) {
-                self.move_object(card_id, Zone::Hand)?;
+                self.change_zone(card_id, Zone::Hand)?;
                 return Err(e);
             }
             chosen
@@ -209,8 +209,9 @@ impl GameState {
         // --- 601.2h: Pay total cost ---
         // Pre-check: can we pay? If not, roll back.
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
-            // Rollback: move card back to hand. move_object cleans up stack_entries.
-            self.move_object(card_id, Zone::Hand)?;
+            // Rollback: move card back to hand. The zone-change chokepoint
+            // cleans up stack_entries via `remove_from_zone_collection(Stack)`.
+            self.change_zone(card_id, Zone::Hand)?;
             return Err(e);
         }
 

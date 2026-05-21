@@ -97,7 +97,7 @@ impl GameState {
 
         for id in zero_toughness {
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.move_object(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard)?;
             self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
         }
@@ -127,7 +127,7 @@ impl GameState {
             }
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
             // TODO: check for regeneration
-            self.move_object(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard)?;
             self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
         }
@@ -148,7 +148,7 @@ impl GameState {
 
         for id in pw_zero_loyalty {
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.move_object(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard)?;
             self.events.emit(GameEvent::PlaneswalkerDied { object_id: id, owner });
             self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
@@ -188,7 +188,7 @@ impl GameState {
 
             for id in to_remove {
                 let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-                self.move_object(id, Zone::Graveyard)?;
+                self.change_zone(id, Zone::Graveyard)?;
                 self.events.emit(GameEvent::LegendRuleSacrificed { object_id: id, owner });
                 self.events.emit(GameEvent::StateBasedActionPerformed);
                 any_performed = true;
@@ -232,7 +232,7 @@ impl GameState {
 
         for id in auras_to_graveyard {
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.move_object(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard)?;
             self.events.emit(GameEvent::AuraDied { object_id: id, owner });
             self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
