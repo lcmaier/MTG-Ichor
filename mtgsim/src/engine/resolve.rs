@@ -162,26 +162,18 @@ impl GameState {
             Primitive::CounterSpell => {
                 // Counter target spell on the stack (rule 701.6a).
                 // The countered spell is put into its owner's graveyard.
+                //
+                // The zone change goes through `execute_action(ZoneChange)` so
+                // that the Phase 6 replacement pipeline can observe it.
+                // `move_object` → `remove_from_zone_collection(Stack)` also
+                // tears down the `StackEntry` for us.
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
-                        if let Some(pos) = self.stack.iter().position(|s| s == id) {
-                            let countered_id = self.stack.remove(pos);
-                            // Clean up the StackEntry for the countered spell
-                            self.stack_entries.remove(&countered_id);
-                            let obj = self.get_object(countered_id)?;
-                            let owner = obj.owner;
-                            self.get_player_mut(owner)?.graveyard.push(countered_id);
-                            let obj_mut = self.get_object_mut(countered_id)?;
-                            obj_mut.zone = crate::types::zones::Zone::Graveyard;
-                            // Emit ZoneChange event
-                            self.events.emit(crate::events::event::GameEvent::ZoneChange {
-                                object_id: countered_id,
-                                owner,
-                                from: crate::types::zones::Zone::Stack,
-                                to: crate::types::zones::Zone::Graveyard,
-                            });
+                        let id = *id;
+                        if self.stack.contains(&id) {
+                            self.change_zone(id, crate::types::zones::Zone::Graveyard)?;
                             self.events.emit(crate::events::event::GameEvent::SpellCountered {
-                                spell_id: countered_id,
+                                spell_id: id,
                                 countered_by: ctx.source,
                             });
                         }

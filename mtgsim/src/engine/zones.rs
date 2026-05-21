@@ -19,7 +19,19 @@ impl GameState {
     ///
     /// This is the fundamental zone transition operation. All higher-level operations
     /// (draw, play land, cast spell, destroy, etc.) ultimately call this.
-    pub fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
+    ///
+    /// **Do not call this directly from engine modules** — use
+    /// [`GameState::change_zone`] or
+    /// [`GameState::execute_action`] with [`GameAction::ZoneChange`]. Both
+    /// route through the replacement-effects chokepoint that will land in
+    /// Phase 6 (CR 614). This function is `pub(crate)` so internal helpers
+    /// (`draw_card`, `play_land`, the `GameAction::ZoneChange` arm itself,
+    /// and existing unit tests) can still call it. The three sites in
+    /// `engine/stack.rs` that bypass this function are tagged
+    /// `// REPLACEMENT-BYPASS:` and are documented structural exceptions
+    /// because the stack-pop-first pattern removes the object from the
+    /// stack `Vec` before resolution begins.
+    pub(crate) fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
         let from = {
             let obj = self.get_object(id)?;
             obj.zone

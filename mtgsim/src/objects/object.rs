@@ -28,6 +28,15 @@ pub struct GameObject {
     pub is_token: bool,
     /// True if this object is a copy of another object
     pub is_copy: bool,
+    /// True if this object has been designated as a commander (CR 903.7).
+    ///
+    /// Set at deck construction by the Commander format setup. Used by combat
+    /// damage resolution (rule 903.11) to accumulate `commander_damage_taken`
+    /// on the damaged player, and implicitly by the 21-damage loss SBA
+    /// (704.5u / 903.10a).
+    ///
+    /// Most objects are never commanders, so this defaults to false.
+    pub is_commander: bool,
 }
 
 impl GameObject {
@@ -40,6 +49,7 @@ impl GameObject {
             zone,
             is_token: false,
             is_copy: false,
+            is_commander: false,
         }
     }
 

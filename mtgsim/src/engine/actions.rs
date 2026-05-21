@@ -88,13 +88,27 @@ impl GameState {
         self.perform_action(action)
     }
 
+    /// Convenience wrapper for the most common zone change: caller knows the
+    /// destination but doesn't want to hand-roll the `from` lookup.
+    ///
+    /// This is the intended public path for zone changes. Routes through
+    /// `execute_action(GameAction::ZoneChange)` so the future replacement
+    /// pipeline (CR 614) will see every movement. Internal helpers like
+    /// `draw_card` and `play_land` still call `move_object` directly — they
+    /// live inside `engine/zones.rs` and go through the same chokepoint
+    /// transitively via `execute_action`'s ZoneChange arm.
+    pub fn change_zone(&mut self, object: ObjectId, to: Zone) -> Result<(), String> {
+        let from = self.get_object(object)?.zone;
+        self.execute_action(GameAction::ZoneChange { object, from, to })
+    }
+
     /// Perform the actual state mutation and emit the event.
     ///
     /// This is separated from `execute_action` so that the replacement pipeline
     /// (Phase 6) can call this with the final, possibly-modified action.
     fn perform_action(&mut self, action: GameAction) -> Result<(), String> {
         match action {
-            GameAction::DealDamage { source, target, amount, .. } => {
+            GameAction::DealDamage { source, target, amount, is_combat } => {
                 if amount == 0 {
                     // Rule 614.7a: 0 damage is not dealt at all.
                     return Ok(());
@@ -119,6 +133,24 @@ impl GameState {
                 // Keyword hooks (delegated to engine/keywords.rs)
                 apply_deathtouch_flag(self, source, &target);
                 apply_lifelink(self, source, amount)?;
+
+                // Rule 903.10a — if a commander deals combat damage to a
+                // player, accumulate it per-commander on the damaged player.
+                // The 21-damage loss check happens in SBA 704.5u / 903.10a.
+                if is_combat {
+                    if let DamageTarget::Player(pid) = &target {
+                        let is_cmdr = self.objects.get(&source)
+                            .map(|o| o.is_commander)
+                            .unwrap_or(false);
+                        if is_cmdr {
+                            let entry = self.get_player_mut(*pid)?
+                                .commander_damage_taken
+                                .entry(source)
+                                .or_insert(0);
+                            *entry = entry.saturating_add(amount as u32);
+                        }
+                    }
+                }
 
                 self.events.emit(GameEvent::DamageDealt {
                     source_id: source,
@@ -491,6 +523,124 @@ mod tests {
         assert_eq!(lifelink_gains.len(), 2);
         assert_eq!(lifelink_gains[0], Some(creature_a));
         assert_eq!(lifelink_gains[1], Some(creature_b));
+    }
+
+    // --- Commander damage tracking (rule 903.11a) ---
+
+    fn setup_game_with_commander() -> (GameState, ObjectId) {
+        let mut game = GameState::new(2, 40);
+
+        let general = CardDataBuilder::new("Test General")
+            .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::Red], 2))
+            .color(crate::types::colors::Color::Red)
+            .card_type(CardType::Creature)
+            .supertype(crate::types::card_types::Supertype::Legendary)
+            .power_toughness(4, 4)
+            .build();
+
+        let mut obj = GameObject::new(general, 0, Zone::Battlefield);
+        obj.is_commander = true;
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        (game, id)
+    }
+
+    #[test]
+    fn test_commander_combat_damage_accumulates() {
+        let (mut game, cmdr) = setup_game_with_commander();
+
+        game.execute_action(GameAction::DealDamage {
+            source: cmdr,
+            target: DamageTarget::Player(1),
+            amount: 4,
+            is_combat: true,
+        }).unwrap();
+
+        assert_eq!(game.players[1].life_total, 36);
+        assert_eq!(game.players[1].commander_damage_taken.get(&cmdr).copied(), Some(4));
+    }
+
+    #[test]
+    fn test_commander_combat_damage_stacks_across_hits() {
+        let (mut game, cmdr) = setup_game_with_commander();
+
+        for _ in 0..3 {
+            game.execute_action(GameAction::DealDamage {
+                source: cmdr,
+                target: DamageTarget::Player(1),
+                amount: 7,
+                is_combat: true,
+            }).unwrap();
+        }
+
+        // 3 × 7 = 21 — triggers the loss SBA when checked.
+        assert_eq!(game.players[1].commander_damage_taken.get(&cmdr).copied(), Some(21));
+    }
+
+    #[test]
+    fn test_commander_noncombat_damage_not_tracked() {
+        // Rule 903.11a applies only to combat damage.
+        let (mut game, cmdr) = setup_game_with_commander();
+
+        game.execute_action(GameAction::DealDamage {
+            source: cmdr,
+            target: DamageTarget::Player(1),
+            amount: 4,
+            is_combat: false,
+        }).unwrap();
+
+        assert_eq!(game.players[1].life_total, 36);
+        assert!(game.players[1].commander_damage_taken.get(&cmdr).is_none());
+    }
+
+    #[test]
+    fn test_noncommander_combat_damage_not_tracked() {
+        // Only sources flagged `is_commander` contribute.
+        let (mut game, bears_id) = setup_game_with_creature();
+
+        game.execute_action(GameAction::DealDamage {
+            source: bears_id,
+            target: DamageTarget::Player(1),
+            amount: 2,
+            is_combat: true,
+        }).unwrap();
+
+        assert!(game.players[1].commander_damage_taken.get(&bears_id).is_none());
+    }
+
+    #[test]
+    fn test_commander_damage_per_source_not_shared() {
+        // Each commander accumulates its own counter on the damaged player.
+        let mut game = GameState::new(2, 40);
+
+        let build_cmdr = |game: &mut GameState, name: &str| -> ObjectId {
+            let data = CardDataBuilder::new(name)
+                .card_type(CardType::Creature)
+                .supertype(crate::types::card_types::Supertype::Legendary)
+                .power_toughness(3, 3)
+                .build();
+            let mut obj = GameObject::new(data, 0, Zone::Battlefield);
+            obj.is_commander = true;
+            let id = obj.id;
+            game.add_object(obj);
+            game.place_on_battlefield(id, 0);
+            id
+        };
+
+        let cmdr_a = build_cmdr(&mut game, "General A");
+        let cmdr_b = build_cmdr(&mut game, "General B");
+
+        game.execute_action(GameAction::DealDamage {
+            source: cmdr_a, target: DamageTarget::Player(1), amount: 3, is_combat: true,
+        }).unwrap();
+        game.execute_action(GameAction::DealDamage {
+            source: cmdr_b, target: DamageTarget::Player(1), amount: 3, is_combat: true,
+        }).unwrap();
+
+        assert_eq!(game.players[1].commander_damage_taken.get(&cmdr_a).copied(), Some(3));
+        assert_eq!(game.players[1].commander_damage_taken.get(&cmdr_b).copied(), Some(3));
     }
 
     #[test]
