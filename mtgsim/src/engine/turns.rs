@@ -90,6 +90,11 @@ impl GameState {
     fn on_step_begin(&mut self, step_type: StepType) -> Result<(), String> {
         match step_type {
             StepType::Untap => {
+                // Expire "until your next turn" effects for the active player
+                self.continuous_effects.remove_expired_at_turn_start(
+                    self.active_player,
+                    self.turn_number,
+                );
                 self.process_untap_step()?;
             }
             StepType::Draw => {
@@ -116,7 +121,12 @@ impl GameState {
                     entry.damage_marked = 0;
                     entry.damaged_by_deathtouch = false;
                 }
-                // Future: end "until end of turn" continuous effects here
+
+                // Rule 514.2: End "until end of turn" continuous effects
+                self.continuous_effects.remove_expired_at_cleanup(
+                    self.active_player,
+                    self.turn_number,
+                );
 
                 // Normally no priority during cleanup (rule 514.3)
                 // Rule 514.3a: If SBAs would be performed or triggered abilities

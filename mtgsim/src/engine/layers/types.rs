@@ -110,8 +110,15 @@ pub struct ContinuousEffect {
     pub source: ObjectId,
     /// Which layer this effect applies in.
     pub layer: Layer,
-    /// When the effect becomes inactive.
+    /// When the effect becomes inactive (abstract — from card text).
     pub duration: Duration,
+    /// The player who controlled the spell/ability that created this effect.
+    /// Resolves "your" in durations like UntilYourNextTurn.
+    pub controller: PlayerId,
+    /// The turn number when this effect was created. Used with player-relative
+    /// durations to prevent immediate expiry (e.g. "until your next turn"
+    /// shouldn't expire on the same turn it was created).
+    pub created_on_turn: u32,
     /// Timestamp for ordering within the same layer (CR 613.7).
     pub timestamp: Timestamp,
     /// Which objects this effect applies to.
