@@ -241,6 +241,47 @@ impl GameState {
                 Ok(())
             }
 
+            // === Phase LB: continuous effect primitives ===
+
+            Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
+                let power = self.evaluate_amount(power_expr, ctx)? as i32;
+                let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
+                let timestamp = self.allocate_timestamp();
+
+                // Collect target object IDs (only battlefield permanents)
+                let target_ids: Vec<ObjectId> = ctx.targets.iter()
+                    .filter_map(|t| {
+                        if let ResolvedTarget::Object(id) = t {
+                            if self.battlefield.contains_key(id) {
+                                return Some(*id);
+                            }
+                        }
+                        None
+                    })
+                    .collect();
+
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+
+                let effect = crate::engine::layers::ContinuousEffect {
+                    id: 0, // assigned by registry
+                    source: ctx.source,
+                    layer: crate::engine::layers::Layer::Layer7cModifyPT,
+                    duration: *duration,
+                    controller: ctx.controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    modification: crate::engine::layers::EffectModification::ModifyPowerToughness {
+                        power,
+                        toughness,
+                    },
+                };
+                self.continuous_effects.add(effect);
+                Ok(())
+            }
+
             // === Phase 3+ primitives — stubs ===
 
             Primitive::Exile
@@ -259,8 +300,7 @@ impl GameState {
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
             | Primitive::Tap
-            | Primitive::SetPowerToughness(_, _)
-            | Primitive::ModifyPowerToughness(_, _)
+            | Primitive::SetPowerToughness(_, _, _)
             | Primitive::AddAbility(_, _)
             | Primitive::RemoveAbility(_, _)
             | Primitive::ChangeColor(_, _)

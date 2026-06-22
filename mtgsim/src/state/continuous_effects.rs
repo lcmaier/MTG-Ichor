@@ -79,6 +79,72 @@ impl ContinuousEffectRegistry {
         self.effects.len()
     }
 
+    /// Remove effects that expire during the cleanup step (rule 514.2).
+    ///
+    /// Handles:
+    /// - `UntilEndOfTurn` — always expires at cleanup.
+    /// - `UntilEndOfYourNextTurn` (future) — expires at cleanup if the active
+    ///   player matches the effect's controller AND the current turn is after
+    ///   the turn the effect was created on.
+    pub fn remove_expired_at_cleanup(
+        &mut self,
+        active_player: crate::types::ids::PlayerId,
+        current_turn: u32,
+    ) -> Vec<ContinuousEffect> {
+        use crate::types::effects::Duration;
+        let mut removed = Vec::new();
+        let mut i = 0;
+        while i < self.effects.len() {
+            let should_expire = match self.effects[i].duration {
+                Duration::UntilEndOfTurn => true,
+                // Future: UntilEndOfYourNextTurn would check:
+                // self.effects[i].controller == active_player
+                //     && current_turn > self.effects[i].created_on_turn
+                _ => false,
+            };
+            if should_expire {
+                removed.push(self.effects.swap_remove(i));
+            } else {
+                i += 1;
+            }
+        }
+        // Suppress unused variable warnings until multi-turn durations are added
+        let _ = (active_player, current_turn);
+        removed
+    }
+
+    /// Remove effects that expire at the start of a player's turn.
+    ///
+    /// Handles:
+    /// - `UntilYourNextTurn` — expires at the beginning of the controller's
+    ///   next turn (checked at untap step). Only fires if the current turn is
+    ///   strictly after the turn the effect was created on (prevents immediate
+    ///   expiry when created on your own turn).
+    pub fn remove_expired_at_turn_start(
+        &mut self,
+        active_player: crate::types::ids::PlayerId,
+        current_turn: u32,
+    ) -> Vec<ContinuousEffect> {
+        use crate::types::effects::Duration;
+        let mut removed = Vec::new();
+        let mut i = 0;
+        while i < self.effects.len() {
+            let should_expire = match self.effects[i].duration {
+                Duration::UntilYourNextTurn => {
+                    self.effects[i].controller == active_player
+                        && current_turn > self.effects[i].created_on_turn
+                }
+                _ => false,
+            };
+            if should_expire {
+                removed.push(self.effects.swap_remove(i));
+            } else {
+                i += 1;
+            }
+        }
+        removed
+    }
+
     /// Allocate the next timestamp value.
     pub fn next_timestamp(counter: &mut Timestamp) -> Timestamp {
         let ts = *counter;
@@ -100,6 +166,8 @@ mod tests {
             source,
             layer,
             duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
             timestamp,
             affected: AffectedSet::SourceOnly,
             modification: EffectModification::ModifyPowerToughness { power: 1, toughness: 1 },
@@ -168,5 +236,69 @@ mod tests {
         let src = Uuid::new_v4();
         reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
         assert!(!reg.is_empty());
+    }
+
+    #[test]
+    fn test_remove_expired_at_cleanup_removes_until_end_of_turn() {
+        let mut reg = ContinuousEffectRegistry::new();
+        let src = Uuid::new_v4();
+        // UntilEndOfTurn effect
+        reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
+        // WhileSourceOnBattlefield effect (should NOT be removed)
+        let mut permanent_effect = make_effect(src, Layer::Layer7cModifyPT, 2);
+        permanent_effect.duration = Duration::WhileSourceOnBattlefield;
+        reg.add(permanent_effect);
+
+        assert_eq!(reg.len(), 2);
+        let removed = reg.remove_expired_at_cleanup(0, 1);
+        assert_eq!(removed.len(), 1);
+        assert_eq!(reg.len(), 1);
+        assert_eq!(reg.iter().next().unwrap().duration, Duration::WhileSourceOnBattlefield);
+    }
+
+    #[test]
+    fn test_remove_expired_at_turn_start_until_your_next_turn() {
+        let mut reg = ContinuousEffectRegistry::new();
+        let src = Uuid::new_v4();
+
+        // Effect created by player 0 on turn 1, duration UntilYourNextTurn
+        let mut effect = make_effect(src, Layer::Layer7cModifyPT, 1);
+        effect.duration = Duration::UntilYourNextTurn;
+        effect.controller = 0;
+        effect.created_on_turn = 1;
+        reg.add(effect);
+
+        // Turn 1, player 0's turn — should NOT expire (same turn it was created)
+        let removed = reg.remove_expired_at_turn_start(0, 1);
+        assert_eq!(removed.len(), 0);
+        assert_eq!(reg.len(), 1);
+
+        // Turn 2, player 1's turn — should NOT expire (wrong player)
+        let removed = reg.remove_expired_at_turn_start(1, 2);
+        assert_eq!(removed.len(), 0);
+        assert_eq!(reg.len(), 1);
+
+        // Turn 3, player 0's next turn — SHOULD expire
+        let removed = reg.remove_expired_at_turn_start(0, 3);
+        assert_eq!(removed.len(), 1);
+        assert_eq!(reg.len(), 0);
+    }
+
+    #[test]
+    fn test_until_your_next_turn_expires_on_extra_turn() {
+        // Extra turns advance turn_number, so an extra turn for the controller
+        // IS their "next turn" and the effect correctly expires at its start.
+        let mut reg = ContinuousEffectRegistry::new();
+        let src = Uuid::new_v4();
+
+        let mut effect = make_effect(src, Layer::Layer7cModifyPT, 1);
+        effect.duration = Duration::UntilYourNextTurn;
+        effect.controller = 0;
+        effect.created_on_turn = 1;
+        reg.add(effect);
+
+        // Turn 2 is an extra turn for player 0 — effect expires (turn 2 > 1)
+        let removed = reg.remove_expired_at_turn_start(0, 2);
+        assert_eq!(removed.len(), 1);
     }
 }

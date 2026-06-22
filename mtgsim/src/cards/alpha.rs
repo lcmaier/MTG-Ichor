@@ -98,6 +98,30 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .build()
 }
 
+/// Giant Growth — {G}
+/// Instant
+/// Target creature gets +3/+3 until end of turn.
+pub fn giant_growth() -> Arc<CardData> {
+    CardDataBuilder::new("Giant Growth")
+        .card_type(CardType::Instant)
+        .color(Color::Green)
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(3),
+                    AmountExpr::Fixed(3),
+                    Duration::UntilEndOfTurn,
+                ),
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        })
+        .build()
+}
+
 /// Volcanic Upheaval — {3}{R}
 /// Instant
 /// Destroy target land.
@@ -158,6 +182,16 @@ mod tests {
         assert_eq!(boe.name, "Burst of Energy");
         assert!(boe.types.contains(&CardType::Instant));
         assert_eq!(boe.mana_cost.as_ref().unwrap().mana_value(), 1);
+    }
+
+    #[test]
+    fn test_giant_growth() {
+        let gg = giant_growth();
+        assert_eq!(gg.name, "Giant Growth");
+        assert!(gg.types.contains(&CardType::Instant));
+        assert_eq!(gg.mana_cost.as_ref().unwrap().mana_value(), 1);
+        assert_eq!(gg.abilities.len(), 1);
+        assert_eq!(gg.abilities[0].ability_type, AbilityType::Spell);
     }
 
     #[test]

@@ -298,9 +298,9 @@ pub enum Primitive {
 
     // === Continuous effect primitives (applied via layer system) ===
     /// Set power/toughness to specific values (layer 7b)
-    SetPowerToughness(AmountExpr, AmountExpr),
+    SetPowerToughness(AmountExpr, AmountExpr, Duration),
     /// Modify power/toughness by +X/+Y (layer 7c)
-    ModifyPowerToughness(AmountExpr, AmountExpr),
+    ModifyPowerToughness(AmountExpr, AmountExpr, Duration),
     /// Grant a keyword ability (layer 6)
     AddAbility(KeywordAbility, Duration),
     /// Remove a keyword ability (layer 6)
