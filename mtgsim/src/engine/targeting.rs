@@ -16,7 +16,7 @@ impl GameState {
         targets: &[ResolvedTarget],
     ) -> Result<(), String> {
         match recipient {
-            EffectRecipient::Implicit => {
+            EffectRecipient::Implicit | EffectRecipient::FilteredPermanents { .. } => {
                 if !targets.is_empty() {
                     return Err("Spell has no targets but targets were provided".to_string());
                 }
@@ -244,7 +244,8 @@ impl GameState {
             // Choose effects don't target — they never fizzle.
             EffectRecipient::Implicit
             | EffectRecipient::Controller
-            | EffectRecipient::Choose(_, _) => true,
+            | EffectRecipient::Choose(_, _)
+            | EffectRecipient::FilteredPermanents { .. } => true,
             EffectRecipient::Target(_, _) => {
                 targets.iter().any(|t| {
                     self.is_single_target_legal(recipient, t)

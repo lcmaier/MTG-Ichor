@@ -54,7 +54,7 @@ enum Primitive {
     GainControl(Duration),      // layer 2
     SetPowerToughness(AmountExpr, AmountExpr),  // layer 7b
     ModifyPowerToughness(AmountExpr, AmountExpr), // layer 7c
-    AddAbility(KeywordAbility, Duration),        // layer 6
+    GrantKeyword(KeywordAbility, Duration),        // layer 6
     RemoveAbility(KeywordAbility, Duration),     // layer 6
     ChangeColor(Color, Duration),                // layer 5
     ChangeType(TypeChange, Duration),            // layer 4
@@ -209,7 +209,7 @@ enum Duration {
 **Cards unblocked:** Most common creatures
 
 **No new primitives** — keywords are mostly static abilities that modify combat rules, not effects. But:
-- `AddAbility` / `RemoveAbility` needed for cards that grant keywords
+- `GrantKeyword` / `RemoveAbility` needed for cards that grant keywords
 - `Tap` / `Untap` as effect primitives (for cards like "tap target creature")
 - `Conditional` combinator for "if this creature has flying..." type checks
 

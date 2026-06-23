@@ -61,6 +61,7 @@ impl CardRegistry {
         registry.register("Counterspell", alpha::counterspell);
         registry.register("Burst of Energy", alpha::burst_of_energy);
         registry.register("Volcanic Upheaval", alpha::volcanic_upheaval);
+        registry.register("Giant Growth", alpha::giant_growth);
 
         // Vanilla creatures (Phase 3)
         registry.register("Grizzly Bears", creatures::grizzly_bears);
@@ -87,6 +88,7 @@ impl CardRegistry {
         registry.register("Doom Blade", phase5_pre_cards::doom_blade);
         registry.register("Angel's Mercy", phase5_pre_cards::angels_mercy);
         registry.register("Dark Ritual", phase5_pre_cards::dark_ritual);
+        registry.register("Glorious Anthem", phase5_pre_cards::glorious_anthem);
 
         registry
     }

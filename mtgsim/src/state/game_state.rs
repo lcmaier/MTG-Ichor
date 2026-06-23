@@ -262,8 +262,117 @@ impl GameState {
         self.battlefield.insert(id, entry);
 
         self.init_etb_counters(id);
+        self.register_static_effects(id, controller);
 
         self.battlefield.get_mut(&id).unwrap()
+    }
+
+    /// Register continuous effects from static abilities on a permanent.
+    ///
+    /// Called when a permanent enters the battlefield. Scans the card's
+    /// abilities for `AbilityType::Static`, extracts the primitive and
+    /// recipient, and registers a `ContinuousEffect` in the registry.
+    ///
+    /// Duration comes from the primitive (typically `WhileSourceOnBattlefield`).
+    /// Effects are removed when the source leaves the battlefield via
+    /// `cleanup_zone_state` → `remove_by_source`.
+    fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
+        use crate::engine::layers::types::{
+            AffectedSet, ContinuousEffect, EffectModification, Layer,
+        };
+        use crate::objects::card_data::AbilityType;
+        use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
+
+        let abilities = if let Some(obj) = self.objects.get(&id) {
+            obj.card_data.abilities.clone()
+        } else {
+            return;
+        };
+
+        for ability in &abilities {
+            if ability.ability_type != AbilityType::Static {
+                continue;
+            }
+
+            // Collect atoms: flatten Sequence, or extract single Atom.
+            // Static abilities are declarative — Optional/Modal/Conditional don't
+            // apply at the card-definition level. Non-Atom entries in a Sequence
+            // (if any exist) are safely skipped; extend here as needed.
+            let atoms: Vec<(&Primitive, &EffectRecipient)> = match &ability.effect {
+                Effect::Atom(p, r) => vec![(p, r)],
+                Effect::Sequence(effects) => effects.iter().filter_map(|e| {
+                    if let Effect::Atom(p, r) = e { Some((p, r)) } else { None }
+                }).collect(),
+                _ => continue,
+            };
+
+            for (primitive, recipient) in atoms {
+                // Map recipient → AffectedSet
+                let affected = match recipient {
+                    EffectRecipient::FilteredPermanents(filter) => {
+                        // Resolve PlayerRef in the filter to build AffectedSet
+                        let ctrl = Self::extract_controller_from_filter(filter, controller);
+                        AffectedSet::Filter {
+                            filter: filter.clone(),
+                            controller: ctrl,
+                        }
+                    }
+                    EffectRecipient::Implicit => AffectedSet::SourceOnly,
+                    _ => continue,
+                };
+
+                // Map primitive → (layer, modification)
+                let (layer, modification) = match primitive {
+                    Primitive::ModifyPowerToughness(p_expr, t_expr, _dur) => {
+                        let p = match p_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
+                        let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
+                        (Layer::Layer7cModifyPT, EffectModification::ModifyPowerToughness { power: p, toughness: t })
+                    }
+                    Primitive::SetPowerToughness(p_expr, t_expr, _dur) => {
+                        let p = match p_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
+                        let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
+                        (Layer::Layer7bSetPT, EffectModification::SetPowerToughness { power: p, toughness: t })
+                    }
+                    Primitive::GrantKeyword(kw, _dur) => {
+                        (Layer::Layer6Ability, EffectModification::GrantKeyword(*kw))
+                    }
+                    _ => continue,
+                };
+
+                let timestamp = self.allocate_timestamp();
+                let effect = ContinuousEffect {
+                    id: 0, // assigned by registry
+                    source: id,
+                    layer,
+                    duration: Duration::WhileSourceOnBattlefield,
+                    controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected,
+                    modification,
+                };
+                self.continuous_effects.add(effect);
+            }
+        }
+    }
+
+    /// Walk a `PermanentFilter` to find `ByController(PlayerRef)` and resolve
+    /// it to a concrete `PlayerId`. Returns `Some(id)` if the filter contains
+    /// a controller constraint, `None` otherwise.
+    fn extract_controller_from_filter(
+        filter: &crate::types::effects::PermanentFilter,
+        controller: PlayerId,
+    ) -> Option<PlayerId> {
+        use crate::types::effects::{PermanentFilter, PlayerRef};
+        match filter {
+            PermanentFilter::ByController(PlayerRef::You) => Some(controller),
+            PermanentFilter::ByController(PlayerRef::Player(pid)) => Some(*pid),
+            PermanentFilter::And(a, b) => {
+                Self::extract_controller_from_filter(a, controller)
+                    .or_else(|| Self::extract_controller_from_filter(b, controller))
+            }
+            _ => None,
+        }
     }
 
     /// Set initial counters for a permanent entering the battlefield.

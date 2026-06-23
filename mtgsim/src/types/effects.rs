@@ -130,6 +130,12 @@ pub enum EffectRecipient {
     /// Select without targeting rules — "choose" (rule 303.4a, etc.).
     /// Hexproof/shroud/protection do NOT apply.  Does not fizzle.
     Choose(SelectionFilter, TargetCount),
+    /// Filter-based continuous effect (static abilities / anthems).
+    /// Applies to all permanents matching the filter. Not used at cast/resolution
+    /// time — only read by the ETB hook to register continuous effects.
+    /// Use `ByController(PlayerRef::You)` in the filter to express "you control";
+    /// the registration hook resolves `PlayerRef` to a concrete `PlayerId`.
+    FilteredPermanents(PermanentFilter),
 }
 
 /// What kind of object(s) can be selected.
@@ -302,7 +308,7 @@ pub enum Primitive {
     /// Modify power/toughness by +X/+Y (layer 7c)
     ModifyPowerToughness(AmountExpr, AmountExpr, Duration),
     /// Grant a keyword ability (layer 6)
-    AddAbility(KeywordAbility, Duration),
+    GrantKeyword(KeywordAbility, Duration),
     /// Remove a keyword ability (layer 6)
     RemoveAbility(KeywordAbility, Duration),
     /// Change color (layer 5)

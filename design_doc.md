@@ -620,7 +620,7 @@ enum Modification {
     AddSubtypes(Vec<Subtype>), RemoveSubtypes(Vec<Subtype>),
     SetCreatureType(Vec<Subtype>),
     SetColors(Vec<Color>), AddColors(Vec<Color>), RemoveColors(Vec<Color>),  // Layer 5
-    AddAbility(KeywordAbility), RemoveAbility(KeywordAbility),               // Layer 6
+    GrantKeyword(KeywordAbility), RemoveAbility(KeywordAbility),               // Layer 6
     RemoveAllAbilities,
     SetPT(i32, i32), ModifyPT(i32, i32), SwitchPT,         // Layer 7
 }
@@ -681,7 +681,7 @@ Static abilities like Thalia ("noncreature spells cost {1} more") create continu
 - **5g** — Layer 2: Control-changing effects.
 - **5h** — Layers 1+3: Copy + text change (minimal scaffolding, expanded later).
 - **5i** — Dependency detection (`engine/dependency.rs`): `FilterDependency`, `ModifiesCategory` enums. Static + hypothetical hybrid algorithm. Topological sort with cycle fallback.
-- **5j** — Hook `resolve_primitive` → register effects: `ModifyPowerToughness` → layer 7c, `AddAbility`/`RemoveAbility` → layer 6, `SetPowerToughness` → layer 7b, `ChangeColor` → layer 5, `ChangeType` → layer 4, `GainControl` → layer 2.
+- **5j** — Hook `resolve_primitive` → register effects: `ModifyPowerToughness` → layer 7c, `GrantKeyword`/`RemoveAbility` → layer 6, `SetPowerToughness` → layer 7b, `ChangeColor` → layer 5, `ChangeType` → layer 4, `GainControl` → layer 2.
 - **5k** — Rule 613.11 + cost modification pipeline in `cast.rs`.
 - **5l** — Cards: Giant Growth ({G}, instant, +3/+3 until end of turn), Glorious Anthem ({1}{W}{W}, enchantment, creatures you control get +1/+1), Honor of the Pure ({1}{W}, enchantment, white creatures you control get +1/+1), Clone ({3}{U}, creature, copy effect scaffold).
 - **5m** — Tests: unit tests in `layers.rs` + `dependency.rs`, integration tests for Giant Growth / Anthem / Honor / Clone, fuzz regressions with new cards.

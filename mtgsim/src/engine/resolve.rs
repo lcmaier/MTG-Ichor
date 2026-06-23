@@ -301,7 +301,7 @@ impl GameState {
             | Primitive::Fight
             | Primitive::Tap
             | Primitive::SetPowerToughness(_, _, _)
-            | Primitive::AddAbility(_, _)
+            | Primitive::GrantKeyword(_, _)
             | Primitive::RemoveAbility(_, _)
             | Primitive::ChangeColor(_, _)
             | Primitive::ChangeType(_, _)

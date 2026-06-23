@@ -128,11 +128,7 @@ impl GameState {
         };
 
         // --- 601.2c: Choose targets ---
-        let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
-            let (filter, count) = match &recipient {
-                EffectRecipient::Target(f, c) | EffectRecipient::Choose(f, c) => (f, c),
-                _ => unreachable!(),
-            };
+        let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
             let legal = enumerate_legal_selections(self, filter, Some(card_id));
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
@@ -308,11 +304,7 @@ impl GameState {
         // `run_priority_round` — see D26 / SPECIAL-2).
 
         // Choose targets
-        let targets = if recipient != EffectRecipient::Implicit && recipient != EffectRecipient::Controller {
-            let (filter, count) = match &recipient {
-                EffectRecipient::Target(f, c) | EffectRecipient::Choose(f, c) => (f, c),
-                _ => unreachable!(),
-            };
+        let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
             let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id));
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
