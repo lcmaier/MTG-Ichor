@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, ManaOutput, PermanentFilter, Primitive, TargetCount, EffectRecipient, SelectionFilter};
+use crate::types::effects::{AmountExpr, Duration, Effect, ManaOutput, PermanentFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -83,6 +83,33 @@ pub fn angels_mercy() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller)
+        })
+        .build()
+}
+
+/// Glorious Anthem - {1}{W}{W}
+/// Enchantment
+/// Creatures you control get +1/+1.
+pub fn glorious_anthem() -> Arc<CardData> {
+    CardDataBuilder::new("Glorious Anthem")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(1),
+                    AmountExpr::Fixed(1),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                )),
+            ),
         })
         .build()
 }

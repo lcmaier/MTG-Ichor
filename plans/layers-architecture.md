@@ -720,7 +720,7 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 4. Implement `compute_characteristics` such that output is identical to current `oracle/characteristics.rs` behavior:
    - Read base from `CardData`.
    - Apply `BattlefieldEntity.power_modifier` / `toughness_modifier` shim as Layer 7c synthesized effects (the pipeline's one 7c source for now).
-   - Synthesize counter-derived 7c effects from `BattlefieldEntity.counters`, ordered after non-counter 7c per CR 613.4c.
+   - Synthesize counter-derived 7c effects from `BattlefieldEntity.counters`.
    - Zone-scope fast-path for hidden zones (§5.1).
 5. Rewire existing `oracle/characteristics.rs` wrappers to call `compute_characteristics`.
 6. **Direct-`card_data` read audit** (deferred-migration item): grep for `obj.card_data.{keywords,colors,types,subtypes,power,toughness,name}` outside `oracle/characteristics.rs` and `engine/cast.rs` (cast-zone legality is pre-stack). Migrate each direct read to a wrapper call OR document why the direct read is correct. Expected output: a list commit + migration edits.

@@ -133,14 +133,14 @@
   | Pattern | Template | Example | Mechanism |
   |---------|----------|---------|-----------|
   | **Direct mana cost replacement** | "its mana cost perpetually becomes {X}" | Thought Partition: "its mana cost perpetually becomes {5}" | `PerpetualMod::SetManaCost(ManaCost)` — directly overwrites the card's mana cost characteristic. Mana value DOES change. |
-  | **Granted cost-modifying ability** | "perpetually gains 'This spell costs {X} more/less to cast'" | Nightclub Bouncer: "It perpetually gains 'This spell costs {2} more to cast.'" | `PerpetualMod::AddAbility(AbilityDef)` — grants a static ability that feeds into the **cost modification pipeline** (T18 step 601.2e). Mana value does NOT change. The card's printed mana cost is unchanged; the extra cost is applied during casting. |
+  | **Granted cost-modifying ability** | "perpetually gains 'This spell costs {X} more/less to cast'" | Nightclub Bouncer: "It perpetually gains 'This spell costs {2} more to cast.'" | `PerpetualMod::GrantKeyword(AbilityDef)` — grants a static ability that feeds into the **cost modification pipeline** (T18 step 601.2e). Mana value does NOT change. The card's printed mana cost is unchanged; the extra cost is applied during casting. |
 
   **Incorporate uses the second pattern** — it perpetually grants a "costs {X} more" static ability (plus other abilities and colors). The additional cost is NOT a modification to the mana cost characteristic; it's a granted ability that the cost modification pipeline reads at cast time.
 
   This distinction is important: `SetManaCost` changes what `mana_value()` returns. A granted "costs more" ability does not. They are architecturally different paths — one modifies `compute_characteristics` output, the other feeds the cost pipeline.
 
 - **Recommendation:** Decompose incorporate into individual `PerpetualMod` entries:
-  - `AddAbility(AbilityDef)` — for the "costs {X} more" static ability AND any other granted abilities
+  - `GrantKeyword(AbilityDef)` — for the "costs {X} more" static ability AND any other granted abilities
   - `AddColor(Color)` — for the color addition
   
   No new `AddCastingCost` variant needed. The additional cost is expressed as a granted static ability, which is how Arena templates it. The cost modification pipeline (T18, rule 601.2e: base cost → increases → reductions → Trinisphere floor) reads these granted abilities at cast time. `compute_characteristics` applies the color addition normally.
@@ -163,7 +163,7 @@
 
 ```
 SetPower, SetToughness, ModifyPower, ModifyToughness,
-SetColors, AddAbility, RemoveAbility, RemoveAllAbilities, SetManaValue
+SetColors, GrantKeyword, RemoveAbility, RemoveAllAbilities, SetManaValue
 ```
 
 **Additional variants needed for Alchemy mechanics:**
@@ -173,17 +173,17 @@ SetColors, AddAbility, RemoveAbility, RemoveAllAbilities, SetManaValue
 | `AddColor(Color)` | Incorporate | Adds a color without replacing existing colors |
 | `ReplaceCardData(Arc<CardData>)` | Specialize | Full card identity replacement |
 | `RemoveKeyword(KeywordAbility)` | Double Team ("perpetually lose double team") | Alias of existing `RemoveAbility` if abilities and keywords are unified; otherwise new variant |
-| `AddKeyword(KeywordAbility)` | Various perpetual "gains [keyword]" | May overlap with `AddAbility` depending on keyword/ability unification |
+| `AddKeyword(KeywordAbility)` | Various perpetual "gains [keyword]" | May overlap with `GrantKeyword` depending on keyword/ability unification |
 
 **Already covered by the base D20b set (no new variants):**
 - `SetManaCost` — covers Thought Partition's "mana cost perpetually becomes {5}" pattern (direct mana cost replacement)
-- `AddAbility` — covers Nightclub Bouncer / Incorporate's "perpetually gains 'costs {2} more to cast'" pattern (granted static ability that feeds cost pipeline, does NOT change mana value)
+- `GrantKeyword` — covers Nightclub Bouncer / Incorporate's "perpetually gains 'costs {2} more to cast'" pattern (granted static ability that feeds cost pipeline, does NOT change mana value)
 
 **Not needed as PerpetualMod variants:**
 - **Intensity** — separate `Option<u32>` field on `GameObject` (read as value, not characteristic override)
 - **Double Team** — uses existing `RemoveAbility`/`RemoveKeyword` + conjure
 - **Specialize "unspecialize"** — remove the `ReplaceCardData` mod from the vec
-- **~~AddCastingCost~~** — incorporate's additional cost is a perpetually granted static ability (`AddAbility`), not a direct cost modification. See Section 11 for the two distinct perpetual cost-change patterns.
+- **~~AddCastingCost~~** — incorporate's additional cost is a perpetually granted static ability (`GrantKeyword`), not a direct cost modification. See Section 11 for the two distinct perpetual cost-change patterns.
 
 **Summary:** ~3-4 new variants beyond the base set. The `PerpetualMod` enum is designed to be extended (`// Extend as Alchemy mechanics require`), so this is expected.
 
@@ -385,7 +385,7 @@ Four Alchemy mechanics create cards at runtime. The `CardRegistry` is currently 
 - **Intensity** — New field on `GameObject` + `CardData`. Orthogonal to everything.
 - **Specialize** — `PerpetualMod::ReplaceCardData`. Self-contained.
 - **Double Team** — Triggered ability + conjure + perpetual mod. All planned.
-- **Incorporate** — Perpetually granted abilities + color addition. Cost increase is a granted static ability feeding the cost pipeline, not a direct mana cost mod. Fits existing `AddAbility` + `AddColor` variants.
+- **Incorporate** — Perpetually granted abilities + color addition. Cost increase is a granted static ability feeding the cost pipeline, not a direct mana cost mod. Fits existing `GrantKeyword` + `AddColor` variants.
 - **Starting Player** — Trivial boolean check. Zero impact.
 - **Heist** — Depends on D21 (exile metadata) + CastPermission + mana spending permissions, all already deferred.
 
@@ -403,7 +403,7 @@ Four Alchemy mechanics create cards at runtime. The `CardRegistry` is currently 
 
 ### Phase 9 Alchemy Implementation Notes (add to roadmap)
 
-4. **Expand `PerpetualMod` enum** — add ~3-4 new variants: `AddColor`, `ReplaceCardData`, and keyword-specific variants if keywords and abilities aren't unified by then. Note: `AddCastingCost` is NOT needed — incorporate's additional cost is a perpetually granted static ability (`AddAbility`), not a direct cost modification. The existing `SetManaCost` covers Thought Partition-style direct mana cost replacement. See Section 11 for the two distinct patterns.
+4. **Expand `PerpetualMod` enum** — add ~3-4 new variants: `AddColor`, `ReplaceCardData`, and keyword-specific variants if keywords and abilities aren't unified by then. Note: `AddCastingCost` is NOT needed — incorporate's additional cost is a perpetually granted static ability (`GrantKeyword`), not a direct cost modification. The existing `SetManaCost` covers Thought Partition-style direct mana cost replacement. See Section 11 for the two distinct patterns.
 
 5. **Add `intensity: Option<u32>` to `GameObject`** and `starting_intensity: Option<u32>` to `CardData`. Add `AmountExpr::Intensity` variant. Standalone field, not a `PerpetualMod`.
 

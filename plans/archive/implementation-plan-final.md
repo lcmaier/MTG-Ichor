@@ -1409,9 +1409,9 @@ The pre-proposal check (timing, zone, ownership) is a **fast path** that catches
 - **Depends on:** L04
 - **Files:** `engine/layers.rs` (modify), `oracle/characteristics.rs` (modify), `engine/resolve.rs` (modify)
 - **Steps:**
-  1. `apply_modification` for AddAbility/RemoveAbility/RemoveAllAbilities.
+  1. `apply_modification` for GrantKeyword/RemoveAbility/RemoveAllAbilities.
   2. Route `has_keyword` through `compute_characteristics`.
-  3. Hook `AddAbility`/`RemoveAbility` primitives in resolve.rs.
+  3. Hook `GrantKeyword`/`RemoveAbility` primitives in resolve.rs.
   4. **TODO comment (D10):** Add `// TODO: L6 must also read keyword counters from BattlefieldEntity.counters (rule 613.1f) — implement when keyword counter cards arrive. See D10.` in the L6 processing block.
      > **Session 6 audit note (see `session-6-audit-response.md`):** Granted abilities must carry an `AbilityOrigin::Granted { source_id, effect_timestamp }` tag so that Layer 3 text-changing (L12) can distinguish intrinsic vs. granted abilities and only modify intrinsic text. The `AbilityOrigin` type is defined in L01.
 - **Tests:**
@@ -2265,7 +2265,7 @@ pub enum PerpetualMod {
     ModifyPower(i32),          // delta
     ModifyToughness(i32),      // delta
     SetColors(Vec<Color>),
-    AddAbility(AbilityDef),
+    GrantKeyword(AbilityDef),
     RemoveAbility(KeywordAbility),
     RemoveAllAbilities,
     SetManaValue(ManaCost),
@@ -2297,7 +2297,7 @@ for m in &obj.perpetual_modifications {
         PerpetualMod::ModifyPower(d) => {
             chars.power = chars.power.map(|p| p + d);
         }
-        PerpetualMod::AddAbility(a) => chars.abilities.push(a.clone()),
+        PerpetualMod::GrantKeyword(a) => chars.abilities.push(a.clone()),
         PerpetualMod::RemoveAllAbilities => chars.abilities.clear(),
         // ... etc
     }

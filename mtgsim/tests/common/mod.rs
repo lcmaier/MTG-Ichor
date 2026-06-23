@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::battlefield::BattlefieldEntity;
 use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::zones::Zone;
@@ -44,6 +43,10 @@ pub fn put_land_on_battlefield(
 }
 
 /// Put any permanent onto the battlefield for a player.
+/// Routes through `place_on_battlefield` so ETB hooks fire (static effect
+/// registration, ETB counters, etc.).
+/// Sets `entered_battlefield_turn = 0` so the permanent is NOT summoning-sick
+/// (mimics "has been here since before this turn" for test convenience).
 #[allow(dead_code)]
 pub fn put_on_battlefield(
     game: &mut GameState,
@@ -52,10 +55,10 @@ pub fn put_on_battlefield(
 ) -> ObjectId {
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = obj.id;
-    let ts = game.allocate_timestamp();
     game.add_object(obj);
-    let entry = BattlefieldEntity::new(id, player, ts, 0);
-    game.battlefield.insert(id, entry);
+    let entry = game.place_on_battlefield(id, player);
+    entry.entered_battlefield_turn = 0;
+    entry.controller_since_turn = 0;
     id
 }
 
