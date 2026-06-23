@@ -4,3 +4,4 @@ pub mod alpha;
 pub mod creatures;
 pub mod keyword_creatures;
 pub mod phase5_pre_cards;
+pub mod phase_lc_cards;

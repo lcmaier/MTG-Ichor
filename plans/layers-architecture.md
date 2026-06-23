@@ -86,7 +86,7 @@ pub enum Layer {
 }
 ```
 
-**Decision — counter effects are derived, not stored.** Counters remain written to `BattlefieldEntity.counters`. When `compute_characteristics` walks layer 7c, it synthesizes virtual `ContinuousEffect`s from the counter map and orders them *after* any non-counter 7c modifiers (per CR 613.4c's "however, effects that modify power or toughness (with the exception of counters) are applied before counters"). This avoids double-booking state between the counter map and the effect registry.
+**Decision — counter effects are derived, not stored.** Counters remain written to `BattlefieldEntity.counters`. When `compute_characteristics` walks layer 7c, it synthesizes virtual `ContinuousEffect`s from the counter map. This avoids double-booking state between the counter map and the effect registry.
 
 **Decision — face-down is also derived.** `BattlefieldEntity.face_down: bool` already exists. When set, `compute_characteristics` synthesizes a cluster of Layer-1a effects at compute time (set colorless, lose all abilities, become 2/2 creature with no name). No effect-registry entries needed for vanilla face-down; effects that *turn something face-down* (the action) are registered in Layer 1a, and their application side-effect is flipping the flag.
 

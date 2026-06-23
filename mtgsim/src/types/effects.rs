@@ -223,6 +223,22 @@ pub enum CounterType {
     // Non-evergreen counter types added as relevant cards are implemented
 }
 
+/// Color change description for ChangeColor primitive (layer 5).
+///
+/// Three operations map 1:1 to the three `EffectModification` variants:
+/// - `Add(Color)` → `AddColor(Color)` — adds a color without removing existing ones
+/// - `Set(HashSet<Color>)` → `SetColors(HashSet<Color>)` — replaces all colors
+/// - `RemoveAll` → `RemoveAllColors` — makes the object colorless
+#[derive(Debug, Clone, PartialEq)]
+pub enum ColorChange {
+    /// Add a single color (e.g. "becomes blue in addition to its other colors")
+    Add(Color),
+    /// Set colors to exactly this set (e.g. "becomes red" = Set({Red}))
+    Set(std::collections::HashSet<Color>),
+    /// Remove all colors (e.g. "becomes colorless")
+    RemoveAll,
+}
+
 /// Type change description for ChangeType primitive
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeChange {
@@ -314,7 +330,7 @@ pub enum Primitive {
     /// Remove a keyword ability (layer 6)
     RemoveAbility(KeywordAbility, Duration),
     /// Change color (layer 5)
-    ChangeColor(Color, Duration),
+    ChangeColor(ColorChange, Duration),
     /// Change types (layer 4)
     ChangeType(TypeChange, Duration),
     /// Gain control (layer 2)
