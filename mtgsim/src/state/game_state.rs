@@ -339,6 +339,15 @@ impl GameState {
                     Primitive::GrantKeyword(kw, _dur) => {
                         (Layer::Layer6Ability, EffectModification::GrantKeyword(*kw))
                     }
+                    Primitive::ChangeColor(color_change, _dur) => {
+                        use crate::types::effects::ColorChange;
+                        let modification = match color_change {
+                            ColorChange::Add(c) => EffectModification::AddColor(*c),
+                            ColorChange::Set(colors) => EffectModification::SetColors(colors.clone()),
+                            ColorChange::RemoveAll => EffectModification::RemoveAllColors,
+                        };
+                        (Layer::Layer5Color, modification)
+                    }
                     _ => continue,
                 };
 

@@ -316,6 +316,35 @@ impl GameState {
                 Ok(())
             }
 
+            // === Phase LC: Layer 5 color-changing effects ===
+
+            Primitive::ChangeColor(color_change, duration) => {
+                use crate::types::effects::ColorChange;
+                let target_ids = self.collect_battlefield_targets(ctx);
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+                let modification = match color_change {
+                    ColorChange::Add(c) => crate::engine::layers::EffectModification::AddColor(*c),
+                    ColorChange::Set(colors) => crate::engine::layers::EffectModification::SetColors(colors.clone()),
+                    ColorChange::RemoveAll => crate::engine::layers::EffectModification::RemoveAllColors,
+                };
+                let timestamp = self.allocate_timestamp();
+                let effect = crate::engine::layers::ContinuousEffect {
+                    id: 0,
+                    source: ctx.source,
+                    layer: crate::engine::layers::Layer::Layer5Color,
+                    duration: *duration,
+                    controller: ctx.controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    modification,
+                };
+                self.continuous_effects.add(effect);
+                Ok(())
+            }
+
             // === Phase 3+ primitives — stubs ===
 
             Primitive::Exile
@@ -336,7 +365,6 @@ impl GameState {
             | Primitive::Tap
             | Primitive::GrantKeyword(_, _)
             | Primitive::RemoveAbility(_, _)
-            | Primitive::ChangeColor(_, _)
             | Primitive::ChangeType(_, _)
             | Primitive::GainControl(_) => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))

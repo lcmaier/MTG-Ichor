@@ -6,7 +6,6 @@
 //!
 //! Reads base characteristics from CardData, then applies all continuous
 //! effects in layer order (1→2→3→4→5→6→7b→7c→7d).
-//! Counter-derived P/T is applied in layer 7c alongside other modifiers.
 
 use crate::engine::layers::types::*;
 use crate::state::game_state::GameState;
@@ -478,6 +477,220 @@ mod tests {
         let giant_chars = compute_characteristics(&game, giant_id).unwrap();
         assert_eq!(giant_chars.power, Some(4));
         assert_eq!(giant_chars.toughness, Some(4));
+    }
+
+    #[test]
+    fn test_set_colors_replaces_base_colors() {
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .color(Color::Green)
+            .power_toughness(2, 2)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Register a "becomes blue" effect (SetColors)
+        let mut blue = std::collections::HashSet::new();
+        blue.insert(Color::Blue);
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer5Color,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::SetColors(blue),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.colors.contains(&Color::Blue));
+        assert!(!chars.colors.contains(&Color::Green));
+        assert_eq!(chars.colors.len(), 1);
+    }
+
+    #[test]
+    fn test_add_color_preserves_existing() {
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .color(Color::Green)
+            .power_toughness(2, 2)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Register an "also red" effect (AddColor)
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer5Color,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::AddColor(Color::Red),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.colors.contains(&Color::Green));
+        assert!(chars.colors.contains(&Color::Red));
+        assert_eq!(chars.colors.len(), 2);
+    }
+
+    #[test]
+    fn test_remove_all_colors_makes_colorless() {
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .color(Color::Green)
+            .power_toughness(2, 2)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Register a "becomes colorless" effect
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer5Color,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::RemoveAllColors,
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.colors.is_empty());
+    }
+
+    #[test]
+    fn test_color_change_independent_of_pt() {
+        use crate::types::effects::Duration;
+
+        // Color change (L5) should not affect P/T (L7) and vice versa
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .color(Color::Green)
+            .power_toughness(2, 2)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // L5: becomes blue
+        let mut blue = std::collections::HashSet::new();
+        blue.insert(Color::Blue);
+        let color_effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer5Color,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::SetColors(blue),
+        };
+        game.continuous_effects.add(color_effect);
+
+        // L7c: +3/+3
+        let pt_effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer7cModifyPT,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 3 },
+        };
+        game.continuous_effects.add(pt_effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        // Color should be blue (not green)
+        assert!(chars.colors.contains(&Color::Blue));
+        assert!(!chars.colors.contains(&Color::Green));
+        // P/T should be 5/5 (2+3)
+        assert_eq!(chars.power, Some(5));
+        assert_eq!(chars.toughness, Some(5));
+    }
+
+    #[test]
+    fn test_filter_based_color_effect() {
+        use crate::types::effects::{Duration, PermanentFilter};
+
+        // Static ability: "Creatures you control are also red"
+        let mut game = GameState::new(2, 20);
+
+        let bears_data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .color(Color::Green)
+            .power_toughness(2, 2)
+            .build();
+        let bears = GameObject::new(bears_data, 0, Zone::Battlefield);
+        let bears_id = bears.id;
+        game.add_object(bears);
+        game.place_on_battlefield(bears_id, 0);
+
+        // Opponent's creature should NOT be affected
+        let opp_data = CardDataBuilder::new("Savannah Lions")
+            .card_type(CardType::Creature)
+            .color(Color::White)
+            .power_toughness(2, 1)
+            .build();
+        let opp = GameObject::new(opp_data, 1, Zone::Battlefield);
+        let opp_id = opp.id;
+        game.add_object(opp);
+        game.place_on_battlefield(opp_id, 1);
+
+        let source_id = crate::types::ids::new_object_id();
+        let effect = ContinuousEffect {
+            id: 0,
+            source: source_id,
+            layer: Layer::Layer5Color,
+            duration: Duration::WhileSourceOnBattlefield,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Filter {
+                filter: PermanentFilter::ByType(CardType::Creature),
+                controller: Some(0),
+            },
+            modification: EffectModification::AddColor(Color::Red),
+        };
+        game.continuous_effects.add(effect);
+
+        let bears_chars = compute_characteristics(&game, bears_id).unwrap();
+        assert!(bears_chars.colors.contains(&Color::Green));
+        assert!(bears_chars.colors.contains(&Color::Red));
+
+        let opp_chars = compute_characteristics(&game, opp_id).unwrap();
+        assert!(opp_chars.colors.contains(&Color::White));
+        assert!(!opp_chars.colors.contains(&Color::Red));
     }
 
     #[test]

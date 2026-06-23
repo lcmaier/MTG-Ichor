@@ -49,6 +49,15 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     }
 }
 
+/// Get the effective colors of a game object after applying Layer 5 effects.
+/// Routes through the layer system — accounts for color-changing effects
+/// (AddColor, SetColors, RemoveAllColors).
+pub fn get_effective_colors(game: &GameState, id: ObjectId) -> std::collections::HashSet<crate::types::colors::Color> {
+    compute_characteristics(game, id)
+        .map(|chars| chars.colors)
+        .unwrap_or_default()
+}
+
 /// Get effective power for a creature on the battlefield.
 /// Routes through the layer system — accounts for P/T modifications,
 /// counters, and set-P/T effects.
