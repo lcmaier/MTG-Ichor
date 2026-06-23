@@ -114,6 +114,88 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .build()
 }
 
+/// Zhalfirin Shapecraft - {1}{U}
+/// Instant
+/// Target creature has base power and toughness 4/3 until end of turn.
+/// Draw a card.
+pub fn zhalfirin_shapecraft() -> Arc<CardData> {
+    CardDataBuilder::new("Zhalfirin Shapecraft")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::SetPowerToughness(
+                        AmountExpr::Fixed(4),
+                        AmountExpr::Fixed(3),
+                        Duration::UntilEndOfTurn,
+                    ),
+                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                ),
+                Effect::Atom(
+                    Primitive::DrawCards(AmountExpr::Fixed(1)),
+                    EffectRecipient::Controller,
+                ),
+            ]),
+        })
+        .build()
+}
+
+/// Inside Out - {1}{U}
+/// Instant
+/// Switch target creature's power and toughness until end of turn.
+/// Draw a card.
+pub fn inside_out() -> Arc<CardData> {
+    CardDataBuilder::new("Inside Out")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
+                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                ),
+                Effect::Atom(
+                    Primitive::DrawCards(AmountExpr::Fixed(1)),
+                    EffectRecipient::Controller,
+                ),
+            ]),
+        })
+        .build()
+}
+
+/// Bull Rush - {R}
+/// Instant
+/// Target creature gets +2/+0 until end of turn.
+pub fn bull_rush() -> Arc<CardData> {
+    CardDataBuilder::new("Bull Rush")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 0))
+        .color(Color::Red)
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(2),
+                    AmountExpr::Fixed(0),
+                    Duration::UntilEndOfTurn,
+                ),
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        })
+        .build()
+}
+
 /// Dark Ritual - {B}
 /// Instant
 /// Add {B}{B}{B}.

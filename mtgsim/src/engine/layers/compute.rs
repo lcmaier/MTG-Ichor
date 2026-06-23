@@ -4,12 +4,9 @@
 //! `EffectiveCharacteristics` for a given object. All oracle queries
 //! route through this function.
 //!
-//! Phase LA: produces identical output to pre-layer oracle wrappers.
-//! The registry is empty, so this just reads base characteristics from
-//! CardData plus the power_modifier/toughness_modifier shim and counters.
-//!
-//! Phase LB: pump spells and anthems register real effects; the shim
-//! fields are removed.
+//! Reads base characteristics from CardData, then applies all continuous
+//! effects in layer order (1→2→3→4→5→6→7b→7c→7d).
+//! Counter-derived P/T is applied in layer 7c alongside other modifiers.
 
 use crate::engine::layers::types::*;
 use crate::state::game_state::GameState;
@@ -44,23 +41,22 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Effecti
         chars.controller = entry.controller;
     }
 
-    // Walk layers in order, applying registered effects
-    apply_registered_effects(game, id, &mut chars);
-
-    // After registered effects: apply the legacy power_modifier/toughness_modifier
-    // shim and counter-derived P/T. These will be removed in Phase LB when pump
-    // spells register real effects instead.
-    apply_legacy_pt_shim(game, id, &mut chars);
+    // Walk layers in order, applying all effects (registered + counters)
+    apply_effects(game, id, &mut chars);
 
     Some(chars)
 }
 
-/// Apply all registered continuous effects to the characteristics frame.
-/// Effects are processed in layer order (Layer enum's Ord), then by timestamp
-/// within each layer.
-fn apply_registered_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteristics) {
-    // Fast path: no effects registered → nothing to do
-    if game.continuous_effects.is_empty() {
+/// Apply all continuous effects in layer order (rule 613).
+///
+/// Walks registered effects by layer, and also applies counter-derived
+/// P/T modifications in layer 7c (rule 613.4c) alongside other modifiers.
+fn apply_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteristics) {
+    let has_registered = !game.continuous_effects.is_empty();
+    let on_battlefield = game.battlefield.contains_key(&id);
+
+    // Fast path: nothing to apply
+    if !has_registered && !on_battlefield {
         return;
     }
 
@@ -77,12 +73,33 @@ fn apply_registered_effects(game: &GameState, id: ObjectId, chars: &mut Effectiv
     ];
 
     for &layer in &layers {
-        let effects = game.continuous_effects.effects_in_layer(layer);
-        for effect in effects {
-            if !effect_applies_to(effect, id, chars, game) {
-                continue;
+        // Apply registered effects in this layer
+        if has_registered {
+            let effects = game.continuous_effects.effects_in_layer(layer);
+            for effect in effects {
+                if !effect_applies_to(effect, id, chars, game) {
+                    continue;
+                }
+                apply_modification(&effect.modification, chars);
             }
-            apply_modification(&effect.modification, chars);
+        }
+
+        // Apply counter P/T in layer 7c (rule 613.4c)
+        if layer == Layer::Layer7cModifyPT {
+            if let Some(entry) = game.battlefield.get(&id) {
+                let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
+                if plus != 0 {
+                    if let Some(ref mut p) = chars.power { *p += plus; }
+                    if let Some(ref mut t) = chars.toughness { *t += plus; }
+                }
+                let minus = entry.counter_count(CounterType::MinusOneMinusOne) as i32;
+                if minus != 0 {
+                    if let Some(ref mut p) = chars.power { *p -= minus; }
+                    if let Some(ref mut t) = chars.toughness { *t -= minus; }
+                }
+                // TODO: handle other P/T-modifying counter types (+2/+2, +0/+1, etc.)
+                // when they are added to CounterType.
+            }
         }
     }
 }
@@ -195,42 +212,6 @@ fn apply_modification(modification: &EffectModification, chars: &mut EffectiveCh
     }
 }
 
-/// Apply the legacy power_modifier/toughness_modifier shim and counter P/T.
-///
-/// This exists for backward compatibility during Phase LA. In Phase LB,
-/// pump spells will register real Layer 7c effects instead of writing to
-/// these scalar fields, and this function will be deleted.
-fn apply_legacy_pt_shim(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteristics) {
-    if let Some(entry) = game.battlefield.get(&id) {
-        // Apply the scalar modifier shim (used by tests that directly set power_modifier)
-        if entry.power_modifier != 0 || entry.toughness_modifier != 0 {
-            if let Some(ref mut p) = chars.power {
-                *p += entry.power_modifier;
-            }
-            if let Some(ref mut t) = chars.toughness {
-                *t += entry.toughness_modifier;
-            }
-        }
-
-        // Apply counter-derived P/T modifications
-        let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
-        let minus = entry.counter_count(CounterType::MinusOneMinusOne) as i32;
-        let net_power = plus - minus;
-        let net_toughness = plus - minus;
-
-        if net_power != 0 {
-            if let Some(ref mut p) = chars.power {
-                *p += net_power;
-            }
-        }
-        if net_toughness != 0 {
-            if let Some(ref mut t) = chars.toughness {
-                *t += net_toughness;
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,7 +247,9 @@ mod tests {
     }
 
     #[test]
-    fn test_power_modifier_shim_applied() {
+    fn test_registered_effect_pump_power_only() {
+        use crate::types::effects::Duration;
+
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
             .card_type(CardType::Creature)
@@ -275,7 +258,21 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0).power_modifier = 3;
+        game.place_on_battlefield(id, 0);
+
+        // Register a +3/+0 effect
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer7cModifyPT,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: 1,
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 0 },
+        };
+        game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
         assert_eq!(chars.power, Some(5));
@@ -481,5 +478,43 @@ mod tests {
         let giant_chars = compute_characteristics(&game, giant_id).unwrap();
         assert_eq!(giant_chars.power, Some(4));
         assert_eq!(giant_chars.toughness, Some(4));
+    }
+
+    #[test]
+    fn test_counters_applied_before_switch_pt() {
+        use crate::types::effects::Duration;
+
+        // Regression test: counters are in 7c, switch is 7d.
+        // A 1/4 creature with two +1/+1 counters and a switch effect:
+        // 7c: 1+2=3 / 4+2=6, then 7d: swap → 6/3
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Wall")
+            .card_type(CardType::Creature)
+            .power_toughness(1, 4)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let entry = game.place_on_battlefield(id, 0);
+        entry.add_counters(CounterType::PlusOnePlusOne, 2);
+
+        // Register a switch P/T effect (layer 7d)
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer7dSwitchPT,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: 1,
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::SwitchPowerToughness,
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        // 7c: 1+2=3, 4+2=6; 7d: swap → 6/3
+        assert_eq!(chars.power, Some(6));
+        assert_eq!(chars.toughness, Some(3));
     }
 }

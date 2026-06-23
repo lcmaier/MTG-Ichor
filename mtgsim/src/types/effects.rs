@@ -307,6 +307,8 @@ pub enum Primitive {
     SetPowerToughness(AmountExpr, AmountExpr, Duration),
     /// Modify power/toughness by +X/+Y (layer 7c)
     ModifyPowerToughness(AmountExpr, AmountExpr, Duration),
+    /// Switch power and toughness (layer 7d)
+    SwitchPowerToughness(Duration),
     /// Grant a keyword ability (layer 6)
     GrantKeyword(KeywordAbility, Duration),
     /// Remove a keyword ability (layer 6)

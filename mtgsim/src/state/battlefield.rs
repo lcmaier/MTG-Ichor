@@ -36,8 +36,6 @@ pub struct BattlefieldEntity {
     /// Checked in SBA 704.5g: any nonzero damage from deathtouch is lethal.
     /// Cleared in cleanup alongside damage_marked.
     pub damaged_by_deathtouch: bool,
-    pub power_modifier: i32,
-    pub toughness_modifier: i32,
 
     // Combat state (transient, cleared at end of combat)
     pub attacking: Option<AttackingInfo>,
@@ -90,8 +88,6 @@ impl BattlefieldEntity {
             controller_since_turn: current_turn,
             damage_marked: 0,
             damaged_by_deathtouch: false,
-            power_modifier: 0,
-            toughness_modifier: 0,
             attacking: None,
             blocking: None,
             counters: HashMap::new(),
