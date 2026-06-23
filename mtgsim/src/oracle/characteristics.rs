@@ -164,6 +164,11 @@ mod tests {
 
     #[test]
     fn test_get_effective_power_with_modifier() {
+        use crate::engine::layers::types::{
+            AffectedSet, ContinuousEffect, EffectModification, Layer,
+        };
+        use crate::types::effects::Duration;
+
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
             .card_type(CardType::Creature)
@@ -172,7 +177,21 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0).power_modifier = 3;
+        game.place_on_battlefield(id, 0);
+
+        // Register a +3/+0 effect via the layer system
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer7cModifyPT,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: 1,
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 0 },
+        };
+        game.continuous_effects.add(effect);
 
         assert_eq!(get_effective_power(&game, id), Some(5));
     }

@@ -246,26 +246,13 @@ impl GameState {
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let timestamp = self.allocate_timestamp();
-
-                // Collect target object IDs (only battlefield permanents)
-                let target_ids: Vec<ObjectId> = ctx.targets.iter()
-                    .filter_map(|t| {
-                        if let ResolvedTarget::Object(id) = t {
-                            if self.battlefield.contains_key(id) {
-                                return Some(*id);
-                            }
-                        }
-                        None
-                    })
-                    .collect();
-
+                let target_ids = self.collect_battlefield_targets(ctx);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
-
+                let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
-                    id: 0, // assigned by registry
+                    id: 0,
                     source: ctx.source,
                     layer: crate::engine::layers::Layer::Layer7cModifyPT,
                     duration: *duration,
@@ -277,6 +264,53 @@ impl GameState {
                         power,
                         toughness,
                     },
+                };
+                self.continuous_effects.add(effect);
+                Ok(())
+            }
+
+            Primitive::SetPowerToughness(power_expr, toughness_expr, duration) => {
+                let power = self.evaluate_amount(power_expr, ctx)? as i32;
+                let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
+                let target_ids = self.collect_battlefield_targets(ctx);
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+                let timestamp = self.allocate_timestamp();
+                let effect = crate::engine::layers::ContinuousEffect {
+                    id: 0,
+                    source: ctx.source,
+                    layer: crate::engine::layers::Layer::Layer7bSetPT,
+                    duration: *duration,
+                    controller: ctx.controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    modification: crate::engine::layers::EffectModification::SetPowerToughness {
+                        power,
+                        toughness,
+                    },
+                };
+                self.continuous_effects.add(effect);
+                Ok(())
+            }
+
+            Primitive::SwitchPowerToughness(duration) => {
+                let target_ids = self.collect_battlefield_targets(ctx);
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+                let timestamp = self.allocate_timestamp();
+                let effect = crate::engine::layers::ContinuousEffect {
+                    id: 0,
+                    source: ctx.source,
+                    layer: crate::engine::layers::Layer::Layer7dSwitchPT,
+                    duration: *duration,
+                    controller: ctx.controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    modification: crate::engine::layers::EffectModification::SwitchPowerToughness,
                 };
                 self.continuous_effects.add(effect);
                 Ok(())
@@ -300,7 +334,6 @@ impl GameState {
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
             | Primitive::Tap
-            | Primitive::SetPowerToughness(_, _, _)
             | Primitive::GrantKeyword(_, _)
             | Primitive::RemoveAbility(_, _)
             | Primitive::ChangeColor(_, _)
@@ -309,6 +342,22 @@ impl GameState {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
         }
+    }
+
+    // --- Helper: collect battlefield targets ---
+
+    /// Extract object IDs from resolved targets that are currently on the battlefield.
+    fn collect_battlefield_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
+        ctx.targets.iter()
+            .filter_map(|t| {
+                if let ResolvedTarget::Object(id) = t {
+                    if self.battlefield.contains_key(id) {
+                        return Some(*id);
+                    }
+                }
+                None
+            })
+            .collect()
     }
 
     // --- Helper: evaluate AmountExpr ---

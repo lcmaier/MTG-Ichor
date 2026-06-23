@@ -333,6 +333,9 @@ impl GameState {
                         let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
                         (Layer::Layer7bSetPT, EffectModification::SetPowerToughness { power: p, toughness: t })
                     }
+                    Primitive::SwitchPowerToughness(_dur) => {
+                        (Layer::Layer7dSwitchPT, EffectModification::SwitchPowerToughness)
+                    }
                     Primitive::GrantKeyword(kw, _dur) => {
                         (Layer::Layer6Ability, EffectModification::GrantKeyword(*kw))
                     }

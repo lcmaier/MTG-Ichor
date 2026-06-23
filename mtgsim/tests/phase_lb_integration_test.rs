@@ -17,7 +17,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{put_in_hand, put_on_battlefield, setup_two_player_game};
+use common::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
 
 // ---------------------------------------------------------------------------
 // Test 1: Giant Growth gives +3/+3 until end of turn
@@ -356,4 +356,327 @@ fn test_anthem_plus_pump_spell() {
     assert_eq!(get_effective_power(&game, bears_id), Some(6));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
     assert_eq!(game.continuous_effects.len(), 2); // anthem + growth
+}
+
+// ===========================================================================
+// Layer 7b Tests: SetPowerToughness (Zhalfirin Shapecraft)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Test 11: Zhalfirin Shapecraft sets base P/T to 4/3
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_zhalfirin_shapecraft_sets_base_pt() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let spell_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 2);
+
+    // Base 2/2
+    assert_eq!(get_effective_power(&game, bears_id), Some(2));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Cast Zhalfirin Shapecraft targeting the creature
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id,
+        },
+        vec![0],
+    );
+    // {1}{U}: pool has [Blue(2)], allocate 1 generic → [1]
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![1],
+    );
+    let result = game.run_priority_round(&decisions).unwrap();
+    assert_eq!(result, PriorityResult::ActionTaken);
+
+    // Resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    game.run_priority_round(&decisions).unwrap();
+
+    // Creature should be 4/3, and we drew a card
+    assert_eq!(get_effective_power(&game, bears_id), Some(4));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
+    assert_eq!(game.players[0].hand.len(), 1); // drew 1 card
+}
+
+// ---------------------------------------------------------------------------
+// Test 12: Inside Out switches P/T
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_inside_out_switches_pt() {
+    let mut game = setup_two_player_game();
+    // Use a creature with asymmetric P/T: Hill Giant 3/3 won't show the switch.
+    // Use Earth Elemental 4/5 instead.
+    let creature_data = mtgsim::objects::card_data::CardDataBuilder::new("Earth Elemental")
+        .card_type(mtgsim::types::card_types::CardType::Creature)
+        .power_toughness(4, 5)
+        .build();
+    let creature_id = put_on_battlefield(&mut game, creature_data, 0);
+    let spell_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 2);
+
+    // Base 4/5
+    assert_eq!(get_effective_power(&game, creature_id), Some(4));
+    assert_eq!(get_effective_toughness(&game, creature_id), Some(5));
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Cast Inside Out targeting the creature
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id,
+        },
+        vec![0],
+    );
+    // {1}{U}: pool has [Blue(2)], allocate 1 generic → [1]
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![1],
+    );
+    game.run_priority_round(&decisions).unwrap();
+
+    // Resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    game.run_priority_round(&decisions).unwrap();
+
+    // Creature should be 5/4 (swapped), and we drew a card
+    assert_eq!(get_effective_power(&game, creature_id), Some(5));
+    assert_eq!(get_effective_toughness(&game, creature_id), Some(4));
+    assert_eq!(game.players[0].hand.len(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: Bull Rush gives +2/+0
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_bull_rush_pumps_power() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let spell_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Cast Bull Rush
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id,
+        },
+        vec![0],
+    );
+    game.run_priority_round(&decisions).unwrap();
+
+    // Resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    game.run_priority_round(&decisions).unwrap();
+
+    // 2+2 = 4 power, toughness stays 2
+    assert_eq!(get_effective_power(&game, bears_id), Some(4));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
+}
+
+// ===========================================================================
+// Layer Ordering Tests: 7b → 7c → 7d
+// ===========================================================================
+
+/// Helper: cast a targeted spell from hand and resolve it.
+/// `generic_alloc` — if the spell has generic mana cost, provide the allocation vector.
+fn cast_and_resolve_targeted_spell(
+    game: &mut mtgsim::state::game_state::GameState,
+    decisions: &ScriptedDecisionProvider,
+    spell_id: mtgsim::types::ids::ObjectId,
+    cast_index: usize,
+    target_index: usize,
+    generic_alloc: Option<Vec<u64>>,
+) {
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id,
+        },
+        vec![target_index],
+    );
+    if let Some(alloc) = generic_alloc {
+        decisions.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+            alloc,
+        );
+    }
+    let result = game.run_priority_round(decisions).unwrap();
+    assert_eq!(result, PriorityResult::ActionTaken);
+
+    // Both pass → resolve
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    game.run_priority_round(decisions).unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// Test 14: All three spells on same creature → P/T 3/6 regardless of order
+// Cast order: Shapecraft (7b), Bull Rush (7c), Inside Out (7d)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    fill_library(&mut game, 0, 5);
+    // Provide plenty of mana: Blue for Shapecraft+Inside Out, Red for Bull Rush
+    game.players[0].mana_pool.add(ManaType::Blue, 10);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Shapecraft {1}{U}: available [Blue(10), Red(1)] → allocate 1 generic from Blue
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, 0, Some(vec![1, 0]));
+    // After 7b: base set to 4/3
+    assert_eq!(get_effective_power(&game, bears_id), Some(4));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
+
+    // Bull Rush {R}: no generic cost
+    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, 1, 0, None);
+    // After 7b+7c: 4+2=6, 3+0=3
+    assert_eq!(get_effective_power(&game, bears_id), Some(6));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
+
+    // Inside Out {1}{U}: available [Blue(8)] (Red spent) → allocate 1 from Blue
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, 0, Some(vec![1]));
+    // After 7b+7c+7d: swap(6,3) = 3/6
+    assert_eq!(get_effective_power(&game, bears_id), Some(3));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
+}
+
+// ---------------------------------------------------------------------------
+// Test 15: Same result when cast in REVERSE order (7d, 7c, 7b)
+// Proves the layer system applies in fixed order, not cast order.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_layer_ordering_cast_in_reverse_order() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    // Add to hand in CAST ORDER so index 1 always picks the next intended spell
+    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
+    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 10);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Inside Out {1}{U}: available [Blue(10), Red(1)] → allocate 1 from Blue
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, 0, Some(vec![1, 0]));
+    // Only 7d active: swap base 2/2 → still 2/2 (symmetric!)
+    assert_eq!(get_effective_power(&game, bears_id), Some(2));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
+
+    // Bull Rush {R}: no generic
+    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, 1, 0, None);
+    // 7c: 2+2=4, 2+0=2; then 7d: swap → 2/4
+    assert_eq!(get_effective_power(&game, bears_id), Some(2));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(4));
+
+    // Shapecraft {1}{U}: available [Blue(8)] (Red spent) → allocate 1 from Blue
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, 0, Some(vec![1]));
+    // 7b: set 4/3; 7c: +2/+0 → 6/3; 7d: swap → 3/6
+    assert_eq!(get_effective_power(&game, bears_id), Some(3));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
+}
+
+// ---------------------------------------------------------------------------
+// Test 16: Cast order 7c, 7d, 7b — same final result 3/6
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_layer_ordering_cast_7c_7d_7b() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    // Add to hand in CAST ORDER so index 1 always picks the next intended spell
+    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 10);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Bull Rush {R}: no generic
+    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, 1, 0, None);
+    // Only 7c: 2+2=4, 2+0=2
+    assert_eq!(get_effective_power(&game, bears_id), Some(4));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
+
+    // Inside Out {1}{U}: available [Blue(10)] (Red spent) → allocate 1 from Blue
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, 0, Some(vec![1]));
+    // 7c: 4/2; 7d: swap → 2/4
+    assert_eq!(get_effective_power(&game, bears_id), Some(2));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(4));
+
+    // Shapecraft {1}{U}: available [Blue(8)] → allocate 1 from Blue
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, 0, Some(vec![1]));
+    // 7b: 4/3; 7c: +2/+0 → 6/3; 7d: swap → 3/6
+    assert_eq!(get_effective_power(&game, bears_id), Some(3));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
+}
+
+// ---------------------------------------------------------------------------
+// Test 17: All effects expire at cleanup
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_layer_effects_expire_at_cleanup() {
+    let mut game = setup_two_player_game();
+    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    fill_library(&mut game, 0, 5);
+    game.players[0].mana_pool.add(ManaType::Blue, 10);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // Cast all three
+    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, 1, 0, Some(vec![1, 0]));
+    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, 1, 0, None);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, 1, 0, Some(vec![1]));
+
+    // 3/6 as expected
+    assert_eq!(get_effective_power(&game, bears_id), Some(3));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
+    assert_eq!(game.continuous_effects.len(), 3);
+
+    // Advance to cleanup (9 steps from precombat main)
+    for _ in 0..9 {
+        game.advance_turn().unwrap();
+    }
+
+    // All effects expired, back to base 2/2
+    assert_eq!(game.continuous_effects.len(), 0);
+    assert_eq!(get_effective_power(&game, bears_id), Some(2));
+    assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 }
