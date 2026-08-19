@@ -23,9 +23,18 @@ Usage:
     python plans/specdb.py next --phase "Phase 5-Layers" --rule 613
     python plans/specdb.py show ATOM-305.7-001
     python plans/specdb.py orphans        # COVERS ids with no matching atom
+    python plans/specdb.py gaps --chapter 6   # CR rules the corpus never examined
+
+CR snapshots live in MTG-Rules/versions/<version>.txt, one official file per
+version. Rule text is stored with a sha256 so a future `sync-rules` can diff
+two snapshots. Rule NUMBERS are addresses, not identities - they shift when
+WotC inserts a rule (CR 310.8 in The Hobbit bumped 310.8a to 310.9a). Atom IDs
+are therefore permanent handles and must never be renumbered to follow the CR;
+`// COVERS:` annotations in Rust source depend on them.
 """
 
 import argparse
+import hashlib
 import importlib.util
 import re
 import sqlite3
@@ -43,10 +52,21 @@ EXTRACT_SCRIPT = ROOT / "plans" / "atomic-tests" / "extract-phase-index.py"
 CODE_DIRS = [ROOT / "mtgsim" / "src", ROOT / "mtgsim" / "tests"]
 DB_PATH = ROOT / "plans" / "atomic-tests" / "spec.sqlite"
 
+# Comprehensive Rules snapshots, one official .txt per version. The filename
+# stem is the version label (tmnt, strixhaven, ...). BASELINE_VERSION is the
+# snapshot the engine currently targets; `gaps` reports against it.
+CR_DIR = ROOT / "MTG-Rules" / "versions"
+BASELINE_VERSION = "tmnt"
+
 # Phases on the critical path to v1, in the order they must land.
 CRITICAL_PATH = ["Phase 5-Layers", "Phase 6", "Phase 7"]
 
 ENTRY_RE = re.compile(r"^\*\*((?:ATOM|BOUNDARY|COMP)-[^*]+)\*\*\s*$")
+# A CR rule line: "613.4c Layer 7c: Effects and counters that modify ..."
+CR_RULE_RE = re.compile(r"^(\d{3}\.\d+[a-z]?)\.?\s+(.*)$")
+# A session classification line: "**100.1** — PURE-DEF. Defines scope ..."
+CLASSIFY_RE = re.compile(r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-]+)")
+RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")
 FIELD_RE = re.compile(r"^-\s+\*\*([A-Za-z ]+):\*\*\s*(.*)$")
 COVERS_RE = re.compile(r"COVERS:\s*(.+)$")
 ATOM_ID_RE = re.compile(r"(?:ATOM|BOUNDARY|COMP)-[0-9A-Za-z.+]+-\d+")
@@ -75,13 +95,96 @@ DB_COLUMNS = [
 
 
 def load_phase_normalizer():
-    """Reuse normalize_phase from the existing extraction script."""
+    """Reuse normalize_phase from the existing extraction script, with a fix.
+
+    The upstream normalizer tests for the substring "already" before it parses
+    a phase number, so a raw value like
+
+        "Phase 5-Pre (already in `GameConfig` via `DeckLimits`)"
+
+    is classified ALREADY-IMPL even though it names an explicit phase. That
+    inflated ALREADY-IMPL to 201 against only 32 ALREADY-IMPLEMENTED verdicts
+    in the sessions. Here an explicit "Phase N" prefix wins; the upstream
+    heuristics still handle everything else.
+    """
     if not EXTRACT_SCRIPT.exists():
         return lambda raw: raw.strip() or "UNKNOWN"
     spec = importlib.util.spec_from_file_location("extract_phase_index", EXTRACT_SCRIPT)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.normalize_phase
+    upstream = mod.normalize_phase
+
+    explicit = re.compile(r"^\s*phase\s*\d", re.I)
+
+    def normalize(raw):
+        # Strip a trailing parenthetical before deciding, so an aside like
+        # "(already in GameConfig)" can't override the stated phase.
+        if explicit.match(raw or ""):
+            head = re.sub(r"\s*\([^)]*\)\s*$", "", raw).strip()
+            if head:
+                return upstream(head)
+        return upstream(raw)
+
+    return normalize
+
+
+def parse_cr_versions():
+    """Parse every CR snapshot in MTG-Rules/versions/ into rule rows.
+
+    Rule text is the rule line plus any `Example:` lines that follow it - the
+    examples are part of the rule, and folding them in before hashing means an
+    example-only edit still shows up as a text change on a future sync.
+    """
+    rows = []
+    if not CR_DIR.exists():
+        return rows
+    for path in sorted(CR_DIR.glob("*.txt")):
+        version = path.stem
+        lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
+        effective = ""
+        for line in lines[:40]:
+            m = re.search(r"effective as of (.+?)\.\s*$", line.strip())
+            if m:
+                effective = m.group(1)
+                break
+        pending = None  # (number, [text parts], line_no)
+        for n, line in enumerate(lines, 1):
+            s = line.strip()
+            m = CR_RULE_RE.match(s)
+            if m:
+                if pending:
+                    rows.append(_finish_rule(version, effective, pending))
+                pending = (m.group(1), [m.group(2).strip()], n)
+            elif pending and s.startswith("Example:"):
+                pending[1].append(s)
+        if pending:
+            rows.append(_finish_rule(version, effective, pending))
+    return rows
+
+
+def _finish_rule(version, effective, pending):
+    number, parts, line_no = pending
+    text = "\n".join(p for p in parts if p)
+    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return (version, number, text, sha, effective, line_no)
+
+
+def parse_rule_mentions():
+    """Rules a session explicitly classified, e.g. `**100.1** - PURE-DEF.`
+
+    A rule with a verdict but no atom was considered and deliberately not
+    atomized; that is different from a rule nobody ever looked at.
+    """
+    rows, loose = [], set()
+    for path in sorted(SESSIONS_DIR.glob("session-*.md")):
+        session = path.stem.replace("session-", "S")
+        text = path.read_text(encoding="utf-8")
+        loose.update(RULE_TOKEN_RE.findall(text))
+        for line in text.split("\n"):
+            m = CLASSIFY_RE.match(line.strip())
+            if m:
+                rows.append((m.group(1), m.group(2), session))
+    return rows, loose
 
 
 def parse_sessions():
@@ -167,11 +270,18 @@ def scan_coverage():
 def build():
     atoms = parse_sessions()
     cov = scan_coverage()
+    rules = parse_cr_versions()
+    mentions, loose_mentions = parse_rule_mentions()
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if DB_PATH.exists():
-        DB_PATH.unlink()
+    # Drop and recreate in place rather than unlinking: on Windows an open
+    # SQLite browser holds a lock on the file and unlink() raises WinError 32.
     db = sqlite3.connect(DB_PATH)
     db.executescript("""
+        DROP TABLE IF EXISTS atoms;
+        DROP TABLE IF EXISTS coverage;
+        DROP TABLE IF EXISTS rules;
+        DROP TABLE IF EXISTS rule_mentions;
+        DROP TABLE IF EXISTS rule_seen;
         CREATE TABLE atoms (
             id TEXT PRIMARY KEY, kind TEXT, rule_num TEXT, summary TEXT,
             mechanism TEXT, board TEXT, action TEXT, expected TEXT,
@@ -182,15 +292,34 @@ def build():
         CREATE TABLE coverage (
             atom_id TEXT, test_name TEXT, file TEXT, line INTEGER
         );
+        -- One row per rule per CR snapshot. text_sha is what a future
+        -- sync-rules diffs on; never key anything on `number` alone, it is an
+        -- address and it moves between versions.
+        CREATE TABLE rules (
+            cr_version TEXT, number TEXT, text TEXT, text_sha TEXT,
+            effective_date TEXT, source_line INTEGER,
+            PRIMARY KEY (cr_version, number)
+        );
+        CREATE TABLE rule_mentions (
+            number TEXT, verdict TEXT, session TEXT
+        );
+        -- Rule numbers appearing anywhere in a session, even in prose.
+        CREATE TABLE rule_seen (number TEXT PRIMARY KEY);
         CREATE INDEX idx_atoms_phase ON atoms(phase);
         CREATE INDEX idx_atoms_rule ON atoms(rule_num);
         CREATE INDEX idx_cov_atom ON coverage(atom_id);
+        CREATE INDEX idx_rules_num ON rules(number);
+        CREATE INDEX idx_mentions_num ON rule_mentions(number);
     """)
     db.executemany(
         "INSERT INTO atoms VALUES (%s)" % ",".join("?" * len(DB_COLUMNS)),
         [tuple(a.get(c, "") for c in DB_COLUMNS) for a in atoms],
     )
     db.executemany("INSERT INTO coverage VALUES (?,?,?,?)", cov)
+    db.executemany("INSERT INTO rules VALUES (?,?,?,?,?,?)", rules)
+    db.executemany("INSERT INTO rule_mentions VALUES (?,?,?)", mentions)
+    db.executemany("INSERT OR IGNORE INTO rule_seen VALUES (?)",
+                   [(r,) for r in sorted(loose_mentions)])
     db.commit()
 
     linked = db.execute(
@@ -201,10 +330,19 @@ def build():
         "SELECT COUNT(DISTINCT atom_id) FROM coverage "
         "WHERE atom_id NOT IN (SELECT id FROM atoms)"
     ).fetchone()[0]
+    versions = db.execute(
+        "SELECT cr_version, effective_date, COUNT(*) FROM rules "
+        "GROUP BY cr_version ORDER BY cr_version"
+    ).fetchall()
     print("built %s" % DB_PATH.relative_to(ROOT))
     print("  atoms parsed:      %d" % len(atoms))
     print("  COVERS rows found: %d" % len(cov))
     print("  atoms covered:     %d" % linked)
+    for v, eff, n in versions:
+        marker = "  <- baseline" if v == BASELINE_VERSION else ""
+        print("  CR %-12s     %d rules (effective %s)%s" % (v, n, eff or "?", marker))
+    if not versions:
+        print("  NO CR SNAPSHOTS found in %s" % CR_DIR.relative_to(ROOT))
     if orphan:
         print("  ORPHAN ids:        %d  (run: python plans/specdb.py orphans)" % orphan)
     db.close()
@@ -276,6 +414,58 @@ def show(atom_id):
         print("              %s  (%s:%d)" % (name, f, ln))
 
 
+def gaps(chapter, limit, show_all):
+    """CR rules the spec corpus never accounted for.
+
+    Three dispositions per rule, from strongest to weakest:
+      atomized   - at least one ATOM/BOUNDARY/COMP cites it
+      classified - a session gave it a verdict (PURE-DEF, DEFERRED, ...) but
+                   produced no atom: considered and deliberately skipped
+      unseen     - the rule number appears nowhere in any session
+    Only `unseen` is a real blind spot.
+    """
+    db = connect()
+    rules = db.execute(
+        "SELECT number, text FROM rules WHERE cr_version = ? ORDER BY number",
+        (BASELINE_VERSION,),
+    ).fetchall()
+    if not rules:
+        sys.exit("no rules for baseline version %r - check %s"
+                 % (BASELINE_VERSION, CR_DIR))
+
+    atomized = set()
+    for (r,) in db.execute("SELECT DISTINCT rule_num FROM atoms WHERE rule_num <> ''"):
+        atomized.update(RULE_TOKEN_RE.findall(r))
+    classified = {r: v for r, v in db.execute("SELECT number, verdict FROM rule_mentions")}
+    seen = {r for (r,) in db.execute("SELECT number FROM rule_seen")}
+
+    def chap(number):
+        return number[:1]
+
+    rows = [(n, t) for n, t in rules if not chapter or chap(n) == str(chapter)]
+    unseen = [(n, t) for n, t in rows if n not in atomized and n not in seen]
+    only_classified = [(n, t) for n, t in rows
+                       if n not in atomized and n in classified]
+
+    total = len(rows)
+    n_atom = sum(1 for n, _ in rows if n in atomized)
+    scope = "CR %s" % chapter if chapter else "all chapters"
+    print("%s - baseline CR %s" % (scope, BASELINE_VERSION))
+    print("  rules:                 %d" % total)
+    print("  atomized:              %d  (%.1f%%)" % (n_atom, 100.0 * n_atom / total))
+    print("  classified, no atom:   %d" % len(only_classified))
+    print("  NEVER SEEN:            %d  (%.1f%%)" % (len(unseen), 100.0 * len(unseen) / total))
+    if not unseen:
+        print("\nno blind spots in this scope.")
+        return
+    print("\nrules no session ever mentioned:")
+    shown = unseen if show_all else unseen[:limit]
+    for n, t in shown:
+        print("  %-10s %s" % (n, t.split("\n")[0][:74]))
+    if len(unseen) > len(shown):
+        print("  ... %d more (use --all)" % (len(unseen) - len(shown)))
+
+
 def orphans():
     db = connect()
     rows = db.execute("""
@@ -304,12 +494,17 @@ def main():
     s = sub.add_parser("show")
     s.add_argument("atom_id")
     sub.add_parser("orphans")
+    g = sub.add_parser("gaps")
+    g.add_argument("--chapter", type=int, help="CR chapter 1-9")
+    g.add_argument("--limit", type=int, default=25)
+    g.add_argument("--all", action="store_true", dest="show_all")
     a = ap.parse_args()
     {"build": lambda: build(),
      "stats": lambda: stats(),
      "next": lambda: next_up(a.phase, a.rule, a.limit),
      "show": lambda: show(a.atom_id),
-     "orphans": lambda: orphans()}[a.cmd]()
+     "orphans": lambda: orphans(),
+     "gaps": lambda: gaps(a.chapter, a.limit, a.show_all)}[a.cmd]()
 
 
 if __name__ == "__main__":

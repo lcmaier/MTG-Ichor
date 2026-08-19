@@ -32,7 +32,15 @@ python plans/specdb.py stats     # coverage by phase
 python plans/specdb.py next --phase "Phase 5-Layers" --rule 613
 python plans/specdb.py show ATOM-305.7-002
 python plans/specdb.py orphans   # COVERS ids that match no atom
+python plans/specdb.py gaps --chapter 6   # CR rules the corpus never examined
 ```
+
+The CR itself is in the database as ground truth: `MTG-Rules/versions/tmnt.txt`
+(3,120 rules, effective 2026-02-27) is the baseline the engine targets. `gaps`
+reports CR rules no session ever mentioned — 155 total, of which 65 are
+out-of-scope variants and ~90 are card-breadth or genuinely unexamined. **CR 6
+has zero blind spots.** Known real gaps: CR 115.7b–f (changing targets),
+115.9 (targeting-aware objects), 508.7b–d (reselecting attack targets).
 
 A test declares coverage with a comment directly above `#[test]`:
 
