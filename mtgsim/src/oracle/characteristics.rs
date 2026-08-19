@@ -3,9 +3,11 @@
 // All functions route through `compute_characteristics` from the layer system.
 // This module is the single-point interface that the rest of the engine calls.
 
+use std::collections::HashSet;
+
 use crate::engine::layers::compute::compute_characteristics;
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordAbility;
 
@@ -55,6 +57,30 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
 pub fn get_effective_colors(game: &GameState, id: ObjectId) -> std::collections::HashSet<crate::types::colors::Color> {
     compute_characteristics(game, id)
         .map(|chars| chars.colors)
+        .unwrap_or_default()
+}
+
+/// Get the effective card types of a game object after applying Layer 4 effects.
+/// Routes through the layer system — accounts for type-changing effects.
+pub fn get_effective_types(game: &GameState, id: ObjectId) -> HashSet<CardType> {
+    compute_characteristics(game, id)
+        .map(|chars| chars.types)
+        .unwrap_or_default()
+}
+
+/// Get the effective subtypes of a game object after applying Layer 4 effects.
+/// Routes through the layer system — accounts for type-changing effects.
+pub fn get_effective_subtypes(game: &GameState, id: ObjectId) -> HashSet<Subtype> {
+    compute_characteristics(game, id)
+        .map(|chars| chars.subtypes)
+        .unwrap_or_default()
+}
+
+/// Get the effective supertypes of a game object after applying Layer 4 effects.
+/// Routes through the layer system — accounts for type-changing effects.
+pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Supertype> {
+    compute_characteristics(game, id)
+        .map(|chars| chars.supertypes)
         .unwrap_or_default()
 }
 

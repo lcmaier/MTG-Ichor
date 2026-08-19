@@ -140,6 +140,7 @@ fn permanent_matches_filter(
         PermanentFilter::All => true,
         PermanentFilter::ByType(t) => chars.types.contains(t),
         PermanentFilter::BySubtype(s) => chars.subtypes.contains(s),
+        PermanentFilter::BySupertype(s) => chars.supertypes.contains(s),
         PermanentFilter::ByColor(c) => chars.colors.contains(c),
         PermanentFilter::ByController(_) => {
             // Controller filtering is handled by the AffectedSet::Filter.controller field
@@ -172,6 +173,7 @@ fn apply_modification(modification: &EffectModification, chars: &mut EffectiveCh
         EffectModification::SetSubtypes(subtypes) => { chars.subtypes = subtypes.clone(); }
         EffectModification::AddSupertype(s) => { chars.supertypes.insert(*s); }
         EffectModification::RemoveSupertype(s) => { chars.supertypes.remove(s); }
+        EffectModification::SetSupertypes(supertypes) => { chars.supertypes = supertypes.clone(); }
 
         // Layer 5
         EffectModification::AddColor(c) => { chars.colors.insert(*c); }
@@ -729,5 +731,237 @@ mod tests {
         // 7c: 1+2=3, 4+2=6; 7d: swap → 6/3
         assert_eq!(chars.power, Some(6));
         assert_eq!(chars.toughness, Some(3));
+    }
+
+    // === Layer 4 type-changing tests ===
+
+    #[test]
+    fn test_add_type_preserves_existing() {
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Darksteel Ingot")
+            .card_type(CardType::Artifact)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Register "becomes also a creature" effect
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer4Type,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::AddType(CardType::Creature),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.types.contains(&CardType::Artifact));
+        assert!(chars.types.contains(&CardType::Creature));
+    }
+
+    #[test]
+    fn test_remove_type() {
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Mycosynth Lattice")
+            .card_type(CardType::Artifact)
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Remove Creature type
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer4Type,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::RemoveType(CardType::Creature),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.types.contains(&CardType::Artifact));
+        assert!(!chars.types.contains(&CardType::Creature));
+    }
+
+    #[test]
+    fn test_set_subtypes_replaces_all() {
+        use crate::types::card_types::{LandType, Subtype};
+        use crate::types::effects::Duration;
+        use std::collections::HashSet;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Steam Vents")
+            .card_type(CardType::Land)
+            .subtype(Subtype::Land(LandType::Island))
+            .subtype(Subtype::Land(LandType::Mountain))
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // SetSubtypes to just Forest
+        let mut forest_set = HashSet::new();
+        forest_set.insert(Subtype::Land(LandType::Forest));
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer4Type,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::SetSubtypes(forest_set),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.subtypes.contains(&Subtype::Land(LandType::Forest)));
+        assert!(!chars.subtypes.contains(&Subtype::Land(LandType::Island)));
+        assert!(!chars.subtypes.contains(&Subtype::Land(LandType::Mountain)));
+        assert_eq!(chars.subtypes.len(), 1);
+    }
+
+    #[test]
+    fn test_add_subtype_preserves_existing() {
+        use crate::types::card_types::{LandType, Subtype};
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Mountain")
+            .card_type(CardType::Land)
+            .subtype(Subtype::Land(LandType::Mountain))
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Add Swamp subtype ("in addition to")
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer4Type,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::AddSubtype(Subtype::Land(LandType::Swamp)),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.subtypes.contains(&Subtype::Land(LandType::Mountain)));
+        assert!(chars.subtypes.contains(&Subtype::Land(LandType::Swamp)));
+        assert_eq!(chars.subtypes.len(), 2);
+    }
+
+    #[test]
+    fn test_add_supertype() {
+        use crate::types::card_types::Supertype;
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Grizzly Bears")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // Add Legendary supertype
+        let effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer4Type,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::AddSupertype(Supertype::Legendary),
+        };
+        game.continuous_effects.add(effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert!(chars.supertypes.contains(&Supertype::Legendary));
+    }
+
+    #[test]
+    fn test_type_change_before_color_change() {
+        use crate::types::effects::{Duration, PermanentFilter};
+
+        // Test layer ordering: L4 (type) applies before L5 (color)
+        // A filter-based color effect that checks types should see the
+        // type as it stands after L4.
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Darksteel Ingot")
+            .card_type(CardType::Artifact)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0);
+
+        // L4: Add Creature type
+        let l4_effect = ContinuousEffect {
+            id: 0,
+            source: id,
+            layer: Layer::Layer4Type,
+            duration: Duration::UntilEndOfTurn,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Fixed(vec![id]),
+            modification: EffectModification::AddType(CardType::Creature),
+        };
+        game.continuous_effects.add(l4_effect);
+
+        // L5: "Creatures are also red" (filter-based)
+        let l5_source = crate::types::ids::new_object_id();
+        let l5_effect = ContinuousEffect {
+            id: 0,
+            source: l5_source,
+            layer: Layer::Layer5Color,
+            duration: Duration::WhileSourceOnBattlefield,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: game.allocate_timestamp(),
+            affected: AffectedSet::Filter {
+                filter: PermanentFilter::ByType(CardType::Creature),
+                controller: None,
+            },
+            modification: EffectModification::AddColor(Color::Red),
+        };
+        game.continuous_effects.add(l5_effect);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        // Should be both Artifact and Creature (L4 applied)
+        assert!(chars.types.contains(&CardType::Artifact));
+        assert!(chars.types.contains(&CardType::Creature));
+        // Should be Red (L5 filter sees the L4-modified type = Creature)
+        assert!(chars.colors.contains(&Color::Red));
     }
 }

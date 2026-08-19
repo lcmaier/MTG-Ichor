@@ -65,6 +65,7 @@ pub enum EffectModification {
     SetSubtypes(HashSet<Subtype>),
     AddSupertype(Supertype),
     RemoveSupertype(Supertype),
+    SetSupertypes(HashSet<Supertype>),
 
     // --- Layer 5 ---
     AddColor(Color),

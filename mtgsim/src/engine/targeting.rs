@@ -198,6 +198,9 @@ impl GameState {
             PermanentFilter::BySubtype(subtype) => {
                 Ok(obj.card_data.subtypes.contains(subtype))
             }
+            PermanentFilter::BySupertype(supertype) => {
+                Ok(obj.card_data.supertypes.contains(supertype))
+            }
             PermanentFilter::ByColor(color) => {
                 Ok(obj.card_data.colors.contains(color))
             }

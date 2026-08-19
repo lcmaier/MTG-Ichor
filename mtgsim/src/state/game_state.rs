@@ -348,6 +348,60 @@ impl GameState {
                         };
                         (Layer::Layer5Color, modification)
                     }
+                    Primitive::ChangeType(type_change, _dur) => {
+                        // Static type-changing effects register multiple sibling
+                        // effects (one per modification). We handle them inline
+                        // here to share the same timestamp.
+                        let ts = self.allocate_timestamp();
+                        let mut mods: Vec<EffectModification> = Vec::new();
+
+                        if let Some(ref set_types) = type_change.set_types {
+                            mods.push(EffectModification::SetTypes(set_types.clone()));
+                        } else {
+                            for t in &type_change.add_types {
+                                mods.push(EffectModification::AddType(*t));
+                            }
+                            for t in &type_change.remove_types {
+                                mods.push(EffectModification::RemoveType(*t));
+                            }
+                        }
+                        if let Some(ref set_subtypes) = type_change.set_subtypes {
+                            mods.push(EffectModification::SetSubtypes(set_subtypes.clone()));
+                        } else {
+                            for s in &type_change.add_subtypes {
+                                mods.push(EffectModification::AddSubtype(s.clone()));
+                            }
+                            for s in &type_change.remove_subtypes {
+                                mods.push(EffectModification::RemoveSubtype(s.clone()));
+                            }
+                        }
+                        if let Some(ref set_supertypes) = type_change.set_supertypes {
+                            mods.push(EffectModification::SetSupertypes(set_supertypes.clone()));
+                        } else {
+                            for s in &type_change.add_supertypes {
+                                mods.push(EffectModification::AddSupertype(*s));
+                            }
+                            for s in &type_change.remove_supertypes {
+                                mods.push(EffectModification::RemoveSupertype(*s));
+                            }
+                        }
+
+                        for modification in mods {
+                            let effect = ContinuousEffect {
+                                id: 0,
+                                source: id,
+                                layer: Layer::Layer4Type,
+                                duration: Duration::WhileSourceOnBattlefield,
+                                controller,
+                                created_on_turn: self.turn_number,
+                                timestamp: ts,
+                                affected: affected.clone(),
+                                modification,
+                            };
+                            self.continuous_effects.add(effect);
+                        }
+                        continue; // already registered, skip the common path below
+                    }
                     _ => continue,
                 };
 

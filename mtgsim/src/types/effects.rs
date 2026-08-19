@@ -53,6 +53,7 @@ pub enum PermanentFilter {
     All,
     ByType(crate::types::card_types::CardType),
     BySubtype(crate::types::card_types::Subtype),
+    BySupertype(crate::types::card_types::Supertype),
     ByColor(Color),
     ByController(PlayerRef),
     /// Power less than or equal to N (for "creature with power N or less")
@@ -239,13 +240,26 @@ pub enum ColorChange {
     RemoveAll,
 }
 
-/// Type change description for ChangeType primitive
+/// Type change description for ChangeType primitive (layer 4).
+///
+/// Supports both additive/subtractive operations and overwrite ("set") operations.
+/// When a `set_*` field is `Some`, it takes priority over the corresponding
+/// add/remove fields. A single card effect can combine these
+/// (e.g., "becomes an artifact creature" sets types while adding subtypes).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeChange {
     pub add_types: Vec<crate::types::card_types::CardType>,
     pub remove_types: Vec<crate::types::card_types::CardType>,
+    /// If Some, replaces all card types with this set (ignores add_types/remove_types).
+    pub set_types: Option<std::collections::HashSet<crate::types::card_types::CardType>>,
     pub add_subtypes: Vec<crate::types::card_types::Subtype>,
     pub remove_subtypes: Vec<crate::types::card_types::Subtype>,
+    /// If Some, replaces all subtypes with this set (ignores add_subtypes/remove_subtypes).
+    pub set_subtypes: Option<std::collections::HashSet<crate::types::card_types::Subtype>>,
+    pub add_supertypes: Vec<crate::types::card_types::Supertype>,
+    pub remove_supertypes: Vec<crate::types::card_types::Supertype>,
+    /// If Some, replaces all supertypes with this set (ignores add_supertypes/remove_supertypes).
+    pub set_supertypes: Option<std::collections::HashSet<crate::types::card_types::Supertype>>,
 }
 
 // ---------------------------------------------------------------------------
