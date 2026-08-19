@@ -345,6 +345,75 @@ impl GameState {
                 Ok(())
             }
 
+            // === Phase LD: Layer 4 type-changing effects ===
+
+            Primitive::ChangeType(type_change, duration) => {
+                let target_ids = self.collect_battlefield_targets(ctx);
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+
+                // A TypeChange may produce multiple EffectModification entries,
+                // each belonging to Layer 4. They share a timestamp and source
+                // per CR 613.1c (sibling entries for a single effect).
+                let timestamp = self.allocate_timestamp();
+                let mut modifications: Vec<crate::engine::layers::EffectModification> = Vec::new();
+
+                // Types: set takes priority over add/remove
+                if let Some(ref set_types) = type_change.set_types {
+                    modifications.push(crate::engine::layers::EffectModification::SetTypes(set_types.clone()));
+                } else {
+                    for t in &type_change.add_types {
+                        modifications.push(crate::engine::layers::EffectModification::AddType(*t));
+                    }
+                    for t in &type_change.remove_types {
+                        modifications.push(crate::engine::layers::EffectModification::RemoveType(*t));
+                    }
+                }
+
+                // Subtypes: set takes priority over add/remove
+                if let Some(ref set_subtypes) = type_change.set_subtypes {
+                    modifications.push(crate::engine::layers::EffectModification::SetSubtypes(set_subtypes.clone()));
+                } else {
+                    for s in &type_change.add_subtypes {
+                        modifications.push(crate::engine::layers::EffectModification::AddSubtype(s.clone()));
+                    }
+                    for s in &type_change.remove_subtypes {
+                        modifications.push(crate::engine::layers::EffectModification::RemoveSubtype(s.clone()));
+                    }
+                }
+
+                // Supertypes: set takes priority over add/remove
+                if let Some(ref set_supertypes) = type_change.set_supertypes {
+                    modifications.push(crate::engine::layers::EffectModification::SetSupertypes(set_supertypes.clone()));
+                } else {
+                    for s in &type_change.add_supertypes {
+                        modifications.push(crate::engine::layers::EffectModification::AddSupertype(*s));
+                    }
+                    for s in &type_change.remove_supertypes {
+                        modifications.push(crate::engine::layers::EffectModification::RemoveSupertype(*s));
+                    }
+                }
+
+                // Register one ContinuousEffect per modification (sibling entries
+                // sharing timestamp+source, per CR 613.1c).
+                for modification in modifications {
+                    let effect = crate::engine::layers::ContinuousEffect {
+                        id: 0,
+                        source: ctx.source,
+                        layer: crate::engine::layers::Layer::Layer4Type,
+                        duration: *duration,
+                        controller: ctx.controller,
+                        created_on_turn: self.turn_number,
+                        timestamp,
+                        affected: crate::engine::layers::AffectedSet::Fixed(target_ids.clone()),
+                        modification,
+                    };
+                    self.continuous_effects.add(effect);
+                }
+                Ok(())
+            }
+
             // === Phase 3+ primitives — stubs ===
 
             Primitive::Exile
@@ -365,7 +434,6 @@ impl GameState {
             | Primitive::Tap
             | Primitive::GrantKeyword(_, _)
             | Primitive::RemoveAbility(_, _)
-            | Primitive::ChangeType(_, _)
             | Primitive::GainControl(_) => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
