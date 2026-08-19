@@ -1,18 +1,22 @@
 # Codebase State — CR Coverage Map
 
-Ground-truth snapshot of CR coverage. Single source of truth — if another planning doc contradicts this, this wins. Last grounded-in-code audit: 2026-04-18.
+Ground-truth snapshot of CR coverage. Single source of truth — if another planning doc contradicts this, this wins. Last grounded-in-code audit: 2026-08-19.
 
 ---
 
 ## TL;DR
 
-- **Code size:** ~15,000 lines of Rust across 58 `.rs` files. 433 tests (384 unit + 48 integration + 1 doc-test), 0 warnings, fuzz harness runs 250-game batches.
+- **Code size:** ~22,500 lines of Rust across 68 `.rs` files. 509 tests (415 unit + 93 integration + 1 doc-test), 0 warnings, fuzz harness runs 250-game batches.
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
-- **Not started:** **Layers (CR 613) core** (scaffolding *is* in place — see below), **replacement effects (CR 614–616)** beyond a stub hook, **triggered abilities (CR 603)** beyond an enum variant, CR 800 multiplayer priority/turn rotation.
-- **Layer system nuance:** the framing "layers not started" undersells it. Layer-annotated `Primitive` variants exist, `BattlefieldEntity.timestamp` exists for 613.7 dependency ordering, a pre-layer `power_modifier`/`toughness_modifier` scalar shim powers `get_effective_power`/`get_effective_toughness`, and `oracle/characteristics.rs` exposes Phase-5-aware wrappers (`has_keyword`, `is_creature`, `get_effective_power`, `get_effective_name`) that all engine consumers already call through. What's missing is the core: `Layer` enum, `EffectiveCharacteristics` struct, continuous-effect registry, `compute_characteristics`. Resolution of layer primitives returns `NotImplemented` (`engine/resolve.rs:270–278`).
+- **Not started:** **replacement effects (CR 614–616)** beyond a stub hook, **triggered abilities (CR 603)** beyond an enum variant, CR 800 multiplayer priority/turn rotation.
+- **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keywords, abilities, P/T, controller), a `ContinuousEffect` registry with duration-based expiry (`state/continuous_effects.rs`, 304 lines), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
+  - **Live layers:** 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB. 5 (color) — Phase LC. 4 (types/subtypes/supertypes) — Phase LD Part A.
+  - **Still stubbed:** Layer 6 (abilities) — `Primitive::GrantKeyword` / `RemoveAbility` return `NotImplemented` at `engine/resolve.rs:435-438`. Layer 2 (control) — `Primitive::GainControl` likewise. Layer 3 (text) and Layer 1 (copy) are enum variants only.
+  - **Dependency algorithm (CR 613.8) not implemented.** Ordering is timestamp-only, which is sufficient for the layers landed so far in isolation but will not survive Layer 6 + Layer 4 interaction (Humility/Opalescence).
+  - **CR 305.7 half-done.** Blood Moon replaces land subtypes correctly, but `AbilityOrigin` does not exist in `src/`, so nothing strips printed abilities or grants intrinsic mana abilities — a Blood-Mooned dual land still taps for its original colors. This is Phase LD Part B; see `plans/handoffs/ld-layer4.md`.
 - **Commander (CR 903) — in scope, skeleton only:** command zone ✅ as a `Zone` variant + `GameState.command` field; commander damage loss SBA ✅; commander damage **increment on combat damage now wired** (2026-04-18) via `GameObject.is_commander` flag + per-source accumulation in `execute_action(DealDamage)`. Still missing: commander tax, command-zone replacement (depends on CR 614), `GameConfig::commander()`, commander designation/setup hook.
-- **Biggest single block of work remaining before the engine can run real Magic:** Layers + triggered abilities + replacement effects. These are tangled — CR 613.1c says abilities themselves can be layer-modified, replacement effects depend on effective characteristics, triggers often fire on events that must be observed post-replacement. **Commander specifically depends on replacement effects (903.9 command-zone redirection) and multiplayer (800 priority).**
+- **Biggest single block of work remaining before the engine can run real Magic:** the rest of Layers (6, 2, dependency algorithm) + triggered abilities + replacement effects. These are tangled — CR 613.1c says abilities themselves can be layer-modified, replacement effects depend on effective characteristics, triggers often fire on events that must be observed post-replacement. **Commander specifically depends on replacement effects (903.9 command-zone redirection) and multiplayer (800 priority).**
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for prerequisite cleanups owed by forward-looking scaffolding. Each target system (Replacement, Layers, Triggers, Commander) has a short list of pending migrations that don't surface as test failures until that system lands.
 - **Layers has a formalized architecture doc:** `plans/layers-architecture.md` (2026-04-18). Authoritative for type shapes, module layout, sublayer enumeration, dependency algorithm, and Phase LA→LD work sequencing. A subsequent session should execute from that doc.
 
@@ -99,14 +103,14 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2i | Spell becomes cast | ✅ | `engine/cast.rs` |
 | 602 | Activated abilities (activate_ability + rollback) | ✅ structural; **activation restrictions** (sorcery-speed PW, graveyard-activated abilities) ❌ (T19) | `engine/actions.rs` activate_ability |
 | **603** | **Triggered abilities** | ❌ `AbilityType::Triggered` enum variant exists (`objects/card_data.rs:49`), **no engine handling**. No trigger queue, no event→trigger mapping, no "puts X onto the stack" mechanism. | only in `ui/display.rs:164` for label printing |
-| 604 | Static abilities | 🟡 keyword statics via `has_keyword`; non-keyword static abilities ❌ |
+| 604 | Static abilities | 🟡 keyword statics via `has_keyword`; continuous-effect statics (P/T, color, type) register via `GameState::register_static_effects` ✅; other non-keyword statics ❌ | `state/game_state.rs` |
 | 605 | Mana abilities | ✅ detection + window + enumeration | `oracle/mana_helpers.rs`, `engine/priority.rs` |
 | 606 | Loyalty abilities | ❌ (T19 pending) |
 | 607 | Linked abilities | ❌ (T20 pending) |
 | 608 | Resolution of spells and abilities — fizzle, Target vs Choose split | ✅ via T15b refactor (`TargetSpec` → `EffectRecipient`) | `engine/resolve.rs`, `engine/stack.rs` |
-| 609–611 | Effects (one-shot, continuous) — one-shot only | 🟡 one-shot ✅ via `Effect`/`Primitive`; continuous ❌ |
+| 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
-| **613** | **Continuous effects — layer system** | ⚠️ **pre-wired at boundaries, core missing.** Scaffolding in place: (a) layer-annotated `Primitive` variants exist — `SetPowerToughness` (7b), `ModifyPowerToughness` (7c), `GrantKeyword`/`RemoveAbility` (6), `ChangeColor` (5), `ChangeType` (4), `GainControl` (2) at `types/effects.rs:298–313`; (b) `BattlefieldEntity.timestamp: u64` exists with doc-comment referencing rule 613.7; (c) pre-layer scalar shim `power_modifier`/`toughness_modifier` on `BattlefieldEntity` powers `get_effective_power`/`get_effective_toughness`; (d) Phase-5-aware interface functions `has_keyword`, `is_creature`, `get_effective_power`, `get_effective_name` in `oracle/characteristics.rs` are the single-point change site documented in comments. **What's missing:** no `Layer` enum, no `EffectiveCharacteristics` struct, no continuous-effect registry on `GameState`, no `compute_characteristics`. Resolution of layer primitives returns `NotImplemented` at `engine/resolve.rs:270–278`. The commented stub at `types/effects.rs:365` is for the `ApplyContinuous` high-level combinator; lower-level continuous primitives are further along. |
+| **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 6 (abilities), Layer 2 (control), Layer 3 (text), Layer 1 (copy); the CR 613.8 dependency algorithm (timestamp ordering only); CR 305.7 ability-stripping (needs `AbilityOrigin`). | `engine/layers/{types,compute}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
 | **614–616** | **Replacement + prevention + interaction** | ⚠️ Stub only. `engine/actions.rs:86-89` `execute_action` is a pass-through to `perform_action` with a comment: *"Phase 6: A `apply_replacement_effects(action)` call will be inserted here"*. No `ReplacementEffect` struct. |
 
 ### CR 7 — Additional Rules
@@ -191,19 +195,26 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
 3. **Event-emission audit for trigger observability.** Many actions emit `GameEvent`s directly via `self.events.emit(...)` bypassing `execute_action`. Before Replacement lands (and especially before Triggers), sanity-check that event emission happens *after* the replacement pipeline runs and reflects the final action taken, not the originally-proposed action.
 
-### Before Layers (CR 613)
+### Before Layers (CR 613) — now DURING Layers
 
-The layer system's designated single-point change site is `oracle/characteristics.rs`. All characteristic queries already route through that module. Today's gaps:
+The layer system's designated single-point change site is `oracle/characteristics.rs`. Status as of 2026-08-19, after Phases LA–LD:
 
-1. **Pre-layer P/T shim.** `BattlefieldEntity.power_modifier` and `toughness_modifier` are scalar fields that `get_effective_power`/`get_effective_toughness` read directly. When the layer system lands, layer 7c output replaces this shim. Every mutation site that writes these fields must become a layer-registered continuous effect. Grep-audit needed for current write sites.
+1. **Pre-layer P/T shim — ✅ done.** `BattlefieldEntity.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.
 
-2. **Direct `CardData` reads that should route through Phase-5 wrappers.** The layer-aware wrappers (`has_keyword`, `is_creature`, `get_effective_power`, `get_effective_name`, etc.) exist, but some call sites still read `obj.card_data.keywords` / `obj.card_data.colors` / `obj.card_data.types` directly. Direct reads skip the layer system entirely. Audit grep: `card_data\.(keywords|colors|types|subtypes)` outside `oracle/characteristics.rs` and `engine/cast.rs` (cast-zone legality is pre-stack, not layer-affected).
+2. **Direct `CardData` reads — ❌ NOT done, and now actively wrong.** `grep -rn "card_data\.\(keywords\|colors\|types\|subtypes\|supertypes\)" mtgsim/src` returns **27 sites** outside `oracle/characteristics.rs`, `engine/cast.rs`, and `engine/layers/compute.rs`. Until Layer 4 landed these were harmless — printed types and effective types were always equal. **They are now live correctness bugs.** Confirmed examples:
+   - `engine/targeting.rs:90` `validate_creature_target` reads `card_data.types`. An artifact animated by Ensoul Artifact (a Phase LD test card) **is** a creature per `compute_characteristics` but **cannot be targeted by "target creature"**. Same for `:128-129` (creature-or-planeswalker) and `:196-205` (the whole `PermanentFilter` match, including the `BySupertype` arm added in Phase LD).
+   - `engine/sba.rs:165` legend rule reads `card_data.supertypes` — a permanent that *becomes* legendary via Layer 4 never triggers 704.5j.
+   - `engine/sba.rs:139` planeswalker-loyalty SBA reads `card_data.types`; `:209,246-247,277-279` Aura/Equipment/Fortification attachment SBAs read `card_data.subtypes`.
+   - `oracle/mana_helpers.rs:165` reads `card_data.types` for land detection — the same blind spot that makes Blood Moon's mana wrong.
+   - `engine/zones.rs:144` play-land legality; `engine/stack.rs:60,105`; `oracle/legality.rs:59`; `state/game_state.rs:454`; `ui/display.rs:238`, `ui/random.rs:170`.
 
-3. **Cost modification pipeline stub.** `engine/costs.rs:255-263` `apply_cost_modifications` is a passthrough with a TODO. When Layers lands (specifically L15), this wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere-style modifications.
+   **This is the single highest-value cleanup available right now.** It is mechanical (swap each read for the matching `oracle/characteristics.rs` wrapper), it has no design risk, and every layer added after Layer 4 widens the blast radius. Do it before Layer 6.
 
-4. **Mana-pool persistence stub.** `engine/turns.rs:65, 132` pass `BlanketPersistenceSet::none()` to `empty_with_reason`. The TODO `TODO(T12c): build BlanketPersistenceSet from continuous effects layer` marks the layer-dependent wiring.
+3. **Cost modification pipeline stub — ❌ still a passthrough.** `engine/costs.rs:255` `apply_cost_modifications` with `TODO(L15)`. Wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere.
 
-5. **Timestamps are set but never read.** `BattlefieldEntity.timestamp: u64` is populated on ETB (referencing rule 613.7 in its doc comment) but has no current reader. When layers implement dependency ordering, this is the primary input. No migration needed — just flag that the field exists and is expected to become live.
+4. **Mana-pool persistence stub — ❌ still stubbed.** `engine/turns.rs:65,142` still pass `BlanketPersistenceSet::none()` with `TODO(T12c)`. The registry it needs now exists.
+
+5. **Timestamps — ✅ live.** `BattlefieldEntity.timestamp` is now read by the layer system for 613.7 ordering (4 read sites). The CR 613.8 *dependency* algorithm is still unimplemented; ordering is timestamp-only.
 
 ### Before Triggered abilities (CR 603)
 

@@ -6,6 +6,19 @@
 
 ---
 
+> **⚠️ STALENESS NOTICE (2026-08-19).** Everything in this document under
+> **"Where We Are"**, **"By the Numbers"**, **"What Works End-to-End Today"**, and
+> **"What Does NOT Work Yet"** is a snapshot from 2026-04-01 and is now **wrong in
+> both directions** (it reports 370 tests; the real number is 509, and Layers is
+> described as unstarted when Phases LA–LD have landed).
+>
+> **For current status, read `plans/codebase-state.md`. It wins over this file.**
+>
+> What remains authoritative here: the **Tier 1 v1.0 definition**, the **phase
+> dependency graph**, and the **milestone list**. Treat the rest as history.
+
+---
+
 ## Where We Are
 
 ### Completed Phases
