@@ -9,3 +9,5 @@ atomic-tests/
 
 # log files
 *.log
+# Derived spec database (rebuild with: python plans/specdb.py build)
+spec.sqlite

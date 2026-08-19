@@ -22,6 +22,30 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 
 ---
 
+## Spec database
+
+`plans/specdb.py` joins the atomic-test corpus (`plans/atomic-tests/sessions/*.md`, ~1,753 entries) against the Rust test suite and answers "what is actually covered" as a query instead of a judgment call.
+
+```
+python plans/specdb.py build     # rebuild plans/atomic-tests/spec.sqlite
+python plans/specdb.py stats     # coverage by phase
+python plans/specdb.py next --phase "Phase 5-Layers" --rule 613
+python plans/specdb.py show ATOM-305.7-002
+python plans/specdb.py orphans   # COVERS ids that match no atom
+```
+
+A test declares coverage with a comment directly above `#[test]`:
+
+```rust
+// COVERS: ATOM-305.7-001, ATOM-305.7-004
+#[test]
+fn test_blood_moon_makes_nonbasic_lands_mountains() { ... }
+```
+
+The database is **derived** and gitignored — never hand-edit it. The two authored inputs are the session files (spec) and the `COVERS:` annotations (status). If a number looks wrong, fix one of those and rebuild.
+
+---
+
 ## Chapter-by-chapter map
 
 Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch · ❌ not started

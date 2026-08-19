@@ -71,6 +71,7 @@ fn cast_and_resolve_targeted_perm_spell(
 // Part A Test 1: Liquimetal Torque — AddType (creature becomes also artifact)
 // ===========================================================================
 
+// COVERS: ATOM-205.1b-004
 #[test]
 fn test_liquimetal_adds_artifact_type() {
     let mut game = setup_two_player_game();
@@ -180,6 +181,7 @@ fn test_on_serras_wings_adds_legendary() {
 // Part A Test 4: Ensoul Artifact — AddType(Creature) + SetPT on artifact
 // ===========================================================================
 
+// COVERS: ATOM-205.1b-001
 #[test]
 fn test_ensoul_artifact_makes_artifact_creature() {
     use mtgsim::objects::card_data::CardDataBuilder;
@@ -237,6 +239,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
 // Part A Test 5: Type change expires at cleanup
 // ===========================================================================
 
+// COVERS: ATOM-611.2a-001
 #[test]
 fn test_type_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
@@ -277,6 +280,7 @@ fn test_type_change_expires_at_cleanup() {
 // Part B Test 1: Blood Moon static ability (SetSubtypes on nonbasic lands)
 // ===========================================================================
 
+// COVERS: ATOM-305.7-001, ATOM-305.7-004
 #[test]
 fn test_blood_moon_makes_nonbasic_lands_mountains() {
     use mtgsim::objects::card_data::CardDataBuilder;
@@ -316,6 +320,7 @@ fn test_blood_moon_makes_nonbasic_lands_mountains() {
 // Part B Test 2: Blood Moon does NOT add Basic supertype (ATOM-305.8-001)
 // ===========================================================================
 
+// COVERS: ATOM-305.8-001, COMP-305.7+305.8-001, COMP-205.4c+L10-001
 #[test]
 fn test_blood_moon_does_not_add_basic_supertype() {
     use mtgsim::objects::card_data::CardDataBuilder;
@@ -342,6 +347,7 @@ fn test_blood_moon_does_not_add_basic_supertype() {
 // Part B Test 3: Urborg-style "in addition to" adds subtype without removing
 // ===========================================================================
 
+// COVERS: ATOM-305.7-005
 #[test]
 fn test_urborg_adds_swamp_in_addition() {
     let mut game = setup_two_player_game();
