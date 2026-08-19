@@ -4,8 +4,16 @@ mtgsim/target/
 # Local reference materials
 MTG-Rules/
 
-# Local planning materials
-atomic-tests/
+# NOTE: atomic-tests/ was ignored here until 2026-08-19, back when the plan was
+# to keep only higher-level docs and treat the corpus as scratch reference.
+# It is now the authored source of truth that plans/specdb.py derives from,
+# so it is tracked. Only the derived database is ignored (see below).
 
 # log files
 *.log
+# Derived spec database (rebuild with: python plans/specdb.py build)
+spec.sqlite
+
+# Python bytecode
+__pycache__/
+*.pyc
