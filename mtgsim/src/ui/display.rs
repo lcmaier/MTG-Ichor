@@ -4,7 +4,9 @@
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
 use crate::objects::card_data::AbilityType;
-use crate::oracle::characteristics::{get_effective_power, get_effective_toughness, has_keyword, is_creature};
+use crate::oracle::characteristics::{
+    get_effective_power, get_effective_toughness, has_keyword, has_type, is_creature,
+};
 use crate::state::game_state::{GameState, PhaseType, StepType};
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -234,8 +236,7 @@ pub fn format_battlefield(game: &GameState, player_id: PlayerId) -> String {
     let mut other: Vec<ObjectId> = Vec::new();
 
     for &id in &perms {
-        let obj = game.objects.get(&id);
-        let is_land = obj.map(|o| o.card_data.types.contains(&CardType::Land)).unwrap_or(false);
+        let is_land = has_type(game, id, CardType::Land);
         let is_creat = is_creature(game, id);
         if is_creat {
             creatures.push(id);

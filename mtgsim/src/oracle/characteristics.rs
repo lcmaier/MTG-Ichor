@@ -78,6 +78,40 @@ pub fn get_effective_subtypes(game: &GameState, id: ObjectId) -> HashSet<Subtype
 
 /// Get the effective supertypes of a game object after applying Layer 4 effects.
 /// Routes through the layer system — accounts for type-changing effects.
+/// Does this object have `card_type` after Layer 4 effects?
+///
+/// Prefer this over `obj.card_data.types.contains(..)` for anything on the
+/// battlefield or the stack: an artifact animated by Ensoul Artifact *is* a
+/// creature even though its printed types say otherwise.
+pub fn has_type(game: &GameState, id: ObjectId, card_type: CardType) -> bool {
+    compute_characteristics(game, id)
+        .map(|chars| chars.types.contains(&card_type))
+        .unwrap_or(false)
+}
+
+/// Does this object have `subtype` after Layer 4 effects?
+pub fn has_subtype(game: &GameState, id: ObjectId, subtype: &Subtype) -> bool {
+    compute_characteristics(game, id)
+        .map(|chars| chars.subtypes.contains(subtype))
+        .unwrap_or(false)
+}
+
+/// Does this object have `supertype` after Layer 4 effects?
+pub fn has_supertype(game: &GameState, id: ObjectId, supertype: Supertype) -> bool {
+    compute_characteristics(game, id)
+        .map(|chars| chars.supertypes.contains(&supertype))
+        .unwrap_or(false)
+}
+
+/// Is this object a permanent type (artifact, creature, enchantment, land,
+/// planeswalker, or battle) after Layer 4 effects? Used to decide whether a
+/// resolving spell goes to the battlefield.
+pub fn has_permanent_type(game: &GameState, id: ObjectId) -> bool {
+    compute_characteristics(game, id)
+        .map(|chars| chars.types.iter().any(|t| t.is_permanent()))
+        .unwrap_or(false)
+}
+
 pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Supertype> {
     compute_characteristics(game, id)
         .map(|chars| chars.supertypes)

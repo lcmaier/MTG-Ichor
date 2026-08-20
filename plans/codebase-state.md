@@ -233,14 +233,10 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 1. **Pre-layer P/T shim — ✅ done.** `BattlefieldEntity.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.
 
-2. **Direct `CardData` reads — ❌ NOT done, and now actively wrong.** `grep -rn "card_data\.\(keywords\|colors\|types\|subtypes\|supertypes\)" mtgsim/src` returns **27 sites** outside `oracle/characteristics.rs`, `engine/cast.rs`, and `engine/layers/compute.rs`. Until Layer 4 landed these were harmless — printed types and effective types were always equal. **They are now live correctness bugs.** Confirmed examples:
-   - `engine/targeting.rs:90` `validate_creature_target` reads `card_data.types`. An artifact animated by Ensoul Artifact (a Phase LD test card) **is** a creature per `compute_characteristics` but **cannot be targeted by "target creature"**. Same for `:128-129` (creature-or-planeswalker) and `:196-205` (the whole `PermanentFilter` match, including the `BySupertype` arm added in Phase LD).
-   - `engine/sba.rs:165` legend rule reads `card_data.supertypes` — a permanent that *becomes* legendary via Layer 4 never triggers 704.5j.
-   - `engine/sba.rs:139` planeswalker-loyalty SBA reads `card_data.types`; `:209,246-247,277-279` Aura/Equipment/Fortification attachment SBAs read `card_data.subtypes`.
-   - `oracle/mana_helpers.rs:165` reads `card_data.types` for land detection — the same blind spot that makes Blood Moon's mana wrong.
-   - `engine/zones.rs:144` play-land legality; `engine/stack.rs:60,105`; `oracle/legality.rs:59`; `state/game_state.rs:454`; `ui/display.rs:238`, `ui/random.rs:170`.
-
-   **This is the single highest-value cleanup available right now.** It is mechanical (swap each read for the matching `oracle/characteristics.rs` wrapper), it has no design risk, and every layer added after Layer 4 widens the blast radius. Do it before Layer 6.
+2. **Direct `CardData` reads — ✅ done (2026-08-19).** 21 battlefield/stack call sites now route through `oracle/characteristics.rs`. New predicate helpers `has_type`, `has_subtype`, `has_supertype`, `has_permanent_type` join the existing `is_creature` / `get_effective_*` wrappers.
+   - Migrated: `engine/sba.rs` (8 — planeswalker loyalty, legend rule, Aura/Equipment/Fortification attachment SBAs), `engine/targeting.rs` (7 — creature target, creature-or-planeswalker target, the whole `PermanentFilter` match), `engine/resolve.rs` (Aura ETB), `engine/stack.rs` (2 — permanent-spell routing, Aura spell), `state/game_state.rs` (ETB loyalty counters), `ui/display.rs`, `ui/random.rs`.
+   - **Deliberately NOT migrated (6 sites):** `engine/zones.rs:144` (play a land from hand), `oracle/legality.rs:59` (playable lands in hand), `oracle/mana_helpers.rs` (×4 — castable spells in hand, instant/flash timing). These are cast-zone / play-from-hand legality, evaluated before the object is a permanent, so the layer system has nothing to contribute. Same exemption as `engine/cast.rs`. Each is tagged `// PRE-LAYER ZONE:` in source so a future grep audit doesn't re-flag it.
+   - Regression coverage: `mtgsim/tests/layer_aware_queries_test.rs`, 5 tests. Verified to fail against the pre-fix tree and pass after.
 
 3. **Cost modification pipeline stub — ❌ still a passthrough.** `engine/costs.rs:255` `apply_cost_modifications` with `TODO(L15)`. Wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere.
 

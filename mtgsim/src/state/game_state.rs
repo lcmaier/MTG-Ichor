@@ -451,7 +451,8 @@ impl GameState {
     /// Future: Sagas (lore counters), other ETB counter patterns.
     fn init_etb_counters(&mut self, id: ObjectId) {
         if let Some(obj) = self.objects.get(&id) {
-            if obj.card_data.types.contains(&crate::types::card_types::CardType::Planeswalker) {
+            if crate::oracle::characteristics::has_type(
+                self, id, crate::types::card_types::CardType::Planeswalker) {
                 if let Some(loyalty) = obj.card_data.loyalty {
                     if loyalty > 0 {
                         self.battlefield.get_mut(&id).unwrap()

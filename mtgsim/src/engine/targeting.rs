@@ -1,5 +1,7 @@
 use crate::engine::resolve::ResolvedTarget;
-use crate::oracle::characteristics::get_effective_power;
+use crate::oracle::characteristics::{
+    get_effective_colors, get_effective_power, has_subtype, has_supertype, has_type,
+};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::effects::{PermanentFilter, EffectRecipient, SelectionFilter, TargetCount};
@@ -86,8 +88,8 @@ impl GameState {
         match target {
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                let obj = self.get_object(*id)?;
-                if !obj.card_data.types.contains(&CardType::Creature) {
+                self.get_object(*id)?;
+                if !has_type(self, *id, CardType::Creature) {
                     return Err(format!("Target {} is not a creature", id));
                 }
                 Ok(())
@@ -124,9 +126,9 @@ impl GameState {
             }
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                let obj = self.get_object(*id)?;
-                if obj.card_data.types.contains(&CardType::Creature)
-                    || obj.card_data.types.contains(&CardType::Planeswalker)
+                self.get_object(*id)?;
+                if has_type(self, *id, CardType::Creature)
+                    || has_type(self, *id, CardType::Planeswalker)
                 {
                     Ok(())
                 } else {
@@ -193,16 +195,16 @@ impl GameState {
         match filter {
             PermanentFilter::All => Ok(true),
             PermanentFilter::ByType(card_type) => {
-                Ok(obj.card_data.types.contains(card_type))
+                Ok(has_type(self, obj.id, *card_type))
             }
             PermanentFilter::BySubtype(subtype) => {
-                Ok(obj.card_data.subtypes.contains(subtype))
+                Ok(has_subtype(self, obj.id, subtype))
             }
             PermanentFilter::BySupertype(supertype) => {
-                Ok(obj.card_data.supertypes.contains(supertype))
+                Ok(has_supertype(self, obj.id, *supertype))
             }
             PermanentFilter::ByColor(color) => {
-                Ok(obj.card_data.colors.contains(color))
+                Ok(get_effective_colors(self, obj.id).contains(color))
             }
             PermanentFilter::ByController(player_ref) => {
                 let entry = self.battlefield.get(&id)
