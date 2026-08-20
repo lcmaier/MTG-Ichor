@@ -18,8 +18,8 @@ use mtgsim::cards::creatures;
 use mtgsim::cards::phase_ld_cards;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{
-    get_effective_power, get_effective_subtypes, get_effective_supertypes,
-    get_effective_toughness, get_effective_types, is_creature,
+    get_effective_abilities, get_effective_power, get_effective_subtypes,
+    get_effective_supertypes, get_effective_toughness, get_effective_types, is_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
@@ -418,4 +418,198 @@ fn test_blood_moon_removed_restores_subtypes() {
     assert!(subtypes.contains(&Subtype::Land(LandType::Forest)));
     assert!(subtypes.contains(&Subtype::Land(LandType::Island)));
     assert!(!subtypes.contains(&Subtype::Land(LandType::Mountain)));
+}
+
+// ===========================================================================
+// Part B: CR 305.7 ability stripping + CR 305.6 intrinsic mana abilities
+// ===========================================================================
+
+/// Which mana types a permanent's effective mana abilities can produce.
+/// Sorted for stable comparison.
+fn produced_mana_types(
+    game: &mtgsim::state::game_state::GameState,
+    id: mtgsim::types::ids::ObjectId,
+) -> Vec<ManaType> {
+    use mtgsim::objects::card_data::AbilityType;
+    use mtgsim::types::effects::{Effect, Primitive};
+
+    let mut out: Vec<ManaType> = get_effective_abilities(game, id)
+        .iter()
+        .filter(|a| a.ability_type == AbilityType::Mana)
+        .filter_map(|a| match &a.effect {
+            Effect::Atom(Primitive::ProduceMana(output), _) => {
+                output.mana.first().map(|(mt, _)| *mt)
+            }
+            _ => None,
+        })
+        .collect();
+    out.sort_by_key(|mt| format!("{:?}", mt));
+    out
+}
+
+// COVERS: ATOM-305.7-002
+#[test]
+fn test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red() {
+    let mut game = setup_two_player_game();
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
+
+    // Base: the printed {U} and {B} mana abilities.
+    assert_eq!(
+        produced_mana_types(&game, land_id),
+        vec![ManaType::Black, ManaType::Blue],
+    );
+
+    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    // CR 305.7: printed abilities gone, intrinsic Mountain ability gained.
+    assert_eq!(
+        produced_mana_types(&game, land_id),
+        vec![ManaType::Red],
+        "land should tap only for red",
+    );
+    assert!(get_effective_subtypes(&game, land_id).contains(&Subtype::Land(LandType::Mountain)));
+}
+
+// COVERS-PARTIAL: ATOM-305.7-003
+// PARTIAL: the atom grants a non-keyword activated ability ("{T}: Draw a card").
+// Only the keyword channel (Primitive::GrantKeyword) exists today, so this
+// proves the survival rule using flying instead.
+#[test]
+fn test_blood_moon_does_not_strip_ability_granted_by_another_effect() {
+    use mtgsim::oracle::characteristics::has_keyword;
+    use mtgsim::types::keywords::KeywordAbility;
+
+    let mut game = setup_two_player_game();
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
+    let _granter = put_on_battlefield(&mut game, phase_ld_cards::lands_have_flying(), 0);
+
+    assert!(has_keyword(&game, land_id, KeywordAbility::Flying));
+
+    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    // The granted ability survives; the land's own printed abilities do not.
+    assert!(
+        has_keyword(&game, land_id, KeywordAbility::Flying),
+        "CR 305.7 does not remove abilities granted by other effects",
+    );
+    assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
+}
+
+/// The same board, but the Layer 6 granter is registered with an EARLIER
+/// timestamp than Blood Moon.
+///
+/// This pins the assumption that makes `AbilityOrigin` unnecessary: Layer 6 runs
+/// after Layer 4, so a granted ability is never in the frame when CR 305.7's
+/// strip executes — regardless of the order the effects were registered in. If
+/// anything ever seeds a granted ability into the frame before Layer 4, the
+/// unconditional `clear()` in `land_types::apply_set_subtypes` starts eating it
+/// and this test fails.
+#[test]
+fn test_layer6_grant_survives_blood_moon_registered_first() {
+    use mtgsim::oracle::characteristics::has_keyword;
+    use mtgsim::types::keywords::KeywordAbility;
+
+    let mut game = setup_two_player_game();
+    // Granter enters BEFORE the land and before Blood Moon — earliest timestamp.
+    let _granter = put_on_battlefield(&mut game, phase_ld_cards::lands_have_flying(), 0);
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
+    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    assert!(has_keyword(&game, land_id, KeywordAbility::Flying));
+    assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
+}
+
+// COVERS: ATOM-305.6-002
+#[test]
+fn test_urborg_grants_intrinsic_black_and_keeps_existing() {
+    let mut game = setup_two_player_game();
+    let mountain_id = put_on_battlefield(&mut game, basic_lands::mountain(), 0);
+
+    assert_eq!(produced_mana_types(&game, mountain_id), vec![ManaType::Red]);
+
+    let _urborg = put_on_battlefield(&mut game, phase_ld_cards::urborg_effect(), 0);
+
+    // "In addition to" — keeps Mountain and its red mana, gains Swamp and black.
+    let subtypes = get_effective_subtypes(&game, mountain_id);
+    assert!(subtypes.contains(&Subtype::Land(LandType::Mountain)));
+    assert!(subtypes.contains(&Subtype::Land(LandType::Swamp)));
+    assert_eq!(
+        produced_mana_types(&game, mountain_id),
+        vec![ManaType::Black, ManaType::Red],
+    );
+}
+
+#[test]
+fn test_urborg_on_a_real_swamp_does_not_double_grant_black() {
+    let mut game = setup_two_player_game();
+    let swamp_id = put_on_battlefield(&mut game, basic_lands::swamp(), 0);
+    let _urborg = put_on_battlefield(&mut game, phase_ld_cards::urborg_effect(), 0);
+
+    assert_eq!(
+        produced_mana_types(&game, swamp_id),
+        vec![ManaType::Black],
+        "a Swamp told it is a Swamp must not gain a second black mana ability",
+    );
+}
+
+// NOTE: there is deliberately no Blood-Moon-vs-Urborg ordering test here.
+//
+// With the real cards the order does NOT matter: Urborg, Tomb of Yawgmoth is
+// itself a nonbasic (Legendary) Land, so Blood Moon turns Urborg into a Mountain
+// and CR 305.7 strips its rules-text ability — Urborg's effect ceases to exist.
+// That is a CR 613.8a(b) dependency (applying Blood Moon changes the existence of
+// Urborg's effect), and there is no reverse dependency, because Urborg grants the
+// Swamp *subtype* and never the Basic *supertype* (CR 305.8). So Urborg is applied
+// last, by which point it does nothing. Blood Moon wins in both orders.
+//
+// Testing that needs two things we don't have: the CR 613.8 dependency algorithm,
+// and static-ability deregistration (stripping a permanent's static ability must
+// retire the continuous effect it registered at ETB). Both are recorded in
+// codebase-state.md → Deferred Migrations. `phase_ld_cards::urborg_effect()` is
+// modeled as an Enchantment precisely to stay clear of this.
+
+/// The CR 305.7 strip is a `clear()` on a frame rebuilt from `CardData` every
+/// call, not a mutation — so removing Blood Moon needs no undo step.
+#[test]
+fn test_blood_moon_removed_restores_printed_abilities() {
+    let mut game = setup_two_player_game();
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
+
+    game.continuous_effects.remove_by_source(blood_moon_id);
+
+    assert_eq!(
+        produced_mana_types(&game, land_id),
+        vec![ManaType::Black, ManaType::Blue],
+        "printed abilities return once the effect is gone",
+    );
+}
+
+// COVERS: COMP-305.7+305.6-001
+#[test]
+fn test_activating_blood_mooned_land_produces_red() {
+    use mtgsim::oracle::mana_helpers::available_mana_sources;
+
+    let mut game = setup_two_player_game();
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
+    let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    // The mana-source enumeration offers only red for this land.
+    let sources: Vec<_> = available_mana_sources(&game, 0)
+        .into_iter()
+        .filter(|s| s.permanent_id == land_id)
+        .collect();
+    assert_eq!(sources.len(), 1, "one intrinsic mana ability");
+    assert_eq!(sources[0].produces, ManaType::Red);
+
+    // Activate it by the id the enumeration handed out. This is the step that
+    // fails if intrinsic ability ids aren't stable across compute calls.
+    game.activate_mana_ability(0, land_id, sources[0].ability_id)
+        .expect("intrinsic Mountain ability should be activatable");
+
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 0);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 0);
 }
