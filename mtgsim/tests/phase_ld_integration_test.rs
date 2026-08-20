@@ -386,6 +386,7 @@ fn test_blood_moon_ignores_non_lands() {
 // Part B Test 5: Blood Moon removed → effect disappears
 // ===========================================================================
 
+// COVERS-PARTIAL: ATOM-611.3b-001
 #[test]
 fn test_blood_moon_removed_restores_subtypes() {
     use mtgsim::objects::card_data::CardDataBuilder;
