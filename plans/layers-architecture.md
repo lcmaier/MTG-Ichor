@@ -329,18 +329,48 @@ impl Layer {
 
 CR 305.7 is a carve-out of Layer 4 application: setting a land's subtype to one or more basic land types *strips abilities-from-rules-text and old land types and copy effects*, but leaves card types and supertypes alone. This is **not** an architectural concern — it's a special case inside the `apply()` function for `EffectModification::SetSubtypes`.
 
-Algorithm for Layer 4 `apply()` when the modification is `SetSubtypes(new_subtypes)` and the affected object currently has type `Land`:
+**Implemented in Phase LD Part B.** Lives in `engine/layers/land_types.rs`, called from
+the `SetSubtypes` / `AddSubtype` arms of `apply_modification`.
 
-1. If `new_subtypes` contains any basic land subtype (Plains, Island, Swamp, Mountain, Forest, Wastes):
-   - Set effective subtypes to `new_subtypes` (replacing old land subtypes).
-   - Strip abilities that came from *rules text* (tracked by ability origin).
-   - Strip abilities that came from old land subtypes (intrinsic mana abilities).
-   - Grant the intrinsic mana ability for each new basic land subtype.
+Algorithm for Layer 4 `apply()` when the modification is `SetSubtypes(new_subtypes)`:
+
+1. Set effective subtypes to `new_subtypes`, always. This is a *Set* operation, for lands
+   and non-lands alike. (An earlier revision of this section said "union with existing" for
+   the non-basic branch — that was wrong, and Part A never implemented it.)
+2. If the object has type `Land` **and** `new_subtypes` contains any basic land subtype
+   (Plains, Island, Swamp, Mountain, Forest — *not* Wastes, which is a basic land with no
+   land subtype):
+   - Clear all abilities and keywords.
+   - Grant the intrinsic mana ability for each new basic land subtype, in `LandType`
+     declaration order.
    - Do **not** touch card types (still Land) or supertypes (Legendary, Basic, Snow remain).
-   - Do **not** touch abilities granted by *other effects* (Layer 6 grants survive).
-2. Else (non-basic subtypes only): union with existing, no stripping.
 
-This requires `AbilityDef` to track its origin (printed rules text vs. intrinsic land-type vs. layer-granted). Phase LA adds an `AbilityOrigin` enum field on `AbilityDef`. Phase LD (when Layer 4 lands) uses it for 305.7.
+`AddSubtype` handles 305.7's additive clause separately: nothing is stripped, and the
+intrinsic mana ability is granted only when the subtype was not already present (so Urborg
+on a real Swamp doesn't produce a second `{B}`).
+
+**Why the strip is an unconditional clear, and why `AbilityOrigin` was not needed.** 305.7's
+"this doesn't remove any abilities that were granted to the land by other effects" needs no
+per-ability marker, because layer ordering already delivers it: Layer 6 runs *after* Layer 4,
+so a granted ability is not in the frame when the strip executes. Everything that *is* in the
+frame at Layer 4 is stripped by 305.7 — printed abilities ("generated from its rules text"),
+Layer 1 copy-derived ones ("any copiable effects affecting that land"), Layer 3 text-derived
+ones (still rules text), and Layer 4 intrinsics ("its old land types"). Layer 2 does not touch
+abilities. So there are no two buckets to tell apart. See §15.2 item 4.
+
+This is load-bearing and pinned by `test_layer6_grant_survives_blood_moon_registered_first`
+in `tests/phase_ld_integration_test.rs`.
+
+**Why the strip needs no undo.** `compute_characteristics` rebuilds the frame from `CardData`
+on every call, so `clear()` mutates a local clone. When the effect leaves the registry the
+strip stops running and the printed abilities are back on the next call — the same property
+`SetSubtypes` already relied on in Part A.
+
+**Intrinsic ability ids.** Synthesized abilities get a UUID v5 derived from
+`(object_id, land_type)` rather than a fresh `new_ability_id()`. `compute_characteristics` is
+a read-only query with nowhere to store anything, so a random id would differ on every call —
+and ids are activation handles (`ManaSource.ability_id` → `activate_mana_ability`). Deriving
+keeps intrinsics globally unique like any other ability, just reproducible instead of random.
 
 **Why this is not an architecture concern:** the type surface above is expressive enough — `SetSubtypes` carries what the effect says (the target subtypes). The CR 305.7 special-case is application-time logic, local to Layer 4's `apply()`, and documented where it lives.
 
@@ -863,7 +893,23 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
 
 3. **Dependency hypothetical-check snapshot performance.** Clone vs. CoW overlay for step-4 frame snapshots. Resolve in Phase LC.
 
-4. **`AbilityOrigin` enum variants.** Needed for CR 305.7. Leaves needed: `PrintedRulesText`, `IntrinsicLandType(Subtype)`, `LayerGranted(EffectId)`. Defer exact shape to Phase LD kickoff, but the variant set above is close to final.
+4. **`AbilityOrigin` enum variants — CLOSED at Phase LD kickoff: not built, not needed.**
+   The premise was that CR 305.7 must strip selectively (rules-text and old-land-type
+   abilities out, Layer 6 grants kept), so the frame had to tell them apart. The keep-case
+   cannot arise: Layer 6 applies after Layer 4, so a granted ability is not in the frame when
+   the strip runs, and *everything* that is in the frame at Layer 4 is stripped by 305.7 (see
+   the table in §3.5a). The enum would have sorted abilities into two buckets that 305.7
+   treats identically. Implemented as an unconditional clear instead.
+
+   **If a future phase revisits this, the customer is CR 613.6**, not 305.7: "if an effect
+   grants an ability to an object, and that ability itself creates a continuous effect, the
+   granted effect's timestamp is the time the ability was granted." That needs per-ability
+   metadata in the frame — but the field it wants is a **timestamp**, not an origin. Design
+   it against 613.6's requirements rather than resurrecting the three-variant enum above.
+
+   Retrofit cost is low either way: the readers added in Phase LD Part B all go through
+   `oracle::characteristics::get_effective_abilities`, which can keep returning
+   `Vec<AbilityDef>` while a second accessor exposes metadata to whoever needs it.
 
 ---
 
