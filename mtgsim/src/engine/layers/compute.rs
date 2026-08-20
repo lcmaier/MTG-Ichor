@@ -79,7 +79,7 @@ fn apply_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteri
                 if !effect_applies_to(effect, id, chars, game) {
                     continue;
                 }
-                apply_modification(&effect.modification, chars);
+                apply_modification(&effect.modification, chars, id);
             }
         }
 
@@ -157,7 +157,15 @@ fn permanent_matches_filter(
 }
 
 /// Apply a single effect modification to the characteristics frame.
-fn apply_modification(modification: &EffectModification, chars: &mut EffectiveCharacteristics) {
+///
+/// `object_id` is the object being computed. Layer 4's subtype arms need it to
+/// derive stable ids for intrinsic mana abilities (CR 305.6) — see
+/// `land_types::intrinsic_mana_ability`.
+fn apply_modification(
+    modification: &EffectModification,
+    chars: &mut EffectiveCharacteristics,
+    object_id: ObjectId,
+) {
     match modification {
         // Layer 2
         EffectModification::SetController(pid) => {
@@ -168,9 +176,15 @@ fn apply_modification(modification: &EffectModification, chars: &mut EffectiveCh
         EffectModification::AddType(t) => { chars.types.insert(*t); }
         EffectModification::RemoveType(t) => { chars.types.remove(t); }
         EffectModification::SetTypes(types) => { chars.types = types.clone(); }
-        EffectModification::AddSubtype(s) => { chars.subtypes.insert(s.clone()); }
+        // CR 305.6/305.7 land semantics live in `land_types` — see the module
+        // docs there for why this is not a Layer 6 concern.
+        EffectModification::AddSubtype(s) => {
+            crate::engine::layers::land_types::apply_add_subtype(chars, s, object_id);
+        }
         EffectModification::RemoveSubtype(s) => { chars.subtypes.remove(s); }
-        EffectModification::SetSubtypes(subtypes) => { chars.subtypes = subtypes.clone(); }
+        EffectModification::SetSubtypes(subtypes) => {
+            crate::engine::layers::land_types::apply_set_subtypes(chars, subtypes, object_id);
+        }
         EffectModification::AddSupertype(s) => { chars.supertypes.insert(*s); }
         EffectModification::RemoveSupertype(s) => { chars.supertypes.remove(s); }
         EffectModification::SetSupertypes(supertypes) => { chars.supertypes = supertypes.clone(); }

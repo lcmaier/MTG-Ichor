@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use crate::engine::layers::compute::compute_characteristics;
+use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::ids::ObjectId;
@@ -115,6 +116,20 @@ pub fn has_permanent_type(game: &GameState, id: ObjectId) -> bool {
 pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Supertype> {
     compute_characteristics(game, id)
         .map(|chars| chars.supertypes)
+        .unwrap_or_default()
+}
+
+/// Get the effective abilities of a game object after all layers.
+///
+/// Prefer this over `obj.card_data.abilities` for anything on the battlefield:
+/// a Blood-Mooned dual land has lost its printed mana abilities and gained an
+/// intrinsic `{T}: Add {R}` that exists nowhere in its `CardData` (CR 305.7).
+///
+/// The returned `AbilityDef`s carry stable ids, so `ability.id` remains a valid
+/// activation handle across calls — including for synthesized intrinsics.
+pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Vec<AbilityDef> {
+    compute_characteristics(game, id)
+        .map(|chars| chars.abilities)
         .unwrap_or_default()
 }
 

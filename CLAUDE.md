@@ -35,10 +35,17 @@ system lands. Add a line for every new stub or TODO at commit time.
 
 ## The layer-system invariant
 
-**Never read `card_data.{types,subtypes,supertypes,colors,keywords}` for an object on
-the battlefield or the stack.** Printed characteristics stopped equalling effective ones
-when Layer 4 landed. Route through `oracle/characteristics.rs` — `has_type`,
-`has_subtype`, `has_supertype`, `has_permanent_type`, `is_creature`, `get_effective_*`.
+**Never read `card_data.{types,subtypes,supertypes,colors,keywords,abilities}` for an
+object on the battlefield or the stack.** Printed characteristics stopped equalling
+effective ones when Layer 4 landed. Route through `oracle/characteristics.rs` —
+`has_type`, `has_subtype`, `has_supertype`, `has_permanent_type`, `is_creature`,
+`get_effective_*`, `get_effective_abilities`.
+
+`abilities` joined the list in Phase LD Part B: CR 305.7 strips a Blood-Mooned land's
+printed abilities and grants an intrinsic `{T}: Add {R}` that exists nowhere in its
+`CardData`. Ability **indices** are part of this — `activatable_abilities` produces an
+index, `priority.rs` re-derives it by id, and `cast.rs::activate_ability` consumes it. All
+three must index the effective list; changing one alone mis-activates silently.
 
 This was violated at 21 sites and produced silent wrong behavior, so it is not obvious:
 assume any new query needs a wrapper.
@@ -46,6 +53,10 @@ assume any new query needs a wrapper.
 **Exemption:** cast-zone and play-from-hand legality (`engine/cast.rs`, `engine/zones.rs`,
 `oracle/legality.rs`, `oracle/mana_helpers.rs`) runs before the object is a permanent.
 Those sites are tagged `// PRE-LAYER ZONE:`. Don't "fix" them.
+
+**Second exemption:** `register_static_effects` (`state/game_state.rs`) reads printed
+abilities on purpose — it runs inside `place_on_battlefield`, before the object's own
+effect is registered, so computing effective characteristics there is circular.
 
 ## Critical path to v1
 

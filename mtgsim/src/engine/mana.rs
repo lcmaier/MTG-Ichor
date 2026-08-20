@@ -26,11 +26,13 @@ impl GameState {
         permanent_id: ObjectId,
         ability_id: AbilityId,
     ) -> Result<(), String> {
-        // Snapshot the ability definition (clone to release borrow)
-        let obj = self.get_object(permanent_id)?;
-        let card_data = obj.card_data.clone();
+        // Snapshot the ability definition (clone to release borrow).
+        // Effective, not printed — intrinsic land mana abilities (CR 305.6) are
+        // synthesized by the layer system and absent from CardData.
+        self.get_object(permanent_id)?;
+        let abilities = crate::oracle::characteristics::get_effective_abilities(self, permanent_id);
 
-        let ability = card_data.abilities.iter()
+        let ability = abilities.iter()
             .find(|a| a.id == ability_id)
             .ok_or_else(|| format!("Ability {} not found on permanent {}", ability_id, permanent_id))?;
 

@@ -255,6 +255,15 @@ pub fn blood_moon() -> Arc<CardData> {
 /// Enchantment
 /// Each land is a Swamp in addition to its other land types.
 /// (Static ability: filter = all lands, AddSubtype(Swamp))
+///
+/// **An Enchantment on purpose, and not interchangeable with the real card.**
+/// Urborg, Tomb of Yawgmoth is a Legendary *Land*, so it is nonbasic and Blood
+/// Moon turns it into a Mountain, stripping the very ability that generates this
+/// effect (CR 305.7). That makes Urborg's effect dependent on Blood Moon under
+/// CR 613.8a(b), so Blood Moon wins regardless of timestamps. Modeling it as an
+/// enchantment keeps that dependency out of the 305.6 tests, which are about the
+/// additive clause rather than about effect ordering. Do not use this card to
+/// reason about the real Blood Moon / Urborg interaction.
 pub fn urborg_effect() -> Arc<CardData> {
     CardDataBuilder::new("Urborg Effect")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
@@ -277,6 +286,74 @@ pub fn urborg_effect() -> Arc<CardData> {
                         remove_supertypes: Vec::new(),
                         set_supertypes: None,
                     },
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
+            ),
+        })
+        .build()
+}
+
+/// Underground Sea (simplified) — nonbasic dual land
+/// Land — Island Swamp
+/// {T}: Add {U}.
+/// {T}: Add {B}.
+///
+/// The board setup for ATOM-305.7-002 and COMP-305.7+305.6-001. The atoms
+/// specify a single "{T}: Add {U} or {B}" — modal mana abilities aren't
+/// supported yet, so it's modeled as two separate mana abilities. CR 305.7
+/// strips both either way, so the distinction doesn't affect what's under test.
+///
+/// Deliberately has NO Basic supertype, so Blood Moon's "nonbasic lands" filter
+/// matches it.
+pub fn dual_land_ub() -> Arc<CardData> {
+    fn mana_ability(mana_type: ManaType) -> AbilityDef {
+        AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Mana,
+            costs: vec![crate::types::costs::Cost::Tap],
+            effect: Effect::Atom(
+                Primitive::ProduceMana(crate::types::effects::ManaOutput {
+                    mana: vec![(mana_type, AmountExpr::Fixed(1))],
+                    special: vec![],
+                }),
+                EffectRecipient::Implicit,
+            ),
+        }
+    }
+
+    CardDataBuilder::new("Underground Sea")
+        .card_type(CardType::Land)
+        .subtype(Subtype::Land(LandType::Island))
+        .subtype(Subtype::Land(LandType::Swamp))
+        .rules_text("{T}: Add {U}. {T}: Add {B}.")
+        .ability(mana_ability(ManaType::Blue))
+        .ability(mana_ability(ManaType::Black))
+        .build()
+}
+
+/// Windswept Heights (invented) — {1}{W}
+/// Enchantment
+/// Lands you control have flying.
+///
+/// Nonsense as a Magic card, but it is the only ability-granting channel that
+/// exists today: `Primitive::GrantKeyword` registers a real Layer 6 effect
+/// through `register_static_effects`. Used by ATOM-305.7-003 to show that an
+/// ability granted by another effect survives Blood Moon — CR 305.7's "this
+/// doesn't remove any abilities that were granted to the land by other effects".
+pub fn lands_have_flying() -> Arc<CardData> {
+    CardDataBuilder::new("Windswept Heights")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text("Lands you control have flying.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::GrantKeyword(
+                    crate::types::keywords::KeywordAbility::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),

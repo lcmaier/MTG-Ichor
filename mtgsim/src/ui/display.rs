@@ -123,8 +123,12 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
         None => return Vec::new(),
     };
 
+    // Effective abilities, so a Blood-Mooned land isn't displayed with the
+    // abilities CR 305.7 took away.
+    let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
+
     let mut lines = Vec::new();
-    for (i, ability) in obj.card_data.abilities.iter().enumerate() {
+    for (i, ability) in abilities.iter().enumerate() {
         match ability.ability_type {
             // Mana abilities: show what they produce
             AbilityType::Mana => {

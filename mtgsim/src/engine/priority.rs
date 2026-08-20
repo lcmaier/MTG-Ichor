@@ -110,27 +110,32 @@ impl GameState {
                     PriorityAction::ActivateAbility(permanent_id, ability_id) => {
                         // Dispatch mana-vs-non-mana. Mana abilities resolve
                         // immediately (rule 605) and don't trigger SBAs.
-                        let card_data = match self.get_object(*permanent_id) {
-                            Ok(obj) => obj.card_data.clone(),
-                            Err(e) => {
-                                // Source disappeared — blacklist and retry.
-                                blacklist.push(action.clone());
-                                retries = retries.saturating_add(1);
-                                eprintln!(
-                                    "WARN: activate_ability source {} missing: {}",
-                                    permanent_id, e
-                                );
-                                continue;
-                            }
-                        };
-                        let is_mana = card_data.abilities.iter()
+                        if let Err(e) = self.get_object(*permanent_id) {
+                            // Source disappeared — blacklist and retry.
+                            blacklist.push(action.clone());
+                            retries = retries.saturating_add(1);
+                            eprintln!(
+                                "WARN: activate_ability source {} missing: {}",
+                                permanent_id, e
+                            );
+                            continue;
+                        }
+                        // Effective abilities: intrinsic land mana abilities
+                        // (CR 305.6) are absent from CardData, and the index
+                        // handed to `activate_ability` must match the list
+                        // `activatable_abilities` enumerated.
+                        let abilities =
+                            crate::oracle::characteristics::get_effective_abilities(
+                                self, *permanent_id,
+                            );
+                        let is_mana = abilities.iter()
                             .find(|a| a.id == *ability_id)
                             .map(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana)
                             .unwrap_or(false);
                         let result = if is_mana {
                             self.activate_mana_ability(current_priority, *permanent_id, *ability_id)
                         } else {
-                            let idx = card_data.abilities.iter()
+                            let idx = abilities.iter()
                                 .position(|a| a.id == *ability_id);
                             match idx {
                                 Some(i) => self.activate_ability(
