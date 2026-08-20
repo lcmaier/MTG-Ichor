@@ -16,6 +16,18 @@ Coverage is declared by annotating a Rust test with a COVERS comment:
     #[test]
     fn test_blood_moon_grants_intrinsic_mana() { ... }
 
+Use COVERS-PARTIAL when a test exercises a rule but does not build the atom's
+full scenario. The corpus writes atoms as maximal composite scenarios while
+the test suite decomposes them into minimal units, so partial is the common
+case, not an excuse:
+
+    // COVERS-PARTIAL: ATOM-613.4c-001
+    #[test]
+    fn test_two_anthems_stack() { ... }   // additive stacking, but no counter
+
+An atom is "covered" only when some test COVERS it fully; partials are
+reported separately so they read as work remaining, not work done.
+
 Usage:
     python plans/specdb.py build          # (re)build spec.sqlite
     python plans/specdb.py stats          # coverage by phase
@@ -68,7 +80,7 @@ CR_RULE_RE = re.compile(r"^(\d{3}\.\d+[a-z]?)\.?\s+(.*)$")
 CLASSIFY_RE = re.compile(r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-]+)")
 RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")
 FIELD_RE = re.compile(r"^-\s+\*\*([A-Za-z ]+):\*\*\s*(.*)$")
-COVERS_RE = re.compile(r"COVERS:\s*(.+)$")
+COVERS_RE = re.compile(r"COVERS(-PARTIAL)?:\s*(.+)$")
 ATOM_ID_RE = re.compile(r"(?:ATOM|BOUNDARY|COMP)-[0-9A-Za-z.+]+-\d+")
 RUST_FN_RE = re.compile(r"fn\s+([a-zA-Z0-9_]+)")
 
@@ -251,7 +263,8 @@ def scan_coverage():
                 cm = COVERS_RE.search(line)
                 if not cm:
                     continue
-                ids = ATOM_ID_RE.findall(cm.group(1))
+                partial = 1 if cm.group(1) else 0
+                ids = ATOM_ID_RE.findall(cm.group(2))
                 if not ids:
                     continue
                 # the nearest following `fn name` is the test being annotated
@@ -263,7 +276,7 @@ def scan_coverage():
                         break
                 rel = str(path.relative_to(ROOT)).replace("\\", "/")
                 for aid in ids:
-                    rows.append((aid, test_name, rel, n))
+                    rows.append((aid, test_name, rel, n, partial))
     return rows
 
 
@@ -290,7 +303,8 @@ def build():
             source_file TEXT, source_line INTEGER
         );
         CREATE TABLE coverage (
-            atom_id TEXT, test_name TEXT, file TEXT, line INTEGER
+            atom_id TEXT, test_name TEXT, file TEXT, line INTEGER,
+            partial INTEGER DEFAULT 0
         );
         -- One row per rule per CR snapshot. text_sha is what a future
         -- sync-rules diffs on; never key anything on `number` alone, it is an
@@ -315,7 +329,7 @@ def build():
         "INSERT INTO atoms VALUES (%s)" % ",".join("?" * len(DB_COLUMNS)),
         [tuple(a.get(c, "") for c in DB_COLUMNS) for a in atoms],
     )
-    db.executemany("INSERT INTO coverage VALUES (?,?,?,?)", cov)
+    db.executemany("INSERT INTO coverage VALUES (?,?,?,?,?)", cov)
     db.executemany("INSERT INTO rules VALUES (?,?,?,?,?,?)", rules)
     db.executemany("INSERT INTO rule_mentions VALUES (?,?,?)", mentions)
     db.executemany("INSERT OR IGNORE INTO rule_seen VALUES (?)",
@@ -324,7 +338,12 @@ def build():
 
     linked = db.execute(
         "SELECT COUNT(DISTINCT atom_id) FROM coverage "
-        "WHERE atom_id IN (SELECT id FROM atoms)"
+        "WHERE partial = 0 AND atom_id IN (SELECT id FROM atoms)"
+    ).fetchone()[0]
+    part = db.execute(
+        "SELECT COUNT(DISTINCT atom_id) FROM coverage c WHERE partial = 1 "
+        "AND atom_id IN (SELECT id FROM atoms) AND atom_id NOT IN "
+        "(SELECT atom_id FROM coverage WHERE partial = 0)"
     ).fetchone()[0]
     orphan = db.execute(
         "SELECT COUNT(DISTINCT atom_id) FROM coverage "
@@ -337,7 +356,7 @@ def build():
     print("built %s" % DB_PATH.relative_to(ROOT))
     print("  atoms parsed:      %d" % len(atoms))
     print("  COVERS rows found: %d" % len(cov))
-    print("  atoms covered:     %d" % linked)
+    print("  atoms covered:     %d full, %d partial-only" % (linked, part))
     for v, eff, n in versions:
         marker = "  <- baseline" if v == BASELINE_VERSION else ""
         print("  CR %-12s     %d rules (effective %s)%s" % (v, n, eff or "?", marker))
@@ -357,26 +376,43 @@ def connect():
 def stats():
     db = connect()
     rows = db.execute("""
-        SELECT a.phase, COUNT(*) AS total, COUNT(DISTINCT c.atom_id) AS covered
-        FROM atoms a LEFT JOIN coverage c ON c.atom_id = a.id
+        SELECT a.phase, COUNT(*) AS total,
+               SUM(CASE WHEN f.atom_id IS NOT NULL THEN 1 ELSE 0 END) AS full_cov,
+               SUM(CASE WHEN f.atom_id IS NULL AND p.atom_id IS NOT NULL
+                        THEN 1 ELSE 0 END) AS part_cov
+        FROM atoms a
+        LEFT JOIN (SELECT DISTINCT atom_id FROM coverage WHERE partial = 0) f
+               ON f.atom_id = a.id
+        LEFT JOIN (SELECT DISTINCT atom_id FROM coverage WHERE partial = 1) p
+               ON p.atom_id = a.id
         GROUP BY a.phase ORDER BY total DESC
     """).fetchall()
-    print("%-16s %7s %8s %7s" % ("PHASE", "ATOMS", "COVERED", "PCT"))
-    print("-" * 42)
-    ta = tc = 0
-    for phase, total, covered in rows:
+    print("%-16s %7s %6s %8s %8s" % ("PHASE", "ATOMS", "FULL", "PARTIAL", "FULL%"))
+    print("-" * 50)
+    ta = tf = tp = 0
+    for phase, total, full_cov, part_cov in rows:
         ta += total
-        tc += covered
-        print("%-16s %7d %8d %6.1f%%" % (phase, total, covered, 100.0 * covered / total))
-    print("-" * 42)
-    print("%-16s %7d %8d %6.1f%%" % ("TOTAL", ta, tc, 100.0 * tc / ta if ta else 0))
+        tf += full_cov
+        tp += part_cov
+        print("%-16s %7d %6d %8d %7.1f%%"
+              % (phase, total, full_cov, part_cov, 100.0 * full_cov / total))
+    print("-" * 50)
+    print("%-16s %7d %6d %8d %7.1f%%"
+          % ("TOTAL", ta, tf, tp, 100.0 * tf / ta if ta else 0))
+    print("\nFULL = a test builds the atom's whole scenario. PARTIAL = a test")
+    print("exercises the rule but not that scenario; work remains.")
 
 
 def next_up(phase, rule, limit):
     db = connect()
-    q = ("SELECT a.id, a.rule_num, a.summary, a.ticket, a.phase "
-         "FROM atoms a LEFT JOIN coverage c ON c.atom_id = a.id "
-         "WHERE c.atom_id IS NULL")
+    q = ("SELECT a.id, a.rule_num, a.summary, a.ticket, "
+         "       CASE WHEN p.atom_id IS NULL THEN ' ' ELSE '~' END AS mark "
+         "FROM atoms a "
+         "LEFT JOIN (SELECT DISTINCT atom_id FROM coverage WHERE partial = 0) f "
+         "       ON f.atom_id = a.id "
+         "LEFT JOIN (SELECT DISTINCT atom_id FROM coverage WHERE partial = 1) p "
+         "       ON p.atom_id = a.id "
+         "WHERE f.atom_id IS NULL")
     args = []
     if phase:
         q += " AND a.phase = ?"
@@ -393,9 +429,10 @@ def next_up(phase, rule, limit):
     if not rows:
         print("nothing uncovered matches that filter.")
         return
-    for aid, rule_num, summary, ticket, _ph in rows:
-        print("%-26s %-9s %-14s %s" % (aid, rule_num, (ticket or "")[:14], (summary or "")[:70]))
-    print("\n(%d shown)" % len(rows))
+    for aid, rule_num, summary, ticket, mark in rows:
+        print("%s %-26s %-9s %-13s %s"
+              % (mark, aid, rule_num, (ticket or "")[:13], (summary or "")[:66]))
+    print("\n(%d shown; ~ = partially covered already)" % len(rows))
 
 
 def show(atom_id):
@@ -407,11 +444,13 @@ def show(atom_id):
         if v not in ("", None):
             print("%-13s %s" % (k + ":", v))
     cov = db.execute(
-        "SELECT test_name, file, line FROM coverage WHERE atom_id = ?", (atom_id,)
+        "SELECT test_name, file, line, partial FROM coverage WHERE atom_id = ? "
+        "ORDER BY partial, test_name", (atom_id,)
     ).fetchall()
     print("%-13s %s" % ("covered_by:", "NOTHING" if not cov else ""))
-    for name, f, ln in cov:
-        print("              %s  (%s:%d)" % (name, f, ln))
+    for name, f, ln, part in cov:
+        print("              %s%s  (%s:%d)"
+              % (name, "  [PARTIAL]" if part else "", f, ln))
 
 
 def gaps(chapter, limit, show_all):

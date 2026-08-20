@@ -247,6 +247,7 @@ mod tests {
         assert_eq!(chars.controller, 0);
     }
 
+    // COVERS-PARTIAL: ATOM-613.4c-001
     #[test]
     fn test_registered_effect_pump_power_only() {
         use crate::types::effects::Duration;
@@ -280,6 +281,7 @@ mod tests {
         assert_eq!(chars.toughness, Some(2));
     }
 
+    // COVERS: ATOM-122.1a-001
     #[test]
     fn test_counters_modify_pt() {
         let mut game = GameState::new(2, 20);
@@ -298,6 +300,7 @@ mod tests {
         assert_eq!(chars.toughness, Some(4));
     }
 
+    // COVERS-PARTIAL: ATOM-122.1a-002
     #[test]
     fn test_counters_plus_and_minus() {
         let mut game = GameState::new(2, 20);
@@ -364,6 +367,7 @@ mod tests {
         assert!(!chars.keywords.contains(&KeywordAbility::Trample));
     }
 
+    // COVERS-PARTIAL: ATOM-613.4c-001
     #[test]
     fn test_registered_effect_modifies_pt() {
         use crate::types::effects::Duration;
@@ -695,6 +699,7 @@ mod tests {
         assert!(!opp_chars.colors.contains(&Color::Red));
     }
 
+    // COVERS-PARTIAL: ATOM-613.4d-004
     #[test]
     fn test_counters_applied_before_switch_pt() {
         use crate::types::effects::Duration;
@@ -735,6 +740,7 @@ mod tests {
 
     // === Layer 4 type-changing tests ===
 
+    // COVERS-PARTIAL: ATOM-205.1b-004
     #[test]
     fn test_add_type_preserves_existing() {
         use crate::types::effects::Duration;
@@ -801,6 +807,7 @@ mod tests {
         assert!(!chars.types.contains(&CardType::Creature));
     }
 
+    // COVERS-PARTIAL: ATOM-205.1a-003
     #[test]
     fn test_set_subtypes_replaces_all() {
         use crate::types::card_types::{LandType, Subtype};
@@ -909,6 +916,7 @@ mod tests {
         assert!(chars.supertypes.contains(&Supertype::Legendary));
     }
 
+    // COVERS-PARTIAL: ATOM-613.1d-001
     #[test]
     fn test_type_change_before_color_change() {
         use crate::types::effects::{Duration, PermanentFilter};

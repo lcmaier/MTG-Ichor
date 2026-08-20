@@ -23,6 +23,7 @@ use common::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_gam
 // Test 1: Giant Growth gives +3/+3 until end of turn
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-302.4c-001
 #[test]
 fn test_giant_growth_pumps_creature() {
     let mut game = setup_two_player_game();
@@ -71,6 +72,7 @@ fn test_giant_growth_pumps_creature() {
 // Test 2: Giant Growth expires at cleanup step
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-611.2a-001
 #[test]
 fn test_giant_growth_expires_at_cleanup() {
     let mut game = setup_two_player_game();
@@ -133,6 +135,7 @@ fn test_giant_growth_expires_at_cleanup() {
 // Test 3: Two Giant Growths stack additively
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-613.4c-001
 #[test]
 fn test_two_giant_growths_stack() {
     let mut game = setup_two_player_game();
@@ -196,6 +199,7 @@ fn test_two_giant_growths_stack() {
 // Test 4: Glorious Anthem gives +1/+1 to creatures you control on ETB
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-604.2-001
 #[test]
 fn test_glorious_anthem_buffs_creatures_on_etb() {
     let mut game = setup_two_player_game();
@@ -220,6 +224,7 @@ fn test_glorious_anthem_buffs_creatures_on_etb() {
 // Test 5: Anthem applies to creatures that enter after the anthem
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-611.3c-001
 #[test]
 fn test_glorious_anthem_buffs_creatures_entering_later() {
     let mut game = setup_two_player_game();
@@ -280,6 +285,7 @@ fn test_glorious_anthem_ignores_noncreatures() {
 // Test 8: Anthem effect removed when anthem leaves the battlefield
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-604.2-001, ATOM-611.3b-001
 #[test]
 fn test_glorious_anthem_removed_on_ltb() {
     let mut game = setup_two_player_game();
@@ -304,6 +310,7 @@ fn test_glorious_anthem_removed_on_ltb() {
 // Test 9: Two anthems stack additively
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-613.4c-001
 #[test]
 fn test_two_anthems_stack() {
     let mut game = setup_two_player_game();
@@ -322,6 +329,7 @@ fn test_two_anthems_stack() {
 // Test 10: Anthem + Giant Growth combine correctly
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-613.4c-001, ATOM-613.1g-001
 #[test]
 fn test_anthem_plus_pump_spell() {
     let mut game = setup_two_player_game();
@@ -366,6 +374,7 @@ fn test_anthem_plus_pump_spell() {
 // Test 11: Zhalfirin Shapecraft sets base P/T to 4/3
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-613.4b-001
 #[test]
 fn test_zhalfirin_shapecraft_sets_base_pt() {
     let mut game = setup_two_player_game();
@@ -412,6 +421,7 @@ fn test_zhalfirin_shapecraft_sets_base_pt() {
 // Test 12: Inside Out switches P/T
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-613.4d-001
 #[test]
 fn test_inside_out_switches_pt() {
     let mut game = setup_two_player_game();
@@ -463,6 +473,7 @@ fn test_inside_out_switches_pt() {
 // Test 13: Bull Rush gives +2/+0
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-613.4c-001
 #[test]
 fn test_bull_rush_pumps_power() {
     let mut game = setup_two_player_game();
@@ -535,6 +546,7 @@ fn cast_and_resolve_targeted_spell(
 // Cast order: Shapecraft (7b), Bull Rush (7c), Inside Out (7d)
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-613.4d-004
 #[test]
 fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     let mut game = setup_two_player_game();

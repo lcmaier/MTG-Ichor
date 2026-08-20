@@ -213,6 +213,7 @@ mod tests {
         assert_eq!(reg.iter().next().unwrap().source, src_b);
     }
 
+    // COVERS-PARTIAL: ATOM-613.7-001
     #[test]
     fn test_effects_in_layer_sorted_by_timestamp() {
         let mut reg = ContinuousEffectRegistry::new();
@@ -238,6 +239,7 @@ mod tests {
         assert!(!reg.is_empty());
     }
 
+    // COVERS-PARTIAL: ATOM-611.2a-001
     #[test]
     fn test_remove_expired_at_cleanup_removes_until_end_of_turn() {
         let mut reg = ContinuousEffectRegistry::new();

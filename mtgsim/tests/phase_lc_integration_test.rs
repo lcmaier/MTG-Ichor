@@ -84,6 +84,7 @@ fn test_cerulean_wisps_sets_color_to_blue() {
 // Test 2: Color change expires at cleanup → reverts to printed colors
 // ===========================================================================
 
+// COVERS-PARTIAL: ATOM-611.2a-001
 #[test]
 fn test_color_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
@@ -142,6 +143,7 @@ fn test_moonlace_makes_creature_colorless() {
 // Test 4: Chromatic Ward (static) adds red to your creatures
 // ===========================================================================
 
+// COVERS-PARTIAL: ATOM-604.2-001
 #[test]
 fn test_chromatic_ward_static_adds_red() {
     let mut game = setup_two_player_game();
@@ -170,6 +172,7 @@ fn test_chromatic_ward_static_adds_red() {
 // Test 5: Chromatic Ward applies to creatures entering after it
 // ===========================================================================
 
+// COVERS-PARTIAL: ATOM-611.3c-001
 #[test]
 fn test_chromatic_ward_applies_to_later_creatures() {
     let mut game = setup_two_player_game();
@@ -189,6 +192,7 @@ fn test_chromatic_ward_applies_to_later_creatures() {
 // Test 6: Chromatic Ward effect removed when ward leaves the battlefield
 // ===========================================================================
 
+// COVERS-PARTIAL: ATOM-611.3b-001
 #[test]
 fn test_chromatic_ward_removed_on_ltb() {
     let mut game = setup_two_player_game();
@@ -245,6 +249,7 @@ fn test_color_change_independent_of_pt_pump() {
 // Test 8: Two color-changing spells — later one overrides (SetColors)
 // ===========================================================================
 
+// COVERS-PARTIAL: ATOM-613.7-001
 #[test]
 fn test_two_set_colors_later_overrides() {
     let mut game = setup_two_player_game();
