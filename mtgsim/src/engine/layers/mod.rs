@@ -11,6 +11,7 @@
 
 pub mod types;
 pub mod compute;
+pub mod land_types;
 
 pub use compute::compute_characteristics;
 pub use types::*;
