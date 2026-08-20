@@ -142,8 +142,16 @@ git diff --stat origin/main HEAD          # the true delta
 git merge-base --is-ancestor <sha> origin/main
 ```
 
-`gh` is **not installed**. After pushing, hand over a compare URL:
-`https://github.com/lcmaier/MTG-Ichor/compare/main...<branch>?expand=1`
+`gh` is installed (2.97.0, HTTPS auth). Use it to open PRs:
+
+```bash
+gh pr create --base main --head <branch> --title "..." --body-file <path>
+```
+
+**Creating a PR is fine; merging to main is the user's call** — hand over the PR
+URL rather than running `gh pr merge`, unless the user says otherwise in that
+session. If `gh` reports "not logged into any GitHub hosts", `gh auth login` is
+interactive — ask the user to run it; never handle their credentials.
 
 ## Conventions
 
