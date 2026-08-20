@@ -9,7 +9,7 @@ Crate lives in `mtgsim/`. Edition 2024. ~22,600 lines across 68 `.rs` files.
 ## Commands
 
 ```bash
-cd mtgsim && cargo test            # full suite — 514 tests, must stay green
+cd mtgsim && cargo test            # full suite — must stay green
 cd mtgsim && cargo build --all-targets   # must produce ZERO warnings
 cd mtgsim && cargo run --bin cli_play    # play a game at the terminal
 cd mtgsim && cargo run --bin fuzz_games  # random-vs-random batch harness
@@ -23,27 +23,41 @@ any commit.
 
 | Doc | Authority |
 |---|---|
-| `plans/codebase-state.md` | **Current state. Wins over every other doc.** Chapter-by-chapter CR coverage + the Deferred Migrations list |
+| `plans/codebase-state.md` | **Current state. Wins over every other doc** — but it is a *generated* audit snapshot, not an authored one. See the note below |
 | `plans/layers-architecture.md` | Authoritative for the layer system: type shapes, module layout, sublayer enumeration, dependency algorithm |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — 1,753 atomic tests from a close read of the CR. Authored, never generated |
 | `MTG-Rules/versions/*.txt` | The CR itself. Ground truth. `tmnt.txt` = baseline, effective 2026-02-27 |
 | `plans/handoffs/*.md` | Transient. Where to resume a half-finished phase. Delete when the work lands |
 | `plans/roadmap.md` | **Historical.** Only its Tier-1 v1.0 definition and phase dependency graph are still valid — it carries a staleness banner |
+| `plans/workflow-prompts.md` | **Historical.** Written for Windsurf/Cascade, an earlier toolchain. Ignore the tool-specific parts |
 | `plans/archive/*` | Superseded. Do not act on it |
 
 `plans/atomic-tests/global-test-index.md` and `phase-index-*.md` are generated from
 the session summaries. Don't hand-edit them.
 
+**codebase-state.md is generated, and that changes how to treat it.** It is an audit
+snapshot produced by reading the code, so it is authoritative *about the moment it was
+produced* and perishable after that — it sat four months stale once, reporting 433 tests
+and "Layers not started" long after Layers had landed. When it drifts, **regenerate it
+from the code rather than hand-patching prose**; patching is what let it drift. The
+generating prompt was never recorded — capture it in `plans/` the next time it is
+regenerated so the process is repeatable.
+
+Its **Deferred Migrations** section is the part worth guarding: debt owed by
+forward-looking scaffolding, which does not surface as a test failure until the
+dependent system lands. Add a line there at commit time for every new stub or TODO.
+
 ## Where the project is
 
-Phases 1–4.5 complete (types, zones, turn structure, stack, casting, combat,
-10 keywords, SBAs). **Layers (CR 613) is the current work**: the registry,
-`EffectiveCharacteristics`, and `compute_characteristics` are live, with Layers
-7b/7c/7d, 5, and 4 implemented.
+**Don't trust any progress claim in this file — check the code.** For what is actually
+done, read `plans/codebase-state.md` and run `python plans/specdb.py stats`. The
+*ordering* below is durable; the completion state is not, so it is deliberately not
+recorded here.
 
-Critical path to v1, in dependency order:
+Critical path to v1, in dependency order — each item needs the ones above it:
 
-1. **Layer 4 Part B** — `AbilityOrigin` + CR 305.7 ability stripping (in progress; see `plans/handoffs/ld-layer4.md`)
+0. **Layers (CR 613) core** — registry, `EffectiveCharacteristics`, `compute_characteristics`, Layers 7b/7c/7d, 5, 4
+1. **Layer 4 Part B** — `AbilityOrigin` + CR 305.7 ability stripping (see `plans/handoffs/ld-layer4.md`)
 2. **Layer 6** — ability adding/removing (Humility)
 3. **Layer 2** — control changing
 4. **CR 613.8 dependency algorithm** — ordering is timestamp-only today
@@ -142,3 +156,14 @@ git merge-base --is-ancestor <sha> origin/main
   is the most valuable thing in the doc set — nothing can derive it.
 - When a fix claims to repair a bug, prove it: verify the new tests fail against the
   pre-fix tree (`git stash push mtgsim/src`) before committing.
+
+## Maintaining this file
+
+Keep it **durable**. Invariants, conventions, commands, and doc precedence belong here;
+progress snapshots and counts do not, because they rot silently and this file is loaded
+into every session — a stale claim here is worse than no claim.
+
+Update it when something *structural* changes: a new invariant (like the layer-system
+rule above), a workflow change, a new tool, a shift in doc authority. Don't update it
+because a phase finished — `codebase-state.md` and `specdb` answer that, and they are
+derived from the code rather than from memory.
