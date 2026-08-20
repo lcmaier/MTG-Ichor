@@ -1,3 +1,4 @@
+use crate::oracle::characteristics::{has_permanent_type, has_subtype};
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
@@ -56,8 +57,8 @@ impl GameState {
         // We already removed the object from self.stack above, so we handle
         // zone transitions manually to avoid move_object double-removing.
         if entry.is_spell {
-            let obj = self.get_object(object_id)?;
-            let is_permanent_type = obj.card_data.types.iter().any(|t| t.is_permanent());
+            self.get_object(object_id)?;
+            let is_permanent_type = has_permanent_type(self, object_id);
 
             if is_permanent_type {
                 // Permanent spell: move to battlefield.
@@ -101,10 +102,8 @@ impl GameState {
                 // target.  The fizzle check (608.2b) at the top of this
                 // function guarantees the target is still legal — if it
                 // weren't, the spell would have fizzled before reaching here.
-                let is_aura = self.get_object(object_id)
-                    .map(|o| o.card_data.subtypes.contains(
-                        &Subtype::Enchantment(EnchantmentType::Aura)))
-                    .unwrap_or(false);
+                let is_aura = has_subtype(
+                    self, object_id, &Subtype::Enchantment(EnchantmentType::Aura));
                 if is_aura {
                     let host_id = match entry.chosen_targets.first().copied() {
                         Some(ResolvedTarget::Object(id)) => id,

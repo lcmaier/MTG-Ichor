@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::events::event::{GameEvent, LossReason};
-use crate::oracle::characteristics::{get_effective_name, has_keyword, is_creature, get_effective_toughness};
+use crate::oracle::characteristics::{
+    get_effective_name, get_effective_toughness, has_keyword, has_subtype, has_supertype,
+    has_type, is_creature,
+};
 use crate::types::keywords::KeywordAbility;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
@@ -135,8 +138,8 @@ impl GameState {
         // 704.5i — Planeswalker with 0 loyalty is put into owner's graveyard
         let pw_zero_loyalty: Vec<ObjectId> = self.battlefield.keys()
             .filter(|id| {
-                if let Some(obj) = self.objects.get(id) {
-                    if obj.card_data.types.contains(&CardType::Planeswalker) {
+                if self.objects.contains_key(id) {
+                    if has_type(self, **id, CardType::Planeswalker) {
                         let entry = self.battlefield.get(id).unwrap();
                         return entry.counter_count(CounterType::Loyalty) == 0;
                     }
@@ -161,8 +164,8 @@ impl GameState {
             // Group legendary permanents by (controller, effective_name)
             let mut legend_groups: HashMap<(usize, String), Vec<ObjectId>> = HashMap::new();
             for (&id, entry) in &self.battlefield {
-                if let Some(obj) = self.objects.get(&id) {
-                    if obj.card_data.supertypes.contains(&Supertype::Legendary) {
+                if self.objects.contains_key(&id) {
+                    if has_supertype(self, id, Supertype::Legendary) {
                         let name = get_effective_name(self, id);
                         legend_groups
                             .entry((entry.controller, name))
@@ -206,7 +209,7 @@ impl GameState {
         let auras_to_graveyard: Vec<ObjectId> = self.battlefield.iter()
             .filter_map(|(&id, entry)| {
                 let obj = self.objects.get(&id)?;
-                if !obj.card_data.subtypes.contains(&Subtype::Enchantment(EnchantmentType::Aura)) {
+                if !has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura)) {
                     return None;
                 }
                 match entry.attached_to {
@@ -242,9 +245,9 @@ impl GameState {
         // Equipment stays on the battlefield; only the attachment is broken.
         let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield.iter()
             .filter_map(|(&id, entry)| {
-                let obj = self.objects.get(&id)?;
-                let has_equip = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Equipment));
-                let has_fort = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Fortification));
+                self.objects.get(&id)?;
+                let has_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
+                let has_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
                 if !has_equip && !has_fort { return None; }
                 let host_id = entry.attached_to?;
                 if !is_creature(self, host_id) {
@@ -273,10 +276,10 @@ impl GameState {
         // type-changing effects.
         let illegal_attachments: Vec<(ObjectId, ObjectId)> = self.battlefield.iter()
             .filter_map(|(&id, entry)| {
-                let obj = self.objects.get(&id)?;
-                let is_aura = obj.card_data.subtypes.contains(&Subtype::Enchantment(EnchantmentType::Aura));
-                let is_equip = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Equipment));
-                let is_fort = obj.card_data.subtypes.contains(&Subtype::Artifact(ArtifactType::Fortification));
+                self.objects.get(&id)?;
+                let is_aura = has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura));
+                let is_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
+                let is_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
                 if is_aura || is_equip || is_fort {
                     return None;
                 }

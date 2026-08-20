@@ -141,6 +141,10 @@ impl GameState {
         if obj.owner != player_id {
             return Err("Can only play your own lands".to_string());
         }
+        // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+        // play-from-hand legality, which happens before the object is a permanent,
+        // so the layer system has nothing to contribute. Same exemption as
+        // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
         if !obj.card_data.types.contains(&CardType::Land) {
             return Err("This card is not a land".to_string());
         }

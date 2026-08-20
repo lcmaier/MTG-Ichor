@@ -511,8 +511,8 @@ impl GameState {
         let obj = self.get_object(aura_id)?;
 
         // Only applies to Auras.
-        if !obj.card_data.subtypes.contains(
-            &Subtype::Enchantment(EnchantmentType::Aura),
+        if !crate::oracle::characteristics::has_subtype(
+            self, aura_id, &Subtype::Enchantment(EnchantmentType::Aura),
         ) {
             return Ok(false);
         }

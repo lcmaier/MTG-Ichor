@@ -162,6 +162,10 @@ pub fn castable_spells(
         };
 
         // Lands are never cast — they're played via the special action (rule 305.1)
+        // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+        // play-from-hand legality, which happens before the object is a permanent,
+        // so the layer system has nothing to contribute. Same exemption as
+        // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
         if obj.card_data.types.contains(&CardType::Land) {
             continue;
         }
@@ -315,6 +319,10 @@ fn passes_timing_check(game: &GameState, player_id: PlayerId, card_id: ObjectId)
         return false;
     }
 
+    // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+    // play-from-hand legality, which happens before the object is a permanent,
+    // so the layer system has nothing to contribute. Same exemption as
+    // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
     let is_instant = obj.card_data.types.contains(&crate::types::card_types::CardType::Instant);
     let has_flash = obj.card_data.keywords.contains(&crate::types::keywords::KeywordAbility::Flash);
 

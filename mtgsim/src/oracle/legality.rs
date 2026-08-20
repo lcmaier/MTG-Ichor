@@ -56,6 +56,10 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
         .copied()
         .filter(|&id| {
             game.objects.get(&id)
+                // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+                // play-from-hand legality, which happens before the object is a permanent,
+                // so the layer system has nothing to contribute. Same exemption as
+                // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
                 .map(|obj| obj.card_data.types.contains(&CardType::Land))
                 .unwrap_or(false)
         })

@@ -166,9 +166,8 @@ impl DecisionProvider for RandomDecisionProvider {
                     e.controller == player && !e.tapped
                 })
                 .filter(|(id, _)| {
-                    game.objects.get(id)
-                        .map(|o| o.card_data.types.contains(&crate::types::card_types::CardType::Land))
-                        .unwrap_or(false)
+                    crate::oracle::characteristics::has_type(
+                        game, **id, crate::types::card_types::CardType::Land)
                 })
                 .count() as u64;
             let reasonable_max = pool_total + untapped_lands;
