@@ -274,7 +274,10 @@ impl GameState {
         }
 
         let card_data = self.get_object(source_id)?.card_data.clone();
-        let ability = card_data.abilities.get(ability_index)
+        // `ability_index` indexes the EFFECTIVE ability list — see the matching
+        // comment in `oracle::mana_helpers::activatable_abilities`.
+        let abilities = crate::oracle::characteristics::get_effective_abilities(self, source_id);
+        let ability = abilities.get(ability_index)
             .ok_or_else(|| format!("Ability index {} out of range", ability_index))?;
 
         if ability.ability_type == AbilityType::Mana {

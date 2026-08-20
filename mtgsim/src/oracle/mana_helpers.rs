@@ -100,12 +100,9 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
             continue;
         }
 
-        let obj = match game.objects.get(id) {
-            Some(o) => o,
-            None => continue,
-        };
-
-        for ability in &obj.card_data.abilities {
+        // Effective abilities, not printed: a Blood-Mooned land's intrinsic
+        // {T}: Add {R} exists nowhere in its CardData (CR 305.7).
+        for ability in &crate::oracle::characteristics::get_effective_abilities(game, *id) {
             if ability.ability_type != AbilityType::Mana {
                 continue;
             }
@@ -364,12 +361,12 @@ pub fn activatable_abilities(
             continue;
         }
 
-        let obj = match game.objects.get(id) {
-            Some(o) => o,
-            None => continue,
-        };
+        // `idx` indexes the EFFECTIVE ability list. `priority.rs` re-derives it
+        // by id and `cast.rs::activate_ability` consumes it — all three must
+        // index the same list or activation silently targets the wrong ability.
+        let abilities = crate::oracle::characteristics::get_effective_abilities(game, *id);
 
-        for (idx, ability) in obj.card_data.abilities.iter().enumerate() {
+        for (idx, ability) in abilities.iter().enumerate() {
             if ability.ability_type != AbilityType::Activated {
                 continue;
             }
