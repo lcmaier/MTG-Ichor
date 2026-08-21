@@ -466,3 +466,64 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
         })
         .build()
 }
+
+/// Moonlit Steppe (invented) — nonbasic land
+/// Land
+/// Nonbasic lands are Mountains.
+///
+/// Blood Moon's ability, printed on a land that its own effect then matches. A
+/// deliberately compressed stand-in for a board the CR permits and real cards
+/// reach: Opalescence makes Blood Moon a creature, Ashaya, Soul of the Wild
+/// makes each nontoken creature you control a Forest land, and Blood Moon —
+/// now a nonbasic land — strips its own ability under CR 305.7.
+///
+/// Compressed because our `PermanentFilter` has no way to say "each **other**
+/// non-Aura enchantment", so a modelled Opalescence would also enchant itself
+/// and put three layers of noise between the fixture and what it is testing.
+/// One card reaches the same self-reference.
+///
+/// What it is for: proving the CR 613.7a existence check terminates. The check
+/// asks whether this land still has its static ability, which is a
+/// characteristics query on the land, which runs the check again. It resolves
+/// because the question is asked at a strictly lower layer ceiling each time
+/// (`layers-architecture.md` §5.2) — at Layer 4 it reads the frame as of the
+/// end of Layer 3, where the strip has not run. Get that wrong and this card
+/// overflows the stack.
+pub fn self_stripping_land() -> Arc<CardData> {
+    let mut mountain_set = HashSet::new();
+    mountain_set.insert(Subtype::Land(LandType::Mountain));
+
+    let nonbasic_land_filter = PermanentFilter::And(
+        Box::new(PermanentFilter::ByType(CardType::Land)),
+        Box::new(PermanentFilter::Not(Box::new(
+            PermanentFilter::BySupertype(Supertype::Basic),
+        ))),
+    );
+
+    CardDataBuilder::new("Moonlit Steppe")
+        .card_type(CardType::Land)
+        .rules_text("Nonbasic lands are Mountains.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ChangeType(
+                    TypeChange {
+                        add_types: Vec::new(),
+                        remove_types: Vec::new(),
+                        set_types: None,
+                        add_subtypes: Vec::new(),
+                        remove_subtypes: Vec::new(),
+                        set_subtypes: Some(mountain_set),
+                        add_supertypes: Vec::new(),
+                        remove_supertypes: Vec::new(),
+                        set_supertypes: None,
+                    },
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(nonbasic_land_filter),
+            ),
+        })
+        .build()
+}

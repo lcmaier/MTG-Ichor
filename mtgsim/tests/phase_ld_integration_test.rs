@@ -756,3 +756,68 @@ fn test_static_effect_shares_its_objects_timestamp() {
         "CR 613.7a: a static ability's effect has the same timestamp as the object it is on"
     );
 }
+
+// COVERS: ATOM-113.6-001
+#[test]
+fn test_static_ability_does_not_function_from_the_graveyard() {
+    let mut game = setup_two_player_game();
+
+    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+
+    assert!(has_keyword(&game, bear_id, KeywordAbility::Flying));
+
+    game.change_zone(land_id, Zone::Graveyard).unwrap();
+
+    // CR 113.6 — an ability of a permanent functions only while that permanent
+    // is on the battlefield.
+    assert!(
+        !has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "a static ability must stop functioning once its source is in the graveyard"
+    );
+    assert_eq!(
+        game.continuous_effects
+            .iter()
+            .filter(|e| e.source == land_id)
+            .count(),
+        0,
+        "the effect should have been deregistered on the zone change"
+    );
+}
+
+// The CR 613.7a existence check asks whether an effect's source still has the
+// ability that generates it — which is itself a characteristics query on that
+// source. When the source is what its own effect strips, that question is
+// self-referential, and the only reason it terminates is that each round asks
+// at a strictly lower layer ceiling (layers-architecture.md §5.2).
+//
+// See `self_stripping_land`'s doc comment for the real board this stands in for.
+// Assertions are deliberately confined to what holds under either ordering:
+// which of two Layer 4 effects wins is CR 613.8's business, and 613.8 is not
+// implemented (Deferred Migrations item 8).
+#[test]
+fn test_self_stripping_land_terminates_and_is_stable() {
+    let mut game = setup_two_player_game();
+
+    let steppe_id = put_on_battlefield(&mut game, phase_ld_cards::self_stripping_land(), 0);
+
+    let other_data = mtgsim::objects::card_data::CardDataBuilder::new("Steam Vents")
+        .card_type(CardType::Land)
+        .subtype(Subtype::Land(LandType::Island))
+        .build();
+    let other_id = put_on_battlefield(&mut game, other_data, 0);
+
+    // Terminates rather than recursing forever, and gives the same answer twice.
+    let first = get_effective_subtypes(&game, steppe_id);
+    let second = get_effective_subtypes(&game, steppe_id);
+    assert_eq!(first, second, "repeated queries must agree");
+
+    // The effect still exists: an effect that stripped itself out of existence
+    // would leave the other nonbasic land alone. CR 613.6 — the walk restarts
+    // from CardData every time, so the strip is a within-walk consequence and
+    // never persistent state.
+    assert!(
+        get_effective_subtypes(&game, other_id).contains(&Subtype::Land(LandType::Mountain)),
+        "the self-stripping land's effect must still apply to other nonbasic lands"
+    );
+}
