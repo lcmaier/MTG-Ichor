@@ -265,6 +265,14 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, ~20 sites.** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
 
+7f. **Conditional static abilities are unmodeled, and `can_change_abilities()` depends on that.** `register_static_effects` handles `Effect::Atom` and `Effect::Sequence` and `continue`s on everything else, so `Effect::Conditional` — "as long as [X], this has [Y]" — registers nothing.
+
+    That is load-bearing in a place it does not look load-bearing. `EffectModification::can_change_abilities()` gates the CR 613.7a existence check, worth a measured **5.4x** on a 40-permanent board with 20 static-ability effects (87 ms vs 468 ms over 40,000 queries), so it is not removable on a whim. But it classifies by *what a modification writes*, which is only a proxy for "could an ability set differ" while no static ability is conditional.
+
+    Conditional statics break it globally rather than arm by arm. An Umbra reading "as long as another player controls enchanted creature… otherwise it has totem armor" makes `SetController` ability-changing; "as long as this has power 4 or greater, it has trample" makes `ModifyPowerToughness` ability-changing. Nearly every arm becomes `true` and the gate stops gating.
+
+    **So do not patch arms.** Either delete the gate and pay the 5.4x, or replace it with something keyed on the conditions static abilities actually read. Pairs with Layer 2, which is the first system to make the Umbra case reachable.
+
 7e. **Derivation silently drops non-`Fixed` amounts.** `register_static_effects` `continue`s on any `AmountExpr` other than `Fixed`, so a static ability with a computed P/T registers nothing at all. Tarmogoyf-class CDAs are exactly non-`Fixed`. Silent, not an error.
 
 8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
@@ -281,6 +289,8 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    Two pieces are needed, in this order:
    - **A card filter and a zone-aware `AffectedSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
+   - **Timestamps must move off `BattlefieldEntity` and onto the object.** CR 613.7d gives an object a timestamp when it enters *any* zone; we store one only on `BattlefieldEntity`. Wonder ("as long as this card is in your graveyard and you control an Island, creatures you control have flying" — a static ability functioning from the graveyard, CR 113.6b) has nowhere to read one from, so `GameState::static_effect_timestamp` has no answer for it. Its `None` arm is unreachable today only because `register_static_effects` is called from `place_on_battlefield`.
+
    - **A `reachable_zones` bitmask on `ContinuousEffectRegistry`,** maintained on add/remove. **This now has a home:** `RegistryScopeSummary` exists (`state/continuous_effects.rs`), recomputed on every `add`/`remove`, carrying the one field the CR 613.7a existence check needed. `layers-architecture.md` §5.1 already specifies `touches_hidden_zones` / `touches_stack` / `has_active_cdas` on that same struct — extend it rather than adding a parallel counter. `compute_characteristics` checks the object's zone against it and returns base characteristics on a miss. This keeps the cost at zero until someone actually plays a zone-reaching card, and even then confines it to the one zone that card reaches — queried on demand at castability-check time, never as an eager sweep over every card in the game.
 
    The mask also generalizes the existing fast path, which today early-outs only when the registry is *entirely* empty: with it, a card in hand early-outs even with many battlefield effects registered. Worth building **with** the first zone-reaching card, not before — there is nothing to test against otherwise. Note that Aminatou additionally needs item 3 (the cost-modification pipeline) for "its miracle cost is equal to its mana cost reduced by {4}".

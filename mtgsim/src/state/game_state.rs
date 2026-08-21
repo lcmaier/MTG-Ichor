@@ -301,10 +301,18 @@ impl GameState {
     ) -> u64 {
         match self.battlefield.get(&id) {
             Some(entry) => entry.timestamp,
-            // A static ability of an object that isn't on the battlefield
-            // generates no effect, so this is unreachable from
-            // `register_static_effects`, which runs after the entity is
-            // inserted. "Now" is the least-wrong answer if it ever isn't.
+            // Unreachable because the only caller is `register_static_effects`,
+            // which runs from `place_on_battlefield` after the entity is
+            // inserted — *not* because a non-battlefield object cannot have a
+            // functioning static ability. It can: CR 113.6b, and Wonder ("as
+            // long as this card is in your graveyard and you control an Island,
+            // creatures you control have flying") is the stock example.
+            //
+            // When those are modelled, this fallback is not the fix. CR 613.7d
+            // gives an object a timestamp when it enters *any* zone, but we
+            // only store one on `BattlefieldEntity`, so a graveyard Wonder has
+            // nowhere to read one from. The timestamp has to move onto the
+            // object. See Deferred Migrations item 9.
             None => {
                 debug_assert!(false, "static_effect_timestamp for non-battlefield object {id}");
                 self.next_timestamp

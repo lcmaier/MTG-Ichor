@@ -99,6 +99,32 @@ impl EffectModification {
     /// modification still to come — fails to compile until it is classified
     /// here. That is the whole reason the existence check has a closed set of
     /// inputs rather than an open set of invalidation hooks.
+    ///
+    /// Worth the complexity: on a 40-permanent board with 20 static-ability
+    /// effects, gating the existence check on this is a measured 5.4x
+    /// (87 ms vs 468 ms over 40,000 queries). Note it only helps when the
+    /// answer is `false` everywhere — on a Blood Moon or Humility board the
+    /// check runs anyway, which is the right way round.
+    ///
+    /// # Precondition: every static ability is unconditional
+    ///
+    /// This classifies by *what a modification writes*, which is only a valid
+    /// proxy for "could an ability set differ" while no static ability is
+    /// conditional. `Effect::Conditional` exists but `register_static_effects`
+    /// skips it, so that holds today.
+    ///
+    /// It stops holding the moment "as long as [X], this has [Y]" is modelled,
+    /// and then it fails *globally*, not arm by arm. An Umbra reading "as long
+    /// as another player controls enchanted creature… otherwise it has totem
+    /// armor" makes `SetController` ability-changing. "As long as this has
+    /// power 4 or greater, it has trample" makes `ModifyPowerToughness`
+    /// ability-changing. Nearly every arm becomes `true` and the gate stops
+    /// being a gate.
+    ///
+    /// So do not patch arms when that day comes. Either delete this and pay
+    /// the 5.4x, or replace it with something that keys on the *conditions
+    /// static abilities actually read* rather than on modification type.
+    /// Tracked in Deferred Migrations under conditional static abilities.
     pub fn can_change_abilities(&self) -> bool {
         match self {
             // CR 305.6 / 305.7: setting a land's subtypes strips its abilities
