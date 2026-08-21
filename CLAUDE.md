@@ -25,6 +25,7 @@ python plans/specdb.py stats             # rules coverage by phase
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
 | `plans/roadmap.md`, `plans/workflow-prompts.md` | Historical. Only the roadmap's Tier-1 v1.0 definition and phase graph still hold |
 | `plans/archive/*` | Superseded. Do not act on it |
+| `plans/references/scryfall-syntax.md` | External tooling reference (Scryfall search filters), not rules authority. Fetch card examples/rulings via Bash+curl with a UA header — Scryfall 403s the `WebFetch` tool |
 
 Generated, never hand-edit: `global-test-index.md`, `phase-index-*.md`, `spec.sqlite`.
 Fix the source and rebuild.
