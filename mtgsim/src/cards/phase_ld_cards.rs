@@ -430,3 +430,39 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         })
         .build()
 }
+
+/// Cloudspire Mesa (invented) — nonbasic land
+/// Land
+/// Creatures you control have flying.
+///
+/// The Land-typed sibling of [`lands_have_flying`], and it exists because Blood
+/// Moon's filter is "nonbasic **land**". Testing that a stripped static ability
+/// retires the continuous effect it generated needs a permanent that (a) Blood
+/// Moon can strip — so, a land without the `Basic` supertype — and (b) has a
+/// static ability generating a registered effect. Nothing in the card pool is
+/// both, which is why item 7 of Deferred Migrations went unnoticed: the bug is
+/// live, but no card reaches it.
+///
+/// Nonsense as a Magic card, in the same way and for the same reason as
+/// `lands_have_flying`. `Primitive::GrantKeyword` is used because it is the one
+/// Layer 6 channel wired end to end today.
+///
+/// Deliberately has NO `Basic` supertype, so Blood Moon's filter matches it.
+pub fn land_creatures_have_flying() -> Arc<CardData> {
+    CardDataBuilder::new("Cloudspire Mesa")
+        .card_type(CardType::Land)
+        .rules_text("Creatures you control have flying.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::GrantKeyword(
+                    crate::types::keywords::KeywordAbility::Flying,
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),
+            ),
+        })
+        .build()
+}

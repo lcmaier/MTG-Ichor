@@ -6,11 +6,30 @@
 use crate::engine::layers::types::{ContinuousEffect, EffectId, Layer, Timestamp};
 use crate::types::ids::ObjectId;
 
+/// Cheap, registry-wide facts that let `compute_characteristics` skip work it
+/// would otherwise have to do per object per layer.
+///
+/// `layers-architecture.md` §5.1 describes this struct with three more fields
+/// (`touches_hidden_zones`, `touches_stack`, `has_active_cdas`) for the
+/// hidden-zone fast path and CDA handling. Those land with the systems that
+/// need them; the struct is introduced here with the one field that has a
+/// caller, so the later work extends it rather than growing a parallel counter.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RegistryScopeSummary {
+    /// True iff some active effect could change which abilities an object has.
+    ///
+    /// When false, every object's effective abilities equal its printed ones,
+    /// so no static ability can have gone missing and the CR 613.7a existence
+    /// re-check in `compute.rs` is skipped entirely. This is the common case.
+    pub any_ability_changing: bool,
+}
+
 /// Owns all active continuous effects in the game.
 #[derive(Debug, Clone)]
 pub struct ContinuousEffectRegistry {
     effects: Vec<ContinuousEffect>,
     next_effect_id: EffectId,
+    summary: RegistryScopeSummary,
 }
 
 impl ContinuousEffectRegistry {
@@ -18,7 +37,26 @@ impl ContinuousEffectRegistry {
         ContinuousEffectRegistry {
             effects: Vec::new(),
             next_effect_id: 1,
+            summary: RegistryScopeSummary::default(),
         }
+    }
+
+    /// Registry-wide summary flags. See `RegistryScopeSummary`.
+    pub fn summary(&self) -> &RegistryScopeSummary {
+        &self.summary
+    }
+
+    /// Recompute `summary` from scratch.
+    ///
+    /// A full walk on every mutation rather than incremental counters: adds and
+    /// removes are rare next to reads, and a counter that drifts would show up
+    /// as a silently skipped existence check — the exact class of bug this
+    /// phase exists to remove.
+    fn recompute_summary(&mut self) {
+        self.summary.any_ability_changing = self
+            .effects
+            .iter()
+            .any(|e| e.modification.can_change_abilities());
     }
 
     /// Register a new continuous effect. Returns its unique ID.
@@ -27,13 +65,16 @@ impl ContinuousEffectRegistry {
         self.next_effect_id += 1;
         effect.id = id;
         self.effects.push(effect);
+        self.recompute_summary();
         id
     }
 
     /// Remove a specific effect by its ID. Returns the removed effect if found.
     pub fn remove(&mut self, id: EffectId) -> Option<ContinuousEffect> {
         if let Some(pos) = self.effects.iter().position(|e| e.id == id) {
-            Some(self.effects.swap_remove(pos))
+            let removed = self.effects.swap_remove(pos);
+            self.recompute_summary();
+            Some(removed)
         } else {
             None
         }
@@ -51,6 +92,7 @@ impl ContinuousEffectRegistry {
                 i += 1;
             }
         }
+        self.recompute_summary();
         removed
     }
 
@@ -110,6 +152,7 @@ impl ContinuousEffectRegistry {
         }
         // Suppress unused variable warnings until multi-turn durations are added
         let _ = (active_player, current_turn);
+        self.recompute_summary();
         removed
     }
 
@@ -142,6 +185,7 @@ impl ContinuousEffectRegistry {
                 i += 1;
             }
         }
+        self.recompute_summary();
         removed
     }
 

@@ -7,16 +7,72 @@
 //! Reads base characteristics from CardData, then applies all continuous
 //! effects in layer order (1→2→3→4→5→6→7b→7c→7d).
 
+use std::collections::HashMap;
+
 use crate::engine::layers::types::*;
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
+
+/// The layers, in application order (CR 613.1). Index into this array is the
+/// "layer ceiling" used by the frame cache: ceiling `n` means layers
+/// `LAYER_ORDER[..n]` have been applied, i.e. the frame as of the end of
+/// layer `n - 1`.
+const LAYER_ORDER: [Layer; 9] = [
+    Layer::Layer1Copy,
+    Layer::Layer2Control,
+    Layer::Layer3Text,
+    Layer::Layer4Type,
+    Layer::Layer5Color,
+    Layer::Layer6Ability,
+    Layer::Layer7bSetPT,
+    Layer::Layer7cModifyPT,
+    Layer::Layer7dSwitchPT,
+];
+
+/// Memo for one top-level `compute_characteristics` call
+/// (`layers-architecture.md` §5.2).
+///
+/// Deciding whether a CR 613.7a effect still exists means asking whether some
+/// *other* object still has the static ability that generates it, which is a
+/// characteristics query of its own. §5.2's answer is to answer it at a lower
+/// **layer ceiling**: at layer index `i` we need the source's frame as of the
+/// end of layer `i - 1`, which is ceiling `i`.
+///
+/// That is also the termination argument. Computing an object at ceiling `C`
+/// only ever requests ceilings `< C`, so the recursion strictly descends and
+/// bottoms out at ceiling 0, which applies no effects at all. There is no
+/// fixpoint to iterate and nothing to cap.
+///
+/// Discarded when the top-level call returns, so it never has to be
+/// invalidated.
+type FrameCache = HashMap<(ObjectId, usize), EffectiveCharacteristics>;
 
 /// Compute the effective characteristics of a game object after applying
 /// all active continuous effects in layer order.
 ///
 /// Returns `None` if the object doesn't exist.
 pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
+    let mut cache = FrameCache::new();
+    compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)
+}
+
+/// `compute_characteristics` with layers `LAYER_ORDER[ceiling..]` left unapplied.
+fn compute_to_ceiling(
+    game: &GameState,
+    id: ObjectId,
+    ceiling: usize,
+    cache: &mut FrameCache,
+) -> Option<EffectiveCharacteristics> {
+    // Only sub-computations are worth memoizing. The top-level frame is
+    // requested exactly once per call, so caching it would be a pure clone.
+    let memoize = ceiling < LAYER_ORDER.len();
+    if memoize {
+        if let Some(cached) = cache.get(&(id, ceiling)) {
+            return Some(cached.clone());
+        }
+    }
+
     let obj = game.objects.get(&id)?;
     let card = &obj.card_data;
 
@@ -41,16 +97,62 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Effecti
     }
 
     // Walk layers in order, applying all effects (registered + counters)
-    apply_effects(game, id, &mut chars);
+    apply_effects(game, id, &mut chars, ceiling, cache);
 
+    if memoize {
+        cache.insert((id, ceiling), chars.clone());
+    }
     Some(chars)
+}
+
+/// CR 613.7a — does the static ability that generates `effect` still exist?
+///
+/// A continuous effect from a static ability applies only while its source
+/// actually has that ability. Registry membership does not answer this: the
+/// effect is registered when the permanent enters the battlefield, but CR 305.7
+/// (Blood Moon) and Layer 6 ability removal can take the ability away later
+/// without touching the registry. So the question is re-asked at every layer,
+/// against the source's frame as of the end of the previous layer.
+///
+/// `EffectOrigin::Resolution` effects (CR 613.7b) are unconditional — nothing
+/// can remove the resolution that made them.
+fn static_ability_still_exists(
+    game: &GameState,
+    effect: &ContinuousEffect,
+    layer_index: usize,
+    cache: &mut FrameCache,
+) -> bool {
+    let ability_id = match effect.origin {
+        EffectOrigin::Resolution => return true,
+        EffectOrigin::StaticAbility { ability } => ability,
+    };
+
+    // If nothing registered can change an ability set, every object's effective
+    // abilities are its printed ones, so the ability is necessarily still
+    // there. Skips the recursive frame computation on the overwhelming
+    // majority of boards.
+    if !game.continuous_effects.summary().any_ability_changing {
+        return true;
+    }
+
+    match compute_to_ceiling(game, effect.source, layer_index, cache) {
+        Some(source_frame) => source_frame.abilities.iter().any(|a| a.id == ability_id),
+        // Source is gone from the object store entirely.
+        None => false,
+    }
 }
 
 /// Apply all continuous effects in layer order (rule 613).
 ///
 /// Walks registered effects by layer, and also applies counter-derived
 /// P/T modifications in layer 7c (rule 613.4c) alongside other modifiers.
-fn apply_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteristics) {
+fn apply_effects(
+    game: &GameState,
+    id: ObjectId,
+    chars: &mut EffectiveCharacteristics,
+    ceiling: usize,
+    cache: &mut FrameCache,
+) {
     let has_registered = !game.continuous_effects.is_empty();
     let on_battlefield = game.battlefield.contains_key(&id);
 
@@ -74,26 +176,26 @@ fn apply_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteri
         return;
     }
 
-    let layers = [
-        Layer::Layer1Copy,
-        Layer::Layer2Control,
-        Layer::Layer3Text,
-        Layer::Layer4Type,
-        Layer::Layer5Color,
-        Layer::Layer6Ability,
-        Layer::Layer7bSetPT,
-        Layer::Layer7cModifyPT,
-        Layer::Layer7dSwitchPT,
-    ];
+    for (layer_index, &layer) in LAYER_ORDER.iter().enumerate() {
+        if layer_index >= ceiling {
+            break;
+        }
 
-    for &layer in &layers {
         // Apply registered effects in this layer
         if has_registered {
             let effects = game.continuous_effects.effects_in_layer(layer);
             for effect in effects {
                 let group = effect.group();
-                if !started.contains(&group) && !effect_applies_to(effect, id, chars, game) {
-                    continue;
+                if !started.contains(&group) {
+                    if !effect_applies_to(effect, id, chars, game) {
+                        continue;
+                    }
+                    // CR 613.7a. Only asked before the effect starts applying:
+                    // once it has, CR 613.6 keeps it applying for the rest of
+                    // this walk even if a later layer removes the ability.
+                    if !static_ability_still_exists(game, effect, layer_index, cache) {
+                        continue;
+                    }
                 }
                 started.insert(group);
                 apply_modification(&effect.modification, chars, id);

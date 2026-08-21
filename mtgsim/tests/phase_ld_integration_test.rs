@@ -19,8 +19,10 @@ use mtgsim::cards::phase_ld_cards;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_subtypes,
-    get_effective_supertypes, get_effective_toughness, get_effective_types, is_creature,
+    get_effective_supertypes, get_effective_toughness, get_effective_types, has_keyword,
+    is_creature,
 };
+use mtgsim::types::keywords::KeywordAbility;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
@@ -656,4 +658,65 @@ fn test_613_6_effect_keeps_applying_after_its_own_filter_breaks() {
         "CR 613.6: the Layer 7b part must still apply after Layer 4 broke the filter"
     );
     assert_eq!(get_effective_toughness(&game, artifact_id), Some(2));
+}
+
+// ===========================================================================
+// CR 613.7a / Deferred Migrations item 7 — a static ability stripped by CR
+// 305.7 must also retire the continuous effect it generated.
+// ===========================================================================
+
+// COVERS-PARTIAL: ATOM-305.7-002
+//
+// Partial: ATOM-305.7-002 is about the land's own mana abilities, which
+// test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red already
+// covers. This adds the consequence that was missing — the *effect* the
+// stripped ability had registered stops applying too.
+#[test]
+fn test_blood_moon_retires_the_effect_a_stripped_ability_registered() {
+    let mut game = setup_two_player_game();
+
+    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+
+    assert!(
+        has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "the land's static ability should grant flying before Blood Moon"
+    );
+
+    put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    // CR 305.7: the land is now a Mountain and has lost its printed abilities.
+    let abilities = get_effective_abilities(&game, land_id);
+    assert!(
+        !abilities
+            .iter()
+            .any(|a| a.ability_type == mtgsim::objects::card_data::AbilityType::Static),
+        "CR 305.7 should have stripped the land's static ability"
+    );
+
+    // ... so the effect that ability generated must stop applying (item 7).
+    assert!(
+        !has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "a stripped static ability must retire the continuous effect it registered"
+    );
+}
+
+// The other direction: Blood Moon leaves, the ability is back, and so is its
+// effect — with no re-registration, because the effect never left the registry.
+#[test]
+fn test_effect_returns_when_blood_moon_leaves() {
+    let mut game = setup_two_player_game();
+
+    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    assert!(!has_keyword(&game, bear_id, KeywordAbility::Flying));
+
+    game.change_zone(blood_moon_id, Zone::Graveyard).unwrap();
+
+    assert!(
+        has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "the land's ability is back, so its effect applies again"
+    );
 }
