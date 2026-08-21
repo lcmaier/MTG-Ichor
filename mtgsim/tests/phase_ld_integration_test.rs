@@ -720,3 +720,39 @@ fn test_effect_returns_when_blood_moon_leaves() {
         "the land's ability is back, so its effect applies again"
     );
 }
+
+// COVERS-PARTIAL: ATOM-613.7a-001
+//
+// Partial: the atom is the CR's Rune of Flight / Colossus Hammer example, which
+// turns on 613.7a's second clause (the timestamp of the effect that *created*
+// the ability). That needs GrantAbility, a Layer 6 producer that doesn't exist.
+// This covers the first clause — the effect shares the object's timestamp.
+#[test]
+fn test_static_effect_shares_its_objects_timestamp() {
+    let mut game = setup_two_player_game();
+
+    // Something else on the battlefield first, so the land's own timestamp is
+    // not 0 and the assertion can't pass by coincidence.
+    put_on_battlefield(&mut game, basic_lands::forest(), 0);
+    put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let object_timestamp = game.battlefield.get(&land_id).unwrap().timestamp;
+
+    let effect_timestamps: Vec<u64> = game
+        .continuous_effects
+        .iter()
+        .filter(|e| e.source == land_id)
+        .map(|e| e.timestamp)
+        .collect();
+
+    assert_eq!(
+        effect_timestamps.len(),
+        1,
+        "the land's one static ability should have registered one effect"
+    );
+    assert_eq!(
+        effect_timestamps[0], object_timestamp,
+        "CR 613.7a: a static ability's effect has the same timestamp as the object it is on"
+    );
+}

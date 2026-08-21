@@ -96,13 +96,24 @@ impl ContinuousEffectRegistry {
         removed
     }
 
-    /// Get all effects in a given layer, sorted by timestamp.
+    /// Get all effects in a given layer, in application order (CR 613.7).
+    ///
+    /// Ties break on `EffectId`, which is assigned in registration order. Ties
+    /// are normal now rather than accidental: CR 613.7a gives every continuous
+    /// effect from a static ability of one object *the object's* timestamp, so
+    /// all of an object's static-ability effects share one. Without the
+    /// tiebreak their relative order would be the registry `Vec`'s order, which
+    /// `swap_remove` scrambles — a stable sort is not enough. 613.7a's "the
+    /// relative order of those timestamps remains the same" is this tiebreak.
+    ///
+    /// (Not yet CR 613.8: dependency ordering is unimplemented, so this is
+    /// timestamp order only. See Deferred Migrations item 8.)
     pub fn effects_in_layer(&self, layer: Layer) -> Vec<&ContinuousEffect> {
         let mut result: Vec<&ContinuousEffect> = self.effects
             .iter()
             .filter(|e| e.layer == layer)
             .collect();
-        result.sort_by_key(|e| e.timestamp);
+        result.sort_by_key(|e| (e.timestamp, e.id));
         result
     }
 
