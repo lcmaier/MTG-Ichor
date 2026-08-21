@@ -280,6 +280,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -400,6 +401,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -433,6 +435,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer6Ability,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -477,6 +480,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: anthem_source,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
             duration: Duration::WhileSourceOnBattlefield,
             controller: 0,
@@ -520,6 +524,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -555,6 +560,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -590,6 +596,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -626,6 +633,7 @@ mod tests {
         let color_effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -640,6 +648,7 @@ mod tests {
         let pt_effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -691,6 +700,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: source_id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
             duration: Duration::WhileSourceOnBattlefield,
             controller: 0,
@@ -736,6 +746,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer7dSwitchPT,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -772,6 +783,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer4Type,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -806,6 +818,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer4Type,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -845,6 +858,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer4Type,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -881,6 +895,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer4Type,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -916,6 +931,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer4Type,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -951,6 +967,7 @@ mod tests {
         let l4_effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer4Type,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
@@ -966,6 +983,7 @@ mod tests {
         let l5_effect = ContinuousEffect {
             id: 0,
             source: l5_source,
+            origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
             duration: Duration::WhileSourceOnBattlefield,
             controller: 0,

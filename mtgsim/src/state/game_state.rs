@@ -278,7 +278,7 @@ impl GameState {
     /// `cleanup_zone_state` → `remove_by_source`.
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
         use crate::engine::layers::types::{
-            AffectedSet, ContinuousEffect, EffectModification, Layer,
+            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
         };
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
@@ -390,6 +390,7 @@ impl GameState {
                             let effect = ContinuousEffect {
                                 id: 0,
                                 source: id,
+                                origin: EffectOrigin::StaticAbility { ability: ability.id },
                                 layer: Layer::Layer4Type,
                                 duration: Duration::WhileSourceOnBattlefield,
                                 controller,
@@ -409,6 +410,7 @@ impl GameState {
                 let effect = ContinuousEffect {
                     id: 0, // assigned by registry
                     source: id,
+                    origin: EffectOrigin::StaticAbility { ability: ability.id },
                     layer,
                     duration: Duration::WhileSourceOnBattlefield,
                     controller,

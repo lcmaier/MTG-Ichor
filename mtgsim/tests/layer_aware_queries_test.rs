@@ -12,7 +12,7 @@
 
 mod common;
 
-use mtgsim::engine::layers::{AffectedSet, ContinuousEffect, EffectModification, Layer};
+use mtgsim::engine::layers::{AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::types::card_types::{CardType, Supertype};
@@ -34,6 +34,7 @@ fn add_layer4(game: &mut GameState, id: ObjectId, modification: EffectModificati
     game.continuous_effects.add(ContinuousEffect {
         id: 0,
         source: id,
+        origin: EffectOrigin::Resolution,
         layer: Layer::Layer4Type,
         duration: Duration::UntilEndOfTurn,
         controller: 0,

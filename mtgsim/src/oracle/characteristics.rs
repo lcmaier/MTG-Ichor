@@ -267,6 +267,7 @@ mod tests {
         let effect = ContinuousEffect {
             id: 0,
             source: id,
+            origin: crate::engine::layers::types::EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
             duration: Duration::UntilEndOfTurn,
             controller: 0,

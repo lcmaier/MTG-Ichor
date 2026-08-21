@@ -164,6 +164,7 @@ mod tests {
         ContinuousEffect {
             id: 0, // will be assigned by registry
             source,
+            origin: EffectOrigin::Resolution,
             layer,
             duration: Duration::UntilEndOfTurn,
             controller: 0,
