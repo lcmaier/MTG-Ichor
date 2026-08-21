@@ -334,7 +334,10 @@ pub fn dual_land_ub() -> Arc<CardData> {
 
 /// Windswept Heights (invented) — {1}{W}
 /// Enchantment
-/// Lands you control have flying.
+/// Lands have flying.
+///
+/// Not "lands you control": the filter is a bare `ByType(Land)`. Same as
+/// [`land_creatures_have_flying`] — the text matches the filter.
 ///
 /// Nonsense as a Magic card, but it is the only ability-granting channel that
 /// exists today: `Primitive::GrantKeyword` registers a real Layer 6 effect
@@ -346,7 +349,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .rules_text("Lands you control have flying.")
+        .rules_text("Lands have flying.")
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Static,
@@ -433,7 +436,12 @@ pub fn march_of_the_machines() -> Arc<CardData> {
 
 /// Cloudspire Mesa (invented) — nonbasic land
 /// Land
-/// Creatures you control have flying.
+/// Creatures have flying.
+///
+/// Not "creatures you control" — the filter is a bare `ByType(Creature)` with
+/// no controller constraint, and the text says what the filter does. Adding
+/// `ByController(PlayerRef::You)` would work (`extract_controller_from_filter`
+/// reads it), but controller scoping is not what this card is here to exercise.
 ///
 /// The Land-typed sibling of [`lands_have_flying`], and it exists because Blood
 /// Moon's filter is "nonbasic **land**". Testing that a stripped static ability
@@ -451,7 +459,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
 pub fn land_creatures_have_flying() -> Arc<CardData> {
     CardDataBuilder::new("Cloudspire Mesa")
         .card_type(CardType::Land)
-        .rules_text("Creatures you control have flying.")
+        .rules_text("Creatures have flying.")
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Static,

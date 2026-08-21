@@ -117,10 +117,26 @@ impl EffectModification {
             // have to remember to flip this.
             EffectModification::RemoveSubtype(_) => true,
 
-            // Keywords are a separate `HashSet<KeywordAbility>` on the frame,
-            // and nothing derives a `ContinuousEffect` from a keyword, so
-            // granting or removing one cannot change the *ability* list.
-            EffectModification::GrantKeyword(_) | EffectModification::RemoveKeyword(_) => false,
+            // Conservative, and deliberately not "false because keywords live
+            // in a separate `HashSet` on the frame".
+            //
+            // That is true of *this engine's representation* today, but it is
+            // not true of Magic. CR 702 keywords are abilities: 702.6a is
+            // explicit that "Equip is an activated ability of Equipment cards"
+            // and spells out the ability it means, 702.5a makes Enchant a
+            // static ability, and 702.73a / 702.114a make Changeling and Devoid
+            // characteristic-defining abilities. `Equip` and `Enchant` are both
+            // already in `KeywordAbility`, carried as markers while the
+            // mechanical ability sits in `CardData::abilities` — so granting
+            // one today sets a flag and grants no ability, which is its own
+            // modelling gap (Deferred Migrations item 10).
+            //
+            // Classified `true` because the failure modes are not symmetric. A
+            // wrong `false` silently skips the CR 613.7a existence check and
+            // leaves a stripped ability applying — exactly the bug this phase
+            // fixed. A wrong `true` costs one frame computation. Whoever closes
+            // the marker gap should not also have to remember to flip this.
+            EffectModification::GrantKeyword(_) | EffectModification::RemoveKeyword(_) => true,
 
             EffectModification::SetController(_) => false,
 

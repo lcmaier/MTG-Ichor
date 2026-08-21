@@ -18,6 +18,20 @@ use crate::types::ids::ObjectId;
 /// "layer ceiling" used by the frame cache: ceiling `n` means layers
 /// `LAYER_ORDER[..n]` have been applied, i.e. the frame as of the end of
 /// layer `n - 1`.
+///
+/// This mirrors the `Layer` enum exactly, and the enum is **not** the CR's full
+/// list. Two sublayers are missing, both tracked as Deferred Migrations item 10:
+///
+/// - **1a / 1b.** CR 613.2 splits layer 1 into face-down effects (1a) and copy
+///   effects (1b); `Layer1Copy` collapses them, even though
+///   `layers-architecture.md` §7 specifies both and says Phase LA ships them.
+///   The order matters — a Clone copying a face-down creature must copy the
+///   2/2 colorless characteristics, not the printed card (CR 707.2).
+/// - **7a.** CDA-defined power and toughness (CR 613.4a). Tarmogoyf has no home.
+///
+/// Neither is reachable today: nothing produces a layer 1 effect, and nothing
+/// is marked as a CDA. Splitting them later just lengthens this array — the
+/// ceiling is an index into it, computed at runtime, so nothing else moves.
 const LAYER_ORDER: [Layer; 9] = [
     Layer::Layer1Copy,
     Layer::Layer2Control,
@@ -114,8 +128,16 @@ fn compute_to_ceiling(
 /// without touching the registry. So the question is re-asked at every layer,
 /// against the source's frame as of the end of the previous layer.
 ///
-/// `EffectOrigin::Resolution` effects (CR 613.7b) are unconditional — nothing
-/// can remove the resolution that made them.
+/// `EffectOrigin::Resolution` effects (CR 613.7b) always exist: a resolution
+/// already happened and cannot be taken back, so there is no ability to go
+/// looking for.
+///
+/// Existence is not the same as surviving, and only existence is decided here.
+/// An instant that grants first strike until end of turn creates an effect that
+/// exists for the turn no matter what — but Humility, applying later in layer 6,
+/// still clears the keyword it granted. That is ordering inside a layer, which
+/// `effects_in_layer` handles (timestamp today, CR 613.8 eventually), not a
+/// question about whether the effect is there to apply.
 fn static_ability_still_exists(
     game: &GameState,
     effect: &ContinuousEffect,
