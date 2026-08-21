@@ -54,6 +54,21 @@ fn apply_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteri
     let has_registered = !game.continuous_effects.is_empty();
     let on_battlefield = game.battlefield.contains_key(&id);
 
+    // CR 613.6 — "if an effect starts to apply in one layer, it will continue
+    // to be applied to the same set of objects in each other applicable layer".
+    //
+    // `effect_applies_to` reads `chars`, which earlier layers have already
+    // mutated, so re-filtering from scratch at every layer is wrong: March of
+    // the Machines' Layer 4 part makes a noncreature artifact a creature, and
+    // its Layer 7b part then finds nothing matching "noncreature artifact".
+    // Once a CR-level effect has started applying to this object, membership
+    // here short-circuits the filter for the rest of the walk.
+    //
+    // Keyed by `EffectGroup`, not `EffectId`: the two halves of March of the
+    // Machines are two registry rows, and it is the *effect* that started
+    // applying, not the row.
+    let mut started: std::collections::HashSet<EffectGroup> = std::collections::HashSet::new();
+
     // Fast path: nothing to apply
     if !has_registered && !on_battlefield {
         return;
@@ -76,9 +91,11 @@ fn apply_effects(game: &GameState, id: ObjectId, chars: &mut EffectiveCharacteri
         if has_registered {
             let effects = game.continuous_effects.effects_in_layer(layer);
             for effect in effects {
-                if !effect_applies_to(effect, id, chars, game) {
+                let group = effect.group();
+                if !started.contains(&group) && !effect_applies_to(effect, id, chars, game) {
                     continue;
                 }
+                started.insert(group);
                 apply_modification(&effect.modification, chars, id);
             }
         }

@@ -361,3 +361,72 @@ pub fn lands_have_flying() -> Arc<CardData> {
         })
         .build()
 }
+
+// ===========================================================================
+// CR 613.6 test cards — an effect that applies in two layers, where the first
+// layer's part breaks the filter the second layer's part reads.
+// ===========================================================================
+
+/// March of the Machines (simplified) — {4}{U}
+/// Enchantment
+/// Each noncreature artifact is an artifact creature with power and toughness
+/// each equal to its mana value.
+///
+/// The CR's own worked example for rule 613.6, and a real card rather than an
+/// invented one. The static ability applies in two layers over one filter:
+/// `AddType(Creature)` in Layer 4, `SetPowerToughness` in Layer 7b, both over
+/// "artifact that is not a creature". After Layer 4 runs, nothing matches that
+/// filter any more — which is exactly why 613.6 says the effect "will continue
+/// to be applied to the same set of objects in each other applicable layer".
+///
+/// **Simplified P/T.** The printed card sets power and toughness to mana value;
+/// `register_static_effects` only understands `AmountExpr::Fixed`, so this is a
+/// flat 2/2. The simplification is orthogonal to what the card is here to test.
+pub fn march_of_the_machines() -> Arc<CardData> {
+    // Artifact AND NOT Creature
+    let noncreature_artifact = PermanentFilter::And(
+        Box::new(PermanentFilter::ByType(CardType::Artifact)),
+        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByType(
+            CardType::Creature,
+        )))),
+    );
+
+    CardDataBuilder::new("March of the Machines")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 4))
+        .color(Color::Blue)
+        .card_type(CardType::Enchantment)
+        .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::ChangeType(
+                        TypeChange {
+                            add_types: vec![CardType::Creature],
+                            remove_types: Vec::new(),
+                            set_types: None,
+                            add_subtypes: Vec::new(),
+                            remove_subtypes: Vec::new(),
+                            set_subtypes: None,
+                            add_supertypes: Vec::new(),
+                            remove_supertypes: Vec::new(),
+                            set_supertypes: None,
+                        },
+                        Duration::WhileSourceOnBattlefield,
+                    ),
+                    EffectRecipient::FilteredPermanents(noncreature_artifact.clone()),
+                ),
+                Effect::Atom(
+                    Primitive::SetPowerToughness(
+                        AmountExpr::Fixed(2),
+                        AmountExpr::Fixed(2),
+                        Duration::WhileSourceOnBattlefield,
+                    ),
+                    EffectRecipient::FilteredPermanents(noncreature_artifact),
+                ),
+            ]),
+        })
+        .build()
+}

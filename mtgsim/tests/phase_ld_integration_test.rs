@@ -613,3 +613,47 @@ fn test_activating_blood_mooned_land_produces_red() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 0);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 0);
 }
+
+// ===========================================================================
+// CR 613.6 — an effect continues to apply to the SAME SET OF OBJECTS in each
+// applicable layer, even after an earlier layer's part breaks its own filter.
+// ===========================================================================
+
+// COVERS-PARTIAL: ATOM-613.6-003
+//
+// Partial: the atom's scenario has the *ability* removed mid-process by a
+// Layer 6 producer, which does not exist yet. This proves the other half of
+// the same sentence in CR 613.6 — "will continue to be applied to the same set
+// of objects in each other applicable layer".
+#[test]
+fn test_613_6_effect_keeps_applying_after_its_own_filter_breaks() {
+    use mtgsim::objects::card_data::CardDataBuilder;
+
+    let mut game = setup_two_player_game();
+
+    // A vanilla noncreature artifact with no printed P/T.
+    let artifact_data = CardDataBuilder::new("Ornithopter Shell")
+        .card_type(CardType::Artifact)
+        .build();
+    let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
+
+    assert_eq!(get_effective_power(&game, artifact_id), None);
+
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    // Layer 4: the artifact becomes a creature.
+    assert!(
+        is_creature(&game, artifact_id),
+        "Layer 4 AddType(Creature) should have applied"
+    );
+
+    // Layer 7b: it is no longer a *noncreature* artifact, so re-evaluating the
+    // filter here would drop the SetPowerToughness half. CR 613.6 says the
+    // effect keeps applying to the set it started on.
+    assert_eq!(
+        get_effective_power(&game, artifact_id),
+        Some(2),
+        "CR 613.6: the Layer 7b part must still apply after Layer 4 broke the filter"
+    );
+    assert_eq!(get_effective_toughness(&game, artifact_id), Some(2));
+}
