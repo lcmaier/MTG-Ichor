@@ -193,6 +193,13 @@ fn apply_effects(
     // applying, not the row.
     let mut started: std::collections::HashSet<EffectGroup> = std::collections::HashSet::new();
 
+    // ...but only when some CR-level effect actually occupies more than one
+    // row. For a single-row group the mark is written after its only row
+    // applies and never read, so maintaining it is pure cost — two SipHashes
+    // over a pair of UUIDs, per effect, per layer. That was 70% of the layer
+    // walk on a static-heavy board before this check existed.
+    let track_started = game.continuous_effects.summary().any_multi_row_group;
+
     // Fast path: nothing to apply
     if !has_registered && !on_battlefield {
         return;
@@ -207,8 +214,8 @@ fn apply_effects(
         if has_registered {
             let effects = game.continuous_effects.effects_in_layer(layer);
             for effect in effects {
-                let group = effect.group();
-                if !started.contains(&group) {
+                let already_applying = track_started && started.contains(&effect.group());
+                if !already_applying {
                     if !effect_applies_to(effect, id, chars, game) {
                         continue;
                     }
@@ -218,8 +225,10 @@ fn apply_effects(
                     if !static_ability_still_exists(game, effect, layer_index, cache) {
                         continue;
                     }
+                    if track_started {
+                        started.insert(effect.group());
+                    }
                 }
-                started.insert(group);
                 apply_modification(&effect.modification, chars, id);
             }
         }

@@ -742,6 +742,32 @@ Targeting legality (`oracle/legality.rs`) reads effective characteristics via wr
 
 Worst-case cost: `O(effects × objects × layers)` per frame if every effect's predicate inspects every object. In practice effects are few and filters are cheap. No evidence we need a cache yet.
 
+### Measured, 2026-08-21
+
+`fuzz_games` is the wrong instrument for this: exactly one card in `CardRegistry` has a static ability, so it never builds the boards that hurt. Numbers below are from a synthetic board of N anthems (static `ModifyPowerToughness` over `ByType(Creature)`) plus N creatures, µs per single characteristics query, release build:
+
+| N | frame only | full walk | walk, no 613.7a gate |
+|---|---|---|---|
+| 10 | 0.37 | 0.55 | 6.30 |
+| 20 | 0.27 | 0.83 | 12.01 |
+| 40 | 0.26 | 1.37 | 26.49 |
+| 80 | 0.27 | 2.49 | 65.44 |
+
+Four things follow, and they set the strategy:
+
+1. **Building the frame is 3% and flat.** Cloning five `HashSet`s, a `Vec<AbilityDef>` and a `String` per frame is not the problem. Copy-on-write on `EffectiveCharacteristics` is not where to start.
+2. **Per-query cost is linear in registered effects; per priority sweep it is quadratic**, because a sweep queries every permanent. 80 permanents ≈ 196 µs per sweep. That is the number to watch as card breadth grows.
+3. **The CR 613.7a existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
+4. **`effects_in_layer`'s filter-and-sort is only ~10%.** Keeping the registry sorted by `(layer, timestamp, id)` and returning a slice was prototyped and measured at that; worth doing eventually, not a lever.
+
+### The ordering that follows
+
+When this needs to get faster, in order of value per unit of correctness risk:
+
+1. **Answer-preserving structural work first.** Sorted registry (measured 10%); interning `EffectGroup` to a dense integer so CR 613.6 bookkeeping is a bitset rather than SipHash over two UUIDs. Neither can produce a wrong answer.
+2. **Cross-call memoization** — §12 item 2, keyed on a game version bumped by any characteristic-affecting mutation. This is the big one, because a priority sweep asks the same questions repeatedly against an unchanged board. Its risk is a missed invalidation, and that risk is *testable*: a debug-only mode that recomputes uncached and asserts equality turns the whole suite into an invalidation audit. Build the paranoid mode in the same commit as the cache, not later.
+3. **Semantics-assuming shortcuts last, and always with a named expiry.** `can_change_abilities()` is the only one in the engine today. It is worth 5-8x, and it is valid exactly while no static ability is conditional. Anything of this shape needs the condition written down where the code is, plus a Deferred Migrations line, because the failure mode is a silently wrong answer rather than a slow one.
+
 If profiling later shows this is hot:
 
 1. **Per-frame cache** (inside a single `compute_characteristics` call) — already required for acyclicity (§5.2). Implicit.

@@ -22,6 +22,17 @@ pub struct RegistryScopeSummary {
     /// so no static ability can have gone missing and the CR 613.7a existence
     /// re-check in `compute.rs` is skipped entirely. This is the common case.
     pub any_ability_changing: bool,
+
+    /// True iff some `EffectGroup` has more than one row in the registry.
+    ///
+    /// CR 613.6's "started applying" bookkeeping only changes an answer for a
+    /// CR-level effect the registry split across several rows — a single-row
+    /// group is marked as started immediately after its only row applies, and
+    /// nothing ever reads the mark. When this is false, `compute.rs` skips the
+    /// bookkeeping entirely rather than hashing an `EffectGroup` twice per
+    /// effect per layer. Worth 3.3x on a static-heavy board; see the comment
+    /// on the `started` set in `apply_effects`.
+    pub any_multi_row_group: bool,
 }
 
 /// Owns all active continuous effects in the game.
@@ -57,6 +68,10 @@ impl ContinuousEffectRegistry {
             .effects
             .iter()
             .any(|e| e.modification.can_change_abilities());
+
+        let mut seen: std::collections::HashSet<crate::engine::layers::types::EffectGroup> =
+            std::collections::HashSet::with_capacity(self.effects.len());
+        self.summary.any_multi_row_group = self.effects.iter().any(|e| !seen.insert(e.group()));
     }
 
     /// Register a new continuous effect. Returns its unique ID.
