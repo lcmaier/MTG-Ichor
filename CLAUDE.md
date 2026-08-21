@@ -57,7 +57,24 @@ Those sites are tagged `// PRE-LAYER ZONE:`. Don't "fix" them.
 
 **Second exemption:** `register_static_effects` (`state/game_state.rs`) reads printed
 abilities on purpose — it runs inside `place_on_battlefield`, before the object's own
-effect is registered, so computing effective characteristics there is circular.
+effect is registered, so computing effective characteristics there is circular. This is
+safe because registration is not what decides whether an effect applies; see below.
+
+## Registry membership is not effect existence
+
+A continuous effect from a static ability applies only while its source still *has* that
+ability, and CR 305.7 or Layer 6 can take it away without touching the registry. So
+`compute_characteristics` re-checks existence at **every layer**, against the source's
+frame as of the end of the previous layer (`EffectOrigin`, `static_ability_still_exists`).
+
+Two rules follow, and both have already cost a redesign:
+
+- **Don't reconcile the registry at state-mutation chokepoints.** Deciding existence
+  outside the layer walk turns a structurally-terminating computation into a fixpoint that
+  needs an iteration cap and invents oscillation the CR does not have.
+- **The frame cache's descending layer ceiling is the termination argument**, not an
+  optimization. `test_self_stripping_land_terminates_and_is_stable` overflows the stack if
+  the existence check asks at the full ceiling. See `layers-architecture.md` §5.2.
 
 ## Critical path to v1
 

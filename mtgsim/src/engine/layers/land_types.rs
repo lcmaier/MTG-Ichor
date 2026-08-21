@@ -76,8 +76,13 @@ fn intrinsic_mana_type(land_type: LandType) -> Option<ManaType> {
 /// `activate_mana_ability` recomputes and looks it up. Random ids would never
 /// match and every intrinsic mana ability would be unactivatable.
 ///
-/// Keying on the object id keeps intrinsics globally unique, like every other
-/// ability — they're just reproducible instead of random.
+/// Keying on the object id also makes intrinsics unique per *object*, which
+/// printed ability ids are not: `AbilityId` is minted once per `CardData`, and
+/// `GameObject` holds an `Arc<CardData>`, so two objects sharing a card share
+/// its ability ids. Nothing collides today only because `CardRegistry::create`
+/// re-runs the factory for every copy; tokens and copy effects will not. Code
+/// that needs to identify an ability *on an object* uses the pair — see
+/// `mana_helpers::enumerate_activatable_mana_abilities` and `EffectOrigin::StaticAbility`.
 fn intrinsic_ability_id(object_id: ObjectId, land_type: LandType) -> AbilityId {
     // Discriminant byte is enough: only the five basic types reach here, and
     // the object id supplies the uniqueness.
