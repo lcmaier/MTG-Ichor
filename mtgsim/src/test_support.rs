@@ -38,6 +38,10 @@ use crate::types::effects::{
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
 use crate::types::keywords::KeywordAbility;
 use crate::types::mana::{ManaCost, ManaType};
+use crate::engine::layers::types::{
+    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
+};
+use crate::types::effects::Duration;
 use crate::types::zones::Zone;
 use crate::ui::decision::ScriptedDecisionProvider;
 
@@ -257,4 +261,98 @@ pub fn set_blocking(game: &mut GameState, blocker: ObjectId, blocking: Vec<Objec
     if let Some(entry) = game.battlefield.get_mut(&blocker) {
         entry.blocking = Some(BlockingInfo { blocking });
     }
+}
+
+// ---------------------------------------------------------------------------
+// Continuous-effect rows
+//
+// These exist so that adding a field to `ContinuousEffect` breaks one function
+// instead of thirty struct literals scattered across four test modules. That is not
+// hypothetical: `AbilityDef` gained `is_characteristic_defining` in the CDA phase and
+// broke every inline copy of the Lightning Bolt builder at once.
+// ---------------------------------------------------------------------------
+
+/// One registry row applying to `id` alone, via [`AffectedSet::Fixed`].
+///
+/// The row is `EffectOrigin::Resolution` and `Duration::UntilEndOfTurn` — a pump-spell
+/// shaped effect, not a static ability. Tests that need a static ability's origin (so the
+/// CR 613.7a existence check has something to ask about) must build their own row.
+pub fn registered(
+    id: ObjectId,
+    layer: Layer,
+    timestamp: Timestamp,
+    modification: EffectModification,
+) -> ContinuousEffect {
+    ContinuousEffect {
+        id: 0, // assigned by the registry on add()
+        source: id,
+        origin: EffectOrigin::Resolution,
+        layer,
+        duration: Duration::UntilEndOfTurn,
+        controller: 0,
+        created_on_turn: 1,
+        timestamp,
+        affected: AffectedSet::Fixed(vec![id]),
+        modification,
+    }
+}
+
+/// As [`registered`], but selecting the source through [`AffectedSet::SourceOnly`].
+///
+/// `SourceOnly` and `Fixed(vec![source])` agree in `effect_applies_to` when the source is
+/// the only member, so the two are interchangeable *today*. They are kept as separate
+/// constructors anyway: they are different enum variants, and a test that was written
+/// against one should not silently start exercising the other.
+pub fn registered_source_only(
+    source: ObjectId,
+    layer: Layer,
+    timestamp: Timestamp,
+    modification: EffectModification,
+) -> ContinuousEffect {
+    ContinuousEffect {
+        affected: AffectedSet::SourceOnly,
+        ..registered(source, layer, timestamp, modification)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CDA-phase helpers
+// ---------------------------------------------------------------------------
+
+/// A card with a name and a single card type, and nothing else.
+///
+/// Tarmogoyf counts card types in graveyards, so its tests need cheap one-type cards.
+pub fn card_of_type(name: &str, card_type: CardType) -> Arc<CardData> {
+    CardDataBuilder::new(name).card_type(card_type).build()
+}
+
+/// Put a card straight into a player's graveyard.
+pub fn put_in_graveyard(
+    game: &mut GameState,
+    card_data: Arc<CardData>,
+    player: PlayerId,
+) -> ObjectId {
+    let obj = GameObject::new(card_data, player, Zone::Graveyard);
+    let id = obj.id;
+    game.add_object(obj);
+    game.players[player].graveyard.push(id);
+    id
+}
+
+/// Put a permanent onto the battlefield with ETB hooks, entering **this** turn — so it
+/// is summoning-sick.
+///
+/// [`put_on_battlefield`] backdates entry to turn 0 instead. `GameState::new` starts at
+/// turn 1, so the two really do differ; pick the one whose summoning-sickness the test
+/// wants rather than assuming they are the same function with different arity.
+pub fn put_on_battlefield_this_turn(
+    game: &mut GameState,
+    card_data: Arc<CardData>,
+    player: PlayerId,
+) -> ObjectId {
+    let obj = GameObject::new(card_data, player, Zone::Battlefield);
+    let id = obj.id;
+    game.add_object(obj);
+    game.place_on_battlefield(id, player);
+    id
 }

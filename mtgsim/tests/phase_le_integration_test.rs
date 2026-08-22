@@ -4,24 +4,21 @@
 //! The mechanism they share is that a CDA is never a registry effect: see
 //! `engine::layers::cda` for why CR 604.3a(3) makes that the right shape.
 
-
-use std::sync::Arc;
-
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{
+    card_of_type, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game,
+};
 use mtgsim::cards::{alpha, creatures, phase_le_cards};
 use mtgsim::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
+    ContinuousEffect, EffectModification, Layer, PtValue,
 };
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
-use mtgsim::objects::object::GameObject;
+use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::oracle::characteristics::{
     get_effective_colors, get_effective_power, get_effective_toughness,
 };
-use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{Duration, EffectRecipient, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
@@ -32,33 +29,10 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Put a card straight into a player's graveyard.
-fn put_in_graveyard(game: &mut GameState, card_data: Arc<CardData>, player: usize) -> ObjectId {
-    let obj = GameObject::new(card_data, player, Zone::Graveyard);
-    let id = obj.id;
-    game.add_object(obj);
-    game.players[player].graveyard.push(id);
-    id
-}
-
-fn card_of_type(name: &str, card_type: CardType) -> Arc<CardData> {
-    CardDataBuilder::new(name).card_type(card_type).build()
-}
-
-/// One registry row applying to `id` alone.
+/// One registry row applying to `id` alone. Every row in this file sits at
+/// timestamp 1; `test_support::registered` takes it as a parameter.
 fn registered(id: ObjectId, layer: Layer, modification: EffectModification) -> ContinuousEffect {
-    ContinuousEffect {
-        id: 0,
-        source: id,
-        origin: EffectOrigin::Resolution,
-        layer,
-        duration: Duration::UntilEndOfTurn,
-        controller: 0,
-        created_on_turn: 1,
-        timestamp: 1,
-        affected: AffectedSet::Fixed(vec![id]),
-        modification,
-    }
+    mtgsim::test_support::registered(id, layer, 1, modification)
 }
 
 // ---------------------------------------------------------------------------
