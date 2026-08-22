@@ -11,7 +11,6 @@
 //! filter-based static ability; full 305.7 semantics (ability stripping) are
 //! deferred until AbilityOrigin infrastructure exists.
 
-mod common;
 
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::creatures;
@@ -30,7 +29,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
 
 /// Helper: cast a spell targeting a permanent with a PermanentFilter.
 /// If `generic_allocation` is Some, queues the allocation for generic mana.

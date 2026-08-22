@@ -4,7 +4,6 @@
 //! flying evasion, reach, haste, vigilance, first/double strike,
 //! trample, lifelink, deathtouch, and defender.
 
-mod common;
 
 use std::sync::Arc;
 
@@ -35,7 +34,7 @@ fn place_creature(
     owner: PlayerId,
     card_factory: fn() -> Arc<CardData>,
 ) -> ObjectId {
-    common::put_on_battlefield(game, card_factory(), owner)
+    mtgsim::test_support::put_on_battlefield(game, card_factory(), owner)
 }
 
 fn place_creature_sick(

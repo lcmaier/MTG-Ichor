@@ -4,7 +4,6 @@
 //! cast → resolve (registers ContinuousEffect at Layer5Color) →
 //! layer system computes effective colors → cleanup step expires effects.
 
-mod common;
 
 use mtgsim::cards::creatures;
 use mtgsim::cards::phase_lc_cards;
@@ -17,7 +16,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
 
 /// Helper: cast a targeted creature spell from hand and resolve it.
 fn cast_and_resolve_targeted_spell(
@@ -283,7 +282,7 @@ fn test_chromatic_ward_ignores_noncreatures() {
     let mut game = setup_two_player_game();
 
     // Place a land
-    let land_id = common::put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
+    let land_id = mtgsim::test_support::put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
 
     // Place Chromatic Ward
     let _ward_id = put_on_battlefield(&mut game, phase_lc_cards::chromatic_ward(), 0);

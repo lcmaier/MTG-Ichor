@@ -4,7 +4,6 @@
 //! cast → resolve (registers continuous effect) → layer system computes P/T →
 //! cleanup step expires UntilEndOfTurn effects.
 
-mod common;
 
 use mtgsim::cards::alpha;
 use mtgsim::cards::creatures;
@@ -17,7 +16,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
 
 // ---------------------------------------------------------------------------
 // Test 1: Giant Growth gives +3/+3 until end of turn
@@ -271,7 +270,7 @@ fn test_glorious_anthem_ignores_noncreatures() {
     let mut game = setup_two_player_game();
 
     // Place a land (not a creature)
-    let land_id = common::put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
+    let land_id = mtgsim::test_support::put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
 
     // Place Glorious Anthem
     let _anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);

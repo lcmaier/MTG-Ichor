@@ -3,7 +3,6 @@
 //! Tests here exercise the full casting → stack → resolution pipeline,
 //! including priority passing, fizzling, and all five Phase 2 cards.
 
-mod common;
 
 use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands;
@@ -15,7 +14,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{setup_two_player_game, put_in_hand, put_land_on_battlefield, fill_library};
+use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_land_on_battlefield, fill_library};
 
 // ---------------------------------------------------------------------------
 // Test 1: Cast and resolve Lightning Bolt targeting a player

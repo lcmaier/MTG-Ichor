@@ -10,7 +10,6 @@
 //! No existing test caught this because none crossed the layer system and the
 //! consumers of it in the same scenario. These do.
 
-mod common;
 
 use mtgsim::engine::layers::{AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::objects::card_data::CardDataBuilder;
@@ -24,7 +23,7 @@ use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{put_on_battlefield, setup_two_player_game};
 use mtgsim::state::game_state::GameState;
 
 /// Register a Layer 4 effect on a single object.
