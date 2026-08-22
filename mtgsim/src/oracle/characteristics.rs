@@ -133,21 +133,29 @@ pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Vec<AbilityDef
         .unwrap_or_default()
 }
 
-/// Get effective power for a creature on the battlefield.
-/// Routes through the layer system — accounts for P/T modifications,
-/// counters, and set-P/T effects.
+/// Get effective power. Routes through the layer system — accounts for P/T
+/// modifications, counters, and set-P/T effects.
+///
+/// **Not restricted to the battlefield.** CR 208.2a: a P/T-defining
+/// characteristic-defining ability "functions everywhere, even outside the
+/// game", and CR 208.3 gives a card off the battlefield the power and toughness
+/// printed on it. A Tarmogoyf in a graveyard has a power, and it is the one its
+/// CDA computes. This gate used to return `None` for anything not on the
+/// battlefield, which cost nothing while no CDA existed and is wrong now.
+///
+/// `None` still means "no power at all" — an enchantment, a land, an artifact
+/// with no printed P/T box.
+///
+/// Still unimplemented, and unrelated: CR 208.3's other half, that a noncreature
+/// *permanent* has no P/T even with one printed (an unanimated Vehicle reports
+/// its printed numbers here).
 pub fn get_effective_power(game: &GameState, id: ObjectId) -> Option<i32> {
-    // Only return power for battlefield objects (maintains existing behavior)
-    game.battlefield.get(&id)?;
     compute_characteristics(game, id)?.power
 }
 
-/// Get effective toughness for a creature on the battlefield.
-/// Routes through the layer system — accounts for P/T modifications,
-/// counters, and set-P/T effects.
+/// Get effective toughness. See `get_effective_power` for why this is not
+/// gated on the battlefield.
 pub fn get_effective_toughness(game: &GameState, id: ObjectId) -> Option<i32> {
-    // Only return toughness for battlefield objects (maintains existing behavior)
-    game.battlefield.get(&id)?;
     compute_characteristics(game, id)?.toughness
 }
 
