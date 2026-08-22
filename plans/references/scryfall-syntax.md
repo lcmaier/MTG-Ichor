@@ -486,3 +486,101 @@ Examples:
 - `t:human display:text` — Every Human card as text-only
 - `in:leb game:paper prefer:newest` — The newest paper printing of each card in Limited Edition Beta
 - `year=2025 prefer:atypical` — All cards printed in 2025, preferring atypical frame printings
+
+## Regular Expressions
+
+Source: https://scryfall.com/docs/regular-expressions (fetched 2026-08-22)
+
+Quoted keywords only match exact phrases (`oracle:"artifact token"`). For more
+flexibility, `type:`, `oracle:`, `flavor:`, and `name:` (also `t:`, `o:`, `ft:`)
+accept regular expressions using forward slashes instead of quotes: `t://`,
+`oracle://`, `flavor://`, `name://`.
+
+Examples:
+
+- `oracle:/artifact (\w* )?token/` — Artifact tokens (both creature and noncreature)
+- `t:instant o:/\spp/` — Instants that grant +X/+X boosts
+- `t:creature o:/^{T}:/` — Creatures that have a tap ability with no other payment
+- `o:/\b(orc|orcs)\b/ or name:/\b(orc|orcs)\b/ or ft:/\b(orc|orcs)\b/` — Cards that mention orcs, but not other words like sORCery or ORChard
+- `name:/^w+ling$/ t:shapeshifter` — The Thingling cycle
+
+### Regex Flavor
+
+Scryfall supports most POSIX regular expression constructs, with this configuration:
+
+- All expressions are case-insensitive.
+- All expressions are newline-sensitive ("multiline" mode): `.` does not match `\n`
+  (opt in with `(.|\n)` or similar), and `^`/`$` match the start/end of paragraphs
+  in Oracle text rather than the whole field.
+- All characters are significant, including whitespace ("tight mode").
+- A literal `/` must be escaped as `\/`.
+- Unicode-aware: `.` matches characters beyond ASCII.
+- No backreferences (`\1`, `\2`, etc).
+- No custom flags — `o:/tap/` works, `o:/tap/gi` does not.
+- Match-only — no capture-group extraction or substitution.
+- Text fields use only `\n` for newlines; no `\r`, `\f`, bells (`\a`), or null bytes.
+- Counting total words/lines in a text field via regex may be inaccurate (implementation detail).
+
+### Scryfall Extensions
+
+Shorthand, not formal character classes:
+
+| Syntax | Feature |
+|---|---|
+| `~` | Alias for the current card name, or "this spell" if the card mentions itself |
+| `\sm` | Any mana symbol |
+| `\sc` | Any colored mana symbol |
+| `\ss` | Any card symbol |
+| `\smr` | Any repeated mana symbol, e.g. `{G}{G}` |
+| `\smh` | Any hybrid card symbol (monocolor Phyrexian symbols don't count) |
+| `\smp` | Any Phyrexian card symbol, e.g. `{P}`, `{W/P}`, `{G/W/P}` |
+| `\spt` | An X/X power/toughness expression |
+| `\spp` | A +X/+X power/toughness expression |
+| `\smm` | A -X/-X power/toughness expression |
+
+### Atoms
+
+| Atom | Description |
+|---|---|
+| `.` | Any single character except `\n` |
+| `[kf]` | Bracket expression: a single character that is `k` or `f` |
+| `[^kf]` | Bracket expression: a single character that is not `k` or `f` |
+| `[f-k]` | Bracket expression: a single character in the Unicode range `f`–`k` inclusive |
+| `(re)` | A group matching `re` |
+| `(re\|fe)` | A group matching `re` or `fe` |
+| `\k` | A literal escaped `k` (or any other character) |
+| `k` | The character `k` (or another non-meta character) |
+
+### Quantifiers
+
+| Quantifier | Description |
+|---|---|
+| `*` | 0 or more matches |
+| `+` | 1 or more matches |
+| `?` | 0 or 1 matches |
+| `{M}` | Exactly `M` matches |
+| `{M,}` | `M` or more matches |
+| `{M,N}` | `M` through `N` matches inclusive; `M` cannot exceed `N` |
+| `*?`, `+?`, `??`, `{M}?`, `{M,}?`, `{M,N}?` | Non-greedy versions of the above |
+
+### Anchors and Lookarounds
+
+| Anchor | Description |
+|---|---|
+| `^` | Start of a line or field |
+| `$` | End of a line or field |
+| `\b` | Word boundary |
+| `(?=re)` | Positive lookahead |
+| `(?!re)` | Negative lookahead |
+| `(?<=re)` | Positive lookbehind |
+| `(?<!re)` | Negative lookbehind |
+
+### Character Classes
+
+| Class | Description |
+|---|---|
+| `\n` | Newline |
+| `\s` | Any whitespace |
+| `\d` | A single digit, `0`–`9` |
+| `\w` | Any word character, `A`–`z` and `0`–`9` |
+| `\uHHHH` | The character with hex value `HHHH` (exactly four hex digits) |
