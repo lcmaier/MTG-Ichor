@@ -334,3 +334,28 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.
 
+
+- ~~**Test-support duplication.**~~ ✅ **done (2026-08-22).** Integration tests in
+  `mtgsim/tests/` link the crate as an external dependency and cannot see `#[cfg(test)]`
+  items in `src/`; unit tests in `src/` cannot see `tests/common/mod.rs`. Nothing shared
+  could live in either place, so helpers had forked — the Forest builder written out four
+  times, Lightning Bolt twice, Pacifism twice, `set_attacking` three times.
+
+  Now one copy in `src/test_support.rs`, behind a `test-support` cargo feature that the
+  crate enables for itself through a dev-dependency on itself. `cargo test` and
+  `cargo build --all-targets` turn it on; a plain `cargo build`/`--release` does not build
+  dev-dependencies at all, so the module is excluded from release artifacts. Cargo
+  resolves the self-dependency to a single compilation, so it costs no extra build time.
+  `tests/common/mod.rs` is deleted; its callers import from `mtgsim::test_support`.
+
+  **Two things were deliberately *not* unified, and both look like oversights:**
+  - `put_on_battlefield` (routes through `place_on_battlefield`, so ETB counters and
+    static-effect registration fire) vs `place_bare` (inserts a `BattlefieldEntity`
+    directly, firing neither). The combat tests need the second; collapsing them would put
+    rows in the continuous-effects registry those tests do not expect.
+  - `setup_game_with_creature` in `engine/actions.rs` vs `engine/resolve.rs` — same name,
+    different bodies (the first uses `place_on_battlefield`, the second inserts with
+    timestamp 0 / turn 1). Left as two functions.
+
+  Likewise `validation.rs::place_creature_with_keywords` keeps its own body: it takes
+  keywords before P/T and builds a creature with no color and no mana cost.
