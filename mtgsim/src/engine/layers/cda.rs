@@ -179,12 +179,17 @@ fn push_modifications(primitive: &Primitive, out: &mut Vec<EffectModification>, 
             }
         }
 
-        // CR 613.4a. Always `Dynamic`: a CDA that could be collapsed to a
-        // constant would not need its own sublayer.
-        Primitive::SetPowerToughness(power, toughness, _) => {
+        // CR 613.4a. `power_expr`/`toughness_expr` are the amounts written on
+        // the *ability* — Tarmogoyf's "the number of card types among cards in
+        // all graveyards" — not the card's printed P/T box, which the walk has
+        // already loaded into `chars` and which this is about to overwrite.
+        //
+        // `from_amount` keeps a literal amount as `PtValue::Fixed` and wraps
+        // anything else as `Dynamic`, to be re-evaluated at every layer.
+        Primitive::SetPowerToughness(power_expr, toughness_expr, _) => {
             out.push(EffectModification::SetPowerToughness {
-                power: PtValue::from_amount(power),
-                toughness: PtValue::from_amount(toughness),
+                power: PtValue::from_amount(power_expr),
+                toughness: PtValue::from_amount(toughness_expr),
             })
         }
 

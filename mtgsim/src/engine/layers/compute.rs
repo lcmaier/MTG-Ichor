@@ -369,7 +369,7 @@ fn evaluate_amount(
         // Card *types*, not cards: ten artifact creatures in a graveyard are
         // still two types.
         AmountExpr::CardTypesAmong(selector) => match selector {
-            Selector::CardsInAllGraveyards => {
+            Selector::CardsInGraveyard(None) => {
                 let mut types: std::collections::HashSet<crate::types::card_types::CardType> =
                     std::collections::HashSet::new();
                 for player in &game.players {

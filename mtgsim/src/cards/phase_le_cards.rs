@@ -42,11 +42,11 @@ use crate::types::mana::{ManaCost, ManaType};
 /// **Card types, not cards.** Ten artifact creatures in a graveyard are still
 /// two card types — hence `CardTypesAmong` rather than `CountOf`.
 ///
-/// **All graveyards, including its own.** `Selector::CardsInAllGraveyards`
+/// **All graveyards, including its own.** `Selector::CardsInGraveyard(None)`
 /// spans every player, and a Tarmogoyf in a graveyard counts itself.
 pub fn tarmogoyf() -> Arc<CardData> {
     let card_types_in_graveyards =
-        || AmountExpr::CardTypesAmong(Selector::CardsInAllGraveyards);
+        || AmountExpr::CardTypesAmong(Selector::CardsInGraveyard(None));
 
     CardDataBuilder::new("Tarmogoyf")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))

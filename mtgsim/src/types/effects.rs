@@ -49,11 +49,15 @@ pub enum Selector {
     CreaturesInGraveyard(PlayerRef),
     PermanentsMatching(PermanentFilter),
     CardsInHand(PlayerRef),
-    CardsInGraveyard(PlayerRef),
-    /// Every card in every player's graveyard — "cards in all graveyards".
-    /// Not `CardsInGraveyard(PlayerRef)` with a loop: the CR phrases this as a
-    /// single set, and Tarmogoyf in a graveyard has to count itself.
-    CardsInAllGraveyards,
+    /// Cards in graveyards. `None` means **all** graveyards — Tarmogoyf's "cards
+    /// in all graveyards", which includes a Tarmogoyf sitting in one of them.
+    ///
+    /// One variant rather than a separate `CardsInAllGraveyards`: "whose
+    /// graveyard" is a parameter of the same concept, and a second variant made
+    /// the two look like different questions. Only `None` has an evaluator today
+    /// — every `Some` form is unused by any card, and `compute::evaluate_amount`
+    /// asserts rather than guessing at `PlayerRef` resolution nothing needs yet.
+    CardsInGraveyard(Option<PlayerRef>),
 }
 
 /// Reference to a player in an effect context
