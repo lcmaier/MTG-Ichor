@@ -82,6 +82,21 @@ pub enum PtValue {
     Dynamic(crate::types::effects::AmountExpr),
 }
 
+impl PtValue {
+    /// Lower a card-definition amount into a P/T value.
+    ///
+    /// `Fixed` collapses to a literal so the common case stays a plain integer
+    /// and never touches the evaluator; everything else is carried through as
+    /// an expression and re-evaluated at every layer.
+    pub fn from_amount(expr: &crate::types::effects::AmountExpr) -> Self {
+        use crate::types::effects::AmountExpr;
+        match expr {
+            AmountExpr::Fixed(n) => PtValue::Fixed(*n as i32),
+            other => PtValue::Dynamic(other.clone()),
+        }
+    }
+}
+
 /// What a continuous effect does to each affected object.
 /// Each variant belongs to exactly one layer.
 #[derive(Debug, Clone, PartialEq)]

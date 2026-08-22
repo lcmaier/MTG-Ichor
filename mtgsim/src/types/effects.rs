@@ -16,6 +16,12 @@ pub enum AmountExpr {
     Variable,
     /// "equal to the number of [things matching selector]"
     CountOf(Selector),
+    /// "equal to the number of card **types** among [things matching selector]"
+    /// — the Lhurgoyf family. Distinct from `CountOf`, which counts objects:
+    /// ten artifact creatures in a graveyard are ten cards but two card types.
+    CardTypesAmong(Selector),
+    /// "equal to that number plus N" — Tarmogoyf's toughness.
+    Plus(Box<AmountExpr>, u64),
     /// "equal to its mana value", where "it" is the object the continuous
     /// effect is being applied to — March of the Machines' "power and toughness
     /// each equal to its mana value".
@@ -44,6 +50,10 @@ pub enum Selector {
     PermanentsMatching(PermanentFilter),
     CardsInHand(PlayerRef),
     CardsInGraveyard(PlayerRef),
+    /// Every card in every player's graveyard — "cards in all graveyards".
+    /// Not `CardsInGraveyard(PlayerRef)` with a loop: the CR phrases this as a
+    /// single set, and Tarmogoyf in a graveyard has to count itself.
+    CardsInAllGraveyards,
 }
 
 /// Reference to a player in an effect context

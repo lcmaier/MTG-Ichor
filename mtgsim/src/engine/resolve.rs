@@ -480,6 +480,10 @@ impl GameState {
             AmountExpr::CountOf(_selector) => {
                 Err("CountOf amount resolution not yet implemented".to_string())
             }
+            AmountExpr::CardTypesAmong(_selector) => {
+                Err("CardTypesAmong amount resolution not yet implemented".to_string())
+            }
+            AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx)? + n),
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())
             }

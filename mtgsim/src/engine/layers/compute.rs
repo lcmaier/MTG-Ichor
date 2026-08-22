@@ -61,7 +61,7 @@ const LAYER_ORDER: [Layer; 10] = [
 ///
 /// Discarded when the top-level call returns, so it never has to be
 /// invalidated.
-type FrameCache = HashMap<(ObjectId, usize), EffectiveCharacteristics>;
+pub(super) type FrameCache = HashMap<(ObjectId, usize), EffectiveCharacteristics>;
 
 /// Compute the effective characteristics of a game object after applying
 /// all active continuous effects in layer order.
@@ -73,7 +73,7 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Effecti
 }
 
 /// `compute_characteristics` with layers `LAYER_ORDER[ceiling..]` left unapplied.
-fn compute_to_ceiling(
+pub(super) fn compute_to_ceiling(
     game: &GameState,
     id: ObjectId,
     ceiling: usize,
@@ -193,14 +193,29 @@ fn apply_effects(
     // walk on a static-heavy board before this check existed.
     let track_started = game.continuous_effects.summary().any_multi_row_group;
 
-    // Fast path: nothing to apply
-    if !has_registered && !on_battlefield {
+    // Fast path: nothing to apply.
+    //
+    // A CDA is not in the registry and does not need the battlefield (CR 604.3
+    // — CDAs function in all zones), so it gets its own term. Reading the
+    // printed list is exact here: with an empty registry and no battlefield
+    // entry, nothing in the walk can add an ability.
+    if !has_registered && !on_battlefield && !crate::engine::layers::cda::has_any_cda(chars) {
         return;
     }
 
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate() {
         if layer_index >= ceiling {
             break;
+        }
+
+        // CR 613.3 — "apply effects from characteristic-defining abilities
+        // first, then all other effects in timestamp order". Intrinsic before
+        // the registry slice is that sentence. Only three layers can hold a
+        // CDA (CR 604.3a(1)), so the other seven skip the scan entirely.
+        if crate::engine::layers::cda::CDA_LAYERS.contains(&layer) {
+            crate::engine::layers::cda::apply_intrinsic_cdas(
+                game, chars, id, layer, layer_index, cache,
+            );
         }
 
         // Apply registered effects in this layer
@@ -222,7 +237,7 @@ fn apply_effects(
                         started.insert(effect.group());
                     }
                 }
-                apply_modification(&effect.modification, chars, id);
+                apply_modification(&effect.modification, chars, id, game, layer_index, cache);
             }
         }
 
@@ -308,30 +323,86 @@ fn permanent_matches_filter(
 /// to apply in release rather than inventing a number.
 ///
 /// Evaluated fresh at every layer: that is the point of `PtValue::Dynamic`.
-fn evaluate_pt_value(
+pub(super) fn evaluate_pt_value(
     value: &PtValue,
+    game: &GameState,
     chars: &EffectiveCharacteristics,
+    layer_index: usize,
+    cache: &mut FrameCache,
 ) -> Option<i32> {
-    use crate::types::effects::AmountExpr;
-
     match value {
         PtValue::Fixed(n) => Some(*n),
-        PtValue::Dynamic(expr) => match expr {
-            AmountExpr::Fixed(n) => Some(*n as i32),
-            // CR 202.3b — an object with no mana cost has mana value 0.
-            AmountExpr::AffectedManaValue => {
-                Some(chars.mana_cost.as_ref().map(|c| c.mana_value()).unwrap_or(0) as i32)
+        PtValue::Dynamic(expr) => evaluate_amount(expr, game, chars, layer_index, cache),
+    }
+}
+
+/// Evaluate a card-definition amount inside the layer walk.
+///
+/// Anything reading *another* object goes through `compute_to_ceiling` at the
+/// current `layer_index`, never through `card_data`. Both halves of that matter:
+/// it keeps the layer-system invariant (effective characteristics, not printed
+/// ones), and it preserves §5.2's termination argument — a request at ceiling
+/// `layer_index` is strictly below the ceiling of the walk that made it, so the
+/// recursion descends. A Tarmogoyf in a graveyard counting itself bottoms out
+/// for exactly that reason.
+fn evaluate_amount(
+    expr: &crate::types::effects::AmountExpr,
+    game: &GameState,
+    chars: &EffectiveCharacteristics,
+    layer_index: usize,
+    cache: &mut FrameCache,
+) -> Option<i32> {
+    use crate::types::effects::{AmountExpr, Selector};
+
+    match expr {
+        AmountExpr::Fixed(n) => Some(*n as i32),
+
+        // CR 202.3b — an object with no mana cost has mana value 0.
+        AmountExpr::AffectedManaValue => {
+            Some(chars.mana_cost.as_ref().map(|c| c.mana_value()).unwrap_or(0) as i32)
+        }
+
+        AmountExpr::Plus(inner, n) => {
+            evaluate_amount(inner, game, chars, layer_index, cache).map(|v| v + *n as i32)
+        }
+
+        // Card *types*, not cards: ten artifact creatures in a graveyard are
+        // still two types.
+        AmountExpr::CardTypesAmong(selector) => match selector {
+            Selector::CardsInAllGraveyards => {
+                let mut types: std::collections::HashSet<crate::types::card_types::CardType> =
+                    std::collections::HashSet::new();
+                for player in &game.players {
+                    for card_id in &player.graveyard {
+                        if let Some(card) = compute_to_ceiling(game, *card_id, layer_index, cache) {
+                            types.extend(card.types.iter().copied());
+                        }
+                    }
+                }
+                Some(types.len() as i32)
             }
             other => {
                 debug_assert!(
                     false,
-                    "continuous effect on '{}' carries {:?}, which has no static-context \
-                     evaluator — see Deferred Migrations item 7e",
-                    chars.name, other
+                    "CardTypesAmong({:?}) has no evaluator yet (on '{}')",
+                    other, chars.name
                 );
                 None
             }
         },
+
+        // CR 107.3's X is chosen as a spell is cast, and the Target*/DamageDealt
+        // arms read a resolution that already happened. A continuous effect
+        // asking for one of those is a card-authoring error: assert in debug,
+        // decline to apply in release, never invent a number.
+        other => {
+            debug_assert!(
+                false,
+                "continuous effect on '{}' carries {:?}, which has no static-context evaluator",
+                chars.name, other
+            );
+            None
+        }
     }
 }
 
@@ -340,10 +411,13 @@ fn evaluate_pt_value(
 /// `object_id` is the object being computed. Layer 4's subtype arms need it to
 /// derive stable ids for intrinsic mana abilities (CR 305.6) — see
 /// `land_types::intrinsic_mana_ability`.
-fn apply_modification(
+pub(super) fn apply_modification(
     modification: &EffectModification,
     chars: &mut EffectiveCharacteristics,
     object_id: ObjectId,
+    game: &GameState,
+    layer_index: usize,
+    cache: &mut FrameCache,
 ) {
     match modification {
         // Layer 2
@@ -385,8 +459,8 @@ fn apply_modification(
         EffectModification::SetPowerToughness { power, toughness } => {
             // Evaluated before mutating: `AffectedManaValue` reads `chars`, and
             // setting power first would let it observe a half-applied frame.
-            let p = evaluate_pt_value(power, chars);
-            let t = evaluate_pt_value(toughness, chars);
+            let p = evaluate_pt_value(power, game, chars, layer_index, cache);
+            let t = evaluate_pt_value(toughness, game, chars, layer_index, cache);
             if let (Some(p), Some(t)) = (p, t) {
                 chars.power = Some(p);
                 chars.toughness = Some(t);
@@ -395,8 +469,8 @@ fn apply_modification(
 
         // Layer 7c
         EffectModification::ModifyPowerToughness { power, toughness } => {
-            let dp = evaluate_pt_value(power, chars);
-            let dt = evaluate_pt_value(toughness, chars);
+            let dp = evaluate_pt_value(power, game, chars, layer_index, cache);
+            let dt = evaluate_pt_value(toughness, game, chars, layer_index, cache);
             if let Some(dp) = dp {
                 if let Some(ref mut p) = chars.power {
                     *p += dp;

@@ -347,18 +347,9 @@ impl GameState {
     /// This used to `continue` on any non-`Fixed` amount, which silently
     /// dropped the whole atom — a static ability with a computed P/T registered
     /// nothing at all and failed no test (Deferred Migrations item 7e).
-    fn pt_value(expr: &crate::types::effects::AmountExpr) -> crate::engine::layers::types::PtValue {
-        use crate::engine::layers::types::PtValue;
-        use crate::types::effects::AmountExpr;
-        match expr {
-            AmountExpr::Fixed(n) => PtValue::Fixed(*n as i32),
-            other => PtValue::Dynamic(other.clone()),
-        }
-    }
-
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
         use crate::engine::layers::types::{
-            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
         };
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect, EffectRecipient, Primitive};
@@ -371,6 +362,16 @@ impl GameState {
 
         for ability in &abilities {
             if ability.ability_type != AbilityType::Static {
+                continue;
+            }
+
+            // CR 604.3a(3) — a characteristic-defining ability affects only the
+            // object that has it, so it needs no `AffectedSet` and no row here.
+            // `engine::layers::cda` applies it off the object's own effective
+            // ability list instead, which is also what makes it work in every
+            // zone (CR 604.3) and what lets Layer 6 remove it before Layer 7a
+            // reads it. Registering it as well would apply it twice.
+            if ability.is_characteristic_defining {
                 continue;
             }
 
@@ -405,14 +406,14 @@ impl GameState {
                 let (layer, modification) = match primitive {
                     Primitive::ModifyPowerToughness(p_expr, t_expr, _dur) => {
                         (Layer::Layer7cModifyPT, EffectModification::ModifyPowerToughness {
-                            power: Self::pt_value(p_expr),
-                            toughness: Self::pt_value(t_expr),
+                            power: PtValue::from_amount(p_expr),
+                            toughness: PtValue::from_amount(t_expr),
                         })
                     }
                     Primitive::SetPowerToughness(p_expr, t_expr, _dur) => {
                         (Layer::Layer7bSetPT, EffectModification::SetPowerToughness {
-                            power: Self::pt_value(p_expr),
-                            toughness: Self::pt_value(t_expr),
+                            power: PtValue::from_amount(p_expr),
+                            toughness: PtValue::from_amount(t_expr),
                         })
                     }
                     Primitive::SwitchPowerToughness(_dur) => {
