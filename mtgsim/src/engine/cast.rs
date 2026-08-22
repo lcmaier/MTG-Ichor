@@ -533,6 +533,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -619,6 +620,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -658,6 +660,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -777,6 +780,7 @@ mod tests {
             .color(crate::types::colors::Color::Blue)
             .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

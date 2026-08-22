@@ -69,6 +69,34 @@ pub struct AbilityDef {
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect: Effect,
+    /// CR 604.3 — this ability is a characteristic-defining ability.
+    ///
+    /// CR 604.3a lists five criteria. Four of them are properties of the
+    /// ability's *text* and are what the card author asserts by setting this:
+    /// (1) it defines colors, subtypes, power, or toughness; (3) it doesn't
+    /// directly affect any other object's characteristics; (4) it isn't an
+    /// ability the object grants itself; (5) it doesn't set those values only
+    /// under a condition.
+    ///
+    /// Criterion (2) is *provenance* — printed on the object it affects,
+    /// granted to a token by the effect that created it, or acquired by a copy
+    /// or text-changing effect — and no bool on a definition can state it,
+    /// because the same `AbilityDef` can reach an object by any route. It is
+    /// maintained instead by whoever writes the ability onto an object:
+    ///
+    /// - Printed abilities keep whatever the card author wrote. ✅
+    /// - A copy effect (Layer 1) or a text-changing effect (Layer 3) hands the
+    ///   whole `AbilityDef` over, so the flag rides along — which is exactly
+    ///   what 604.3a(2) asks for. ✅
+    /// - **A Layer 6 `GrantAbility` must clear this on the def it grants.** A
+    ///   granted ability is never a CDA, however its text reads. Nothing grants
+    ///   abilities yet; the rule is recorded in Deferred Migrations so the
+    ///   Layer 6 phase honors it.
+    ///
+    /// Read by `engine::layers::cda`, which applies CDAs off the object's own
+    /// effective ability list. CDAs are never registered as continuous effects
+    /// — see `Layer::Layer7aCdaPT`.
+    pub is_characteristic_defining: bool,
 }
 
 // Effect and Primitive types are defined in types::effects and re-exported here
@@ -185,6 +213,7 @@ impl CardDataBuilder {
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
         self.data.abilities.push(AbilityDef {
+            is_characteristic_defining: false,
             id: crate::types::ids::new_ability_id(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],

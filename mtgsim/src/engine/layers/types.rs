@@ -39,6 +39,20 @@ pub enum Layer {
     Layer5Color,
     /// Layer 6 — ability-adding and ability-removing effects.
     Layer6Ability,
+    /// Layer 7a — power/toughness from characteristic-defining abilities
+    /// (CR 613.4a).
+    ///
+    /// **Nothing is ever registered into this layer.** CR 604.3a(3) says a CDA
+    /// "does not directly affect the characteristics of any other objects", so
+    /// a CDA always applies to exactly the object that has it — which means it
+    /// needs no `AffectedSet`, no filter, and no registry row. `layers::cda`
+    /// applies them straight off the object's own effective ability list.
+    /// `ContinuousEffectRegistry::add` asserts this.
+    ///
+    /// The variant still has to exist because `LAYER_ORDER` is an array of
+    /// `Layer` and the walk needs a slot here — after Layer 6, so that Humility
+    /// strips the CDA before it would apply, and before 7b.
+    Layer7aCdaPT,
     /// Layer 7b — effects that set P/T to specific values (CR 613.4b).
     Layer7bSetPT,
     /// Layer 7c — P/T modifications: +N/+N pumps, anthems (CR 613.4c).

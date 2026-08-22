@@ -20,25 +20,26 @@ use crate::types::ids::ObjectId;
 /// layer `n - 1`.
 ///
 /// This mirrors the `Layer` enum exactly, and the enum is **not** the CR's full
-/// list. Two sublayers are missing, both tracked as Deferred Migrations item 10:
+/// list. One sublayer split is still missing, tracked as Deferred Migrations
+/// item 10:
 ///
 /// - **1a / 1b.** CR 613.2 splits layer 1 into face-down effects (1a) and copy
 ///   effects (1b); `Layer1Copy` collapses them, even though
 ///   `layers-architecture.md` §7 specifies both and says Phase LA ships them.
 ///   The order matters — a Clone copying a face-down creature must copy the
 ///   2/2 colorless characteristics, not the printed card (CR 707.2).
-/// - **7a.** CDA-defined power and toughness (CR 613.4a). Tarmogoyf has no home.
 ///
-/// Neither is reachable today: nothing produces a layer 1 effect, and nothing
-/// is marked as a CDA. Splitting them later just lengthens this array — the
-/// ceiling is an index into it, computed at runtime, so nothing else moves.
-const LAYER_ORDER: [Layer; 9] = [
+/// Not reachable today: nothing produces a layer 1 effect. Splitting it later
+/// just lengthens this array — the ceiling is an index into it, computed at
+/// runtime, so nothing else moves.
+const LAYER_ORDER: [Layer; 10] = [
     Layer::Layer1Copy,
     Layer::Layer2Control,
     Layer::Layer3Text,
     Layer::Layer4Type,
     Layer::Layer5Color,
     Layer::Layer6Ability,
+    Layer::Layer7aCdaPT,
     Layer::Layer7bSetPT,
     Layer::Layer7cModifyPT,
     Layer::Layer7dSwitchPT,

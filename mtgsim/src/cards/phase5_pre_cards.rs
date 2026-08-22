@@ -30,6 +30,7 @@ pub fn nights_whisper() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -56,6 +57,7 @@ pub fn doom_blade() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -79,6 +81,7 @@ pub fn angels_mercy() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -96,6 +99,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -124,6 +128,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -155,6 +160,7 @@ pub fn inside_out() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -181,6 +187,7 @@ pub fn bull_rush() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -205,6 +212,7 @@ pub fn dark_ritual() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
