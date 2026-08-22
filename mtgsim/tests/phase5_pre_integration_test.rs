@@ -4,7 +4,6 @@
 //! cards: Night's Whisper, Doom Blade, Angel's Mercy, Dark Ritual, and
 //! Isamaru (legend rule).
 
-mod common;
 
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::creatures;
@@ -20,7 +19,7 @@ use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
-use common::{setup_two_player_game, put_in_hand, put_on_battlefield, fill_library};
+use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_on_battlefield, fill_library};
 
 // ---------------------------------------------------------------------------
 // Phase-specific helpers

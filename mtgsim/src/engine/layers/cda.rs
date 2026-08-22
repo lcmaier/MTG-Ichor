@@ -219,16 +219,19 @@ fn atoms(ability: &AbilityDef) -> Vec<(&Primitive, &EffectRecipient)> {
 mod tests {
     use super::*;
     use crate::engine::layers::compute_characteristics;
-    use crate::engine::layers::types::{AffectedSet, ContinuousEffect, EffectOrigin};
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use std::sync::Arc;
-    use crate::objects::object::GameObject;
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
     use crate::types::effects::{AmountExpr, Duration};
     use crate::types::ids::new_ability_id;
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::types::zones::Zone;
+    use crate::test_support::{put_on_battlefield_this_turn, registered};
+
+    /// Every CDA test here uses player 0.
+    fn put_on_battlefield(game: &mut GameState, data: Arc<CardData>) -> ObjectId {
+        put_on_battlefield_this_turn(game, data, 0)
+    }
 
     /// A CDA-flagged static ability carrying one atom about the object itself.
     fn cda(primitive: Primitive) -> AbilityDef {
@@ -254,35 +257,6 @@ mod tests {
                 Duration::WhileSourceOnBattlefield,
             )))
             .build()
-    }
-
-    fn put_on_battlefield(game: &mut GameState, data: Arc<CardData>) -> ObjectId {
-        let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
-        game.place_on_battlefield(id, 0);
-        id
-    }
-
-    /// One registry row applying to `id` alone, at a chosen timestamp.
-    fn registered(
-        id: ObjectId,
-        layer: Layer,
-        timestamp: u64,
-        modification: EffectModification,
-    ) -> ContinuousEffect {
-        ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp,
-            affected: AffectedSet::Fixed(vec![id]),
-            modification,
-        }
     }
 
     #[test]

@@ -1,7 +1,6 @@
 //! Pre-Phase 3 Integration Tests: Game lifecycle, loss handling, discard,
 //! draw skip, cost validation, and rollback.
 
-mod common;
 
 use std::sync::Arc;
 
@@ -18,7 +17,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use common::{put_in_hand, put_land_on_battlefield};
+use mtgsim::test_support::{put_in_hand, put_land_on_battlefield};
 
 // ---------------------------------------------------------------------------
 // Phase-specific helpers

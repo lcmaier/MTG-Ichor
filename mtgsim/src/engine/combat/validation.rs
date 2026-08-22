@@ -405,12 +405,13 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::oracle::characteristics::has_keyword;
-    use crate::state::battlefield::{AttackingInfo, BattlefieldEntity};
+    use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::CardType;
     use crate::types::keywords::KeywordAbility;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
     use crate::types::colors::Color;
+    use crate::test_support::set_attacking;
 
     fn make_bears(owner: PlayerId) -> (ObjectId, std::sync::Arc<crate::objects::card_data::CardData>) {
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -570,17 +571,6 @@ mod tests {
     }
 
     // --- validate_blockers tests ---
-
-    /// Helper: set up a creature as attacking player 1
-    fn set_attacking(game: &mut GameState, creature_id: ObjectId, target_player: PlayerId) {
-        if let Some(entry) = game.battlefield.get_mut(&creature_id) {
-            entry.attacking = Some(AttackingInfo {
-                target: AttackTarget::Player(target_player),
-                is_blocked: false,
-                blocked_by: Vec::new(),
-            });
-        }
-    }
 
     #[test]
     fn test_valid_block() {

@@ -209,29 +209,7 @@ mod tests {
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
-    use crate::ui::decision::ScriptedDecisionProvider;
-
-    fn test_dp() -> ScriptedDecisionProvider {
-        ScriptedDecisionProvider::new()
-    }
-
-    fn make_bolt() -> std::sync::Arc<crate::objects::card_data::CardData> {
-        CardDataBuilder::new("Lightning Bolt")
-            .card_type(CardType::Instant)
-            .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                is_characteristic_defining: false,
-                id: crate::types::ids::new_ability_id(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
-                    Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-                ),
-            })
-            .build()
-    }
+    use crate::test_support::{lightning_bolt as make_bolt, pacifism as make_pacifism, test_dp};
 
     fn make_recall() -> std::sync::Arc<crate::objects::card_data::CardData> {
         CardDataBuilder::new("Ancestral Recall")
@@ -507,18 +485,6 @@ mod tests {
 
         let bf_entry = game.battlefield.get(&bears_id).unwrap();
         assert_eq!(bf_entry.x_value, None);
-    }
-
-    fn make_pacifism() -> std::sync::Arc<crate::objects::card_data::CardData> {
-        use crate::types::card_types::{EnchantmentType, Subtype};
-        use crate::types::effects::SelectionFilter;
-        CardDataBuilder::new("Pacifism")
-            .card_type(CardType::Enchantment)
-            .subtype(Subtype::Enchantment(EnchantmentType::Aura))
-            .color(crate::types::colors::Color::White)
-            .mana_cost(ManaCost::build(&[ManaType::White], 1))
-            .enchant_filter(SelectionFilter::Creature)
-            .build()
     }
 
     /// Helper: put a permanent spell on the stack with chosen targets.

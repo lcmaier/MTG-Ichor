@@ -184,41 +184,13 @@ pub fn assign_trample_damage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::objects::card_data::CardDataBuilder;
-    use crate::objects::object::GameObject;
-    use crate::state::battlefield::{AttackingInfo, BattlefieldEntity, BlockingInfo};
-    use crate::types::card_types::CardType;
-    use crate::types::colors::Color;
-    use crate::types::mana::{ManaCost, ManaType};
-    use crate::types::zones::Zone;
     use crate::events::event::DamageTarget;
     use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
-
-    fn place_creature_with_keywords(
-        game: &mut GameState,
-        owner: PlayerId,
-        power: i32,
-        toughness: i32,
-        keywords: &[KeywordAbility],
-    ) -> ObjectId {
-        let mut builder = CardDataBuilder::new("Test Creature")
-            .card_type(CardType::Creature)
-            .color(Color::Green)
-            .mana_cost(ManaCost::build(&[ManaType::Green], 1))
-            .power_toughness(power, toughness);
-        for kw in keywords {
-            builder = builder.keyword(*kw);
-        }
-        let data = builder.build();
-        let obj = GameObject::new(data, owner, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, owner, ts, 0);
-        game.battlefield.insert(id, entry);
-        id
-    }
+    use crate::test_support::{
+        place_vanilla_creature as place_creature_with_keywords, set_attacking, set_blocked_by,
+        set_blocking,
+    };
 
     fn place_creature(
         game: &mut GameState,
@@ -227,31 +199,6 @@ mod tests {
         toughness: i32,
     ) -> ObjectId {
         place_creature_with_keywords(game, owner, power, toughness, &[])
-    }
-
-    fn set_attacking(game: &mut GameState, id: ObjectId, target_player: PlayerId) {
-        if let Some(entry) = game.battlefield.get_mut(&id) {
-            entry.attacking = Some(AttackingInfo {
-                target: AttackTarget::Player(target_player),
-                is_blocked: false,
-                blocked_by: Vec::new(),
-            });
-        }
-    }
-
-    fn set_blocked_by(game: &mut GameState, attacker: ObjectId, blockers: Vec<ObjectId>) {
-        if let Some(entry) = game.battlefield.get_mut(&attacker) {
-            if let Some(ref mut info) = entry.attacking {
-                info.is_blocked = true;
-                info.blocked_by = blockers;
-            }
-        }
-    }
-
-    fn set_blocking(game: &mut GameState, blocker: ObjectId, blocking: Vec<ObjectId>) {
-        if let Some(entry) = game.battlefield.get_mut(&blocker) {
-            entry.blocking = Some(BlockingInfo { blocking });
-        }
     }
 
     // --- should_deal_damage_this_step tests ---

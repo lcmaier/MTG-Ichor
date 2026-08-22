@@ -4,7 +4,6 @@
 //! declare blockers, combat damage, SBA lethal damage, and game-over via
 //! combat damage.
 
-mod common;
 
 use std::sync::Arc;
 
@@ -59,12 +58,12 @@ fn place_creature_on_battlefield(
     owner: PlayerId,
     card_factory: fn() -> Arc<CardData>,
 ) -> ObjectId {
-    common::put_on_battlefield(&mut game.state, card_factory(), owner)
+    mtgsim::test_support::put_on_battlefield(&mut game.state, card_factory(), owner)
 }
 
 /// Put a card into a player's hand (for casting spells like Lightning Bolt).
 fn put_in_hand(game: &mut Game, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
-    common::put_in_hand(&mut game.state, card_data, player)
+    mtgsim::test_support::put_in_hand(&mut game.state, card_data, player)
 }
 
 // ---------------------------------------------------------------------------

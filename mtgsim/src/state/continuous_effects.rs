@@ -232,20 +232,18 @@ mod tests {
     use crate::engine::layers::types::*;
     use crate::types::effects::Duration;
     use uuid::Uuid;
+    use crate::test_support::registered_source_only;
 
     fn make_effect(source: ObjectId, layer: Layer, timestamp: Timestamp) -> ContinuousEffect {
-        ContinuousEffect {
-            id: 0, // will be assigned by registry
+        registered_source_only(
             source,
-            origin: EffectOrigin::Resolution,
             layer,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
             timestamp,
-            affected: AffectedSet::SourceOnly,
-            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
-        }
+            EffectModification::ModifyPowerToughness {
+                power: PtValue::Fixed(1),
+                toughness: PtValue::Fixed(1),
+            },
+        )
     }
 
     #[test]

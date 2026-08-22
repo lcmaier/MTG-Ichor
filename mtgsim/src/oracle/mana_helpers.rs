@@ -453,23 +453,7 @@ mod tests {
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
-
-    fn place_forest(game: &mut GameState, player_id: PlayerId) -> (ObjectId, AbilityId) {
-        let forest = CardDataBuilder::new("Forest")
-            .card_type(CardType::Land)
-            .supertype(Supertype::Basic)
-            .subtype(Subtype::Land(LandType::Forest))
-            .mana_ability_single(ManaType::Green)
-            .build();
-        let ability_id = forest.abilities[0].id;
-        let obj = GameObject::new(forest, player_id, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, player_id, ts, 0);
-        game.battlefield.insert(id, entry);
-        (id, ability_id)
-    }
+    use crate::test_support::place_forest;
 
     fn place_mountain(game: &mut GameState, player_id: PlayerId) -> (ObjectId, AbilityId) {
         let mountain = CardDataBuilder::new("Mountain")

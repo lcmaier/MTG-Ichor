@@ -339,32 +339,10 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
-    use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
-    use crate::types::card_types::*;
-    use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-
-    fn make_forest() -> std::sync::Arc<crate::objects::card_data::CardData> {
-        CardDataBuilder::new("Forest")
-            .card_type(CardType::Land)
-            .supertype(Supertype::Basic)
-            .subtype(Subtype::Land(LandType::Forest))
-            .mana_ability_single(ManaType::Green)
-            .build()
-    }
-
-    fn stock_libraries(game: &mut GameState, cards_per_player: usize) {
-        let num_players = game.num_players();
-        for pid in 0..num_players {
-            for _ in 0..cards_per_player {
-                let obj = GameObject::in_library(make_forest(), pid);
-                let id = game.add_object(obj);
-                game.players[pid].library.push(id);
-            }
-        }
-    }
+    use crate::test_support::{forest as make_forest, stock_libraries};
 
     #[test]
     fn test_draw_card() {

@@ -623,6 +623,7 @@ mod tests {
     use crate::types::card_types::*;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
+    use crate::test_support::{pacifism as make_pacifism, test_dp};
 
     fn setup_game_with_creature() -> (GameState, ObjectId) {
         let mut game = GameState::new(2, 20);
@@ -650,10 +651,6 @@ mod tests {
             controller: 0,
             targets,
         }
-    }
-
-    fn test_dp() -> crate::ui::decision::ScriptedDecisionProvider {
-        crate::ui::decision::ScriptedDecisionProvider::new()
     }
 
     #[test]
@@ -798,16 +795,6 @@ mod tests {
     }
 
     // --- attach_aura_on_etb tests (rule 303.4a) ---
-
-    fn make_pacifism() -> std::sync::Arc<crate::objects::card_data::CardData> {
-        CardDataBuilder::new("Pacifism")
-            .card_type(CardType::Enchantment)
-            .subtype(Subtype::Enchantment(crate::types::card_types::EnchantmentType::Aura))
-            .color(crate::types::colors::Color::White)
-            .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::White], 1))
-            .enchant_filter(SelectionFilter::Creature)
-            .build()
-    }
 
     #[test]
     fn test_aura_etb_non_stack_chooses_host() {

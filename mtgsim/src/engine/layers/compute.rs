@@ -502,6 +502,7 @@ mod tests {
     use crate::types::keywords::KeywordAbility;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
+    use crate::test_support::registered;
 
     #[test]
     fn test_base_characteristics_from_card_data() {
@@ -529,7 +530,6 @@ mod tests {
     // COVERS-PARTIAL: ATOM-613.4c-001
     #[test]
     fn test_registered_effect_pump_power_only() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -542,18 +542,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Register a +3/+0 effect
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer7cModifyPT,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: 1,
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(0) },
-        };
+        let effect = registered(
+            id,
+            Layer::Layer7cModifyPT,
+            1,
+            EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(0) },
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -650,7 +644,6 @@ mod tests {
     // COVERS-PARTIAL: ATOM-613.4c-001
     #[test]
     fn test_registered_effect_modifies_pt() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -663,18 +656,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Register a +3/+3 effect targeting this creature
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer7cModifyPT,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: 1,
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) },
-        };
+        let effect = registered(
+            id,
+            Layer::Layer7cModifyPT,
+            1,
+            EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) },
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -684,7 +671,6 @@ mod tests {
 
     #[test]
     fn test_registered_effect_grants_keyword() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -697,18 +683,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Register a "gains flying" effect
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer6Ability,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: 1,
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::GrantKeyword(KeywordAbility::Flying),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer6Ability,
+            1,
+            EffectModification::GrantKeyword(KeywordAbility::Flying),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -770,7 +750,6 @@ mod tests {
 
     #[test]
     fn test_set_colors_replaces_base_colors() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -786,18 +765,12 @@ mod tests {
         // Register a "becomes blue" effect (SetColors)
         let mut blue = std::collections::HashSet::new();
         blue.insert(Color::Blue);
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer5Color,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::SetColors(blue),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer5Color,
+            game.allocate_timestamp(),
+            EffectModification::SetColors(blue),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -808,7 +781,6 @@ mod tests {
 
     #[test]
     fn test_add_color_preserves_existing() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -822,18 +794,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Register an "also red" effect (AddColor)
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer5Color,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::AddColor(Color::Red),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer5Color,
+            game.allocate_timestamp(),
+            EffectModification::AddColor(Color::Red),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -844,7 +810,6 @@ mod tests {
 
     #[test]
     fn test_remove_all_colors_makes_colorless() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -858,18 +823,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Register a "becomes colorless" effect
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer5Color,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::RemoveAllColors,
-        };
+        let effect = registered(
+            id,
+            Layer::Layer5Color,
+            game.allocate_timestamp(),
+            EffectModification::RemoveAllColors,
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -878,7 +837,6 @@ mod tests {
 
     #[test]
     fn test_color_change_independent_of_pt() {
-        use crate::types::effects::Duration;
 
         // Color change (L5) should not affect P/T (L7) and vice versa
         let mut game = GameState::new(2, 20);
@@ -895,33 +853,21 @@ mod tests {
         // L5: becomes blue
         let mut blue = std::collections::HashSet::new();
         blue.insert(Color::Blue);
-        let color_effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer5Color,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::SetColors(blue),
-        };
+        let color_effect = registered(
+            id,
+            Layer::Layer5Color,
+            game.allocate_timestamp(),
+            EffectModification::SetColors(blue),
+        );
         game.continuous_effects.add(color_effect);
 
         // L7c: +3/+3
-        let pt_effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer7cModifyPT,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) },
-        };
+        let pt_effect = registered(
+            id,
+            Layer::Layer7cModifyPT,
+            game.allocate_timestamp(),
+            EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) },
+        );
         game.continuous_effects.add(pt_effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -991,7 +937,6 @@ mod tests {
     // COVERS-PARTIAL: ATOM-613.4d-004
     #[test]
     fn test_counters_applied_before_switch_pt() {
-        use crate::types::effects::Duration;
 
         // Regression test: counters are in 7c, switch is 7d.
         // A 1/4 creature with two +1/+1 counters and a switch effect:
@@ -1008,18 +953,12 @@ mod tests {
         entry.add_counters(CounterType::PlusOnePlusOne, 2);
 
         // Register a switch P/T effect (layer 7d)
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer7dSwitchPT,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: 1,
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::SwitchPowerToughness,
-        };
+        let effect = registered(
+            id,
+            Layer::Layer7dSwitchPT,
+            1,
+            EffectModification::SwitchPowerToughness,
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1033,7 +972,6 @@ mod tests {
     // COVERS-PARTIAL: ATOM-205.1b-004
     #[test]
     fn test_add_type_preserves_existing() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Darksteel Ingot")
@@ -1045,18 +983,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Register "becomes also a creature" effect
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer4Type,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::AddType(CardType::Creature),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer4Type,
+            game.allocate_timestamp(),
+            EffectModification::AddType(CardType::Creature),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1066,7 +998,6 @@ mod tests {
 
     #[test]
     fn test_remove_type() {
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Mycosynth Lattice")
@@ -1080,18 +1011,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Remove Creature type
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer4Type,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::RemoveType(CardType::Creature),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer4Type,
+            game.allocate_timestamp(),
+            EffectModification::RemoveType(CardType::Creature),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1103,7 +1028,6 @@ mod tests {
     #[test]
     fn test_set_subtypes_replaces_all() {
         use crate::types::card_types::{LandType, Subtype};
-        use crate::types::effects::Duration;
         use std::collections::HashSet;
 
         let mut game = GameState::new(2, 20);
@@ -1120,18 +1044,12 @@ mod tests {
         // SetSubtypes to just Forest
         let mut forest_set = HashSet::new();
         forest_set.insert(Subtype::Land(LandType::Forest));
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer4Type,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::SetSubtypes(forest_set),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer4Type,
+            game.allocate_timestamp(),
+            EffectModification::SetSubtypes(forest_set),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1144,7 +1062,6 @@ mod tests {
     #[test]
     fn test_add_subtype_preserves_existing() {
         use crate::types::card_types::{LandType, Subtype};
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Mountain")
@@ -1157,18 +1074,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Add Swamp subtype ("in addition to")
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer4Type,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::AddSubtype(Subtype::Land(LandType::Swamp)),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer4Type,
+            game.allocate_timestamp(),
+            EffectModification::AddSubtype(Subtype::Land(LandType::Swamp)),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1180,7 +1091,6 @@ mod tests {
     #[test]
     fn test_add_supertype() {
         use crate::types::card_types::Supertype;
-        use crate::types::effects::Duration;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Grizzly Bears")
@@ -1193,18 +1103,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // Add Legendary supertype
-        let effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer4Type,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::AddSupertype(Supertype::Legendary),
-        };
+        let effect = registered(
+            id,
+            Layer::Layer4Type,
+            game.allocate_timestamp(),
+            EffectModification::AddSupertype(Supertype::Legendary),
+        );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1229,18 +1133,12 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         // L4: Add Creature type
-        let l4_effect = ContinuousEffect {
-            id: 0,
-            source: id,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer4Type,
-            duration: Duration::UntilEndOfTurn,
-            controller: 0,
-            created_on_turn: 1,
-            timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::AddType(CardType::Creature),
-        };
+        let l4_effect = registered(
+            id,
+            Layer::Layer4Type,
+            game.allocate_timestamp(),
+            EffectModification::AddType(CardType::Creature),
+        );
         game.continuous_effects.add(l4_effect);
 
         // L5: "Creatures are also red" (filter-based)

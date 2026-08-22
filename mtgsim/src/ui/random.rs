@@ -248,39 +248,8 @@ impl DecisionProvider for RandomDecisionProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::objects::card_data::CardDataBuilder;
-    use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
-    use crate::state::game_state::{GameState, Phase, PhaseType};
-    use crate::types::card_types::*;
-    use crate::types::ids::ObjectId;
-    use crate::types::mana::ManaType;
-    use crate::types::zones::Zone;
     use crate::ui::decision::PriorityAction;
-
-    fn setup_basic_game() -> GameState {
-        let mut game = GameState::new(2, 20);
-        game.phase = Phase::new(PhaseType::Precombat);
-        game.active_player = 0;
-        game
-    }
-
-    #[allow(dead_code)]
-    fn place_forest(game: &mut GameState, player_id: PlayerId) -> ObjectId {
-        let forest = CardDataBuilder::new("Forest")
-            .card_type(CardType::Land)
-            .supertype(Supertype::Basic)
-            .subtype(Subtype::Land(LandType::Forest))
-            .mana_ability_single(ManaType::Green)
-            .build();
-        let obj = GameObject::new(forest, player_id, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, player_id, ts, 0);
-        game.battlefield.insert(id, entry);
-        id
-    }
+    use crate::test_support::setup_two_player_game as setup_basic_game;
 
     #[test]
     fn test_random_dp_pick_n_empty() {
