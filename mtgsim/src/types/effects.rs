@@ -16,6 +16,24 @@ pub enum AmountExpr {
     Variable,
     /// "equal to the number of [things matching selector]"
     CountOf(Selector),
+    /// "equal to the number of card **types** among [things matching selector]"
+    /// — the Lhurgoyf family. Distinct from `CountOf`, which counts objects:
+    /// ten artifact creatures in a graveyard are ten cards but two card types.
+    CardTypesAmong(Selector),
+    /// "equal to that number plus N" — Tarmogoyf's toughness.
+    Plus(Box<AmountExpr>, u64),
+    /// "equal to its mana value", where "it" is the object the continuous
+    /// effect is being applied to — March of the Machines' "power and toughness
+    /// each equal to its mana value".
+    ///
+    /// Read off the affected object's *effective* mana cost mid-layer-walk, not
+    /// off `CardData`: a Layer 1 copy effect changes mana cost, and CR 202.3b
+    /// makes an object with no mana cost mana value 0.
+    ///
+    /// Distinct from `TargetPower` and friends below, which are resolution-time
+    /// and read the target of a spell. This one has meaning in a static context,
+    /// which is what lets `compute.rs` evaluate it at every layer.
+    AffectedManaValue,
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"
@@ -31,7 +49,15 @@ pub enum Selector {
     CreaturesInGraveyard(PlayerRef),
     PermanentsMatching(PermanentFilter),
     CardsInHand(PlayerRef),
-    CardsInGraveyard(PlayerRef),
+    /// Cards in graveyards. `None` means **all** graveyards — Tarmogoyf's "cards
+    /// in all graveyards", which includes a Tarmogoyf sitting in one of them.
+    ///
+    /// One variant rather than a separate `CardsInAllGraveyards`: "whose
+    /// graveyard" is a parameter of the same concept, and a second variant made
+    /// the two look like different questions. Only `None` has an evaluator today
+    /// — every `Some` form is unused by any card, and `compute::evaluate_amount`
+    /// asserts rather than guessing at `PlayerRef` resolution nothing needs yet.
+    CardsInGraveyard(Option<PlayerRef>),
 }
 
 /// Reference to a player in an effect context

@@ -39,6 +39,20 @@ pub enum Layer {
     Layer5Color,
     /// Layer 6 — ability-adding and ability-removing effects.
     Layer6Ability,
+    /// Layer 7a — power/toughness from characteristic-defining abilities
+    /// (CR 613.4a).
+    ///
+    /// **Nothing is ever registered into this layer.** CR 604.3a(3) says a CDA
+    /// "does not directly affect the characteristics of any other objects", so
+    /// a CDA always applies to exactly the object that has it — which means it
+    /// needs no `AffectedSet`, no filter, and no registry row. `layers::cda`
+    /// applies them straight off the object's own effective ability list.
+    /// `ContinuousEffectRegistry::add` asserts this.
+    ///
+    /// The variant still has to exist because `LAYER_ORDER` is an array of
+    /// `Layer` and the walk needs a slot here — after Layer 6, so that Humility
+    /// strips the CDA before it would apply, and before 7b.
+    Layer7aCdaPT,
     /// Layer 7b — effects that set P/T to specific values (CR 613.4b).
     Layer7bSetPT,
     /// Layer 7c — P/T modifications: +N/+N pumps, anthems (CR 613.4c).
@@ -47,6 +61,40 @@ pub enum Layer {
     Layer7cModifyPT,
     /// Layer 7d — switch P/T (CR 613.4d).
     Layer7dSwitchPT,
+}
+
+/// One side of a power/toughness modification.
+///
+/// Two variants rather than one, because the two carry different things and
+/// neither subsumes the other:
+///
+/// - `Fixed` is a **signed** literal. `ModifyPowerToughness { power: -1, .. }`
+///   is ordinary (Weakness, `-1/-1` counters), and `AmountExpr::Fixed` is `u64`,
+///   so the amount language cannot express it.
+/// - `Dynamic` is an expression evaluated during the layer walk, every time, on
+///   the frame as of the end of the previous layer. March of the Machines' "each
+///   equal to its mana value" and Tarmogoyf's graveyard count are both this: the
+///   value has to track the game rather than be snapshotted at registration,
+///   which is what CR 604.7 and 613.4a require.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PtValue {
+    Fixed(i32),
+    Dynamic(crate::types::effects::AmountExpr),
+}
+
+impl PtValue {
+    /// Lower a card-definition amount into a P/T value.
+    ///
+    /// `Fixed` collapses to a literal so the common case stays a plain integer
+    /// and never touches the evaluator; everything else is carried through as
+    /// an expression and re-evaluated at every layer.
+    pub fn from_amount(expr: &crate::types::effects::AmountExpr) -> Self {
+        use crate::types::effects::AmountExpr;
+        match expr {
+            AmountExpr::Fixed(n) => PtValue::Fixed(*n as i32),
+            other => PtValue::Dynamic(other.clone()),
+        }
+    }
 }
 
 /// What a continuous effect does to each affected object.
@@ -78,10 +126,10 @@ pub enum EffectModification {
     LoseAllAbilities,
 
     // --- Layer 7b ---
-    SetPowerToughness { power: i32, toughness: i32 },
+    SetPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7c ---
-    ModifyPowerToughness { power: i32, toughness: i32 },
+    ModifyPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7d ---
     SwitchPowerToughness,

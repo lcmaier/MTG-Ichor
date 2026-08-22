@@ -82,6 +82,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),

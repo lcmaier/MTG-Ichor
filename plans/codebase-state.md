@@ -240,6 +240,8 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 3. **Cost modification pipeline stub — ❌ still a passthrough.** `engine/costs.rs:255` `apply_cost_modifications` with `TODO(L15)`. Wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere.
 
+   **Vocabulary gap this also owns.** Golden-Tail Trainer — "Aura and Equipment spells you cast cost {X} less to cast, where X is this creature's power" — is a static ability whose amount is read live. `AmountExpr` cannot say "this creature's power": `TargetPower` means the target of a resolving spell, and `Variable` is CR 107.3's X, chosen as a spell is cast. A `SourcePower`-style variant is needed, and the card is blocked on this item too, since cost modification is CR 613.11 / 601.2f rather than a characteristic change.
+
 4. **Mana-pool persistence stub — ❌ still stubbed.** `engine/turns.rs:65,142` still pass `BlanketPersistenceSet::none()` with `TODO(T12c)`. The registry it needs now exists.
 
 5. **Timestamps — ✅ live.** `BattlefieldEntity.timestamp` is now read by the layer system for 613.7 ordering (4 read sites). The CR 613.8 *dependency* algorithm is still unimplemented; ordering is timestamp-only.
@@ -269,13 +271,30 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     Historical note, because it cost a round trip: an `EffectModification::can_change_abilities()` gate briefly skipped the CR 613.7a existence check when nothing in the registry could change an ability set. It was worth 5-8x, and it was **removed** — it was valid only while no static ability is conditional, and it would have failed globally rather than arm by arm once they are. A rules engine has nothing to trade for a silently wrong answer. `layers-architecture.md` §12 records the measurements and the answer-preserving alternatives.
 
-7e. **Derivation silently drops non-`Fixed` amounts.** `register_static_effects` `continue`s on any `AmountExpr` other than `Fixed`, so a static ability with a computed P/T registers nothing at all. Tarmogoyf-class CDAs are exactly non-`Fixed`. Silent, not an error.
+7e. **Derivation silently drops non-`Fixed` amounts — ✅ done (2026-08-22).** `EffectModification::{SetPowerToughness, ModifyPowerToughness}` now carry a `PtValue`: `Fixed(i32)` for a signed literal, `Dynamic(AmountExpr)` for an expression re-evaluated at every layer by `compute::evaluate_pt_value`. Two variants rather than one because `AmountExpr::Fixed` is `u64` and `ModifyPowerToughness { power: -1 }` needs a sign. Resolution-time effects stay `Fixed` (CR 608.2h locks a resolving spell's value in); it is static abilities that must stay live (CR 604.7). March of the Machines is back to its printed "equal to its mana value" via `AmountExpr::AffectedManaValue`.
+
+    Residue, now loud instead of silent: the evaluator returns `Option<i32>` and `debug_assert!`s on an amount with no static-context meaning. `Variable` genuinely cannot appear on a static ability (CR 107.3's X is chosen as a spell is cast), but the `Target*` family points at a real vocabulary gap — see item 3.
 
 8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
 
    - **Rootpath Purifier** ("Lands you control and land cards in your library are basic") changes the set of permanents Blood Moon affects, so Blood Moon *depends* on it and applies second regardless of timestamp — Blood Moon never touches that player's lands. We get this wrong whenever Blood Moon has the earlier timestamp.
 
    - **Intra-layer re-evaluation is part of 613.8, and the written design omits it.** `layers-architecture.md` §5 orders each layer once via `resolve_order_within_layer`, then applies in that order. The CR re-evaluates dependencies **after each effect is applied** — the judge walkthrough of Blood Moon + Ashaya + Opalescence + Urborg applies one independent effect, recomputes every remaining pair, and repeats, which is how "Urborg no longer has an effect so we're done in layer 4" falls out. §9's hybrid algorithm needs to run inside that loop, not once per layer.
+
+   - **CDAs are not in the DAG. Here is what to do if that ever costs us.** `engine/layers/cda.rs` applies characteristic-defining abilities intrinsically, so no CDA is ever a registry row. 613.8a(c)'s *first* clause — "neither effect is from a characteristic-defining ability" — therefore holds structurally, for free. Its *second* clause, both-CDA dependency, is currently unreachable, and the reason is worth stating precisely rather than filed as "can't do".
+
+     **What would trigger it.** A CDA that reads a characteristic another CDA sets **in the same layer**: the hypothetical "this creature's power is equal to the greatest power among other creatures on the battlefield". 604.3a(3) bars a CDA from *affecting* another object but not from *reading* one, and 613.8a(a) requires the same layer, so this is the only shape that qualifies. Every printed CDA reads non-layer information (graveyards, hands, life) or strictly lower-layer information — Nightmare and Master of Etherium read Layer 4 type counts at Layer 7a — and those are independent under 613.8a(a). Searched Scryfall for both same-layer shapes: zero cards.
+
+     **What we would get wrong.** Two copies of that card depend on each other, which is a *loop*, and 613.8b resolves loops by ignoring dependency and applying in timestamp order — so the symmetric case needs nothing. The asymmetric case is the live one: one power-reader plus any other Layer 7a CDA (a Tarmogoyf). The power-reader depends on Tarmogoyf and Tarmogoyf does not depend back, so 613.8b makes Tarmogoyf apply first and the reader must see its **post-7a** power. `evaluate_amount` resolves other objects at `compute_to_ceiling(other, layer_index)` — the frame as of the *end of the previous layer* — so it would read Tarmogoyf's pre-7a value.
+
+     **The fix, and why it is not extra work.** The root cause is not that CDAs are intrinsic; it is that `compute_characteristics` walks **one object at a time** while CR 613 describes a board-wide pass per layer. The per-object walk with a descending ceiling (`layers-architecture.md` §5.2) is an optimization that is exact exactly while no two objects have a same-layer dependency — which is also the condition 613.8 exists to handle for registry effects. So:
+
+     1. Make the unit of ordering in a layer an *application* rather than a registry row: either a `ContinuousEffect` row or one object's intrinsic CDA application. The intrinsic pass already produces `EffectModification`s, so this is a wrapper type, not a redesign — it is the whole of what CDAs need to join the DAG.
+     2. `resolve_order_within_layer` then sees both kinds. 613.8a(c) prunes CDA↔non-CDA pairs; 613.3 keeps CDAs ahead of the independents.
+     3. Termination stops being "the ceiling descends" and becomes "the dependency graph is acyclic", with 613.8b's loop rule supplying the acyclicity: a loop means no edges, so members apply in timestamp order.
+     4. Mechanically that wants a per-layer memo keyed `(ObjectId, layer_index)` holding the **post-layer** value, filled in dependency order. Note the honest limit of the cheap version: marking a key in-progress and falling back to its pre-layer value on re-entry *approximates* 613.8b rather than implementing it — 613.8b has loop members apply in timestamp order relative to each other, so the second one does see the first one's result. Getting that exact means applying the layer board-wide in one sequential pass, i.e. a `compute_all(game)` with today's single-object entry point as a projection of it.
+
+     Step 4 is the expensive one and it interacts with §12's cross-call memoization, which is already scheduled between Layer 2 and 613.8 — they should land together. Steps 1–3 are cheap and are the ones the 613.8 phase would do anyway.
 
    - **A test is waiting on this.** CR 613.6's "an effect that started applying keeps applying even if its ability is removed" is implemented (item 7c) but untested, because every construction available today puts the strip in the same layer as the effect's first part. Once 613.8 lands, that test can assert a stable answer.
 
@@ -289,21 +308,49 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    - **A `reachable_zones` bitmask on `ContinuousEffectRegistry`,** maintained on add/remove. **This now has a home:** `RegistryScopeSummary` exists (`state/continuous_effects.rs`), recomputed on every `add`/`remove`, carrying the one field the CR 613.7a existence check needed. `layers-architecture.md` §5.1 already specifies `touches_hidden_zones` / `touches_stack` / `has_active_cdas` on that same struct — extend it rather than adding a parallel counter. `compute_characteristics` checks the object's zone against it and returns base characteristics on a miss. This keeps the cost at zero until someone actually plays a zone-reaching card, and even then confines it to the one zone that card reaches — queried on demand at castability-check time, never as an eager sweep over every card in the game.
 
+   **Narrowed by the CDA phase (2026-08-22).** This item once carried CR 604.3's "CDAs function in all zones" as well. It doesn't: a CDA has no filter (CR 604.3a(3)), so it never needed a zone-aware `AffectedSet`, and it now works in every zone via the intrinsic pass. What remains here is the original thing — *filter-based* effects reaching other zones. Note for whoever builds the `reachable_zones` fast path: it must not early-out an object that has a CDA of its own, which is why `apply_effects`' existing fast path already has a third term.
+
    The mask also generalizes the existing fast path, which today early-outs only when the registry is *entirely* empty: with it, a card in hand early-outs even with many battlefield effects registered. Worth building **with** the first zone-reaching card, not before — there is nothing to test against otherwise. Note that Aminatou additionally needs item 3 (the cost-modification pipeline) for "its miracle cost is equal to its mana cost reduced by {4}".
 
-10. **The `Layer` enum is missing two sublayers, and CDAs are designed but absent — doc/code drift.**
+10. **The `Layer` enum is missing a sublayer split — doc/code drift.** (The CDA half of this item is ✅ done, 2026-08-22; see below.)
 
     **Layer 1a / 1b.** CR 613.2 splits layer 1 into face-down effects (1a) and copy effects (1b), and `layers-architecture.md` §7 specifies both variants and says Phase LA ships them. The enum has a single `Layer1Copy`. Order matters: a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2). Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
 
     **Keywords are abilities, and we model some of them as markers.** CR 702.6a is explicit — "Equip is an activated ability of Equipment cards" — and spells out the ability it means; 702.5a makes Enchant a static ability. Both are `KeywordAbility` variants carrying the comment "parameterized in the ability definition, not here", i.e. the mechanical `AbilityDef` lives on the card and the enum entry is a flag. So `Primitive::GrantKeyword(Equip)` would set the flag and grant no ability. `EffectModification::can_change_abilities()` classifies `GrantKeyword`/`RemoveKeyword` as `true` for this reason — conservative on purpose, because a wrong `false` there silently skips the CR 613.7a existence check. Costs nothing measurable: no card in `CardRegistry` has a static `GrantKeyword` ability.
 
-    **CDAs.** `layers-architecture.md` §6 specifies the whole thing: `ContinuousEffect.is_cda`, `AbilityDef.is_characteristic_defining`, CDA-first partitioning inside each of layers 2–6, and the CR 613.8a(c) short-circuit that makes CDA↔non-CDA pairs independent. It says Phase LA ships the field. **None of it exists in code**, and the `Layer` enum has no `Layer7aCdaPT` — it jumps `Layer6Ability` → `Layer7bSetPT`, so CR 613.4a's sublayer has no home and neither does Tarmogoyf.
+    **CDAs — ✅ done (2026-08-22),** and not the way §6 designed. `Layer::Layer7aCdaPT` is in the enum and in `LAYER_ORDER` (now 10 entries). Tarmogoyf and Culling Drone (Devoid) are in `cards/phase_le_cards.rs`.
 
-    Concrete cards: Changeling (CR 702.73a, "Changeling is a characteristic-defining ability") and Devoid (702.114a) are both CDAs, so this is not only a Tarmogoyf concern. CR 604.3 makes CDAs function in **all zones**, which ties it to item 9 as well.
+    §6 planned `ContinuousEffect.is_cda` plus CDA-first partitioning of each layer's registry slice. **The registry holds no CDAs at all.** CR 604.3a(3) — a CDA "does not directly affect the characteristics of any other objects" — is a criterion, not an observation, so every CDA applies to exactly the object that has it. There is nothing for an `AffectedSet` to select. `engine/layers/cda.rs` applies them off the object's own effective ability list at Layers 4, 5 and 7a, ahead of that layer's registry slice, and `ContinuousEffectRegistry::add` asserts nothing registers into 7a. CR 613.3's ordering, CR 613.7a's existence check, and CR 613.8a(c)'s first clause all fall out of that rather than being built.
 
-    **Schedule it before CR 613.8, not after.** 613.8a(c) reads CDA-ness as an input, so the dependency algorithm cannot be written correctly without `is_cda`.
+    **This unblocked item 9 rather than depending on it.** The old claim here — "CR 604.3 makes CDAs function in all zones, which ties it to item 9 as well" — was wrong. Item 9 is about *filter-based* effects reaching other zones; a CDA has no filter, and `compute_characteristics` reads `game.objects`, so a Tarmogoyf in a graveyard has a power and toughness with none of item 9's work. `get_effective_power`/`get_effective_toughness` dropped their battlefield gate accordingly.
 
-    One caveat on how: CR 604.3a criterion (2) keys on whether the ability was *printed on the card it affects*, granted by a token-creating effect, or acquired by a copy or text-changing effect. The engine tracks no such provenance, so an `is_cda` flag derived automatically would be a guess; §6's plan of marking it on `AbilityDef` at card-definition time sidesteps that and is the right call.
+    **Provenance (CR 604.3a(2)) is not on the flag.** `AbilityDef.is_characteristic_defining` carries only the four criteria that are properties of the ability's text. Whether the ability was *printed on the object it affects* depends on how it got there, and the same `AbilityDef` can arrive by several routes — so it is maintained by whoever writes the ability onto the object. Copy (Layer 1) and text-changing (Layer 3) effects hand the def over whole, which is exactly what 604.3a(2) wants. **A future Layer 6 `GrantAbility` must clear the flag on the def it grants:** a granted ability is never a CDA however its text reads. That is the one debt this design leaves, and it belongs to the Layer 6 phase.
+
+    Still open: **CDA↔CDA dependency** (613.8a(c)'s second clause) — see item 8.
+
+### Test-support duplication — cross-cutting
+
+**`tests/common/` cannot reach unit tests, and the helpers have started to fork.**
+`put_on_battlefield` exists in `tests/common/mod.rs` and again in `layers::cda`'s test
+module; `registered`/`make_effect` — the same "one registry row applying to one object"
+helper — exists three times (`layers::cda`, `state::continuous_effects`,
+`tests/phase_le_integration_test.rs`) with three signatures; `put_in_hand` is in
+`tests/common` and again in `phase_3_integration_test.rs`.
+
+This is structural, not laziness: integration tests link the crate as an external
+dependency, so they cannot see `#[cfg(test)]` items, and unit tests inside `src/` cannot see
+`tests/common/`. Nothing shared can live in either place. The fix is a `pub mod test_support`
+in the library, either always compiled or behind a `test-support` cargo feature enabled by a
+self dev-dependency — the latter keeps it out of release builds at the cost of a slightly
+odd `Cargo.toml`. Whichever, the migration touches every test file that currently rolls its
+own, so it wants to be its own change rather than a rider on a phase.
+
+Getting cheaper to fix now than later, which is the argument for doing it before the next
+phase adds a fourth copy.
+
+### Before card breadth (Phase 8)
+
+1. **CR 208.3 — a noncreature permanent has no P/T.** "A noncreature permanent has no power or toughness, even if it's a card with a power and toughness printed on it (such as a Vehicle)." `get_effective_power`/`get_effective_toughness` return the printed numbers for an unanimated Vehicle. Pre-existing and unreachable today — no Vehicle is implemented — but visible now that those accessors are no longer gated on the battlefield (CDA phase, 2026-08-22). Fix belongs with the first Vehicle: gate on `chars.types.contains(Creature)` for battlefield objects only, since CR 208.3's *other* half deliberately keeps P/T on a card outside the battlefield.
 
 ### Before Triggered abilities (CR 603)
 
