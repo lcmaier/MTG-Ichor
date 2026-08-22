@@ -1838,9 +1838,11 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Mechanism:** CDA classification in ability processing routes to correct layer
 - **Minimal Board:** Tarmogoyf (CDA: power/toughness based on card types in graveyards) on the battlefield
 - **Action:** Verify that Tarmogoyf's P/T is computed in Layer 7a (CDA sublayer), not Layer 7d (counters) or Layer 7c (modifications)
-- **Expected Result:** P/T computed in Layer 7a. A "remove all abilities" effect does NOT remove the CDA-defined P/T (CDAs define characteristics, not grant abilities in the Layer 6 sense).
+- **Expected Result:** P/T computed in Layer 7a, not Layer 7b (set), 7c (modify), or 7d (switch). A "remove all abilities" effect **does** remove the CDA-defined P/T: a CDA is a static ability (604.3), Layer 6 removes abilities, and 613.4a puts Layer 7a *after* Layer 6, so the CDA is gone before 7a evaluates. Under Humility, Tarmogoyf is 1/1.
 - **Phase:** Phase 5 Layers (L18 — CDA handling)
 - **Ticket:** L18
+- **Cross-ref:** COMP-613-TARMOGOYF-HUMILITY-001, which walks the same board layer by layer.
+- **Correction (2026-08-22):** this atom previously expected the opposite — that a "remove all abilities" effect does *not* remove a CDA-defined P/T, on the reasoning that CDAs define characteristics rather than granting abilities. That contradicted the COMP above and the CR. What 113.12 actually establishes is that the *resulting characteristic value* is not a granted ability; the CDA itself still is one, and is removable. ATOM-113.12-002 is the case where the value survives, and it survives for a different reason — Layer 5 precedes Layer 6, so the color is already set by the time abilities are stripped. Applied to P/T the reasoning inverts, because 7a follows 6.
 
 **ATOM-113.12-002**
 - **Rule:** 113.12 — A color CDA is applied in Layer 5, not Layer 6
