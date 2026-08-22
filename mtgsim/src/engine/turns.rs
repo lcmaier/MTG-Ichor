@@ -205,24 +205,7 @@ mod tests {
     use crate::state::game_state::{GameState, PhaseType, StepType};
     use crate::types::card_types::*;
     use crate::types::mana::ManaType;
-
-    /// Helper: give each player enough cards in library to not deck out during draw steps
-    fn stock_libraries(game: &mut GameState, cards_per_player: usize) {
-        let num_players = game.num_players();
-        for pid in 0..num_players {
-            for _ in 0..cards_per_player {
-                let forest = CardDataBuilder::new("Forest")
-                    .card_type(CardType::Land)
-                    .supertype(Supertype::Basic)
-                    .subtype(Subtype::Land(LandType::Forest))
-                    .mana_ability_single(ManaType::Green)
-                    .build();
-                let obj = GameObject::in_library(forest, pid);
-                let id = game.add_object(obj);
-                game.players[pid].library.push(id);
-            }
-        }
-    }
+    use crate::test_support::stock_libraries;
 
     #[test]
     fn test_advance_through_beginning_phase() {

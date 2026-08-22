@@ -526,23 +526,7 @@ mod tests {
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
-
-    fn make_bolt() -> std::sync::Arc<crate::objects::card_data::CardData> {
-        CardDataBuilder::new("Lightning Bolt")
-            .card_type(CardType::Instant)
-            .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                id: crate::types::ids::new_ability_id(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
-                    Primitive::DealDamage(AmountExpr::Fixed(3)),
-                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-                ),
-            })
-            .build()
-    }
+    use crate::test_support::lightning_bolt as make_bolt;
 
     fn setup_for_casting() -> (GameState, ObjectId, ScriptedDecisionProvider) {
         let mut game = GameState::new(2, 20);
