@@ -6,3 +6,17 @@ edition = "2024"
 [dependencies]
 uuid = { version = "1.16", features = ["v4", "v5"] }
 rand = "0.9"
+
+[features]
+# Shared test helpers (`src/test_support.rs`), visible to both the `src/` unit tests
+# and the `tests/` integration tests. Off by default, so it does not ship in a
+# release build.
+test-support = []
+
+[dev-dependencies]
+# A dependency on ourselves, purely to turn `test-support` on for test builds.
+# Integration tests link the crate as an external dependency and so cannot see
+# `#[cfg(test)]` items; this is what lets one copy of a helper serve both sides.
+# `cargo test` and `cargo build --all-targets` enable the feature; a plain
+# `cargo build` does not build dev-dependencies at all, so the module is excluded.
+mtgsim = { path = ".", features = ["test-support"] }
