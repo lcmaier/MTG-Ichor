@@ -76,6 +76,20 @@ Two rules follow, and both have already cost a redesign:
   optimization. `test_self_stripping_land_terminates_and_is_stable` overflows the stack if
   the existence check asks at the full ceiling. See `layers-architecture.md` §5.2.
 
+## CDAs are never registry effects
+
+CR 604.3a(3) makes "affects no other object" a *criterion* for being a
+characteristic-defining ability, so every CDA applies to exactly the object that has it —
+no filter, no `AffectedSet`, no row. `engine/layers/cda.rs` applies them off the object's
+own effective ability list at layers 4, 5 and 7a, ahead of that layer's registry slice;
+`register_static_effects` skips them and `ContinuousEffectRegistry::add` asserts nothing
+lands in `Layer7aCdaPT`. Registering one as well would apply it twice.
+
+`AbilityDef.is_characteristic_defining` asserts only what the ability's *text* satisfies.
+CR 604.3a(2) is provenance and belongs to whoever writes the ability onto an object: a copy
+or text-changing effect hands the flag along (correct), and **a Layer 6 `GrantAbility` must
+clear it** — a granted ability is never a CDA. `layers-architecture.md` §6.
+
 ## Critical path to v1
 
 Dependency order — each needs the ones above. Ordering only; the reasoning for
@@ -117,8 +131,9 @@ completeness. Read `stats` per phase; the TOTAL row is noise.
 
 ## Git workflow
 
-Per-phase branches → PR → merge to main. Branch names name the single phase they carry.
-**Don't rename branches or push a name the user didn't choose.**
+One branch per unit of work → PR → merge to main. **Ask for the branch name; don't
+invent one, don't rename a branch, and don't push a name the user didn't choose.** (The
+old `phase-LX` naming convention is retired — topic names like `layers/cdas` are fine.)
 
 Merge with a merge commit or "Rebase and merge", never squash — this project leans on
 its written record and squashing discards per-commit messages.

@@ -161,10 +161,7 @@ pub struct ContinuousEffect {
     /// Which layer/sublayer this effect applies in.
     pub layer: Layer,
 
-    /// True if this effect comes from a CDA (CR 604.3). CDAs sort
-    /// before non-CDAs within the same layer and are handled specially
-    /// by dependency detection (CR 613.8a(c)).
-    pub is_cda: bool,
+    // NOT BUILT: `is_cda: bool`. CDAs are never registry effects — see §6.
 
     /// When the effect becomes inactive.
     pub duration: Duration,
@@ -277,10 +274,10 @@ pub enum EffectModification {
     // --- Layer 5 ---
     AddColor(Color),
     SetColors(HashSet<Color>),
-    /// "Becomes colorless". Used by both non-CDA effects ("target
-    /// creature becomes colorless UEOT") and CDA effects (Devoid).
-    /// The `is_cda` flag on the containing `ContinuousEffect`
-    /// differentiates; the `EffectModification` variant is the same.
+    /// "Becomes colorless". One variant serves both "target creature
+    /// becomes colorless UEOT" (a registry effect) and Devoid (a CDA,
+    /// applied intrinsically by `layers::cda`) — nothing has to tell
+    /// them apart here, because they arrive by different routes.
     RemoveAllColors,
 
     // --- Layer 6 ---
@@ -289,12 +286,15 @@ pub enum EffectModification {
     LoseAllAbilities,
 
     // --- Layer 7a (CDA) ---
-    /// Set base P/T via CDA. Tarmogoyf, Mortivore, etc.
-    /// `is_cda` on the effect must be true.
-    CdaSetPT { power: i32, toughness: i32 },
+    // NOT BUILT: `CdaSetPT`. Tarmogoyf's CDA reuses `SetPowerToughness`
+    // below, applied by `layers::cda` at `Layer7aCdaPT` — a CDA is not a
+    // registry effect, so there is no row needing its own variant (§6).
 
     // --- Layer 7b ---
-    SetPowerToughness { power: i32, toughness: i32 },
+    /// As built: `PtValue` per side, so a static ability's amount can be
+    /// re-evaluated at every layer (March of the Machines, Tarmogoyf)
+    /// while a resolved spell stays a signed literal.
+    SetPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7c ---
     /// +N/+N or -N/-N. Includes counter-derived modifiers synthesized
@@ -586,20 +586,68 @@ Two refinements worth knowing before extending it:
 
 ---
 
-## 6. CDA Handling
+## 6. CDA Handling — implemented 2026-08-22
 
-CR 613.6: CDAs are applied before non-CDA effects in each layer.
+**The design below replaces this section's original plan**, which put CDAs in the
+registry as `ContinuousEffect.is_cda` and had `resolve_order_within_layer` partition each
+layer's slice into CDAs and non-CDAs. Nothing was built that way. Recorded here rather than
+deleted, because the reason it changed is the useful part.
 
-Implementation:
+### The rule that decides the shape
 
-1. `ContinuousEffect.is_cda: bool` is set at effect construction.
-2. Within each layer, `resolve_order_within_layer` partitions effects into CDAs and non-CDAs.
-3. Within each partition, dependency ordering (or timestamp fallback) is applied.
-4. CDAs apply first, then non-CDAs.
+CR 604.3a(3): a CDA "does not directly affect the characteristics of any other objects."
+That is one of the five criteria for *being* a CDA, not an observation about Tarmogoyf. So
+**every CDA applies to exactly the object that has it** — there is nothing for an
+`AffectedSet` to select, no filter to evaluate, and no reason for a registry row.
 
-CDAs are never dependent on non-CDAs (CR 613.8a(c)) — the dependency algorithm's step 3 enforces this by short-circuiting CDA↔non-CDA pairs as independent regardless of static-check results.
+`engine/layers/cda.rs` therefore applies CDAs straight off the object's own effective
+ability list (`chars.abilities`), at Layers 4, 5 and 7a, *before* that layer's registry
+slice. `ContinuousEffectRegistry::add` `debug_assert!`s that nothing registers into
+`Layer7aCdaPT`.
 
-CDAs come from printed abilities marked as such on the card (a new field on `AbilityDef`, e.g. `is_characteristic_defining: bool`). Phase LA introduces this field; Phase LB populates it for cards that need 7c interactions (none yet); Phase LC populates it for Tarmogoyf-family cards (Layer 7a CDA P/T).
+Four things the registry design would have had to build fall out of this instead:
+
+- **CR 613.3's ordering.** "Apply effects from characteristic-defining abilities first, then
+  all other effects in timestamp order." Running the intrinsic pass before the registry
+  slice *is* that sentence. No sort key, no partition, no `Vec` per layer per object.
+- **CR 613.7a's existence check.** `chars.abilities` at Layer 7a is already the
+  post-Layer-6 list, so Humility removes a Tarmogoyf's CDA before 7a can read it — no
+  `static_ability_still_exists` call involved. Same one layer earlier: `land_types` clears
+  abilities for CR 305.7 in Layer 4, so a Blood-Mooned land has lost a colour CDA before
+  Layer 5 looks.
+- **CR 613.8a(c)'s first clause.** With no CDA in the registry, every pair §9's algorithm
+  will see is non-CDA↔non-CDA. Structural, not checked.
+- **CR 604.3's "function in all zones".** `compute_characteristics` reads `game.objects`,
+  not `game.battlefield`, so a Tarmogoyf in a graveyard has a P/T without any of Deferred
+  Migrations item 9's zone-aware `AffectedSet` work. That item turned out to be about
+  *filter-based* effects reaching other zones — a different shape — and is not a
+  prerequisite for CDAs after all.
+
+### Provenance, CR 604.3a(2)
+
+`AbilityDef.is_characteristic_defining` asserts only the four criteria that are properties
+of the ability's *text* — (1), (3), (4), (5). Criterion (2) is about how the ability reached
+the object, and the same `AbilityDef` can arrive by several routes, so no bool on a
+definition can state it. It is maintained by whoever writes the ability onto the object:
+
+| Route | Flag | Why |
+|---|---|---|
+| Printed on the card | as authored | 604.3a(2), first clause |
+| Copy effect (Layer 1), text-changing effect (Layer 3) | rides along on the def | 604.3a(2), third clause — free, and the reason Deadpool, Trading Card would work once Layer 3 exists |
+| Layer 6 `GrantAbility` | **must be cleared** | a granted ability is never a CDA, however its text reads |
+
+The last row is a debt owed by the Layer 6 phase, tracked in `codebase-state.md` item 10.
+
+### What is not covered
+
+**CDA↔CDA dependency**, 613.8a(c)'s second clause: the intrinsic pass sits outside whatever
+DAG §9 builds, so a later 613.8 phase can order registry rows but cannot reach it. Reaching
+it requires a CDA that reads a characteristic another CDA sets *in the same layer* — 604.3a(3)
+bars a CDA from *affecting* another object but not from *reading* one, and 613.8a(a) requires
+the same layer. Every printed CDA reads either non-layer information (graveyards, hands,
+life) or strictly lower-layer information, so none can be dependent. Searched Scryfall for
+both same-layer shapes; zero cards. Details and the fix-if-needed in `codebase-state.md`
+item 8.
 
 ---
 
@@ -637,7 +685,7 @@ Adopted from `design_doc.md:636-664`, adjusted for `CharacteristicCategory`:
 > **Hybrid algorithm:** structural analysis eliminates most pairs cheaply; hypothetical check runs only on candidates.
 >
 > 1. **Collect** all active effects in this layer/sublayer.
-> 2. **CDA guard** (CR 613.8a(c)) — if one is a CDA and the other isn't, they're independent. Cheap bool check; do this before the static check to prune the candidate pool.
+> 2. ~~**CDA guard** (CR 613.8a(c))~~ — **no longer a step.** CDAs are never registry effects (§6), so every pair reaching this algorithm is already non-CDA↔non-CDA and 613.8a(c) is satisfied before it starts. Nothing to check and nothing to prune.
 > 3. **Static check** — does `B.layer.category()` appear in `A.filter_reads`? If not → independent.
 > 4. **Hypothetical check** — temporarily apply B to a frame snapshot, recompute A's `affected`, compare. If different → A depends on B.
 > 5. **Build DAG** — edges: B → A (apply B before A).
@@ -646,8 +694,10 @@ Adopted from `design_doc.md:636-664`, adjusted for `CharacteristicCategory`:
 ### Interface (Phase LA — signature only; Phase LC — body)
 
 ```rust
-/// Resolve dependency + timestamp ordering within a single layer partition
-/// (CDAs separate from non-CDAs, each called once).
+/// Resolve dependency + timestamp ordering within a single layer.
+///
+/// One call per layer, not two: §6's CDA/non-CDA partition does not exist,
+/// because CDAs are never registry effects.
 ///
 /// # Arguments
 /// - `effects`: all effects in this (layer, cda-ness) bucket
