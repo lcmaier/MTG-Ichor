@@ -640,14 +640,21 @@ The last row is a debt owed by the Layer 6 phase, tracked in `codebase-state.md`
 
 ### What is not covered
 
-**CDA↔CDA dependency**, 613.8a(c)'s second clause: the intrinsic pass sits outside whatever
-DAG §9 builds, so a later 613.8 phase can order registry rows but cannot reach it. Reaching
-it requires a CDA that reads a characteristic another CDA sets *in the same layer* — 604.3a(3)
-bars a CDA from *affecting* another object but not from *reading* one, and 613.8a(a) requires
-the same layer. Every printed CDA reads either non-layer information (graveyards, hands,
-life) or strictly lower-layer information, so none can be dependent. Searched Scryfall for
-both same-layer shapes; zero cards. Details and the fix-if-needed in `codebase-state.md`
-item 8.
+**CDA↔CDA dependency**, 613.8a(c)'s second clause. Reaching it requires a CDA that reads a
+characteristic another CDA sets *in the same layer* — 604.3a(3) bars a CDA from *affecting*
+another object but not from *reading* one, and 613.8a(a) requires the same layer. Every
+printed CDA reads either non-layer information (graveyards, hands, life) or strictly
+lower-layer information, so none can be dependent; searched Scryfall for both same-layer
+shapes, zero cards.
+
+Not a dead end, and not really about CDAs. The root cause is that `compute_characteristics`
+walks one object at a time while CR 613 describes a board-wide pass per layer — §5.2's
+descending ceiling is an optimization that is exact precisely while no two objects have a
+same-layer dependency, which is the same condition §9 exists to handle for registry effects.
+The fix is to make the unit of ordering an *application* (a registry row **or** one object's
+intrinsic CDA application) so both kinds enter the DAG together; the intrinsic pass already
+produces `EffectModification`s, so that is a wrapper type rather than a redesign.
+`codebase-state.md` item 8 has the four steps and flags which one is expensive.
 
 ---
 
