@@ -381,10 +381,6 @@ pub fn lands_have_flying() -> Arc<CardData> {
 /// "artifact that is not a creature". After Layer 4 runs, nothing matches that
 /// filter any more — which is exactly why 613.6 says the effect "will continue
 /// to be applied to the same set of objects in each other applicable layer".
-///
-/// **Simplified P/T.** The printed card sets power and toughness to mana value;
-/// `register_static_effects` only understands `AmountExpr::Fixed`, so this is a
-/// flat 2/2. The simplification is orthogonal to what the card is here to test.
 pub fn march_of_the_machines() -> Arc<CardData> {
     // Artifact AND NOT Creature
     let noncreature_artifact = PermanentFilter::And(
@@ -423,8 +419,8 @@ pub fn march_of_the_machines() -> Arc<CardData> {
                 ),
                 Effect::Atom(
                     Primitive::SetPowerToughness(
-                        AmountExpr::Fixed(2),
-                        AmountExpr::Fixed(2),
+                        AmountExpr::AffectedManaValue,
+                        AmountExpr::AffectedManaValue,
                         Duration::WhileSourceOnBattlefield,
                     ),
                     EffectRecipient::FilteredPermanents(noncreature_artifact),

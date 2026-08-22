@@ -25,7 +25,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::types::keywords::KeywordAbility;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
-use mtgsim::types::mana::ManaType;
+use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -633,9 +633,12 @@ fn test_613_6_effect_keeps_applying_after_its_own_filter_breaks() {
 
     let mut game = setup_two_player_game();
 
-    // A vanilla noncreature artifact with no printed P/T.
+    // A vanilla noncreature artifact with no printed P/T. The mana cost is
+    // load-bearing now that March sets P/T to mana value rather than a flat 2:
+    // a {3} artifact becomes 3/3, and a costless one would become 0/0 and die.
     let artifact_data = CardDataBuilder::new("Ornithopter Shell")
         .card_type(CardType::Artifact)
+        .mana_cost(ManaCost::build(&[], 3))
         .build();
     let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
 
@@ -654,10 +657,50 @@ fn test_613_6_effect_keeps_applying_after_its_own_filter_breaks() {
     // effect keeps applying to the set it started on.
     assert_eq!(
         get_effective_power(&game, artifact_id),
-        Some(2),
+        Some(3),
         "CR 613.6: the Layer 7b part must still apply after Layer 4 broke the filter"
     );
-    assert_eq!(get_effective_toughness(&game, artifact_id), Some(2));
+    assert_eq!(get_effective_toughness(&game, artifact_id), Some(3));
+}
+
+// ===========================================================================
+// Deferred Migrations item 7e — a static ability's P/T amount is evaluated
+// during the layer walk, not collapsed to a constant at registration.
+// ===========================================================================
+
+#[test]
+fn test_march_of_the_machines_pt_equals_mana_value() {
+    use mtgsim::objects::card_data::CardDataBuilder;
+
+    let mut game = setup_two_player_game();
+
+    // Two artifacts of different mana value under one March. A single flat
+    // number cannot satisfy both, which is the point: before item 7e was
+    // fixed, `register_static_effects` dropped any non-`Fixed` amount and the
+    // card had to be authored as a flat 2/2 to work at all.
+    let cheap = put_on_battlefield(
+        &mut game,
+        CardDataBuilder::new("Bone Saw")
+            .card_type(CardType::Artifact)
+            .mana_cost(ManaCost::build(&[], 1))
+            .build(),
+        0,
+    );
+    let pricey = put_on_battlefield(
+        &mut game,
+        CardDataBuilder::new("Colossus Frame")
+            .card_type(CardType::Artifact)
+            .mana_cost(ManaCost::build(&[], 5))
+            .build(),
+        0,
+    );
+
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    assert_eq!(get_effective_power(&game, cheap), Some(1));
+    assert_eq!(get_effective_toughness(&game, cheap), Some(1));
+    assert_eq!(get_effective_power(&game, pricey), Some(5));
+    assert_eq!(get_effective_toughness(&game, pricey), Some(5));
 }
 
 // ===========================================================================

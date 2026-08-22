@@ -261,9 +261,12 @@ impl GameState {
                     created_on_turn: self.turn_number,
                     timestamp,
                     affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    // CR 608.2h — a resolving spell locks its value in as it
+                    // resolves, so this is `Fixed` even though the card text
+                    // said "X". Static abilities are the ones that stay live.
                     modification: crate::engine::layers::EffectModification::ModifyPowerToughness {
-                        power,
-                        toughness,
+                        power: crate::engine::layers::types::PtValue::Fixed(power),
+                        toughness: crate::engine::layers::types::PtValue::Fixed(toughness),
                     },
                 };
                 self.continuous_effects.add(effect);
@@ -289,8 +292,8 @@ impl GameState {
                     timestamp,
                     affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
                     modification: crate::engine::layers::EffectModification::SetPowerToughness {
-                        power,
-                        toughness,
+                        power: crate::engine::layers::types::PtValue::Fixed(power),
+                        toughness: crate::engine::layers::types::PtValue::Fixed(toughness),
                     },
                 };
                 self.continuous_effects.add(effect);
@@ -486,6 +489,14 @@ impl GameState {
             AmountExpr::DamageDealt => {
                 Err("DamageDealt amount resolution not yet implemented".to_string())
             }
+            // Meaningful only inside the layer walk, where "it" is the object
+            // the continuous effect is being applied to. A resolving spell has
+            // no such object — see `compute::evaluate_pt_value`.
+            AmountExpr::AffectedManaValue => Err(
+                "AffectedManaValue has no meaning at resolution time; it is evaluated \
+                 per-object during the layer walk"
+                    .to_string(),
+            ),
         }
     }
 

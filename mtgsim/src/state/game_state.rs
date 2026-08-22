@@ -338,12 +338,30 @@ impl GameState {
     /// Reads printed abilities on purpose: it runs inside
     /// `place_on_battlefield`, before this object's own effect is registered,
     /// so computing effective characteristics here would be circular.
+    /// Lower a card-definition amount into a registry P/T value.
+    ///
+    /// `Fixed` collapses to a literal so the common case stays a plain integer;
+    /// everything else is carried through as an expression and evaluated at
+    /// every layer by `compute::evaluate_pt_value`.
+    ///
+    /// This used to `continue` on any non-`Fixed` amount, which silently
+    /// dropped the whole atom — a static ability with a computed P/T registered
+    /// nothing at all and failed no test (Deferred Migrations item 7e).
+    fn pt_value(expr: &crate::types::effects::AmountExpr) -> crate::engine::layers::types::PtValue {
+        use crate::engine::layers::types::PtValue;
+        use crate::types::effects::AmountExpr;
+        match expr {
+            AmountExpr::Fixed(n) => PtValue::Fixed(*n as i32),
+            other => PtValue::Dynamic(other.clone()),
+        }
+    }
+
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
         use crate::engine::layers::types::{
             AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
         };
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
+        use crate::types::effects::{Duration, Effect, EffectRecipient, Primitive};
 
         let abilities = if let Some(obj) = self.objects.get(&id) {
             obj.card_data.abilities.clone()
@@ -386,14 +404,16 @@ impl GameState {
                 // Map primitive → (layer, modification)
                 let (layer, modification) = match primitive {
                     Primitive::ModifyPowerToughness(p_expr, t_expr, _dur) => {
-                        let p = match p_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        (Layer::Layer7cModifyPT, EffectModification::ModifyPowerToughness { power: p, toughness: t })
+                        (Layer::Layer7cModifyPT, EffectModification::ModifyPowerToughness {
+                            power: Self::pt_value(p_expr),
+                            toughness: Self::pt_value(t_expr),
+                        })
                     }
                     Primitive::SetPowerToughness(p_expr, t_expr, _dur) => {
-                        let p = match p_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        (Layer::Layer7bSetPT, EffectModification::SetPowerToughness { power: p, toughness: t })
+                        (Layer::Layer7bSetPT, EffectModification::SetPowerToughness {
+                            power: Self::pt_value(p_expr),
+                            toughness: Self::pt_value(t_expr),
+                        })
                     }
                     Primitive::SwitchPowerToughness(_dur) => {
                         (Layer::Layer7dSwitchPT, EffectModification::SwitchPowerToughness)

@@ -49,6 +49,25 @@ pub enum Layer {
     Layer7dSwitchPT,
 }
 
+/// One side of a power/toughness modification.
+///
+/// Two variants rather than one, because the two carry different things and
+/// neither subsumes the other:
+///
+/// - `Fixed` is a **signed** literal. `ModifyPowerToughness { power: -1, .. }`
+///   is ordinary (Weakness, `-1/-1` counters), and `AmountExpr::Fixed` is `u64`,
+///   so the amount language cannot express it.
+/// - `Dynamic` is an expression evaluated during the layer walk, every time, on
+///   the frame as of the end of the previous layer. March of the Machines' "each
+///   equal to its mana value" and Tarmogoyf's graveyard count are both this: the
+///   value has to track the game rather than be snapshotted at registration,
+///   which is what CR 604.7 and 613.4a require.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PtValue {
+    Fixed(i32),
+    Dynamic(crate::types::effects::AmountExpr),
+}
+
 /// What a continuous effect does to each affected object.
 /// Each variant belongs to exactly one layer.
 #[derive(Debug, Clone, PartialEq)]
@@ -78,10 +97,10 @@ pub enum EffectModification {
     LoseAllAbilities,
 
     // --- Layer 7b ---
-    SetPowerToughness { power: i32, toughness: i32 },
+    SetPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7c ---
-    ModifyPowerToughness { power: i32, toughness: i32 },
+    ModifyPowerToughness { power: PtValue, toughness: PtValue },
 
     // --- Layer 7d ---
     SwitchPowerToughness,

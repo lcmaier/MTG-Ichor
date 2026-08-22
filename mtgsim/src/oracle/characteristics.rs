@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn test_get_effective_power_with_modifier() {
         use crate::engine::layers::types::{
-            AffectedSet, ContinuousEffect, EffectModification, Layer,
+            AffectedSet, ContinuousEffect, EffectModification, Layer, PtValue,
         };
         use crate::types::effects::Duration;
 
@@ -274,7 +274,7 @@ mod tests {
             created_on_turn: 1,
             timestamp: 1,
             affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 0 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(0) },
         };
         game.continuous_effects.add(effect);
 

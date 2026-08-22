@@ -16,6 +16,18 @@ pub enum AmountExpr {
     Variable,
     /// "equal to the number of [things matching selector]"
     CountOf(Selector),
+    /// "equal to its mana value", where "it" is the object the continuous
+    /// effect is being applied to — March of the Machines' "power and toughness
+    /// each equal to its mana value".
+    ///
+    /// Read off the affected object's *effective* mana cost mid-layer-walk, not
+    /// off `CardData`: a Layer 1 copy effect changes mana cost, and CR 202.3b
+    /// makes an object with no mana cost mana value 0.
+    ///
+    /// Distinct from `TargetPower` and friends below, which are resolution-time
+    /// and read the target of a spell. This one has meaning in a static context,
+    /// which is what lets `compute.rs` evaluate it at every layer.
+    AffectedManaValue,
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"

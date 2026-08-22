@@ -298,6 +298,42 @@ fn permanent_matches_filter(
     }
 }
 
+/// Resolve one side of a P/T modification against the frame so far.
+///
+/// `None` means the expression has no meaning in a static context — `Variable`
+/// is CR 107.3's X, chosen as a spell is cast, and the `Target*`/`DamageDealt`
+/// arms read a resolution that already happened. A continuous effect asking for
+/// one of those is a card-authoring error, so it asserts in debug and declines
+/// to apply in release rather than inventing a number.
+///
+/// Evaluated fresh at every layer: that is the point of `PtValue::Dynamic`.
+fn evaluate_pt_value(
+    value: &PtValue,
+    chars: &EffectiveCharacteristics,
+) -> Option<i32> {
+    use crate::types::effects::AmountExpr;
+
+    match value {
+        PtValue::Fixed(n) => Some(*n),
+        PtValue::Dynamic(expr) => match expr {
+            AmountExpr::Fixed(n) => Some(*n as i32),
+            // CR 202.3b — an object with no mana cost has mana value 0.
+            AmountExpr::AffectedManaValue => {
+                Some(chars.mana_cost.as_ref().map(|c| c.mana_value()).unwrap_or(0) as i32)
+            }
+            other => {
+                debug_assert!(
+                    false,
+                    "continuous effect on '{}' carries {:?}, which has no static-context \
+                     evaluator — see Deferred Migrations item 7e",
+                    chars.name, other
+                );
+                None
+            }
+        },
+    }
+}
+
 /// Apply a single effect modification to the characteristics frame.
 ///
 /// `object_id` is the object being computed. Layer 4's subtype arms need it to
@@ -346,17 +382,29 @@ fn apply_modification(
 
         // Layer 7b
         EffectModification::SetPowerToughness { power, toughness } => {
-            chars.power = Some(*power);
-            chars.toughness = Some(*toughness);
+            // Evaluated before mutating: `AffectedManaValue` reads `chars`, and
+            // setting power first would let it observe a half-applied frame.
+            let p = evaluate_pt_value(power, chars);
+            let t = evaluate_pt_value(toughness, chars);
+            if let (Some(p), Some(t)) = (p, t) {
+                chars.power = Some(p);
+                chars.toughness = Some(t);
+            }
         }
 
         // Layer 7c
         EffectModification::ModifyPowerToughness { power, toughness } => {
-            if let Some(ref mut p) = chars.power {
-                *p += power;
+            let dp = evaluate_pt_value(power, chars);
+            let dt = evaluate_pt_value(toughness, chars);
+            if let Some(dp) = dp {
+                if let Some(ref mut p) = chars.power {
+                    *p += dp;
+                }
             }
-            if let Some(ref mut t) = chars.toughness {
-                *t += toughness;
+            if let Some(dt) = dt {
+                if let Some(ref mut t) = chars.toughness {
+                    *t += dt;
+                }
             }
         }
 
@@ -429,7 +477,7 @@ mod tests {
             created_on_turn: 1,
             timestamp: 1,
             affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 0 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(0) },
         };
         game.continuous_effects.add(effect);
 
@@ -550,7 +598,7 @@ mod tests {
             created_on_turn: 1,
             timestamp: 1,
             affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 3 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) },
         };
         game.continuous_effects.add(effect);
 
@@ -632,7 +680,7 @@ mod tests {
                 filter: PermanentFilter::ByType(CardType::Creature),
                 controller: Some(0),
             },
-            modification: EffectModification::ModifyPowerToughness { power: 1, toughness: 1 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
         };
         game.continuous_effects.add(effect);
 
@@ -797,7 +845,7 @@ mod tests {
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
             affected: AffectedSet::Fixed(vec![id]),
-            modification: EffectModification::ModifyPowerToughness { power: 3, toughness: 3 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) },
         };
         game.continuous_effects.add(pt_effect);
 

@@ -231,7 +231,7 @@ mod tests {
             created_on_turn: 1,
             timestamp,
             affected: AffectedSet::SourceOnly,
-            modification: EffectModification::ModifyPowerToughness { power: 1, toughness: 1 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
         }
     }
 
