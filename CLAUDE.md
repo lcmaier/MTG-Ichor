@@ -81,14 +81,26 @@ Two rules follow, and both have already cost a redesign:
 Dependency order — each needs the ones above. For what's *done*, read
 `codebase-state.md` and run `specdb stats`.
 
-1. Layers (CR 613) core → Layer 4 Part B (`AbilityOrigin` + CR 305.7 ability stripping)
-2. Layer 6 — ability adding/removing (Humility)
-3. Layer 2 — control changing
-4. CR 613.8 dependency algorithm (ordering is timestamp-only today)
-5. Replacement effects (CR 614–616) — stub hook at `engine/actions.rs:86-89`
-6. Triggered abilities (CR 603) — insertion point at `engine/priority.rs:235`
+1. Layers (CR 613) core → Layer 4 Part B → static-ability effect existence in
+   the walk (CR 613.7a / 613.6)
+2. **CDAs** (CR 604.3, 613.3 CDA-first ordering, 613.4a `Layer7aCdaPT`). Ahead of
+   613.8 because 613.8a(c) reads CDA-ness as an input, and on the v1 path at all
+   because Tarmogoyf is a Tier-1 card. Designed in `layers-architecture.md` §6,
+   absent from code. Needs the non-`Fixed` `AmountExpr` gap closed first.
+3. Layer 6 — ability adding/removing (Humility)
+4. Layer 2 — control changing
+5. CR 613.8 dependency algorithm — the hybrid algorithm **and** re-evaluating
+   dependencies after each effect is applied, not once per layer
+6. Replacement effects (CR 614–616) — stub hook at `engine/actions.rs:86-89`
+7. Triggered abilities (CR 603) — insertion point at `engine/priority.rs:235`
 
-Phase 8 (card breadth) and Phase 9 (formats) are **not** on the v1 path.
+Not blocking, but scheduled against the above: conditional static abilities
+(`Effect::Conditional`, which Layer 2 makes urgent) and cross-call memoization
+(best after Layer 2, so the invalidation surface is known, and before 613.8,
+whose hypothetical checks are expensive). See `layers-architecture.md` §12.
+
+Phase 8 (card breadth) and Phase 9 (formats) are **not** on the v1 path — v1 is
+a correct two-player Standard game. Commander is Tier 2.
 
 ## Spec database
 
