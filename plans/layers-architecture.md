@@ -479,6 +479,11 @@ The single entry point all oracle queries route through.
 
 **Critical correctness requirement:** applicable effects are gathered **per layer**, not once upfront. This is why the layer system exists — Layer 4 can change what "is a creature", which determines whether a Layer 6 effect targeting creatures applies. Gathering all applicable effects before layer 1 would miss this.
 
+**This applies to effect *existence*, not only to what an effect applies to (2026-08-21).** A continuous effect from a static ability exists only while its source still has that ability, and CR 305.7 or Layer 6 can take it away mid-walk without touching the registry. So registry membership is not existence: the gather step re-checks it per layer, against the source's frame as of the end of the previous layer (see `EffectOrigin` and `static_ability_still_exists`). Because each effect is gathered at most once and the pending set only shrinks, this terminates structurally — there is no fixpoint over the registry and nothing to iterate. Two consequences:
+
+- Do **not** add reconcile-the-registry machinery at state-mutation chokepoints. It was tried and discarded; it needs an iteration cap and invents oscillation the CR does not have.
+- CR 613.6 rides on the same gather step: once an effect has started applying to an object, a per-walk `started` set (keyed on `EffectGroup`, not `EffectId` — one CR-level effect is several registry rows) short-circuits both the filter and the existence check for the rest of that walk.
+
 ```
 compute_characteristics(game, object_id) -> EffectiveCharacteristics:
 
@@ -567,6 +572,17 @@ Resolution:
 - Cycles within a layer are broken by CR 613.8b's timestamp fallback (§9).
 
 The frame cache is the *only* cache we maintain, and only within one top-level `compute_characteristics` call. It's discarded on return.
+
+**Status (2026-08-21): implemented, and load-bearing.** `FrameCache` in `engine/layers/compute.rs` is a `HashMap<(ObjectId, usize), EffectiveCharacteristics>` where the `usize` is the layer ceiling — index into `LAYER_ORDER`, so ceiling `n` means layers `LAYER_ORDER[..n]` have been applied. Its first caller is the CR 613.7a existence check (`static_ability_still_exists`), which at layer index `i` asks for the effect's source at ceiling `i`.
+
+The strictly-descending ceiling is not an optimization, it is the termination argument, and it is pinned: `test_self_stripping_land_terminates_and_is_stable` overflows the stack if the check asks at the full ceiling instead of `layer_index`.
+
+Two refinements worth knowing before extending it:
+
+- Only sub-computations are memoized (`ceiling < LAYER_ORDER.len()`). The top-level frame is requested exactly once per call, so caching it is a pure clone. Measured: skipping it, plus not cloning the per-layer effect list, is the difference between +88% and flat on `fuzz_games`.
+- The existence check short-circuits entirely when `ContinuousEffectRegistry::summary().any_ability_changing` is false, so the cache is never even touched on ordinary boards.
+
+**Note for §5.1's hidden-zone fast path:** that fast path is conditional on the registry summary, so nothing may memoize "hidden-zone object → printed characteristics" beyond a single top-level call. The current key and lifetime already satisfy this; keep it that way.
 
 ---
 
@@ -725,6 +741,46 @@ Targeting legality (`oracle/legality.rs`) reads effective characteristics via wr
 **Phase LA through LD ship with no cache.** Each `compute_characteristics` call re-walks the registry.
 
 Worst-case cost: `O(effects × objects × layers)` per frame if every effect's predicate inspects every object. In practice effects are few and filters are cheap. No evidence we need a cache yet.
+
+### Measured, 2026-08-21
+
+`fuzz_games` is the wrong instrument for this: exactly one card in `CardRegistry` has a static ability, so it never builds the boards that hurt. Numbers below are from a synthetic board of N anthems (static `ModifyPowerToughness` over `ByType(Creature)`) plus N creatures, µs per single characteristics query, release build:
+
+| N | frame only | full walk | walk, no 613.7a gate |
+|---|---|---|---|
+| 10 | 0.37 | 0.55 | 6.30 |
+| 20 | 0.27 | 0.83 | 12.01 |
+| 40 | 0.26 | 1.37 | 26.49 |
+| 80 | 0.27 | 2.49 | 65.44 |
+
+Four things follow, and they set the strategy:
+
+1. **Building the frame is 3% and flat.** Cloning five `HashSet`s, a `Vec<AbilityDef>` and a `String` per frame is not the problem. Copy-on-write on `EffectiveCharacteristics` is not where to start.
+2. **Per-query cost is linear in registered effects; per priority sweep it is quadratic**, because a sweep queries every permanent. 80 permanents ≈ 196 µs per sweep. That is the number to watch as card breadth grows.
+3. **The CR 613.7a existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
+4. **`effects_in_layer`'s filter-and-sort is only ~10%.** Keeping the registry sorted by `(layer, timestamp, id)` and returning a slice was prototyped and measured at that; worth doing eventually, not a lever.
+
+### The ordering that follows
+
+When this needs to get faster, in order of value per unit of correctness risk:
+
+1. **Answer-preserving structural work first.** Sorted registry (measured 10%); interning `EffectGroup` to a dense integer so CR 613.6 bookkeeping is a bitset rather than SipHash over two UUIDs. Neither can produce a wrong answer.
+2. **Cross-call memoization** — §12 item 2, keyed on a game version bumped by any characteristic-affecting mutation. This is the big one, because a priority sweep asks the same questions repeatedly against an unchanged board. Its risk is a missed invalidation, and that risk is *testable*: a debug-only mode that recomputes uncached and asserts equality turns the whole suite into an invalidation audit. Build the paranoid mode in the same commit as the cache, not later.
+3. **Semantics-assuming shortcuts last, and preferably never.** `can_change_abilities()` was one — worth 5-8x, valid exactly while no static ability is conditional, and removed in the same session it was written for that reason. The failure mode is a silently wrong answer rather than a slow one, and a rules engine has nothing to trade for that. If one is ever genuinely necessary, the expiry condition goes in the code and in Deferred Migrations, and it comes with a debug-mode check that computes both ways and asserts equality.
+
+### Where the remaining cost is
+
+Measured on the same synthetic board, gate-free, µs/query:
+
+| | N=10 | N=80 |
+|---|---|---|
+| gate-free baseline | 5.73 | 66.37 |
+| + registry kept sorted by `(layer, timestamp, id)` | 5.56 | 44.89 |
+| + eliding the per-frame `Vec<AbilityDef>` deep clone | 3.80 | 31.86 |
+
+The sorted registry is done. The second row is a probe, not an implementation: `EffectiveCharacteristics.abilities` is a `Vec<AbilityDef>` cloned out of `CardData` for every frame, and `AbilityDef` owns a boxed `Effect` tree, so it is a deep clone. Worth a uniform ~30%. Making `CardData::abilities` an `Arc<Vec<AbilityDef>>` and having the frame clone the `Arc` — with `Arc::make_mut` in the layer-4 and layer-6 arms that actually mutate it — is answer-preserving and bounded. Do that before reaching for anything cleverer.
+
+Neither closes the gap at large N. Only cross-call memoization does, because the quadratic is *repetition*: a priority sweep asks the same question about the same unchanged board once per permanent.
 
 If profiling later shows this is hot:
 
@@ -910,6 +966,26 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
    Retrofit cost is low either way: the readers added in Phase LD Part B all go through
    `oracle::characteristics::get_effective_abilities`, which can keep returning
    `Vec<AbilityDef>` while a second accessor exposes metadata to whoever needs it.
+
+   **Update (2026-08-21) — the seam now exists and is named.** CR 613.7a's *first* clause
+   (the effect has the object's timestamp) is implemented. The second clause — "or the
+   timestamp of the effect that created the ability, whichever is later" — is not, and has
+   no reachable code path: its only producer would be `GrantAbility(AbilityDef)` with a
+   Static body, and nothing derives a `ContinuousEffect` from a keyword, so `GrantKeyword`
+   cannot reach it.
+
+   Every static-effect timestamp is routed through
+   **`GameState::static_effect_timestamp(id, ability)`** rather than reading
+   `battlefield[id].timestamp` at each construction site, precisely so clause 2 lands as a
+   `max()` inside that one function when Layer 6 supplies a grant timestamp. Design against
+   613.7a's wording there; do not resurrect the enum.
+
+   Clause 3 ("if the object receives a new timestamp, each continuous effect generated by
+   static abilities of that object receives a new timestamp as well, but the relative order
+   of those timestamps remains the same") needs no code. The first half falls out of reading
+   the object's timestamp at compute time; the second half is the `EffectId` tiebreak in
+   `effects_in_layer`, which is required because all of an object's static effects now share
+   one timestamp and `remove_by_source` uses `swap_remove`.
 
 ---
 

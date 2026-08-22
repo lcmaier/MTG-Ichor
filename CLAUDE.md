@@ -57,21 +57,44 @@ Those sites are tagged `// PRE-LAYER ZONE:`. Don't "fix" them.
 
 **Second exemption:** `register_static_effects` (`state/game_state.rs`) reads printed
 abilities on purpose — it runs inside `place_on_battlefield`, before the object's own
-effect is registered, so computing effective characteristics there is circular.
+effect is registered, so computing effective characteristics there is circular. This is
+safe because registration is not what decides whether an effect applies; see below.
+
+## Registry membership is not effect existence
+
+A continuous effect from a static ability applies only while its source still *has* that
+ability, and CR 305.7 or Layer 6 can take it away without touching the registry. So
+`compute_characteristics` re-checks existence at **every layer**, against the source's
+frame as of the end of the previous layer (`EffectOrigin`, `static_ability_still_exists`).
+
+Two rules follow, and both have already cost a redesign:
+
+- **Don't reconcile the registry at state-mutation chokepoints.** Deciding existence
+  outside the layer walk turns a structurally-terminating computation into a fixpoint that
+  needs an iteration cap and invents oscillation the CR does not have.
+- **The frame cache's descending layer ceiling is the termination argument**, not an
+  optimization. `test_self_stripping_land_terminates_and_is_stable` overflows the stack if
+  the existence check asks at the full ceiling. See `layers-architecture.md` §5.2.
 
 ## Critical path to v1
 
-Dependency order — each needs the ones above. For what's *done*, read
-`codebase-state.md` and run `specdb stats`.
+Dependency order — each needs the ones above. Ordering only; the reasoning for
+it, and what's *done*, live in `codebase-state.md` (Deferred Migrations) and
+`specdb stats`.
 
-1. Layers (CR 613) core → Layer 4 Part B (`AbilityOrigin` + CR 305.7 ability stripping)
-2. Layer 6 — ability adding/removing (Humility)
-3. Layer 2 — control changing
-4. CR 613.8 dependency algorithm (ordering is timestamp-only today)
-5. Replacement effects (CR 614–616) — stub hook at `engine/actions.rs:86-89`
-6. Triggered abilities (CR 603) — insertion point at `engine/priority.rs:235`
+1. Layers (CR 613) core → Layer 4 Part B → static-ability effect existence
+2. CDAs (CR 604.3 / 613.3 / 613.4a Layer 7a) — precedes 613.8, which reads CDA-ness
+3. Layer 6 — ability adding/removing (Humility)
+4. Layer 2 — control changing
+5. CR 613.8 dependency algorithm
+6. Replacement effects (CR 614–616) — stub hook in `execute_action`
+7. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`
 
-Phase 8 (card breadth) and Phase 9 (formats) are **not** on the v1 path.
+Scheduled against that list rather than on it: conditional static abilities, and
+cross-call memoization (after Layer 2, before 613.8 — `layers-architecture.md` §12).
+
+v1 is a correct two-player Standard game. Phase 8 (card breadth) and Phase 9
+(formats, including Commander) are **not** on the path.
 
 ## Spec database
 

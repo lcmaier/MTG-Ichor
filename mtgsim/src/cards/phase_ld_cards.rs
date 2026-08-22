@@ -334,7 +334,10 @@ pub fn dual_land_ub() -> Arc<CardData> {
 
 /// Windswept Heights (invented) — {1}{W}
 /// Enchantment
-/// Lands you control have flying.
+/// Lands have flying.
+///
+/// Not "lands you control": the filter is a bare `ByType(Land)`. Same as
+/// [`land_creatures_have_flying`] — the text matches the filter.
 ///
 /// Nonsense as a Magic card, but it is the only ability-granting channel that
 /// exists today: `Primitive::GrantKeyword` registers a real Layer 6 effect
@@ -346,7 +349,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .rules_text("Lands you control have flying.")
+        .rules_text("Lands have flying.")
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Static,
@@ -357,6 +360,177 @@ pub fn lands_have_flying() -> Arc<CardData> {
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
+            ),
+        })
+        .build()
+}
+
+// ===========================================================================
+// CR 613.6 test cards — an effect that applies in two layers, where the first
+// layer's part breaks the filter the second layer's part reads.
+// ===========================================================================
+
+/// March of the Machines (simplified) — {4}{U}
+/// Enchantment
+/// Each noncreature artifact is an artifact creature with power and toughness
+/// each equal to its mana value.
+///
+/// The CR's own worked example for rule 613.6, and a real card rather than an
+/// invented one. The static ability applies in two layers over one filter:
+/// `AddType(Creature)` in Layer 4, `SetPowerToughness` in Layer 7b, both over
+/// "artifact that is not a creature". After Layer 4 runs, nothing matches that
+/// filter any more — which is exactly why 613.6 says the effect "will continue
+/// to be applied to the same set of objects in each other applicable layer".
+///
+/// **Simplified P/T.** The printed card sets power and toughness to mana value;
+/// `register_static_effects` only understands `AmountExpr::Fixed`, so this is a
+/// flat 2/2. The simplification is orthogonal to what the card is here to test.
+pub fn march_of_the_machines() -> Arc<CardData> {
+    // Artifact AND NOT Creature
+    let noncreature_artifact = PermanentFilter::And(
+        Box::new(PermanentFilter::ByType(CardType::Artifact)),
+        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByType(
+            CardType::Creature,
+        )))),
+    );
+
+    CardDataBuilder::new("March of the Machines")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 4))
+        .color(Color::Blue)
+        .card_type(CardType::Enchantment)
+        .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::ChangeType(
+                        TypeChange {
+                            add_types: vec![CardType::Creature],
+                            remove_types: Vec::new(),
+                            set_types: None,
+                            add_subtypes: Vec::new(),
+                            remove_subtypes: Vec::new(),
+                            set_subtypes: None,
+                            add_supertypes: Vec::new(),
+                            remove_supertypes: Vec::new(),
+                            set_supertypes: None,
+                        },
+                        Duration::WhileSourceOnBattlefield,
+                    ),
+                    EffectRecipient::FilteredPermanents(noncreature_artifact.clone()),
+                ),
+                Effect::Atom(
+                    Primitive::SetPowerToughness(
+                        AmountExpr::Fixed(2),
+                        AmountExpr::Fixed(2),
+                        Duration::WhileSourceOnBattlefield,
+                    ),
+                    EffectRecipient::FilteredPermanents(noncreature_artifact),
+                ),
+            ]),
+        })
+        .build()
+}
+
+/// Cloudspire Mesa (invented) — nonbasic land
+/// Land
+/// Creatures have flying.
+///
+/// Not "creatures you control" — the filter is a bare `ByType(Creature)` with
+/// no controller constraint, and the text says what the filter does. Adding
+/// `ByController(PlayerRef::You)` would work (`extract_controller_from_filter`
+/// reads it), but controller scoping is not what this card is here to exercise.
+///
+/// The Land-typed sibling of [`lands_have_flying`], and it exists because Blood
+/// Moon's filter is "nonbasic **land**". Testing that a stripped static ability
+/// retires the continuous effect it generated needs a permanent that (a) Blood
+/// Moon can strip — so, a land without the `Basic` supertype — and (b) has a
+/// static ability generating a registered effect. Nothing in the card pool is
+/// both, which is why item 7 of Deferred Migrations went unnoticed: the bug is
+/// live, but no card reaches it.
+///
+/// Nonsense as a Magic card, in the same way and for the same reason as
+/// `lands_have_flying`. `Primitive::GrantKeyword` is used because it is the one
+/// Layer 6 channel wired end to end today.
+///
+/// Deliberately has NO `Basic` supertype, so Blood Moon's filter matches it.
+pub fn land_creatures_have_flying() -> Arc<CardData> {
+    CardDataBuilder::new("Cloudspire Mesa")
+        .card_type(CardType::Land)
+        .rules_text("Creatures have flying.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::GrantKeyword(
+                    crate::types::keywords::KeywordAbility::Flying,
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),
+            ),
+        })
+        .build()
+}
+
+/// Moonlit Steppe (invented) — nonbasic land
+/// Land
+/// Nonbasic lands are Mountains.
+///
+/// Blood Moon's ability, printed on a land that its own effect then matches. A
+/// deliberately compressed stand-in for a board the CR permits and real cards
+/// reach: Opalescence makes Blood Moon a creature, Ashaya, Soul of the Wild
+/// makes each nontoken creature you control a Forest land, and Blood Moon —
+/// now a nonbasic land — strips its own ability under CR 305.7.
+///
+/// Compressed because our `PermanentFilter` has no way to say "each **other**
+/// non-Aura enchantment", so a modelled Opalescence would also enchant itself
+/// and put three layers of noise between the fixture and what it is testing.
+/// One card reaches the same self-reference.
+///
+/// What it is for: proving the CR 613.7a existence check terminates. The check
+/// asks whether this land still has its static ability, which is a
+/// characteristics query on the land, which runs the check again. It resolves
+/// because the question is asked at a strictly lower layer ceiling each time
+/// (`layers-architecture.md` §5.2) — at Layer 4 it reads the frame as of the
+/// end of Layer 3, where the strip has not run. Get that wrong and this card
+/// overflows the stack.
+pub fn self_stripping_land() -> Arc<CardData> {
+    let mut mountain_set = HashSet::new();
+    mountain_set.insert(Subtype::Land(LandType::Mountain));
+
+    let nonbasic_land_filter = PermanentFilter::And(
+        Box::new(PermanentFilter::ByType(CardType::Land)),
+        Box::new(PermanentFilter::Not(Box::new(
+            PermanentFilter::BySupertype(Supertype::Basic),
+        ))),
+    );
+
+    CardDataBuilder::new("Moonlit Steppe")
+        .card_type(CardType::Land)
+        .rules_text("Nonbasic lands are Mountains.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ChangeType(
+                    TypeChange {
+                        add_types: Vec::new(),
+                        remove_types: Vec::new(),
+                        set_types: None,
+                        add_subtypes: Vec::new(),
+                        remove_subtypes: Vec::new(),
+                        set_subtypes: Some(mountain_set),
+                        add_supertypes: Vec::new(),
+                        remove_supertypes: Vec::new(),
+                        set_supertypes: None,
+                    },
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(nonbasic_land_filter),
             ),
         })
         .build()

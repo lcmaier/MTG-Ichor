@@ -19,8 +19,10 @@ use mtgsim::cards::phase_ld_cards;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_subtypes,
-    get_effective_supertypes, get_effective_toughness, get_effective_types, is_creature,
+    get_effective_supertypes, get_effective_toughness, get_effective_types, has_keyword,
+    is_creature,
 };
+use mtgsim::types::keywords::KeywordAbility;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
@@ -612,4 +614,210 @@ fn test_activating_blood_mooned_land_produces_red() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 0);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 0);
+}
+
+// ===========================================================================
+// CR 613.6 — an effect continues to apply to the SAME SET OF OBJECTS in each
+// applicable layer, even after an earlier layer's part breaks its own filter.
+// ===========================================================================
+
+// COVERS-PARTIAL: ATOM-613.6-003
+//
+// Partial: the atom's scenario has the *ability* removed mid-process by a
+// Layer 6 producer, which does not exist yet. This proves the other half of
+// the same sentence in CR 613.6 — "will continue to be applied to the same set
+// of objects in each other applicable layer".
+#[test]
+fn test_613_6_effect_keeps_applying_after_its_own_filter_breaks() {
+    use mtgsim::objects::card_data::CardDataBuilder;
+
+    let mut game = setup_two_player_game();
+
+    // A vanilla noncreature artifact with no printed P/T.
+    let artifact_data = CardDataBuilder::new("Ornithopter Shell")
+        .card_type(CardType::Artifact)
+        .build();
+    let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
+
+    assert_eq!(get_effective_power(&game, artifact_id), None);
+
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    // Layer 4: the artifact becomes a creature.
+    assert!(
+        is_creature(&game, artifact_id),
+        "Layer 4 AddType(Creature) should have applied"
+    );
+
+    // Layer 7b: it is no longer a *noncreature* artifact, so re-evaluating the
+    // filter here would drop the SetPowerToughness half. CR 613.6 says the
+    // effect keeps applying to the set it started on.
+    assert_eq!(
+        get_effective_power(&game, artifact_id),
+        Some(2),
+        "CR 613.6: the Layer 7b part must still apply after Layer 4 broke the filter"
+    );
+    assert_eq!(get_effective_toughness(&game, artifact_id), Some(2));
+}
+
+// ===========================================================================
+// CR 613.7a / Deferred Migrations item 7 — a static ability stripped by CR
+// 305.7 must also retire the continuous effect it generated.
+// ===========================================================================
+
+// COVERS-PARTIAL: ATOM-305.7-002
+//
+// Partial: ATOM-305.7-002 is about the land's own mana abilities, which
+// test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red already
+// covers. This adds the consequence that was missing — the *effect* the
+// stripped ability had registered stops applying too.
+#[test]
+fn test_blood_moon_retires_the_effect_a_stripped_ability_registered() {
+    let mut game = setup_two_player_game();
+
+    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+
+    assert!(
+        has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "the land's static ability should grant flying before Blood Moon"
+    );
+
+    put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    // CR 305.7: the land is now a Mountain and has lost its printed abilities.
+    let abilities = get_effective_abilities(&game, land_id);
+    assert!(
+        !abilities
+            .iter()
+            .any(|a| a.ability_type == mtgsim::objects::card_data::AbilityType::Static),
+        "CR 305.7 should have stripped the land's static ability"
+    );
+
+    // ... so the effect that ability generated must stop applying (item 7).
+    assert!(
+        !has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "a stripped static ability must retire the continuous effect it registered"
+    );
+}
+
+// The other direction: Blood Moon leaves, the ability is back, and so is its
+// effect — with no re-registration, because the effect never left the registry.
+#[test]
+fn test_effect_returns_when_blood_moon_leaves() {
+    let mut game = setup_two_player_game();
+
+    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+
+    assert!(!has_keyword(&game, bear_id, KeywordAbility::Flying));
+
+    game.change_zone(blood_moon_id, Zone::Graveyard).unwrap();
+
+    assert!(
+        has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "the land's ability is back, so its effect applies again"
+    );
+}
+
+// COVERS-PARTIAL: ATOM-613.7a-001
+//
+// Partial: the atom is the CR's Rune of Flight / Colossus Hammer example, which
+// turns on 613.7a's second clause (the timestamp of the effect that *created*
+// the ability). That needs GrantAbility, a Layer 6 producer that doesn't exist.
+// This covers the first clause — the effect shares the object's timestamp.
+#[test]
+fn test_static_effect_shares_its_objects_timestamp() {
+    let mut game = setup_two_player_game();
+
+    // Something else on the battlefield first, so the land's own timestamp is
+    // not 0 and the assertion can't pass by coincidence.
+    put_on_battlefield(&mut game, basic_lands::forest(), 0);
+    put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+    let object_timestamp = game.battlefield.get(&land_id).unwrap().timestamp;
+
+    let effect_timestamps: Vec<u64> = game
+        .continuous_effects
+        .iter()
+        .filter(|e| e.source == land_id)
+        .map(|e| e.timestamp)
+        .collect();
+
+    assert_eq!(
+        effect_timestamps.len(),
+        1,
+        "the land's one static ability should have registered one effect"
+    );
+    assert_eq!(
+        effect_timestamps[0], object_timestamp,
+        "CR 613.7a: a static ability's effect has the same timestamp as the object it is on"
+    );
+}
+
+// COVERS: ATOM-113.6-001
+#[test]
+fn test_static_ability_does_not_function_from_the_graveyard() {
+    let mut game = setup_two_player_game();
+
+    let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
+
+    assert!(has_keyword(&game, bear_id, KeywordAbility::Flying));
+
+    game.change_zone(land_id, Zone::Graveyard).unwrap();
+
+    // CR 113.6 — an ability of a permanent functions only while that permanent
+    // is on the battlefield.
+    assert!(
+        !has_keyword(&game, bear_id, KeywordAbility::Flying),
+        "a static ability must stop functioning once its source is in the graveyard"
+    );
+    assert_eq!(
+        game.continuous_effects
+            .iter()
+            .filter(|e| e.source == land_id)
+            .count(),
+        0,
+        "the effect should have been deregistered on the zone change"
+    );
+}
+
+// The CR 613.7a existence check asks whether an effect's source still has the
+// ability that generates it — which is itself a characteristics query on that
+// source. When the source is what its own effect strips, that question is
+// self-referential, and the only reason it terminates is that each round asks
+// at a strictly lower layer ceiling (layers-architecture.md §5.2).
+//
+// See `self_stripping_land`'s doc comment for the real board this stands in for.
+// Assertions are deliberately confined to what holds under either ordering:
+// which of two Layer 4 effects wins is CR 613.8's business, and 613.8 is not
+// implemented (Deferred Migrations item 8).
+#[test]
+fn test_self_stripping_land_terminates_and_is_stable() {
+    let mut game = setup_two_player_game();
+
+    let steppe_id = put_on_battlefield(&mut game, phase_ld_cards::self_stripping_land(), 0);
+
+    let other_data = mtgsim::objects::card_data::CardDataBuilder::new("Steam Vents")
+        .card_type(CardType::Land)
+        .subtype(Subtype::Land(LandType::Island))
+        .build();
+    let other_id = put_on_battlefield(&mut game, other_data, 0);
+
+    // Terminates rather than recursing forever, and gives the same answer twice.
+    let first = get_effective_subtypes(&game, steppe_id);
+    let second = get_effective_subtypes(&game, steppe_id);
+    assert_eq!(first, second, "repeated queries must agree");
+
+    // The effect still exists: an effect that stripped itself out of existence
+    // would leave the other nonbasic land alone. CR 613.6 — the walk restarts
+    // from CardData every time, so the strip is a within-walk consequence and
+    // never persistent state.
+    assert!(
+        get_effective_subtypes(&game, other_id).contains(&Subtype::Land(LandType::Mountain)),
+        "the self-stripping land's effect must still apply to other nonbasic lands"
+    );
 }

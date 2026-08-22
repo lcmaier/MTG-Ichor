@@ -254,6 +254,7 @@ impl GameState {
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
                     source: ctx.source,
+                    origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7cModifyPT,
                     duration: *duration,
                     controller: ctx.controller,
@@ -280,6 +281,7 @@ impl GameState {
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
                     source: ctx.source,
+                    origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7bSetPT,
                     duration: *duration,
                     controller: ctx.controller,
@@ -304,6 +306,7 @@ impl GameState {
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
                     source: ctx.source,
+                    origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7dSwitchPT,
                     duration: *duration,
                     controller: ctx.controller,
@@ -333,6 +336,7 @@ impl GameState {
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
                     source: ctx.source,
+                    origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer5Color,
                     duration: *duration,
                     controller: ctx.controller,
@@ -401,6 +405,7 @@ impl GameState {
                     let effect = crate::engine::layers::ContinuousEffect {
                         id: 0,
                         source: ctx.source,
+                        origin: crate::engine::layers::EffectOrigin::Resolution,
                         layer: crate::engine::layers::Layer::Layer4Type,
                         duration: *duration,
                         controller: ctx.controller,
