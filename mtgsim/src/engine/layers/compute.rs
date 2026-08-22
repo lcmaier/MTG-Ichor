@@ -149,14 +149,6 @@ fn static_ability_still_exists(
         EffectOrigin::StaticAbility { ability } => ability,
     };
 
-    // If nothing registered can change an ability set, every object's effective
-    // abilities are its printed ones, so the ability is necessarily still
-    // there. Skips the recursive frame computation on the overwhelming
-    // majority of boards.
-    if !game.continuous_effects.summary().any_ability_changing {
-        return true;
-    }
-
     match compute_to_ceiling(game, effect.source, layer_index, cache) {
         Some(source_frame) => source_frame.abilities.iter().any(|a| a.id == ability_id),
         // Source is gone from the object store entirely.

@@ -16,13 +16,6 @@ use crate::types::ids::ObjectId;
 /// caller, so the later work extends it rather than growing a parallel counter.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RegistryScopeSummary {
-    /// True iff some active effect could change which abilities an object has.
-    ///
-    /// When false, every object's effective abilities equal its printed ones,
-    /// so no static ability can have gone missing and the CR 613.7a existence
-    /// re-check in `compute.rs` is skipped entirely. This is the common case.
-    pub any_ability_changing: bool,
-
     /// True iff some `EffectGroup` has more than one row in the registry.
     ///
     /// CR 613.6's "started applying" bookkeeping only changes an answer for a
@@ -64,11 +57,6 @@ impl ContinuousEffectRegistry {
     /// as a silently skipped existence check — the exact class of bug this
     /// phase exists to remove.
     fn recompute_summary(&mut self) {
-        self.summary.any_ability_changing = self
-            .effects
-            .iter()
-            .any(|e| e.modification.can_change_abilities());
-
         let mut seen: std::collections::HashSet<crate::engine::layers::types::EffectGroup> =
             std::collections::HashSet::with_capacity(self.effects.len());
         self.summary.any_multi_row_group = self.effects.iter().any(|e| !seen.insert(e.group()));
@@ -79,7 +67,11 @@ impl ContinuousEffectRegistry {
         let id = self.next_effect_id;
         self.next_effect_id += 1;
         effect.id = id;
-        self.effects.push(effect);
+        let key = (effect.layer, effect.timestamp, effect.id);
+        let pos = self
+            .effects
+            .partition_point(|e| (e.layer, e.timestamp, e.id) < key);
+        self.effects.insert(pos, effect);
         self.recompute_summary();
         id
     }
@@ -87,7 +79,7 @@ impl ContinuousEffectRegistry {
     /// Remove a specific effect by its ID. Returns the removed effect if found.
     pub fn remove(&mut self, id: EffectId) -> Option<ContinuousEffect> {
         if let Some(pos) = self.effects.iter().position(|e| e.id == id) {
-            let removed = self.effects.swap_remove(pos);
+            let removed = self.effects.remove(pos);
             self.recompute_summary();
             Some(removed)
         } else {
@@ -102,7 +94,7 @@ impl ContinuousEffectRegistry {
         let mut i = 0;
         while i < self.effects.len() {
             if self.effects[i].source == source {
-                removed.push(self.effects.swap_remove(i));
+                removed.push(self.effects.remove(i));
             } else {
                 i += 1;
             }
@@ -123,13 +115,10 @@ impl ContinuousEffectRegistry {
     ///
     /// (Not yet CR 613.8: dependency ordering is unimplemented, so this is
     /// timestamp order only. See Deferred Migrations item 8.)
-    pub fn effects_in_layer(&self, layer: Layer) -> Vec<&ContinuousEffect> {
-        let mut result: Vec<&ContinuousEffect> = self.effects
-            .iter()
-            .filter(|e| e.layer == layer)
-            .collect();
-        result.sort_by_key(|e| (e.timestamp, e.id));
-        result
+    pub fn effects_in_layer(&self, layer: Layer) -> &[ContinuousEffect] {
+        let lo = self.effects.partition_point(|e| e.layer < layer);
+        let hi = self.effects.partition_point(|e| e.layer <= layer);
+        &self.effects[lo..hi]
     }
 
     /// Iterate over all registered effects.
@@ -171,7 +160,7 @@ impl ContinuousEffectRegistry {
                 _ => false,
             };
             if should_expire {
-                removed.push(self.effects.swap_remove(i));
+                removed.push(self.effects.remove(i));
             } else {
                 i += 1;
             }
@@ -206,7 +195,7 @@ impl ContinuousEffectRegistry {
                 _ => false,
             };
             if should_expire {
-                removed.push(self.effects.swap_remove(i));
+                removed.push(self.effects.remove(i));
             } else {
                 i += 1;
             }

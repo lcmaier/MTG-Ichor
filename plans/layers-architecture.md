@@ -766,7 +766,21 @@ When this needs to get faster, in order of value per unit of correctness risk:
 
 1. **Answer-preserving structural work first.** Sorted registry (measured 10%); interning `EffectGroup` to a dense integer so CR 613.6 bookkeeping is a bitset rather than SipHash over two UUIDs. Neither can produce a wrong answer.
 2. **Cross-call memoization** — §12 item 2, keyed on a game version bumped by any characteristic-affecting mutation. This is the big one, because a priority sweep asks the same questions repeatedly against an unchanged board. Its risk is a missed invalidation, and that risk is *testable*: a debug-only mode that recomputes uncached and asserts equality turns the whole suite into an invalidation audit. Build the paranoid mode in the same commit as the cache, not later.
-3. **Semantics-assuming shortcuts last, and always with a named expiry.** `can_change_abilities()` is the only one in the engine today. It is worth 5-8x, and it is valid exactly while no static ability is conditional. Anything of this shape needs the condition written down where the code is, plus a Deferred Migrations line, because the failure mode is a silently wrong answer rather than a slow one.
+3. **Semantics-assuming shortcuts last, and preferably never.** `can_change_abilities()` was one — worth 5-8x, valid exactly while no static ability is conditional, and removed in the same session it was written for that reason. The failure mode is a silently wrong answer rather than a slow one, and a rules engine has nothing to trade for that. If one is ever genuinely necessary, the expiry condition goes in the code and in Deferred Migrations, and it comes with a debug-mode check that computes both ways and asserts equality.
+
+### Where the remaining cost is
+
+Measured on the same synthetic board, gate-free, µs/query:
+
+| | N=10 | N=80 |
+|---|---|---|
+| gate-free baseline | 5.73 | 66.37 |
+| + registry kept sorted by `(layer, timestamp, id)` | 5.56 | 44.89 |
+| + eliding the per-frame `Vec<AbilityDef>` deep clone | 3.80 | 31.86 |
+
+The sorted registry is done. The second row is a probe, not an implementation: `EffectiveCharacteristics.abilities` is a `Vec<AbilityDef>` cloned out of `CardData` for every frame, and `AbilityDef` owns a boxed `Effect` tree, so it is a deep clone. Worth a uniform ~30%. Making `CardData::abilities` an `Arc<Vec<AbilityDef>>` and having the frame clone the `Arc` — with `Arc::make_mut` in the layer-4 and layer-6 arms that actually mutate it — is answer-preserving and bounded. Do that before reaching for anything cleverer.
+
+Neither closes the gap at large N. Only cross-call memoization does, because the quadratic is *repetition*: a priority sweep asks the same question about the same unchanged board once per permanent.
 
 If profiling later shows this is hot:
 

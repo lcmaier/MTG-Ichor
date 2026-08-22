@@ -265,13 +265,9 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, ~20 sites.** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
 
-7f. **Conditional static abilities are unmodeled, and `can_change_abilities()` depends on that.** `register_static_effects` handles `Effect::Atom` and `Effect::Sequence` and `continue`s on everything else, so `Effect::Conditional` — "as long as [X], this has [Y]" — registers nothing.
+7f. **Conditional static abilities are unmodeled.** `register_static_effects` handles `Effect::Atom` and `Effect::Sequence` and `continue`s on everything else, so `Effect::Conditional` — "as long as [X], this has [Y]" — registers nothing. Wanted by a large class of real cards, and by Layer 2 in particular (an Umbra reading "as long as another player controls enchanted creature… otherwise it has totem armor").
 
-    That is load-bearing in a place it does not look load-bearing. `EffectModification::can_change_abilities()` gates the CR 613.7a existence check, worth a measured **5.4x** on a 40-permanent board with 20 static-ability effects (87 ms vs 468 ms over 40,000 queries), so it is not removable on a whim. But it classifies by *what a modification writes*, which is only a proxy for "could an ability set differ" while no static ability is conditional.
-
-    Conditional statics break it globally rather than arm by arm. An Umbra reading "as long as another player controls enchanted creature… otherwise it has totem armor" makes `SetController` ability-changing; "as long as this has power 4 or greater, it has trample" makes `ModifyPowerToughness` ability-changing. Nearly every arm becomes `true` and the gate stops gating.
-
-    **So do not patch arms.** Either delete the gate and pay the 5.4x, or replace it with something keyed on the conditions static abilities actually read. Pairs with Layer 2, which is the first system to make the Umbra case reachable.
+    Historical note, because it cost a round trip: an `EffectModification::can_change_abilities()` gate briefly skipped the CR 613.7a existence check when nothing in the registry could change an ability set. It was worth 5-8x, and it was **removed** — it was valid only while no static ability is conditional, and it would have failed globally rather than arm by arm once they are. A rules engine has nothing to trade for a silently wrong answer. `layers-architecture.md` §12 records the measurements and the answer-preserving alternatives.
 
 7e. **Derivation silently drops non-`Fixed` amounts.** `register_static_effects` `continue`s on any `AmountExpr` other than `Fixed`, so a static ability with a computed P/T registers nothing at all. Tarmogoyf-class CDAs are exactly non-`Fixed`. Silent, not an error.
 
