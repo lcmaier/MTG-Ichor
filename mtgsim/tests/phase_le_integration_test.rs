@@ -200,6 +200,45 @@ fn test_tarmogoyf_in_a_graveyard_has_a_pt_and_counts_itself() {
     assert_eq!(get_effective_toughness(&game, goyf), Some(3));
 }
 
+/// CR 208.2, and the Merfolk Trickster ruling states it outright: "If the target
+/// creature has power and toughness written as */* with an ability that defines
+/// its power and toughness, it's 0/0 when it loses all abilities. If its power
+/// and toughness are written as */*+1, it's 0/1, and so on."
+///
+/// Tarmogoyf's box is `*/1+*`, the `*/*+1` shape. So an ability strip with no
+/// P/T-setting effect of its own leaves a **0/1**, not a 0/0 — and 0/1 survives
+/// state-based actions where 0/0 would not.
+#[test]
+fn test_tarmogoyf_stripped_of_abilities_is_0_1_and_survives_sbas() {
+    let mut game = setup_two_player_game();
+    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+    put_in_graveyard(&mut game, card_of_type("Shock", CardType::Instant), 0);
+    assert_eq!(get_effective_power(&game, goyf), Some(1));
+    assert_eq!(get_effective_toughness(&game, goyf), Some(2));
+
+    // Merfolk Trickster: "loses all abilities until end of turn" — no P/T set.
+    game.continuous_effects.add(registered(
+        goyf,
+        Layer::Layer6Ability,
+        EffectModification::LoseAllAbilities,
+    ));
+
+    assert_eq!(get_effective_power(&game, goyf), Some(0));
+    assert_eq!(
+        get_effective_toughness(&game, goyf),
+        Some(1),
+        "the printed box is */1+*, so the `1+` survives with * as 0"
+    );
+
+    let decisions = ScriptedDecisionProvider::new();
+    game.check_state_based_actions_loop(&decisions).unwrap();
+    assert_eq!(
+        game.get_object(goyf).unwrap().zone,
+        Zone::Battlefield,
+        "a 0/1 has positive toughness — CR 704.5f does not apply"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // The one everybody knows: Bolt the Goyf
 // ---------------------------------------------------------------------------

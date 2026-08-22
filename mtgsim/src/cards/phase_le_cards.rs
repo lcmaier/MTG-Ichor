@@ -26,11 +26,18 @@ use crate::types::mana::{ManaCost, ManaType};
 ///
 /// The Layer 7a card (CR 613.4a). Three things about how it is authored:
 ///
-/// **Printed P/T is `(0, 0)`.** The printed box holds `*/1+*`, which is not a
-/// number — the CDA *is* the definition. CR 208.2a says to use 0 for a number
-/// that can't be determined, and 0/0 is also what the card correctly reports if
-/// something removes the CDA before Layer 7a (Humility) without setting a P/T
-/// of its own.
+/// **Printed P/T is `(0, 1)`, not `(0, 0)`.** The box reads `*/1+*`: the `*` is
+/// what the CDA supplies and resolves to 0 when nothing supplies it (CR 208.2a),
+/// but the `1+` is printed arithmetic and survives on its own. The Merfolk
+/// Trickster ruling says so in as many words — "If the target creature has power
+/// and toughness written as */* with an ability that defines its power and
+/// toughness, it's 0/0 when it loses all abilities. If its power and toughness
+/// are written as */*+1, it's 0/1, and so on."
+///
+/// This is load-bearing rather than cosmetic. Strip Tarmogoyf's abilities
+/// without setting a P/T and it is a 0/1, which survives state-based actions;
+/// authored as 0/0 it would die. (Under Humility the answer is 1/1 either way,
+/// because Humility's Layer 7b half sets one.)
 ///
 /// **Card types, not cards.** Ten artifact creatures in a graveyard are still
 /// two card types — hence `CardTypesAmong` rather than `CountOf`.
@@ -46,7 +53,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Lhurgoyf))
-        .power_toughness(0, 0)
+        .power_toughness(0, 1)
         .rules_text(
             "Tarmogoyf's power is equal to the number of card types among cards in all \
              graveyards and its toughness is equal to that number plus 1.",
