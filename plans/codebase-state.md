@@ -328,25 +328,55 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     Still open: **CDA↔CDA dependency** (613.8a(c)'s second clause) — see item 8.
 
-### Test-support duplication — cross-cutting
+### ~~Test-support duplication — cross-cutting~~ ✅ done (2026-08-22)
 
-**`tests/common/` cannot reach unit tests, and the helpers have started to fork.**
-`put_on_battlefield` exists in `tests/common/mod.rs` and again in `layers::cda`'s test
-module; `registered`/`make_effect` — the same "one registry row applying to one object"
-helper — exists three times (`layers::cda`, `state::continuous_effects`,
-`tests/phase_le_integration_test.rs`) with three signatures; `put_in_hand` is in
-`tests/common` and again in `phase_3_integration_test.rs`.
+**`tests/common/` could not reach unit tests, and the helpers had forked.** This was
+structural, not laziness: integration tests link the crate as an external dependency, so
+they cannot see `#[cfg(test)]` items, and unit tests inside `src/` cannot see
+`tests/common/`. Nothing shared could live in either place.
 
-This is structural, not laziness: integration tests link the crate as an external
-dependency, so they cannot see `#[cfg(test)]` items, and unit tests inside `src/` cannot see
-`tests/common/`. Nothing shared can live in either place. The fix is a `pub mod test_support`
-in the library, either always compiled or behind a `test-support` cargo feature enabled by a
-self dev-dependency — the latter keeps it out of release builds at the cost of a slightly
-odd `Cargo.toml`. Whichever, the migration touches every test file that currently rolls its
-own, so it wants to be its own change rather than a rider on a phase.
+Fixed with `pub mod test_support` in the library (`src/test_support.rs`), behind a
+`test-support` cargo feature the crate enables for itself via a dev-dependency on itself.
+`cargo test` and `cargo build --all-targets` turn it on; a plain `cargo build`/`--release`
+does not build dev-dependencies at all, so the module is excluded from release artifacts —
+verified by grepping the release rlib. Cargo resolves the self-dependency to a *single*
+compilation of the crate, so it costs no extra build time. `tests/common/mod.rs` is
+deleted; its callers import from `mtgsim::test_support`.
 
-Getting cheaper to fix now than later, which is the argument for doing it before the next
-phase adds a fourth copy.
+**The count was worse than this entry recorded.** It named three copies of
+`registered`/`make_effect` and warned about a fourth. There were eighteen: `layers::compute`'s
+test module alone carried 15 inline `ContinuousEffect` literals of exactly that shape,
+because each test wrote the struct out rather than reaching for a helper it could not see.
+The same held for card factories — the Forest builder appeared four times, Lightning Bolt
+twice, Pacifism twice, `set_attacking` three times.
+
+**Four things are deliberately NOT unified. Each looks like leftover duplication and will
+invite a "cleanup" that quietly changes what a test runs against:**
+
+- `put_on_battlefield` (routes through `place_on_battlefield`, so ETB counters and
+  static-effect registration fire) vs `place_bare` (inserts a `BattlefieldEntity` directly,
+  firing neither). The combat tests need the second; collapsing them would put rows in the
+  continuous-effects registry those tests do not expect.
+- `put_on_battlefield` backdates entry to turn 0 (not summoning-sick) vs
+  `put_on_battlefield_this_turn`, which does not. `GameState::new` starts at `turn_number:
+  1`, so `layers::cda`'s two-argument version really was the second one, not a shorter
+  spelling of the first.
+- `registered` (`AffectedSet::Fixed(vec![id])`) vs `registered_source_only`
+  (`AffectedSet::SourceOnly`). These agree in `effect_applies_to` when the source is the
+  only member, so they are interchangeable *today* — but they are different variants, and
+  `state::continuous_effects`' tests were written against `SourceOnly`.
+- `setup_game_with_creature` in `engine/actions.rs` vs `engine/resolve.rs` — same name,
+  different bodies (the first uses `place_on_battlefield`, the second inserts with
+  timestamp 0 / turn 1).
+
+Likewise `combat/validation.rs::place_creature_with_keywords` keeps its own body despite
+the shared name: it takes keywords before P/T and builds a creature with no color and no
+mana cost. Where a local signature differed from the shared one, the local name survives as
+a one-line wrapper, so no test body changed anywhere in the migration.
+
+The argument for doing this before the next phase was right, and the CDA merge demonstrated
+it mid-refactor: `AbilityDef` gained `is_characteristic_defining` and broke the same inline
+Lightning Bolt literal in two files at once.
 
 ### Before card breadth (Phase 8)
 
@@ -380,29 +410,3 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.
-
-
-- ~~**Test-support duplication.**~~ ✅ **done (2026-08-22).** Integration tests in
-  `mtgsim/tests/` link the crate as an external dependency and cannot see `#[cfg(test)]`
-  items in `src/`; unit tests in `src/` cannot see `tests/common/mod.rs`. Nothing shared
-  could live in either place, so helpers had forked — the Forest builder written out four
-  times, Lightning Bolt twice, Pacifism twice, `set_attacking` three times.
-
-  Now one copy in `src/test_support.rs`, behind a `test-support` cargo feature that the
-  crate enables for itself through a dev-dependency on itself. `cargo test` and
-  `cargo build --all-targets` turn it on; a plain `cargo build`/`--release` does not build
-  dev-dependencies at all, so the module is excluded from release artifacts. Cargo
-  resolves the self-dependency to a single compilation, so it costs no extra build time.
-  `tests/common/mod.rs` is deleted; its callers import from `mtgsim::test_support`.
-
-  **Two things were deliberately *not* unified, and both look like oversights:**
-  - `put_on_battlefield` (routes through `place_on_battlefield`, so ETB counters and
-    static-effect registration fire) vs `place_bare` (inserts a `BattlefieldEntity`
-    directly, firing neither). The combat tests need the second; collapsing them would put
-    rows in the continuous-effects registry those tests do not expect.
-  - `setup_game_with_creature` in `engine/actions.rs` vs `engine/resolve.rs` — same name,
-    different bodies (the first uses `place_on_battlefield`, the second inserts with
-    timestamp 0 / turn 1). Left as two functions.
-
-  Likewise `validation.rs::place_creature_with_keywords` keeps its own body: it takes
-  keywords before P/T and builds a creature with no color and no mana cost.
