@@ -81,7 +81,14 @@ CLASSIFY_RE = re.compile(r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-
 RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")
 FIELD_RE = re.compile(r"^-\s+\*\*([A-Za-z ]+):\*\*\s*(.*)$")
 COVERS_RE = re.compile(r"COVERS(-PARTIAL)?:\s*(.+)$")
-ATOM_ID_RE = re.compile(r"(?:ATOM|BOUNDARY|COMP)-[0-9A-Za-z.+]+-\d+")
+# Ids are `KIND-<rule>-<seq>`, but a COMP may name its cards instead of a
+# second rule: COMP-613-TARMOGOYF-HUMILITY-001. Allow extra `-`-joined
+# segments, each required to contain a letter so that the trailing `-<seq>`
+# is never swallowed. Only `scan_coverage` uses this; the session parser
+# reads ids from their headings.
+ATOM_ID_RE = re.compile(
+    r"(?:ATOM|BOUNDARY|COMP)-[0-9A-Za-z.+]+(?:-[0-9A-Za-z.+]*[A-Za-z][0-9A-Za-z.+]*)*-\d+"
+)
 RUST_FN_RE = re.compile(r"fn\s+([a-zA-Z0-9_]+)")
 
 # Field-name aliases: a handful of entries use variant labels.

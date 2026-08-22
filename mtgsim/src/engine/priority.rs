@@ -285,6 +285,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

@@ -66,6 +66,19 @@ impl ContinuousEffectRegistry {
 
     /// Register a new continuous effect. Returns its unique ID.
     pub fn add(&mut self, mut effect: ContinuousEffect) -> EffectId {
+        // CR 604.3a(3) — a CDA affects only the object that has it, so it needs
+        // no `AffectedSet` and never becomes a registry row. `layers::cda`
+        // applies them off the object's own ability list instead. Layer 7a is
+        // the CDA-only sublayer, so a row landing here means someone routed a
+        // CDA through registration; catch it at the door rather than letting it
+        // apply twice.
+        debug_assert!(
+            effect.layer != Layer::Layer7aCdaPT,
+            "Layer 7a is applied intrinsically, never from the registry \
+             (CR 604.3a(3)); effect from source {:?} tried to register there",
+            effect.source
+        );
+
         let id = self.next_effect_id;
         self.next_effect_id += 1;
         effect.id = id;
@@ -231,7 +244,7 @@ mod tests {
             created_on_turn: 1,
             timestamp,
             affected: AffectedSet::SourceOnly,
-            modification: EffectModification::ModifyPowerToughness { power: 1, toughness: 1 },
+            modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
         }
     }
 

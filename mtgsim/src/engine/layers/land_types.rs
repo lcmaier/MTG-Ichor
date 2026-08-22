@@ -101,6 +101,7 @@ pub(crate) fn intrinsic_mana_ability(
 ) -> Option<AbilityDef> {
     let mana_type = intrinsic_mana_type(land_type)?;
     Some(AbilityDef {
+        is_characteristic_defining: false,
         id: intrinsic_ability_id(object_id, land_type),
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
@@ -222,6 +223,7 @@ mod tests {
             supertypes: HashSet::new(),
             keywords: HashSet::new(),
             abilities: vec![AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::Tap],

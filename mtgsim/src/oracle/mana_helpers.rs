@@ -569,6 +569,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -600,6 +601,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -631,6 +633,7 @@ mod tests {
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::SacrificeSelf],
@@ -713,6 +716,7 @@ mod tests {
             .card_type(CardType::Instant)
             .mana_cost(ManaCost::build(&[ManaType::Red], 1))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -744,6 +748,7 @@ mod tests {
             .card_type(CardType::Sorcery)
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
             .ability(AbilityDef {
+                is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

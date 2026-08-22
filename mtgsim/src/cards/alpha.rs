@@ -27,6 +27,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -47,6 +48,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -67,6 +69,7 @@ pub fn counterspell() -> Arc<CardData> {
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 0))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -87,6 +90,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -107,6 +111,7 @@ pub fn giant_growth() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -131,6 +136,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .ability(AbilityDef {
+            is_characteristic_defining: false,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),

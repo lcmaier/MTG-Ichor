@@ -338,12 +338,21 @@ impl GameState {
     /// Reads printed abilities on purpose: it runs inside
     /// `place_on_battlefield`, before this object's own effect is registered,
     /// so computing effective characteristics here would be circular.
+    /// Lower a card-definition amount into a registry P/T value.
+    ///
+    /// `Fixed` collapses to a literal so the common case stays a plain integer;
+    /// everything else is carried through as an expression and evaluated at
+    /// every layer by `compute::evaluate_pt_value`.
+    ///
+    /// This used to `continue` on any non-`Fixed` amount, which silently
+    /// dropped the whole atom — a static ability with a computed P/T registered
+    /// nothing at all and failed no test (Deferred Migrations item 7e).
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
         use crate::engine::layers::types::{
-            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
         };
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
+        use crate::types::effects::{Duration, Effect, EffectRecipient, Primitive};
 
         let abilities = if let Some(obj) = self.objects.get(&id) {
             obj.card_data.abilities.clone()
@@ -353,6 +362,16 @@ impl GameState {
 
         for ability in &abilities {
             if ability.ability_type != AbilityType::Static {
+                continue;
+            }
+
+            // CR 604.3a(3) — a characteristic-defining ability affects only the
+            // object that has it, so it needs no `AffectedSet` and no row here.
+            // `engine::layers::cda` applies it off the object's own effective
+            // ability list instead, which is also what makes it work in every
+            // zone (CR 604.3) and what lets Layer 6 remove it before Layer 7a
+            // reads it. Registering it as well would apply it twice.
+            if ability.is_characteristic_defining {
                 continue;
             }
 
@@ -386,14 +405,16 @@ impl GameState {
                 // Map primitive → (layer, modification)
                 let (layer, modification) = match primitive {
                     Primitive::ModifyPowerToughness(p_expr, t_expr, _dur) => {
-                        let p = match p_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        (Layer::Layer7cModifyPT, EffectModification::ModifyPowerToughness { power: p, toughness: t })
+                        (Layer::Layer7cModifyPT, EffectModification::ModifyPowerToughness {
+                            power: PtValue::from_amount(p_expr),
+                            toughness: PtValue::from_amount(t_expr),
+                        })
                     }
                     Primitive::SetPowerToughness(p_expr, t_expr, _dur) => {
-                        let p = match p_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        let t = match t_expr { AmountExpr::Fixed(n) => *n as i32, _ => continue };
-                        (Layer::Layer7bSetPT, EffectModification::SetPowerToughness { power: p, toughness: t })
+                        (Layer::Layer7bSetPT, EffectModification::SetPowerToughness {
+                            power: PtValue::from_amount(p_expr),
+                            toughness: PtValue::from_amount(t_expr),
+                        })
                     }
                     Primitive::SwitchPowerToughness(_dur) => {
                         (Layer::Layer7dSwitchPT, EffectModification::SwitchPowerToughness)
