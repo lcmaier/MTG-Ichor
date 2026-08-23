@@ -116,7 +116,12 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
 /// types until end of turn.
 ///
 /// Tests: AddSubtype (creature subtype — Angel) combined with P/T pump.
-/// Note: GrantKeywordFlag(Flying) omitted — Layer 6 resolution not yet implemented.
+/// Note: the printed card also grants flying. That was omitted because Layer 6
+/// had no resolution-time producer; it has one now (`Primitive::GrantKeywordFlag`
+/// through `resolve::register_resolution_ability_effect`), so the omission is a
+/// choice rather than a limit. Left as-is because this card is an Aura modeled as
+/// an Instant, so completing the grant would not make it faithful — see the note
+/// in `cards::registry` on why the `*_spell` cards stay unregistered.
 pub fn call_to_serve_spell() -> Arc<CardData> {
     CardDataBuilder::new("Call to Serve")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -163,7 +168,9 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
 /// Target creature is legendary and gets +1/+1 until end of turn.
 ///
 /// Tests: AddSupertype (Legendary) combined with P/T pump.
-/// Note: GrantKeywordFlag atoms omitted — Layer 6 resolution not yet implemented.
+/// Note: the printed card also grants flying, vigilance and lifelink. Omitted
+/// because Layer 6 had no resolution-time producer; it has one now, so this is a
+/// choice rather than a limit. Same reasoning as `call_to_serve_spell`.
 pub fn on_serras_wings_spell() -> Arc<CardData> {
     CardDataBuilder::new("On Serra's Wings")
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
