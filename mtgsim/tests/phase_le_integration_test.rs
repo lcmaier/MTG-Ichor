@@ -107,9 +107,12 @@ fn test_tarmogoyf_cda_applies_in_7a_then_pump_in_7c() {
 // COVERS: ATOM-113.12-001
 // COVERS-PARTIAL: COMP-613-TARMOGOYF-HUMILITY-001
 //
-// Partial on the COMP: its board is "Player A controls Humility", and both
-// halves of Humility are hand-built registry rows here — which proves the layer
-// ordering but not the card. Kept as an isolation test of the ordering alone.
+// Partial on the COMP: its board is "Player A controls Humility", and there is
+// no Humility here. Its two effects are written straight into the registry as
+// `ContinuousEffect` values, rather than produced by putting a card with
+// Humility's text onto the battlefield and letting `register_static_effects`
+// derive them. That proves the layer ordering but not that any card reaches it.
+// Kept as an isolation test of the ordering alone.
 // The COMP's actual board is covered by
 // `phase_lf_integration_test::test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it`,
 // which uses `phase_lf_cards::humility`.
@@ -306,8 +309,9 @@ fn test_devoid_makes_a_black_card_colorless() {
 
 // COVERS-PARTIAL: ATOM-113.12-002
 //
-// Partial: the "remove all abilities" effect is a hand-built registry row, not
-// a card. Kept because it isolates the Layer 5 / Layer 6 ordering from anything
+// Partial: the "remove all abilities" effect is a `ContinuousEffect` written
+// directly into the registry, not one derived from a card's text at ETB. Kept
+// because it isolates the Layer 5 / Layer 6 ordering from anything
 // Humility also does; the atom's full scenario is covered by
 // `phase_lf_integration_test::test_humility_does_not_restore_a_devoid_cards_printed_color`.
 #[test]

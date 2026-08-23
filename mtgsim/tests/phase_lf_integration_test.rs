@@ -512,3 +512,52 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
         "only the Layer 6 grant itself — an activated ability generates no          continuous effect"
     );
 }
+
+/// CR 604.3a(2) has to be applied consistently on both sides. `apply_modification`
+/// clears `is_characteristic_defining` on the granted def, so the ability lands on
+/// the object as an ordinary static ability — which means the effects it generates
+/// have to be registered like any other static ability's.
+///
+/// Skipping registration because the *author* marked the def characteristic-defining
+/// leaves the object holding a static ability that does nothing at all.
+#[test]
+fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    game.continuous_effects.remove_by_source(caster);
+
+    let mut granted = static_ability(Effect::Atom(
+        Primitive::SetPowerToughness(
+            AmountExpr::Fixed(6),
+            AmountExpr::Fixed(6),
+            Duration::WhileSourceOnBattlefield,
+        ),
+        EffectRecipient::Implicit,
+    ));
+    // The author asserts CDA-ness. CR 604.3a(2) overrules them for a *granted*
+    // ability, and overruling means "treat it as an ordinary ability", not
+    // "drop it".
+    granted.is_characteristic_defining = true;
+
+    let spell = Effect::Atom(
+        Primitive::GrantAbility(Box::new(granted), Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        source: caster,
+        controller: 0,
+        targets: vec![ResolvedTarget::Object(creature)],
+    };
+    game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
+
+    let abilities = get_effective_abilities(&game, creature);
+    assert_eq!(abilities.len(), 1);
+    assert!(!abilities[0].is_characteristic_defining, "the flag is cleared");
+    assert_eq!(
+        (get_effective_power(&game, creature), get_effective_toughness(&game, creature)),
+        (Some(6), Some(6)),
+        "the ability is on the creature as an ordinary static ability, so the \
+         effect it generates must be registered"
+    );
+}

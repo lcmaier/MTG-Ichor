@@ -203,7 +203,7 @@ pub type Timestamp = u64;
 
 **Why `modifies` is not a stored field:** each **registry entry** operates in exactly one layer, so its output category is `layer.category()` — no separate field needed. What *is* stored is `filter_reads`, because the filter's reads are distinct from the layer's output.
 
-**Multi-layer card text** is split at registration time per **CR 613.1c** ("If an effect should be applied in different layers or sublayers, the parts of the effect each apply in their appropriate ones."). So a spell whose resolving effect text is "target creature gets +1/+1 and becomes the color of your choice until end of turn" registers **two sibling registry entries** at resolution:
+**Multi-layer card text** is split at registration time per **CR 613.6** ("If an effect should be applied in different layers or sublayers, the parts of the effect each apply in their appropriate ones."). So a spell whose resolving effect text is "target creature gets +1/+1 and becomes the color of your choice until end of turn" registers **two sibling registry entries** at resolution:
 
 - one Layer 5 `AddColor(chosen)` with `AffectedSet::Fixed(vec![target])`, `Duration::UntilEndOfTurn`;
 - one Layer 7c `ModifyPowerToughness { +1, +1 }` with the same `affected` and `duration`.
@@ -237,7 +237,7 @@ pub enum AffectedSet {
 /// entry. Each variant belongs to exactly one layer. Multi-layer card
 /// text ("becomes a 0/0 Golem artifact creature that loses all abilities")
 /// is split at registration into sibling entries sharing timestamp and
-/// source (see CR 613.1c note in §3.3): a Layer 4 SetTypes, a Layer 6
+/// source (see the CR 613.6 note in §3.3): a Layer 4 SetTypes, a Layer 6
 /// LoseAllAbilities, and a Layer 7b SetPowerToughness.
 pub enum EffectModification {
     // --- Layer 1a ---

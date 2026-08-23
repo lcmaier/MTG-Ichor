@@ -41,7 +41,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// Layer 6 before Layer 7a can read it — is fully in scope and is what the
 /// tests exercise.
 pub fn humility() -> Arc<CardData> {
-    let creatures = || EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature));
+    let creatures = EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature));
 
     CardDataBuilder::new("Humility")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
@@ -56,7 +56,7 @@ pub fn humility() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
-                    creatures(),
+                    creatures.clone(),
                 ),
                 Effect::Atom(
                     Primitive::SetPowerToughness(
@@ -64,7 +64,7 @@ pub fn humility() -> Arc<CardData> {
                         AmountExpr::Fixed(1),
                         Duration::WhileSourceOnBattlefield,
                     ),
-                    creatures(),
+                    creatures,
                 ),
             ]),
         })

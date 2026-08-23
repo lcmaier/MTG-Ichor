@@ -365,8 +365,10 @@ impl GameState {
                 }
 
                 // A TypeChange may produce multiple EffectModification entries,
-                // each belonging to Layer 4. They share a timestamp and source
-                // per CR 613.1c (sibling entries for a single effect).
+                // each belonging to Layer 4. CR 613.6 is why they are siblings
+                // ("the parts of the effect each apply in their appropriate"
+                // layers), and CR 613.7b is why they share a timestamp — one
+                // resolution, one moment of creation.
                 let timestamp = self.allocate_timestamp();
                 let mut modifications: Vec<crate::engine::layers::EffectModification> = Vec::new();
 
@@ -406,8 +408,9 @@ impl GameState {
                     }
                 }
 
-                // Register one ContinuousEffect per modification (sibling entries
-                // sharing timestamp+source, per CR 613.1c).
+                // Register one ContinuousEffect per modification: siblings of
+                // one CR 613.6 effect, sharing the source and the CR 613.7b
+                // creation timestamp.
                 for modification in modifications {
                     let effect = crate::engine::layers::ContinuousEffect {
                         id: 0,
@@ -477,8 +480,13 @@ impl GameState {
                 );
 
                 // CR 613.7a clause 2. If the granted ability is itself static,
-                // it generates continuous effects of its own, and those are
-                // timestamped from *this* effect rather than from the object.
+                // it generates continuous effects of its own, and those take
+                // the *later* of this effect's timestamp and the grantee's —
+                // not this effect's unconditionally. The grantee usually
+                // entered the battlefield first, so the granting effect usually
+                // wins, but a permanent that entered after the grant was
+                // created keeps its own. `static_effect_timestamp` takes the
+                // max; this call only supplies the second candidate.
                 if let Some((targets, timestamp)) = granted {
                     for grantee in targets {
                         self.register_granted_static_effects(
@@ -579,15 +587,22 @@ impl GameState {
     ) {
         use crate::objects::card_data::AbilityType;
 
+        // Not a guard against misuse — the expected path. Every `GrantAbility`
+        // calls this, and most granted abilities are triggered, activated or
+        // mana abilities ("target creature gains '{T}: add {G}'"). Only a static
+        // ability generates a continuous effect, so everything else correctly
+        // registers nothing and still lands on the object via the Layer 6 row.
+        // `test_granting_a_non_static_ability_registers_no_derived_effect`.
         if granted.ability_type != AbilityType::Static {
             return;
         }
-        // CR 604.3a(2) — a granted ability is never a CDA, so it never applies
-        // intrinsically. `apply_modification` clears the flag on the frame; this
-        // is the same rule reaching the registry side.
-        if granted.is_characteristic_defining {
-            return;
-        }
+
+        // Deliberately does NOT check `is_characteristic_defining`. CR 604.3a(2)
+        // says a granted ability is never a CDA, and `apply_modification`
+        // enforces that by clearing the flag as the ability lands — so the
+        // object holds an *ordinary* static ability. Overruling the card author
+        // means treating it as ordinary, not dropping it: an early return here
+        // left the creature holding a static ability that generated nothing.
 
         let atoms: Vec<(&Primitive, &EffectRecipient)> = match &granted.effect {
             Effect::Atom(p, r) => vec![(p, r)],
@@ -616,22 +631,47 @@ impl GameState {
                 self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
 
             for (layer, modification) in rows {
-                // A granted static ability whose own effect lands in layers 1-6
-                // does not work, and it fails *silently* rather than wrongly:
-                // the grant applies AT layer 6, so at any layer <= 6 the frame
-                // the CR 613.7a existence check reads is the frame from before
-                // the grant, and the derived effect finds no ability to justify
-                // itself.
+                // A granted static ability whose own effect lands in layers
+                // 1-6 does not apply, and it fails silently: the grant applies
+                // AT layer 6, so at any layer <= 6 the frame the CR 613.7a
+                // existence check reads (`compute_to_ceiling` at `layer_index`)
+                // predates the grant, and the derived effect finds no ability
+                // to justify itself. Assert at the authoring site rather than
+                // let a card quietly do nothing.
                 //
-                // This is not a corner. It is exactly CR 613.7a's own worked
-                // example -- Rune of Flight grants "Equipped creature has
-                // flying", a layer 6 effect. That card also needs Equip, so it
-                // is out of reach twice over. Assert loudly at the authoring
-                // site rather than let a card quietly do nothing; see Deferred
-                // Migrations item 7b.
+                // The two cases below the assert are not the same problem.
+                //
+                // **Layer 6 exactly** is real and is CR 613.7a's own worked
+                // example: Rune of Flight grants enchanted Equipment "Equipped
+                // creature has flying". The CR resolves it purely by timestamp
+                // within layer 6, and our ordering is already right for it --
+                // clause 2 makes the derived timestamp `max(grantee, grant)`,
+                // which is >= the grant's, and when they tie the grant row is
+                // added first so it takes the lower `EffectId` tiebreak. So the
+                // grant always sorts at-or-before its own derived effect. The
+                // only missing piece is that the existence check cannot see a
+                // *partially applied* layer.
+                //
+                // That is exactly what `codebase-state.md` item 8 step 4 builds:
+                // apply a layer board-wide in one sequential pass over ordered
+                // applications, so the check at position k sees everything
+                // applied earlier in the same layer. It is the same fix 613.8b's
+                // loop rule needs, which is why the two are scheduled together.
+                // Not a workaround waiting for a rewrite -- the ordering work is
+                // done, only the frame the check reads has to change.
+                //
+                // **Layers 1-5** is a different animal, and we are not waiting
+                // on it. CR 613.8a(a) confines dependency to a single layer, so
+                // the CR supplies no mechanism for a layer 6 grant to reach back
+                // into layer 5, and any answer would be invented. Searched
+                // Scryfall for granted statics that define a type, color or
+                // subtype: the hits are all false positives (quoted text inside
+                // activated abilities, and Animate Dead's enchant clause). Real
+                // grants are of triggered abilities, activated abilities,
+                // keywords, or layer 7 statics. Nothing to build against.
                 debug_assert!(
                     layer > Layer::Layer6Ability,
-                    "granted static ability generates a {:?} effect; layers 1-6                      are unreachable for a grant that applies at layer 6                      (CR 613.7a, Deferred Migrations item 7b)",
+                    "granted static ability generates a {:?} effect. A grant                      applies at layer 6, so the CR 613.7a existence check reads                      a pre-grant frame at any layer <= 6 and this effect will                      not apply. Layer 6 itself needs the board-wide sequential                      pass (codebase-state.md item 8 step 4); layers 1-5 have no                      CR mechanism and no known card.",
                     layer
                 );
 
