@@ -452,6 +452,17 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
 ### Cross-cutting — keep this section honest
 
+**`fuzz_games::random_deck` cannot build a deck containing a nonbasic land, and has no artifacts to draw from.** The land slots are filled by `color_to_land(color)`, which maps each colour to its basic — so every land in every fuzz deck is a basic, and `CardRegistry` contains no artifact at all outside the `phase_l*_cards` fixtures.
+
+Two consequences, found 2026-08-23 when the layer cards were registered:
+
+- **Blood Moon is registered and inert.** Its filter is "nonbasic land", and no deck can contain one. CR 305.7 — the land-type carve-out in `engine/layers/land_types.rs`, and the most intricate code in Layer 4 — therefore has **zero** random-play coverage despite the card being in the pool.
+- **March of the Machines is registered and inert**, for the same reason on the artifact side.
+
+The deck builder was bootstrapped to get *a* legal 60 cards and never revisited. What it needs is a land pool drawn from the registry rather than a colour→basic table, filtered by the land's produced-mana colours against the deck's colours, with a floor on basics so mana bases still function. That is `fuzz_games.rs` only — no engine change — but it is deck-construction design (how many nonbasics, what counts as castable for a land) and deserves its own review rather than being tacked onto a card-registration commit.
+
+It blocks more than these two cards: every utility land, every dual, and every land-matters card is untestable in random play until it is fixed. Worth doing before leaning on fuzz coverage as evidence that a land-touching phase is correct.
+
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
 
 The original entry named `HashMap` iteration order as the cause. That was real but second: **the seed never reached the AI or the shuffle at all.** `ui/random.rs` called `rand::rng()` — an OS-seeded `ThreadRng` — fresh in each of the four `DecisionProvider` methods, and `state/game.rs::shuffle_library` did the same, so `--seed N` controlled deck *composition* and nothing else. `cards/registry.rs::card_names()` was a third: it returned `HashMap` keys, so the seeded deck builder drew from a differently-ordered list each process and built a different deck from the same seed. Three separate leaks, each sufficient on its own; the recorded measurement (25.9 / 27.6 / 28.0 avg turns) was the sum.

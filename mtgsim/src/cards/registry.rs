@@ -8,6 +8,10 @@ use super::alpha;
 use super::creatures;
 use super::keyword_creatures;
 use super::phase5_pre_cards;
+use super::phase_lc_cards;
+use super::phase_ld_cards;
+use super::phase_le_cards;
+use super::phase_lf_cards;
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -95,6 +99,30 @@ impl CardRegistry {
         registry.register("Angel's Mercy", phase5_pre_cards::angels_mercy);
         registry.register("Dark Ritual", phase5_pre_cards::dark_ritual);
         registry.register("Glorious Anthem", phase5_pre_cards::glorious_anthem);
+
+        // Layer-system cards (Phases LC-LF).
+        //
+        // Only the ones whose definition is faithful to the printed card, because
+        // this registry feeds `cli_play` as well as `fuzz_games`. The other
+        // `phase_l*_cards` entries stay out and each has a reason:
+        //
+        // - Chromatic Ward and Windswept Heights are invented cards.
+        // - Urborg Effect is a deliberate stand-in (an Enchantment carrying the
+        //   land's ability) rather than Urborg itself.
+        // - The four `*_spell` cards are Auras and an Artifact re-modeled as
+        //   Instants to avoid machinery their phase did not need. Real names,
+        //   wrong card types.
+        // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands, and
+        //   `fuzz_games::random_deck` fills land slots with basics only, so
+        //   registering them would add nothing to a deck.
+        registry.register("Cerulean Wisps", phase_lc_cards::cerulean_wisps);
+        registry.register("Crimson Wisps", phase_lc_cards::crimson_wisps);
+        registry.register("Moonlace", phase_lc_cards::moonlace);
+        registry.register("Blood Moon", phase_ld_cards::blood_moon);
+        registry.register("March of the Machines", phase_ld_cards::march_of_the_machines);
+        registry.register("Tarmogoyf", phase_le_cards::tarmogoyf);
+        registry.register("Culling Drone", phase_le_cards::culling_drone);
+        registry.register("Humility", phase_lf_cards::humility);
 
         registry
     }
