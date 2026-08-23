@@ -230,6 +230,16 @@ pub enum AffectedSet {
 
 **Decision:** reuse `SelectionFilter` (data-driven) rather than function pointers. Rationale: serialization, debugging, and the dependency-algorithm static check can inspect filter fields. Function pointers would force the dependency algorithm into the "hypothetical check" path unnecessarily often.
 
+**Amendment (2026-08-23) — the filter is stored unresolved.** As shipped, the variant is `Filter { filter: PermanentFilter }`, and it briefly also carried a `controller: Option<PlayerId>` resolved from `PermanentFilter::ByController(PlayerRef::You)` at registration. That was wrong: CR 109.5 makes a static ability's "you" the source's **current** controller, so a value snapshotted when the source entered the battlefield is stale the moment control of the source changes.
+
+`compute::permanent_matches_filter` now resolves the `PlayerRef` during the walk, which puts the whole of "does this object match" in one function instead of splitting it across the filter and a sibling field.
+
+- `EffectOrigin::StaticAbility` → the source's effective controller, asked at `layer_index` (§5.2's descending ceiling, never the full one — same request `static_ability_still_exists` makes).
+- `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
+- `PlayerRef::Opponent` is matched as a predicate, `controller != you`, not resolved to an id: CR 102.2 gives one opponent in a two-player game but CR 102.3 gives a set in multiplayer, and the predicate is correct for both.
+
+Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and both are load-bearing: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so an eager walk cost 10x on `fuzz_games`. See `codebase-state.md` Deferred Migrations item 11.
+
 ### 3.5 `EffectModification` + `CharacteristicCategory`
 
 ```rust

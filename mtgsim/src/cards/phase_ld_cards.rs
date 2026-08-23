@@ -452,8 +452,9 @@ pub fn march_of_the_machines() -> Arc<CardData> {
 ///
 /// Not "creatures you control" — the filter is a bare `ByType(Creature)` with
 /// no controller constraint, and the text says what the filter does. Adding
-/// `ByController(PlayerRef::You)` would work (`extract_controller_from_filter`
-/// reads it), but controller scoping is not what this card is here to exercise.
+/// `ByController(PlayerRef::You)` would work (`compute::permanent_matches_filter`
+/// resolves it), but controller scoping is not what this card is here to
+/// exercise.
 ///
 /// The Land-typed sibling of [`lands_have_flying`], and it exists because Blood
 /// Moon's filter is "nonbasic **land**". Testing that a stripped static ability
