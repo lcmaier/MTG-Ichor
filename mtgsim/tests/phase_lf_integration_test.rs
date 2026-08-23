@@ -203,10 +203,7 @@ fn test_a_flying_counter_grants_flying() {
     let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert!(!has_keyword(&game, id, KeywordFlag::Flying));
 
-    game.battlefield
-        .get_mut(&id)
-        .unwrap()
-        .add_counters(CounterType::Flying, 1);
+    game.add_counters(id, CounterType::Flying, 1);
 
     assert!(
         has_keyword(&game, id, KeywordFlag::Flying),
@@ -222,9 +219,8 @@ fn test_keyword_counters_are_live_and_only_keyword_counters_grant() {
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
-    let entry = game.battlefield.get_mut(&id).unwrap();
-    entry.add_counters(CounterType::Menace, 2);
-    entry.add_counters(CounterType::PlusOnePlusOne, 1);
+    game.add_counters(id, CounterType::Menace, 2);
+    game.add_counters(id, CounterType::PlusOnePlusOne, 1);
     assert!(has_keyword(&game, id, KeywordFlag::Menace));
 
     // A +1/+1 counter is layer 7c and grants no keyword — it must not have
@@ -242,30 +238,73 @@ fn test_keyword_counters_are_live_and_only_keyword_counters_grant() {
 }
 
 /// CR 613.1f puts keyword counters in layer 6 alongside ability-removing
-/// effects, so `LoseAllAbilities` and a keyword counter meet in the same layer.
+/// effects, so the two meet in one layer and CR 613.7 decides by timestamp:
+/// CR 613.7c timestamps each counter as it is put on, and `BattlefieldEntity`
+/// stores it.
 ///
-/// We apply counters after the layer's registry slice, so the counter wins
-/// whatever the timestamps say. That is an approximation of CR 613.7c, not the
-/// rule — see the comment in `compute::apply_effects`. This test pins today's
-/// behavior so the gap is visible rather than silent; it is deliberately not
-/// annotated as covering an atom, because it asserts what we do rather than
-/// what the CR requires.
+/// Strip *after* the counter, so the strip wins and the flying goes away.
 #[test]
-fn test_keyword_counter_currently_outlasts_a_same_layer_ability_strip() {
+fn test_an_ability_strip_removes_a_flying_counters_keyword_when_it_is_later() {
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.battlefield
-        .get_mut(&id)
-        .unwrap()
-        .add_counters(CounterType::Flying, 1);
+    game.add_counters(id, CounterType::Flying, 1);
+    assert!(has_keyword(&game, id, KeywordFlag::Flying));
 
-    // A strip with a much later timestamp. Under CR 613.7c it should win.
+    let strip_at = game.allocate_timestamp();
     game.continuous_effects
-        .add(row(id, 99, EffectModification::LoseAllAbilities));
+        .add(row(id, strip_at, EffectModification::LoseAllAbilities));
+
+    assert!(
+        !has_keyword(&game, id, KeywordFlag::Flying),
+        "CR 613.7: the strip has the later timestamp, so it applies after the          counter granted the keyword"
+    );
+}
+
+/// The mirror, and the half that makes the first one meaningful: a counter put
+/// on *after* the strip keeps its keyword, because it now has the later
+/// timestamp. An implementation that always applied counters first, or always
+/// applied them last, passes exactly one of this pair.
+#[test]
+fn test_a_flying_counter_put_on_after_a_strip_still_grants_flying() {
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    let strip_at = game.allocate_timestamp();
+    game.continuous_effects
+        .add(row(id, strip_at, EffectModification::LoseAllAbilities));
+
+    // Allocated after the strip, so CR 613.7c gives it the later timestamp.
+    game.add_counters(id, CounterType::Flying, 1);
 
     assert!(
         has_keyword(&game, id, KeywordFlag::Flying),
-        "known gap: counters carry no timestamp, so they always apply last          within layer 6"
+        "CR 613.7: the counter is later, so it applies after the strip"
+    );
+}
+
+/// CR 613.7c's second sentence: "if that object already has a counter of that
+/// kind on it, each counter of that kind receives a new timestamp identical to
+/// that of the new counter." Adding a second flying counter after a strip
+/// re-times *both*, so the keyword comes back.
+#[test]
+fn test_adding_a_counter_of_the_same_kind_retimestamps_the_whole_stack() {
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.add_counters(id, CounterType::Flying, 1);
+
+    let strip_at = game.allocate_timestamp();
+    game.continuous_effects
+        .add(row(id, strip_at, EffectModification::LoseAllAbilities));
+    assert!(!has_keyword(&game, id, KeywordFlag::Flying), "strip is later");
+
+    game.add_counters(id, CounterType::Flying, 1);
+    assert_eq!(
+        game.battlefield[&id].counter_count(CounterType::Flying),
+        2
+    );
+    assert!(
+        has_keyword(&game, id, KeywordFlag::Flying),
+        "CR 613.7c: the new counter re-timestamps every counter of its kind, so          the pair now applies after the strip"
     );
 }
 

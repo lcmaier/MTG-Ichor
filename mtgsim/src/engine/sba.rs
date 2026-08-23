@@ -463,9 +463,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(crate::types::effects::CounterType::PlusOnePlusOne, 3);
-        entry.add_counters(crate::types::effects::CounterType::MinusOneMinusOne, 2);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 3);
+        game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 2);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
@@ -488,9 +488,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(crate::types::effects::CounterType::PlusOnePlusOne, 4);
-        entry.add_counters(crate::types::effects::CounterType::MinusOneMinusOne, 4);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 4);
+        game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 4);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);

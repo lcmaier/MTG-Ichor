@@ -74,7 +74,7 @@
 ///   "Hexproof from [quality]" (702.11d) is quadrant ② and is not modelled.
 ///
 /// See `codebase-state.md` Deferred Migrations item 10.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum KeywordFlag {
     Deathtouch,
     Defender,

@@ -1,6 +1,27 @@
 use std::collections::HashMap;
+use crate::engine::layers::types::Timestamp;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::effects::CounterType;
+
+/// The counters of one kind on a permanent, with the timestamp CR 613.7c gives
+/// them.
+///
+/// > Each counter receives a timestamp as it's put on an object or player. If
+/// > that object or player already has a counter of that kind on it, each
+/// > counter of that kind receives a new timestamp identical to that of the new
+/// > counter.
+///
+/// The second sentence is what makes a single timestamp per kind *exact*: two
+/// counters of the same kind can never carry different timestamps, so there is
+/// nothing a per-counter list would express that this does not.
+///
+/// Read by the layer system: keyword counters (CR 122.1b) are layer 6 effects
+/// and interleave with that layer's registry rows by timestamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CounterStack {
+    pub count: u32,
+    pub timestamp: Timestamp,
+}
 
 /// Battlefield-specific state for a permanent.
 ///
@@ -42,7 +63,7 @@ pub struct BattlefieldEntity {
     pub blocking: Option<BlockingInfo>,
 
     // Counters (rule 122)
-    pub counters: HashMap<CounterType, u32>,
+    pub counters: HashMap<CounterType, CounterStack>,
 
     /// The value of X chosen when this permanent was cast (rule 107.3f).
     /// Carried from StackEntry on resolution. None for non-X spells.
@@ -103,18 +124,33 @@ impl BattlefieldEntity {
         self.blocking = None;
     }
 
-    /// Add `n` counters of the given type.
-    pub fn add_counters(&mut self, counter_type: CounterType, n: u32) {
-        let entry = self.counters.entry(counter_type).or_insert(0);
-        *entry += n;
+    /// Add `n` counters of the given type, timestamped per CR 613.7c.
+    ///
+    /// Prefer `GameState::add_counters`, which allocates the timestamp for you.
+    /// This is the low-level form, for callers that already hold one.
+    ///
+    /// CR 613.7c's second sentence — "if that object already has a counter of
+    /// that kind on it, each counter of that kind receives a new timestamp
+    /// identical to that of the new counter" — is the `entry.timestamp =`
+    /// below, and it is also why one timestamp per *kind* is exact rather than
+    /// a simplification: counters of one kind can never disagree.
+    pub fn add_counters(&mut self, counter_type: CounterType, n: u32, timestamp: Timestamp) {
+        let entry = self
+            .counters
+            .entry(counter_type)
+            .or_insert(CounterStack { count: 0, timestamp });
+        entry.count += n;
+        entry.timestamp = timestamp;
     }
 
     /// Remove up to `n` counters of the given type. Returns the number actually removed.
     pub fn remove_counters(&mut self, counter_type: CounterType, n: u32) -> u32 {
-        let entry = self.counters.entry(counter_type).or_insert(0);
-        let removed = (*entry).min(n);
-        *entry -= removed;
-        if *entry == 0 {
+        let Some(entry) = self.counters.get_mut(&counter_type) else {
+            return 0;
+        };
+        let removed = entry.count.min(n);
+        entry.count -= removed;
+        if entry.count == 0 {
             self.counters.remove(&counter_type);
         }
         removed
@@ -122,7 +158,12 @@ impl BattlefieldEntity {
 
     /// Returns the number of counters of the given type (0 if none).
     pub fn counter_count(&self, counter_type: CounterType) -> u32 {
-        self.counters.get(&counter_type).copied().unwrap_or(0)
+        self.counters.get(&counter_type).map(|s| s.count).unwrap_or(0)
+    }
+
+    /// The CR 613.7c timestamp shared by every counter of this kind, if any.
+    pub fn counter_timestamp(&self, counter_type: CounterType) -> Option<Timestamp> {
+        self.counters.get(&counter_type).map(|s| s.timestamp)
     }
 
     /// Attach this permanent to a host permanent.
@@ -152,16 +193,16 @@ mod tests {
     #[test]
     fn test_add_counters() {
         let mut e = make_entity();
-        e.add_counters(CounterType::PlusOnePlusOne, 3);
+        e.add_counters(CounterType::PlusOnePlusOne, 3, 1);
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 3);
-        e.add_counters(CounterType::PlusOnePlusOne, 2);
+        e.add_counters(CounterType::PlusOnePlusOne, 2, 2);
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 5);
     }
 
     #[test]
     fn test_remove_counters() {
         let mut e = make_entity();
-        e.add_counters(CounterType::PlusOnePlusOne, 3);
+        e.add_counters(CounterType::PlusOnePlusOne, 3, 3);
 
         let removed = e.remove_counters(CounterType::PlusOnePlusOne, 2);
         assert_eq!(removed, 2);
@@ -188,10 +229,10 @@ mod tests {
     #[test]
     fn test_multiple_counter_types() {
         let mut e = make_entity();
-        e.add_counters(CounterType::PlusOnePlusOne, 2);
-        e.add_counters(CounterType::MinusOneMinusOne, 1);
-        e.add_counters(CounterType::Flying, 1);
-        e.add_counters(CounterType::Charge, 5);
+        e.add_counters(CounterType::PlusOnePlusOne, 2, 4);
+        e.add_counters(CounterType::MinusOneMinusOne, 1, 5);
+        e.add_counters(CounterType::Flying, 1, 6);
+        e.add_counters(CounterType::Charge, 5, 7);
 
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 2);
         assert_eq!(e.counter_count(CounterType::MinusOneMinusOne), 1);

@@ -207,6 +207,16 @@ fn apply_effects(
         return;
     }
 
+    // Keyword counters (CR 122.1b) are a *second* source of layer 6 effects, and
+    // CR 613.7c timestamps them, so they interleave with that layer's registry
+    // rows by timestamp rather than following them. Humility with a later
+    // timestamp than a flying counter really does strip that flying.
+    //
+    // Built once per call rather than per layer, and empty for every permanent
+    // carrying no keyword counter — which is nearly all of them. Held descending
+    // so `pop()` yields the earliest.
+    let mut pending_counters = collect_keyword_counters(bf_entry);
+
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate() {
         if layer_index >= ceiling {
             break;
@@ -226,6 +236,15 @@ fn apply_effects(
         if has_registered {
             let effects = game.continuous_effects.effects_in_layer(layer);
             for effect in effects {
+                // Every keyword counter older than this row goes first (CR
+                // 613.7). Done before the filter and existence checks below,
+                // because those `continue` and would skip the drain.
+                if !pending_counters.is_empty() && layer == Layer::Layer6Ability {
+                    drain_keyword_counters_before(
+                        &mut pending_counters, effect.timestamp, chars,
+                    );
+                }
+
                 let already_applying = track_started && started.contains(&effect.group());
                 if !already_applying {
                     if !effect_applies_to(effect, id, chars, game) {
@@ -245,38 +264,18 @@ fn apply_effects(
             }
         }
 
-        // Apply keyword counters in layer 6 (CR 122.1b, CR 613.1f).
-        //
-        // Read off `BattlefieldEntity` rather than registered as effects, the
-        // same way layer 7c treats +1/+1 counters: the state is already owned,
-        // and keeping registry rows in step with every counter mutation is the
-        // reconcile-at-a-chokepoint pattern that turns effect existence into a
-        // fixpoint (see the module docs on `static_ability_still_exists`).
-        //
-        // **Ordering is approximate, and this is the one place it shows.** CR
-        // 613.7c gives every counter a timestamp, so a keyword counter should
-        // interleave with this layer's registry rows by timestamp — Humility
-        // with a later timestamp ought to strip a flying counter's flying, and
-        // here it does not, because counters always land after the slice.
-        // `counters: HashMap<CounterType, u32>` stores no timestamp to sort by.
-        // Layer 7c has the identical gap and it is harmless there (addition
-        // commutes); in layer 6 it is not. Fixing it means threading a
-        // timestamp through `add_counters`, which cannot allocate one itself —
-        // see Deferred Migrations item 10.
-        if layer == Layer::Layer6Ability {
-            if let Some(entry) = bf_entry {
-                for (counter_type, count) in &entry.counters {
-                    if *count == 0 {
-                        continue;
-                    }
-                    if let Some(keyword) = counter_type.keyword_granted() {
-                        chars.keywords.insert(keyword);
-                    }
-                }
-            }
+        // Whatever is left is later than every row in the layer.
+        if !pending_counters.is_empty() && layer == Layer::Layer6Ability {
+            drain_keyword_counters_before(&mut pending_counters, Timestamp::MAX, chars);
         }
 
-        // Apply counter P/T in layer 7c (rule 613.4c)
+        // Apply counter P/T in layer 7c (rule 613.4c).
+        //
+        // Not interleaved by timestamp the way layer 6's keyword counters are,
+        // and it does not need to be: every layer 7c effect is an addition to
+        // power and toughness, so the layer's result is order-independent. That
+        // is a property of the layer, not a shortcut — if a non-commutative 7c
+        // effect ever exists, this has to become a merge like the one above.
         if layer == Layer::Layer7cModifyPT {
             if let Some(entry) = bf_entry {
                 let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
@@ -293,6 +292,59 @@ fn apply_effects(
                 // when they are added to CounterType.
             }
         }
+    }
+}
+
+/// The keyword counters on `entry` (CR 122.1b), as `(timestamp, keyword)` sorted
+/// **descending** so `pop()` yields the earliest.
+///
+/// Returns empty for every layer but 6, and for every permanent with no keyword
+/// counter — which is the overwhelming majority, and an empty `Vec` does not
+/// allocate.
+fn collect_keyword_counters(
+    entry: Option<&crate::state::battlefield::BattlefieldEntity>,
+) -> Vec<(Timestamp, crate::types::keywords::KeywordFlag)> {
+    let Some(entry) = entry else {
+        return Vec::new();
+    };
+    // The overwhelmingly common case, and worth its own exit: no counters at
+    // all means no iteration and no `Vec`.
+    if entry.counters.is_empty() {
+        return Vec::new();
+    }
+
+    let mut out: Vec<(Timestamp, crate::types::keywords::KeywordFlag)> = entry
+        .counters
+        .iter()
+        .filter(|(_, stack)| stack.count > 0)
+        .filter_map(|(counter_type, stack)| {
+            counter_type.keyword_granted().map(|kw| (stack.timestamp, kw))
+        })
+        .collect();
+
+    // Descending, and by keyword on a tie. The tie is reachable — two kinds of
+    // keyword counter put on in one action share a timestamp under CR 613.7c —
+    // and `HashMap` iteration order is per-process, so without the second key
+    // the order would differ between runs of the binary. It cannot change the
+    // answer here (both are inserts into a set), but a `Vec` whose order is
+    // nondeterministic is a trap for whoever extends this. `KeywordFlag` derives
+    // `Ord` for exactly this, which is why the tiebreak costs nothing.
+    out.sort_unstable_by(|a, b| b.cmp(a));
+    out
+}
+
+/// Apply every pending keyword counter with a timestamp earlier than `limit`.
+fn drain_keyword_counters_before(
+    pending: &mut Vec<(Timestamp, crate::types::keywords::KeywordFlag)>,
+    limit: Timestamp,
+    chars: &mut EffectiveCharacteristics,
+) {
+    while let Some(&(timestamp, keyword)) = pending.last() {
+        if timestamp >= limit {
+            return;
+        }
+        chars.keywords.insert(keyword);
+        pending.pop();
     }
 }
 
@@ -627,8 +679,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(CounterType::PlusOnePlusOne, 2);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, CounterType::PlusOnePlusOne, 2);
 
         let chars = compute_characteristics(&game, id).unwrap();
         assert_eq!(chars.power, Some(4));
@@ -646,9 +698,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(CounterType::PlusOnePlusOne, 3);
-        entry.add_counters(CounterType::MinusOneMinusOne, 1);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, CounterType::PlusOnePlusOne, 3);
+        game.add_counters(id, CounterType::MinusOneMinusOne, 1);
 
         let chars = compute_characteristics(&game, id).unwrap();
         // Net: +3 -1 = +2
@@ -1010,8 +1062,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(CounterType::PlusOnePlusOne, 2);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, CounterType::PlusOnePlusOne, 2);
 
         // Register a switch P/T effect (layer 7d)
         let effect = registered(
