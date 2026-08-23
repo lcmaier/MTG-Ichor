@@ -452,16 +452,17 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
 ### Cross-cutting — keep this section honest
 
-**`fuzz_games::random_deck` cannot build a deck containing a nonbasic land, and has no artifacts to draw from.** The land slots are filled by `color_to_land(color)`, which maps each colour to its basic — so every land in every fuzz deck is a basic, and `CardRegistry` contains no artifact at all outside the `phase_l*_cards` fixtures.
+**`fuzz_games::random_deck` land population — ✅ partly fixed (2026-08-23); artifacts still missing.**
 
-Two consequences, found 2026-08-23 when the layer cards were registered:
+Land slots used to be filled entirely from a colour→basic table, so no deck could contain a nonbasic land. Blood Moon was in the card pool and inert, and CR 305.7 — the land-type carve-out in `engine/layers/land_types.rs`, the most intricate code in Layer 4 — had **zero** random-play coverage.
 
-- **Blood Moon is registered and inert.** Its filter is "nonbasic land", and no deck can contain one. CR 305.7 — the land-type carve-out in `engine/layers/land_types.rs`, and the most intricate code in Layer 4 — therefore has **zero** random-play coverage despite the card being in the pool.
-- **March of the Machines is registered and inert**, for the same reason on the artifact side.
+Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giving `random_deck` a `NONBASIC_LANDS_PER_DECK` constant, currently 5. A land qualifies if it produces **at least one** of the deck's colours — deliberately not a subset test, because under a subset rule every dual is off by one colour for a two-colour deck and a mono-colour deck gets none at all. An unusable second colour on a land costs nothing in a fuzz deck.
 
-The deck builder was bootstrapped to get *a* legal 60 cards and never revisited. What it needs is a land pool drawn from the registry rather than a colour→basic table, filtered by the land's produced-mana colours against the deck's colours, with a floor on basics so mana bases still function. That is `fuzz_games.rs` only — no engine change — but it is deck-construction design (how many nonbasics, what counts as castable for a land) and deserves its own review rather than being tacked onto a card-registration commit.
+Still crude, and knowingly so: a flat constant over a static pool is not a mana-base model. Replace it with a real picker when card breadth (Phase 8) gives it something to choose between.
 
-It blocks more than these two cards: every utility land, every dual, and every land-matters card is untestable in random play until it is fixed. Worth doing before leaning on fuzz coverage as evidence that a land-touching phase is correct.
+**Still open — no artifact exists anywhere in `CardRegistry`,** so March of the Machines is registered and inert for the same reason Blood Moon was. There is no artifact card in the crate at all outside the `phase_l*` fixtures; fixing it means authoring one, not just registering one.
+
+**Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one.
 
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
 

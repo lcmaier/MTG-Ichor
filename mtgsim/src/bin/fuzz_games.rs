@@ -26,7 +26,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::mana::ManaSymbol;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -149,13 +149,24 @@ fn mana_type_to_color(mt: mtgsim::types::mana::ManaType) -> Option<Color> {
     }
 }
 
+/// How many of a deck's land slots are filled with nonbasic lands.
+///
+/// A flat constant over a static pool, not a mana-base model. Replace it with a
+/// real picker when card breadth (Phase 8) gives it something to choose between;
+/// today the entire nonbasic pool is the ten original duals.
+const NONBASIC_LANDS_PER_DECK: usize = 5;
+
 /// Generate a color-coherent 60-card deck.
 ///
 /// 1. Pick 1-2 colors randomly.
 /// 2. Select all nonland cards whose color requirements are a subset of the
 ///    chosen colors.
 /// 3. Fill 36 nonland slots from that pool (with repeats).
-/// 4. Fill 24 land slots with the corresponding basic lands.
+/// 4. Fill up to `NONBASIC_LANDS_PER_DECK` land slots from the registry's
+///    nonbasic lands, then the rest with basics.
+///
+/// Deck construction is deliberately crude — this is a fuzz harness, not a
+/// deckbuilder. It exists to produce a legal 60 that casts spells and attacks.
 fn random_deck(registry: &CardRegistry, rng: &mut StdRng) -> Vec<Arc<CardData>> {
     let all_colors = [Color::White, Color::Blue, Color::Black, Color::Red, Color::Green];
 
@@ -205,16 +216,78 @@ fn random_deck(registry: &CardRegistry, rng: &mut StdRng) -> Vec<Arc<CardData>> 
     let nonland_count = deck.len();
     let land_count = 60 - nonland_count;
 
-    // 24 lands (or more if nonland pool was small), split evenly among colors
-    let land_names: Vec<&str> = deck_colors.iter().map(|c| color_to_land(*c)).collect();
-    for i in 0..land_count {
-        let land_name = land_names[i % land_names.len()];
+    // Nonbasic lands first, then basics for whatever is left.
+    //
+    // Without these every land in every deck was a basic, which made Blood Moon
+    // inert and left CR 305.7 with no random-play coverage at all. A land
+    // qualifies if it produces at least one of the deck's colours — not a subset
+    // test, deliberately: a two-colour deck's duals are all off by one colour
+    // under a subset rule, and a mono-colour deck would get none at all. An
+    // unusable second colour on a land costs nothing here.
+    let nonbasic_names: Vec<String> = registry
+        .card_names()
+        .into_iter()
+        .filter(|name| {
+            let Ok(card) = registry.create(name) else { return false };
+            if !card.types.contains(&CardType::Land) {
+                return false;
+            }
+            if card.supertypes.contains(&Supertype::Basic) {
+                return false;
+            }
+            let produced = land_mana_colors(&card);
+            produced.iter().any(|c| deck_colors.contains(c))
+        })
+        .map(|s| s.to_string())
+        .collect();
+
+    let nonbasic_slots = NONBASIC_LANDS_PER_DECK.min(land_count);
+    let mut nonbasics_added = 0;
+    if !nonbasic_names.is_empty() {
+        for _ in 0..nonbasic_slots {
+            let name = nonbasic_names.choose(rng).unwrap();
+            if let Ok(card) = registry.create(name) {
+                deck.push(card);
+                nonbasics_added += 1;
+            }
+        }
+    }
+
+    // Basics fill the rest, split evenly among colors.
+    let basic_names: Vec<&str> = deck_colors.iter().map(|c| color_to_land(*c)).collect();
+    for i in 0..(land_count - nonbasics_added) {
+        let land_name = basic_names[i % basic_names.len()];
         if let Ok(card) = registry.create(land_name) {
             deck.push(card);
         }
     }
 
     deck
+}
+
+/// The colors of mana a land's abilities can produce.
+///
+/// Reads printed abilities on purpose — this runs before the game exists, so
+/// there is no object to compute effective characteristics for. Deck
+/// construction is a `// PRE-LAYER ZONE:` concern in the same sense as
+/// `oracle::legality`'s hand queries.
+fn land_mana_colors(card: &CardData) -> Vec<Color> {
+    use mtgsim::types::effects::{Effect, Primitive};
+
+    let mut colors = Vec::new();
+    for ability in &card.abilities {
+        let Effect::Atom(Primitive::ProduceMana(output), _) = &ability.effect else {
+            continue;
+        };
+        for (mana_type, _) in &output.mana {
+            if let Some(color) = mana_type_to_color(*mana_type) {
+                if !colors.contains(&color) {
+                    colors.push(color);
+                }
+            }
+        }
+    }
+    colors
 }
 
 /// Per-game statistics extracted from the event log.

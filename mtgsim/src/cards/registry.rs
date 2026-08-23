@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::objects::card_data::CardData;
 
 use super::basic_lands;
+use super::dual_lands;
 use super::alpha;
 use super::creatures;
 use super::keyword_creatures;
@@ -123,6 +124,19 @@ impl CardRegistry {
         registry.register("Tarmogoyf", phase_le_cards::tarmogoyf);
         registry.register("Culling Drone", phase_le_cards::culling_drone);
         registry.register("Humility", phase_lf_cards::humility);
+
+        // The ten original duals. Nonbasic lands with basic land types, which is
+        // what gives `fuzz_games` a mana base Blood Moon can actually affect.
+        registry.register("Tundra", dual_lands::tundra);
+        registry.register("Underground Sea", dual_lands::underground_sea);
+        registry.register("Badlands", dual_lands::badlands);
+        registry.register("Taiga", dual_lands::taiga);
+        registry.register("Savannah", dual_lands::savannah);
+        registry.register("Scrubland", dual_lands::scrubland);
+        registry.register("Volcanic Island", dual_lands::volcanic_island);
+        registry.register("Bayou", dual_lands::bayou);
+        registry.register("Plateau", dual_lands::plateau);
+        registry.register("Tropical Island", dual_lands::tropical_island);
 
         registry
     }
