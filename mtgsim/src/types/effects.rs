@@ -160,8 +160,10 @@ pub enum EffectRecipient {
     /// Filter-based continuous effect (static abilities / anthems).
     /// Applies to all permanents matching the filter. Not used at cast/resolution
     /// time — only read by the ETB hook to register continuous effects.
-    /// Use `ByController(PlayerRef::You)` in the filter to express "you control";
-    /// the registration hook resolves `PlayerRef` to a concrete `PlayerId`.
+    /// Use `ByController(PlayerRef::You)` in the filter to express "you control".
+    /// The filter is stored verbatim; `compute::permanent_matches_filter`
+    /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes
+    /// a static ability's "you" the source's *current* controller.
     FilteredPermanents(PermanentFilter),
 }
 

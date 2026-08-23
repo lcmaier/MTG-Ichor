@@ -26,6 +26,52 @@ pub struct RegistryScopeSummary {
     /// effect per layer. Worth 3.3x on a static-heavy board; see the comment
     /// on the `started` set in `apply_effects`.
     pub any_multi_row_group: bool,
+
+    /// True iff some row can change an object's controller — i.e. some
+    /// `EffectModification::SetController` is registered.
+    ///
+    /// `compute::effective_controller` needs this because CR 109.5 resolves a
+    /// static ability's "you" against the source's *effective* controller, and
+    /// asking for that means a `compute_to_ceiling` walk of the source. When
+    /// this is false, `chars.controller` provably cannot differ from the value
+    /// the walk seeds it with — `BattlefieldEntity.controller`, or the owner
+    /// off the battlefield — because Layer 2 is the only channel that writes
+    /// it: no CDA lives in Layer 2 (CR 613.4a lists only 7a), and no counter
+    /// touches controller. So the field read is the walk's answer, not an
+    /// approximation of it.
+    ///
+    /// This matters because `effect_applies_to` runs *before* the CR 613.7a
+    /// existence check and therefore for objects the filter rejects, unlike the
+    /// existence check, which only runs for effects that already matched.
+    ///
+    /// **How much the gate is worth, measured rather than assumed.** All four
+    /// combinations, interleaved, 200 games / seed 12345, against a 73.0
+    /// ms/game pre-refactor baseline:
+    ///
+    /// | | gate on | gate off |
+    /// |---|---|---|
+    /// | lazy (shipped) | 74.8 | 78.1 |
+    /// | eager | 82.2 | 749 |
+    ///
+    /// The 749 belongs to **eager and ungated together**, not to the gate
+    /// alone — an earlier version of this comment attributed it to the gate and
+    /// implied Layer 2 would bring a 10x with it. It will not. `FilterPlayers`'
+    /// laziness is what makes the ungated column affordable, and the gate is
+    /// worth a further ~4% on top. When Layer 2 lands and this flag starts
+    /// coming on, the honest upper bound is the 78.1 cell: **+7% over
+    /// baseline**, and an upper bound at that, because the measurement forces
+    /// the walk on every board while the real flag is only true while a
+    /// `SetController` row is actually registered.
+    ///
+    /// If that 7% ever needs to go, the next move is a sharper gate rather than
+    /// a redesign: ask "could any `SetController` row apply to *this* source"
+    /// instead of "does one exist anywhere". Control-changing effects come from
+    /// resolutions over fixed target sets, so for `AffectedSet::{Fixed,
+    /// SourceOnly}` rows that is an exact membership test over a very short
+    /// list, and only a `Filter`-shaped `SetController` row forces the
+    /// conservative answer. Not built: it should be measured against real Layer
+    /// 2 boards, not against a hypothesis about them.
+    pub any_control_changing: bool,
 }
 
 /// Owns all active continuous effects in the game.
@@ -60,6 +106,12 @@ impl ContinuousEffectRegistry {
         let mut seen: std::collections::HashSet<crate::engine::layers::types::EffectGroup> =
             std::collections::HashSet::with_capacity(self.effects.len());
         self.summary.any_multi_row_group = self.effects.iter().any(|e| !seen.insert(e.group()));
+        self.summary.any_control_changing = self.effects.iter().any(|e| {
+            matches!(
+                e.modification,
+                crate::engine::layers::types::EffectModification::SetController(_)
+            )
+        });
 
         debug_assert!(self.is_sorted(), "registry order invariant violated after mutation");
     }

@@ -174,10 +174,18 @@ pub enum AffectedSet {
     /// The source permanent itself ("this creature has flying").
     SourceOnly,
     /// A data-driven filter ("creatures you control").
-    Filter {
-        filter: PermanentFilter,
-        controller: Option<PlayerId>,
-    },
+    ///
+    /// **The filter is stored unresolved.** `PermanentFilter::ByController`
+    /// carries a `PlayerRef`, and `compute::effect_applies_to` resolves it
+    /// during the layer walk against the source's *effective* controller.
+    ///
+    /// This used to carry a `controller: Option<PlayerId>` that
+    /// `register_static_effects` filled in at ETB. CR 109.5 says the opposite —
+    /// "for a static ability, [you] is the **current** controller of the object
+    /// it's on" — so a snapshot taken when the source entered is wrong the
+    /// moment control of the source changes, and Glorious Anthem kept buffing
+    /// the team of whoever controlled it at ETB.
+    Filter { filter: PermanentFilter },
     /// A fixed set captured at effect creation time.
     /// Pump spells use this — the target is locked at resolution.
     Fixed(Vec<ObjectId>),

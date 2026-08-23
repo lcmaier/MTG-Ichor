@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use crate::engine::layers::types::*;
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, PlayerId};
 
 /// The layers, in application order (CR 613.1). Index into this array is the
 /// "layer ceiling" used by the frame cache: ceiling `n` means layers
@@ -247,7 +247,7 @@ fn apply_effects(
 
                 let already_applying = track_started && started.contains(&effect.group());
                 if !already_applying {
-                    if !effect_applies_to(effect, id, chars, game) {
+                    if !effect_applies_to(effect, id, chars, game, layer_index, cache) {
                         continue;
                     }
                     // CR 613.7a. Only asked before the effect starts applying:
@@ -348,56 +348,221 @@ fn drain_keyword_counters_before(
     }
 }
 
+/// The effective controller of `id` as of the end of layer `layer_index - 1`.
+///
+/// `None` only when `id` is not in the object store at all.
+///
+/// The gate is exact rather than a heuristic. Layer 2 is the only thing that
+/// writes `chars.controller` after `compute_to_ceiling` seeds it, so when the
+/// registry holds no `SetController` row the seed *is* the answer and reading
+/// the field skips a whole sub-walk.
+///
+/// It is worth ~4% on `fuzz_games`, not the 10x the first version of this
+/// comment implied — see `RegistryScopeSummary::any_control_changing` for the
+/// measured 2x2. `FilterPlayers`' laziness is what carries the ungated case, so
+/// Layer 2 turning this flag on costs +7% over baseline at worst.
+///
+/// The ungated arm asks at `layer_index`, never at the full ceiling
+/// (`layers-architecture.md` §5.2) — that descent is the termination argument,
+/// and `test_self_stripping_land_terminates_and_is_stable` is its canary.
+fn effective_controller(
+    game: &GameState,
+    id: ObjectId,
+    layer_index: usize,
+    cache: &mut FrameCache,
+) -> Option<PlayerId> {
+    if !game.continuous_effects.summary().any_control_changing {
+        // Mirrors `compute_to_ceiling`'s seed exactly: owner by default, the
+        // battlefield entry's controller when there is one (CR 110.2).
+        // Battlefield first, so the common case is one probe rather than two —
+        // a permanent's entry existing already implies the object does.
+        if let Some(entry) = game.battlefield.get(&id) {
+            return Some(entry.controller);
+        }
+        return game.objects.get(&id).map(|obj| obj.owner);
+    }
+    compute_to_ceiling(game, id, layer_index, cache).map(|frame| frame.controller)
+}
+
+/// The players a continuous effect's `PermanentFilter` can name — resolved
+/// lazily, at most once per filter tree.
+///
+/// Laziness is load-bearing, not tidiness. A filter with no `ByController` node
+/// (Cloudspire Mesa's bare "creatures have flying") must cost what it cost
+/// before this refactor, and `And(ByType(Creature), ByController(You))` must
+/// cost nothing extra for a land, because `&&` never reaches the second arm.
+///
+/// The two origins get their "you" from different rules, and the difference is
+/// not a shortcut:
+///
+/// - **`StaticAbility` (CR 613.7a).** CR 109.5: "For a static ability, this is
+///   the *current* controller of the object it's on." So ask the source for its
+///   effective controller, the same way `static_ability_still_exists` asks it
+///   for its effective ability list — `compute_to_ceiling` at `layer_index`,
+///   never at the full ceiling (`layers-architecture.md` §5.2).
+///
+///   It is tempting to call that walk free on the grounds that the existence
+///   check makes the identical request a few lines below and would hit the
+///   frame cache. **It is not.** The existence check runs only for effects that
+///   already *matched*; this one runs for every object the filter is about to
+///   reject, which is most of the board. Resolving it eagerly *and* ungated
+///   measured 749 ms/game against a 73.0 baseline on `fuzz_games --games 200
+///   --seed 12345`.
+///
+///   Of the two fixes, **this one is the load-bearing half**: lazy-and-ungated
+///   is 78.1 ms/game, lazy-and-gated 74.8. So laziness is what has to survive a
+///   refactor here; `effective_controller`'s gate is a further ~4%.
+///
+/// - **`Resolution` (CR 613.7b).** "You" was fixed when the spell or ability
+///   resolved — CR 611.2c, "the set of objects it affects is determined when
+///   that continuous effect begins" — and `effect.controller` is that player.
+///   The source permanent may since have changed hands, or left the
+///   battlefield entirely, without moving the effect's allegiance.
+///
+/// `effect.controller` is also the fallback when the source object is gone from
+/// the store. A `StaticAbility` effect in that state is about to be retired by
+/// `static_ability_still_exists` anyway, so the value only has to be defined,
+/// not meaningful.
+///
+/// # A Layer 2 effect asking about its own controller
+///
+/// Layer 2 lands next, and "permanents you control" on a Layer 2 effect reaches
+/// here with `layer_index == 1` — the frame as of the end of Layer 1, i.e.
+/// *before* any control-changing effect has applied. That reads
+/// `BattlefieldEntity.controller`, CR 110.2's default controller.
+///
+/// That is the right answer whenever the source is not itself under a
+/// control-changing effect, and it is the CR's own fallback when it is. Two
+/// Layer 2 effects where applying one changes what the other applies to are
+/// dependent under CR 613.8a — same layer, and the answer to "what it applies
+/// to" changes — so 613.8b orders them, and a mutual pair is a dependency
+/// *loop*, which 613.8b resolves by ignoring dependency and applying in
+/// timestamp order. Timestamp order over a pre-layer frame is what we already
+/// do. The exact version needs the frame this reads to be a partially-applied
+/// layer, which is `codebase-state.md` item 8 step 4's board-wide sequential
+/// pass — the same missing piece a granted Layer 6 static ability already
+/// waits on (`resolve::register_granted_static_effects`), and scheduled with
+/// 613.8 for that reason. Nothing here needs redoing when it arrives; only the
+/// ceiling this asks at.
+struct FilterPlayers<'a, 'c> {
+    effect: &'a ContinuousEffect,
+    game: &'a GameState,
+    layer_index: usize,
+    cache: &'c mut FrameCache,
+    you: Option<PlayerId>,
+    owner: Option<PlayerId>,
+}
+
+impl FilterPlayers<'_, '_> {
+    /// CR 109.5's "you".
+    fn you(&mut self) -> PlayerId {
+        if let Some(you) = self.you {
+            return you;
+        }
+        let you = match self.effect.origin {
+            EffectOrigin::Resolution => self.effect.controller,
+            EffectOrigin::StaticAbility { .. } => effective_controller(
+                self.game,
+                self.effect.source,
+                self.layer_index,
+                self.cache,
+            )
+            .unwrap_or(self.effect.controller),
+        };
+        self.you = Some(you);
+        you
+    }
+
+    /// The source object's owner (CR 108.3 / 110.2).
+    fn owner(&mut self) -> PlayerId {
+        if let Some(owner) = self.owner {
+            return owner;
+        }
+        let owner = self
+            .game
+            .objects
+            .get(&self.effect.source)
+            .map(|obj| obj.owner)
+            .unwrap_or(self.effect.controller);
+        self.owner = Some(owner);
+        owner
+    }
+}
+
 /// Check whether a continuous effect applies to the given object.
 fn effect_applies_to(
     effect: &ContinuousEffect,
     id: ObjectId,
     chars: &EffectiveCharacteristics,
     game: &GameState,
+    layer_index: usize,
+    cache: &mut FrameCache,
 ) -> bool {
     match &effect.affected {
         AffectedSet::SourceOnly => effect.source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
-        AffectedSet::Filter { filter, controller } => {
-            // Object must be on the battlefield for filter-based effects
+        AffectedSet::Filter { filter } => {
+            // Object must be on the battlefield for filter-based effects.
+            // Checked before anything else so a non-permanent costs no frame
+            // computation for the source.
             if !game.battlefield.contains_key(&id) {
                 return false;
             }
-            // Check controller constraint
-            if let Some(ctrl) = controller {
-                if chars.controller != *ctrl {
-                    return false;
-                }
-            }
-            // Check the permanent filter against current characteristics
-            permanent_matches_filter(filter, chars)
+            let mut players = FilterPlayers {
+                effect,
+                game,
+                layer_index,
+                cache,
+                you: None,
+                owner: None,
+            };
+            permanent_matches_filter(filter, chars, &mut players)
         }
     }
 }
 
 /// Check if a permanent's current characteristics match a filter.
+///
+/// `players` resolves the `PlayerRef` in a `ByController` node. Controller is
+/// matched here rather than beside the filter, which is how the snapshot bug
+/// hid: `ByController` used to return `true` unconditionally and defer to a
+/// field on `AffectedSet::Filter`, so the two halves of one question lived in
+/// two places and only one of them was re-asked during the walk.
 fn permanent_matches_filter(
     filter: &crate::types::effects::PermanentFilter,
     chars: &EffectiveCharacteristics,
+    players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
-    use crate::types::effects::PermanentFilter;
+    use crate::types::effects::{PermanentFilter, PlayerRef};
     match filter {
         PermanentFilter::All => true,
         PermanentFilter::ByType(t) => chars.types.contains(t),
         PermanentFilter::BySubtype(s) => chars.subtypes.contains(s),
         PermanentFilter::BySupertype(s) => chars.supertypes.contains(s),
         PermanentFilter::ByColor(c) => chars.colors.contains(c),
-        PermanentFilter::ByController(_) => {
-            // Controller filtering is handled by the AffectedSet::Filter.controller field
-            true
-        }
+        // `chars.controller` is the *effective* controller of the object being
+        // tested — Layer 2 will write it, and this comparison then costs
+        // nothing to keep correct.
+        //
+        // Every variant resolves; none of them asserts. `Opponent` is a
+        // predicate rather than an id on purpose: CR 102.2 makes it exactly one
+        // player in a two-player game, but CR 102.3 makes "your opponents" a
+        // set in multiplayer, and "controlled by someone who isn't you" is the
+        // same answer in both without the type having to lie.
+        PermanentFilter::ByController(player_ref) => match player_ref {
+            PlayerRef::You => chars.controller == players.you(),
+            PlayerRef::Opponent => chars.controller != players.you(),
+            PlayerRef::Owner => chars.controller == players.owner(),
+            PlayerRef::Player(pid) => chars.controller == *pid,
+        },
         PermanentFilter::PowerLE(n) => {
             chars.power.map(|p| p <= *n).unwrap_or(false)
         }
         PermanentFilter::And(a, b) => {
-            permanent_matches_filter(a, chars) && permanent_matches_filter(b, chars)
+            permanent_matches_filter(a, chars, players)
+                && permanent_matches_filter(b, chars, players)
         }
-        PermanentFilter::Not(inner) => !permanent_matches_filter(inner, chars),
+        PermanentFilter::Not(inner) => !permanent_matches_filter(inner, chars, players),
     }
 }
 
@@ -612,6 +777,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
+    use crate::types::effects::PlayerRef;
     use crate::types::keywords::KeywordFlag;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
@@ -845,8 +1011,10 @@ mod tests {
             created_on_turn: 1,
             timestamp: 1,
             affected: AffectedSet::Filter {
-                filter: PermanentFilter::ByType(CardType::Creature),
-                controller: Some(0),
+                filter: PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                ),
             },
             modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
         };
@@ -1031,8 +1199,10 @@ mod tests {
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
             affected: AffectedSet::Filter {
-                filter: PermanentFilter::ByType(CardType::Creature),
-                controller: Some(0),
+                filter: PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                ),
             },
             modification: EffectModification::AddColor(Color::Red),
         };
@@ -1267,7 +1437,6 @@ mod tests {
             timestamp: game.allocate_timestamp(),
             affected: AffectedSet::Filter {
                 filter: PermanentFilter::ByType(CardType::Creature),
-                controller: None,
             },
             modification: EffectModification::AddColor(Color::Red),
         };

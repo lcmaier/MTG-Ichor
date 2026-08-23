@@ -157,9 +157,7 @@ completeness. Read `stats` per phase; the TOTAL row is noise.
 
 ## Git workflow
 
-One branch per unit of work → PR → merge to main. **Ask for the branch name; don't
-invent one, don't rename a branch, and don't push a name the user didn't choose.** (The
-old `phase-LX` naming convention is retired — topic names like `layers/cdas` are fine.)
+One branch per unit of work → PR → merge to main.
 
 Merge with a merge commit or "Rebase and merge", never squash — this project leans on
 its written record and squashing discards per-commit messages.
