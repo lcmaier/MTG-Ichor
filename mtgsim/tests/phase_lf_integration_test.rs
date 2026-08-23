@@ -600,3 +600,73 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
          effect it generates must be registered"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Citanul Hierophants — a *static* ability granting an activated ability over
+// a live filter. The `Primitive::GrantAbility` arm of `static_primitive_rows`
+// had no card reaching it until this one: every other `GrantAbility` in the
+// pool arrives through a resolution, which produces `AffectedSet::Fixed`
+// against the spell's targets rather than a filter re-evaluated every walk.
+//
+// It also crosses out of the layer system into mana enumeration, which is the
+// coupling CLAUDE.md warns about — `activatable_abilities` produces an index,
+// `priority` re-derives it by id, `cast::activate_ability` consumes it, and all
+// three must index the *effective* list.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_citanul_hierophants_grants_a_mana_ability_to_your_creatures() {
+    use mtgsim::oracle::characteristics::get_effective_abilities;
+
+    let mut game = setup_two_player_game();
+
+    let my_bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+    let opp_bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 1);
+
+    // Grizzly Bears is vanilla: no abilities at all before the Hierophants.
+    assert!(get_effective_abilities(&game, my_bears).is_empty());
+
+    let hierophants =
+        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+
+    // "Creatures you control" — so yours, and the Hierophants itself, but not
+    // your opponent's.
+    let mine = get_effective_abilities(&game, my_bears);
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].ability_type, mtgsim::objects::card_data::AbilityType::Mana);
+    assert_eq!(get_effective_abilities(&game, hierophants).len(), 2); // static + granted
+    assert!(get_effective_abilities(&game, opp_bears).is_empty());
+}
+
+#[test]
+fn test_citanul_hierophants_granted_ability_reaches_mana_enumeration() {
+    use mtgsim::oracle::mana_helpers::available_mana_sources;
+
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+
+    // A vanilla creature is not a mana source.
+    assert!(!available_mana_sources(&game, 0).iter().any(|s| s.permanent_id == bears));
+
+    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+
+    // ...but it is once the Hierophants grants it "{T}: Add {G}". This is the
+    // assertion that would fail if any of the three index sites read printed
+    // abilities instead of effective ones.
+    assert!(available_mana_sources(&game, 0).iter().any(|s| s.permanent_id == bears));
+}
+
+#[test]
+fn test_citanul_hierophants_grant_retires_when_it_leaves() {
+    use mtgsim::oracle::characteristics::get_effective_abilities;
+    use mtgsim::types::zones::Zone;
+
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+    let hierophants =
+        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    assert_eq!(get_effective_abilities(&game, bears).len(), 1);
+
+    game.change_zone(hierophants, Zone::Graveyard).unwrap();
+    assert!(get_effective_abilities(&game, bears).is_empty());
+}
