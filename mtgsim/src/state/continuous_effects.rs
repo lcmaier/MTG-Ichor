@@ -26,6 +26,26 @@ pub struct RegistryScopeSummary {
     /// effect per layer. Worth 3.3x on a static-heavy board; see the comment
     /// on the `started` set in `apply_effects`.
     pub any_multi_row_group: bool,
+
+    /// True iff some row can change an object's controller — i.e. some
+    /// `EffectModification::SetController` is registered.
+    ///
+    /// `compute::effective_controller` needs this because CR 109.5 resolves a
+    /// static ability's "you" against the source's *effective* controller, and
+    /// asking for that means a `compute_to_ceiling` walk of the source. When
+    /// this is false, `chars.controller` provably cannot differ from the value
+    /// the walk seeds it with — `BattlefieldEntity.controller`, or the owner
+    /// off the battlefield — because Layer 2 is the only channel that writes
+    /// it: no CDA lives in Layer 2 (CR 613.4a lists only 7a), and no counter
+    /// touches controller. So the field read is the walk's answer, not an
+    /// approximation of it.
+    ///
+    /// This matters because `effect_applies_to` runs *before* the CR 613.7a
+    /// existence check and therefore for objects the filter rejects. Without
+    /// the gate, every non-matching permanent pays a source-frame walk per
+    /// layer, which measured 70.5 → 749 ms/game on `fuzz_games --games 200
+    /// --seed 12345`.
+    pub any_control_changing: bool,
 }
 
 /// Owns all active continuous effects in the game.
@@ -60,6 +80,12 @@ impl ContinuousEffectRegistry {
         let mut seen: std::collections::HashSet<crate::engine::layers::types::EffectGroup> =
             std::collections::HashSet::with_capacity(self.effects.len());
         self.summary.any_multi_row_group = self.effects.iter().any(|e| !seen.insert(e.group()));
+        self.summary.any_control_changing = self.effects.iter().any(|e| {
+            matches!(
+                e.modification,
+                crate::engine::layers::types::EffectModification::SetController(_)
+            )
+        });
 
         debug_assert!(self.is_sorted(), "registry order invariant violated after mutation");
     }
