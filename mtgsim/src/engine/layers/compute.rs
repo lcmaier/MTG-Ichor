@@ -499,7 +499,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
     use crate::test_support::registered;
@@ -627,8 +627,8 @@ mod tests {
         let data = CardDataBuilder::new("Serra Angel")
             .card_type(CardType::Creature)
             .power_toughness(4, 4)
-            .keyword(KeywordAbility::Flying)
-            .keyword(KeywordAbility::Vigilance)
+            .keyword(KeywordFlag::Flying)
+            .keyword(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -636,9 +636,9 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         let chars = compute_characteristics(&game, id).unwrap();
-        assert!(chars.keywords.contains(&KeywordAbility::Flying));
-        assert!(chars.keywords.contains(&KeywordAbility::Vigilance));
-        assert!(!chars.keywords.contains(&KeywordAbility::Trample));
+        assert!(chars.keywords.contains(&KeywordFlag::Flying));
+        assert!(chars.keywords.contains(&KeywordFlag::Vigilance));
+        assert!(!chars.keywords.contains(&KeywordFlag::Trample));
     }
 
     // COVERS-PARTIAL: ATOM-613.4c-001
@@ -687,12 +687,12 @@ mod tests {
             id,
             Layer::Layer6Ability,
             1,
-            EffectModification::GrantKeyword(KeywordAbility::Flying),
+            EffectModification::GrantKeyword(KeywordFlag::Flying),
         );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
-        assert!(chars.keywords.contains(&KeywordAbility::Flying));
+        assert!(chars.keywords.contains(&KeywordFlag::Flying));
     }
 
     #[test]

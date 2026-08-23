@@ -4,7 +4,7 @@
 /// This enum is used both for printed keywords and for granted keywords
 /// (via continuous effects like "creatures you control have flying").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KeywordAbility {
+pub enum KeywordFlag {
     Deathtouch,
     Defender,
     DoubleStrike,

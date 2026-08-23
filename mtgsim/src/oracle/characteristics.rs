@@ -10,11 +10,11 @@ use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::ids::ObjectId;
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 
 /// Check if a permanent has an effective keyword ability.
 /// Routes through the layer system — accounts for granted/removed keywords.
-pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordAbility) -> bool {
+pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool {
     compute_characteristics(game, id)
         .map(|chars| chars.keywords.contains(&keyword))
         .unwrap_or(false)
@@ -43,7 +43,7 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     if let Some(entry) = game.battlefield.get(&id) {
         if entry.controller_since_turn >= game.turn_number {
-            !has_keyword(game, id, KeywordAbility::Haste)
+            !has_keyword(game, id, KeywordFlag::Haste)
         } else {
             false
         }
@@ -176,15 +176,15 @@ mod tests {
             .color(Color::White)
             .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
             .power_toughness(4, 4)
-            .keyword(KeywordAbility::Flying)
-            .keyword(KeywordAbility::Vigilance)
+            .keyword(KeywordFlag::Flying)
+            .keyword(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
 
-        assert!(has_keyword(&game, id, KeywordAbility::Flying));
-        assert!(has_keyword(&game, id, KeywordAbility::Vigilance));
+        assert!(has_keyword(&game, id, KeywordFlag::Flying));
+        assert!(has_keyword(&game, id, KeywordFlag::Vigilance));
     }
 
     #[test]
@@ -200,16 +200,16 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
 
-        assert!(!has_keyword(&game, id, KeywordAbility::Flying));
-        assert!(!has_keyword(&game, id, KeywordAbility::Haste));
-        assert!(!has_keyword(&game, id, KeywordAbility::Trample));
+        assert!(!has_keyword(&game, id, KeywordFlag::Flying));
+        assert!(!has_keyword(&game, id, KeywordFlag::Haste));
+        assert!(!has_keyword(&game, id, KeywordFlag::Trample));
     }
 
     #[test]
     fn test_has_keyword_nonexistent_object() {
         let game = GameState::new(2, 20);
         let fake_id = crate::types::ids::new_object_id();
-        assert!(!has_keyword(&game, fake_id, KeywordAbility::Flying));
+        assert!(!has_keyword(&game, fake_id, KeywordFlag::Flying));
     }
 
     #[test]

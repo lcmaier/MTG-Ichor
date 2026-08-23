@@ -1,6 +1,6 @@
 use super::colors::Color;
 use super::ids::PlayerId;
-use super::keywords::KeywordAbility;
+use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
 
 // ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ pub struct TokenDef {
     pub subtypes: Vec<crate::types::card_types::Subtype>,
     pub power: i32,
     pub toughness: i32,
-    pub keywords: Vec<KeywordAbility>,
+    pub keywords: Vec<KeywordFlag>,
 }
 
 /// Counter types that can be placed on permanents/players
@@ -366,9 +366,9 @@ pub enum Primitive {
     /// Switch power and toughness (layer 7d)
     SwitchPowerToughness(Duration),
     /// Grant a keyword ability (layer 6)
-    GrantKeyword(KeywordAbility, Duration),
+    GrantKeyword(KeywordFlag, Duration),
     /// Remove a keyword ability (layer 6)
-    RemoveAbility(KeywordAbility, Duration),
+    RemoveAbility(KeywordFlag, Duration),
     /// Change color (layer 5)
     ChangeColor(ColorChange, Duration),
     /// Change types (layer 4)

@@ -214,7 +214,7 @@ impl GameState {
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
-                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordAbility::Indestructible) {
+                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordFlag::Indestructible) {
                                 continue;
                             }
                             self.execute_action(GameAction::ZoneChange {
@@ -767,7 +767,7 @@ mod tests {
             .card_type(CardType::Creature)
             .subtype(Subtype::Creature(CreatureType::Myr))
             .power_toughness(0, 1)
-            .keyword(crate::types::keywords::KeywordAbility::Indestructible)
+            .keyword(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let target_id = obj.id;

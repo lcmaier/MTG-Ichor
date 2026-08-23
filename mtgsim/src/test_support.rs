@@ -36,7 +36,7 @@ use crate::types::effects::{
     AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -110,7 +110,7 @@ pub fn pacifism() -> Arc<CardData> {
 }
 
 /// A green "Test Creature" with the given P/T and keywords, and no other abilities.
-pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordAbility]) -> Arc<CardData> {
+pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) -> Arc<CardData> {
     let mut builder = CardDataBuilder::new("Test Creature")
         .card_type(CardType::Creature)
         .color(Color::Green)
@@ -188,7 +188,7 @@ pub fn place_vanilla_creature(
     owner: PlayerId,
     power: i32,
     toughness: i32,
-    keywords: &[KeywordAbility],
+    keywords: &[KeywordFlag],
 ) -> ObjectId {
     place_bare(game, vanilla_creature(power, toughness, keywords), owner)
 }

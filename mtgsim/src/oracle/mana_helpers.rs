@@ -321,7 +321,7 @@ fn passes_timing_check(game: &GameState, player_id: PlayerId, card_id: ObjectId)
     // so the layer system has nothing to contribute. Same exemption as
     // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
     let is_instant = obj.card_data.types.contains(&crate::types::card_types::CardType::Instant);
-    let has_flash = obj.card_data.keywords.contains(&crate::types::keywords::KeywordAbility::Flash);
+    let has_flash = obj.card_data.keywords.contains(&crate::types::keywords::KeywordFlag::Flash);
 
     if is_instant || has_flash {
         return true; // can cast anytime with priority

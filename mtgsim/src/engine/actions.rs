@@ -251,7 +251,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::types::card_types::*;
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
     use crate::types::mana::ManaType;
 
     fn setup_game_with_creature() -> (GameState, ObjectId) {
@@ -369,7 +369,7 @@ mod tests {
             .color(crate::types::colors::Color::White)
             .card_type(CardType::Creature)
             .power_toughness(2, 3)
-            .keyword(KeywordAbility::Lifelink)
+            .keyword(KeywordFlag::Lifelink)
             .build();
 
         let obj = GameObject::new(data, 0, Zone::Battlefield);
@@ -480,7 +480,7 @@ mod tests {
                 .color(crate::types::colors::Color::White)
                 .card_type(CardType::Creature)
                 .power_toughness(2, 2)
-                .keyword(KeywordAbility::Lifelink)
+                .keyword(KeywordFlag::Lifelink)
                 .build();
             let obj = GameObject::new(data, 0, Zone::Battlefield);
             let id = obj.id;

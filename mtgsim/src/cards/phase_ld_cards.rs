@@ -364,7 +364,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::GrantKeyword(
-                    crate::types::keywords::KeywordAbility::Flying,
+                    crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
@@ -472,7 +472,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::GrantKeyword(
-                    crate::types::keywords::KeywordAbility::Flying,
+                    crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),

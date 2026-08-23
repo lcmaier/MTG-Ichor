@@ -12,7 +12,7 @@ use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{Duration, PermanentFilter};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
 
 /// Unique identifier for a registered continuous effect.
@@ -121,8 +121,8 @@ pub enum EffectModification {
     RemoveAllColors,
 
     // --- Layer 6 ---
-    GrantKeyword(KeywordAbility),
-    RemoveKeyword(KeywordAbility),
+    GrantKeyword(KeywordFlag),
+    RemoveKeyword(KeywordFlag),
     LoseAllAbilities,
 
     // --- Layer 7b ---
@@ -245,7 +245,7 @@ pub struct EffectiveCharacteristics {
     pub types: HashSet<CardType>,
     pub subtypes: HashSet<Subtype>,
     pub supertypes: HashSet<Supertype>,
-    pub keywords: HashSet<KeywordAbility>,
+    pub keywords: HashSet<KeywordFlag>,
     pub abilities: Vec<AbilityDef>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,

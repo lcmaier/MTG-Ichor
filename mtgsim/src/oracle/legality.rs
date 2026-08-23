@@ -10,7 +10,7 @@ use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
 use crate::state::game_state::{GameState, PhaseType};
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::ui::decision::PriorityAction;
 
 /// Check if a creature can attack (not summoning-sick, or has haste).
@@ -85,7 +85,7 @@ pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
             if !can_attack(game, *id) {
                 return None;
             }
-            if has_keyword(game, *id, KeywordAbility::Defender) {
+            if has_keyword(game, *id, KeywordFlag::Defender) {
                 return None;
             }
             Some(*id)
@@ -255,7 +255,7 @@ mod tests {
         let data = CardDataBuilder::new("Raging Cougar")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .keyword(KeywordAbility::Haste)
+            .keyword(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -355,7 +355,7 @@ mod tests {
         let data = CardDataBuilder::new("Wall of Stone")
             .card_type(CardType::Creature)
             .power_toughness(0, 8)
-            .keyword(KeywordAbility::Defender)
+            .keyword(KeywordFlag::Defender)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
