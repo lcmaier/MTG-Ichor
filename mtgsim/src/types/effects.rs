@@ -1,6 +1,6 @@
 use super::colors::Color;
 use super::ids::PlayerId;
-use super::keywords::KeywordAbility;
+use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
 
 // ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ pub struct TokenDef {
     pub subtypes: Vec<crate::types::card_types::Subtype>,
     pub power: i32,
     pub toughness: i32,
-    pub keywords: Vec<KeywordAbility>,
+    pub keywords: Vec<KeywordFlag>,
 }
 
 /// Counter types that can be placed on permanents/players
@@ -248,6 +248,49 @@ pub enum CounterType {
     Vigilance,
     Haste,
     // Non-evergreen counter types added as relevant cards are implemented
+}
+
+impl CounterType {
+    /// The keyword this counter grants (CR 122.1b), or `None` if it is not a
+    /// keyword counter.
+    ///
+    /// > A keyword counter on a permanent or on a card in a zone other than the
+    /// > battlefield causes that object to gain that keyword.
+    ///
+    /// CR 122.1b names fifteen keywords plus their variants. Twelve of them are
+    /// `CounterType` variants today; the missing three are decayed, exalted and
+    /// shadow. Decayed and exalted are not `KeywordFlag`s at all -- they are
+    /// quadrant-3 keywords with ability bodies (CR 702.147, 702.83), so they
+    /// will arrive as `AbilityDef`s and want a different bridge than this one.
+    /// Shadow is a plain flag and just has no card needing it yet.
+    ///
+    /// Applied in Layer 6 by `compute::apply_effects`, read straight off
+    /// `BattlefieldEntity::counters` rather than registered as a continuous
+    /// effect -- same treatment as the +1/+1 counters in Layer 7c, and for the
+    /// same reason: the state is already owned, and reconciling registry rows
+    /// against every counter mutation is the pattern that turns effect
+    /// existence into a fixpoint.
+    pub fn keyword_granted(self) -> Option<crate::types::keywords::KeywordFlag> {
+        use crate::types::keywords::KeywordFlag as K;
+        Some(match self {
+            CounterType::Flying => K::Flying,
+            CounterType::Deathtouch => K::Deathtouch,
+            CounterType::Lifelink => K::Lifelink,
+            CounterType::Trample => K::Trample,
+            CounterType::FirstStrike => K::FirstStrike,
+            CounterType::DoubleStrike => K::DoubleStrike,
+            CounterType::Hexproof => K::Hexproof,
+            CounterType::Indestructible => K::Indestructible,
+            CounterType::Menace => K::Menace,
+            CounterType::Reach => K::Reach,
+            CounterType::Vigilance => K::Vigilance,
+            CounterType::Haste => K::Haste,
+            CounterType::PlusOnePlusOne
+            | CounterType::MinusOneMinusOne
+            | CounterType::Loyalty
+            | CounterType::Charge => return None,
+        })
+    }
 }
 
 /// Color change description for ChangeColor primitive (layer 5).
@@ -365,10 +408,45 @@ pub enum Primitive {
     ModifyPowerToughness(AmountExpr, AmountExpr, Duration),
     /// Switch power and toughness (layer 7d)
     SwitchPowerToughness(Duration),
-    /// Grant a keyword ability (layer 6)
-    GrantKeyword(KeywordAbility, Duration),
-    /// Remove a keyword ability (layer 6)
-    RemoveAbility(KeywordAbility, Duration),
+    /// Grant a keyword flag (layer 6).
+    ///
+    /// **Named for what it carries, not for what a card says.** Puresteel
+    /// Paladin's "Equipment you control have equip {0}" grants a keyword, and it
+    /// is a `GrantAbility`, not this — because `equip {0}` is an activated
+    /// ability with a cost and `KeywordFlag` holds no cost. Only the CR 702
+    /// keywords whose entire meaning is their presence live in `KeywordFlag`,
+    /// and this variant reaches exactly those. If the keyword you want is not in
+    /// that enum, that is the answer, not an omission: use `GrantAbility` with
+    /// a fully parameterized `AbilityDef`. See `KeywordFlag` for the map.
+    GrantKeywordFlag(KeywordFlag, Duration),
+    /// Remove a keyword flag (layer 6). CR 113.10b — removing an ability
+    /// removes all instances of it; a `HashSet` gives that structurally.
+    ///
+    /// Named `RemoveAbility` until the Layer 6 phase, which was simply wrong:
+    /// it takes a `KeywordFlag`, never an ability. To remove a parameterized
+    /// keyword — an equip ability, protection from a quality — use
+    /// `LoseAbility` with the ability's id.
+    RemoveKeywordFlag(KeywordFlag, Duration),
+    /// Grant a whole ability (layer 6).
+    ///
+    /// The channel for one-off granted text *and* for every CR 702 keyword that
+    /// is not a bare flag — equip, ward, protection, landwalk, cycling, and the
+    /// ~170 others whose keyword name abbreviates an ability with a body. A card
+    /// that says "gains equip {2}" comes through here, not through
+    /// `GrantKeywordFlag`.
+    ///
+    /// Boxed because `AbilityDef` contains an `Effect`, which contains
+    /// `Primitive` — the recursion is real and needs an indirection. It also
+    /// keeps `Primitive` small, since this variant is otherwise the largest.
+    ///
+    /// CR 604.3a(2): the granted def's `is_characteristic_defining` is cleared
+    /// when it is applied, whatever the card author wrote. A granted ability is
+    /// never a CDA.
+    GrantAbility(Box<crate::objects::card_data::AbilityDef>, Duration),
+    /// Remove one ability by id (layer 6). CR 113.10b — *all* instances of it.
+    LoseAbility(crate::types::ids::AbilityId, Duration),
+    /// Remove every ability and keyword (layer 6). Humility, Merfolk Trickster.
+    LoseAllAbilities(Duration),
     /// Change color (layer 5)
     ChangeColor(ColorChange, Duration),
     /// Change types (layer 4)

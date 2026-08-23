@@ -21,7 +21,7 @@ use mtgsim::oracle::characteristics::{
     get_effective_supertypes, get_effective_toughness, get_effective_types, has_keyword,
     is_creature,
 };
-use mtgsim::types::keywords::KeywordAbility;
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -473,24 +473,24 @@ fn test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red() {
 
 // COVERS-PARTIAL: ATOM-305.7-003
 // PARTIAL: the atom grants a non-keyword activated ability ("{T}: Draw a card").
-// Only the keyword channel (Primitive::GrantKeyword) exists today, so this
+// Only the keyword channel (Primitive::GrantKeywordFlag) exists today, so this
 // proves the survival rule using flying instead.
 #[test]
 fn test_blood_moon_does_not_strip_ability_granted_by_another_effect() {
     use mtgsim::oracle::characteristics::has_keyword;
-    use mtgsim::types::keywords::KeywordAbility;
+    use mtgsim::types::keywords::KeywordFlag;
 
     let mut game = setup_two_player_game();
     let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
     let _granter = put_on_battlefield(&mut game, phase_ld_cards::lands_have_flying(), 0);
 
-    assert!(has_keyword(&game, land_id, KeywordAbility::Flying));
+    assert!(has_keyword(&game, land_id, KeywordFlag::Flying));
 
     let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
 
     // The granted ability survives; the land's own printed abilities do not.
     assert!(
-        has_keyword(&game, land_id, KeywordAbility::Flying),
+        has_keyword(&game, land_id, KeywordFlag::Flying),
         "CR 305.7 does not remove abilities granted by other effects",
     );
     assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
@@ -508,7 +508,7 @@ fn test_blood_moon_does_not_strip_ability_granted_by_another_effect() {
 #[test]
 fn test_layer6_grant_survives_blood_moon_registered_first() {
     use mtgsim::oracle::characteristics::has_keyword;
-    use mtgsim::types::keywords::KeywordAbility;
+    use mtgsim::types::keywords::KeywordFlag;
 
     let mut game = setup_two_player_game();
     // Granter enters BEFORE the land and before Blood Moon — earliest timestamp.
@@ -516,7 +516,7 @@ fn test_layer6_grant_survives_blood_moon_registered_first() {
     let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
     let _blood_moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
 
-    assert!(has_keyword(&game, land_id, KeywordAbility::Flying));
+    assert!(has_keyword(&game, land_id, KeywordFlag::Flying));
     assert_eq!(produced_mana_types(&game, land_id), vec![ManaType::Red]);
 }
 
@@ -721,7 +721,7 @@ fn test_blood_moon_retires_the_effect_a_stripped_ability_registered() {
     let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
 
     assert!(
-        has_keyword(&game, bear_id, KeywordAbility::Flying),
+        has_keyword(&game, bear_id, KeywordFlag::Flying),
         "the land's static ability should grant flying before Blood Moon"
     );
 
@@ -738,7 +738,7 @@ fn test_blood_moon_retires_the_effect_a_stripped_ability_registered() {
 
     // ... so the effect that ability generated must stop applying (item 7).
     assert!(
-        !has_keyword(&game, bear_id, KeywordAbility::Flying),
+        !has_keyword(&game, bear_id, KeywordFlag::Flying),
         "a stripped static ability must retire the continuous effect it registered"
     );
 }
@@ -753,12 +753,12 @@ fn test_effect_returns_when_blood_moon_leaves() {
     put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
     let blood_moon_id = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
 
-    assert!(!has_keyword(&game, bear_id, KeywordAbility::Flying));
+    assert!(!has_keyword(&game, bear_id, KeywordFlag::Flying));
 
     game.change_zone(blood_moon_id, Zone::Graveyard).unwrap();
 
     assert!(
-        has_keyword(&game, bear_id, KeywordAbility::Flying),
+        has_keyword(&game, bear_id, KeywordFlag::Flying),
         "the land's ability is back, so its effect applies again"
     );
 }
@@ -807,14 +807,14 @@ fn test_static_ability_does_not_function_from_the_graveyard() {
     let bear_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
     let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
 
-    assert!(has_keyword(&game, bear_id, KeywordAbility::Flying));
+    assert!(has_keyword(&game, bear_id, KeywordFlag::Flying));
 
     game.change_zone(land_id, Zone::Graveyard).unwrap();
 
     // CR 113.6 — an ability of a permanent functions only while that permanent
     // is on the battlefield.
     assert!(
-        !has_keyword(&game, bear_id, KeywordAbility::Flying),
+        !has_keyword(&game, bear_id, KeywordFlag::Flying),
         "a static ability must stop functioning once its source is in the graveyard"
     );
     assert_eq!(

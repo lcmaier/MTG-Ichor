@@ -9,7 +9,7 @@ use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections;
@@ -495,7 +495,7 @@ impl GameState {
         // - Instants and spells with flash: anytime you have priority
         // - Everything else: main phase, stack empty, active player only
         let is_instant = obj.card_data.types.contains(&CardType::Instant);
-        let has_flash = obj.card_data.keywords.contains(&KeywordAbility::Flash);
+        let has_flash = obj.card_data.keywords.contains(&KeywordFlag::Flash);
 
         if !is_instant && !has_flash {
             // Sorcery-speed timing

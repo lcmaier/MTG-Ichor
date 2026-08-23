@@ -203,7 +203,7 @@ pub type Timestamp = u64;
 
 **Why `modifies` is not a stored field:** each **registry entry** operates in exactly one layer, so its output category is `layer.category()` — no separate field needed. What *is* stored is `filter_reads`, because the filter's reads are distinct from the layer's output.
 
-**Multi-layer card text** is split at registration time per **CR 613.1c** ("If an effect should be applied in different layers or sublayers, the parts of the effect each apply in their appropriate ones."). So a spell whose resolving effect text is "target creature gets +1/+1 and becomes the color of your choice until end of turn" registers **two sibling registry entries** at resolution:
+**Multi-layer card text** is split at registration time per **CR 613.6** ("If an effect should be applied in different layers or sublayers, the parts of the effect each apply in their appropriate ones."). So a spell whose resolving effect text is "target creature gets +1/+1 and becomes the color of your choice until end of turn" registers **two sibling registry entries** at resolution:
 
 - one Layer 5 `AddColor(chosen)` with `AffectedSet::Fixed(vec![target])`, `Duration::UntilEndOfTurn`;
 - one Layer 7c `ModifyPowerToughness { +1, +1 }` with the same `affected` and `duration`.
@@ -237,7 +237,7 @@ pub enum AffectedSet {
 /// entry. Each variant belongs to exactly one layer. Multi-layer card
 /// text ("becomes a 0/0 Golem artifact creature that loses all abilities")
 /// is split at registration into sibling entries sharing timestamp and
-/// source (see CR 613.1c note in §3.3): a Layer 4 SetTypes, a Layer 6
+/// source (see the CR 613.6 note in §3.3): a Layer 4 SetTypes, a Layer 6
 /// LoseAllAbilities, and a Layer 7b SetPowerToughness.
 pub enum EffectModification {
     // --- Layer 1a ---
@@ -280,10 +280,23 @@ pub enum EffectModification {
     /// them apart here, because they arrive by different routes.
     RemoveAllColors,
 
-    // --- Layer 6 ---
-    GrantAbility(AbilityDef),
+    // --- Layer 6 --- (as built, 2026-08-23)
+    // Two channels, because `EffectiveCharacteristics` has two fields.
+    // `KeywordFlag` is the CR 702 keywords whose whole meaning is their
+    // presence; anything parameterized or with an ability body is an
+    // `AbilityDef`. See `types::keywords` for the four-quadrant map.
+    GrantKeyword(KeywordFlag),
+    RemoveKeyword(KeywordFlag),
+    /// Boxed — `AbilityDef` contains an `Effect`, so the recursion is real.
+    /// Clears `is_characteristic_defining` on application (CR 604.3a(2)).
+    GrantAbility(Box<AbilityDef>),
+    /// `retain`, not remove-first: CR 113.10b removes *all* instances.
     LoseAbility(AbilityId),
     LoseAllAbilities,
+    // Keyword counters (CR 122.1b) are NOT here. Like the +1/+1 counters in
+    // 7c they are derived from `BattlefieldEntity::counters` during the walk
+    // rather than registered — see `codebase-state.md` item 10 for the
+    // ordering approximation that costs.
 
     // --- Layer 7a (CDA) ---
     // NOT BUILT: `CdaSetPT`. Tarmogoyf's CDA reuses `SetPowerToughness`
@@ -1024,6 +1037,20 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
    Retrofit cost is low either way: the readers added in Phase LD Part B all go through
    `oracle::characteristics::get_effective_abilities`, which can keep returning
    `Vec<AbilityDef>` while a second accessor exposes metadata to whoever needs it.
+
+   **Resolved differently at Layer 6 (2026-08-23), and the frame was never touched.**
+   CR 613.7a clause 2 is implemented, and it needed no per-ability metadata in
+   `EffectiveCharacteristics` at all. The timestamp is known at the moment the grant is
+   *registered*, not at the moment the frame is read: `resolve::register_granted_static_
+   effects` registers the effects a granted static ability generates right there, passing
+   the granting effect's timestamp into `static_effect_timestamp`'s new `granted_at`
+   parameter. `Vec<AbilityDef>` stands unchanged.
+
+   That works because a resolution's affected set is locked to its targets (CR 613.7b), so
+   the grantee is known. The frame-metadata question comes back only for a *static* ability
+   granting a static ability over a filter, where the grantee set moves with the board —
+   `codebase-state.md` item 7's remaining half. If that is ever built, this note still
+   holds: the field it wants is a timestamp.
 
    **Update (2026-08-21) — the seam now exists and is named.** CR 613.7a's *first* clause
    (the effect has the object's timestamp) is implemented. The second clause — "or the

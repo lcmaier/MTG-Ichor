@@ -5,7 +5,7 @@ use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{AmountExpr, Effect, ManaOutput, Primitive, EffectRecipient, SelectionFilter};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
 
@@ -28,7 +28,7 @@ pub struct CardData {
     pub loyalty: Option<i32>,
     pub defense: Option<i32>,
     pub abilities: Vec<AbilityDef>,
-    pub keywords: HashSet<KeywordAbility>,
+    pub keywords: HashSet<KeywordFlag>,
     /// Color indicator (rule 204) — used for cards with no mana cost that have
     /// an intrinsic color (e.g., back faces of DFCs, Ancestral Vision suspend).
     /// None means no color indicator; color is derived from mana cost instead.
@@ -194,7 +194,7 @@ impl CardDataBuilder {
         self
     }
 
-    pub fn keyword(mut self, keyword: KeywordAbility) -> Self {
+    pub fn keyword(mut self, keyword: KeywordFlag) -> Self {
         self.data.keywords.insert(keyword);
         self
     }

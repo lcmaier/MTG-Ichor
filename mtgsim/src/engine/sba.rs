@@ -5,7 +5,7 @@ use crate::oracle::characteristics::{
     get_effective_name, get_effective_toughness, has_keyword, has_subtype, has_supertype,
     has_type, is_creature,
 };
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::resolve::ResolvedTarget;
@@ -125,7 +125,7 @@ impl GameState {
 
         for id in lethal_damage {
             // Indestructible creatures are not destroyed by lethal damage (rule 702.12b)
-            if has_keyword(self, id, KeywordAbility::Indestructible) {
+            if has_keyword(self, id, KeywordFlag::Indestructible) {
                 continue;
             }
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
@@ -463,9 +463,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(crate::types::effects::CounterType::PlusOnePlusOne, 3);
-        entry.add_counters(crate::types::effects::CounterType::MinusOneMinusOne, 2);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 3);
+        game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 2);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
@@ -488,9 +488,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(crate::types::effects::CounterType::PlusOnePlusOne, 4);
-        entry.add_counters(crate::types::effects::CounterType::MinusOneMinusOne, 4);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 4);
+        game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 4);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
@@ -1123,7 +1123,7 @@ mod tests {
         let data = CardDataBuilder::new("Darksteel Colossus")
             .card_type(CardType::Creature)
             .power_toughness(11, 11)
-            .keyword(crate::types::keywords::KeywordAbility::Indestructible)
+            .keyword(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;

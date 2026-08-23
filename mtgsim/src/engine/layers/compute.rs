@@ -169,7 +169,11 @@ fn apply_effects(
     cache: &mut FrameCache,
 ) {
     let has_registered = !game.continuous_effects.is_empty();
-    let on_battlefield = game.battlefield.contains_key(&id);
+    // Looked up once and reused by layers 6 and 7c. Both need it every call,
+    // and a second `HashMap` probe per `compute_characteristics` is not free —
+    // this function is the inner loop of mana enumeration and targeting.
+    let bf_entry = game.battlefield.get(&id);
+    let on_battlefield = bf_entry.is_some();
 
     // CR 613.6 — "if an effect starts to apply in one layer, it will continue
     // to be applied to the same set of objects in each other applicable layer".
@@ -203,6 +207,16 @@ fn apply_effects(
         return;
     }
 
+    // Keyword counters (CR 122.1b) are a *second* source of layer 6 effects, and
+    // CR 613.7c timestamps them, so they interleave with that layer's registry
+    // rows by timestamp rather than following them. Humility with a later
+    // timestamp than a flying counter really does strip that flying.
+    //
+    // Built once per call rather than per layer, and empty for every permanent
+    // carrying no keyword counter — which is nearly all of them. Held descending
+    // so `pop()` yields the earliest.
+    let mut pending_counters = collect_keyword_counters(bf_entry);
+
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate() {
         if layer_index >= ceiling {
             break;
@@ -222,6 +236,15 @@ fn apply_effects(
         if has_registered {
             let effects = game.continuous_effects.effects_in_layer(layer);
             for effect in effects {
+                // Every keyword counter older than this row goes first (CR
+                // 613.7). Done before the filter and existence checks below,
+                // because those `continue` and would skip the drain.
+                if !pending_counters.is_empty() && layer == Layer::Layer6Ability {
+                    drain_keyword_counters_before(
+                        &mut pending_counters, effect.timestamp, chars,
+                    );
+                }
+
                 let already_applying = track_started && started.contains(&effect.group());
                 if !already_applying {
                     if !effect_applies_to(effect, id, chars, game) {
@@ -241,9 +264,20 @@ fn apply_effects(
             }
         }
 
-        // Apply counter P/T in layer 7c (rule 613.4c)
+        // Whatever is left is later than every row in the layer.
+        if !pending_counters.is_empty() && layer == Layer::Layer6Ability {
+            drain_keyword_counters_before(&mut pending_counters, Timestamp::MAX, chars);
+        }
+
+        // Apply counter P/T in layer 7c (rule 613.4c).
+        //
+        // Not interleaved by timestamp the way layer 6's keyword counters are,
+        // and it does not need to be: every layer 7c effect is an addition to
+        // power and toughness, so the layer's result is order-independent. That
+        // is a property of the layer, not a shortcut — if a non-commutative 7c
+        // effect ever exists, this has to become a merge like the one above.
         if layer == Layer::Layer7cModifyPT {
-            if let Some(entry) = game.battlefield.get(&id) {
+            if let Some(entry) = bf_entry {
                 let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
                 if plus != 0 {
                     if let Some(ref mut p) = chars.power { *p += plus; }
@@ -258,6 +292,59 @@ fn apply_effects(
                 // when they are added to CounterType.
             }
         }
+    }
+}
+
+/// The keyword counters on `entry` (CR 122.1b), as `(timestamp, keyword)` sorted
+/// **descending** so `pop()` yields the earliest.
+///
+/// Returns empty for every layer but 6, and for every permanent with no keyword
+/// counter — which is the overwhelming majority, and an empty `Vec` does not
+/// allocate.
+fn collect_keyword_counters(
+    entry: Option<&crate::state::battlefield::BattlefieldEntity>,
+) -> Vec<(Timestamp, crate::types::keywords::KeywordFlag)> {
+    let Some(entry) = entry else {
+        return Vec::new();
+    };
+    // The overwhelmingly common case, and worth its own exit: no counters at
+    // all means no iteration and no `Vec`.
+    if entry.counters.is_empty() {
+        return Vec::new();
+    }
+
+    let mut out: Vec<(Timestamp, crate::types::keywords::KeywordFlag)> = entry
+        .counters
+        .iter()
+        .filter(|(_, stack)| stack.count > 0)
+        .filter_map(|(counter_type, stack)| {
+            counter_type.keyword_granted().map(|kw| (stack.timestamp, kw))
+        })
+        .collect();
+
+    // Descending, and by keyword on a tie. The tie is reachable — two kinds of
+    // keyword counter put on in one action share a timestamp under CR 613.7c —
+    // and `HashMap` iteration order is per-process, so without the second key
+    // the order would differ between runs of the binary. It cannot change the
+    // answer here (both are inserts into a set), but a `Vec` whose order is
+    // nondeterministic is a trap for whoever extends this. `KeywordFlag` derives
+    // `Ord` for exactly this, which is why the tiebreak costs nothing.
+    out.sort_unstable_by(|a, b| b.cmp(a));
+    out
+}
+
+/// Apply every pending keyword counter with a timestamp earlier than `limit`.
+fn drain_keyword_counters_before(
+    pending: &mut Vec<(Timestamp, crate::types::keywords::KeywordFlag)>,
+    limit: Timestamp,
+    chars: &mut EffectiveCharacteristics,
+) {
+    while let Some(&(timestamp, keyword)) = pending.last() {
+        if timestamp >= limit {
+            return;
+        }
+        chars.keywords.insert(keyword);
+        pending.pop();
     }
 }
 
@@ -448,8 +535,34 @@ pub(super) fn apply_modification(
         EffectModification::RemoveAllColors => { chars.colors.clear(); }
 
         // Layer 6
-        EffectModification::GrantKeyword(kw) => { chars.keywords.insert(*kw); }
-        EffectModification::RemoveKeyword(kw) => { chars.keywords.remove(kw); }
+        EffectModification::GrantKeywordFlag(kw) => { chars.keywords.insert(*kw); }
+        // CR 113.10b — "effects that remove an ability remove all instances of
+        // it". For a keyword flag that is structural: a `HashSet` never held
+        // more than one.
+        EffectModification::RemoveKeywordFlag(kw) => { chars.keywords.remove(kw); }
+        EffectModification::GrantAbility(def) => {
+            // CR 604.3a(2) — an ability that reached an object by being granted
+            // is never a characteristic-defining ability, however its text
+            // reads. The flag on `AbilityDef` asserts only the four criteria
+            // that are properties of the text; provenance is maintained by
+            // whoever writes the ability onto an object, and this is that
+            // place. Copy (Layer 1) and text-changing (Layer 3) effects hand
+            // the def over whole and keep the flag, which is the *other* half
+            // of 604.3a(2) and equally deliberate.
+            //
+            // Not clearing it would let a granted Tarmogoyf ability define P/T
+            // at Layer 7a, which is exactly what 604.3a(2) forbids.
+            let mut granted = (**def).clone();
+            granted.is_characteristic_defining = false;
+            chars.abilities.push(granted);
+        }
+        // CR 113.10b again, and here it is *not* structural: `abilities` is a
+        // `Vec` and the same ability can genuinely appear twice — printed on
+        // the card and granted on top of it. `retain`, never "remove the first
+        // match".
+        EffectModification::LoseAbility(ability_id) => {
+            chars.abilities.retain(|a| a.id != *ability_id);
+        }
         EffectModification::LoseAllAbilities => {
             chars.keywords.clear();
             chars.abilities.clear();
@@ -499,7 +612,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
     use crate::test_support::registered;
@@ -566,8 +679,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(CounterType::PlusOnePlusOne, 2);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, CounterType::PlusOnePlusOne, 2);
 
         let chars = compute_characteristics(&game, id).unwrap();
         assert_eq!(chars.power, Some(4));
@@ -585,9 +698,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(CounterType::PlusOnePlusOne, 3);
-        entry.add_counters(CounterType::MinusOneMinusOne, 1);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, CounterType::PlusOnePlusOne, 3);
+        game.add_counters(id, CounterType::MinusOneMinusOne, 1);
 
         let chars = compute_characteristics(&game, id).unwrap();
         // Net: +3 -1 = +2
@@ -627,8 +740,8 @@ mod tests {
         let data = CardDataBuilder::new("Serra Angel")
             .card_type(CardType::Creature)
             .power_toughness(4, 4)
-            .keyword(KeywordAbility::Flying)
-            .keyword(KeywordAbility::Vigilance)
+            .keyword(KeywordFlag::Flying)
+            .keyword(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -636,9 +749,9 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         let chars = compute_characteristics(&game, id).unwrap();
-        assert!(chars.keywords.contains(&KeywordAbility::Flying));
-        assert!(chars.keywords.contains(&KeywordAbility::Vigilance));
-        assert!(!chars.keywords.contains(&KeywordAbility::Trample));
+        assert!(chars.keywords.contains(&KeywordFlag::Flying));
+        assert!(chars.keywords.contains(&KeywordFlag::Vigilance));
+        assert!(!chars.keywords.contains(&KeywordFlag::Trample));
     }
 
     // COVERS-PARTIAL: ATOM-613.4c-001
@@ -687,12 +800,12 @@ mod tests {
             id,
             Layer::Layer6Ability,
             1,
-            EffectModification::GrantKeyword(KeywordAbility::Flying),
+            EffectModification::GrantKeywordFlag(KeywordFlag::Flying),
         );
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
-        assert!(chars.keywords.contains(&KeywordAbility::Flying));
+        assert!(chars.keywords.contains(&KeywordFlag::Flying));
     }
 
     #[test]
@@ -949,8 +1062,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = game.place_on_battlefield(id, 0);
-        entry.add_counters(CounterType::PlusOnePlusOne, 2);
+        game.place_on_battlefield(id, 0);
+        game.add_counters(id, CounterType::PlusOnePlusOne, 2);
 
         // Register a switch P/T effect (layer 7d)
         let effect = registered(

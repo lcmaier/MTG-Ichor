@@ -8,7 +8,7 @@ use crate::events::event::{DamageTarget, GameEvent};
 use crate::oracle::characteristics::has_keyword;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 
 /// Apply the deathtouch flag to a damage target if the source has deathtouch.
 ///
@@ -25,7 +25,7 @@ pub fn apply_deathtouch_flag(
     target: &DamageTarget,
 ) {
     // Pre-check before mutable borrow (borrow checker: has_keyword reads objects)
-    if !has_keyword(game, source, KeywordAbility::Deathtouch) {
+    if !has_keyword(game, source, KeywordFlag::Deathtouch) {
         return;
     }
     if let DamageTarget::Object(id) = target {
@@ -47,7 +47,7 @@ pub fn apply_lifelink(
     source: ObjectId,
     amount: u64,
 ) -> Result<(), String> {
-    if !has_keyword(game, source, KeywordAbility::Lifelink) {
+    if !has_keyword(game, source, KeywordFlag::Lifelink) {
         return Ok(());
     }
     if let Some(entry) = game.battlefield.get(&source) {
@@ -76,7 +76,7 @@ mod tests {
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
 
-    fn setup_creature(game: &mut GameState, keywords: &[KeywordAbility]) -> ObjectId {
+    fn setup_creature(game: &mut GameState, keywords: &[KeywordFlag]) -> ObjectId {
         let mut builder = CardDataBuilder::new("Test Creature")
             .card_type(CardType::Creature)
             .mana_cost(ManaCost::build(&[ManaType::Green], 1))
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn test_deathtouch_flag_set_on_creature_target() {
         let mut game = GameState::new(2, 20);
-        let source = setup_creature(&mut game, &[KeywordAbility::Deathtouch]);
+        let source = setup_creature(&mut game, &[KeywordFlag::Deathtouch]);
         let target = setup_creature(&mut game, &[]);
 
         apply_deathtouch_flag(&mut game, source, &DamageTarget::Object(target));
@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn test_deathtouch_flag_ignored_for_player_target() {
         let mut game = GameState::new(2, 20);
-        let source = setup_creature(&mut game, &[KeywordAbility::Deathtouch]);
+        let source = setup_creature(&mut game, &[KeywordFlag::Deathtouch]);
 
         // Should not panic or error — just does nothing for player targets
         apply_deathtouch_flag(&mut game, source, &DamageTarget::Player(1));
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_lifelink_gains_life() {
         let mut game = GameState::new(2, 20);
-        let source = setup_creature(&mut game, &[KeywordAbility::Lifelink]);
+        let source = setup_creature(&mut game, &[KeywordFlag::Lifelink]);
 
         apply_lifelink(&mut game, source, 3).unwrap();
         assert_eq!(game.players[0].life_total, 23);
@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn test_lifelink_emits_event() {
         let mut game = GameState::new(2, 20);
-        let source = setup_creature(&mut game, &[KeywordAbility::Lifelink]);
+        let source = setup_creature(&mut game, &[KeywordFlag::Lifelink]);
 
         apply_lifelink(&mut game, source, 2).unwrap();
         assert_eq!(game.events.len(), 1);

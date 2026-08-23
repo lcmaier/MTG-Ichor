@@ -637,7 +637,7 @@ Layer 6: Ability-adding/removing effects and keyword counters are applied.
 - **Mechanism:** Humility removes all abilities (L6) before P/T effects are applied (L7). A CDA ability removed in L6 doesn't contribute to L7a.
 - **Minimal Board:** Player A controls Humility ("All creatures lose all abilities and have base P/T 1/1") and Tarmogoyf (CDA: P/T = graveyard card types).
 - **Action:** Query Tarmogoyf's effective characteristics.
-- **Expected Result:** L6 removes all abilities (including the CDA). L7a has no CDA to apply. L7b applies Humility's "base 1/1." Tarmogoyf is 1/1 with no abilities. (Note: timestamp order between L6 and L7b matters — see COMP tests.)
+- **Expected Result:** L6 removes all abilities (including the CDA). L7a has no CDA to apply. L7b applies Humility's "base 1/1." Tarmogoyf is 1/1 with no abilities. (Note: timestamp does *not* arbitrate between L6 and L7b — CR 613.1 fixes layer order, and CR 613.7 orders effects only *within* a layer. On this board there is exactly one L7b effect, so nothing is timestamp-dependent at all. Timestamp order *within 7b* matters only once a second 7b effect exists — Opalescence, per the Humility rulings — and that needs CR 613.8.)
 - **Phase:** Phase 5 Layers (L09, L19)
 - **Ticket:** L09, L19
 

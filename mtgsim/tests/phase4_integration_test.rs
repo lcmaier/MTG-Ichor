@@ -20,7 +20,7 @@ use mtgsim::state::battlefield::{AttackTarget, AttackingInfo, BattlefieldEntity,
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::keywords::KeywordAbility;
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -364,8 +364,8 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     let data = CardDataBuilder::new("Test Trampler")
         .card_type(CardType::Creature)
         .power_toughness(4, 4)
-        .keyword(KeywordAbility::Trample)
-        .keyword(KeywordAbility::Deathtouch)
+        .keyword(KeywordFlag::Trample)
+        .keyword(KeywordFlag::Deathtouch)
         .build();
     let obj = GameObject::new(data, 0, Zone::Battlefield);
     let trampler = obj.id;

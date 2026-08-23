@@ -289,7 +289,7 @@ impl ManaRestriction {
 pub enum ManaGrant {
     /// The spell cast using this mana gains a keyword
     /// (e.g. haste from Arena of Glory, uncounterable from Cavern of Souls)
-    GrantKeyword(crate::types::keywords::KeywordAbility),
+    GrantKeywordFlag(crate::types::keywords::KeywordFlag),
     // Future: TriggerOnSpend { ... }
 }
 
@@ -1164,7 +1164,7 @@ mod tests {
             mana_type: ManaType::Green,
             source_id: None,
             restrictions: vec![ManaRestriction::OnlyForSpellTypes(vec![CardType::Creature])],
-            grants: vec![ManaGrant::GrantKeyword(crate::types::keywords::KeywordAbility::Haste)],
+            grants: vec![ManaGrant::GrantKeywordFlag(crate::types::keywords::KeywordFlag::Haste)],
             persistence: ManaPersistence::Normal,
         });
         assert_eq!(pool.special_atoms().len(), 2);
@@ -1259,7 +1259,7 @@ mod tests {
             mana_type: ManaType::Green,
             source_id: None,
             restrictions: vec![ManaRestriction::OnlyForSpellTypes(vec![CardType::Creature])],
-            grants: vec![ManaGrant::GrantKeyword(crate::types::keywords::KeywordAbility::Haste)],
+            grants: vec![ManaGrant::GrantKeywordFlag(crate::types::keywords::KeywordFlag::Haste)],
             persistence: ManaPersistence::Normal,
         };
         pool.add_special(atom_with_grant);
@@ -1274,7 +1274,7 @@ mod tests {
         assert_eq!(grants.len(), 1);
         assert_eq!(
             grants[0],
-            ManaGrant::GrantKeyword(crate::types::keywords::KeywordAbility::Haste)
+            ManaGrant::GrantKeywordFlag(crate::types::keywords::KeywordFlag::Haste)
         );
         // Second drain returns empty
         assert!(pool.drain_spent_grants().is_empty());

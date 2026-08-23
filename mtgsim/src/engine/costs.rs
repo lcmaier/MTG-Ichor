@@ -347,7 +347,7 @@ mod tests {
 
     // --- Cost::Untap ({Q}) summoning sickness tests (T10 / E13) ---
 
-    fn setup_creature_on_turn(turn: u32, keywords: Vec<crate::types::keywords::KeywordAbility>) -> (GameState, crate::types::ids::ObjectId) {
+    fn setup_creature_on_turn(turn: u32, keywords: Vec<crate::types::keywords::KeywordFlag>) -> (GameState, crate::types::ids::ObjectId) {
         let mut game = GameState::new(2, 20);
         game.turn_number = turn;
         let mut builder = CardDataBuilder::new("Test Creature")
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn test_untap_cost_allowed_with_haste() {
         // Creature with haste enters on turn 1, game is on turn 1 → haste bypasses sickness
-        let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordAbility::Haste]);
+        let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
         let no_alloc = HashMap::new();
         game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn test_untap_cost_allowed_control_change_haste() {
         // Creature with haste, control changes on turn 3 → haste bypasses
-        let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordAbility::Haste]);
+        let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
         game.turn_number = 3;
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;

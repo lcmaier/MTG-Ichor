@@ -9,7 +9,7 @@ use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::{has_keyword, get_effective_power};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::ask_choose_attacker_damage_assignment;
 use crate::ui::decision::DecisionProvider;
 
@@ -56,7 +56,7 @@ pub fn assign_combat_damage(
             }
             let damage = power as u64;
 
-            let has_trample = has_keyword(game, *id, KeywordAbility::Trample);
+            let has_trample = has_keyword(game, *id, KeywordFlag::Trample);
 
             if !attacking_info.is_blocked {
                 // Unblocked attacker: damage goes to attack target (rule 510.1b)
@@ -190,7 +190,7 @@ impl GameState {
 mod tests {
     use super::*;
     use crate::state::battlefield::{AttackTarget, AttackingInfo};
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
     use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::test_support::{
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn test_first_striker_deals_damage_in_first_step_only() {
         let mut game = GameState::new(2, 20);
-        let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordAbility::FirstStrike]);
+        let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordFlag::FirstStrike]);
         set_attacking(&mut game, fs, 1);
 
         let dp = ScriptedDecisionProvider::new();
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn test_double_striker_deals_damage_in_both_steps() {
         let mut game = GameState::new(2, 20);
-        let ds = place_creature_with_keywords(&mut game, 0, 1, 1, &[KeywordAbility::DoubleStrike]);
+        let ds = place_creature_with_keywords(&mut game, 0, 1, 1, &[KeywordFlag::DoubleStrike]);
         set_attacking(&mut game, ds, 1);
 
         let dp = ScriptedDecisionProvider::new();
@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn test_first_strike_and_normal_in_same_combat() {
         let mut game = GameState::new(2, 20);
-        let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordAbility::FirstStrike]);
+        let fs = place_creature_with_keywords(&mut game, 0, 2, 1, &[KeywordFlag::FirstStrike]);
         let normal = place_creature_with_pt(&mut game, 0, 3, 3);
         set_attacking(&mut game, fs, 1);
         set_attacking(&mut game, normal, 1);
@@ -414,7 +414,7 @@ mod tests {
     fn test_first_strike_blocker_deals_in_first_step() {
         let mut game = GameState::new(2, 20);
         let attacker = place_creature_with_pt(&mut game, 0, 3, 3);
-        let fs_blocker = place_creature_with_keywords(&mut game, 1, 2, 2, &[KeywordAbility::FirstStrike]);
+        let fs_blocker = place_creature_with_keywords(&mut game, 1, 2, 2, &[KeywordFlag::FirstStrike]);
         set_attacking(&mut game, attacker, 1);
         set_blocked_by(&mut game, attacker, vec![fs_blocker]);
         set_blocking(&mut game, fs_blocker, vec![attacker]);
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn test_trample_excess_damages_player() {
         let mut game = GameState::new(2, 20);
-        let trampler = place_creature_with_keywords(&mut game, 0, 4, 4, &[KeywordAbility::Trample]);
+        let trampler = place_creature_with_keywords(&mut game, 0, 4, 4, &[KeywordFlag::Trample]);
         let blocker = place_creature_with_pt(&mut game, 1, 1, 2);
         set_attacking(&mut game, trampler, 1);
         set_blocked_by(&mut game, trampler, vec![blocker]);
@@ -474,7 +474,7 @@ mod tests {
     #[test]
     fn test_trample_no_blockers_remain_all_to_player() {
         let mut game = GameState::new(2, 20);
-        let trampler = place_creature_with_keywords(&mut game, 0, 3, 3, &[KeywordAbility::Trample]);
+        let trampler = place_creature_with_keywords(&mut game, 0, 3, 3, &[KeywordFlag::Trample]);
         set_attacking(&mut game, trampler, 1);
         // Blocked but all blockers removed
         if let Some(entry) = game.battlefield.get_mut(&trampler) {
@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn test_trample_not_enough_power_no_overflow() {
         let mut game = GameState::new(2, 20);
-        let trampler = place_creature_with_keywords(&mut game, 0, 2, 2, &[KeywordAbility::Trample]);
+        let trampler = place_creature_with_keywords(&mut game, 0, 2, 2, &[KeywordFlag::Trample]);
         let blocker = place_creature_with_pt(&mut game, 1, 1, 3);
         set_attacking(&mut game, trampler, 1);
         set_blocked_by(&mut game, trampler, vec![blocker]);
@@ -531,7 +531,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let trampler = place_creature_with_keywords(
             &mut game, 0, 4, 4,
-            &[KeywordAbility::Trample, KeywordAbility::Deathtouch],
+            &[KeywordFlag::Trample, KeywordFlag::Deathtouch],
         );
         let blocker = place_creature_with_pt(&mut game, 1, 2, 5);
         set_attacking(&mut game, trampler, 1);

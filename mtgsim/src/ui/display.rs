@@ -10,7 +10,7 @@ use crate::oracle::characteristics::{
 use crate::state::game_state::{GameState, PhaseType, StepType};
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 
 /// Format a card name with its ObjectId (short UUID suffix for disambiguation).
 pub fn card_label(game: &GameState, id: ObjectId) -> String {
@@ -86,23 +86,23 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
 
 /// Collect displayable keyword names for a permanent.
 fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
-    let check = |kw: KeywordAbility, name: &'static str| -> Option<&'static str> {
+    let check = |kw: KeywordFlag, name: &'static str| -> Option<&'static str> {
         if has_keyword(game, id, kw) { Some(name) } else { None }
     };
     [
-        check(KeywordAbility::Flying, "flying"),
-        check(KeywordAbility::Reach, "reach"),
-        check(KeywordAbility::Deathtouch, "deathtouch"),
-        check(KeywordAbility::Lifelink, "lifelink"),
-        check(KeywordAbility::FirstStrike, "first strike"),
-        check(KeywordAbility::DoubleStrike, "double strike"),
-        check(KeywordAbility::Trample, "trample"),
-        check(KeywordAbility::Vigilance, "vigilance"),
-        check(KeywordAbility::Haste, "haste"),
-        check(KeywordAbility::Defender, "defender"),
-        check(KeywordAbility::Hexproof, "hexproof"),
-        check(KeywordAbility::Indestructible, "indestructible"),
-        check(KeywordAbility::Menace, "menace"),
+        check(KeywordFlag::Flying, "flying"),
+        check(KeywordFlag::Reach, "reach"),
+        check(KeywordFlag::Deathtouch, "deathtouch"),
+        check(KeywordFlag::Lifelink, "lifelink"),
+        check(KeywordFlag::FirstStrike, "first strike"),
+        check(KeywordFlag::DoubleStrike, "double strike"),
+        check(KeywordFlag::Trample, "trample"),
+        check(KeywordFlag::Vigilance, "vigilance"),
+        check(KeywordFlag::Haste, "haste"),
+        check(KeywordFlag::Defender, "defender"),
+        check(KeywordFlag::Hexproof, "hexproof"),
+        check(KeywordFlag::Indestructible, "indestructible"),
+        check(KeywordFlag::Menace, "menace"),
     ]
     .into_iter()
     .flatten()

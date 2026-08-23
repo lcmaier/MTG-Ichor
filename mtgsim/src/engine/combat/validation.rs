@@ -8,7 +8,7 @@ use crate::oracle::legality::can_attack;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -184,7 +184,7 @@ pub fn validate_attackers(
         }
 
         // 6. Defender check (rule 702.3b)
-        if has_keyword(game, *creature_id, KeywordAbility::Defender) {
+        if has_keyword(game, *creature_id, KeywordFlag::Defender) {
             return Err(CombatError::HasDefender(*creature_id));
         }
 
@@ -310,9 +310,9 @@ pub fn can_block(
     }
 
     // Flying evasion (rule 702.9b / 702.17b).
-    if has_keyword(game, attacker_id, KeywordAbility::Flying)
-        && !has_keyword(game, blocker_id, KeywordAbility::Flying)
-        && !has_keyword(game, blocker_id, KeywordAbility::Reach)
+    if has_keyword(game, attacker_id, KeywordFlag::Flying)
+        && !has_keyword(game, blocker_id, KeywordFlag::Flying)
+        && !has_keyword(game, blocker_id, KeywordFlag::Reach)
     {
         return Err(CombatError::CantBlockFlyer(blocker_id, attacker_id));
     }
@@ -407,7 +407,7 @@ mod tests {
     use crate::oracle::characteristics::has_keyword;
     use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::CardType;
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
     use crate::types::colors::Color;
@@ -682,7 +682,7 @@ mod tests {
     fn place_creature_with_keywords(
         game: &mut GameState,
         owner: PlayerId,
-        keywords: &[KeywordAbility],
+        keywords: &[KeywordFlag],
         power: i32,
         toughness: i32,
     ) -> ObjectId {
@@ -712,15 +712,15 @@ mod tests {
             .color(Color::White)
             .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
             .power_toughness(4, 4)
-            .keyword(KeywordAbility::Flying)
-            .keyword(KeywordAbility::Vigilance)
+            .keyword(KeywordFlag::Flying)
+            .keyword(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
 
-        assert!(has_keyword(&game, id, KeywordAbility::Flying));
-        assert!(has_keyword(&game, id, KeywordAbility::Vigilance));
+        assert!(has_keyword(&game, id, KeywordFlag::Flying));
+        assert!(has_keyword(&game, id, KeywordFlag::Vigilance));
     }
 
     #[test]
@@ -728,9 +728,9 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let creature_id = place_creature(&mut game, 0); // Grizzly Bears — no keywords
 
-        assert!(!has_keyword(&game, creature_id, KeywordAbility::Flying));
-        assert!(!has_keyword(&game, creature_id, KeywordAbility::Haste));
-        assert!(!has_keyword(&game, creature_id, KeywordAbility::Trample));
+        assert!(!has_keyword(&game, creature_id, KeywordFlag::Flying));
+        assert!(!has_keyword(&game, creature_id, KeywordFlag::Haste));
+        assert!(!has_keyword(&game, creature_id, KeywordFlag::Trample));
     }
 
     // --- Flying / Reach tests (4b) ---
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn test_ground_creature_cant_block_flyer() {
         let mut game = GameState::new(2, 20);
-        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 4, 4);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Flying], 4, 4);
         let ground = place_creature(&mut game, 1);
         set_attacking(&mut game, flyer, 1);
 
@@ -753,8 +753,8 @@ mod tests {
     #[test]
     fn test_flyer_can_block_flyer() {
         let mut game = GameState::new(2, 20);
-        let attacker = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 4, 4);
-        let blocker = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Flying], 2, 2);
+        let attacker = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Flying], 4, 4);
+        let blocker = place_creature_with_keywords(&mut game, 1, &[KeywordFlag::Flying], 2, 2);
         set_attacking(&mut game, attacker, 1);
 
         let result = validate_blockers(
@@ -768,8 +768,8 @@ mod tests {
     #[test]
     fn test_reach_can_block_flyer() {
         let mut game = GameState::new(2, 20);
-        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 4, 4);
-        let spider = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Reach], 2, 4);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Flying], 4, 4);
+        let spider = place_creature_with_keywords(&mut game, 1, &[KeywordFlag::Reach], 2, 4);
         set_attacking(&mut game, flyer, 1);
 
         let result = validate_blockers(
@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn test_defender_cant_attack() {
         let mut game = GameState::new(2, 20);
-        let wall = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Defender], 0, 8);
+        let wall = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Defender], 0, 8);
 
         let result = validate_attackers(
             &game, 0,
@@ -819,7 +819,7 @@ mod tests {
         let data = CardDataBuilder::new("Raging Cougar")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .keyword(KeywordAbility::Haste)
+            .keyword(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -853,7 +853,7 @@ mod tests {
         let data = CardDataBuilder::new("Haste Tapper")
             .card_type(CardType::Creature)
             .power_toughness(1, 1)
-            .keyword(KeywordAbility::Haste)
+            .keyword(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -873,7 +873,7 @@ mod tests {
     fn test_defender_can_block() {
         let mut game = GameState::new(2, 20);
         let attacker = place_creature(&mut game, 0);
-        let wall = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Defender], 0, 8);
+        let wall = place_creature_with_keywords(&mut game, 1, &[KeywordFlag::Defender], 0, 8);
         set_attacking(&mut game, attacker, 1);
 
         let result = validate_blockers(
@@ -891,7 +891,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let angel = place_creature_with_keywords(
             &mut game, 0,
-            &[KeywordAbility::Flying, KeywordAbility::Vigilance], 4, 4,
+            &[KeywordFlag::Flying, KeywordFlag::Vigilance], 4, 4,
         );
 
         let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
@@ -941,7 +941,7 @@ mod tests {
     #[test]
     fn test_can_block_ground_vs_flyer_rejected() {
         let mut game = GameState::new(2, 20);
-        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 2, 2);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Flying], 2, 2);
         let ground = place_creature(&mut game, 1);
         set_attacking(&mut game, flyer, 1);
 
@@ -954,8 +954,8 @@ mod tests {
     #[test]
     fn test_can_block_reach_blocks_flyer() {
         let mut game = GameState::new(2, 20);
-        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 2, 2);
-        let spider = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Reach], 1, 3);
+        let flyer = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Flying], 2, 2);
+        let spider = place_creature_with_keywords(&mut game, 1, &[KeywordFlag::Reach], 1, 3);
         set_attacking(&mut game, flyer, 1);
 
         assert!(can_block(&game, 1, spider, flyer).is_ok());
@@ -964,8 +964,8 @@ mod tests {
     #[test]
     fn test_can_block_flyer_blocks_flyer() {
         let mut game = GameState::new(2, 20);
-        let a = place_creature_with_keywords(&mut game, 0, &[KeywordAbility::Flying], 2, 2);
-        let b = place_creature_with_keywords(&mut game, 1, &[KeywordAbility::Flying], 2, 2);
+        let a = place_creature_with_keywords(&mut game, 0, &[KeywordFlag::Flying], 2, 2);
+        let b = place_creature_with_keywords(&mut game, 1, &[KeywordFlag::Flying], 2, 2);
         set_attacking(&mut game, a, 1);
 
         assert!(can_block(&game, 1, b, a).is_ok());

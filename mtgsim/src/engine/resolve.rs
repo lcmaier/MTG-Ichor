@@ -1,8 +1,12 @@
 use crate::engine::actions::GameAction;
+use crate::engine::layers::types::{
+    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
+};
 use crate::events::event::DamageTarget;
+use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter,
+    AmountExpr, Duration, Effect, Primitive, EffectRecipient, SelectionFilter,
 };
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::ui::decision::DecisionProvider;
@@ -214,7 +218,7 @@ impl GameState {
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
-                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordAbility::Indestructible) {
+                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordFlag::Indestructible) {
                                 continue;
                             }
                             self.execute_action(GameAction::ZoneChange {
@@ -361,8 +365,10 @@ impl GameState {
                 }
 
                 // A TypeChange may produce multiple EffectModification entries,
-                // each belonging to Layer 4. They share a timestamp and source
-                // per CR 613.1c (sibling entries for a single effect).
+                // each belonging to Layer 4. CR 613.6 is why they are siblings
+                // ("the parts of the effect each apply in their appropriate"
+                // layers), and CR 613.7b is why they share a timestamp — one
+                // resolution, one moment of creation.
                 let timestamp = self.allocate_timestamp();
                 let mut modifications: Vec<crate::engine::layers::EffectModification> = Vec::new();
 
@@ -402,8 +408,9 @@ impl GameState {
                     }
                 }
 
-                // Register one ContinuousEffect per modification (sibling entries
-                // sharing timestamp+source, per CR 613.1c).
+                // Register one ContinuousEffect per modification: siblings of
+                // one CR 613.6 effect, sharing the source and the CR 613.7b
+                // creation timestamp.
                 for modification in modifications {
                     let effect = crate::engine::layers::ContinuousEffect {
                         id: 0,
@@ -418,6 +425,78 @@ impl GameState {
                         modification,
                     };
                     self.continuous_effects.add(effect);
+                }
+                Ok(())
+            }
+
+            // === Layer 6 — ability adding and removing (CR 613.1f) ===
+            //
+            // The resolution half. `register_static_effects` handles printed
+            // static abilities; these are the "target creature gains/loses ..."
+            // spells, whose affected set is locked to the targets at resolution
+            // (CR 613.7b).
+
+            Primitive::GrantKeywordFlag(keyword, duration) => {
+                self.register_resolution_ability_effect(
+                    ctx,
+                    *duration,
+                    EffectModification::GrantKeywordFlag(*keyword),
+                );
+                Ok(())
+            }
+
+            Primitive::RemoveKeywordFlag(keyword, duration) => {
+                self.register_resolution_ability_effect(
+                    ctx,
+                    *duration,
+                    EffectModification::RemoveKeywordFlag(*keyword),
+                );
+                Ok(())
+            }
+
+            Primitive::LoseAbility(ability_id, duration) => {
+                self.register_resolution_ability_effect(
+                    ctx,
+                    *duration,
+                    EffectModification::LoseAbility(*ability_id),
+                );
+                Ok(())
+            }
+
+            Primitive::LoseAllAbilities(duration) => {
+                self.register_resolution_ability_effect(
+                    ctx,
+                    *duration,
+                    EffectModification::LoseAllAbilities,
+                );
+                Ok(())
+            }
+
+            Primitive::GrantAbility(def, duration) => {
+                let granted_at = self.register_resolution_ability_effect(
+                    ctx,
+                    *duration,
+                    EffectModification::GrantAbility(def.clone()),
+                );
+
+                // CR 613.7a clause 2. If the granted ability is itself static,
+                // it generates continuous effects of its own, and those take
+                // the *later* of this effect's timestamp and the grantee's —
+                // not this effect's unconditionally. The grantee usually
+                // entered the battlefield first, so the granting effect usually
+                // wins, but a permanent that entered after the grant was
+                // created keeps its own. `static_effect_timestamp` takes the
+                // max; this call only supplies the second candidate.
+                if let Some(granted_at) = granted_at {
+                    // Re-derived rather than handed back from the call above, so
+                    // that the row can own its target `Vec` instead of cloning
+                    // it. Safe because registering an effect moves nothing
+                    // between zones, so battlefield membership is unchanged.
+                    for grantee in self.collect_battlefield_targets(ctx) {
+                        self.register_granted_static_effects(
+                            def, grantee, granted_at, *duration, ctx.controller,
+                        );
+                    }
                 }
                 Ok(())
             }
@@ -440,10 +519,192 @@ impl GameState {
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
             | Primitive::Tap
-            | Primitive::GrantKeyword(_, _)
-            | Primitive::RemoveAbility(_, _)
             | Primitive::GainControl(_) => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
+            }
+        }
+    }
+
+    // --- Helpers: Layer 6 (CR 613.1f) ---
+
+    /// Record the Layer 6 continuous effect that a resolving spell or ability
+    /// creates (CR 613.7b) — the resolution-time counterpart of
+    /// `GameState::register_static_effects`, which does the same job at ETB for
+    /// printed static abilities.
+    ///
+    /// **This grants nothing.** It appends one row to the registry; the
+    /// characteristics it implies are recomputed from that row on every
+    /// `compute_characteristics` call, and the affected objects' `CardData` is
+    /// never touched. Duration expiry removes the row, and there is nothing to
+    /// undo because nothing was ever written.
+    ///
+    /// The affected set is frozen to the targets that are still on the
+    /// battlefield (CR 613.7b): a creature that died in response is dropped, and
+    /// the survivors stay affected even if they later stop matching whatever the
+    /// card described.
+    ///
+    /// Returns the timestamp allocated for the row, so a caller that must
+    /// register further rows against the same moment can. `None` means no target
+    /// survived, in which case no row is written and no timestamp is burned.
+    fn register_resolution_ability_effect(
+        &mut self,
+        ctx: &ResolutionContext,
+        duration: Duration,
+        modification: EffectModification,
+    ) -> Option<Timestamp> {
+        let targets = self.collect_battlefield_targets(ctx);
+        if targets.is_empty() {
+            return None;
+        }
+        let timestamp = self.allocate_timestamp();
+        self.continuous_effects.add(ContinuousEffect {
+            id: 0,
+            source: ctx.source,
+            origin: EffectOrigin::Resolution,
+            layer: Layer::Layer6Ability,
+            duration,
+            controller: ctx.controller,
+            created_on_turn: self.turn_number,
+            timestamp,
+            affected: AffectedSet::Fixed(targets),
+            modification,
+        });
+        Some(timestamp)
+    }
+
+    /// CR 613.7a clause 2 — register the continuous effects generated by a
+    /// static ability that an effect *granted* to `grantee`.
+    ///
+    /// > A continuous effect generated by a static ability has the same
+    /// > timestamp as the object the static ability is on, **or the timestamp of
+    /// > the effect that created the ability, whichever is later.**
+    ///
+    /// `granting_timestamp` is that second clause, and `static_effect_timestamp`
+    /// takes the max. Without it a granted "creatures you control get +1/+1"
+    /// would sort as though it had been printed on a permanent that has been on
+    /// the battlefield for ten turns, and lose to effects it should beat.
+    ///
+    /// **Existence comes for free.** The rows are `EffectOrigin::StaticAbility`
+    /// keyed on the *granted* ability's id, so `compute::static_ability_still_
+    /// exists` re-asks at every layer whether `grantee` still has it. If the
+    /// grant stops applying, or a later Layer 6 effect strips the ability, the
+    /// derived effect retires with it. Nothing extra to maintain.
+    ///
+    /// **Only reachable when the grantee set is known at grant time**, which is
+    /// every resolution-time grant (the affected set is locked to the targets by
+    /// CR 613.7b). A *static* ability that grants a static ability over a filter
+    /// has a set that changes with the board, so it derives nothing — that is
+    /// the remaining half of Deferred Migrations item 7.
+    fn register_granted_static_effects(
+        &mut self,
+        granted: &AbilityDef,
+        grantee: ObjectId,
+        granting_timestamp: Timestamp,
+        duration: Duration,
+        controller: PlayerId,
+    ) {
+        use crate::objects::card_data::AbilityType;
+
+        // Not a guard against misuse — the expected path. Every `GrantAbility`
+        // calls this, and most granted abilities are triggered, activated or
+        // mana abilities ("target creature gains '{T}: add {G}'"). Only a static
+        // ability generates a continuous effect, so everything else correctly
+        // registers nothing and still lands on the object via the Layer 6 row.
+        // `test_granting_a_non_static_ability_registers_no_derived_effect`.
+        if granted.ability_type != AbilityType::Static {
+            return;
+        }
+
+        // Deliberately does NOT check `is_characteristic_defining`. CR 604.3a(2)
+        // says a granted ability is never a CDA, and `apply_modification`
+        // enforces that by clearing the flag as the ability lands — so the
+        // object holds an *ordinary* static ability. Overruling the card author
+        // means treating it as ordinary, not dropping it: an early return here
+        // left the creature holding a static ability that generated nothing.
+
+        let atoms: Vec<(&Primitive, &EffectRecipient)> = match &granted.effect {
+            Effect::Atom(p, r) => vec![(p, r)],
+            Effect::Sequence(effects) => effects
+                .iter()
+                .filter_map(|e| if let Effect::Atom(p, r) = e { Some((p, r)) } else { None })
+                .collect(),
+            _ => return,
+        };
+
+        for (primitive, recipient) in atoms {
+            let affected = match recipient {
+                EffectRecipient::Implicit => AffectedSet::SourceOnly,
+                EffectRecipient::FilteredPermanents(filter) => AffectedSet::Filter {
+                    filter: filter.clone(),
+                    controller: GameState::extract_controller_from_filter(filter, controller),
+                },
+                _ => continue,
+            };
+
+            let rows = GameState::static_primitive_rows(primitive);
+            if rows.is_empty() {
+                continue;
+            }
+            let timestamp =
+                self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
+
+            for (layer, modification) in rows {
+                // A granted static ability whose own effect lands in layers
+                // 1-6 does not apply, and it fails silently: the grant applies
+                // AT layer 6, so at any layer <= 6 the frame the CR 613.7a
+                // existence check reads (`compute_to_ceiling` at `layer_index`)
+                // predates the grant, and the derived effect finds no ability
+                // to justify itself. Assert at the authoring site rather than
+                // let a card quietly do nothing.
+                //
+                // The two cases below the assert are not the same problem.
+                //
+                // **Layer 6 exactly** is real and is CR 613.7a's own worked
+                // example: Rune of Flight grants enchanted Equipment "Equipped
+                // creature has flying". The CR resolves it purely by timestamp
+                // within layer 6, and our ordering is already right for it --
+                // clause 2 makes the derived timestamp `max(grantee, grant)`,
+                // which is >= the grant's, and when they tie the grant row is
+                // added first so it takes the lower `EffectId` tiebreak. So the
+                // grant always sorts at-or-before its own derived effect. The
+                // only missing piece is that the existence check cannot see a
+                // *partially applied* layer.
+                //
+                // That is exactly what `codebase-state.md` item 8 step 4 builds:
+                // apply a layer board-wide in one sequential pass over ordered
+                // applications, so the check at position k sees everything
+                // applied earlier in the same layer. It is the same fix 613.8b's
+                // loop rule needs, which is why the two are scheduled together.
+                // Not a workaround waiting for a rewrite -- the ordering work is
+                // done, only the frame the check reads has to change.
+                //
+                // **Layers 1-5** is a different animal, and we are not waiting
+                // on it. CR 613.8a(a) confines dependency to a single layer, so
+                // the CR supplies no mechanism for a layer 6 grant to reach back
+                // into layer 5, and any answer would be invented. Searched
+                // Scryfall for granted statics that define a type, color or
+                // subtype: the hits are all false positives (quoted text inside
+                // activated abilities, and Animate Dead's enchant clause). Real
+                // grants are of triggered abilities, activated abilities,
+                // keywords, or layer 7 statics. Nothing to build against.
+                debug_assert!(
+                    layer > Layer::Layer6Ability,
+                    "granted static ability generates a {:?} effect. A grant                      applies at layer 6, so the CR 613.7a existence check reads                      a pre-grant frame at any layer <= 6 and this effect will                      not apply. Layer 6 itself needs the board-wide sequential                      pass (codebase-state.md item 8 step 4); layers 1-5 have no                      CR mechanism and no known card.",
+                    layer
+                );
+
+                self.continuous_effects.add(ContinuousEffect {
+                    id: 0,
+                    source: grantee,
+                    origin: EffectOrigin::StaticAbility { ability: granted.id },
+                    layer,
+                    duration,
+                    controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: affected.clone(),
+                    modification,
+                });
             }
         }
     }
@@ -767,7 +1028,7 @@ mod tests {
             .card_type(CardType::Creature)
             .subtype(Subtype::Creature(CreatureType::Myr))
             .power_toughness(0, 1)
-            .keyword(crate::types::keywords::KeywordAbility::Indestructible)
+            .keyword(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let target_id = obj.id;

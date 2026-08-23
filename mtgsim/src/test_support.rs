@@ -36,7 +36,7 @@ use crate::types::effects::{
     AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -110,7 +110,7 @@ pub fn pacifism() -> Arc<CardData> {
 }
 
 /// A green "Test Creature" with the given P/T and keywords, and no other abilities.
-pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordAbility]) -> Arc<CardData> {
+pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) -> Arc<CardData> {
     let mut builder = CardDataBuilder::new("Test Creature")
         .card_type(CardType::Creature)
         .color(Color::Green)
@@ -188,7 +188,7 @@ pub fn place_vanilla_creature(
     owner: PlayerId,
     power: i32,
     toughness: i32,
-    keywords: &[KeywordAbility],
+    keywords: &[KeywordFlag],
 ) -> ObjectId {
     place_bare(game, vanilla_creature(power, toughness, keywords), owner)
 }
@@ -313,6 +313,39 @@ pub fn registered_source_only(
         affected: AffectedSet::SourceOnly,
         ..registered(source, layer, timestamp, modification)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Layer 6 helpers
+// ---------------------------------------------------------------------------
+
+/// A static [`AbilityDef`] carrying `effect`, with a fresh id and the CDA flag
+/// clear.
+///
+/// The id is what Layer 6 tests care about: `EffectModification::LoseAbility`
+/// removes by id, and CR 113.10b makes "every instance with this id" the
+/// question. Clone the returned def to put the *same* ability on an object
+/// twice — a fresh call would give a second id and prove nothing.
+pub fn static_ability(effect: Effect) -> AbilityDef {
+    AbilityDef {
+        id: new_ability_id(),
+        ability_type: AbilityType::Static,
+        costs: Vec::new(),
+        effect,
+        is_characteristic_defining: false,
+    }
+}
+
+/// A creature named `name` with the given P/T carrying `ability` as printed
+/// text, and no keywords.
+pub fn creature_with_ability(name: &str, power: i32, toughness: i32, ability: AbilityDef) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Creature)
+        .color(Color::Green)
+        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
+        .power_toughness(power, toughness)
+        .ability(ability)
+        .build()
 }
 
 // ---------------------------------------------------------------------------

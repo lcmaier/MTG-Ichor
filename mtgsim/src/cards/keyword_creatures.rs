@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 /// Serra Angel — {3}{W}{W}
@@ -33,8 +33,8 @@ pub fn serra_angel() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
         .power_toughness(4, 4)
-        .keyword(KeywordAbility::Flying)
-        .keyword(KeywordAbility::Vigilance)
+        .keyword(KeywordFlag::Flying)
+        .keyword(KeywordFlag::Vigilance)
         .build()
 }
 
@@ -47,8 +47,8 @@ pub fn thornweald_archer() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 1)
-        .keyword(KeywordAbility::Reach)
-        .keyword(KeywordAbility::Deathtouch)
+        .keyword(KeywordFlag::Reach)
+        .keyword(KeywordFlag::Deathtouch)
         .build()
 }
 
@@ -61,7 +61,7 @@ pub fn raging_cougar() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .power_toughness(2, 2)
-        .keyword(KeywordAbility::Haste)
+        .keyword(KeywordFlag::Haste)
         .build()
 }
 
@@ -74,7 +74,7 @@ pub fn wall_of_stone() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 1))
         .power_toughness(0, 8)
-        .keyword(KeywordAbility::Defender)
+        .keyword(KeywordFlag::Defender)
         .build()
 }
 
@@ -87,7 +87,7 @@ pub fn elvish_archers() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 1)
-        .keyword(KeywordAbility::FirstStrike)
+        .keyword(KeywordFlag::FirstStrike)
         .build()
 }
 
@@ -100,7 +100,7 @@ pub fn ridgetop_raptor() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .power_toughness(2, 1)
-        .keyword(KeywordAbility::DoubleStrike)
+        .keyword(KeywordFlag::DoubleStrike)
         .build()
 }
 
@@ -113,7 +113,7 @@ pub fn war_mammoth() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
-        .keyword(KeywordAbility::Trample)
+        .keyword(KeywordFlag::Trample)
         .build()
 }
 
@@ -126,8 +126,8 @@ pub fn knight_of_meadowgrain() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 0))
         .power_toughness(2, 2)
-        .keyword(KeywordAbility::FirstStrike)
-        .keyword(KeywordAbility::Lifelink)
+        .keyword(KeywordFlag::FirstStrike)
+        .keyword(KeywordFlag::Lifelink)
         .build()
 }
 
@@ -146,7 +146,7 @@ pub fn rhox_war_monk() -> Arc<CardData> {
             ManaSymbol::Colored(ManaType::Blue),
         ] })
         .power_toughness(3, 4)
-        .keyword(KeywordAbility::Lifelink)
+        .keyword(KeywordFlag::Lifelink)
         .build()
 }
 
@@ -159,7 +159,7 @@ pub fn giant_spider() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(2, 4)
-        .keyword(KeywordAbility::Reach)
+        .keyword(KeywordFlag::Reach)
         .build()
 }
 
@@ -172,16 +172,16 @@ pub fn vampire_nighthawk() -> Arc<CardData> {
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 1))
         .power_toughness(2, 3)
-        .keyword(KeywordAbility::Flying)
-        .keyword(KeywordAbility::Lifelink)
-        .keyword(KeywordAbility::Deathtouch)
+        .keyword(KeywordFlag::Flying)
+        .keyword(KeywordFlag::Lifelink)
+        .keyword(KeywordFlag::Deathtouch)
         .build()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
 
     #[test]
     fn test_serra_angel() {
@@ -189,8 +189,8 @@ mod tests {
         assert_eq!(card.name, "Serra Angel");
         assert_eq!(card.power, Some(4));
         assert_eq!(card.toughness, Some(4));
-        assert!(card.keywords.contains(&KeywordAbility::Flying));
-        assert!(card.keywords.contains(&KeywordAbility::Vigilance));
+        assert!(card.keywords.contains(&KeywordFlag::Flying));
+        assert!(card.keywords.contains(&KeywordFlag::Vigilance));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 5);
     }
 
@@ -200,8 +200,8 @@ mod tests {
         assert_eq!(card.name, "Thornweald Archer");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(1));
-        assert!(card.keywords.contains(&KeywordAbility::Reach));
-        assert!(card.keywords.contains(&KeywordAbility::Deathtouch));
+        assert!(card.keywords.contains(&KeywordFlag::Reach));
+        assert!(card.keywords.contains(&KeywordFlag::Deathtouch));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 2);
     }
 
@@ -211,7 +211,7 @@ mod tests {
         assert_eq!(card.name, "Raging Cougar");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(2));
-        assert!(card.keywords.contains(&KeywordAbility::Haste));
+        assert!(card.keywords.contains(&KeywordFlag::Haste));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(card.name, "Wall of Stone");
         assert_eq!(card.power, Some(0));
         assert_eq!(card.toughness, Some(8));
-        assert!(card.keywords.contains(&KeywordAbility::Defender));
+        assert!(card.keywords.contains(&KeywordFlag::Defender));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(card.name, "Elvish Archers");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(1));
-        assert!(card.keywords.contains(&KeywordAbility::FirstStrike));
+        assert!(card.keywords.contains(&KeywordFlag::FirstStrike));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 2);
     }
 
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(card.name, "Ridgetop Raptor");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(1));
-        assert!(card.keywords.contains(&KeywordAbility::DoubleStrike));
+        assert!(card.keywords.contains(&KeywordFlag::DoubleStrike));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 4);
     }
 
@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(card.name, "War Mammoth");
         assert_eq!(card.power, Some(3));
         assert_eq!(card.toughness, Some(3));
-        assert!(card.keywords.contains(&KeywordAbility::Trample));
+        assert!(card.keywords.contains(&KeywordFlag::Trample));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 4);
     }
 
@@ -261,8 +261,8 @@ mod tests {
         assert_eq!(card.name, "Knight of Meadowgrain");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(2));
-        assert!(card.keywords.contains(&KeywordAbility::FirstStrike));
-        assert!(card.keywords.contains(&KeywordAbility::Lifelink));
+        assert!(card.keywords.contains(&KeywordFlag::FirstStrike));
+        assert!(card.keywords.contains(&KeywordFlag::Lifelink));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 2);
     }
 
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(card.name, "Rhox War Monk");
         assert_eq!(card.power, Some(3));
         assert_eq!(card.toughness, Some(4));
-        assert!(card.keywords.contains(&KeywordAbility::Lifelink));
+        assert!(card.keywords.contains(&KeywordFlag::Lifelink));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 
@@ -282,7 +282,7 @@ mod tests {
         assert_eq!(card.name, "Giant Spider");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(4));
-        assert!(card.keywords.contains(&KeywordAbility::Reach));
+        assert!(card.keywords.contains(&KeywordFlag::Reach));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 4);
     }
 
@@ -292,9 +292,9 @@ mod tests {
         assert_eq!(card.name, "Vampire Nighthawk");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(3));
-        assert!(card.keywords.contains(&KeywordAbility::Flying));
-        assert!(card.keywords.contains(&KeywordAbility::Lifelink));
-        assert!(card.keywords.contains(&KeywordAbility::Deathtouch));
+        assert!(card.keywords.contains(&KeywordFlag::Flying));
+        assert!(card.keywords.contains(&KeywordFlag::Lifelink));
+        assert!(card.keywords.contains(&KeywordFlag::Deathtouch));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 }

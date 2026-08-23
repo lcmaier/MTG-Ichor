@@ -75,7 +75,7 @@ pub fn moonlace() -> Arc<CardData> {
 /// Draw a card.
 /// (Tests multi-layer effect from one spell: Layer 5 color + Layer 6 keyword)
 pub fn crimson_wisps() -> Arc<CardData> {
-    use crate::types::keywords::KeywordAbility;
+    use crate::types::keywords::KeywordFlag;
 
     let mut red_set = HashSet::new();
     red_set.insert(Color::Red);
@@ -90,7 +90,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
                 Effect::Atom(
-                    Primitive::GrantKeyword(KeywordAbility::Haste, Duration::UntilEndOfTurn),
+                    Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(

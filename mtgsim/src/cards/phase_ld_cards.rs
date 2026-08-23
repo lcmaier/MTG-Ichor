@@ -116,7 +116,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
 /// types until end of turn.
 ///
 /// Tests: AddSubtype (creature subtype — Angel) combined with P/T pump.
-/// Note: GrantKeyword(Flying) omitted — Layer 6 resolution not yet implemented.
+/// Note: GrantKeywordFlag(Flying) omitted — Layer 6 resolution not yet implemented.
 pub fn call_to_serve_spell() -> Arc<CardData> {
     CardDataBuilder::new("Call to Serve")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -163,7 +163,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
 /// Target creature is legendary and gets +1/+1 until end of turn.
 ///
 /// Tests: AddSupertype (Legendary) combined with P/T pump.
-/// Note: GrantKeyword atoms omitted — Layer 6 resolution not yet implemented.
+/// Note: GrantKeywordFlag atoms omitted — Layer 6 resolution not yet implemented.
 pub fn on_serras_wings_spell() -> Arc<CardData> {
     CardDataBuilder::new("On Serra's Wings")
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
@@ -347,7 +347,7 @@ pub fn dual_land_ub() -> Arc<CardData> {
 /// [`land_creatures_have_flying`] — the text matches the filter.
 ///
 /// Nonsense as a Magic card, but it is the only ability-granting channel that
-/// exists today: `Primitive::GrantKeyword` registers a real Layer 6 effect
+/// exists today: `Primitive::GrantKeywordFlag` registers a real Layer 6 effect
 /// through `register_static_effects`. Used by ATOM-305.7-003 to show that an
 /// ability granted by another effect survives Blood Moon — CR 305.7's "this
 /// doesn't remove any abilities that were granted to the land by other effects".
@@ -363,8 +363,8 @@ pub fn lands_have_flying() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::GrantKeyword(
-                    crate::types::keywords::KeywordAbility::Flying,
+                Primitive::GrantKeywordFlag(
+                    crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
@@ -457,7 +457,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
 /// live, but no card reaches it.
 ///
 /// Nonsense as a Magic card, in the same way and for the same reason as
-/// `lands_have_flying`. `Primitive::GrantKeyword` is used because it is the one
+/// `lands_have_flying`. `Primitive::GrantKeywordFlag` is used because it is the one
 /// Layer 6 channel wired end to end today.
 ///
 /// Deliberately has NO `Basic` supertype, so Blood Moon's filter matches it.
@@ -471,8 +471,8 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::GrantKeyword(
-                    crate::types::keywords::KeywordAbility::Flying,
+                Primitive::GrantKeywordFlag(
+                    crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),

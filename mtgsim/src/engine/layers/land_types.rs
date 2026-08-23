@@ -387,7 +387,7 @@ mod tests {
     fn set_subtypes_strips_printed_keywords() {
         let id = new_object_id();
         let mut chars = land_frame(&[LandType::Island]);
-        chars.keywords.insert(crate::types::keywords::KeywordAbility::Hexproof);
+        chars.keywords.insert(crate::types::keywords::KeywordFlag::Hexproof);
 
         apply_set_subtypes(&mut chars, &subtype_set(&[LandType::Mountain]), id);
 

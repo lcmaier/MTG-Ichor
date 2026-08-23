@@ -15,7 +15,7 @@ use crate::oracle::legality::{legal_attackers, legal_blockers};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
 use crate::ui::decision::DecisionProvider;
 
@@ -58,7 +58,7 @@ impl GameState {
         // Pre-collect vigilance set to avoid borrow-checker conflict
         // (has_keyword borrows self.objects, battlefield.get_mut borrows self.battlefield)
         let vigilance_set: HashSet<ObjectId> = proposed.iter()
-            .filter(|(id, _)| has_keyword(self, *id, KeywordAbility::Vigilance))
+            .filter(|(id, _)| has_keyword(self, *id, KeywordFlag::Vigilance))
             .map(|(id, _)| *id)
             .collect();
 
@@ -199,8 +199,8 @@ impl GameState {
             // Check if any creature in combat has first strike or double strike
             let any_first_strike = self.battlefield.values().any(|e| {
                 (e.attacking.is_some() || e.blocking.is_some())
-                && (has_keyword(self, e.object_id, KeywordAbility::FirstStrike)
-                    || has_keyword(self, e.object_id, KeywordAbility::DoubleStrike))
+                && (has_keyword(self, e.object_id, KeywordFlag::FirstStrike)
+                    || has_keyword(self, e.object_id, KeywordFlag::DoubleStrike))
             });
 
             if !any_first_strike {
@@ -229,8 +229,8 @@ impl GameState {
             let fs_ids: Vec<ObjectId> = self.battlefield.values()
                 .filter(|e| {
                     (e.attacking.is_some() || e.blocking.is_some())
-                    && (has_keyword(self, e.object_id, KeywordAbility::FirstStrike)
-                        || has_keyword(self, e.object_id, KeywordAbility::DoubleStrike))
+                    && (has_keyword(self, e.object_id, KeywordFlag::FirstStrike)
+                        || has_keyword(self, e.object_id, KeywordFlag::DoubleStrike))
                 })
                 .map(|e| e.object_id)
                 .collect();

@@ -310,8 +310,11 @@ mod tests {
 
     // COVERS-PARTIAL: ATOM-113.12-002
     //
-    // Partial: the layer-6 strip is a hand-built registry row rather than a real
-    // "creatures lose all abilities" card, which needs a Layer 6 producer.
+    // Partial: the layer-6 strip is a `ContinuousEffect` written directly into
+    // the registry rather than one derived from a real "creatures lose all
+    // abilities" card at ETB. That is the right shape for a unit
+    // test of the ordering; the atom's full scenario is covered by
+    // `phase_lf_integration_test::test_humility_does_not_restore_a_devoid_cards_printed_color`.
     #[test]
     fn test_layer_6_ability_strip_does_not_restore_a_cda_color() {
         let mut game = GameState::new(2, 20);

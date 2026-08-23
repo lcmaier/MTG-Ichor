@@ -12,7 +12,7 @@ use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{Duration, PermanentFilter};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::keywords::KeywordAbility;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
 
 /// Unique identifier for a registered continuous effect.
@@ -121,8 +121,18 @@ pub enum EffectModification {
     RemoveAllColors,
 
     // --- Layer 6 ---
-    GrantKeyword(KeywordAbility),
-    RemoveKeyword(KeywordAbility),
+    // Two channels, because `EffectiveCharacteristics` genuinely has two
+    // fields. `KeywordFlag` holds the CR 702 keywords whose whole meaning is
+    // their presence; everything else — a keyword with a parameter, a keyword
+    // with an ability body, or one-off granted text — is an `AbilityDef` and
+    // goes through `GrantAbility`. See `KeywordFlag`'s docs for the map.
+    GrantKeywordFlag(KeywordFlag),
+    RemoveKeywordFlag(KeywordFlag),
+    /// Boxed: `AbilityDef` carries a `Vec<Cost>` and an `Effect` tree, and this
+    /// enum is stored per registry row and matched at every layer.
+    GrantAbility(Box<AbilityDef>),
+    /// CR 113.10b — removes *all* instances of the ability, not the first.
+    LoseAbility(AbilityId),
     LoseAllAbilities,
 
     // --- Layer 7b ---
@@ -245,7 +255,7 @@ pub struct EffectiveCharacteristics {
     pub types: HashSet<CardType>,
     pub subtypes: HashSet<Subtype>,
     pub supertypes: HashSet<Supertype>,
-    pub keywords: HashSet<KeywordAbility>,
+    pub keywords: HashSet<KeywordFlag>,
     pub abilities: Vec<AbilityDef>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
