@@ -169,7 +169,11 @@ fn apply_effects(
     cache: &mut FrameCache,
 ) {
     let has_registered = !game.continuous_effects.is_empty();
-    let on_battlefield = game.battlefield.contains_key(&id);
+    // Looked up once and reused by layers 6 and 7c. Both need it every call,
+    // and a second `HashMap` probe per `compute_characteristics` is not free —
+    // this function is the inner loop of mana enumeration and targeting.
+    let bf_entry = game.battlefield.get(&id);
+    let on_battlefield = bf_entry.is_some();
 
     // CR 613.6 — "if an effect starts to apply in one layer, it will continue
     // to be applied to the same set of objects in each other applicable layer".
@@ -260,7 +264,7 @@ fn apply_effects(
         // timestamp through `add_counters`, which cannot allocate one itself —
         // see Deferred Migrations item 10.
         if layer == Layer::Layer6Ability {
-            if let Some(entry) = game.battlefield.get(&id) {
+            if let Some(entry) = bf_entry {
                 for (counter_type, count) in &entry.counters {
                     if *count == 0 {
                         continue;
@@ -274,7 +278,7 @@ fn apply_effects(
 
         // Apply counter P/T in layer 7c (rule 613.4c)
         if layer == Layer::Layer7cModifyPT {
-            if let Some(entry) = game.battlefield.get(&id) {
+            if let Some(entry) = bf_entry {
                 let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
                 if plus != 0 {
                     if let Some(ref mut p) = chars.power { *p += plus; }
