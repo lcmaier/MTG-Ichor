@@ -634,10 +634,9 @@ impl GameState {
         for (primitive, recipient) in atoms {
             let affected = match recipient {
                 EffectRecipient::Implicit => AffectedSet::SourceOnly,
-                EffectRecipient::FilteredPermanents(filter) => AffectedSet::Filter {
-                    filter: filter.clone(),
-                    controller: GameState::extract_controller_from_filter(filter, controller),
-                },
+                EffectRecipient::FilteredPermanents(filter) => {
+                    AffectedSet::Filter { filter: filter.clone() }
+                }
                 _ => continue,
             };
 

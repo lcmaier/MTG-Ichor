@@ -504,13 +504,12 @@ impl GameState {
             for (primitive, recipient) in atoms {
                 // Map recipient → AffectedSet
                 let affected = match recipient {
+                    // The filter is stored verbatim, `PlayerRef` and all.
+                    // Resolving "you" here would snapshot the source's
+                    // controller at ETB; CR 109.5 wants its *current* one, so
+                    // `compute::resolve_filter_players` does it per layer.
                     EffectRecipient::FilteredPermanents(filter) => {
-                        // Resolve PlayerRef in the filter to build AffectedSet
-                        let ctrl = Self::extract_controller_from_filter(filter, controller);
-                        AffectedSet::Filter {
-                            filter: filter.clone(),
-                            controller: ctrl,
-                        }
+                        AffectedSet::Filter { filter: filter.clone() }
                     }
                     EffectRecipient::Implicit => AffectedSet::SourceOnly,
                     _ => continue,
@@ -653,25 +652,6 @@ impl GameState {
                 mods.into_iter().map(|m| (Layer::Layer4Type, m)).collect()
             }
             _ => Vec::new(),
-        }
-    }
-
-    /// Walk a `PermanentFilter` to find `ByController(PlayerRef)` and resolve
-    /// it to a concrete `PlayerId`. Returns `Some(id)` if the filter contains
-    /// a controller constraint, `None` otherwise.
-    pub(crate) fn extract_controller_from_filter(
-        filter: &crate::types::effects::PermanentFilter,
-        controller: PlayerId,
-    ) -> Option<PlayerId> {
-        use crate::types::effects::{PermanentFilter, PlayerRef};
-        match filter {
-            PermanentFilter::ByController(PlayerRef::You) => Some(controller),
-            PermanentFilter::ByController(PlayerRef::Player(pid)) => Some(*pid),
-            PermanentFilter::And(a, b) => {
-                Self::extract_controller_from_filter(a, controller)
-                    .or_else(|| Self::extract_controller_from_filter(b, controller))
-            }
-            _ => None,
         }
     }
 
