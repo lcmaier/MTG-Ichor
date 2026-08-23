@@ -241,6 +241,37 @@ fn apply_effects(
             }
         }
 
+        // Apply keyword counters in layer 6 (CR 122.1b, CR 613.1f).
+        //
+        // Read off `BattlefieldEntity` rather than registered as effects, the
+        // same way layer 7c treats +1/+1 counters: the state is already owned,
+        // and keeping registry rows in step with every counter mutation is the
+        // reconcile-at-a-chokepoint pattern that turns effect existence into a
+        // fixpoint (see the module docs on `static_ability_still_exists`).
+        //
+        // **Ordering is approximate, and this is the one place it shows.** CR
+        // 613.7c gives every counter a timestamp, so a keyword counter should
+        // interleave with this layer's registry rows by timestamp — Humility
+        // with a later timestamp ought to strip a flying counter's flying, and
+        // here it does not, because counters always land after the slice.
+        // `counters: HashMap<CounterType, u32>` stores no timestamp to sort by.
+        // Layer 7c has the identical gap and it is harmless there (addition
+        // commutes); in layer 6 it is not. Fixing it means threading a
+        // timestamp through `add_counters`, which cannot allocate one itself —
+        // see Deferred Migrations item 10.
+        if layer == Layer::Layer6Ability {
+            if let Some(entry) = game.battlefield.get(&id) {
+                for (counter_type, count) in &entry.counters {
+                    if *count == 0 {
+                        continue;
+                    }
+                    if let Some(keyword) = counter_type.keyword_granted() {
+                        chars.keywords.insert(keyword);
+                    }
+                }
+            }
+        }
+
         // Apply counter P/T in layer 7c (rule 613.4c)
         if layer == Layer::Layer7cModifyPT {
             if let Some(entry) = game.battlefield.get(&id) {

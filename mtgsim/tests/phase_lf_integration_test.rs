@@ -20,7 +20,7 @@ use mtgsim::test_support::{
     creature_with_ability, put_on_battlefield, registered, setup_two_player_game, static_ability,
     vanilla_creature,
 };
-use mtgsim::types::effects::{Duration, Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{CounterType, Duration, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::keywords::KeywordFlag;
 
@@ -175,5 +175,86 @@ fn test_granting_an_ability_clears_its_characteristic_defining_flag() {
         !granted[0].is_characteristic_defining,
         "CR 604.3a(2): an ability that arrived by being granted is never a CDA, \
          however its text reads"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// CR 122.1b — keyword counters
+// ---------------------------------------------------------------------------
+
+/// A keyword counter grants its keyword in layer 6, and is derived from
+/// `BattlefieldEntity::counters` rather than registered — so it works with an
+/// empty continuous-effect registry, which is what this asserts by never adding
+/// a row.
+// COVERS: ATOM-122.1b-001
+#[test]
+fn test_a_flying_counter_grants_flying() {
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert!(!has_keyword(&game, id, KeywordFlag::Flying));
+
+    game.battlefield
+        .get_mut(&id)
+        .unwrap()
+        .add_counters(CounterType::Flying, 1);
+
+    assert!(
+        has_keyword(&game, id, KeywordFlag::Flying),
+        "CR 122.1b: a keyword counter causes the object to gain that keyword"
+    );
+    assert!(game.continuous_effects.is_empty(), "no registry row involved");
+}
+
+/// The counter is a layer 6 effect, not a printed keyword: removing it takes
+/// the keyword away again, and a non-keyword counter grants nothing.
+#[test]
+fn test_keyword_counters_are_live_and_only_keyword_counters_grant() {
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    let entry = game.battlefield.get_mut(&id).unwrap();
+    entry.add_counters(CounterType::Menace, 2);
+    entry.add_counters(CounterType::PlusOnePlusOne, 1);
+    assert!(has_keyword(&game, id, KeywordFlag::Menace));
+
+    // A +1/+1 counter is layer 7c and grants no keyword — it must not have
+    // fallen through the mapping into some default.
+    assert!(!has_keyword(&game, id, KeywordFlag::Flying));
+
+    game.battlefield
+        .get_mut(&id)
+        .unwrap()
+        .remove_counters(CounterType::Menace, 2);
+    assert!(
+        !has_keyword(&game, id, KeywordFlag::Menace),
+        "the keyword came from the counters, so it leaves with them"
+    );
+}
+
+/// CR 613.1f puts keyword counters in layer 6 alongside ability-removing
+/// effects, so `LoseAllAbilities` and a keyword counter meet in the same layer.
+///
+/// We apply counters after the layer's registry slice, so the counter wins
+/// whatever the timestamps say. That is an approximation of CR 613.7c, not the
+/// rule — see the comment in `compute::apply_effects`. This test pins today's
+/// behavior so the gap is visible rather than silent; it is deliberately not
+/// annotated as covering an atom, because it asserts what we do rather than
+/// what the CR requires.
+#[test]
+fn test_keyword_counter_currently_outlasts_a_same_layer_ability_strip() {
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.battlefield
+        .get_mut(&id)
+        .unwrap()
+        .add_counters(CounterType::Flying, 1);
+
+    // A strip with a much later timestamp. Under CR 613.7c it should win.
+    game.continuous_effects
+        .add(row(id, 99, EffectModification::LoseAllAbilities));
+
+    assert!(
+        has_keyword(&game, id, KeywordFlag::Flying),
+        "known gap: counters carry no timestamp, so they always apply last          within layer 6"
     );
 }

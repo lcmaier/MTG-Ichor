@@ -250,6 +250,49 @@ pub enum CounterType {
     // Non-evergreen counter types added as relevant cards are implemented
 }
 
+impl CounterType {
+    /// The keyword this counter grants (CR 122.1b), or `None` if it is not a
+    /// keyword counter.
+    ///
+    /// > A keyword counter on a permanent or on a card in a zone other than the
+    /// > battlefield causes that object to gain that keyword.
+    ///
+    /// CR 122.1b names fifteen keywords plus their variants. Twelve of them are
+    /// `CounterType` variants today; the missing three are decayed, exalted and
+    /// shadow. Decayed and exalted are not `KeywordFlag`s at all -- they are
+    /// quadrant-3 keywords with ability bodies (CR 702.147, 702.83), so they
+    /// will arrive as `AbilityDef`s and want a different bridge than this one.
+    /// Shadow is a plain flag and just has no card needing it yet.
+    ///
+    /// Applied in Layer 6 by `compute::apply_effects`, read straight off
+    /// `BattlefieldEntity::counters` rather than registered as a continuous
+    /// effect -- same treatment as the +1/+1 counters in Layer 7c, and for the
+    /// same reason: the state is already owned, and reconciling registry rows
+    /// against every counter mutation is the pattern that turns effect
+    /// existence into a fixpoint.
+    pub fn keyword_granted(self) -> Option<crate::types::keywords::KeywordFlag> {
+        use crate::types::keywords::KeywordFlag as K;
+        Some(match self {
+            CounterType::Flying => K::Flying,
+            CounterType::Deathtouch => K::Deathtouch,
+            CounterType::Lifelink => K::Lifelink,
+            CounterType::Trample => K::Trample,
+            CounterType::FirstStrike => K::FirstStrike,
+            CounterType::DoubleStrike => K::DoubleStrike,
+            CounterType::Hexproof => K::Hexproof,
+            CounterType::Indestructible => K::Indestructible,
+            CounterType::Menace => K::Menace,
+            CounterType::Reach => K::Reach,
+            CounterType::Vigilance => K::Vigilance,
+            CounterType::Haste => K::Haste,
+            CounterType::PlusOnePlusOne
+            | CounterType::MinusOneMinusOne
+            | CounterType::Loyalty
+            | CounterType::Charge => return None,
+        })
+    }
+}
+
 /// Color change description for ChangeColor primitive (layer 5).
 ///
 /// Three operations map 1:1 to the three `EffectModification` variants:
