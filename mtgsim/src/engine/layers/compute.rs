@@ -355,9 +355,12 @@ fn drain_keyword_counters_before(
 /// The gate is exact rather than a heuristic. Layer 2 is the only thing that
 /// writes `chars.controller` after `compute_to_ceiling` seeds it, so when the
 /// registry holds no `SetController` row the seed *is* the answer and reading
-/// the field skips a whole sub-walk. See `RegistryScopeSummary::
-/// any_control_changing` for why this is worth a flag; the short version is
-/// that `effect_applies_to` runs for objects the filter goes on to reject.
+/// the field skips a whole sub-walk.
+///
+/// It is worth ~4% on `fuzz_games`, not the 10x the first version of this
+/// comment implied — see `RegistryScopeSummary::any_control_changing` for the
+/// measured 2x2. `FilterPlayers`' laziness is what carries the ungated case, so
+/// Layer 2 turning this flag on costs +7% over baseline at worst.
 ///
 /// The ungated arm asks at `layer_index`, never at the full ceiling
 /// (`layers-architecture.md` §5.2) — that descent is the termination argument,
@@ -402,9 +405,13 @@ fn effective_controller(
 ///   check makes the identical request a few lines below and would hit the
 ///   frame cache. **It is not.** The existence check runs only for effects that
 ///   already *matched*; this one runs for every object the filter is about to
-///   reject, which is most of the board. Resolving it eagerly measured 70.5 →
-///   749 ms/game on `fuzz_games --games 200 --seed 12345`. Hence the laziness
-///   above and `effective_controller`'s gate.
+///   reject, which is most of the board. Resolving it eagerly *and* ungated
+///   measured 749 ms/game against a 73.0 baseline on `fuzz_games --games 200
+///   --seed 12345`.
+///
+///   Of the two fixes, **this one is the load-bearing half**: lazy-and-ungated
+///   is 78.1 ms/game, lazy-and-gated 74.8. So laziness is what has to survive a
+///   refactor here; `effective_controller`'s gate is a further ~4%.
 ///
 /// - **`Resolution` (CR 613.7b).** "You" was fixed when the spell or ability
 ///   resolved — CR 611.2c, "the set of objects it affects is determined when

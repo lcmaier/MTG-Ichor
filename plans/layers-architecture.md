@@ -238,7 +238,7 @@ pub enum AffectedSet {
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
 - `PlayerRef::Opponent` is matched as a predicate, `controller != you`, not resolved to an id: CR 102.2 gives one opponent in a two-player game but CR 102.3 gives a set in multiplayer, and the predicate is correct for both.
 
-Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and both are load-bearing: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so an eager walk cost 10x on `fuzz_games`. See `codebase-state.md` Deferred Migrations item 11.
+Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); the gate is a further ~4%. Layer 2 turning the gate on should therefore cost about +7%, not a 10x. Full 2x2 and the sharper-gate option in `codebase-state.md` Deferred Migrations item 11.
 
 ### 3.5 `EffectModification` + `CharacteristicCategory`
 
