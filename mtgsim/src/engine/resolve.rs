@@ -441,7 +441,10 @@ impl GameState {
             | Primitive::Fight
             | Primitive::Tap
             | Primitive::GrantKeyword(_, _)
-            | Primitive::RemoveAbility(_, _)
+            | Primitive::RemoveKeyword(_, _)
+            | Primitive::GrantAbility(_, _)
+            | Primitive::LoseAbility(_, _)
+            | Primitive::LoseAllAbilities(_)
             | Primitive::GainControl(_) => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }

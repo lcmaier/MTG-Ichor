@@ -449,7 +449,33 @@ pub(super) fn apply_modification(
 
         // Layer 6
         EffectModification::GrantKeyword(kw) => { chars.keywords.insert(*kw); }
+        // CR 113.10b — "effects that remove an ability remove all instances of
+        // it". For a keyword flag that is structural: a `HashSet` never held
+        // more than one.
         EffectModification::RemoveKeyword(kw) => { chars.keywords.remove(kw); }
+        EffectModification::GrantAbility(def) => {
+            // CR 604.3a(2) — an ability that reached an object by being granted
+            // is never a characteristic-defining ability, however its text
+            // reads. The flag on `AbilityDef` asserts only the four criteria
+            // that are properties of the text; provenance is maintained by
+            // whoever writes the ability onto an object, and this is that
+            // place. Copy (Layer 1) and text-changing (Layer 3) effects hand
+            // the def over whole and keep the flag, which is the *other* half
+            // of 604.3a(2) and equally deliberate.
+            //
+            // Not clearing it would let a granted Tarmogoyf ability define P/T
+            // at Layer 7a, which is exactly what 604.3a(2) forbids.
+            let mut granted = (**def).clone();
+            granted.is_characteristic_defining = false;
+            chars.abilities.push(granted);
+        }
+        // CR 113.10b again, and here it is *not* structural: `abilities` is a
+        // `Vec` and the same ability can genuinely appear twice — printed on
+        // the card and granted on top of it. `retain`, never "remove the first
+        // match".
+        EffectModification::LoseAbility(ability_id) => {
+            chars.abilities.retain(|a| a.id != *ability_id);
+        }
         EffectModification::LoseAllAbilities => {
             chars.keywords.clear();
             chars.abilities.clear();

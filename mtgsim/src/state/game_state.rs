@@ -422,6 +422,18 @@ impl GameState {
                     Primitive::GrantKeyword(kw, _dur) => {
                         (Layer::Layer6Ability, EffectModification::GrantKeyword(*kw))
                     }
+                    Primitive::RemoveKeyword(kw, _dur) => {
+                        (Layer::Layer6Ability, EffectModification::RemoveKeyword(*kw))
+                    }
+                    Primitive::GrantAbility(def, _dur) => {
+                        (Layer::Layer6Ability, EffectModification::GrantAbility(def.clone()))
+                    }
+                    Primitive::LoseAbility(ability_id, _dur) => {
+                        (Layer::Layer6Ability, EffectModification::LoseAbility(*ability_id))
+                    }
+                    Primitive::LoseAllAbilities(_dur) => {
+                        (Layer::Layer6Ability, EffectModification::LoseAllAbilities)
+                    }
                     Primitive::ChangeColor(color_change, _dur) => {
                         use crate::types::effects::ColorChange;
                         let modification = match color_change {
