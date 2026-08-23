@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
@@ -112,6 +115,17 @@ pub struct GameState {
 
     // --- Event log ---
     pub events: EventLog,
+
+    // --- Randomness ---
+    /// The game's one source of randomness: shuffles now, coin flips and
+    /// "at random" choices later (CR 705).
+    ///
+    /// Owned by the state rather than taken from `rand::rng()` at the point of
+    /// use, so that a caller who wants a replayable game gets one — see
+    /// [`GameState::reseed`]. Seeded to `DEFAULT_RNG_SEED` at construction, so
+    /// a game nobody reseeds is still the *same* game every run; the
+    /// interactive binary reseeds from entropy to get variety.
+    pub rng: StdRng,
 }
 
 /// Turn phases
@@ -239,6 +253,38 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             events: EventLog::new(),
+            rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
+        }
+    }
+
+    /// The seed a `GameState` starts with when nobody supplies one.
+    ///
+    /// A fixed value, not entropy: an unseeded game that is nevertheless
+    /// reproducible is the safer default, and it makes every test that shuffles
+    /// deterministic without opting in.
+    pub const DEFAULT_RNG_SEED: u64 = 0x4D54_4749_4348_4F52; // "MTGICHOR"
+
+    /// Point the game's randomness at `seed`. Call before `Game::setup` —
+    /// after it, the opening hands have already been dealt.
+    pub fn reseed(&mut self, seed: u64) {
+        self.rng = StdRng::seed_from_u64(seed);
+    }
+
+    /// Point the game's randomness at the OS — for interactive play, where a
+    /// fresh shuffle each time is the point.
+    pub fn reseed_from_entropy(&mut self) {
+        self.rng = StdRng::from_os_rng();
+    }
+
+    /// Shuffle a player's library with the game's RNG (CR 701.20).
+    ///
+    /// Lives here rather than on `Game` because it needs `rng` and `players`
+    /// borrowed at once, and because in-game shuffle effects will want it.
+    pub fn shuffle_library(&mut self, player: PlayerId) {
+        use rand::seq::SliceRandom;
+        let Self { players, rng, .. } = self;
+        if let Some(p) = players.get_mut(player) {
+            p.library.shuffle(rng);
         }
     }
 

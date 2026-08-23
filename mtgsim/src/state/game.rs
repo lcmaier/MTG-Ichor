@@ -83,6 +83,21 @@ impl Game {
         })
     }
 
+    /// Make this game replayable from `seed` — same seed, same shuffle.
+    ///
+    /// Call before [`Game::setup`]; after it the libraries are already
+    /// shuffled. The decision provider carries its own RNG, so a fully
+    /// reproducible run seeds both (see `RandomDecisionProvider::seeded`).
+    pub fn reseed(&mut self, seed: u64) {
+        self.state.reseed(seed);
+    }
+
+    /// Take this game's randomness from the OS instead — for interactive play,
+    /// where the same opening hand every session would be the bug.
+    pub fn reseed_from_entropy(&mut self) {
+        self.state.reseed_from_entropy();
+    }
+
     /// Perform game setup: shuffle libraries and draw opening hands.
     ///
     /// Mulligan handling is stubbed — players always keep their first hand.
@@ -90,8 +105,8 @@ impl Game {
     /// calls per player and will be implemented when needed.
     pub fn setup(&mut self, _decisions: &dyn DecisionProvider) -> Result<(), String> {
         // Shuffle each player's library
-        for player in &mut self.state.players {
-            Self::shuffle_library(&mut player.library);
+        for player_id in 0..self.state.num_players() {
+            self.state.shuffle_library(player_id);
         }
 
         // Draw opening hands
@@ -334,12 +349,6 @@ impl Game {
         Ok(())
     }
 
-    /// Shuffle a library in place using rand.
-    fn shuffle_library(library: &mut Vec<crate::types::ids::ObjectId>) {
-        use rand::seq::SliceRandom;
-        let rng = &mut rand::rng();
-        library.shuffle(rng);
-    }
 }
 
 #[cfg(test)]
