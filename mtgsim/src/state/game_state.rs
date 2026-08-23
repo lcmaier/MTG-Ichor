@@ -242,6 +242,42 @@ impl GameState {
         }
     }
 
+    // --- Deterministic iteration ---
+
+    /// The battlefield, oldest permanent first.
+    ///
+    /// **Every sweep whose order can be observed goes through this, not
+    /// `battlefield.iter()`.** `battlefield` is a `HashMap`, and `RandomState`
+    /// reseeds itself per *process*, so a direct iteration hands the legal
+    /// action list, the mana sources and the SBA sweeps to the caller in a
+    /// different order on every run — which is how `fuzz_games --seed N` came
+    /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
+    /// UUIDs, so the key is itself random.
+    ///
+    /// `BattlefieldEntity::timestamp` is the deterministic key. It is allocated
+    /// once per `place_on_battlefield` from `next_timestamp`, a monotonic
+    /// counter, and never reassigned — so it is unique across the battlefield
+    /// and totally orders it. It is also the order CR 613.7 already cares
+    /// about, oldest first.
+    ///
+    /// Order-irrelevant sweeps — "untap every permanent", "clear all damage" —
+    /// may still iterate the map directly; they touch disjoint entries and emit
+    /// nothing.
+    pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &BattlefieldEntity)> {
+        let mut entries: Vec<(ObjectId, &BattlefieldEntity)> =
+            self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
+        entries.sort_by_key(|(_, e)| e.timestamp);
+        entries
+    }
+
+    /// The battlefield's object ids, oldest permanent first.
+    /// See [`GameState::battlefield_ordered`] for why this exists.
+    pub fn battlefield_ids_ordered(&self) -> Vec<ObjectId> {
+        let mut ids: Vec<ObjectId> = self.battlefield.keys().copied().collect();
+        ids.sort_by_key(|id| self.battlefield[id].timestamp);
+        ids
+    }
+
     /// Allocate and return the next timestamp value.
     pub fn allocate_timestamp(&mut self) -> u64 {
         let ts = self.next_timestamp;

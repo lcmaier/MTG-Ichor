@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
@@ -87,15 +87,18 @@ impl GameState {
         }
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
-        let zero_toughness: Vec<ObjectId> = self.battlefield.keys()
+        // Ordered, not raw `battlefield.keys()`: two creatures dying to the same
+        // SBA check reach the graveyard in this order, and the graveyard is an
+        // ordered zone.
+        let zero_toughness: Vec<ObjectId> = self.battlefield_ids_ordered()
+            .into_iter()
             .filter(|id| {
-                if is_creature(self, **id) {
-                    let effective_t = get_effective_toughness(self, **id).unwrap_or(0);
+                if is_creature(self, *id) {
+                    let effective_t = get_effective_toughness(self, *id).unwrap_or(0);
                     return effective_t <= 0;
                 }
                 false
             })
-            .copied()
             .collect();
 
         for id in zero_toughness {
@@ -108,10 +111,11 @@ impl GameState {
         // 704.5g — Creature with lethal damage is destroyed
         // Also handles deathtouch (rule 702.2b): any nonzero damage from a
         // deathtouch source is lethal.
-        let lethal_damage: Vec<ObjectId> = self.battlefield.keys()
+        let lethal_damage: Vec<ObjectId> = self.battlefield_ids_ordered()
+            .into_iter()
             .filter(|id| {
-                if is_creature(self, **id) {
-                    let effective_t = get_effective_toughness(self, **id).unwrap_or(0);
+                if is_creature(self, *id) {
+                    let effective_t = get_effective_toughness(self, *id).unwrap_or(0);
                     if effective_t <= 0 { return false; } // handled by 704.5f
                     let entry = self.battlefield.get(id).unwrap();
                     // Normal lethal damage OR any damage from deathtouch source
@@ -120,7 +124,6 @@ impl GameState {
                 }
                 false
             })
-            .copied()
             .collect();
 
         for id in lethal_damage {
@@ -136,17 +139,17 @@ impl GameState {
         }
 
         // 704.5i — Planeswalker with 0 loyalty is put into owner's graveyard
-        let pw_zero_loyalty: Vec<ObjectId> = self.battlefield.keys()
+        let pw_zero_loyalty: Vec<ObjectId> = self.battlefield_ids_ordered()
+            .into_iter()
             .filter(|id| {
                 if self.objects.contains_key(id) {
-                    if has_type(self, **id, CardType::Planeswalker) {
+                    if has_type(self, *id, CardType::Planeswalker) {
                         let entry = self.battlefield.get(id).unwrap();
                         return entry.counter_count(CounterType::Loyalty) == 0;
                     }
                 }
                 false
             })
-            .copied()
             .collect();
 
         for id in pw_zero_loyalty {
@@ -161,9 +164,13 @@ impl GameState {
         // permanents with the same name, they choose one to keep and the
         // rest are put into their owners' graveyards.
         {
-            // Group legendary permanents by (controller, effective_name)
-            let mut legend_groups: HashMap<(usize, String), Vec<ObjectId>> = HashMap::new();
-            for (&id, entry) in &self.battlefield {
+            // Group legendary permanents by (controller, effective_name).
+            //
+            // `BTreeMap` over an ordered sweep, both deliberate: the controller
+            // is prompted once per group, so group order is decision order, and
+            // `ids` is the option list they pick from by index.
+            let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
+            for (id, entry) in self.battlefield_ordered() {
                 if self.objects.contains_key(&id) {
                     if has_supertype(self, id, Supertype::Legendary) {
                         let name = get_effective_name(self, id);
@@ -206,8 +213,9 @@ impl GameState {
         //
         // Collect aura IDs in a single pass to avoid borrow-checker issues:
         // we need &self.objects for subtype checks but &mut self for move_object.
-        let auras_to_graveyard: Vec<ObjectId> = self.battlefield.iter()
-            .filter_map(|(&id, entry)| {
+        let auras_to_graveyard: Vec<ObjectId> = self.battlefield_ordered()
+            .into_iter()
+            .filter_map(|(id, entry)| {
                 let obj = self.objects.get(&id)?;
                 if !has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura)) {
                     return None;
@@ -243,8 +251,9 @@ impl GameState {
 
         // 704.5p — Equipment/Fortification attached to non-creature → unattach
         // Equipment stays on the battlefield; only the attachment is broken.
-        let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield.iter()
-            .filter_map(|(&id, entry)| {
+        let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
+            .into_iter()
+            .filter_map(|(id, entry)| {
                 self.objects.get(&id)?;
                 let has_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
                 let has_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
@@ -274,8 +283,9 @@ impl GameState {
         // Equipment, nor Fortification is attached to another permanent, it becomes
         // unattached. This catches illegal attachment state that may arise from
         // type-changing effects.
-        let illegal_attachments: Vec<(ObjectId, ObjectId)> = self.battlefield.iter()
-            .filter_map(|(&id, entry)| {
+        let illegal_attachments: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
+            .into_iter()
+            .filter_map(|(id, entry)| {
                 self.objects.get(&id)?;
                 let is_aura = has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura));
                 let is_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
@@ -310,8 +320,9 @@ impl GameState {
         // 704.5q — +1/+1 and -1/-1 counter annihilation
         // If a permanent has both +1/+1 and -1/-1 counters, remove pairs
         // until only one type remains.
-        let annihilation_targets: Vec<(ObjectId, u32)> = self.battlefield.iter()
-            .filter_map(|(&id, entry)| {
+        let annihilation_targets: Vec<(ObjectId, u32)> = self.battlefield_ordered()
+            .into_iter()
+            .filter_map(|(id, entry)| {
                 let plus = entry.counter_count(CounterType::PlusOnePlusOne);
                 let minus = entry.counter_count(CounterType::MinusOneMinusOne);
                 if plus > 0 && minus > 0 {

@@ -95,14 +95,16 @@ pub fn find_mana_sources(
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
     let mut sources = Vec::new();
 
-    for (id, entry) in &game.battlefield {
+    // Ordered, not raw `battlefield.iter()`: this list is consumed positionally
+    // by `find_mana_sources`, so its order decides *which* land gets tapped.
+    for (id, entry) in game.battlefield_ordered() {
         if entry.controller != player_id {
             continue;
         }
 
         // Effective abilities, not printed: a Blood-Mooned land's intrinsic
         // {T}: Add {R} exists nowhere in its CardData (CR 305.7).
-        for ability in &crate::oracle::characteristics::get_effective_abilities(game, *id) {
+        for ability in &crate::oracle::characteristics::get_effective_abilities(game, id) {
             if ability.ability_type != AbilityType::Mana {
                 continue;
             }
@@ -111,7 +113,7 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
             // This handles all Cost variants (Tap, Untap, Mana, PayLife,
             // SacrificeSelf, Sacrifice, Discard, etc.) and will correctly
             // reject costs it cannot validate rather than silently passing.
-            if game.can_pay_costs(&ability.costs, player_id, *id).is_err() {
+            if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
                 continue;
             }
 
@@ -125,7 +127,7 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
                     if let crate::types::effects::AmountExpr::Fixed(amount) = amount_expr {
                         if *amount > 0 {
                             sources.push(ManaSource {
-                                permanent_id: *id,
+                                permanent_id: id,
                                 ability_id: ability.id,
                                 produces: *mana_type,
                             });
@@ -356,7 +358,9 @@ pub fn activatable_abilities(
 ) -> Vec<(ObjectId, usize, AbilityId)> {
     let mut result = Vec::new();
 
-    for (id, entry) in &game.battlefield {
+    // Ordered, not raw `battlefield.iter()`: this is the activatable half of the
+    // priority action list, which the DP picks from by index.
+    for (id, entry) in game.battlefield_ordered() {
         if entry.controller != player_id {
             continue;
         }
@@ -364,7 +368,7 @@ pub fn activatable_abilities(
         // `idx` indexes the EFFECTIVE ability list. `priority.rs` re-derives it
         // by id and `cast.rs::activate_ability` consumes it — all three must
         // index the same list or activation silently targets the wrong ability.
-        let abilities = crate::oracle::characteristics::get_effective_abilities(game, *id);
+        let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
 
         for (idx, ability) in abilities.iter().enumerate() {
             if ability.ability_type != AbilityType::Activated {
@@ -373,11 +377,11 @@ pub fn activatable_abilities(
 
             // Single-pass check: non-mana costs via engine, mana costs via
             // pool + available sources. No double-check.
-            if !can_afford_ability_costs(game, player_id, *id, &ability.costs) {
+            if !can_afford_ability_costs(game, player_id, id, &ability.costs) {
                 continue;
             }
 
-            result.push((*id, idx, ability.id));
+            result.push((id, idx, ability.id));
         }
     }
 

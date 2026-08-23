@@ -1039,11 +1039,14 @@ mod tests {
         set_attacking(&mut game, att1, 1);
         set_attacking(&mut game, att2, 1);
 
-        // legal_block_pairs will be ordered by HashMap iteration — we can
-        // derive the index-of-each-pair at runtime to build the DP script.
+        // Mirror `process_declare_blockers`' pair construction so the DP script
+        // can name a pair by index. The order is deterministic now
+        // (`battlefield_ordered`), but deriving the index rather than hardcoding
+        // it keeps the test about the retry loop instead of the list layout.
         let blocker_ids = crate::oracle::legality::legal_blockers(&game, 1);
-        let attackers_in_combat: Vec<ObjectId> = game.battlefield.iter()
-            .filter_map(|(id, e)| e.attacking.as_ref().map(|_| *id))
+        let attackers_in_combat: Vec<ObjectId> = game.battlefield_ordered()
+            .into_iter()
+            .filter_map(|(id, e)| e.attacking.as_ref().map(|_| id))
             .collect();
         let pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
             .iter()
