@@ -436,20 +436,20 @@ impl GameState {
             // spells, whose affected set is locked to the targets at resolution
             // (CR 613.7b).
 
-            Primitive::GrantKeyword(keyword, duration) => {
+            Primitive::GrantKeywordFlag(keyword, duration) => {
                 self.register_layer6_resolution(
                     ctx,
                     *duration,
-                    EffectModification::GrantKeyword(*keyword),
+                    EffectModification::GrantKeywordFlag(*keyword),
                 );
                 Ok(())
             }
 
-            Primitive::RemoveKeyword(keyword, duration) => {
+            Primitive::RemoveKeywordFlag(keyword, duration) => {
                 self.register_layer6_resolution(
                     ctx,
                     *duration,
-                    EffectModification::RemoveKeyword(*keyword),
+                    EffectModification::RemoveKeywordFlag(*keyword),
                 );
                 Ok(())
             }

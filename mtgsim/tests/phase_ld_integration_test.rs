@@ -473,7 +473,7 @@ fn test_blood_moon_strips_printed_abilities_and_grants_intrinsic_red() {
 
 // COVERS-PARTIAL: ATOM-305.7-003
 // PARTIAL: the atom grants a non-keyword activated ability ("{T}: Draw a card").
-// Only the keyword channel (Primitive::GrantKeyword) exists today, so this
+// Only the keyword channel (Primitive::GrantKeywordFlag) exists today, so this
 // proves the survival rule using flying instead.
 #[test]
 fn test_blood_moon_does_not_strip_ability_granted_by_another_effect() {

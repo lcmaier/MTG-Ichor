@@ -90,7 +90,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
                 Effect::Atom(
-                    Primitive::GrantKeyword(KeywordFlag::Haste, Duration::UntilEndOfTurn),
+                    Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
                 Effect::Atom(

@@ -408,19 +408,32 @@ pub enum Primitive {
     ModifyPowerToughness(AmountExpr, AmountExpr, Duration),
     /// Switch power and toughness (layer 7d)
     SwitchPowerToughness(Duration),
-    /// Grant a keyword flag (layer 6). See `KeywordFlag` for which keywords
-    /// belong on this channel: only those whose meaning is their presence.
-    /// A keyword with a parameter or an ability body goes through
-    /// `GrantAbility` instead.
-    GrantKeyword(KeywordFlag, Duration),
+    /// Grant a keyword flag (layer 6).
+    ///
+    /// **Named for what it carries, not for what a card says.** Puresteel
+    /// Paladin's "Equipment you control have equip {0}" grants a keyword, and it
+    /// is a `GrantAbility`, not this — because `equip {0}` is an activated
+    /// ability with a cost and `KeywordFlag` holds no cost. Only the CR 702
+    /// keywords whose entire meaning is their presence live in `KeywordFlag`,
+    /// and this variant reaches exactly those. If the keyword you want is not in
+    /// that enum, that is the answer, not an omission: use `GrantAbility` with
+    /// a fully parameterized `AbilityDef`. See `KeywordFlag` for the map.
+    GrantKeywordFlag(KeywordFlag, Duration),
     /// Remove a keyword flag (layer 6). CR 113.10b — removing an ability
     /// removes all instances of it; a `HashSet` gives that structurally.
     ///
     /// Named `RemoveAbility` until the Layer 6 phase, which was simply wrong:
-    /// it takes a `KeywordFlag`, never an ability.
-    RemoveKeyword(KeywordFlag, Duration),
-    /// Grant a whole ability (layer 6). The channel for every CR 702 keyword
-    /// that is not a bare flag, and for one-off granted text.
+    /// it takes a `KeywordFlag`, never an ability. To remove a parameterized
+    /// keyword — an equip ability, protection from a quality — use
+    /// `LoseAbility` with the ability's id.
+    RemoveKeywordFlag(KeywordFlag, Duration),
+    /// Grant a whole ability (layer 6).
+    ///
+    /// The channel for one-off granted text *and* for every CR 702 keyword that
+    /// is not a bare flag — equip, ward, protection, landwalk, cycling, and the
+    /// ~170 others whose keyword name abbreviates an ability with a body. A card
+    /// that says "gains equip {2}" comes through here, not through
+    /// `GrantKeywordFlag`.
     ///
     /// Boxed because `AbilityDef` contains an `Effect`, which contains
     /// `Primitive` — the recursion is real and needs an indirection. It also

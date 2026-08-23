@@ -31,7 +31,7 @@
 /// `cards::phase_le_cards` as a characteristic-defining [`AbilityDef`] on
 /// `CardData::abilities`, not as a variant here. That is quadrant ③, and it
 /// is what the rest of ③ and ④ should look like. `EffectModification::
-/// GrantAbility` is the Layer 6 channel for them; `GrantKeyword` is the
+/// GrantAbility` is the Layer 6 channel for them; `GrantKeywordFlag` is the
 /// channel for this enum.
 ///
 /// # Five variants used to be here
@@ -58,7 +58,7 @@
 ///   regardless of how it is stored.
 ///
 /// Removing them cost nothing — none was constructed anywhere in the crate —
-/// and keeping them would have made `GrantKeyword(Protection)` look like the
+/// and keeping them would have made `GrantKeywordFlag(Protection)` look like the
 /// way to write "target creature gains protection from the color of your
 /// choice", which is common Magic and which it cannot express.
 ///

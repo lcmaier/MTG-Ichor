@@ -494,11 +494,11 @@ impl GameState {
             Primitive::SwitchPowerToughness(_dur) => {
                 single(Layer::Layer7dSwitchPT, EffectModification::SwitchPowerToughness)
             }
-            Primitive::GrantKeyword(kw, _dur) => {
-                single(Layer::Layer6Ability, EffectModification::GrantKeyword(*kw))
+            Primitive::GrantKeywordFlag(kw, _dur) => {
+                single(Layer::Layer6Ability, EffectModification::GrantKeywordFlag(*kw))
             }
-            Primitive::RemoveKeyword(kw, _dur) => {
-                single(Layer::Layer6Ability, EffectModification::RemoveKeyword(*kw))
+            Primitive::RemoveKeywordFlag(kw, _dur) => {
+                single(Layer::Layer6Ability, EffectModification::RemoveKeywordFlag(*kw))
             }
             Primitive::GrantAbility(def, _dur) => single(
                 Layer::Layer6Ability,

@@ -1,7 +1,7 @@
 //! Layer 6 — ability adding and removing (CR 613.1f).
 //!
 //! Two channels, because `EffectiveCharacteristics` has two fields:
-//! `GrantKeyword`/`RemoveKeyword` write `keywords`, `GrantAbility`/
+//! `GrantKeywordFlag`/`RemoveKeywordFlag` write `keywords`, `GrantAbility`/
 //! `LoseAbility` write `abilities`, and `LoseAllAbilities` clears both. See
 //! `KeywordFlag`'s docs for which CR 702 keywords belong on which channel.
 //!
@@ -46,7 +46,7 @@ fn row(id: ObjectId, timestamp: Timestamp, modification: EffectModification) -> 
 /// about an ability's *identity*, not what it does.
 fn inert_ability() -> AbilityDef {
     static_ability(Effect::Atom(
-        Primitive::GrantKeyword(KeywordFlag::Vigilance, Duration::WhileSourceOnBattlefield),
+        Primitive::GrantKeywordFlag(KeywordFlag::Vigilance, Duration::WhileSourceOnBattlefield),
         EffectRecipient::Implicit,
     ))
 }
@@ -98,7 +98,7 @@ fn test_losing_an_ability_removes_every_instance_of_it() {
 
 /// The keyword channel reaches the same answer structurally: `keywords` is a
 /// `HashSet`, so a printed flying and a granted flying were never two entries
-/// to begin with, and one `RemoveKeyword` clears it.
+/// to begin with, and one `RemoveKeywordFlag` clears it.
 // COVERS-PARTIAL: ATOM-113.10b-001
 #[test]
 fn test_removing_a_keyword_clears_it_however_many_effects_granted_it() {
@@ -106,11 +106,11 @@ fn test_removing_a_keyword_clears_it_however_many_effects_granted_it() {
     let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Flying]), 0);
 
     game.continuous_effects
-        .add(row(id, 1, EffectModification::GrantKeyword(KeywordFlag::Flying)));
+        .add(row(id, 1, EffectModification::GrantKeywordFlag(KeywordFlag::Flying)));
     assert!(has_keyword(&game, id, KeywordFlag::Flying));
 
     game.continuous_effects
-        .add(row(id, 2, EffectModification::RemoveKeyword(KeywordFlag::Flying)));
+        .add(row(id, 2, EffectModification::RemoveKeywordFlag(KeywordFlag::Flying)));
     assert!(
         !has_keyword(&game, id, KeywordFlag::Flying),
         "CR 113.10b: one removal clears the printed and the granted instance alike"
@@ -135,9 +135,9 @@ fn test_add_after_remove_prevails_by_timestamp_not_by_cant_beating_can() {
     // Remove at ts 1, add back at ts 2. If "can't overrides can" applied, the
     // removal would win regardless of order. It does not apply.
     game.continuous_effects
-        .add(row(id, 1, EffectModification::RemoveKeyword(KeywordFlag::Flying)));
+        .add(row(id, 1, EffectModification::RemoveKeywordFlag(KeywordFlag::Flying)));
     game.continuous_effects
-        .add(row(id, 2, EffectModification::GrantKeyword(KeywordFlag::Flying)));
+        .add(row(id, 2, EffectModification::GrantKeywordFlag(KeywordFlag::Flying)));
     assert!(
         has_keyword(&game, id, KeywordFlag::Flying),
         "CR 101.2a/113.10c: the later effect prevails, and it adds"
@@ -151,9 +151,9 @@ fn test_remove_after_add_prevails_by_timestamp() {
     let id = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
     game.continuous_effects
-        .add(row(id, 1, EffectModification::GrantKeyword(KeywordFlag::Flying)));
+        .add(row(id, 1, EffectModification::GrantKeywordFlag(KeywordFlag::Flying)));
     game.continuous_effects
-        .add(row(id, 2, EffectModification::RemoveKeyword(KeywordFlag::Flying)));
+        .add(row(id, 2, EffectModification::RemoveKeywordFlag(KeywordFlag::Flying)));
     assert!(
         !has_keyword(&game, id, KeywordFlag::Flying),
         "the mirror of the previous test: timestamp decides, not the operation"

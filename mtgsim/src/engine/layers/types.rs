@@ -126,8 +126,8 @@ pub enum EffectModification {
     // their presence; everything else — a keyword with a parameter, a keyword
     // with an ability body, or one-off granted text — is an `AbilityDef` and
     // goes through `GrantAbility`. See `KeywordFlag`'s docs for the map.
-    GrantKeyword(KeywordFlag),
-    RemoveKeyword(KeywordFlag),
+    GrantKeywordFlag(KeywordFlag),
+    RemoveKeywordFlag(KeywordFlag),
     /// Boxed: `AbilityDef` carries a `Vec<Cost>` and an `Effect` tree, and this
     /// enum is stored per registry row and matched at every layer.
     GrantAbility(Box<AbilityDef>),

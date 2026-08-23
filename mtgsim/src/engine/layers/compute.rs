@@ -483,11 +483,11 @@ pub(super) fn apply_modification(
         EffectModification::RemoveAllColors => { chars.colors.clear(); }
 
         // Layer 6
-        EffectModification::GrantKeyword(kw) => { chars.keywords.insert(*kw); }
+        EffectModification::GrantKeywordFlag(kw) => { chars.keywords.insert(*kw); }
         // CR 113.10b — "effects that remove an ability remove all instances of
         // it". For a keyword flag that is structural: a `HashSet` never held
         // more than one.
-        EffectModification::RemoveKeyword(kw) => { chars.keywords.remove(kw); }
+        EffectModification::RemoveKeywordFlag(kw) => { chars.keywords.remove(kw); }
         EffectModification::GrantAbility(def) => {
             // CR 604.3a(2) — an ability that reached an object by being granted
             // is never a characteristic-defining ability, however its text
@@ -748,7 +748,7 @@ mod tests {
             id,
             Layer::Layer6Ability,
             1,
-            EffectModification::GrantKeyword(KeywordFlag::Flying),
+            EffectModification::GrantKeywordFlag(KeywordFlag::Flying),
         );
         game.continuous_effects.add(effect);
 
