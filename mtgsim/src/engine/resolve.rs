@@ -1,6 +1,6 @@
 use crate::engine::actions::GameAction;
 use crate::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::DamageTarget;
 use crate::objects::card_data::AbilityDef;
@@ -437,7 +437,7 @@ impl GameState {
             // (CR 613.7b).
 
             Primitive::GrantKeywordFlag(keyword, duration) => {
-                self.register_layer6_resolution(
+                self.register_resolution_ability_effect(
                     ctx,
                     *duration,
                     EffectModification::GrantKeywordFlag(*keyword),
@@ -446,7 +446,7 @@ impl GameState {
             }
 
             Primitive::RemoveKeywordFlag(keyword, duration) => {
-                self.register_layer6_resolution(
+                self.register_resolution_ability_effect(
                     ctx,
                     *duration,
                     EffectModification::RemoveKeywordFlag(*keyword),
@@ -455,7 +455,7 @@ impl GameState {
             }
 
             Primitive::LoseAbility(ability_id, duration) => {
-                self.register_layer6_resolution(
+                self.register_resolution_ability_effect(
                     ctx,
                     *duration,
                     EffectModification::LoseAbility(*ability_id),
@@ -464,7 +464,7 @@ impl GameState {
             }
 
             Primitive::LoseAllAbilities(duration) => {
-                self.register_layer6_resolution(
+                self.register_resolution_ability_effect(
                     ctx,
                     *duration,
                     EffectModification::LoseAllAbilities,
@@ -473,7 +473,7 @@ impl GameState {
             }
 
             Primitive::GrantAbility(def, duration) => {
-                let granted = self.register_layer6_resolution(
+                let granted_at = self.register_resolution_ability_effect(
                     ctx,
                     *duration,
                     EffectModification::GrantAbility(def.clone()),
@@ -487,10 +487,14 @@ impl GameState {
                 // wins, but a permanent that entered after the grant was
                 // created keeps its own. `static_effect_timestamp` takes the
                 // max; this call only supplies the second candidate.
-                if let Some((targets, timestamp)) = granted {
-                    for grantee in targets {
+                if let Some(granted_at) = granted_at {
+                    // Re-derived rather than handed back from the call above, so
+                    // that the row can own its target `Vec` instead of cloning
+                    // it. Safe because registering an effect moves nothing
+                    // between zones, so battlefield membership is unchanged.
+                    for grantee in self.collect_battlefield_targets(ctx) {
                         self.register_granted_static_effects(
-                            def, grantee, timestamp, *duration, ctx.controller,
+                            def, grantee, granted_at, *duration, ctx.controller,
                         );
                     }
                 }
@@ -523,19 +527,33 @@ impl GameState {
 
     // --- Helpers: Layer 6 (CR 613.1f) ---
 
-    /// Register one Layer 6 row over this resolution's battlefield targets.
+    /// Record the Layer 6 continuous effect that a resolving spell or ability
+    /// creates (CR 613.7b) — the resolution-time counterpart of
+    /// `GameState::register_static_effects`, which does the same job at ETB for
+    /// printed static abilities.
     ///
-    /// Returns the targets and the timestamp it used, or `None` if the spell
-    /// had no legal battlefield target left — `GrantAbility` needs both to
-    /// register the effects a granted static ability generates.
-    fn register_layer6_resolution(
+    /// **This grants nothing.** It appends one row to the registry; the
+    /// characteristics it implies are recomputed from that row on every
+    /// `compute_characteristics` call, and the affected objects' `CardData` is
+    /// never touched. Duration expiry removes the row, and there is nothing to
+    /// undo because nothing was ever written.
+    ///
+    /// The affected set is frozen to the targets that are still on the
+    /// battlefield (CR 613.7b): a creature that died in response is dropped, and
+    /// the survivors stay affected even if they later stop matching whatever the
+    /// card described.
+    ///
+    /// Returns the timestamp allocated for the row, so a caller that must
+    /// register further rows against the same moment can. `None` means no target
+    /// survived, in which case no row is written and no timestamp is burned.
+    fn register_resolution_ability_effect(
         &mut self,
         ctx: &ResolutionContext,
         duration: Duration,
         modification: EffectModification,
-    ) -> Option<(Vec<ObjectId>, u64)> {
-        let target_ids = self.collect_battlefield_targets(ctx);
-        if target_ids.is_empty() {
+    ) -> Option<Timestamp> {
+        let targets = self.collect_battlefield_targets(ctx);
+        if targets.is_empty() {
             return None;
         }
         let timestamp = self.allocate_timestamp();
@@ -548,10 +566,10 @@ impl GameState {
             controller: ctx.controller,
             created_on_turn: self.turn_number,
             timestamp,
-            affected: AffectedSet::Fixed(target_ids.clone()),
+            affected: AffectedSet::Fixed(targets),
             modification,
         });
-        Some((target_ids, timestamp))
+        Some(timestamp)
     }
 
     /// CR 613.7a clause 2 — register the continuous effects generated by a
@@ -581,7 +599,7 @@ impl GameState {
         &mut self,
         granted: &AbilityDef,
         grantee: ObjectId,
-        granting_timestamp: u64,
+        granting_timestamp: Timestamp,
         duration: Duration,
         controller: PlayerId,
     ) {

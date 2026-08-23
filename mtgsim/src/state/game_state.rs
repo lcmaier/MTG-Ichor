@@ -320,8 +320,8 @@ impl GameState {
         &self,
         id: ObjectId,
         _ability: &crate::objects::card_data::AbilityDef,
-        granted_at: Option<u64>,
-    ) -> u64 {
+        granted_at: Option<crate::engine::layers::types::Timestamp>,
+    ) -> crate::engine::layers::types::Timestamp {
         match self.battlefield.get(&id) {
             // CR 613.7a: "...the same timestamp as the object the static
             // ability is on, or the timestamp of the effect that created the
