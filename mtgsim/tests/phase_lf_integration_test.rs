@@ -24,7 +24,12 @@ use mtgsim::test_support::{
     card_of_type, creature_with_ability, put_in_graveyard, put_on_battlefield, registered,
     setup_two_player_game, static_ability, vanilla_creature,
 };
-use mtgsim::types::effects::{CounterType, Duration, Effect, EffectRecipient, Primitive};
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::test_support::test_dp;
+use mtgsim::types::effects::{
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
+    TargetCount,
+};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -357,5 +362,153 @@ fn test_humility_does_not_restore_a_devoid_cards_printed_color() {
     assert!(
         get_effective_colors(&game, drone).is_empty(),
         "CR 113.12: Devoid set a characteristic rather than granting an ability,          and Layer 5 ran before Layer 6 removed it"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// CR 613.7a clause 2 — the timestamp of the effect that created the ability
+// ---------------------------------------------------------------------------
+
+/// "…or the timestamp of the effect that created the ability, whichever is
+/// later."
+///
+/// The board is built so the two clauses give *different* answers, which is the
+/// only way to test a `max()`:
+///
+/// - The grantee entered the battlefield first, so its own timestamp is tiny.
+/// - A competing Layer 7b `SetPowerToughness(9, 9)` sits at timestamp 50.
+/// - A spell resolving *now* grants it a static "base power and toughness 3/3".
+///
+/// Under clause 1 alone the granted ability's effect would inherit the
+/// creature's ancient timestamp, sort before the 9/9, and lose: the creature
+/// would be 9/9. Clause 2 gives it the granting spell's timestamp instead, so it
+/// sorts last within 7b and wins: 3/3.
+#[test]
+fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+
+    // A 7b effect that would win on the creature's own timestamp.
+    game.continuous_effects.add(registered(
+        creature,
+        Layer::Layer7bSetPT,
+        50,
+        EffectModification::SetPowerToughness {
+            power: mtgsim::engine::layers::types::PtValue::Fixed(9),
+            toughness: mtgsim::engine::layers::types::PtValue::Fixed(9),
+        },
+    ));
+    // Humility is on the battlefield only to be a legal source; strip its row
+    // so the P/T under test is decided by 7b alone.
+    game.continuous_effects.remove_by_source(caster);
+    assert_eq!(get_effective_power(&game, creature), Some(9));
+
+    // Push the clock well past 50 so the granting effect is unambiguously later.
+    while game.next_timestamp <= 60 {
+        game.allocate_timestamp();
+    }
+
+    let granted = static_ability(Effect::Atom(
+        Primitive::SetPowerToughness(
+            AmountExpr::Fixed(3),
+            AmountExpr::Fixed(3),
+            Duration::WhileSourceOnBattlefield,
+        ),
+        EffectRecipient::Implicit,
+    ));
+    let spell = Effect::Atom(
+        Primitive::GrantAbility(Box::new(granted), Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        source: caster,
+        controller: 0,
+        targets: vec![ResolvedTarget::Object(creature)],
+    };
+    game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
+
+    assert_eq!(
+        (get_effective_power(&game, creature), get_effective_toughness(&game, creature)),
+        (Some(3), Some(3)),
+        "CR 613.7a: the granted ability's effect takes the granting spell's          timestamp, which is later than the creature's, so it applies last in 7b"
+    );
+}
+
+/// The existence half, which the same rows give for free. The derived effect is
+/// `EffectOrigin::StaticAbility` keyed on the granted ability's id, so stripping
+/// that ability retires the effect it generated — no bookkeeping, just CR
+/// 613.7a's existence check doing its job one layer later.
+#[test]
+fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    game.continuous_effects.remove_by_source(caster);
+
+    let granted = static_ability(Effect::Atom(
+        Primitive::SetPowerToughness(
+            AmountExpr::Fixed(7),
+            AmountExpr::Fixed(7),
+            Duration::WhileSourceOnBattlefield,
+        ),
+        EffectRecipient::Implicit,
+    ));
+    let granted_id = granted.id;
+    let spell = Effect::Atom(
+        Primitive::GrantAbility(Box::new(granted), Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        source: caster,
+        controller: 0,
+        targets: vec![ResolvedTarget::Object(creature)],
+    };
+    game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
+    assert_eq!(get_effective_power(&game, creature), Some(7));
+
+    // Take the granted ability away again. The 7b row is still in the registry.
+    game.continuous_effects
+        .add(row(creature, 99, EffectModification::LoseAbility(granted_id)));
+
+    assert_eq!(
+        (get_effective_power(&game, creature), get_effective_toughness(&game, creature)),
+        (Some(2), Some(2)),
+        "CR 613.7a: registry membership is not existence — the ability is gone,          so the effect it generated no longer applies"
+    );
+}
+
+/// A granted ability that is *not* static generates no continuous effect, but
+/// still lands on the object as an ability.
+#[test]
+fn test_granting_a_non_static_ability_registers_no_derived_effect() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let caster = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    game.continuous_effects.remove_by_source(caster);
+
+    let mut activated = inert_ability();
+    activated.ability_type = mtgsim::objects::card_data::AbilityType::Activated;
+
+    let spell = Effect::Atom(
+        Primitive::GrantAbility(Box::new(activated), Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        source: caster,
+        controller: 0,
+        targets: vec![ResolvedTarget::Object(creature)],
+    };
+    game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
+
+    assert_eq!(
+        get_effective_abilities(&game, creature).len(),
+        1,
+        "the ability is on the creature"
+    );
+    assert_eq!(
+        game.continuous_effects.len(),
+        1,
+        "only the Layer 6 grant itself — an activated ability generates no          continuous effect"
     );
 }
