@@ -57,6 +57,9 @@ fn main() {
     let deck1 = build_test_deck(&registry);
 
     let mut game = Game::new(config, vec![deck0, deck1]).expect("Failed to create game");
+    // A `GameState` is seeded to a fixed default so tests replay; an actual game
+    // of Magic wants a different shuffle every time.
+    game.reseed_from_entropy();
     let dp = DispatchDecisionProvider::new(vec![
         Box::new(CliDecisionProvider::new()),
         Box::new(RandomDecisionProvider::new()),

@@ -108,8 +108,9 @@ impl GameState {
             // on individual pairs — it's enforced by `validate_blockers` and
             // the retry loop below.
             let blocker_ids = legal_blockers(self, defender);
-            let attackers_in_combat: Vec<ObjectId> = self.battlefield.iter()
-                .filter_map(|(id, e)| e.attacking.as_ref().map(|_| *id))
+            let attackers_in_combat: Vec<ObjectId> = self.battlefield_ordered()
+                .into_iter()
+                .filter_map(|(id, e)| e.attacking.as_ref().map(|_| id))
                 .collect();
             let legal_block_pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
                 .iter()
@@ -245,7 +246,7 @@ impl GameState {
     /// Get the list of defending players (players being attacked).
     fn get_defending_players(&self) -> Vec<PlayerId> {
         let mut defenders = Vec::new();
-        for (_id, entry) in &self.battlefield {
+        for (_id, entry) in self.battlefield_ordered() {
             if let Some(ref info) = entry.attacking {
                 if let AttackTarget::Player(pid) = info.target {
                     if !defenders.contains(&pid) {

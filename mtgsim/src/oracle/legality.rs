@@ -68,27 +68,31 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 
 /// Get all creatures controlled by a player that can legally be declared as attackers.
 ///
+/// Ordered by `battlefield_ordered` — a `DecisionProvider` picks by index, so
+/// the order this returns in is part of the decision, not a presentation
+/// detail.
+///
 /// Checks per-creature legality (rule 508.1a): on battlefield, is a creature,
 /// controlled by player, untapped, not summoning-sick (or has haste), no defender.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield.iter()
+    game.battlefield_ordered().into_iter()
         .filter_map(|(id, entry)| {
             if entry.controller != player_id {
                 return None;
             }
-            if !is_creature(game, *id) {
+            if !is_creature(game, id) {
                 return None;
             }
             if entry.tapped {
                 return None;
             }
-            if !can_attack(game, *id) {
+            if !can_attack(game, id) {
                 return None;
             }
-            if has_keyword(game, *id, KeywordFlag::Defender) {
+            if has_keyword(game, id, KeywordFlag::Defender) {
                 return None;
             }
-            Some(*id)
+            Some(id)
         })
         .collect()
 }
@@ -99,18 +103,18 @@ pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 /// and controlled by the defending player. Specific attacker legality
 /// (flying/reach checks) is handled during actual block declarations.
 pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield.iter()
+    game.battlefield_ordered().into_iter()
         .filter_map(|(id, entry)| {
             if entry.controller != player_id {
                 return None;
             }
-            if !is_creature(game, *id) {
+            if !is_creature(game, id) {
                 return None;
             }
             if entry.tapped {
                 return None;
             }
-            Some(*id)
+            Some(id)
         })
         .collect()
 }
@@ -173,7 +177,7 @@ pub fn enumerate_legal_selections(
                 selections.push(ResolvedTarget::Player(pid));
             }
             // Creatures and planeswalkers on battlefield
-            for &id in game.battlefield.keys() {
+            for id in game.battlefield_ids_ordered() {
                 if Some(id) == exclude_id {
                     continue;
                 }
@@ -193,7 +197,7 @@ pub fn enumerate_legal_selections(
         }
         // Creature, Permanent(_), or other battlefield-based filters
         _ => {
-            for &id in game.battlefield.keys() {
+            for id in game.battlefield_ids_ordered() {
                 if Some(id) == exclude_id {
                     continue;
                 }

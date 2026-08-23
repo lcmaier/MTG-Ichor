@@ -90,6 +90,32 @@ CR 604.3a(2) is provenance and belongs to whoever writes the ability onto an obj
 or text-changing effect hands the flag along (correct), and **a Layer 6 `GrantAbility` must
 clear it** — a granted ability is never a CDA. `layers-architecture.md` §6.
 
+## Determinism at the decision boundary
+
+**Never iterate `game.battlefield` directly where the order is observable — go through
+`GameState::battlefield_ordered` / `battlefield_ids_ordered`.** A `DecisionProvider` picks
+by *index*, so the order a sweep returns in is part of the decision. `HashMap` reseeds
+`RandomState` per process, so a raw sweep hands the AI a different action list every run
+and `fuzz_games --seed N` stops reproducing. Sorting by `ObjectId` is not a fix: ids are
+v4 UUIDs. The deterministic key is `BattlefieldEntity::timestamp` — allocated once per
+`place_on_battlefield`, never reassigned, and CR 613.7's order anyway. Order-irrelevant
+sweeps (untap-all, clear-all-damage) may still iterate the map. Same rule for any other
+collection whose order reaches a choice: `cards/registry.rs::card_names` sorts,
+`engine/layers/land_types.rs::basic_land_types_sorted` sorts, and `sba.rs`'s legend-rule
+grouping is a `BTreeMap`.
+
+**Randomness is owned, never ambient.** `rand::rng()` is seeded from the OS; anything
+reachable from a game must draw from `GameState.rng` (shuffles, and later coin flips) or
+from the provider's own `StdRng`. `RandomDecisionProvider::seeded` and `Game::reseed` are
+what make a run replayable; `::new()` and `reseed_from_entropy` are the deliberate
+opt-outs, for interactive play. A `GameState` nobody reseeds still uses a fixed default
+seed — reproducible-by-default, so tests that shuffle don't drift.
+
+The regression lives in `tests/determinism_test.rs`. Note what it cannot cover: two runs
+inside one process share one `RandomState`, so they agree whether or not the sweeps are
+ordered. The end-to-end check is three `fuzz_games` runs at one seed from the shell, whose
+output must be byte-identical.
+
 ## Critical path to v1
 
 Dependency order — each needs the ones above. Ordering only; the reasoning for

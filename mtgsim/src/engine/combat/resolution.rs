@@ -41,34 +41,36 @@ pub fn assign_combat_damage(
 ) -> Vec<CombatDamageAssignment> {
     let mut assignments = Vec::new();
 
-    // Iterate all creatures on the battlefield that are in combat
-    for (id, entry) in &game.battlefield {
+    // Iterate all creatures on the battlefield that are in combat.
+    // Ordered: damage assignment prompts the DP per attacker, and the
+    // assignments come back out in this order.
+    for (id, entry) in game.battlefield_ordered() {
         // --- Attackers ---
         if let Some(ref attacking_info) = entry.attacking {
-            if !should_deal_damage_this_step(game, *id, first_strike_only) {
+            if !should_deal_damage_this_step(game, id, first_strike_only) {
                 continue;
             }
 
-            let power = get_effective_power(game, *id).unwrap_or(0);
+            let power = get_effective_power(game, id).unwrap_or(0);
             if power <= 0 {
                 // Rule 510.1a: 0 or less power → no damage
                 continue;
             }
             let damage = power as u64;
 
-            let has_trample = has_keyword(game, *id, KeywordFlag::Trample);
+            let has_trample = has_keyword(game, id, KeywordFlag::Trample);
 
             if !attacking_info.is_blocked {
                 // Unblocked attacker: damage goes to attack target (rule 510.1b)
                 assignments.push(CombatDamageAssignment {
-                    source: *id,
+                    source: id,
                     target: attack_target_to_damage_target(&attacking_info.target),
                     amount: damage,
                 });
             } else if attacking_info.blocked_by.is_empty() && has_trample {
                 // Rule 702.19d: blocked but no blockers remain, trample → all to defender
                 assignments.push(CombatDamageAssignment {
-                    source: *id,
+                    source: id,
                     target: attack_target_to_damage_target(&attacking_info.target),
                     amount: damage,
                 });
@@ -78,7 +80,7 @@ pub fn assign_combat_damage(
             } else if has_trample {
                 // Trample: delegate to keyword helper
                 let mut trample = assign_trample_damage(
-                    game, decisions, active_player, *id,
+                    game, decisions, active_player, id,
                     &attacking_info.blocked_by, &attacking_info.target, damage,
                 );
                 assignments.append(&mut trample);
@@ -87,7 +89,7 @@ pub fn assign_combat_damage(
                 let blocker = attacking_info.blocked_by[0];
                 if game.battlefield.contains_key(&blocker) {
                     assignments.push(CombatDamageAssignment {
-                        source: *id,
+                        source: id,
                         target: DamageTarget::Object(blocker),
                         amount: damage,
                     });
@@ -97,13 +99,13 @@ pub fn assign_combat_damage(
                 // (rule 510.1c). Under 2025 rules, the player freely divides
                 // damage among blockers with no ordering constraint.
                 let division = ask_choose_attacker_damage_assignment(
-                    decisions, game, active_player, *id, &attacking_info.blocked_by, damage,
+                    decisions, game, active_player, id, &attacking_info.blocked_by, damage,
                 );
 
                 for (blocker_id, amount) in division {
                     if amount > 0 && game.battlefield.contains_key(&blocker_id) {
                         assignments.push(CombatDamageAssignment {
-                            source: *id,
+                            source: id,
                             target: DamageTarget::Object(blocker_id),
                             amount,
                         });
@@ -114,11 +116,11 @@ pub fn assign_combat_damage(
 
         // --- Blockers ---
         if let Some(ref blocking_info) = entry.blocking {
-            if !should_deal_damage_this_step(game, *id, first_strike_only) {
+            if !should_deal_damage_this_step(game, id, first_strike_only) {
                 continue;
             }
 
-            let power = get_effective_power(game, *id).unwrap_or(0);
+            let power = get_effective_power(game, id).unwrap_or(0);
             if power <= 0 {
                 continue;
             }
@@ -134,7 +136,7 @@ pub fn assign_combat_damage(
                 let attacker = blocking_info.blocking[0];
                 if game.battlefield.contains_key(&attacker) {
                     assignments.push(CombatDamageAssignment {
-                        source: *id,
+                        source: id,
                         target: DamageTarget::Object(attacker),
                         amount: damage,
                     });
@@ -153,7 +155,7 @@ pub fn assign_combat_damage(
                     .collect();
                 if let Some(&first) = alive.first() {
                     assignments.push(CombatDamageAssignment {
-                        source: *id,
+                        source: id,
                         target: DamageTarget::Object(first),
                         amount: damage,
                     });

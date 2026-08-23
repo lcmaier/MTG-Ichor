@@ -19,9 +19,10 @@
 // future middleware DP concern, not this type's job — see
 // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md` §4.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
-use rand::Rng;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 
 use crate::state::game_state::GameState;
@@ -45,6 +46,15 @@ pub struct RandomDecisionProvider {
     /// Current mana-ability window tracker: `(spell_or_ability_id, activations_so_far)`.
     /// Resets when a new window id is seen. See `pick_n` for the rationale.
     window: Cell<Option<(ObjectId, u32)>>,
+
+    /// The one source of randomness for every decision this provider makes.
+    ///
+    /// Owned rather than pulled from `rand::rng()` per call: `ThreadRng` is
+    /// seeded from the OS, so a provider built on it makes different choices
+    /// every process even when the caller passed a seed. `fuzz_games --seed N`
+    /// was in exactly that position — the seed reached deck construction and
+    /// stopped there. `RefCell` because `DecisionProvider` takes `&self`.
+    rng: RefCell<StdRng>,
 }
 
 impl RandomDecisionProvider {
@@ -53,8 +63,27 @@ impl RandomDecisionProvider {
     /// constraining legitimate mana plans (real plans rarely exceed ~10).
     pub const WINDOW_ACTIVATION_CAP: u32 = 32;
 
+    /// A provider seeded from the OS — different choices every run.
+    ///
+    /// For anything that wants to be replayable (the fuzz harness, a test
+    /// reproducing a reported panic), use [`RandomDecisionProvider::seeded`].
     pub fn new() -> Self {
-        RandomDecisionProvider { window: Cell::new(None) }
+        RandomDecisionProvider {
+            window: Cell::new(None),
+            rng: RefCell::new(StdRng::from_os_rng()),
+        }
+    }
+
+    /// A provider whose whole decision stream is a function of `seed`.
+    ///
+    /// Reproducibility also needs the *options* to arrive in the same order —
+    /// see `GameState::battlefield_ordered`. A seeded provider fed a
+    /// differently-ordered candidate list picks a different action.
+    pub fn seeded(seed: u64) -> Self {
+        RandomDecisionProvider {
+            window: Cell::new(None),
+            rng: RefCell::new(StdRng::seed_from_u64(seed)),
+        }
     }
 }
 
@@ -76,7 +105,7 @@ impl DecisionProvider for RandomDecisionProvider {
         if options.is_empty() || bounds.1 == 0 {
             return Vec::new();
         }
-        let mut rng = rand::rng();
+        let mut rng = self.rng.borrow_mut();
 
         // During a `ManaAbilityWindow`, RandomDP always picks an activation
         // (never randomly declines) so fuzz exercises full cost-payment
@@ -115,7 +144,7 @@ impl DecisionProvider for RandomDecisionProvider {
         // just accelerates convergence.
         if matches!(context.kind, ChoiceKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
-            shuffled.shuffle(&mut rng);
+            shuffled.shuffle(&mut *rng);
             let mut used_blockers: std::collections::HashSet<ObjectId> =
                 std::collections::HashSet::new();
             let mut picked: Vec<usize> = Vec::new();
@@ -137,7 +166,7 @@ impl DecisionProvider for RandomDecisionProvider {
         }
 
         let mut indices: Vec<usize> = (0..options.len()).collect();
-        indices.shuffle(&mut rng);
+        indices.shuffle(&mut *rng);
         indices.truncate(count);
         indices.sort(); // stable ordering for determinism in tests
         indices
@@ -151,7 +180,7 @@ impl DecisionProvider for RandomDecisionProvider {
         min: u64,
         max: u64,
     ) -> u64 {
-        let mut rng = rand::rng();
+        let mut rng = self.rng.borrow_mut();
 
         // For ChooseXValue, self-limit based on available mana to avoid
         // degenerate rollback loops in fuzz testing. The ask function passes
@@ -208,7 +237,7 @@ impl DecisionProvider for RandomDecisionProvider {
         let mut remaining = total.saturating_sub(min_sum);
 
         // Distribute remaining randomly across buckets, respecting maxs
-        let mut rng = rand::rng();
+        let mut rng = self.rng.borrow_mut();
         while remaining > 0 {
             // Collect buckets that can still accept more
             let eligible: Vec<usize> = (0..n)
@@ -238,9 +267,9 @@ impl DecisionProvider for RandomDecisionProvider {
         _context: &ChoiceContext,
         items: &[ChoiceOption],
     ) -> Vec<usize> {
-        let mut rng = rand::rng();
+        let mut rng = self.rng.borrow_mut();
         let mut indices: Vec<usize> = (0..items.len()).collect();
-        indices.shuffle(&mut rng);
+        indices.shuffle(&mut *rng);
         indices
     }
 }

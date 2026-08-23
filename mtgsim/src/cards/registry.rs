@@ -39,9 +39,15 @@ impl CardRegistry {
             .ok_or_else(|| format!("Card '{}' not found in registry", name))
     }
 
-    /// Get all registered card names
+    /// Get all registered card names, alphabetically.
+    ///
+    /// Sorted, not raw `HashMap` key order: `fuzz_games` builds its decks by
+    /// drawing from this list with a seeded RNG, so an order that changes per
+    /// process makes the same seed build a different deck.
     pub fn card_names(&self) -> Vec<&str> {
-        self.cards.keys().map(|s| s.as_str()).collect()
+        let mut names: Vec<&str> = self.cards.keys().map(|s| s.as_str()).collect();
+        names.sort_unstable();
+        names
     }
 
     /// Build the default registry with all known cards

@@ -3,6 +3,14 @@
 // Usage: cargo run --bin fuzz_games -- --games 100 --max-turns 200 --verbose
 //        cargo run --bin fuzz_games -- --games 10 --dump-events events.log
 //        cargo run --bin fuzz_games -- --seed 12345 --games 1 --verbose
+//
+// `--seed N` is a full reproducibility contract: the same seed replays the same
+// games, turn for turn, in any process. Each game's three RNG streams — decks,
+// shuffle, AI — are derived from `master_seed + game_num` and nothing else, and
+// game `k` does not depend on games before it, so a run that panicked at game
+// `k` can be reproduced from its printed per-game seed alone. Anything that
+// leaks process state into a decision breaks this; see
+// `GameState::battlefield_ordered` for the one that did.
 
 use std::collections::HashMap;
 use std::panic;
@@ -329,6 +337,13 @@ fn main() {
         let game_seed = master_seed.wrapping_add(game_num as u64);
         let mut deck_rng = StdRng::seed_from_u64(game_seed);
 
+        // Three independent streams, all a pure function of `game_seed`: deck
+        // construction, the in-game shuffle, and the AI's choices. Distinct
+        // sub-seeds rather than one — seeding three `StdRng`s identically would
+        // correlate the shuffle with the deck it shuffles.
+        let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
+        let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
+
         let deck1 = random_deck(&registry, &mut deck_rng);
         let deck2 = random_deck(&registry, &mut deck_rng);
 
@@ -336,7 +351,8 @@ fn main() {
             let config = GameConfig::test();
             let mut game =
                 Game::new(config, vec![deck1, deck2]).expect("Failed to create game");
-            let dp = RandomDecisionProvider::new();
+            game.reseed(shuffle_seed);
+            let dp = RandomDecisionProvider::seeded(dp_seed);
             game.setup(&dp).expect("Failed to setup game");
 
             let max = args.max_turns;
@@ -457,7 +473,9 @@ fn main() {
     println!();
     println!("=== Outcomes ===");
     let mut outcomes: Vec<_> = winner_counts.iter().collect();
-    outcomes.sort_by_key(|(_, v)| std::cmp::Reverse(**v));
+    // Name breaks ties: `winner_counts` is a `HashMap`, so equal counts would
+    // otherwise print in whatever order this process's hasher produced.
+    outcomes.sort_by_key(|(k, v)| (std::cmp::Reverse(**v), (*k).clone()));
     for (outcome, count) in &outcomes {
         println!("  {:<20} {:>5} ({:.1}%)", outcome, count, **count as f64 / args.games as f64 * 100.0);
     }

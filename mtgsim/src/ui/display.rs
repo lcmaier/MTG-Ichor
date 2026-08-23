@@ -226,9 +226,12 @@ pub fn format_hand(game: &GameState, player_id: PlayerId) -> String {
 /// Each group is shown with a sub-header. Permanents are numbered sequentially
 /// across groups so CLI index references remain unambiguous.
 pub fn format_battlefield(game: &GameState, player_id: PlayerId) -> String {
-    let perms: Vec<ObjectId> = game.battlefield.iter()
+    // Ordered: the CLI numbers these and the human picks by index, so a stable
+    // order is the difference between "3" meaning the same permanent twice.
+    let perms: Vec<ObjectId> = game.battlefield_ordered()
+        .into_iter()
         .filter(|(_, e)| e.controller == player_id)
-        .map(|(id, _)| *id)
+        .map(|(id, _)| id)
         .collect();
 
     if perms.is_empty() {
