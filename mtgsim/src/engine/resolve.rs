@@ -622,26 +622,28 @@ impl GameState {
         // means treating it as ordinary, not dropping it: an early return here
         // left the creature holding a static ability that generated nothing.
 
-        let atoms: Vec<(&Primitive, &EffectRecipient)> = match &granted.effect {
-            Effect::Atom(p, r) => vec![(p, r)],
-            Effect::Sequence(effects) => effects
-                .iter()
-                .filter_map(|e| if let Effect::Atom(p, r) = e { Some((p, r)) } else { None })
-                .collect(),
-            _ => return,
-        };
+        // Same two helpers `register_static_effects` uses, and for the reason
+        // `static_primitive_rows`' doc gives: a granted "creatures you control
+        // get +1/+1" must produce the row a printed one does, or identical card
+        // text behaves differently depending on how it arrived. That includes
+        // the assertions — a grant that lowers to nothing is exactly as inert
+        // as a printed ability that does, and exactly as invisible.
+        let context = format!("granted ability {:?}", granted.id);
+        let atoms = GameState::static_ability_atoms(granted, &context);
 
         for (primitive, recipient) in atoms {
-            let affected = match recipient {
-                EffectRecipient::Implicit => AffectedSet::SourceOnly,
-                EffectRecipient::FilteredPermanents(filter) => {
-                    AffectedSet::Filter { filter: filter.clone() }
-                }
-                _ => continue,
+            let Some(affected) = GameState::static_affected_set(recipient, &context) else {
+                continue;
             };
 
             let rows = GameState::static_primitive_rows(primitive);
             if rows.is_empty() {
+                debug_assert!(
+                    false,
+                    "{} lowers to no layer rows; `static_primitive_rows` has no \
+                     arm for {:?}, so the grant registers nothing.",
+                    context, primitive
+                );
                 continue;
             }
             let timestamp =

@@ -462,14 +462,12 @@ impl GameState {
     /// dropped the whole atom — a static ability with a computed P/T registered
     /// nothing at all and failed no test (Deferred Migrations item 7e).
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
-        use crate::engine::layers::types::{
-            AffectedSet, ContinuousEffect, EffectOrigin,
-        };
+        use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::{Duration, Effect, EffectRecipient, Primitive};
+        use crate::types::effects::Duration;
 
-        let abilities = if let Some(obj) = self.objects.get(&id) {
-            obj.card_data.abilities.clone()
+        let (abilities, card_name) = if let Some(obj) = self.objects.get(&id) {
+            (obj.card_data.abilities.clone(), obj.card_data.name.clone())
         } else {
             return;
         };
@@ -489,30 +487,11 @@ impl GameState {
                 continue;
             }
 
-            // Collect atoms: flatten Sequence, or extract single Atom.
-            // Static abilities are declarative — Optional/Modal/Conditional don't
-            // apply at the card-definition level. Non-Atom entries in a Sequence
-            // (if any exist) are safely skipped; extend here as needed.
-            let atoms: Vec<(&Primitive, &EffectRecipient)> = match &ability.effect {
-                Effect::Atom(p, r) => vec![(p, r)],
-                Effect::Sequence(effects) => effects.iter().filter_map(|e| {
-                    if let Effect::Atom(p, r) = e { Some((p, r)) } else { None }
-                }).collect(),
-                _ => continue,
-            };
+            let atoms = Self::static_ability_atoms(ability, &card_name);
 
             for (primitive, recipient) in atoms {
-                // Map recipient → AffectedSet
-                let affected = match recipient {
-                    // The filter is stored verbatim, `PlayerRef` and all.
-                    // Resolving "you" here would snapshot the source's
-                    // controller at ETB; CR 109.5 wants its *current* one, so
-                    // `compute::resolve_filter_players` does it per layer.
-                    EffectRecipient::FilteredPermanents(filter) => {
-                        AffectedSet::Filter { filter: filter.clone() }
-                    }
-                    EffectRecipient::Implicit => AffectedSet::SourceOnly,
-                    _ => continue,
+                let Some(affected) = Self::static_affected_set(recipient, &card_name) else {
+                    continue;
                 };
 
                 // Map primitive → the layer rows it generates. A type-
@@ -520,6 +499,15 @@ impl GameState {
                 // produces one or none.
                 let rows = Self::static_primitive_rows(primitive);
                 if rows.is_empty() {
+                    debug_assert!(
+                        false,
+                        "static ability on {} lowers to no layer rows. \
+                         `static_primitive_rows` has no arm for {:?}, so this \
+                         ability is registered nowhere and the card does \
+                         nothing. Either the primitive belongs on a non-static \
+                         ability, or the lowering table needs an arm.",
+                        card_name, primitive
+                    );
                     continue;
                 }
 
@@ -549,6 +537,135 @@ impl GameState {
                     };
                     self.continuous_effects.add(effect);
                 }
+            }
+        }
+    }
+
+    /// Lower a static ability's body into the `(primitive, recipient)` atoms
+    /// that become registry rows.
+    ///
+    /// Shared with `resolve::register_granted_static_effects` for the same
+    /// reason `static_primitive_rows` is: the same card text has to behave the
+    /// same whether it was printed or granted, and two copies of this match
+    /// drift.
+    ///
+    /// # Every declining arm is loud
+    ///
+    /// This function used to `continue` on anything it could not lower, and so
+    /// did its recipient twin below. That is the failure mode this codebase has
+    /// already paid for twice — Deferred Migrations item 7e was a `continue` on
+    /// a non-`Fixed` amount that "silently dropped the whole atom ... and failed
+    /// no test", and item 7f is the same shape still open. A dropped atom
+    /// produces a card that is *inert*: no panic, no wrong answer, no
+    /// divergence. `fuzz_games` cannot see it, because a card that does nothing
+    /// crashes nothing and stays perfectly deterministic. The only thing that
+    /// catches it is refusing to be quiet at the door.
+    ///
+    /// `debug_assert!` rather than a hard error, matching
+    /// `register_granted_static_effects`'s layer assert and
+    /// `compute::evaluate_pt_value`: a card author running the test suite is
+    /// stopped, and release builds keep the old skip-and-carry-on behavior
+    /// rather than panicking mid-game.
+    pub(crate) fn static_ability_atoms<'a>(
+        ability: &'a crate::objects::card_data::AbilityDef,
+        card_name: &str,
+    ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
+        use crate::types::effects::Effect;
+
+        match &ability.effect {
+            Effect::Atom(p, r) => vec![(p, r)],
+
+            Effect::Sequence(effects) => {
+                let mut atoms = Vec::with_capacity(effects.len());
+                for effect in effects {
+                    match effect {
+                        Effect::Atom(p, r) => atoms.push((p, r)),
+                        _ => debug_assert!(
+                            false,
+                            "static ability on {} has a non-atomic entry inside \
+                             its `Effect::Sequence`. Only `Effect::Atom` lowers \
+                             to a continuous effect, so that entry registers \
+                             nothing while its siblings register normally — a \
+                             half-working card, which is worse than one that \
+                             does nothing at all.",
+                            card_name
+                        ),
+                    }
+                }
+                atoms
+            }
+
+            // Not an authoring error — an unimplemented feature, and the
+            // largest one standing between this engine and card breadth. "As
+            // long as [X], [Y]" is one of the most common static shapes in
+            // Magic, and Layer 2 wants it specifically (Dog Umbra is a
+            // conditional static whose condition is *control*).
+            Effect::Conditional(..) => {
+                debug_assert!(
+                    false,
+                    "static ability on {} is `Effect::Conditional`, which the \
+                     lowering cannot express yet — see `codebase-state.md` \
+                     Deferred Migrations item 7f. The card would register \
+                     nothing and silently do nothing. Model it as an \
+                     unconditional static for now, or implement 7f.",
+                    card_name
+                );
+                Vec::new()
+            }
+
+            _ => {
+                debug_assert!(
+                    false,
+                    "static ability on {} has a body the lowering cannot \
+                     express: `Optional`, `Modal`, `ForEach` and `Repeat` are \
+                     all resolution-time shapes, and a static ability is \
+                     declarative — it does not resolve, so there is no moment \
+                     at which a mode is chosen or a loop runs. If the card \
+                     really reads this way, it wants a triggered or activated \
+                     ability instead.",
+                    card_name
+                );
+                Vec::new()
+            }
+        }
+    }
+
+    /// Lower a static atom's recipient into an `AffectedSet`.
+    ///
+    /// `None` means it could not be lowered; see `static_ability_atoms` for why
+    /// that is loud rather than a quiet `continue`.
+    pub(crate) fn static_affected_set(
+        recipient: &crate::types::effects::EffectRecipient,
+        card_name: &str,
+    ) -> Option<crate::engine::layers::types::AffectedSet> {
+        use crate::engine::layers::types::AffectedSet;
+        use crate::types::effects::EffectRecipient;
+
+        match recipient {
+            // The filter is stored verbatim, `PlayerRef` and all. Resolving
+            // "you" here would snapshot the source's controller at ETB; CR
+            // 109.5 wants its *current* one, so `compute::permanent_matches_filter`
+            // does it per layer.
+            EffectRecipient::FilteredPermanents(filter) => {
+                Some(AffectedSet::Filter { filter: filter.clone() })
+            }
+            EffectRecipient::Implicit => Some(AffectedSet::SourceOnly),
+
+            // `Target` and `Choose` need a resolution to pick with, and
+            // `Controller` names a player where an `AffectedSet` names objects.
+            // A static ability has none of the three.
+            _ => {
+                debug_assert!(
+                    false,
+                    "static ability on {} has recipient {:?}, which cannot \
+                     become an `AffectedSet`. `Target`/`Choose` require a \
+                     resolution to select with, and a static ability never \
+                     resolves; `Controller` names a player, not a set of \
+                     objects. Use `FilteredPermanents` for \"permanents you \
+                     control\", or `Implicit` for \"this permanent\".",
+                    card_name, recipient
+                );
+                None
             }
         }
     }
@@ -718,6 +835,162 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // -----------------------------------------------------------------------
+    // The lowering refuses to be quiet
+    //
+    // Each arm of `static_ability_atoms` / `static_affected_set` that declines
+    // to lower something now asserts. These tests exist because an assertion
+    // nothing exercises is indistinguishable from one that does not fire — and
+    // the whole point of this batch is that the failure mode being guarded is
+    // *invisible*: a dropped atom yields an inert card, which panics nothing,
+    // computes nothing wrong, and stays perfectly deterministic under
+    // `fuzz_games`.
+    //
+    // `debug_assert!` panics under `cargo test` (debug_assertions on) and
+    // compiles out in release, so `#[should_panic]` is the right shape and
+    // release builds keep the old skip-and-carry-on behavior.
+    // -----------------------------------------------------------------------
+
+    mod static_lowering {
+        use super::*;
+        use crate::objects::card_data::{AbilityDef, AbilityType};
+        use crate::types::card_types::CardType;
+        use crate::types::effects::{
+            AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount,
+            PermanentFilter, Primitive, SelectionFilter, TargetCount,
+        };
+        use crate::types::ids::new_ability_id;
+
+        /// A static `AbilityDef` with the given body.
+        fn static_ability(effect: Effect) -> AbilityDef {
+            AbilityDef {
+                is_characteristic_defining: false,
+                id: new_ability_id(),
+                ability_type: AbilityType::Static,
+                costs: Vec::new(),
+                effect,
+            }
+        }
+
+        /// "Creatures you control get +1/+1", as an atom.
+        fn anthem_atom() -> Effect {
+            Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(1),
+                    AmountExpr::Fixed(1),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),
+            )
+        }
+
+        // --- positive controls: the shapes that DO lower ------------------
+
+        #[test]
+        fn test_atom_body_lowers_to_one_row() {
+            let ability = static_ability(anthem_atom());
+            assert_eq!(GameState::static_ability_atoms(&ability, "T").len(), 1);
+        }
+
+        #[test]
+        fn test_sequence_body_lowers_to_one_row_per_atom() {
+            // Humility's shape: one ability, two atoms, two layers.
+            let ability = static_ability(Effect::Sequence(vec![anthem_atom(), anthem_atom()]));
+            assert_eq!(GameState::static_ability_atoms(&ability, "T").len(), 2);
+        }
+
+        #[test]
+        fn test_filtered_and_implicit_recipients_lower() {
+            assert!(GameState::static_affected_set(
+                &EffectRecipient::FilteredPermanents(PermanentFilter::All), "T"
+            ).is_some());
+            assert!(GameState::static_affected_set(&EffectRecipient::Implicit, "T").is_some());
+        }
+
+        // --- the arms that decline, each proven loud ----------------------
+
+        /// The big one. "As long as [X], [Y]" is one of the most common static
+        /// shapes in Magic and the lowering cannot express it yet (Deferred
+        /// Migrations item 7f). Before this assert it registered nothing and
+        /// said nothing.
+        #[test]
+        #[should_panic(expected = "item 7f")]
+        fn test_conditional_static_body_is_loud() {
+            let ability = static_ability(Effect::Conditional(
+                Condition::SourceOnBattlefield,
+                Box::new(anthem_atom()),
+            ));
+            let _ = GameState::static_ability_atoms(&ability, "Test Card");
+        }
+
+        /// `Modal`, `Optional`, `ForEach` and `Repeat` are resolution-time
+        /// shapes; a static ability never resolves.
+        #[test]
+        #[should_panic(expected = "cannot express")]
+        fn test_modal_static_body_is_loud() {
+            let ability = static_ability(Effect::Modal {
+                count: ModalCount::Exactly(1),
+                modes: vec![anthem_atom()],
+            });
+            let _ = GameState::static_ability_atoms(&ability, "Test Card");
+        }
+
+        /// The nastiest of the set, because it is *partial*: the atomic
+        /// siblings register normally and only this entry vanishes, so the card
+        /// half-works. `filter_map` used to swallow it.
+        #[test]
+        #[should_panic(expected = "non-atomic entry")]
+        fn test_non_atom_inside_a_sequence_is_loud() {
+            let ability = static_ability(Effect::Sequence(vec![
+                anthem_atom(),
+                Effect::Optional(Box::new(anthem_atom())),
+            ]));
+            let _ = GameState::static_ability_atoms(&ability, "Test Card");
+        }
+
+        #[test]
+        #[should_panic(expected = "cannot become an `AffectedSet`")]
+        fn test_targeting_recipient_on_a_static_is_loud() {
+            let _ = GameState::static_affected_set(
+                &EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                "Test Card",
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "cannot become an `AffectedSet`")]
+        fn test_controller_recipient_on_a_static_is_loud() {
+            let _ = GameState::static_affected_set(&EffectRecipient::Controller, "Test Card");
+        }
+
+        /// A primitive with no arm in `static_primitive_rows`. This one is
+        /// checked in `register_static_effects` rather than in a helper, so it
+        /// needs the real ETB path.
+        #[test]
+        #[should_panic(expected = "lowers to no layer rows")]
+        fn test_primitive_with_no_lowering_arm_is_loud() {
+            use crate::objects::card_data::CardDataBuilder;
+            use crate::objects::object::GameObject;
+            use crate::types::zones::Zone;
+
+            let card = CardDataBuilder::new("Nonsense Enchantment")
+                .card_type(CardType::Enchantment)
+                .ability(static_ability(Effect::Atom(
+                    // Drawing a card is not a continuous effect; there is no
+                    // layer for it and never will be.
+                    Primitive::DrawCards(AmountExpr::Fixed(1)),
+                    EffectRecipient::Implicit,
+                )))
+                .build();
+
+            let mut game = GameState::new(2, 20);
+            let obj = GameObject::new(card, 0, Zone::Battlefield);
+            let id = obj.id;
+            game.add_object(obj);
+            game.place_on_battlefield(id, 0);
+        }
+    }
 
     #[test]
     fn test_game_creation() {
