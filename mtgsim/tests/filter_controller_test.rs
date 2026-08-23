@@ -111,8 +111,10 @@ fn test_anthem_control_change_is_not_one_way() {
 /// above. This is why `FilterPlayers::you` splits on `EffectOrigin` rather than
 /// always asking the source.
 ///
-/// **Deliberately not annotated `COVERS-PARTIAL: ATOM-611.2c-001`.** That atom
-/// is 611.2c's other clause — the affected *set* locks in at resolution, so a
+/// **Deliberately carries no coverage annotation for ATOM-611.2c-001,** and the
+/// annotation keyword is kept out of this comment on purpose: `specdb build`
+/// scans for the token, not for the sentence around it, so writing out the pair
+/// even to disclaim it creates the false link. That atom is 611.2c's other clause — the affected *set* locks in at resolution, so a
 /// creature that turns white later is not caught by "all white creatures get
 /// +1/+1". A `Resolution` effect over an `AffectedSet::Filter` does not do
 /// that here; it re-filters every walk. No card produces the combination (all
