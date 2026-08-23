@@ -14,13 +14,18 @@
 
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer, Timestamp};
 use mtgsim::objects::card_data::AbilityDef;
-use mtgsim::oracle::characteristics::{get_effective_abilities, has_keyword};
+use mtgsim::cards::{phase_le_cards, phase_lf_cards};
+use mtgsim::oracle::characteristics::{
+    get_effective_abilities, get_effective_colors, get_effective_power, get_effective_toughness,
+    has_keyword,
+};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, put_on_battlefield, registered, setup_two_player_game, static_ability,
-    vanilla_creature,
+    card_of_type, creature_with_ability, put_in_graveyard, put_on_battlefield, registered,
+    setup_two_player_game, static_ability, vanilla_creature,
 };
 use mtgsim::types::effects::{CounterType, Duration, Effect, EffectRecipient, Primitive};
+use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::keywords::KeywordFlag;
 
@@ -256,5 +261,101 @@ fn test_keyword_counter_currently_outlasts_a_same_layer_ability_strip() {
     assert!(
         has_keyword(&game, id, KeywordFlag::Flying),
         "known gap: counters carry no timestamp, so they always apply last          within layer 6"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Humility — the card the corpus names
+// ---------------------------------------------------------------------------
+
+/// CR 613.1f puts ability removal in Layer 6, and CR 613.4a puts CDA power and
+/// toughness in Layer 7a — *after* it. So Humility does not race Tarmogoyf's
+/// characteristic-defining ability; it deletes it one layer earlier, and 7a
+/// finds nothing to apply. Humility's own 7b half then supplies the whole
+/// answer.
+///
+/// The graveyard is stocked with five card types, so a Tarmogoyf reading its
+/// CDA would be 5/6 and no assertion here could be satisfied by accident.
+// COVERS: ATOM-613.1f-001
+// COVERS: COMP-613-TARMOGOYF-HUMILITY-001
+#[test]
+fn test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it() {
+    let mut game = setup_two_player_game();
+    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
+
+    for (name, card_type) in [
+        ("Shock", CardType::Instant),
+        ("Wastes", CardType::Land),
+        ("Ancestral Vision", CardType::Sorcery),
+        ("Sol Ring", CardType::Artifact),
+        ("Grizzly Bears", CardType::Creature),
+    ] {
+        put_in_graveyard(&mut game, card_of_type(name, card_type), 0);
+    }
+    assert_eq!(
+        (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
+        (Some(5), Some(6)),
+        "five card types in graveyards, so the CDA reads 5/6 while it exists"
+    );
+
+    put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+
+    assert!(
+        get_effective_abilities(&game, goyf).is_empty(),
+        "Layer 6: Humility removes all abilities, the CDA among them"
+    );
+    assert_eq!(
+        (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
+        (Some(1), Some(1)),
+        "Layer 7a has no CDA left to apply, so Humility's 7b base 1/1 is the answer"
+    );
+}
+
+/// The other half of the same board: Humility is not a creature, so its own
+/// ability survives its own effect and keeps applying.
+#[test]
+fn test_humility_does_not_strip_itself() {
+    let mut game = setup_two_player_game();
+    let humility = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[KeywordFlag::Flying]), 0);
+
+    assert_eq!(
+        get_effective_abilities(&game, humility).len(),
+        1,
+        "Humility is an Enchantment; its filter is creatures, so CR 613.7a finds          its ability intact at every layer"
+    );
+    assert!(!has_keyword(&game, bear, KeywordFlag::Flying));
+    assert_eq!(
+        (get_effective_power(&game, bear), get_effective_toughness(&game, bear)),
+        (Some(1), Some(1))
+    );
+}
+
+/// CR 113.12 — an effect that *sets a characteristic* is not an ability grant,
+/// so removing the ability afterwards cannot undo the set value.
+///
+/// Devoid is a CDA that makes Culling Drone colorless in Layer 5. Humility
+/// removes it in Layer 6, one layer *later*, so the colorlessness has already
+/// been applied and stays. The printed black from the mana cost does not come
+/// back.
+// COVERS: ATOM-113.12-002
+#[test]
+fn test_humility_does_not_restore_a_devoid_cards_printed_color() {
+    let mut game = setup_two_player_game();
+    let drone = put_on_battlefield(&mut game, phase_le_cards::culling_drone(), 0);
+    assert!(
+        get_effective_colors(&game, drone).is_empty(),
+        "Devoid is a Layer 5 CDA: the Drone is colorless despite its black mana cost"
+    );
+
+    put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+
+    assert!(
+        get_effective_abilities(&game, drone).is_empty(),
+        "the Devoid ability itself is gone"
+    );
+    assert!(
+        get_effective_colors(&game, drone).is_empty(),
+        "CR 113.12: Devoid set a characteristic rather than granting an ability,          and Layer 5 ran before Layer 6 removed it"
     );
 }

@@ -107,10 +107,12 @@ fn test_tarmogoyf_cda_applies_in_7a_then_pump_in_7c() {
 // COVERS: ATOM-113.12-001
 // COVERS-PARTIAL: COMP-613-TARMOGOYF-HUMILITY-001
 //
-// Partial on the COMP: its board is "Player A controls Humility", and Humility
-// needs a Layer 6 producer that does not exist yet. Both halves of Humility are
-// hand-built registry rows here, which proves the layer ordering but not the
-// card.
+// Partial on the COMP: its board is "Player A controls Humility", and both
+// halves of Humility are hand-built registry rows here — which proves the layer
+// ordering but not the card. Kept as an isolation test of the ordering alone.
+// The COMP's actual board is covered by
+// `phase_lf_integration_test::test_humility_strips_tarmogoyfs_cda_before_layer_7a_can_read_it`,
+// which uses `phase_lf_cards::humility`.
 #[test]
 fn test_tarmogoyf_pt_is_layer_7a_and_an_ability_strip_removes_it() {
     let mut game = setup_two_player_game();
@@ -305,7 +307,9 @@ fn test_devoid_makes_a_black_card_colorless() {
 // COVERS-PARTIAL: ATOM-113.12-002
 //
 // Partial: the "remove all abilities" effect is a hand-built registry row, not
-// a card — Layer 6 producers are a later phase.
+// a card. Kept because it isolates the Layer 5 / Layer 6 ordering from anything
+// Humility also does; the atom's full scenario is covered by
+// `phase_lf_integration_test::test_humility_does_not_restore_a_devoid_cards_printed_color`.
 #[test]
 fn test_ability_strip_does_not_restore_devoids_printed_color() {
     let mut game = setup_two_player_game();
