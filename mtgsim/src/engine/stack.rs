@@ -31,7 +31,22 @@ impl GameState {
         // the currently-resolving object. We handle the zone bookkeeping
         // manually below instead of going through move_object (which would try
         // to remove from the stack Vec a second time).
-        let object_id = self.stack.pop().unwrap();
+        let object_id = *self.stack.last().unwrap();
+
+        // Read the controller *before* the pop, and this is not a style choice.
+        // CR 108.4 gives a spell a controller and CR 613.1b lets Layer 2 move
+        // it, so this has to be the effective value — but `base_controller`
+        // finds it on the `StackEntry`, and the two lines below destroy that
+        // entry. Asking afterwards would fall through to the object's owner and
+        // silently undo any control change on a spell nobody stole, while a
+        // `Fixed`-set Layer 2 row (which does not check zones) would still
+        // apply. One value, resolved here, used for both the resolution context
+        // (CR 608.2, "the spell's controller resolves it") and for the
+        // permanent's controller as it enters (CR 110.2b).
+        let controller = crate::oracle::characteristics::get_effective_controller(self, object_id)
+            .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
+
+        self.stack.pop();
         let entry = self.stack_entries.remove(&object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
@@ -48,7 +63,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            controller: entry.controller,
+            controller,
             targets: entry.chosen_targets.clone(),
         };
         self.resolve_effect(&entry.effect, &ctx, dp)?;
@@ -66,9 +81,10 @@ impl GameState {
                 // because move_object would try to remove from the stack Vec,
                 // but we already popped the object above. No re-push needed.
                 //
-                // Rule 110.2: the controller of the permanent is whoever
-                // controlled the spell on the stack when it resolved.
-                let controller = entry.controller;
+                // Rule 110.2b: the controller of the permanent is whoever
+                // controlled the spell on the stack when it resolved — read
+                // above, ahead of the pop, so a Layer 2 effect on the *spell*
+                // is honored (ATOM-110.2b-001).
                 let owner = self.get_object(object_id)?.owner;
 
                 // --- Enter the battlefield ---

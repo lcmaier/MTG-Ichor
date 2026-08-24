@@ -97,8 +97,10 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
 
     // Ordered, not raw `battlefield.iter()`: this list is consumed positionally
     // by `find_mana_sources`, so its order decides *which* land gets tapped.
-    for (id, entry) in game.battlefield_ordered() {
-        if entry.controller != player_id {
+    for (id, _entry) in game.battlefield_ordered() {
+        // Effective controller, not printed: a Mind-Controlled land taps for
+        // its new controller's mana (CR 613.1b).
+        if !crate::oracle::characteristics::controls(game, id, player_id) {
             continue;
         }
 
@@ -360,8 +362,8 @@ pub fn activatable_abilities(
 
     // Ordered, not raw `battlefield.iter()`: this is the activatable half of the
     // priority action list, which the DP picks from by index.
-    for (id, entry) in game.battlefield_ordered() {
-        if entry.controller != player_id {
+    for (id, _entry) in game.battlefield_ordered() {
+        if !crate::oracle::characteristics::controls(game, id, player_id) {
             continue;
         }
 

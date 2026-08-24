@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
-    get_effective_name, get_effective_toughness, has_keyword, has_subtype, has_supertype,
-    has_type, is_creature,
+    get_effective_controller, get_effective_name, get_effective_toughness, has_keyword,
+    has_subtype, has_supertype, has_type, is_creature,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
@@ -170,24 +170,29 @@ impl GameState {
             // is prompted once per group, so group order is decision order, and
             // `ids` is the option list they pick from by index.
             let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
-            for (id, entry) in self.battlefield_ordered() {
+            for (id, _entry) in self.battlefield_ordered() {
                 if self.objects.contains_key(&id) {
                     if has_supertype(self, id, Supertype::Legendary) {
                         let name = get_effective_name(self, id);
-                        legend_groups
-                            .entry((entry.controller, name))
-                            .or_default()
-                            .push(id);
+                        // CR 704.5j groups by controller, and stealing one of
+                        // two legends really does end the conflict — effective
+                        // controller, not the battlefield field.
+                        let Some(controller) = get_effective_controller(self, id) else {
+                            continue;
+                        };
+                        legend_groups.entry((controller, name)).or_default().push(id);
                     }
                 }
             }
 
             // For each group with more than one, the controller chooses one to keep
             let mut to_remove: Vec<ObjectId> = Vec::new();
-            for ((_controller, name), ids) in &legend_groups {
+            for ((controller, name), ids) in &legend_groups {
                 if ids.len() > 1 {
-                    let controller = self.battlefield.get(&ids[0]).unwrap().controller;
-                    let keep = ask_choose_legend_to_keep(decisions, self, controller, name, ids);
+                    // The group key, not a re-read: the key is what put these
+                    // permanents together, so asking anyone else would prompt a
+                    // player who does not control them.
+                    let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
                     for &id in ids {
                         if id != keep {
                             to_remove.push(id);

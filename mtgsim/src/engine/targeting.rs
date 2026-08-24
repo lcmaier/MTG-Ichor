@@ -207,11 +207,12 @@ impl GameState {
                 Ok(get_effective_colors(self, obj.id).contains(color))
             }
             PermanentFilter::ByController(player_ref) => {
-                let entry = self.battlefield.get(&id)
-                    .ok_or_else(|| format!("Object {} not on battlefield", id))?;
+                if !self.battlefield.contains_key(&id) {
+                    return Err(format!("Object {} not on battlefield", id));
+                }
                 match player_ref {
                     crate::types::effects::PlayerRef::Player(pid) => {
-                        Ok(entry.controller == *pid)
+                        Ok(crate::oracle::characteristics::controls(self, id, *pid))
                     }
                     // Other PlayerRef variants would need resolution context;
                     // for now just match Player explicitly

@@ -41,9 +41,11 @@ impl GameState {
         }
 
         // Verify controller
-        let entry = self.battlefield.get(&permanent_id)
-            .ok_or_else(|| format!("Permanent {} not on battlefield", permanent_id))?;
-        if entry.controller != player_id {
+        if !self.battlefield.contains_key(&permanent_id) {
+            return Err(format!("Permanent {} not on battlefield", permanent_id));
+        }
+        // Effective controller (CR 613.1b): stealing a land steals its mana.
+        if !crate::oracle::characteristics::controls(self, permanent_id, player_id) {
             return Err("You don't control this permanent".to_string());
         }
 

@@ -1,4 +1,5 @@
 use crate::state::game_state::{GameState, Phase, PhaseType, StepType, next_step, next_phase};
+use crate::types::ids::ObjectId;
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 
 /// Turn structure engine.
@@ -167,9 +168,22 @@ impl GameState {
         let player = self.get_player_mut(active)?;
         player.reset_lands_played();
 
-        // Untap permanents controlled by the active player
-        for (_id, entry) in &mut self.battlefield {
-            if entry.controller == active {
+        // Untap permanents controlled by the active player (CR 502.1) —
+        // *effectively* controlled, so a creature stolen with Act of Treason
+        // untaps on the thief's turn and not on its owner's.
+        //
+        // Two passes because the predicate is a `&self` layer query and the
+        // untap is a `&mut self` write. The raw `battlefield.iter()` is fine
+        // here for the reason CLAUDE.md carves out: untapping every match is
+        // order-irrelevant, so nothing about this sweep reaches a decision.
+        let to_untap: Vec<ObjectId> = self
+            .battlefield
+            .keys()
+            .copied()
+            .filter(|&id| crate::oracle::characteristics::controls(self, id, active))
+            .collect();
+        for id in to_untap {
+            if let Some(entry) = self.battlefield.get_mut(&id) {
                 entry.tapped = false;
             }
         }

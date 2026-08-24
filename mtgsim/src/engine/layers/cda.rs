@@ -74,7 +74,10 @@ pub(super) fn apply_intrinsic_cdas(
     let pending = collect_modifications(chars, layer);
 
     for modification in pending {
-        apply_modification(&modification, chars, object_id, game, layer_index, cache);
+        // `None`: a CDA is not a registry row (CR 604.3a(3)), so there is no
+        // `ContinuousEffect` to hand over. Only the Layer 2 arm reads it, and
+        // CR 613.4a admits no CDA there.
+        apply_modification(&modification, chars, object_id, game, layer_index, cache, None);
     }
 }
 

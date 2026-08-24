@@ -267,9 +267,12 @@ impl GameState {
     ) -> Result<(), String> {
         // Verify the source is on the battlefield and controlled by this player
         // (see doc comment for future zone-aware activation plan)
-        let entry = self.battlefield.get(&source_id)
-            .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
-        if entry.controller != player_id {
+        if !self.battlefield.contains_key(&source_id) {
+            return Err(format!("Permanent {} not on battlefield", source_id));
+        }
+        // Effective controller, not the battlefield field: a creature you stole
+        // with Act of Treason is one whose abilities you may activate.
+        if !crate::oracle::characteristics::controls(self, source_id, player_id) {
             return Err("Can only activate abilities of permanents you control".to_string());
         }
 

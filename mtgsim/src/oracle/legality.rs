@@ -5,7 +5,7 @@
 // false positives are harmless (engine rejects via rollback), false negatives
 // are bugs. See `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`.
 
-use crate::oracle::characteristics::{has_keyword, has_summoning_sickness, is_creature};
+use crate::oracle::characteristics::{controls, has_keyword, has_summoning_sickness, is_creature};
 use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
 use crate::state::game_state::{GameState, PhaseType};
 use crate::types::card_types::CardType;
@@ -77,7 +77,9 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
     game.battlefield_ordered().into_iter()
         .filter_map(|(id, entry)| {
-            if entry.controller != player_id {
+            // Effective controller (CR 613.1b): the creature you stole this turn
+            // attacks for you, which is what the haste clause is buying.
+            if !controls(game, id, player_id) {
                 return None;
             }
             if !is_creature(game, id) {
@@ -105,7 +107,7 @@ pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
     game.battlefield_ordered().into_iter()
         .filter_map(|(id, entry)| {
-            if entry.controller != player_id {
+            if !controls(game, id, player_id) {
                 return None;
             }
             if !is_creature(game, id) {
