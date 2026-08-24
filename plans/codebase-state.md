@@ -401,7 +401,24 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     - **`EffectModification::SetController` carries a `PlayerRef`, not a `PlayerId`.** A resolved id in a registry row is a snapshot of who controlled the source at registration, which is item 11's bug in a new variant: CR 109.5 makes a static ability's "you" the *current* controller, so Mind Control's "You control enchanted creature" follows the Aura when the Aura changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so both halves of CR 109.5 have one implementation. It also keeps `static_primitive_rows` a pure map from primitive to rows — that table has no game and no source, so a `PlayerId` would have left `GainControl` in the `_ => Vec::new()` arm item 12 exists to empty.
 
-      `PlayerRef::Owner` deliberately means something different here than in a filter: in `ByController` it describes the *source*, here it describes the object being moved (Homeward Path hands each creature to its own owner). `PlayerRef::Opponent` resolves in a two-player game (CR 102.2 makes it exactly one player) and returns `None` above that, where CR 102.3 makes "your opponents" a set with nothing to pick from. No card needs the multiplayer case: the ones that give a permanent away — Donate, Harmless Offering — *target* a player, and that is a second target rather than a `PlayerRef`, which `EffectRecipient`'s one-recipient-per-atom shape cannot express.
+      `PlayerRef::Owner` deliberately means something different here than in a filter: in `ByController` it describes the *source*, here it describes the object being moved (Homeward Path hands each creature to its own owner). The `Opponent` arm and what it does not cover are below.
+
+      **Which player identities may stay symbolic, and the gap that follows.** The layer walk is a pure read — it cannot prompt, and it runs many times per game state — so a `PlayerRef` survives into a registry row only when it has to be *re-derived* every walk: `You` (CR 109.5 makes a static ability's "you" the source's current controller) and `Owner` (fixed by CR 108.3, free to recompute). Every other identity is settled when the effect is created and stored as `Player(pid)`.
+
+      That is not a restriction on what cards can say, and the cards make the point:
+
+      | Card | New controller is | Settled |
+      |---|---|---|
+      | Akroan Horse, Fateful Handoff, Rainbow Vale (9 cards, `o:"opponent gains control" -o:"target opponent"`) | "an opponent", **not** targeted | at resolution — the Akroan Horse ruling is explicit that "in a multiplayer game, you choose the opponent as the ability resolves" |
+      | Risky Move | "that player", from a per-player trigger | at trigger resolution |
+      | Scrambleverse | a player chosen at random | at resolution |
+      | Illicit Auction | whoever bid the most life | at resolution |
+      | Donate, Harmless Offering | a targeted player | at cast (CR 601.2c) |
+
+      **What is missing is the lowering, not the type.** `Primitive::GainControl(Duration)` carries no player and lowers to `PlayerRef::You`, so "an opponent gains control" has no representation today — the 9-card group above needs `GainControl` to name a recipient and the resolution arm to make the choice through the `DecisionProvider` when more than one opponent exists. `PlayerRef::Opponent` is exact and free in a two-player game (CR 102.2 leaves nothing to choose), which is what `compute::resolve_set_controller` resolves; above two players it asserts, because reaching the walk means that choice was skipped.
+
+      A new `PlayerRef` variant is **not** the fix for the computed cases and would be the wrong shape for them: "the player with the highest life total", an auction winner, or a random player are computations over game state at one instant, and re-running them on every layer walk would let the answer drift between walks of an unchanged registry.
+
 
     - **`BattlefieldEntity.controller` was read directly at 20 sites; all 20 migrated** to `oracle::characteristics::get_effective_controller` / `controls`. Same shape and same silent-failure mode as Phase LD Part B's 21 `card_data` reads. **No `// PRE-LAYER ZONE:` exemptions were tagged** — that class is cast-zone and play-from-hand legality, which runs before the object is a permanent, and every site here asks about something already on the battlefield or the stack.
 

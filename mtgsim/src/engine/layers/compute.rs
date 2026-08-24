@@ -524,11 +524,32 @@ impl FilterPlayers<'_, '_> {
 /// own" hands each creature to its own owner, which is the opposite of what the
 /// same variant means inside a `PermanentFilter`, where it describes the source.
 ///
-/// `Opponent` needs a single player where CR 102.3 has a set, so it resolves
-/// only in a two-player game (CR 102.2) and returns `None` above that. No card
-/// needs the multiplayer case: the ones that give a permanent away — Donate,
-/// Harmless Offering — *target* a player, which is a second target rather than
-/// a `PlayerRef`, and `EffectRecipient` carries one recipient per atom.
+/// # Which player identities may stay symbolic in a row
+///
+/// The walk is a pure read: it cannot prompt, and it runs many times per game
+/// state. So a `PlayerRef` survives into the registry only when it must be
+/// **re-derived** on every walk — `You`, because CR 109.5 makes a static
+/// ability's "you" the source's *current* controller, and `Owner`, which is
+/// fixed but free to recompute (CR 108.3).
+///
+/// Everything else is settled **when the effect is created** and stored as
+/// `Player(pid)`. That covers every card whose new controller is chosen or
+/// computed rather than named:
+///
+/// - "An opponent gains control" (Akroan Horse, Fateful Handoff, Rainbow Vale
+///   — 9 cards) does not target, and its ruling is explicit that in a
+///   multiplayer game *you choose the opponent as the ability resolves*.
+/// - "That player gains control" (Risky Move), "choose a player at random"
+///   (Scrambleverse), an auction winner (Illicit Auction) — all resolution-time
+///   computations over game state.
+///
+/// None of those need a new `PlayerRef` variant, and none are boxed out by this
+/// function; they need the *lowering* to make the choice, which is the piece
+/// that does not exist yet (`codebase-state.md` item 13).
+///
+/// `Opponent` therefore resolves here only in a two-player game, where CR 102.2
+/// leaves nothing to choose. Above two players it means the resolution step
+/// skipped a choice it owed, so it asserts rather than inventing one.
 fn resolve_set_controller(
     player_ref: &crate::types::effects::PlayerRef,
     object_id: ObjectId,
@@ -555,13 +576,13 @@ fn resolve_set_controller(
         PlayerRef::Opponent => {
             let you = players.you();
             let mut opponents = (0..game.num_players()).filter(|&pid| pid != you);
-            let first = opponents.next();
-            match (first, opponents.next()) {
+            match (opponents.next(), opponents.next()) {
+                // CR 102.2 — exactly one opponent, so nothing was ever chosen.
                 (Some(only), None) => Some(only),
                 _ => {
                     debug_assert!(
                         false,
-                        "SetController(PlayerRef::Opponent) with {} players: control                          goes to exactly one player, and CR 102.3 makes \"your                          opponents\" a set. A card that gives a permanent away                          targets a player instead.",
+                        "SetController(PlayerRef::Opponent) with {} players. Which                          opponent is a choice the effect's controller makes as it                          resolves, so the row should already carry                          PlayerRef::Player(..); reaching the layer walk means the                          lowering skipped it.",
                         game.num_players()
                     );
                     None
