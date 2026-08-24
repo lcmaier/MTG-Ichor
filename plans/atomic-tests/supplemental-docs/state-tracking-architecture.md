@@ -2,7 +2,7 @@
 
 > **Origin:** Extracted from `session-5-audit-response.md` Q3+Q4 discussion (2026-04-05).
 > **Scope:** Delta log design, trigger tracking (603.8, 603.1b, cross-turn, resolution counting), loop detection (731), and voluntary shortcut system (729/D26).
-> **Status:** Architectural proposal — deferred to Phase 7 implementation. No current code depends on these decisions.
+> **Status:** **RESOLVED 2026-08-24 — the delta log is REJECTED as the trigger substrate** (owner decision; authoritative record: `plans/codebase-state.md` → "Before Replacement effects" item 4). Problems 1–4 below stand as the requirements bar and are answered by the **performed-action event stream** — see the **Resolution postscript** at the end of this file, which also carries the state-trigger census and the Alchemy scope note. §"603.8: No interleaving needed" is superseded. Loop detection (Tiers 1–3) and D26 survive, re-based on performed-action transcripts. This document is kept as the statement of the problems; **do not implement its delta-log sections.**
 
 ---
 
@@ -98,7 +98,7 @@ A pregame `RelevantEffects` analysis could prune which `GameAction` variants are
 
 ## Recommendation: Delta log + tiered loop detection
 
-**Trigger tracking:** Delta log. Settled.
+**Trigger tracking:** ~~Delta log. Settled.~~ **Overturned 2026-08-24 — see Resolution postscript.** The loop-detection tiers below stand.
 
 **Loop detection (731):** Tiered:
 
@@ -278,7 +278,7 @@ No simulator solves the last row. Pragmatic fallbacks: `MAX_TRIGGER_ITERATIONS` 
 
 ---
 
-## 603.8: No interleaving needed
+## ~~603.8: No interleaving needed~~ — SUPERSEDED 2026-08-24 (see Resolution postscript; the interleaving is required by CR 702.131d and the city's-blessing-before-SBA ruling)
 
 With the delta log, resolution doesn't interleave state-trigger checks per sub-action:
 1. Each sub-action emits a delta.
@@ -298,6 +298,32 @@ Separate concern. Clone GameState before 601.2a, restore on failure. Delta log d
 ## Motivating card examples
 
 - **603.8:** "Whenever you have no cards in hand, draw a card" + "Discard your hand, draw that many" → delta captures `HandSizeChanged { new: 0 }`.
-- **603.1b:** Paladin of Atonement → query previous turn's `LifeChanged` deltas.
-- **603.7h:** Ashling, Flame Dancer → count `AbilityResolved` deltas this turn.
+- **603.1b:** Paladin of Atonement → query previous turn's `LifeChanged` deltas. *(Mislabel — Paladin is the cross-turn problem, #3; verified text: "At the beginning of each upkeep, if you lost life last turn...")*
+- **603.7h:** Ashling, Flame Dancer → count `AbilityResolved` deltas this turn. *(Verified 2026-08-24: a real paper MH3 card, not Alchemy-only.)*
 - **731:** 3× Oblivion Ring → Tier 1 counter catches immediately.
+
+---
+
+## Resolution postscript (2026-08-24) — delta log rejected; the four problems answered
+
+Owner decision, made at CR 614 kickoff. The substrate is the **performed-action event stream**: `GameAction` (proposed) → CR 614 replacement pipeline → perform → `GameEvent` (performed record carrying a layer-computed LKI frame, a cause tag, a batch id, and resolution context) → **synchronous dispatch at the mutation instant** (turn trackers update; event triggers match against *effective* ability lists across all zones; state triggers and designations evaluate against live state) → pending queue → APNAP placement at the CR 603.3 moment. Detection is per atomic event; only *placement* defers. Sizing and the emission-refit ticket list: `codebase-state.md` → "Before Replacement effects" items 3–4.
+
+**Problem 1 (603.8 — momentary mid-resolution conditions).** Answered by synchronous detection. The §"603.8: No interleaving needed" claim above is the one part of this document that is *wrong*, on three grounds:
+
+- **Timing.** CR 702.131b makes ascend an "any time" monitor, CR 702.131d reapplies continuous effects before subsequent trigger matching, and the printed ruling is explicit that the city's blessing lands **before** a legend-rule/0-toughness SBA removes the tenth permanent. A scan "after SBA cycles" reads a board where the condition is already false again.
+- **Layer dependence.** 603.8's own example class ("a player controlling no permanents of a particular card type") is a Layer 4/6/7 output. Evaluating it at a *past* instant means replaying `compute_characteristics` against rewound state — a second implementation of the engine's most delicate machinery (`layers-architecture.md` §5.2). Live evaluation gets the layer walk for free because "that instant" is now.
+- **The polling fear measured out at nothing.** The 603.8 class is ~30–40 printed cards in all of Magic (Scryfall 2026-08-24: `o:"when you control no"` = 25 — Phylactery Lich, Emperor Crocodile, the leash cycle; `o:"when there are no"` = 5 — Immortal Coil, Drop of Honey, Porphyry Nodes, Mana Vortex, Task Mage Assembly; `o:"when you have no"` = **0** — the CR's "no cards in hand" example was never printed). The state-*shaped* win-cons (Simic Ascendancy, Helix Pinnacle, Felidar Sovereign, Mortal Combat) are 603.4 upkeep-if triggers in current Oracle — evaluated at exactly two instants, no monitoring. A real board carries 0–3 registered state triggers; each check is a cheap predicate against live state. If profiling ever objects, the answer-preserving lever is gating each state trigger's re-check by the event kinds that can flip its condition — designed carefully (conditions also flip on registry changes and duration expiries; cf. the removed `can_change_abilities` gate's lesson).
+
+**Problem 2 (603.1b — multi-condition).** Turn-scoped occurrence trackers per condition class, fed at dispatch; the CR asks for occurrence history "regardless of whether that ability has triggered." The recorded conditions are *semantic*: "you cast a creature spell" is not a stack-zone insertion — copies put onto the stack are not cast, and creature-ness at cast time is layer-computed. A `(old, new)` zone delta cannot say "cast."
+
+**Problem 3 (cross-turn lookback).** Per-player turn trackers with a this-turn → last-turn rotation at turn end (N-player: vectors keyed by `PlayerId`). Breadth: `o:"last turn"` = 49 cards, memory horizon one turn. Game-length facts are designations (city's blessing, monarch) or game-scoped counters — **scope is a tracker field**, and paper already demands game scope (Approach of the Second Sun: "you've cast another spell named... this game"; Once Upon a Time: "the first spell you've cast this game"). A game-lifetime `(old,new)` log pays unbounded memory in the parallel-AI hot path for queries no printed card makes.
+
+**Problem 4 (resolution counting).** Per-`(source, ability)` per-turn counters fed by an identity-bearing `AbilityResolved` event (CR 603.7h; Ashling the Pilgrim's "third time"; Ashling, Flame Dancer's "second/third time"). This document's own solution — "count `AbilityResolved` deltas" — already concedes the point: **an ability resolving is not a state delta.** A countered ability and a resolved one leave the stack identically (which is why CR 603.10e gives countered-spell triggers look-back semantics); the log must emit a semantic, action-shaped entry, i.e. an event. The adjacent "draw that many" dataflow is not trigger detection at all: `execute_action` returns what actually happened post-replacement (CR 121.2a fixes the count before the individual draws) and the resolving effect threads it — a return value, not a log query.
+
+**Why the delta representation loses in general.** Semantic identity is not recoverable from `(old, new)` pairs: draw vs put-into-hand (CR 121.5 makes the difference trigger-visible), sacrifice vs destroy vs SBA death, cast vs copy, countered vs resolved. Meaning at a past instant requires the layer engine (CR 603.10's default; 603.6b's "all lands are creatures" ETB example). And CR 614 already forces the action-shaped spine: replacements rewrite proposed `GameAction`s at the `execute_action` chokepoint, and CR 614.6 says the modified event "may in turn trigger abilities" — one vocabulary, two hooks (replace before, trigger after). A canonical delta log would be a third representation with a hand-maintained consistency burden — the dual-emit fragility this design worried about, relocated rather than removed.
+
+**What this document got right, adopted into the winner:** central detection (mutation sites never know about trigger conditions — the push-based `PendingTrigger` rejection stands); single-funnel emission discipline (the activation-invisibility gap proved ad-hoc emission drifts; the fix is chokepoint emission, not a lower level — a field-level log records that an object left the stack, not *why*); LKI + generic zone events over type-specific death events (the Gideon argument survives verbatim as an event-payload requirement); resolution-context stamping on every event.
+
+**What survives unchanged:** loop detection Tiers 1–3 (Tier 1 counts `DecisionProvider` calls; Tiers 2–3 hash full state — none of it ever needed deltas) and D26, with iteration transcripts re-based on performed-`GameAction` sequences — which is what its structural comparison wanted anyway. (`decision-provider-refactor.md` §9's "validates against delta log" phrasing should be read the same way.)
+
+**Alchemy is not boxed out** (stretch goal, recorded here because this doc raised it): seek/conjure/perpetually/boons are semantic, object-level mechanics — perpetually's real blocker is zone-aware continuous effects (`codebase-state.md` Layers item 9), boons ride the zone-agnostic trigger registry. New lookback quantities are a tracker field plus an update arm, authored with the card like everything else. And the `EventLog` retains the whole game as the same performed-event stream — a *better* history than raw deltas (draws distinguishable from tutors, casts from copies) — so retrospective scanning stays available as an escape hatch for a genuinely novel future condition; it is only demoted from being the mechanism.
