@@ -114,9 +114,9 @@ impl CardRegistry {
         // - The four `*_spell` cards are Auras and an Artifact re-modeled as
         //   Instants to avoid machinery their phase did not need. Real names,
         //   wrong card types.
-        // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands, and
-        //   `fuzz_games::random_deck` fills land slots with basics only, so
-        //   registering them would add nothing to a deck.
+        // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands whose
+        //   phases modeled them loosely; the ten real dual lands below are what
+        //   `fuzz_games::random_deck` draws its nonbasic land slots from.
         registry.register("Cerulean Wisps", phase_lc_cards::cerulean_wisps);
         registry.register("Crimson Wisps", phase_lc_cards::crimson_wisps);
         registry.register("Moonlace", phase_lc_cards::moonlace);

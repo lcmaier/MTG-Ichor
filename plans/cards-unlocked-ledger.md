@@ -1,3 +1,7 @@
+<!-- Ticket vocabulary: `L##` / `T##` / `SPECIAL-#` ids are defined in
+     `plans/archive/implementation-plan-final.md`. That file is historical and must not
+     be acted on — it is cited here only as the dictionary for these ids. -->
+
 # Cards & Integration Tests Unlocked Ledger
 
 > Tracks which real Magic cards become implementable after each ticket, and which integration test checkpoints should verify end-to-end behavior.
@@ -195,7 +199,7 @@ Recommended integration tests:
 
 | Ticket | Cards | Status |
 |--------|-------|--------|
-| L17 | Honor of the Pure, Tarmogoyf, Urborg, Blood Moon, Mind Snare | 🃏 (in plan) |
+| L17 | Honor of the Pure, Tarmogoyf, Urborg, Blood Moon (~~Mind Snare~~ — invented name, corrected in the L11 row above) | 🃏 (in plan) |
 | L18 | LKI system (no cards — infrastructure) | |
 | L19 | Humility, Opalescence | 🃏 (in plan) |
 | L20 | 27+ integration tests | 🧪 (in plan) |

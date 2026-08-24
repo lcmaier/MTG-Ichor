@@ -14,8 +14,17 @@
 >
 > **For current status, read `plans/codebase-state.md`. It wins over this file.**
 >
-> What remains authoritative here: the **Tier 1 v1.0 definition**, the **phase
-> dependency graph**, and the **milestone list**. Treat the rest as history.
+> **Also superseded (2026-08-24):** the **v1.0 definition** below ("Standard
+> two-player. Commander is Phase 9") and the **phase dependency graph**. v1 is now two
+> use cases — peer-to-peer 4-player Commander through a GUI, and highly parallel AI
+> games over the CLI — and the ordering that follows from it is owned by
+> **`CLAUDE.md` → "Critical path to v1"**. The graph's one surviving claim is its
+> rationale: replacement effects provide the `execute_action` middleware triggers need,
+> so 614 precedes 603.
+>
+> What remains authoritative here: **Milestone 8 ("Commander Playable")** and
+> **Phase 10** (GUI, AI API, parallel fuzz) — between them they describe the v1 target
+> shape — and the rest of the **milestone list**. Treat the rest as history.
 
 ---
 
@@ -167,7 +176,7 @@ A Standard-legal two-player game can be played correctly for any combination of 
 **Ticket count:** 21 (L01–L21). Scope: 4 Small, 11 Medium, 6 Large.
 
 **Cards unblocked (11 new, 35 total):**
-- **Tier 1:** Giant Growth, Glorious Anthem, Honor of the Pure, Tarmogoyf, Urborg, Blood Moon, Mind Snare
+- **Tier 1:** Giant Growth, Glorious Anthem, Honor of the Pure, Tarmogoyf, Urborg, Blood Moon ("Mind Snare" was an invented name — it never existed; see `codebase-state.md` item 15)
 - **Tier 2:** Humility, Opalescence
 - All anthem/lord effects, type-changing effects, control-changing effects, P/T setting/switching
 
@@ -392,6 +401,11 @@ Perpetual modifications are **ordered and heterogeneous** — a card can accumul
 
 ### Serial Chain (Critical Path)
 
+> **Superseded as an ordering (2026-08-24).** `CLAUDE.md` → "Critical path to v1" owns
+> it now, and it splits Phase 5 Layers into the phases that actually shipped and moves
+> the CR 613.8 dependency work *after* triggers, with a back-stop before card breadth.
+> The rationale below still holds, and is why 614 precedes 603.
+
 ```
 Phase 5 Pre-Work ──→ Phase 5 Layers ──→ Phase 6 Replacement ──→ Phase 7 Triggers
 ```
@@ -558,7 +572,8 @@ These items span multiple phases:
 **Criteria:**
 - Opalescence + Humility correct for both timestamp orders
 - Tarmogoyf CDA correct in all zones
-- Mind Snare control change + summoning sickness correct
+- Act of Treason control change + summoning sickness correct (the criterion originally
+  named "Mind Snare", which is not a real card)
 - LKI snapshots capture effective characteristics
 - 500+ fuzz games pass with Phase 5 cards in pool
 - ~500+ total tests
@@ -601,8 +616,11 @@ These items span multiple phases:
 
 ## Open Questions & Decisions
 
-### Format Support Scope — DECIDED
-- **v1.0 target:** Standard two-player. Commander is Phase 9.
+### Format Support Scope — DECIDED, then SUPERSEDED (2026-08-24)
+- ~~**v1.0 target:** Standard two-player. Commander is Phase 9.~~ **v1.0 is 4-player
+  Commander (p2p, GUI) plus highly parallel AI games over the CLI.** Two-player Standard
+  is a checkpoint. See `CLAUDE.md` → "Critical path to v1"; Milestone 8 below already
+  defines the Commander bar correctly.
 - **Limited (draft/sealed):** In scope, but post-v1. The rules engine doesn't change; Limited needs a separate `DraftEngine` to manage draft pod state (card pools, pick/pass flow, display). Sealed is simpler (random pool generation). Both slot into Phase 10.
 
 ### Card Coverage — DECIDED

@@ -247,6 +247,8 @@ mod tests {
         controller: usize,
         targets: Vec<ResolvedTarget>,
     ) -> crate::types::ids::ObjectId {
+        // PRE-LAYER ZONE: printed abilities, on the card being put on the stack --
+        // the same exemption engine/cast.rs runs under.
         let ability = card_data.abilities.iter()
             .find(|a| a.ability_type == AbilityType::Spell)
             .unwrap();

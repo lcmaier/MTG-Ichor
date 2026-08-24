@@ -49,6 +49,10 @@ impl GameState {
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
 
+        // PRE-LAYER ZONE: reads printed abilities and types on purpose. The card
+        // is still in hand here, so it is not a permanent and the layer system has
+        // nothing to contribute -- see "Before Layers" in plans/codebase-state.md.
+        //
         // Find the spell ability on the card.
         // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
         // may not have a spell ability — they resolve by entering the
@@ -508,6 +512,8 @@ impl GameState {
         // Timing check (rule 117.1a):
         // - Instants and spells with flash: anytime you have priority
         // - Everything else: main phase, stack empty, active player only
+        // PRE-LAYER ZONE: printed types and keywords, for the same reason -- this
+        // decides whether a card in hand may be cast now.
         let is_instant = obj.card_data.types.contains(&CardType::Instant);
         let has_flash = obj.card_data.keywords.contains(&KeywordFlag::Flash);
 

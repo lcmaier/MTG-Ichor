@@ -1,5 +1,9 @@
 # Atomic Test Generation — CR-Exhaustive Process
 
+> **Historical process doc.** The corpus it produced is `sessions/*.md`, which is now the
+> authored source of truth. Paths below are as they were: `plans/implementation-plan-final.md`
+> has since moved to `plans/archive/implementation-plan-final.md`.
+
 ## Overview
 
 This document defines a process for systematically generating atomic test specifications by walking the **entire** Comprehensive Rules at the sub-rule level. The CR text is in `MTG-Rules/` as chapter files. Each session gets the literal CR text pasted in — the LLM reads every sub-rule, not working from memory.

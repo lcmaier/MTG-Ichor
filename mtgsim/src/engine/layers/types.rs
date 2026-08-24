@@ -27,7 +27,7 @@ pub type Timestamp = u64;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Layer {
     /// Layer 1 — copy effects (CR 613.2). Face-down and copy.
-    /// Stubbed for Phase LA; implemented in Phase LD.
+    /// Still a stub: the variant exists, nothing produces an effect in it.
     Layer1Copy,
     /// Layer 2 — control-changing effects (CR 613.3).
     Layer2Control,
