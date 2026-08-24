@@ -35,6 +35,7 @@ Usage:
     python plans/specdb.py next --phase "Phase 5-Layers" --rule 613
     python plans/specdb.py show ATOM-305.7-001
     python plans/specdb.py orphans        # COVERS ids with no matching atom
+    python plans/specdb.py suspicious     # COVERS ids that exist but look wrong
     python plans/specdb.py gaps --chapter 6   # CR rules the corpus never examined
 
 CR snapshots live in MTG-Rules/versions/<version>.txt, one official file per
@@ -47,7 +48,6 @@ are therefore permanent handles and must never be renumbered to follow the CR;
 
 import argparse
 import hashlib
-import importlib.util
 import re
 import sqlite3
 import sys
@@ -60,7 +60,6 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent.parent
 SESSIONS_DIR = ROOT / "plans" / "atomic-tests" / "sessions"
-EXTRACT_SCRIPT = ROOT / "plans" / "atomic-tests" / "extract-phase-index.py"
 CODE_DIRS = [ROOT / "mtgsim" / "src", ROOT / "mtgsim" / "tests"]
 DB_PATH = ROOT / "plans" / "atomic-tests" / "spec.sqlite"
 
@@ -115,38 +114,95 @@ DB_COLUMNS = [
 ]
 
 
-def load_phase_normalizer():
-    """Reuse normalize_phase from the existing extraction script, with a fix.
+# Canonical phase names, in the order they are reported.
+PHASE_ORDER = [
+    "ALREADY-IMPL",
+    "Phase 5-Pre",
+    "Phase 5-Layers",
+    "Phase 6",
+    "Phase 7",
+    "Phase 8",
+    "Phase 9",
+    "Post-v1",
+    "Cross-cutting",
+    "DEFERRED",
+    "COMP-REF",
+    "UNKNOWN",
+]
 
-    The upstream normalizer tests for the substring "already" before it parses
-    a phase number, so a raw value like
+_EXPLICIT_PHASE = re.compile(r"^\s*phase\s*\d", re.I)
 
-        "Phase 5-Pre (already in `GameConfig` via `DeckLimits`)"
 
-    is classified ALREADY-IMPL even though it names an explicit phase. That
-    inflated ALREADY-IMPL to 201 against only 32 ALREADY-IMPLEMENTED verdicts
-    in the sessions. Here an explicit "Phase N" prefix wins; the upstream
-    heuristics still handle everything else.
+def normalize_phase(raw):
+    """Map a session's raw phase label to a canonical phase name.
+
+    Strategy: extract every phase number mentioned and assign the entry to the
+    LATEST one, because that is when the test can actually be built. L-tickets
+    imply Phase 5-Layers, T-tickets Phase 5-Pre.
+
+    Lived in `atomic-tests/extract-phase-index.py` until 2026-08-24, imported
+    from here by path. That script also generated the markdown indexes *from
+    `summaries/`* while this one built the database from `sessions/`, so the two
+    tiers drifted apart — see the module docstring. It is archived; this is the
+    only copy now.
+
+    One deliberate difference from the original, kept: an explicit "Phase N"
+    prefix wins over a trailing parenthetical. The original tested for the
+    substring "already" first, so "Phase 5-Pre (already in `GameConfig`)"
+    classified as ALREADY-IMPL and inflated that bucket to 201 against 32 real
+    ALREADY-IMPLEMENTED verdicts.
     """
-    if not EXTRACT_SCRIPT.exists():
-        return lambda raw: raw.strip() or "UNKNOWN"
-    spec = importlib.util.spec_from_file_location("extract_phase_index", EXTRACT_SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    upstream = mod.normalize_phase
+    raw = raw or ""
+    if _EXPLICIT_PHASE.match(raw):
+        head = re.sub(r"\s*\([^)]*\)\s*$", "", raw).strip()
+        if head:
+            raw = head
 
-    explicit = re.compile(r"^\s*phase\s*\d", re.I)
+    cleaned = raw.strip()
+    lowered = cleaned.lower()
 
-    def normalize(raw):
-        # Strip a trailing parenthetical before deciding, so an aside like
-        # "(already in GameConfig)" can't override the stated phase.
-        if explicit.match(raw or ""):
-            head = re.sub(r"\s*\([^)]*\)\s*$", "", raw).strip()
-            if head:
-                return upstream(head)
-        return upstream(raw)
+    # A COMP whose "phase" field lists ATOM ids instead of a phase label.
+    if re.match(r"^ATOM-", cleaned):
+        return "COMP-REF"
+    if "already" in lowered or lowered == "impl" or lowered.startswith("partial impl"):
+        return "ALREADY-IMPL"
+    if "post" in lowered or "pre-phase" in lowered:
+        return "Post-v1"
+    if lowered == "deferred":
+        return "DEFERRED"
+    if "per-system" in lowered or "cross" in lowered:
+        return "Cross-cutting"
 
-    return normalize
+    phase_nums = re.findall(r"phase\s*(\d+)", lowered)
+    combo_nums = re.findall(r"(\d+)", lowered)
+    has_l_ticket = bool(re.search(r"L\d+", cleaned))
+    has_t_ticket = bool(re.search(r"T\d+", cleaned))
+    has_pre = "5-pre" in lowered or "5 pre" in lowered or "pre" in lowered
+    has_layers = "5-layer" in lowered or "5 layer" in lowered or "layer" in lowered
+
+    if not phase_nums and not combo_nums:
+        if has_l_ticket:
+            return "Phase 5-Layers"
+        if has_t_ticket:
+            return "Phase 5-Pre"
+        return "UNKNOWN"
+
+    nums = [int(n) for n in (phase_nums or combo_nums)]
+    nums = [n for n in nums if 1 <= n <= 9]
+    if not nums:
+        return "UNKNOWN"
+    # Phases 1-4 shipped long ago; if nothing later is named, it is done.
+    if all(n <= 4 for n in nums):
+        return "ALREADY-IMPL"
+
+    latest = max(nums)
+    if latest == 5:
+        if has_layers or has_l_ticket:
+            return "Phase 5-Layers"
+        if has_pre or has_t_ticket:
+            return "Phase 5-Pre"
+        return "Phase 5-Pre"
+    return {6: "Phase 6", 7: "Phase 7", 8: "Phase 8", 9: "Phase 9"}.get(latest, "UNKNOWN")
 
 
 def parse_cr_versions():
@@ -208,9 +264,24 @@ def parse_rule_mentions():
     return rows, loose
 
 
+def split_entry_id(raw):
+    """Split an entry heading into (id, title).
+
+    Sessions write a COMP's heading as `COMP-702-001: Deathtouch + First Strike`
+    or `COMP-9A-001 — SBA cascade ...`, so a naive capture swallows the title
+    into the id. 21 entries were stored that way, which is why `specdb show
+    COMP-7A-005` reported "no such atom" and why the ids never lined up with
+    the markdown indexes. Ids stay bare; the title becomes the summary when the
+    entry has no `Rule` line to derive one from.
+    """
+    m = re.match(r"^((?:ATOM|BOUNDARY|COMP)-[^\s:—–]+)(?:\s*[:—–-]\s*(.*))?$", raw.strip())
+    if not m:
+        return raw.strip(), ""
+    return m.group(1).strip(), (m.group(2) or "").strip()
+
+
 def parse_sessions():
     """Parse every session file into atom dicts."""
-    normalize_phase = load_phase_normalizer()
     if not SESSIONS_DIR.exists():
         sys.exit("error: %s not found" % SESSIONS_DIR)
 
@@ -224,9 +295,10 @@ def parse_sessions():
             if m:
                 if current:
                     raw_atoms.append(current)
-                aid = m.group(1).strip()
+                aid, title = split_entry_id(m.group(1))
                 current = {
                     "id": aid,
+                    "title": title,
                     "kind": aid.split("-", 1)[0],
                     "session": session,
                     "source_file": str(path.relative_to(ROOT)).replace("\\", "/"),
@@ -253,11 +325,32 @@ def parse_sessions():
         parts = re.split(r"\s+[—–-]\s+", rule_line, maxsplit=1)
         a["rule_num"] = parts[0].strip() if parts else ""
         a["summary"] = parts[1].strip() if len(parts) > 1 else a.get("mechanism", "")
+        if not a["summary"]:
+            a["summary"] = a.get("title", "")
         if a["id"] in seen:
             continue
         seen.add(a["id"])
         out.append(a)
     return out
+
+
+def find_annotated_fn(lines, n):
+    """The name of the test a COVERS comment at 1-based line `n` annotates.
+
+    Walks forward past comments, blank lines and attributes to the first real
+    line, which is the `fn`. A fixed lookahead does not work: annotations here
+    carry their reasoning, and the corpus asks them to — the block above
+    `test_tarmogoyf_pt_is_layer_7a_and_an_ability_strip_removes_it` runs twelve
+    lines, so an 8-line window recorded that atom as covered by a test with no
+    name.
+    """
+    for look in lines[n:n + 60]:
+        stripped = look.strip()
+        if not stripped or stripped.startswith("//") or stripped.startswith("#["):
+            continue
+        fm = RUST_FN_RE.search(look)
+        return fm.group(1) if fm else ""
+    return ""
 
 
 def scan_coverage():
@@ -276,17 +369,96 @@ def scan_coverage():
                 ids = ATOM_ID_RE.findall(cm.group(2))
                 if not ids:
                     continue
-                # the nearest following `fn name` is the test being annotated
-                test_name = ""
-                for look in lines[n:n + 8]:
-                    fm = RUST_FN_RE.search(look)
-                    if fm:
-                        test_name = fm.group(1)
-                        break
+                test_name = find_annotated_fn(lines, n)
                 rel = str(path.relative_to(ROOT)).replace("\\", "/")
                 for aid in ids:
                     rows.append((aid, test_name, rel, n, partial))
     return rows
+
+
+def session_sort_key(session):
+    """S1 < S2 < ... < S7a < S7b < ... < S10, not lexicographic."""
+    body = (session or "").lstrip("S")
+    num = "".join(c for c in body if c.isdigit())
+    suffix = "".join(c for c in body if not c.isdigit())
+    return (int(num) if num else 999, suffix)
+
+
+def write_indexes(atoms):
+    """Regenerate the markdown test indexes from the corpus.
+
+    These are derived files. They used to be written by
+    `atomic-tests/extract-phase-index.py`, which read `summaries/` while this
+    script read `sessions/` — two parsers over two tiers, and by 2026-08-24 they
+    disagreed by 27 entries and on the size of three phases (Phase 7: 202 vs
+    133). `sessions/` is the authored tier, corrections land there, so the
+    indexes now come from the same parse as the database and cannot drift from
+    it again. `summaries/` is the authoring trail and generates nothing.
+    """
+    out_dir = SESSIONS_DIR.parent
+    by_phase = {}
+    for a in atoms:
+        by_phase.setdefault(a["phase"], []).append(a)
+    for rows in by_phase.values():
+        rows.sort(key=lambda a: (session_sort_key(a.get("session")), a.get("source_line", 0)))
+
+    def table(rows):
+        out = ["| ID | Rule | Summary | Ticket | Session | Tags |",
+               "|----|------|---------|--------|---------|------|"]
+        for a in rows:
+            cells = [a["id"], a.get("rule_num", ""), a.get("summary", ""),
+                     a.get("ticket", ""), a.get("session", ""), a.get("tags", "")]
+            out.append("| %s |" % " | ".join(c.replace("|", "\\|") for c in cells))
+        return out
+
+    written = []
+    ordered = ([p for p in PHASE_ORDER if p in by_phase]
+               + sorted(p for p in by_phase if p not in PHASE_ORDER))
+
+    lines = ["# Global Atomic Test Index", "",
+             "> Generated by `python plans/specdb.py build` from"
+             " `plans/atomic-tests/sessions/*.md`. Do not hand-edit — fix the"
+             " session file and rebuild.",
+             "> Total entries: %d" % len(atoms), "", "---", "", "## Phase Counts", "",
+             "| Phase | ATOMs | BOUNDARYs | COMPs | Total |",
+             "|-------|-------|-----------|-------|-------|"]
+    for phase in ordered:
+        rows = by_phase[phase]
+        counts = {k: sum(1 for a in rows if a["kind"] == k) for k in ("ATOM", "BOUNDARY", "COMP")}
+        lines.append("| %s | %d | %d | %d | %d |" % (
+            phase, counts["ATOM"], counts["BOUNDARY"], counts["COMP"], len(rows)))
+    lines += ["", "---", ""]
+    for phase in ordered:
+        lines += ["## %s" % phase, "", "**%d entries**" % len(by_phase[phase]), ""]
+        lines += table(by_phase[phase]) + [""]
+    path = out_dir / "global-test-index.md"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    written.append(path)
+
+    for phase in ordered:
+        rows = by_phase[phase]
+        slug = phase.lower().replace(" ", "-").replace("/", "-")
+        path = out_dir / ("phase-index-%s.md" % slug)
+        body = ["# %s — Test Index" % phase, "",
+                "> Generated by `python plans/specdb.py build` from"
+                " `plans/atomic-tests/sessions/*.md`. Do not hand-edit.",
+                "> %d entries" % len(rows), "", "---", "",
+                "## %s" % phase, "", "**%d entries**" % len(rows), ""]
+        body += table(rows) + [""]
+        path.write_text("\n".join(body) + "\n", encoding="utf-8")
+        written.append(path)
+
+    # Sweep indexes for phases that no longer have entries. Leaving one behind
+    # is the same failure this rewrite exists to fix: a generated file that
+    # nothing regenerates is a stale claim with a plausible filename.
+    # `phase-index-deferred.md` was exactly that -- the DEFERRED bucket emptied
+    # and the file stayed.
+    keep = {q.name for q in written}
+    for stale in out_dir.glob("phase-index-*.md"):
+        if stale.name not in keep:
+            stale.unlink()
+            print("  removed stale index:  %s" % stale.relative_to(ROOT))
+    return written
 
 
 def build():
@@ -362,8 +534,11 @@ def build():
         "SELECT cr_version, effective_date, COUNT(*) FROM rules "
         "GROUP BY cr_version ORDER BY cr_version"
     ).fetchall()
+    index_files = write_indexes(atoms)
     print("built %s" % DB_PATH.relative_to(ROOT))
     print("  atoms parsed:      %d" % len(atoms))
+    print("  indexes written:   %d (%s)" % (
+        len(index_files), index_files[0].parent.relative_to(ROOT)))
     print("  COVERS rows found: %d" % len(cov))
     print("  atoms covered:     %d full, %d partial-only" % (linked, part))
     for v, eff, n in versions:
@@ -514,6 +689,130 @@ def gaps(chapter, limit, show_all):
         print("  ... %d more (use --all)" % (len(unseen) - len(shown)))
 
 
+# Words that appear in every atom and every test and so carry no signal.
+_STOPWORDS = set("""
+a an and are as at be been but by can cant does doesnt for from has have if in
+into is it its no not of on or should so than that the their then there they
+this to under until up was were when which while with without you your
+test tests fn let mut assert asserteq game state card cards player players
+rule cr atom effect effects one two both new same other another
+""".split())
+
+
+def _words(text):
+    out = set()
+    for w in re.findall(r"[A-Za-z]+", (text or "").lower()):
+        if len(w) > 3 and w not in _STOPWORDS:
+            out.add(w)
+            # crude stem, so "creature"/"creatures" and "taps"/"tapped" meet
+            for suffix in ("ing", "ed", "es", "s"):
+                if w.endswith(suffix) and len(w) - len(suffix) > 3:
+                    out.add(w[: -len(suffix)])
+                    break
+    return out
+
+
+def _test_source(path, line):
+    """The annotated test's own text — its signature and body, nothing else.
+
+    Deliberately excludes every `COVERS` line in the window. The annotation
+    names the atom, the atom id contains the rule number, so a window that
+    includes the comment matches the atom it is supposed to be checked against.
+    That circularity made the first version of this check pass everything,
+    including a poison-counter atom pinned to a mana-formatting test.
+    """
+    full = ROOT / path
+    if not full.exists():
+        return ""
+    lines = full.read_text(encoding="utf-8", errors="replace").split("\n")
+    # The annotated item is the next `fn` after the comment block.
+    fn_line = None
+    for i in range(line - 1, min(len(lines), line + 60)):
+        stripped = lines[i].strip()
+        if i >= line and (not stripped or stripped.startswith("//")
+                          or stripped.startswith("#[")):
+            continue
+        if RUST_FN_RE.search(lines[i]):
+            fn_line = i
+            break
+        if i >= line:
+            break
+    if fn_line is None:
+        return ""
+    body, depth, opened = [], 0, False
+    for i in range(fn_line, min(len(lines), fn_line + 80)):
+        text = lines[i]
+        if "COVERS" not in text:
+            body.append(text)
+        depth += text.count("{") - text.count("}")
+        if "{" in text:
+            opened = True
+        if opened and depth <= 0:
+            break
+    return "\n".join(body)
+
+
+def suspicious(threshold):
+    """Flag COVERS links whose test looks unrelated to the atom it claims.
+
+    `orphans` catches an id that does not exist. Nothing caught an id that
+    exists and is *wrong* — and a wrong link is worse than a blank, because a
+    blank reads as work remaining while a wrong one reads as done. This is the
+    cheap approximation: compare the vocabulary of the atom's scenario against
+    the vocabulary of the annotated test. A real link almost always shares the
+    nouns (`aura`, `sacrifice`, `poison`, `equipment`); a mismatched one usually
+    shares nothing but boilerplate.
+
+    It is a smell detector, not a proof. Low overlap on a correct link happens
+    when a test builds a scenario in different words, so a hit means "read this
+    one", not "this is wrong". Silence does not mean every link is right.
+    """
+    db = connect()
+    rows = db.execute(
+        "SELECT c.atom_id, c.test_name, c.file, c.line, c.partial, "
+        "       a.summary, a.mechanism, a.board, a.action, a.expected, a.rule_num "
+        "FROM coverage c JOIN atoms a ON a.id = c.atom_id "
+        "ORDER BY c.file, c.line"
+    ).fetchall()
+    if not rows:
+        print("no COVERS annotations to check")
+        return
+
+    flagged = []
+    for aid, test, path, line, partial, summary, mech, board, action, expected, rule in rows:
+        atom_words = _words(" ".join([summary or "", mech or "", board or "",
+                                      action or "", expected or ""]))
+        src = _test_source(path, line)
+        test_words = _words(test + " " + src)
+        if not atom_words:
+            continue
+        shared = atom_words & test_words
+        score = len(shared) / len(atom_words)
+        # A test naming the rule number is strong evidence on its own.
+        names_rule = bool(rule) and rule in src
+        if score < threshold and not names_rule:
+            flagged.append((score, aid, test, path, line, partial, sorted(shared)[:6]))
+
+    print("checked %d COVERS link(s) against the atoms they claim" % len(rows))
+    if not flagged:
+        print("nothing below the %.0f%% vocabulary-overlap threshold." % (threshold * 100))
+        print("that is a smell test, not a proof — it cannot see a link that is")
+        print("plausible and still wrong.")
+        return
+    print("")
+    print("%d link(s) share little vocabulary with their atom. Read these:" % len(flagged))
+    for score, aid, test, path, line, partial, shared in sorted(flagged):
+        kind = "COVERS-PARTIAL" if partial else "COVERS"
+        print("")
+        print("  %s  %s" % (aid, kind))
+        print("    test:   %s" % (test or "<none found>"))
+        print("    at:     %s:%d" % (path, line))
+        print("    shared: %.0f%% %s" % (score * 100, shared or "(nothing)"))
+    print("")
+    print("Overlap is a heuristic: a correct link can score low when the test")
+    print("builds the scenario in different words. Check, do not delete blind.")
+
+
 def orphans():
     db = connect()
     rows = db.execute("""
@@ -542,6 +841,9 @@ def main():
     s = sub.add_parser("show")
     s.add_argument("atom_id")
     sub.add_parser("orphans")
+    q = sub.add_parser("suspicious")
+    q.add_argument("--threshold", type=float, default=0.15,
+                   help="flag links below this vocabulary overlap (default 0.15)")
     g = sub.add_parser("gaps")
     g.add_argument("--chapter", type=int, help="CR chapter 1-9")
     g.add_argument("--limit", type=int, default=25)
@@ -552,6 +854,7 @@ def main():
      "next": lambda: next_up(a.phase, a.rule, a.limit),
      "show": lambda: show(a.atom_id),
      "orphans": lambda: orphans(),
+     "suspicious": lambda: suspicious(a.threshold),
      "gaps": lambda: gaps(a.chapter, a.limit, a.show_all)}[a.cmd]()
 
 
