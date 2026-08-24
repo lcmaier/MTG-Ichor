@@ -640,6 +640,23 @@ What landed:
 
 **Cost: none measurable.** 200 games / seed 12345, median of five, ms/turn: 1.124 → 1.131 (+0.7%), inside run-to-run noise — the per-sweep `Vec` + sort is nothing next to the `compute_characteristics` walk it wraps. A `BTreeMap` swap was considered and not needed. Wall-clock spread over those five runs collapsed from 5.64–6.43 s to 6.20–6.29 s, because the runs now do identical work.
 
+**`fuzz_games` runs its games on a worker pool — ✅ 2026-08-24.** Games were already independent (every input is a pure function of `master_seed + game_num`), so this was a worker pool and nothing else: a shared atomic index, per-worker result vectors, and a sort back into game order before anything is printed or aggregated. `GameState`, `Game`, `RandomDecisionProvider` and `CardRegistry` were already `Send`, so no type changed. **Output is byte-identical at any `--threads` value** — that is the acceptance test, and `--threads 1` is kept as the serial reference. The formatted event-log snapshot is now built only when `--dump-events` asks for it; the serial harness formatted one per game and dropped it.
+
+**Which mode to use, and why the obvious answer is wrong.** 200 games / seed 12345, ten runs each:
+
+| Mode | wall/run | speedup | run-to-run CV |
+|---|---|---|---|
+| `--threads 1` | 17.8s | 1.0× | **2.4%** |
+| `--threads 8` | 3.5s | 5.0× | **6.1%** |
+| `--threads 16` | 2.7s | 6.7× | 4.8% (n=5) |
+
+- **Coverage — hunting panics and errors — wants threads.** 6.7×, and a pass/fail sweep has no precision requirement. This is where the harness's wall-clock time actually goes.
+- **Benchmarking wants `--threads 1`.** Threading inflates the CV from 2.4% to 6.1%, and matching a serial median-of-five's standard error would take ~32 threaded runs — *more* wall time than the five serial runs, not less. Contention noise is not a fixed offset that cancels in an A/B. (An n=5 sample said 8 threads was *tighter* than serial; ten runs said otherwise. Five samples is enough for a median, not for a variance.)
+
+**Do not cut the game count to save time.** Measured the same way: N=200 has a 2.1% run-to-run spread, N=100 has 4.3% and N=50 has 4.2% — halving the batch doubles the noise and buys 9 seconds, and the ±3% band stops being achievable at all. Absolute ms/turn is also not comparable across N (2.41 / 2.47 / 2.68 at 50 / 100 / 200), because a longer batch contains more of the long games whose boards are expensive. If a benchmark is taking too long, the lever is the *matrix* — fewer variants and rounds, and only benchmarking changes that touch the layer walk or a per-permanent sweep — not N.
+
+**A data point for the parallel-AI use case:** 6.7× on 16 logical cores, and per-game cost more than doubles under full load (89.8ms alone → 191.5ms with 16 in flight). The engine is contending for memory bandwidth, not cores — the layer walk allocates a `HashSet`/`Vec` per object per call. Expect sublinear scaling, and look at allocation pressure in `compute_characteristics` before adding workers.
+
 **The perf protocol is trustworthy again.** "200 games / seed 12345, back to back, ±3% band" now compares equal work, so avg-turns is a *check* rather than a variable: if two runs at the same seed report different turn counts, something reintroduced process state into a decision, and the perf reading is meaningless until it is found. Median-of-five ms/turn remains the better statistic, but for machine noise now, not for divergence.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
