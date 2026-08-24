@@ -364,10 +364,12 @@ fn drain_keyword_counters_before(
 /// registry holds no `SetController` row the seed *is* the answer and reading
 /// the field skips a whole sub-walk.
 ///
-/// It is worth ~4% on `fuzz_games`, not the 10x the first version of this
-/// comment implied — see `RegistryScopeSummary::any_control_changing` for the
-/// measured 2x2. `FilterPlayers`' laziness is what carries the ungated case, so
-/// Layer 2 turning this flag on costs +7% over baseline at worst.
+/// It was worth ~4% when `FilterPlayers::you()` was its only caller. The Layer 2
+/// phase put 20 more behind it and re-measured on boards where the flag is
+/// actually true: **+28%**, and the phase itself cost ~+4% rather than the +7%
+/// that was predicted. `RegistryScopeSummary::any_control_changing` carries the
+/// numbers, and the note on why the sharper per-object gate was built, measured
+/// and discarded.
 ///
 /// The ungated arm asks at `layer_index`, never at the full ceiling
 /// (`layers-architecture.md` §5.2) — that descent is the termination argument,

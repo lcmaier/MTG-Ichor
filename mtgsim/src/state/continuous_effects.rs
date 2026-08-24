@@ -44,33 +44,42 @@ pub struct RegistryScopeSummary {
     /// existence check and therefore for objects the filter rejects, unlike the
     /// existence check, which only runs for effects that already matched.
     ///
-    /// **How much the gate is worth, measured rather than assumed.** All four
-    /// combinations, interleaved, 200 games / seed 12345, against a 73.0
-    /// ms/game pre-refactor baseline:
+    /// **How much the gate is worth, re-measured on real Layer 2 boards.** The
+    /// pre-Layer-2 number was ~4%, from a board where this flag was never true
+    /// and turning the gate off only forced a walk that had no work to do. It
+    /// is now much larger, because the Layer 2 phase put 20 more call sites
+    /// behind it — including per-permanent sweeps (`legal_attackers`,
+    /// `available_mana_sources`, `activatable_abilities`, the untap step).
+    /// Interleaved, 200 games / seed 12345, with Act of Treason in the card
+    /// pool so the flag genuinely comes on:
     ///
-    /// | | gate on | gate off |
-    /// |---|---|---|
-    /// | lazy (shipped) | 74.8 | 78.1 |
-    /// | eager | 82.2 | 749 |
+    /// | | ms/game |
+    /// |---|---|
+    /// | shipped | 83.7 |
+    /// | gate forced always-on (i.e. no gate) | 107.2 |
     ///
-    /// The 749 belongs to **eager and ungated together**, not to the gate
-    /// alone — an earlier version of this comment attributed it to the gate and
-    /// implied Layer 2 would bring a 10x with it. It will not. `FilterPlayers`'
-    /// laziness is what makes the ungated column affordable, and the gate is
-    /// worth a further ~4% on top. When Layer 2 lands and this flag starts
-    /// coming on, the honest upper bound is the 78.1 cell: **+7% over
-    /// baseline**, and an upper bound at that, because the measurement forces
-    /// the walk on every board while the real flag is only true while a
-    /// `SetController` row is actually registered.
+    /// **+28%, not +4%.** The gate is now load-bearing rather than a trim.
     ///
-    /// If that 7% ever needs to go, the next move is a sharper gate rather than
-    /// a redesign: ask "could any `SetController` row apply to *this* source"
-    /// instead of "does one exist anywhere". Control-changing effects come from
-    /// resolutions over fixed target sets, so for `AffectedSet::{Fixed,
-    /// SourceOnly}` rows that is an exact membership test over a very short
-    /// list, and only a `Filter`-shaped `SetController` row forces the
-    /// conservative answer. Not built: it should be measured against real Layer
-    /// 2 boards, not against a hypothesis about them.
+    /// The phase's own cost is the other half of the story and it is small:
+    /// 79.7 → 83.1 ms/game against `main`, 9 interleaved rounds, of which
+    /// ~1.8% is the migration itself (measured with Act of Treason unregistered,
+    /// so the card pool matches) and the rest is the card being cast. That is
+    /// well inside the +7% upper bound this comment used to predict.
+    ///
+    /// **The sharper gate was built, measured, and thrown away.** The proposal
+    /// was to ask "could any `SetController` row apply to *this* object" rather
+    /// than "does one exist anywhere", which is exact for
+    /// `AffectedSet::{Fixed, SourceOnly}` — they list their members — and
+    /// conservative only for a `Filter`-shaped row. It works and it is not
+    /// hard. It is also not faster: 83.3 vs 82.6 ms/game over 5 interleaved
+    /// rounds, a gap smaller than the spread inside either column, and worse on
+    /// the median. The reason is that `ObjectId` is a v4 UUID, so the set probe
+    /// is a SipHash over 16 bytes paid at every migrated call site on every
+    /// board, to save on the rare board where a control effect exists — and
+    /// keeping the registry-wide bool as a first test to avoid that is just
+    /// this gate again. Do not rebuild it without a board that makes the
+    /// registry-wide flag true for a long time; the lever for that case is
+    /// `layers-architecture.md` §12's cross-call memoization.
     pub any_control_changing: bool,
 }
 
