@@ -655,7 +655,25 @@ What landed:
 
 **Do not cut the game count to save time.** Measured the same way: N=200 has a 2.1% run-to-run spread, N=100 has 4.3% and N=50 has 4.2% — halving the batch doubles the noise and buys 9 seconds, and the ±3% band stops being achievable at all. Absolute ms/turn is also not comparable across N (2.41 / 2.47 / 2.68 at 50 / 100 / 200), because a longer batch contains more of the long games whose boards are expensive. If a benchmark is taking too long, the lever is the *matrix* — fewer variants and rounds, and only benchmarking changes that touch the layer walk or a per-permanent sweep — not N.
 
-**A data point for the parallel-AI use case:** 6.7× on 16 logical cores, and per-game cost more than doubles under full load (89.8ms alone → 191.5ms with 16 in flight). The engine is contending for memory bandwidth, not cores — the layer walk allocates a `HashSet`/`Vec` per object per call. Expect sublinear scaling, and look at allocation pressure in `compute_characteristics` before adding workers.
+**A data point for the parallel-AI use case — and a correction.** The first version of this note said the engine "is contending for memory bandwidth, not cores." That was an inference from two data points, and a finer sweep does not support stating it as fact. Measured on a Ryzen 7 7700X (**8 physical cores, 16 logical**; ~15% background load from other applications at the time), 100 games / seed 12345, median of three:
+
+| workers | wall | speedup | efficiency | CPU/game | inflation |
+|---|---|---|---|---|---|
+| 1 | 7.47s | 1.00× | 100% | 74.5ms | 1.00× |
+| 2 | 4.15s | 1.80× | 90% | 82.4ms | 1.11× |
+| 4 | 2.16s | 3.46× | 86% | 85.2ms | 1.14× |
+| 6 | 1.67s | 4.47× | 75% | 94.7ms | 1.27× |
+| 8 | 1.42s | 5.26× | 66% | 102.7ms | 1.38× |
+| 12 | 1.24s | 6.02× | 50% | 123.9ms | 1.66× |
+| 16 | 1.12s | 6.67× | 42% | 146.6ms | 1.97× |
+
+What the *shape* says, as opposed to what one endpoint suggested:
+
+- **Per-game cost inflates from two workers onward** (1.11× at 2, where core contention cannot be the explanation) and climbs smoothly. That is a shared-resource signature, not a core-count one.
+- **It steepens past 8**, which is where logical processors stop being physical ones. "16 cores" is 8 cores plus SMT, and SMT siblings share execution units.
+- **Four candidate causes are not separated here:** all-core boost-clock reduction, shared L3 / memory bandwidth, allocator contention (the layer walk allocates a `HashSet`/`Vec` per object per call, and this is Windows' system allocator), and the background load of whatever else the machine is running. The cheap discriminator for the allocator is a `mimalloc`/`jemalloc` swap and a re-run of this table; it would cost the project its third dependency, so it is a decision rather than a task.
+
+**What to design against:** ~6.7× is the ceiling on this machine, **8 workers buys 79% of it**, and past the physical core count each doubling of workers returns ~25%. Default to physical cores or a little under, not logical, and treat worker count as a tuning knob rather than a constant. Determinism is unaffected by any of it — outcomes are identical at every worker count, verified.
 
 **The perf protocol is trustworthy again.** "200 games / seed 12345, back to back, ±3% band" now compares equal work, so avg-turns is a *check* rather than a variable: if two runs at the same seed report different turn counts, something reintroduced process state into a decision, and the perf reading is meaningless until it is found. Median-of-five ms/turn remains the better statistic, but for machine noise now, not for divergence.
 

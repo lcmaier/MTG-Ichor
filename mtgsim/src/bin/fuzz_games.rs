@@ -37,9 +37,11 @@
 //   threaded runs — which costs *more* wall time than the five serial ones.
 //   Contention noise is not a fixed offset that cancels in an A/B.
 //
-// The 6.7x-on-16-cores ceiling is itself a data point for the parallel-AI use
-// case: expect sublinear scaling, and look at allocation pressure in
-// `compute_characteristics` before adding workers.
+// Scaling is sublinear and worth knowing before sizing a worker pool: on an
+// 8-core/16-thread machine, 8 workers return 5.3x and 16 return 6.7x, and
+// per-game cost inflates from two workers onward. Default to physical cores
+// rather than logical ones. `codebase-state.md` carries the measured curve and
+// what is and is not established about the cause.
 
 use std::collections::HashMap;
 use std::panic;
