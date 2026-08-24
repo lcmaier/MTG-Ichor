@@ -31,7 +31,7 @@
 //! and Layer 4 intrinsics ("its old land types"). Layer 2 doesn't touch
 //! abilities. So there are no two buckets to tell apart.
 //!
-//! This is load-bearing. `layer_6_grant_survives_blood_moon` in
+//! This is load-bearing. `test_layer6_grant_survives_blood_moon_registered_first` in
 //! `tests/phase_ld_integration_test.rs` pins it: if anything ever seeds a
 //! granted ability into the frame before Layer 4, that test fails.
 //!

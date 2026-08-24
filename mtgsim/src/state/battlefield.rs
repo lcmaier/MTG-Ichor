@@ -46,9 +46,10 @@ pub struct BattlefieldEntity {
     /// The turn number when this permanent entered the battlefield.
     pub entered_battlefield_turn: u32,
     /// The turn number when the current controller gained control.
-    /// Used for summoning sickness: a creature has summoning sickness if
-    /// `controller_since_turn >= game.turn_number` (entered this turn).
-    /// Convention: 0 = pregame (rule 103.6 Leylines), so 0 >= 1 is false → not sick.
+    /// Used for summoning sickness (CR 302.6): sick if control was gained on or
+    /// after the turn the controller's most recent turn began — see
+    /// `oracle::characteristics::has_summoning_sickness`, which owns the
+    /// comparison. Convention: 0 = pregame (rule 103.6 Leylines).
     pub controller_since_turn: u32,
 
     // Creature-specific (only meaningful if the permanent is a creature)

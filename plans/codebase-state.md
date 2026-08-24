@@ -1,12 +1,13 @@
 # Codebase State — CR Coverage Map
 
-Ground-truth snapshot of CR coverage. Single source of truth — if another planning doc contradicts this, this wins. Last grounded-in-code audit: 2026-08-19.
+Ground-truth snapshot of CR coverage. Single source of truth — if another planning doc contradicts this, this wins. Last grounded-in-code audit: 2026-08-24.
 
 ---
 
 ## TL;DR
 
-- **Code size:** ~23,000 lines of Rust across 70 `.rs` files. 621 tests, 0 warnings, fuzz harness runs 250-game batches.
+- **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
+- **Code size:** ~26,900 lines of Rust across 75 `.rs` files. 628 tests, 0 warnings, fuzz harness runs 250-game batches.
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **replacement effects (CR 614–616)** beyond a stub hook, **triggered abilities (CR 603)** beyond an enum variant, CR 800 multiplayer priority/turn rotation.
@@ -125,7 +126,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
 | 601.2a | Announce spell / move to stack | ✅ | `engine/cast.rs` (780 lines) |
-| 601.2b | Choose modes / X / alt+additional costs | 🟡 X ✅, alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/cast.rs` |
+| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `Variable`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/cast.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/cast.rs:130–152`, `ui/ask.rs` |
 | 601.2d | Distribution (damage/counters among targets) | ❌ literal placeholder at `engine/cast.rs:154` (single-line comment, no code) | `engine/cast.rs` |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/cast.rs:175–182` |
@@ -165,7 +166,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 702.103 | **Bestow** | ❌ |
 | 702.X | Numerous keyword abilities (Bestow, Overload, Awaken, Emerge, etc.) | ❌ (these are the ~45 `NEW-*` atomic-tests) |
 | 703 | Turn-based actions | ✅ |
-| **704.5a–w** | **State-based actions** | ✅ 704.5a (life ≤0), 704.5b (empty library draw), 704.5c (poison ≥10), 704.5d (tokens in non-BF zones), 704.5f (0 toughness), 704.5g (lethal damage with indestructible + deathtouch), 704.5h (deathtouch), 704.5i (PW 0 loyalty), 704.5j (legend rule), 704.5m (Aura illegal host), 704.5n (Equipment/Fort on illegal permanent), 704.5p (creature/other attached catch-all), 704.5q (+1/+1 / -1/-1 annihilation). 704.5s (Saga), 704.5t (dungeon), 704.5v/w/x (battle) ❌. Commander damage ✅. | `engine/sba.rs` (1015 lines) |
+| **704.5a–w** | **State-based actions** | ✅ 704.5a (life ≤0), 704.5b (empty library draw), 704.5c (poison ≥10), 704.5d (tokens in non-BF zones), 704.5f (0 toughness), 704.5g (lethal damage with indestructible + deathtouch), 704.5h (deathtouch), 704.5i (PW 0 loyalty), 704.5j (legend rule), 704.5m (Aura illegal host), 704.5n (Equipment/Fort on illegal permanent), 704.5p 🟡 (the "attached to an illegal object" half; the *creature* clause is a TODO at `engine/sba.rs:323` — the sweep exempts every Aura/Equipment/Fortification without asking whether it is also a creature, and 704.5p's first sentence unattaches a creature regardless of what else it is. Unreachable: no enchantment animator, no attachable Equipment in the pool), 704.5q (+1/+1 / -1/-1 annihilation). 704.5s (Saga), 704.5t (dungeon), 704.5v/w/x (battle) ❌. Commander damage ✅. | `engine/sba.rs` (1015 lines) |
 | 705 | Flipping coins, rolling dice | ❌ |
 
 ### CR 8 — Multiplayer Rules
@@ -181,7 +182,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 810 | Two-Headed Giant | ❌ |
 | others | Grand Melee, Team vs Team, Emperor, Alternating Teams | ❌ |
 
-**Known multiplayer-shaped gaps in existing 2-player code:**
+**Known multiplayer-shaped gaps in existing 2-player code** — under the v1 redefinition this list is the design checklist for CR 800, not a backlog. The cheap way to buy multiplayer is to write CR 614 and CR 603 N-player-shaped as they land (CR 616.1's affected-player ordering and CR 603's APNAP queue both take a player set in the CR); retrofitting is the expensive path. CR 800.4 elimination is the piece most likely to be underestimated — a leaving player's permanents, stack objects, and effects each need specific resolution:
 - `engine/combat/validation.rs` assumes attacks go at "the defender" (single opponent).
 - Priority passes loop player0 → player1 → back; no general N-player priority-pass loop.
 - Targeting prompts don't enumerate 3+ players as target candidates in most paths (SPECIAL-8 blocker pre-filter doesn't need to, but spell targeting does).
@@ -227,6 +228,13 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
 3. **Event-emission audit for trigger observability.** Many actions emit `GameEvent`s directly via `self.events.emit(...)` bypassing `execute_action`. Before Replacement lands (and especially before Triggers), sanity-check that event emission happens *after* the replacement pipeline runs and reflects the final action taken, not the originally-proposed action.
 
+4. **Unresolved architecture fork — decide it at CR 614 kickoff, before the event work starts (recorded 2026-08-24).** Two live documents describe *different* trigger-detection architectures, and both sit inside their own authoritative slice:
+
+   - **`roadmap.md:284` + `design_doc.md` §8/§11 — a delta log.** `engine/delta_log.rs`, structured `GameDelta` entries emitted by every state mutation, "the canonical source of truth for trigger detection — NOT the diagnostic EventLog". **That file does not exist and nothing in `src/` mentions it.**
+   - **This document, item 3 above — the existing `GameEvent` stream**, audited for granularity/timing/context and dispatched from `engine/priority.rs:235`.
+
+   A session starting CR 603 from one document would build a different system than one starting from the other. Commit to one at 614 kickoff (the replacement phase's event work is where the choice bites) and strike the loser in writing: either strike `roadmap.md:284` and record the delta log as rejected with design_doc §8/§11's rationale answered, or rewrite item 3 as a delta-log design. The leaning is events — the emission points exist, item 1's zone-change chokepoint was built for interception, and the delta log's other stated jobs (loop detection, shortcut validation) are post-v1 — but this is an architecture call to make deliberately, not a default to drift into.
+
 ### Before Layers (CR 613) — now DURING Layers
 
 The layer system's designated single-point change site is `oracle/characteristics.rs`. Status as of 2026-08-19, after Phases LA–LD:
@@ -238,7 +246,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    - **Deliberately NOT migrated (6 sites):** `engine/zones.rs:144` (play a land from hand), `oracle/legality.rs:59` (playable lands in hand), `oracle/mana_helpers.rs` (×4 — castable spells in hand, instant/flash timing). These are cast-zone / play-from-hand legality, evaluated before the object is a permanent, so the layer system has nothing to contribute. Same exemption as `engine/cast.rs`. Each is tagged `// PRE-LAYER ZONE:` in source so a future grep audit doesn't re-flag it.
    - Regression coverage: `mtgsim/tests/layer_aware_queries_test.rs`, 5 tests. Verified to fail against the pre-fix tree and pass after.
 
-3. **Cost modification pipeline stub — ❌ still a passthrough.** `engine/costs.rs:255` `apply_cost_modifications` with `TODO(L15)`. Wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere.
+3. **Cost modification pipeline stub — ❌ still a passthrough. Promoted 2026-08-24: this is Commander-critical, not background debt.** `engine/costs.rs:255` `apply_cost_modifications` with `TODO(L15)`. Wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere — and **commander tax is a cost modification** (CR 903.8 / 601.2f / 613.11), so under the new v1 the Commander track runs through this stub.
 
    **Vocabulary gap this also owns.** Golden-Tail Trainer — "Aura and Equipment spells you cast cost {X} less to cast, where X is this creature's power" — is a static ability whose amount is read live. `AmountExpr` cannot say "this creature's power": `TargetPower` means the target of a resolving spell, and `Variable` is CR 107.3's X, chosen as a spell is cast. A `SourcePower`-style variant is needed, and the card is blocked on this item too, since cost modification is CR 613.11 / 601.2f rather than a characteristic change.
 
@@ -278,7 +286,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7c. **CR 613.6 "existence persists once started" — implemented, untested.** The `started` set in `apply_effects` keys on `EffectGroup`, so an effect that has begun applying keeps applying even if a later layer removes its ability. No test: every construction available today puts the strip in the *same* layer as the effect's first part, so the correct answer depends on 613.8 dependency ordering, and a test now would pin the timestamp-only answer that 613.8 must change. See item 8.
 
-7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, ~20 sites.** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
+7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, 16 sites (recounted 2026-08-24).** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
 
 7f. **Conditional static abilities are unmodeled.** `register_static_effects` handles `Effect::Atom` and `Effect::Sequence` and asserts on everything else, so `Effect::Conditional` — "as long as [X], this has [Y]" — registers nothing and now says so loudly. Wanted by a large class of real cards.
 
@@ -444,7 +452,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     Two tests fail if either half is reverted — restoring the `Err` arm, or reading `BattlefieldEntity.controller` instead of the effective one.
 
-15. **The corpus named a card that does not exist.** ATOM-613.1b-001's board said "Mind Snare". Scryfall 404s on both `cards/named?fuzzy=` and an exact-name search. The name was invented in `plans/archive/implementation-plan-final.md` §L17 ("{3}{U}{U} Instant, GainControl with WhileTargetOnBattlefield" — a re-costed Control Magic) and propagated into the corpus and into `roadmap.md` from there. Substituted Act of Treason, verbatim; the atom's claim is unchanged because its untap and haste clauses are inert for a P/T query. `plans/archive/*` and `roadmap.md` are historical per CLAUDE.md and were left alone; `cards-unlocked-ledger.md` was corrected.
+15. **The corpus named a card that does not exist.** ATOM-613.1b-001's board said "Mind Snare". Scryfall 404s on both `cards/named?fuzzy=` and an exact-name search. The name was invented in `plans/archive/implementation-plan-final.md` §L17 ("{3}{U}{U} Instant, GainControl with WhileTargetOnBattlefield" — a re-costed Control Magic) and propagated into the corpus and into `roadmap.md` from there. Substituted Act of Treason, verbatim; the atom's claim is unchanged because its untap and haste clauses are inert for a P/T query. `plans/archive/*` is historical per CLAUDE.md and was left alone; `cards-unlocked-ledger.md` was corrected, and the two live `roadmap.md` sites (the Tier 1 card list and Milestone 4's criterion) followed on 2026-08-24 — they sat inside the slice the staleness banner tells readers to trust, which is the one place a fake card can still mislead.
 
     **The general lesson is worth more than the fix.** The corpus is authored from a close read of the CR, but its *boards* were written against a plan document rather than against Scryfall, so a card name in an atom is not evidence the card exists. Verify before building to one.
 
@@ -500,6 +508,13 @@ Lightning Bolt literal in two files at once.
 
 ### Before card breadth (Phase 8)
 
+**Standing constraint until the CR 613.8 cluster lands (2026-08-24): author no
+dependency-ordering-sensitive cards.** Ordering inside a layer is timestamp-only, and
+item 8 lists the two known-wrong boards. Under the new v1 this is a real limit on the
+ledger rather than a formality — Phase 8 is where a Commander-viable pool arrives, and
+that pool is dense in interacting statics, which is why 613.8 is back-stopped to land
+first.
+
 1. **CR 208.3 — a noncreature permanent has no P/T.** "A noncreature permanent has no power or toughness, even if it's a card with a power and toughness printed on it (such as a Vehicle)." `get_effective_power`/`get_effective_toughness` return the printed numbers for an unanimated Vehicle. Pre-existing and unreachable today — no Vehicle is implemented — but visible now that those accessors are no longer gated on the battlefield (CDA phase, 2026-08-22). Fix belongs with the first Vehicle: gate on `chars.types.contains(Creature)` for battlefield objects only, since CR 208.3's *other* half deliberately keeps P/T on a card outside the battlefield.
 
 2. **"Any player may activate this ability" is unmodeled (CR 602.1a).** `engine/cast.rs::activate_ability` rejects any activation by a player who does not control the permanent. That is CR 602.1a's *default* — "the controller of an activated ability is the player who activated it", and only that permanent's controller may do so — but the rule is overridable by the ability's own text, and **41 printed cards override it**: Aether Storm ("Pay 4 life: Destroy this enchantment... Any player may activate this ability"), Excavation, Feral Hydra, Deadly Designs, Fan Favorite, Endbringer's Revel, Casey Jones, and 34 more (Scryfall `o:"any player may activate"`, 2026-08-23).
@@ -523,6 +538,16 @@ Lightning Bolt literal in two files at once.
    Nothing is lost to a catchall: CR 122.4 ("can't have more than N counters of a certain kind") and CR 122.7 ("when the Nth [kind] counter is put on") are both generic over *kind* and never need to know what a counter means.
 
    **Build it with the first card that needs a named counter, not before** — there is no consumer today, `CounterType::keyword_granted()` already returns `None` for anything unrecognized, and a representation with nothing to test against is what item 9 warns about.
+
+4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `BattlefieldEntity.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
+
+   Unreachable today — Equip is unimplemented and Auras attach only at ETB — but the day any reattachment path lands, every equip silently re-orders Layers 6 and 7. **Do these together:** reassign from the same monotonic counter (still deterministic — that is the point), restate the contract as "never reassigned *except by CR 613.7e*" in CLAUDE.md and in `battlefield_ordered`, and re-audit every site that reads `timestamp` as a proxy for ETB order. Caught by audit before it had a reproducer; the two before it were found by their reproducers.
+
+5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
+
+6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs:146`: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1c ignored. Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
+
+7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs:302`, `TODO` tagged T22 (with matching notes at :39 and :293). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
 
 ### Before Triggered abilities (CR 603)
 
@@ -548,6 +573,14 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 4. **Multiplayer priority rotation** (CR 800) — blocking for 3+ player Commander; not blocking for 2-player Commander.
 
 ### Cross-cutting — keep this section honest
+
+**~~Summoning sickness ended one turn early (CR 302.6).~~ — ✅ fixed 2026-08-24.** `has_summoning_sickness` compared `control_since_turn >= game.turn_number`, which asks "was control gained during the turn now being played" — the same answer as the CR only on the controller's own turn. A creature you cast on your turn went unsick as soon as the turn passed, one full turn early, and at four players three turns early. Reachable in the current pool: Citanul Hierophants grants "{T}: Add {G}", and instant-speed mana activation on an opponent's turn is an ordinary play.
+
+The comparison now runs against `GameState.last_turn_began[controller]` — a per-player record of when that player's most recent turn began, written only by the new `GameState::begin_turn`, because it cannot be derived from `turn_number` at more than two players or once extra turns exist. Two boundaries are carried by the "no turn yet" arm: the CR 103.6 pregame sentinel (`control_since_turn = 0`) stays unsick, and a permanent that arrives before its controller's first turn is sick until that turn begins. Five tests in `tests/phase_lg_integration_test.rs`, three of which fail against the pre-fix tree; `tests/determinism_test.rs` and the three-runs-one-seed fuzz check are unaffected.
+
+The stale doc comment was the audit's fourth overclaim of the sprint: it justified the old comparison as "the same answer as the CR's wording whenever turns alternate", and the divergent window *is* the alternating case.
+
+**Spec-database annotation backfill — owed before the next phase.** `specdb stats` reads 0% on five finished phases because only the Phase 5-Layers tests were ever annotated (69 `COVERS` lines in the whole suite); it is measuring the annotation boundary, not coverage. A 2026-08-24 sample of ten Phase 5-Pre / ALREADY-IMPL atoms found no case where a 0% phase concealed a gap the chapter map claims is done — every real gap in the sample was already an honest ❌/🟡 here. The backfill is mechanical, roughly a day, mostly `// COVERS:` lines over existing sba/mana/cast/zone tests, and `plans/atomic-tests/phase-5-pre-audit.md` already reconciled the shipped 5-Pre tickets against the code with file:line citations — consume it rather than redo it. Use `COVERS-PARTIAL` honestly; a false link is worse than a blank. Reason to spend the day: Phase 6 has 124 atoms and Phase 7 has 133, and a tool that reads 0% on finished work has no credibility left for the phases that need it.
 
 **`fuzz_games::random_deck` land population — ✅ partly fixed (2026-08-23); artifacts still missing.**
 

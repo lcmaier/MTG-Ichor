@@ -716,7 +716,14 @@ impl GameState {
                 // keywords, or layer 7 statics. Nothing to build against.
                 debug_assert!(
                     layer > Layer::Layer6Ability,
-                    "granted static ability generates a {:?} effect. A grant                      applies at layer 6, so the CR 613.7a existence check reads                      a pre-grant frame at any layer <= 6 and this effect will                      not apply. Layer 6 itself needs the board-wide sequential                      pass (codebase-state.md item 8 step 4); layers 1-5 have no                      CR mechanism and no known card.",
+                    concat!(
+                        "granted static ability generates a {:?} effect. A grant ",
+                        "applies at layer 6, so the CR 613.7a existence check ",
+                        "reads a pre-grant frame at any layer <= 6 and this ",
+                        "effect will not apply. Layer 6 itself needs the ",
+                        "board-wide sequential pass (codebase-state.md item 8 ",
+                        "step 4); layers 1-5 have no CR mechanism and no known card."
+                    ),
                     layer
                 );
 

@@ -70,7 +70,9 @@ DB_PATH = ROOT / "plans" / "atomic-tests" / "spec.sqlite"
 CR_DIR = ROOT / "MTG-Rules" / "versions"
 BASELINE_VERSION = "tmnt"
 
-# Phases on the critical path to v1, in the order they must land.
+# Phases on the critical path to v1, in the order they must land. CLAUDE.md's
+# "Critical path to v1" owns that ordering; this is a mirror for the corpus's
+# phase labels, and follows it rather than deciding anything.
 CRITICAL_PATH = ["Phase 5-Layers", "Phase 6", "Phase 7"]
 
 ENTRY_RE = re.compile(r"^\*\*((?:ATOM|BOUNDARY|COMP)-[^*]+)\*\*\s*$")

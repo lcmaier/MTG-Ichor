@@ -496,6 +496,8 @@ Summoning sickness is implemented. Currently as `summoning_sick: bool` flag (wil
 
 **Note:** T09 (controller_since_turn rework) refines the implementation but the behavior is already covered.
 
+**Corpus correction (2026-08-24, full-codebase audit):** "the behavior is already covered" was wrong, and this classification is why nobody looked. The implementation compared `control_since_turn >= game.turn_number` — "control gained during the turn being played" — which is the rule's answer only on the controller's own turn. A creature stopped being summoning-sick one turn early (three turns early at four players). Fixed 2026-08-24: the comparison now runs against the controller's own most recent turn start (`GameState.last_turn_began`), with the pregame sentinel and the no-turn-yet controller handled explicitly. Tests: `tests/phase_lg_integration_test.rs`, the "CR 302.6 — the window is the *controller's* turn" section. An ALREADY-IMPLEMENTED classification asserts that a rule has an implementation, not that the implementation is right.
+
 ---
 
 ### 302.7

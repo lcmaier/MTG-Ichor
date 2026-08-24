@@ -349,7 +349,7 @@ mod tests {
 
     fn setup_creature_on_turn(turn: u32, keywords: Vec<crate::types::keywords::KeywordFlag>) -> (GameState, crate::types::ids::ObjectId) {
         let mut game = GameState::new(2, 20);
-        game.turn_number = turn;
+        game.begin_turn(turn, 0);
         let mut builder = CardDataBuilder::new("Test Creature")
             .card_type(CardType::Creature)
             .power_toughness(2, 2);
@@ -390,7 +390,7 @@ mod tests {
     fn test_untap_cost_allowed_on_noncreature() {
         // Artifact (non-creature) with {Q} cost — no summoning sickness restriction
         let mut game = GameState::new(2, 20);
-        game.turn_number = 1;
+        game.begin_turn(1, 0);
         let data = CardDataBuilder::new("Test Artifact")
             .card_type(CardType::Artifact)
             .build();
@@ -410,8 +410,8 @@ mod tests {
     fn test_untap_cost_blocked_by_control_change() {
         // Creature entered on turn 1, control changes on turn 3 → sick again on turn 3
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
-        // Advance to turn 3 so creature is no longer sick from ETB
-        game.turn_number = 3;
+        // Advance to turn 3 — P0's next turn, so the creature is no longer sick
+        game.begin_turn(3, 0);
         // Simulate control change on turn 3
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
@@ -426,7 +426,7 @@ mod tests {
     fn test_untap_cost_allowed_control_change_haste() {
         // Creature with haste, control changes on turn 3 → haste bypasses
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
-        game.turn_number = 3;
+        game.begin_turn(3, 0);
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 

@@ -279,10 +279,15 @@ fn apply_effects(
         // Apply counter P/T in layer 7c (rule 613.4c).
         //
         // Not interleaved by timestamp the way layer 6's keyword counters are,
-        // and it does not need to be: every layer 7c effect is an addition to
-        // power and toughness, so the layer's result is order-independent. That
-        // is a property of the layer, not a shortcut — if a non-commutative 7c
-        // effect ever exists, this has to become a merge like the one above.
+        // and it does not need to be *yet*: every 7c modification this engine can
+        // express is an addition to power and toughness, so the layer's result is
+        // order-independent. That is a property of the current `EffectModification`
+        // vocabulary, not of the layer — CR 701.10a makes "double this creature's
+        // power" a 7c effect whose addend depends on what already applied, and 19
+        // printed cards say it. `AmountExpr` has no affected-power leaf, so the
+        // shape is inexpressible today; the first doubling card needs both that
+        // leaf and a timestamp merge like the one above (codebase-state.md,
+        // "Before card breadth").
         if layer == Layer::Layer7cModifyPT {
             if let Some(entry) = bf_entry {
                 let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
@@ -296,7 +301,8 @@ fn apply_effects(
                     if let Some(ref mut t) = chars.toughness { *t -= minus; }
                 }
                 // TODO: handle other P/T-modifying counter types (+2/+2, +0/+1, etc.)
-                // when they are added to CounterType.
+                // when they are added to CounterType. Scheduled with named counters
+                // — codebase-state.md, "Before card breadth" item 3.
             }
         }
     }
@@ -582,7 +588,13 @@ fn resolve_set_controller(
                 _ => {
                     debug_assert!(
                         false,
-                        "SetController(PlayerRef::Opponent) with {} players. Which                          opponent is a choice the effect's controller makes as it                          resolves, so the row should already carry                          PlayerRef::Player(..); reaching the layer walk means the                          lowering skipped it.",
+                        concat!(
+                            "SetController(PlayerRef::Opponent) with {} players. ",
+                            "Which opponent is a choice the effect's controller ",
+                            "makes as it resolves, so the row should already carry ",
+                            "PlayerRef::Player(..); reaching the layer walk means ",
+                            "the lowering skipped it."
+                        ),
                         game.num_players()
                     );
                     None

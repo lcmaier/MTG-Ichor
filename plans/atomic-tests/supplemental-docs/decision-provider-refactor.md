@@ -1,7 +1,8 @@
 # DecisionProvider Refactor: 4-Primitive Generic Trait
 
 > Date: 2026-04-13 (updated 2026-04-14)
-> Status: Approved design, pending implementation
+> Status: **Implemented.** SPECIAL-1a/b/c all shipped (April 2026); the 4-primitive trait
+> is what `ui/decision.rs` has today. Kept as the design record, not as a plan.
 > Tickets: SPECIAL-1a → SPECIAL-1b → SPECIAL-1c (3-way split)
 >   - SPECIAL-1a: types + trait + ask functions + ScriptedDP (Medium)
 >   - SPECIAL-1b: CLI, Random, Dispatch implementations (Small)

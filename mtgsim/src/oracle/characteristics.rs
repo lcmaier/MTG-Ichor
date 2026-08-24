@@ -69,12 +69,22 @@ pub fn controls(game: &GameState, id: ObjectId, player: PlayerId) -> bool {
 /// Both halves come from the layer frame, so a stolen creature is sick under its
 /// new controller with nothing written to the battlefield — see
 /// `EffectiveCharacteristics::control_since_turn` for why that has to be
-/// derived. `control_since_turn = 0` is the pregame sentinel (CR 103.6), so
-/// `0 >= 1` is false and a Leyline is not sick.
+/// derived.
 ///
-/// `>= game.turn_number` is "control was gained this turn", which is the same
-/// answer as the CR's wording whenever turns alternate. It predates Layer 2 and
-/// Layer 2 does not change it.
+/// **The comparison is against the controller's own last turn, not the turn
+/// being played.** Those agree on your turn and disagree on everyone else's:
+/// a creature you cast on your turn is still sick throughout each opponent's
+/// turn, and only your *next* turn beginning frees it. Comparing against
+/// `game.turn_number` freed it one turn early, which a creature holding a
+/// granted `{T}` ability could observe at instant speed (Citanul Hierophants).
+/// `turn_number - 1` would be the two-player shortcut for the same thing and is
+/// equally wrong at four; `last_turn_began` is per player for that reason.
+///
+/// Two boundary answers, both carried by the `None` arm:
+/// `control_since_turn = 0` is the pregame sentinel (CR 103.6), and a player
+/// who has not had a turn has the start of the game as their earliest reference
+/// point — so an opening-hand Leyline is not sick, while anything that arrived
+/// after the game began is, until its controller's first turn.
 ///
 /// **Known imprecision, unobservable.** When an `UntilEndOfTurn` steal expires,
 /// control was interrupted during the turn, so CR 302.6 makes the creature sick
@@ -88,11 +98,13 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     let Some(chars) = compute_characteristics(game, id) else {
         return false;
     };
-    if chars.control_since_turn >= game.turn_number {
-        !chars.keywords.contains(&KeywordFlag::Haste)
-    } else {
-        false
-    }
+    let sick = match game.most_recent_turn_began(chars.controller) {
+        // Control gained *during* that turn is not control since it began, so
+        // the same turn number is still sick.
+        Some(began) => chars.control_since_turn >= began,
+        None => chars.control_since_turn > 0,
+    };
+    sick && !chars.keywords.contains(&KeywordFlag::Haste)
 }
 
 /// Get the effective colors of a game object after applying Layer 5 effects.
@@ -120,8 +132,6 @@ pub fn get_effective_subtypes(game: &GameState, id: ObjectId) -> HashSet<Subtype
         .unwrap_or_default()
 }
 
-/// Get the effective supertypes of a game object after applying Layer 4 effects.
-/// Routes through the layer system — accounts for type-changing effects.
 /// Does this object have `card_type` after Layer 4 effects?
 ///
 /// Prefer this over `obj.card_data.types.contains(..)` for anything on the
@@ -156,6 +166,8 @@ pub fn has_permanent_type(game: &GameState, id: ObjectId) -> bool {
         .unwrap_or(false)
 }
 
+/// Get the effective supertypes of a game object after applying Layer 4 effects.
+/// Routes through the layer system — accounts for type-changing effects.
 pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Supertype> {
     compute_characteristics(game, id)
         .map(|chars| chars.supertypes)

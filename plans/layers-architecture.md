@@ -12,7 +12,9 @@
 - `atomic-tests/phase-index-phase-5-layers.md` — 178-row test index (scope grounding per slice).
 - `atomic-tests/pass0-dependency-map.md` §8 — cross-cutting architecture decisions.
 
-Last updated: 2026-04-18.
+Last updated: 2026-08-24. (§§5, 6, 8, 9, 10, 12, 13 and 15 carry their own later dates
+where a section was revised — the 2026-04-18 stamp this line used to carry sat above
+sections rewritten through August.)
 
 ---
 
@@ -556,9 +558,14 @@ compute_characteristics(game, object_id) -> EffectiveCharacteristics:
        for effect in ordered:
            apply(&mut frame, effect, object_id)
 
-       // Special case: Layer 7c orders non-counter modifiers before
-       // counter-derived modifiers, per CR 613.4c. Implemented inside
-       // resolve_order_within_layer by partitioning then concatenating.
+       // Layer 7c applies counter-derived modifiers after the registry slice.
+       // NOT "per CR 613.4c" — 613.4c only says what layer 7c *is*; order
+       // within a layer is CR 613.7 timestamps. The real justification is that
+       // every 7c modification this engine can express is an addition, so the
+       // layer's result is order-independent — a property of the current
+       // vocabulary, not of the layer. See codebase-state.md, "Before card
+       // breadth": CR 701.10a's "double its power" is a non-commutative 7c
+       // effect on 19 printed cards, and the first one needs a timestamp merge.
 
   4. return frame
 ```
@@ -722,6 +729,8 @@ Assignment (CR 613.7c–d):
 2. **On effect creation** — `ContinuousEffect.timestamp = game.next_timestamp();` at registration.
 3. **Re-timestamping on aura/equipment attachment** (CR 613.7e) — when an Aura moves from one creature to another (e.g., via Sun Titan returning it), the Aura's effect timestamp updates. Similarly when a permanent becomes an Aura/Equipment.
 
+   **⚠️ Designed here, not implemented (recorded 2026-08-24).** Nothing in `src/` reassigns `BattlefieldEntity.timestamp`, and CLAUDE.md now states "allocated once, never reassigned" as the *determinism* contract. Unreachable while Equip is unimplemented and Auras attach only at ETB; the day a reattachment path lands, this and the contract wording have to move together. Ledgered under `codebase-state.md` → "Before card breadth".
+
 Storage: `GameState.next_timestamp: Timestamp` — monotonic counter, never rewound. Saturation not a practical concern (u64).
 
 **APNAP tie-breaking:** CR 613.7d covers the case of *simultaneously-created* effects. We resolve this at assignment time rather than at sort time: when a batch of effects enters together (e.g., two triggered abilities that trigger from the same event), timestamps are assigned in APNAP order during the batch, so the active player's effects get strictly smaller timestamps than the non-active player's. After assignment, timestamps are unique integers and sorting is plain integer comparison. Subsequent controller changes do **not** re-break the tie — timestamps are frozen at assignment.
@@ -783,7 +792,7 @@ For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep
 
 | Source | When | Who calls `register_effect` |
 |---|---|---|
-| Static ability on a permanent | ETB | `engine/zones.rs::init_zone_state` (new hook: scan static abilities, register their effects) |
+| Static ability on a permanent | ETB | `GameState::place_on_battlefield` → `register_static_effects` (`state/game_state.rs`). The table used to name `engine/zones.rs::init_zone_state`; that hook was never where this landed. |
 | Resolving spell ("gets +2/+2 UEOT") | `resolve.rs` `ModifyPowerToughness` primitive | `engine/resolve.rs` |
 | Resolving activated ability with continuous effect | Same as above | Same |
 | Commander in command zone (emblem-like) | When put into command zone | `engine/zones.rs::move_object` (when destination is command zone + source is commander) |
@@ -893,6 +902,18 @@ This is the explicit correctness-first stance discussed in design review.
 ---
 
 ## 13. Work-Phase Plan
+
+> **Historical (annotated 2026-08-24). The phases below are not what shipped.** LC was
+> specified as "Layers 2, 5, 6 + dependency algorithm" and shipped Layer 5 alone; LD was
+> "Layers 1, 3, 4" and shipped Layer 4 (Parts A and B); Layer 6 became its own phase
+> (LF), CDAs became LE, Layer 2 became LG, and the CR 613.8 dependency algorithm has not
+> shipped at all — it is now scheduled after triggered abilities, with a back-stop before
+> card breadth (`CLAUDE.md` → "Critical path to v1").
+>
+> Kept rather than rewritten, for two reasons: the exit criteria and atomic-test targets
+> below are cited by other notes, and rewriting them here would fork planning authority
+> away from `codebase-state.md`, which owns what is actually done. **Read this section
+> for its exit criteria and its reasoning, never for status.**
 
 Each phase is a single bounded deliverable. Tests green at the end of each phase.
 

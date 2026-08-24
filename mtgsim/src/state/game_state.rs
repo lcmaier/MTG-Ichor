@@ -75,6 +75,13 @@ pub struct GameState {
 
     // --- Turn tracking ---
     pub turn_number: u32,
+    /// The turn number on which each player's most recent turn began, indexed
+    /// by `PlayerId`. `0` means that player has not had a turn yet.
+    ///
+    /// This is what CR 302.6 measures against, and it cannot be derived from
+    /// `turn_number` once there are more than two players — or once extra turns
+    /// exist — so it is recorded. Written only by [`GameState::begin_turn`].
+    pub last_turn_began: Vec<u32>,
     pub active_player: PlayerId,
     pub priority_player: PlayerId,
     pub phase: Phase,
@@ -241,6 +248,12 @@ impl GameState {
             exile: Vec::new(),
             command: Vec::new(),
             turn_number: 1,
+            // Turn 1 has begun for the starting player; nobody else has had one.
+            last_turn_began: {
+                let mut v = vec![0; num_players];
+                v[0] = 1;
+                v
+            },
             active_player: 0,
             priority_player: 0,
             phase: Phase::new(PhaseType::Beginning),
@@ -263,6 +276,27 @@ impl GameState {
     /// reproducible is the safer default, and it makes every test that shuffles
     /// deterministic without opting in.
     pub const DEFAULT_RNG_SEED: u64 = 0x4D54_4749_4348_4F52; // "MTGICHOR"
+
+    /// Begin turn `turn` with `player` as the active player, recording the turn
+    /// start that CR 302.6 measures against.
+    ///
+    /// The one writer of `last_turn_began`. A caller that assigns `turn_number`
+    /// on its own leaves the clock stale and every summoning-sickness question
+    /// answers against the wrong turn.
+    pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
+        self.turn_number = turn;
+        self.active_player = player;
+        self.last_turn_began[player] = turn;
+    }
+
+    /// The turn on which `player`'s most recent turn began, or `None` if they
+    /// have not had one yet.
+    pub fn most_recent_turn_began(&self, player: PlayerId) -> Option<u32> {
+        match self.last_turn_began.get(player) {
+            Some(0) | None => None,
+            Some(turn) => Some(*turn),
+        }
+    }
 
     /// Point the game's randomness at `seed`. Call before `Game::setup` —
     /// after it, the opening hands have already been dealt.
@@ -680,8 +714,10 @@ impl GameState {
     ///
     /// Returns several rows only for `ChangeType`, whose parts CR 613.6 sends
     /// to different layers while they stay one effect sharing a timestamp and
-    /// source. An empty `Vec` means the
-    /// primitive generates no continuous effect — it is not an error.
+    /// source. An empty `Vec` means the primitive generates no continuous
+    /// effect; whether that is an error is the caller's call, and both current
+    /// callers `debug_assert!` on it — a static ability that lowers to nothing
+    /// is a card that silently does nothing.
     pub(crate) fn static_primitive_rows(
         primitive: &crate::types::effects::Primitive,
     ) -> Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>
