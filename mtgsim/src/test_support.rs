@@ -30,7 +30,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::objects::object::GameObject;
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BattlefieldEntity, BlockingInfo};
 use crate::state::game_state::{GameState, Phase, PhaseType};
-use crate::types::card_types::{CardType, EnchantmentType, LandType, Subtype, Supertype};
+use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
@@ -261,6 +261,38 @@ pub fn set_blocking(game: &mut GameState, blocker: ObjectId, blocking: Vec<Objec
     if let Some(entry) = game.battlefield.get_mut(&blocker) {
         entry.blocking = Some(BlockingInfo { blocking });
     }
+}
+
+/// Attach `attachment` to `host`, writing both sides of the link.
+///
+/// Writes the state directly rather than replaying an Aura's ETB or an
+/// Equipment's equip ability, for the same reason the combat helpers write
+/// combat state directly: the tests that want this are asking what happens to
+/// an *already attached* permanent, and there is no equip ability to replay.
+///
+/// Both directions matter — `cleanup_zone_state` walks `attached_by` to detach
+/// a departing host, and SBA 704.5m/n reads `attached_to`. Writing one and not
+/// the other produces a board no real game can reach.
+pub fn attach(game: &mut GameState, attachment: ObjectId, host: ObjectId) {
+    if let Some(entry) = game.battlefield.get_mut(&attachment) {
+        entry.attached_to = Some(host);
+    }
+    if let Some(entry) = game.battlefield.get_mut(&host) {
+        entry.attached_by.push(attachment);
+    }
+}
+
+/// A `{1}` Equipment named `name`, with no equip ability and no granted bonus.
+///
+/// Equip (CR 702.6) is not implemented, and the control-independence tests do
+/// not need it: CR 301.5d is about whose permanent the Equipment *is*, which is
+/// a fact about the Equipment rather than about anything it grants.
+pub fn equipment(name: &str) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Artifact)
+        .subtype(Subtype::Artifact(ArtifactType::Equipment))
+        .mana_cost(ManaCost::build(&[], 1))
+        .build()
 }
 
 // ---------------------------------------------------------------------------
