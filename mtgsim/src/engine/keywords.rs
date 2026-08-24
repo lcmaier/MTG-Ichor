@@ -50,8 +50,9 @@ pub fn apply_lifelink(
     if !has_keyword(game, source, KeywordFlag::Lifelink) {
         return Ok(());
     }
-    if let Some(entry) = game.battlefield.get(&source) {
-        let controller = entry.controller;
+    // CR 702.15b gives the life to the source's controller — effective, so a
+    // stolen lifelinker gains life for the thief.
+    if let Some(controller) = crate::oracle::characteristics::get_effective_controller(game, source) {
         let old_life = game.get_player(controller)?.life_total;
         let p = game.get_player_mut(controller)?;
         p.life_total += amount as i64;

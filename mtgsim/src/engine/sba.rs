@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
-    get_effective_name, get_effective_toughness, has_keyword, has_subtype, has_supertype,
-    has_type, is_creature,
+    get_effective_controller, get_effective_name, get_effective_toughness, has_keyword,
+    has_subtype, has_supertype, has_type, is_creature,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
@@ -170,24 +170,29 @@ impl GameState {
             // is prompted once per group, so group order is decision order, and
             // `ids` is the option list they pick from by index.
             let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
-            for (id, entry) in self.battlefield_ordered() {
+            for (id, _entry) in self.battlefield_ordered() {
                 if self.objects.contains_key(&id) {
                     if has_supertype(self, id, Supertype::Legendary) {
                         let name = get_effective_name(self, id);
-                        legend_groups
-                            .entry((entry.controller, name))
-                            .or_default()
-                            .push(id);
+                        // CR 704.5j groups by controller, so it has to be the
+                        // effective one: taking an opponent's copy of a legend
+                        // you already control is what creates the conflict.
+                        let Some(controller) = get_effective_controller(self, id) else {
+                            continue;
+                        };
+                        legend_groups.entry((controller, name)).or_default().push(id);
                     }
                 }
             }
 
             // For each group with more than one, the controller chooses one to keep
             let mut to_remove: Vec<ObjectId> = Vec::new();
-            for ((_controller, name), ids) in &legend_groups {
+            for ((controller, name), ids) in &legend_groups {
                 if ids.len() > 1 {
-                    let controller = self.battlefield.get(&ids[0]).unwrap().controller;
-                    let keep = ask_choose_legend_to_keep(decisions, self, controller, name, ids);
+                    // The group key, not a re-read: the key is what put these
+                    // permanents together, so asking anyone else would prompt a
+                    // player who does not control them.
+                    let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
                     for &id in ids {
                         if id != keep {
                             to_remove.push(id);
@@ -229,9 +234,14 @@ impl GameState {
                             return Some(id);
                         }
                         // 704.5n: host doesn't match enchant filter
+                        // The enchant restriction is text on the Aura, so
+                        // CR 109.5 makes its "you" the Aura's controller — not
+                        // the enchanted creature's, which CR 303.4e keeps
+                        // separate.
                         if let Some(filter) = &obj.card_data.enchant_filter {
                             let candidate = ResolvedTarget::Object(host_id);
-                            if self.validate_selection(filter, &candidate).is_err() {
+                            let you = get_effective_controller(self, id)?;
+                            if self.validate_selection(filter, &candidate, you).is_err() {
                                 return Some(id);
                             }
                         }

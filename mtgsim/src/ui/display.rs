@@ -230,7 +230,7 @@ pub fn format_battlefield(game: &GameState, player_id: PlayerId) -> String {
     // order is the difference between "3" meaning the same permanent twice.
     let perms: Vec<ObjectId> = game.battlefield_ordered()
         .into_iter()
-        .filter(|(_, e)| e.controller == player_id)
+        .filter(|(id, _)| crate::oracle::characteristics::controls(game, *id, player_id))
         .map(|(id, _)| id)
         .collect();
 
@@ -293,8 +293,11 @@ pub fn format_stack(game: &GameState) -> String {
         .enumerate()
         .map(|(i, &id)| {
             let name = card_name(game, id);
-            let controller = game.stack_entries.get(&id)
-                .map(|e| format!(" (P{})", e.controller))
+            // Effective, so a commandeered spell displays under the player who
+            // will actually resolve it (CR 108.4 gives a spell a controller and
+            // Layer 2 can move it).
+            let controller = crate::oracle::characteristics::get_effective_controller(game, id)
+                .map(|pid| format!(" (P{})", pid))
                 .unwrap_or_default();
             let marker = if count == 1 {
                 " <- top/bottom"

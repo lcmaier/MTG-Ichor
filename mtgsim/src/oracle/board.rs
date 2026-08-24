@@ -6,7 +6,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 /// Get all object IDs on the battlefield controlled by a player.
 pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
     game.battlefield_ordered().into_iter()
-        .filter(|(_, entry)| entry.controller == player_id)
+        .filter(|(id, _)| crate::oracle::characteristics::controls(game, *id, player_id))
         .map(|(id, _)| id)
         .collect()
 }

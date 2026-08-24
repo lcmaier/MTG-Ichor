@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::oracle::characteristics::{has_keyword, is_creature};
+use crate::oracle::characteristics::{controls, has_keyword, is_creature};
 use crate::oracle::legality::can_attack;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
@@ -168,8 +168,8 @@ pub fn validate_attackers(
             return Err(CombatError::NotACreature(*creature_id));
         }
 
-        // 3. Must be controlled by the attacking player
-        if entry.controller != player_id {
+        // 3. Must be effectively controlled by the attacking player (CR 613.1b)
+        if !controls(game, *creature_id, player_id) {
             return Err(CombatError::NotControlledByPlayer(*creature_id, player_id));
         }
 
@@ -290,7 +290,7 @@ pub fn can_block(
     if !is_creature(game, blocker_id) {
         return Err(CombatError::NotACreature(blocker_id));
     }
-    if entry.controller != defender {
+    if !controls(game, blocker_id, defender) {
         return Err(CombatError::NotControlledByPlayer(blocker_id, defender));
     }
     if entry.tapped {

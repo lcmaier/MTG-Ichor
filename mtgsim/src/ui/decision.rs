@@ -196,9 +196,8 @@ pub fn is_action_still_valid(game: &GameState, player_id: PlayerId, action: &Pri
             // Permanent must still be on battlefield and controlled by player.
             // Note: we don't check tapped state here because some abilities
             // (e.g. sacrifice) don't require untapping.
-            game.battlefield.get(permanent_id)
-                .map(|e| e.controller == player_id)
-                .unwrap_or(false)
+            game.battlefield.contains_key(permanent_id)
+                && crate::oracle::characteristics::controls(game, *permanent_id, player_id)
         }
     }
 }

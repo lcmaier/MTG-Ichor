@@ -5,17 +5,22 @@ use crate::oracle::characteristics::{
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::effects::{PermanentFilter, EffectRecipient, SelectionFilter, TargetCount};
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, PlayerId};
 
 impl GameState {
     /// Validate that chosen targets are legal for the given EffectRecipient.
     ///
     /// Called at cast/activation time (rule 601.2c) and again at resolution
     /// time (rule 608.2b) to check if targets are still legal.
+    /// `you` is CR 109.5's "you" for any `ByController(PlayerRef::You)` node
+    /// inside the filter — "the controller of the object the ability is on",
+    /// which for a spell or activated ability being cast is the player casting
+    /// it, and for an Aura's enchant clause is the Aura's controller.
     pub fn validate_targets(
         &self,
         recipient: &EffectRecipient,
         targets: &[ResolvedTarget],
+        you: PlayerId,
     ) -> Result<(), String> {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::FilteredPermanents { .. } => {
@@ -36,7 +41,7 @@ impl GameState {
             | EffectRecipient::Choose(filter, count) => {
                 self.validate_target_count(count, targets.len())?;
                 for t in targets {
-                    self.validate_selection(filter, t)?;
+                    self.validate_selection(filter, t, you)?;
                 }
                 Ok(())
             }
@@ -69,16 +74,21 @@ impl GameState {
     }
 
     /// Validate a single selected object/player against a SelectionFilter.
+    ///
+    /// `you` resolves a `PermanentFilter::ByController(PlayerRef::You)` node
+    /// (CR 109.5). Only the `Permanent` arm can contain one; the others ignore
+    /// it.
     pub(crate) fn validate_selection(
         &self,
         filter: &SelectionFilter,
         target: &ResolvedTarget,
+        you: PlayerId,
     ) -> Result<(), String> {
         match filter {
             SelectionFilter::Creature => self.validate_creature_target(target),
             SelectionFilter::Player => self.validate_player_target(target),
             SelectionFilter::Any => self.validate_any_target(target),
-            SelectionFilter::Permanent(pf) => self.validate_permanent_target(target, pf),
+            SelectionFilter::Permanent(pf) => self.validate_permanent_target(target, pf, you),
             SelectionFilter::Spell => self.validate_spell_target(target),
         }
     }
@@ -145,11 +155,12 @@ impl GameState {
         &self,
         target: &ResolvedTarget,
         filter: &PermanentFilter,
+        you: PlayerId,
     ) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                if !self.permanent_matches_filter(*id, filter)? {
+                if !self.permanent_matches_filter(*id, filter, you)? {
                     return Err(format!(
                         "Target {} does not match permanent filter {:?}", id, filter
                     ));
@@ -185,11 +196,23 @@ impl GameState {
         Ok(())
     }
 
-    /// Check whether a permanent matches a PermanentFilter.
+    /// Check whether a permanent matches a `PermanentFilter`.
+    ///
+    /// Same question as `compute::permanent_matches_filter`, asked from outside
+    /// the layer walk: this one queries each characteristic by id (so every
+    /// read is still post-layers), while that one is handed a partially-applied
+    /// frame it must not re-enter. Both must agree — "Enchant creature you
+    /// control" has to mean the same thing to SBA 704.5n that it would mean to
+    /// a static ability.
+    ///
+    /// `you` resolves `PlayerRef::You`; `Owner` is the *selected* permanent's
+    /// owner, since a selection filter describes the selection rather than the
+    /// source.
     fn permanent_matches_filter(
         &self,
         id: ObjectId,
         filter: &PermanentFilter,
+        you: PlayerId,
     ) -> Result<bool, String> {
         let obj = self.get_object(id)?;
         match filter {
@@ -207,18 +230,20 @@ impl GameState {
                 Ok(get_effective_colors(self, obj.id).contains(color))
             }
             PermanentFilter::ByController(player_ref) => {
-                let entry = self.battlefield.get(&id)
-                    .ok_or_else(|| format!("Object {} not on battlefield", id))?;
-                match player_ref {
-                    crate::types::effects::PlayerRef::Player(pid) => {
-                        Ok(entry.controller == *pid)
+                use crate::types::effects::PlayerRef;
+                let Some(controller) =
+                    crate::oracle::characteristics::get_effective_controller(self, id)
+                else {
+                    return Err(format!("Object {} has no controller", id));
+                };
+                Ok(match player_ref {
+                    PlayerRef::You => controller == you,
+                    PlayerRef::Opponent => controller != you,
+                    PlayerRef::Player(pid) => controller == *pid,
+                    PlayerRef::Owner => {
+                        Some(controller) == self.objects.get(&id).map(|obj| obj.owner)
                     }
-                    // Other PlayerRef variants would need resolution context;
-                    // for now just match Player explicitly
-                    _ => Err(format!(
-                        "PlayerRef {:?} not supported in permanent filter validation", player_ref
-                    )),
-                }
+                })
             }
             PermanentFilter::PowerLE(max_power) => {
                 get_effective_power(self, id)
@@ -226,12 +251,12 @@ impl GameState {
                     .ok_or_else(|| format!("Object {} has no power", id))
             }
             PermanentFilter::And(a, b) => {
-                let matches_a = self.permanent_matches_filter(id, a)?;
-                let matches_b = self.permanent_matches_filter(id, b)?;
+                let matches_a = self.permanent_matches_filter(id, a, you)?;
+                let matches_b = self.permanent_matches_filter(id, b, you)?;
                 Ok(matches_a && matches_b)
             }
             PermanentFilter::Not(inner) => {
-                let matches = self.permanent_matches_filter(id, inner)?;
+                let matches = self.permanent_matches_filter(id, inner, you)?;
                 Ok(!matches)
             }
         }
@@ -244,6 +269,7 @@ impl GameState {
         &self,
         recipient: &EffectRecipient,
         targets: &[ResolvedTarget],
+        you: PlayerId,
     ) -> bool {
         match recipient {
             // Choose effects don't target — they never fizzle.
@@ -253,7 +279,7 @@ impl GameState {
             | EffectRecipient::FilteredPermanents { .. } => true,
             EffectRecipient::Target(_, _) => {
                 targets.iter().any(|t| {
-                    self.is_single_target_legal(recipient, t)
+                    self.is_single_target_legal(recipient, t, you)
                 })
             }
         }
@@ -269,6 +295,7 @@ impl GameState {
         &self,
         filter: &SelectionFilter,
         exclude_id: Option<ObjectId>,
+        you: PlayerId,
     ) -> bool {
         match filter {
             SelectionFilter::Player => {
@@ -284,7 +311,7 @@ impl GameState {
                     .filter(|&&id| Some(id) != exclude_id)
                     .any(|&id| {
                         let candidate = ResolvedTarget::Object(id);
-                        self.validate_selection(filter, &candidate).is_ok()
+                        self.validate_selection(filter, &candidate, you).is_ok()
                     })
             }
             SelectionFilter::Spell => {
@@ -296,7 +323,7 @@ impl GameState {
                 .filter(|&&id| Some(id) != exclude_id)
                 .any(|&id| {
                     let candidate = ResolvedTarget::Object(id);
-                    self.validate_selection(filter, &candidate).is_ok()
+                    self.validate_selection(filter, &candidate, you).is_ok()
                 }),
         }
     }
@@ -307,10 +334,11 @@ impl GameState {
         &self,
         recipient: &EffectRecipient,
         target: &ResolvedTarget,
+        you: PlayerId,
     ) -> bool {
         match recipient {
             EffectRecipient::Target(filter, _) => {
-                self.validate_selection(filter, target).is_ok()
+                self.validate_selection(filter, target, you).is_ok()
             }
             // Choose, Implicit, Controller — always "legal" (no fizzle).
             _ => true,
@@ -348,7 +376,7 @@ mod tests {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0).is_ok());
     }
 
     #[test]
@@ -359,7 +387,7 @@ mod tests {
             PermanentFilter::ByType(CardType::Land)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0).is_ok());
     }
 
     #[test]
@@ -370,7 +398,7 @@ mod tests {
             PermanentFilter::ByType(CardType::Creature)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0).is_err());
     }
 
     #[test]
@@ -378,7 +406,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(1)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0).is_ok());
     }
 
     #[test]
@@ -386,7 +414,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(5)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0).is_err());
     }
 
     #[test]
@@ -395,15 +423,15 @@ mod tests {
         let fake_id = crate::types::ids::new_object_id();
         let targets = vec![ResolvedTarget::Object(fake_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0).is_err());
     }
 
     #[test]
     fn test_validate_no_targets() {
         let game = GameState::new(2, 20);
         let spec = EffectRecipient::Implicit;
-        assert!(game.validate_targets(&spec, &[]).is_ok());
-        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)]).is_err());
+        assert!(game.validate_targets(&spec, &[], 0).is_ok());
+        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], 0).is_err());
     }
 
     #[test]
@@ -414,7 +442,7 @@ mod tests {
             ResolvedTarget::Object(land_id),
         ];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0).is_err());
     }
 
     #[test]
@@ -424,10 +452,10 @@ mod tests {
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1));
 
         // Target is legal while on battlefield
-        assert!(game.any_targets_still_legal(&spec, &targets));
+        assert!(game.any_targets_still_legal(&spec, &targets, 0));
 
         // Remove from battlefield — target is no longer legal
         game.battlefield.remove(&land_id);
-        assert!(!game.any_targets_still_legal(&spec, &targets));
+        assert!(!game.any_targets_still_legal(&spec, &targets, 0));
     }
 }

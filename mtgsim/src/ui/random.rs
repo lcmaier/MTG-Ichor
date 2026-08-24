@@ -191,8 +191,9 @@ impl DecisionProvider for RandomDecisionProvider {
                 .unwrap_or(0);
             // Count untapped lands as potential mana sources
             let untapped_lands: u64 = game.battlefield.iter()
-                .filter(|(_, e)| {
-                    e.controller == player && !e.tapped
+                .filter(|(id, e)| {
+                    !e.tapped
+                        && crate::oracle::characteristics::controls(game, **id, player)
                 })
                 .filter(|(id, _)| {
                     crate::oracle::characteristics::has_type(

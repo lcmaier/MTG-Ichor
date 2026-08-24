@@ -44,33 +44,15 @@ pub struct RegistryScopeSummary {
     /// existence check and therefore for objects the filter rejects, unlike the
     /// existence check, which only runs for effects that already matched.
     ///
-    /// **How much the gate is worth, measured rather than assumed.** All four
-    /// combinations, interleaved, 200 games / seed 12345, against a 73.0
-    /// ms/game pre-refactor baseline:
+    /// **Load-bearing, not a trim.** Forcing it off costs 83.7 → 107.2 ms/game
+    /// on `fuzz_games --games 200 --seed 12345` with a control-changing card in
+    /// the pool. It was worth ~4% when `FilterPlayers::you()` was its only
+    /// caller; the Layer 2 phase put 20 more behind it, several inside
+    /// per-permanent sweeps.
     ///
-    /// | | gate on | gate off |
-    /// |---|---|---|
-    /// | lazy (shipped) | 74.8 | 78.1 |
-    /// | eager | 82.2 | 749 |
-    ///
-    /// The 749 belongs to **eager and ungated together**, not to the gate
-    /// alone — an earlier version of this comment attributed it to the gate and
-    /// implied Layer 2 would bring a 10x with it. It will not. `FilterPlayers`'
-    /// laziness is what makes the ungated column affordable, and the gate is
-    /// worth a further ~4% on top. When Layer 2 lands and this flag starts
-    /// coming on, the honest upper bound is the 78.1 cell: **+7% over
-    /// baseline**, and an upper bound at that, because the measurement forces
-    /// the walk on every board while the real flag is only true while a
-    /// `SetController` row is actually registered.
-    ///
-    /// If that 7% ever needs to go, the next move is a sharper gate rather than
-    /// a redesign: ask "could any `SetController` row apply to *this* source"
-    /// instead of "does one exist anywhere". Control-changing effects come from
-    /// resolutions over fixed target sets, so for `AffectedSet::{Fixed,
-    /// SourceOnly}` rows that is an exact membership test over a very short
-    /// list, and only a `Filter`-shaped `SetController` row forces the
-    /// conservative answer. Not built: it should be measured against real Layer
-    /// 2 boards, not against a hypothesis about them.
+    /// A sharper per-object version was built and measured and is not faster.
+    /// `codebase-state.md` Deferred Migrations item 13 has the numbers and the
+    /// reason, so it does not get rebuilt on the same reasoning.
     pub any_control_changing: bool,
 }
 

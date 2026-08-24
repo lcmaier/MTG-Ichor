@@ -31,7 +31,17 @@ impl GameState {
         // the currently-resolving object. We handle the zone bookkeeping
         // manually below instead of going through move_object (which would try
         // to remove from the stack Vec a second time).
-        let object_id = self.stack.pop().unwrap();
+        let object_id = *self.stack.last().unwrap();
+
+        // Before the pop, deliberately: a spell's controller lives on its
+        // `StackEntry`, which the next two lines destroy. One value, used for
+        // both the resolution context and the permanent's controller as it
+        // enters (CR 110.2b). Note it is *not* used for the graveyard below —
+        // a finished spell goes to its owner's (CR 608.2m).
+        let controller = crate::oracle::characteristics::get_effective_controller(self, object_id)
+            .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
+
+        self.stack.pop();
         let entry = self.stack_entries.remove(&object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
@@ -39,7 +49,7 @@ impl GameState {
         let recipient = self.extract_recipient(&entry.effect);
         let has_targets = matches!(recipient, EffectRecipient::Target(_, _));
 
-        if has_targets && !self.any_targets_still_legal(&recipient, &entry.chosen_targets) {
+        if has_targets && !self.any_targets_still_legal(&recipient, &entry.chosen_targets, controller) {
             // All targets illegal — spell/ability fizzles (is countered by game rules)
             self.handle_fizzle(object_id, &entry)?;
             return Ok(());
@@ -48,7 +58,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            controller: entry.controller,
+            controller,
             targets: entry.chosen_targets.clone(),
         };
         self.resolve_effect(&entry.effect, &ctx, dp)?;
@@ -66,9 +76,10 @@ impl GameState {
                 // because move_object would try to remove from the stack Vec,
                 // but we already popped the object above. No re-push needed.
                 //
-                // Rule 110.2: the controller of the permanent is whoever
-                // controlled the spell on the stack when it resolved.
-                let controller = entry.controller;
+                // Rule 110.2b: the controller of the permanent is whoever
+                // controlled the spell on the stack when it resolved — read
+                // above, ahead of the pop, so a Layer 2 effect on the *spell*
+                // is honored (ATOM-110.2b-001).
                 let owner = self.get_object(object_id)?.owner;
 
                 // --- Enter the battlefield ---

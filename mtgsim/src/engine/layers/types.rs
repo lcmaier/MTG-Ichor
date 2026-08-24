@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::{Duration, PermanentFilter};
+use crate::types::effects::{Duration, PermanentFilter, PlayerRef};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
@@ -102,7 +102,12 @@ impl PtValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectModification {
     // --- Layer 2 ---
-    SetController(PlayerId),
+    /// CR 613.1b. A `PlayerRef` rather than a resolved `PlayerId`, for the
+    /// reason `AffectedSet::Filter` stores its filter unresolved: CR 109.5 makes
+    /// a static ability's "you" the *current* controller of the object it is on,
+    /// so an id captured at registration goes stale the moment the source
+    /// changes hands. `compute::resolve_set_controller` resolves it per walk.
+    SetController(PlayerRef),
 
     // --- Layer 4 ---
     AddType(CardType),
@@ -268,4 +273,14 @@ pub struct EffectiveCharacteristics {
     pub power: Option<i32>,
     pub toughness: Option<i32>,
     pub controller: PlayerId,
+    /// The turn `controller` took control (CR 302.6). **Computed, never stored:**
+    /// an `UntilEndOfTurn` steal reverts when its row leaves the registry, which
+    /// mutates nothing and fires no event, so there is no moment at which a
+    /// stored field could be put back.
+    ///
+    /// Seeded from `BattlefieldEntity.controller_since_turn`, which still owns
+    /// every control change that is not a Layer 2 effect. The Layer 2 arm
+    /// overwrites it only when the controller actually changes — gaining control
+    /// of your own permanent must not restart the clock.
+    pub control_since_turn: u32,
 }

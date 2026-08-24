@@ -6,7 +6,7 @@ use crate::events::event::DamageTarget;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, Primitive, EffectRecipient, SelectionFilter,
+    AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
 };
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::ui::decision::DecisionProvider;
@@ -501,6 +501,33 @@ impl GameState {
                 Ok(())
             }
 
+            // === Layer 2 — control-changing effects (CR 613.1b) ===
+
+            Primitive::GainControl(duration) => {
+                let target_ids = self.collect_permanent_or_spell_targets(ctx);
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+                let timestamp = self.allocate_timestamp();
+                self.continuous_effects.add(ContinuousEffect {
+                    id: 0,
+                    source: ctx.source,
+                    origin: EffectOrigin::Resolution,
+                    layer: Layer::Layer2Control,
+                    duration: *duration,
+                    controller: ctx.controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: AffectedSet::Fixed(target_ids),
+                    // `You` rather than `ctx.controller`, though they name the
+                    // same player: on a `Resolution` row, `FilterPlayers::you()`
+                    // reads `ContinuousEffect.controller`, which CR 611.2c
+                    // locked at resolution.
+                    modification: EffectModification::SetController(PlayerRef::You),
+                });
+                Ok(())
+            }
+
             // === Phase 3+ primitives — stubs ===
 
             Primitive::Exile
@@ -518,8 +545,7 @@ impl GameState {
             | Primitive::RemoveCounters(_, _)
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
-            | Primitive::Tap
-            | Primitive::GainControl(_) => {
+            | Primitive::Tap => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
         }
@@ -726,6 +752,28 @@ impl GameState {
             .collect()
     }
 
+    /// Resolved targets that are on the battlefield **or** the stack — CR
+    /// 108.4's "a card doesn't have a controller unless that card represents a
+    /// permanent or spell".
+    ///
+    /// The wider sibling of `collect_battlefield_targets`, and only Layer 2
+    /// wants it: every other continuous effect describes a characteristic a
+    /// permanent has, while control is the one thing a spell also has.
+    fn collect_permanent_or_spell_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
+        ctx.targets
+            .iter()
+            .filter_map(|t| match t {
+                ResolvedTarget::Object(id)
+                    if self.battlefield.contains_key(id)
+                        || self.stack_entries.contains_key(id) =>
+                {
+                    Some(*id)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     // --- Helper: evaluate AmountExpr ---
 
     fn evaluate_amount(
@@ -821,14 +869,19 @@ impl GameState {
         // Pre-check: is there at least one legal host?
         // Skip the DP prompt entirely if not — no point asking the player
         // to choose from an empty set.
-        if !self.has_any_legal_choice(&filter, Some(aura_id)) {
+        // CR 109.5: "you" on the Aura's enchant clause is the Aura's
+        // controller, which is what makes "Enchant creature you control" mean
+        // something different from "Enchant creature".
+        if !self.has_any_legal_choice(&filter, Some(aura_id), controller) {
             // No legal host exists. Aura stays unattached; 704.5m SBA
             // will put it into the graveyard.
             return Ok(false);
         }
 
         let recipient = EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(1));
-        let legal = crate::oracle::legality::enumerate_legal_selections(self, &filter, Some(aura_id));
+        let legal = crate::oracle::legality::enumerate_legal_selections(
+            self, &filter, Some(aura_id), controller,
+        );
         let choices = crate::ui::ask::ask_select_recipients(
             dp, self, controller, &recipient, aura_id,
             &legal, 1, 1,

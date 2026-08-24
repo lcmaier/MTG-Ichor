@@ -129,7 +129,7 @@ impl GameState {
 
         // --- 601.2c: Choose targets ---
         let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
-            let legal = enumerate_legal_selections(self, filter, Some(card_id));
+            let legal = enumerate_legal_selections(self, filter, Some(card_id), player_id);
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
                 crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
@@ -138,7 +138,7 @@ impl GameState {
                 decisions, self, player_id, &recipient, card_id,
                 &legal, min_sel, max_sel,
             );
-            if let Err(e) = self.validate_targets(&recipient, &chosen) {
+            if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
                 self.change_zone(card_id, Zone::Hand)?;
                 return Err(e);
             }
@@ -267,10 +267,24 @@ impl GameState {
     ) -> Result<(), String> {
         // Verify the source is on the battlefield and controlled by this player
         // (see doc comment for future zone-aware activation plan)
-        let entry = self.battlefield.get(&source_id)
-            .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
-        if entry.controller != player_id {
-            return Err("Can only activate abilities of permanents you control".to_string());
+        if !self.battlefield.contains_key(&source_id) {
+            return Err(format!("Permanent {} not on battlefield", source_id));
+        }
+        // CR 602.1a's *default*, not a universal rule: an activated ability is
+        // activated by the object's controller unless the ability says
+        // otherwise, and 41 printed cards say otherwise with "Any player may
+        // activate this ability" (Aether Storm, Excavation, Feral Hydra). That
+        // permission is unmodeled — `AbilityDef` has nowhere to record it — so
+        // this rejects an activation those cards would allow. Deferred
+        // Migrations, "Before card breadth".
+        //
+        // Effective controller, not the battlefield field, so a stolen
+        // permanent answers to whoever stole it (CR 613.1b).
+        if !crate::oracle::characteristics::controls(self, source_id, player_id) {
+            return Err(
+                "Only this permanent's controller can activate its abilities                  (CR 602.1a; \"any player may activate\" is not yet modeled)"
+                    .to_string(),
+            );
         }
 
         let card_data = self.get_object(source_id)?.card_data.clone();
@@ -308,7 +322,7 @@ impl GameState {
 
         // Choose targets
         let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
-            let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id));
+            let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id), player_id);
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
                 crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
@@ -317,7 +331,7 @@ impl GameState {
                 decisions, self, player_id, &recipient, ability_obj_id,
                 &legal, min_sel, max_sel,
             );
-            if let Err(e) = self.validate_targets(&recipient, &chosen) {
+            if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
                 self.rollback_ability_activation(ability_obj_id);
                 return Err(e);
             }

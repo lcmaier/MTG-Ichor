@@ -582,12 +582,13 @@ Layer 2: Control-changing effects are applied.
 
 **ATOM-613.1b-001**
 - **Rule:** 613.1b — Layer 2 control change before type/color/ability/PT
-- **Mechanism:** A control-changing effect (Mind Snare) changes controller; subsequent layers use the new controller for "you control" filters
-- **Minimal Board:** Player A controls Glorious Anthem ("Creatures you control get +1/+1"). Player B controls a 2/2 Bear. Player A casts Mind Snare on the Bear (gain control).
+- **Mechanism:** A control-changing effect (Act of Treason) changes controller; subsequent layers use the new controller for "you control" filters
+- **Minimal Board:** Player A controls Glorious Anthem ("Creatures you control get +1/+1"). Player B controls a 2/2 Bear. Player A casts Act of Treason on the Bear (gain control).
 - **Action:** Query the Bear's effective P/T.
 - **Expected Result:** Bear is 3/3. L2 changes controller to Player A first. Then L7c applies Anthem's +1/+1 because Player A now controls the Bear.
 - **Phase:** Phase 5 Layers (L11 — Layer 2 control)
 - **Ticket:** L11
+- **Corpus correction (2026-08-23, Layer 2 phase):** this atom named **"Mind Snare"**, which is **not a Magic card** — Scryfall 404s on both `cards/named?fuzzy=` and an exact-name search. The name was invented in `plans/archive/implementation-plan-final.md` (§L17 describes it as "{3}{U}{U} Instant, GainControl with WhileTargetOnBattlefield", i.e. a re-costed Control Magic) and propagated into the corpus from there. Substituted **Act of Treason**, verbatim: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn." Its untap and haste clauses are inert for a P/T query, so the atom's claim is unchanged. Act of Treason is also what ATOM-613.6-002 names, which is fine — one card, two atoms, different assertions.
 
 ### 613.1c — TESTABLE
 

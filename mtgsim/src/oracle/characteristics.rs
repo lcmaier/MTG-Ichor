@@ -9,7 +9,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, Subtype, Supertype};
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
 /// Check if a permanent has an effective keyword ability.
@@ -35,18 +35,61 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
         .unwrap_or(false)
 }
 
-/// Check if a permanent has summoning sickness.
-/// A permanent has summoning sickness if its controller gained control of it
-/// on the current turn (controller_since_turn >= turn_number) and it doesn't
-/// have haste. Convention: controller_since_turn = 0 is a pregame sentinel
-/// (rule 103.6), so 0 >= 1 is false → not sick.
+/// The effective controller of a game object after Layer 2 (CR 613.1b).
+///
+/// **Prefer this over `BattlefieldEntity.controller` for anything on the
+/// battlefield or the stack** — a stolen permanent otherwise keeps answering to
+/// the player who lost it, silently. Spells included: CR 108.4 gives one a
+/// controller too.
+///
+/// `None` only when `id` is not in the object store at all.
+///
+/// The gate makes this a single `HashMap` probe while no `SetController` row
+/// exists, which is what keeps the migrated per-permanent sweeps affordable;
+/// see `RegistryScopeSummary::any_control_changing` for why it is exact.
+pub fn get_effective_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
+    if !game.continuous_effects.summary().any_control_changing {
+        return crate::engine::layers::compute::base_controller(game, id);
+    }
+    compute_characteristics(game, id).map(|chars| chars.controller)
+}
+
+/// Does `player` control `id` right now? The predicate form of
+/// [`get_effective_controller`], which is how most call sites want it.
+pub fn controls(game: &GameState, id: ObjectId, player: PlayerId) -> bool {
+    get_effective_controller(game, id) == Some(player)
+}
+
+/// Check if a permanent has summoning sickness (CR 302.6).
+///
+/// > a creature's activated ability with the tap symbol [...] can't be
+/// > activated unless the creature has been under its controller's control
+/// > continuously since their most recent turn began.
+///
+/// Both halves come from the layer frame, so a stolen creature is sick under its
+/// new controller with nothing written to the battlefield — see
+/// `EffectiveCharacteristics::control_since_turn` for why that has to be
+/// derived. `control_since_turn = 0` is the pregame sentinel (CR 103.6), so
+/// `0 >= 1` is false and a Leyline is not sick.
+///
+/// `>= game.turn_number` is "control was gained this turn", which is the same
+/// answer as the CR's wording whenever turns alternate. It predates Layer 2 and
+/// Layer 2 does not change it.
+///
+/// **Known imprecision, unobservable.** When an `UntilEndOfTurn` steal expires,
+/// control was interrupted during the turn, so CR 302.6 makes the creature sick
+/// again for its original controller; we report it as not sick. The only window
+/// before that player's next turn begins is the cleanup step, where nobody gets
+/// priority (CR 514.3), so nothing can ever ask.
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
-    if let Some(entry) = game.battlefield.get(&id) {
-        if entry.controller_since_turn >= game.turn_number {
-            !has_keyword(game, id, KeywordFlag::Haste)
-        } else {
-            false
-        }
+    if !game.battlefield.contains_key(&id) {
+        return false;
+    }
+    let Some(chars) = compute_characteristics(game, id) else {
+        return false;
+    };
+    if chars.control_since_turn >= game.turn_number {
+        !chars.keywords.contains(&KeywordFlag::Haste)
     } else {
         false
     }

@@ -92,6 +92,7 @@ pub(super) fn compute_to_ceiling(
     let card = &obj.card_data;
 
     // Start from printed (base) characteristics
+    let chars_controller = base_controller(game, id).unwrap_or(obj.owner);
     let mut chars = EffectiveCharacteristics {
         name: card.name.clone(),
         mana_cost: card.mana_cost.clone(),
@@ -103,13 +104,17 @@ pub(super) fn compute_to_ceiling(
         abilities: card.abilities.clone(),
         power: card.power,
         toughness: card.toughness,
-        controller: obj.owner, // default; overridden by battlefield entry or L2 effects
+        controller: chars_controller,
+        // CR 302.6's "continuously since their most recent turn began". Seeded
+        // from the battlefield entry because that is what a control change
+        // *outside* Layer 2 writes (entering the battlefield, today the only
+        // one); Layer 2 overwrites it when it actually changes the controller.
+        control_since_turn: game
+            .battlefield
+            .get(&id)
+            .map(|entry| entry.controller_since_turn)
+            .unwrap_or(0),
     };
-
-    // If on the battlefield, use the actual controller from BattlefieldEntity
-    if let Some(entry) = game.battlefield.get(&id) {
-        chars.controller = entry.controller;
-    }
 
     // Walk layers in order, applying all effects (registered + counters)
     apply_effects(game, id, &mut chars, ceiling, cache);
@@ -260,7 +265,9 @@ fn apply_effects(
                         started.insert(effect.group());
                     }
                 }
-                apply_modification(&effect.modification, chars, id, game, layer_index, cache);
+                apply_modification(
+                    &effect.modification, chars, id, game, layer_index, cache, Some(effect),
+                );
             }
         }
 
@@ -357,10 +364,12 @@ fn drain_keyword_counters_before(
 /// registry holds no `SetController` row the seed *is* the answer and reading
 /// the field skips a whole sub-walk.
 ///
-/// It is worth ~4% on `fuzz_games`, not the 10x the first version of this
-/// comment implied — see `RegistryScopeSummary::any_control_changing` for the
-/// measured 2x2. `FilterPlayers`' laziness is what carries the ungated case, so
-/// Layer 2 turning this flag on costs +7% over baseline at worst.
+/// It was worth ~4% when `FilterPlayers::you()` was its only caller. The Layer 2
+/// phase put 20 more behind it and re-measured on boards where the flag is
+/// actually true: **+28%**, and the phase itself cost ~+4% rather than the +7%
+/// that was predicted. `RegistryScopeSummary::any_control_changing` carries the
+/// numbers, and the note on why the sharper per-object gate was built, measured
+/// and discarded.
 ///
 /// The ungated arm asks at `layer_index`, never at the full ceiling
 /// (`layers-architecture.md` §5.2) — that descent is the termination argument,
@@ -372,16 +381,31 @@ fn effective_controller(
     cache: &mut FrameCache,
 ) -> Option<PlayerId> {
     if !game.continuous_effects.summary().any_control_changing {
-        // Mirrors `compute_to_ceiling`'s seed exactly: owner by default, the
-        // battlefield entry's controller when there is one (CR 110.2).
-        // Battlefield first, so the common case is one probe rather than two —
-        // a permanent's entry existing already implies the object does.
-        if let Some(entry) = game.battlefield.get(&id) {
-            return Some(entry.controller);
-        }
-        return game.objects.get(&id).map(|obj| obj.owner);
+        return base_controller(game, id);
     }
     compute_to_ceiling(game, id, layer_index, cache).map(|frame| frame.controller)
+}
+
+/// The controller an object has before Layer 2 touches it — CR 110.2's default.
+///
+/// The arms are CR 108.4's sentence in order: a permanent reads
+/// `BattlefieldEntity`, a spell reads its `StackEntry`, and a card in a hand or
+/// graveyard has no controller at all — owner is what this reports for it,
+/// because `EffectiveCharacteristics.controller` is not an `Option`.
+///
+/// **The single definition of the pre-Layer-2 seed.** Both
+/// `any_control_changing` gates return this instead of walking, and they are
+/// only exact while they and `compute_to_ceiling`'s seed agree — which they
+/// used to do by having the same body written out three times.
+pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
+    // Battlefield first, so the common case is one probe rather than three.
+    if let Some(entry) = game.battlefield.get(&id) {
+        return Some(entry.controller);
+    }
+    if let Some(entry) = game.stack_entries.get(&id) {
+        return Some(entry.controller);
+    }
+    game.objects.get(&id).map(|obj| obj.owner)
 }
 
 /// The players a continuous effect's `PermanentFilter` can name — resolved
@@ -486,6 +510,85 @@ impl FilterPlayers<'_, '_> {
             .unwrap_or(self.effect.controller);
         self.owner = Some(owner);
         owner
+    }
+}
+
+/// Resolve a Layer 2 `SetController`'s `PlayerRef` to the player who ends up
+/// controlling `object_id` (CR 613.1b).
+///
+/// `You` routes through the same `FilterPlayers` a filter's `ByController`
+/// uses, so CR 109.5 and CR 611.2c have one implementation between them.
+///
+/// `Owner` is the owner of the object being *moved*, not of the effect's
+/// source. Homeward Path's "each player gains control of all creatures they
+/// own" hands each creature to its own owner, which is the opposite of what the
+/// same variant means inside a `PermanentFilter`, where it describes the source.
+///
+/// # Which player identities may stay symbolic in a row
+///
+/// The walk is a pure read: it cannot prompt, and it runs many times per game
+/// state. So a `PlayerRef` survives into the registry only when it must be
+/// **re-derived** on every walk — `You`, because CR 109.5 makes a static
+/// ability's "you" the source's *current* controller, and `Owner`, which is
+/// fixed but free to recompute (CR 108.3).
+///
+/// Everything else is settled **when the effect is created** and stored as
+/// `Player(pid)`. That covers every card whose new controller is chosen or
+/// computed rather than named:
+///
+/// - "An opponent gains control" (Akroan Horse, Fateful Handoff, Rainbow Vale
+///   — 9 cards) does not target, and its ruling is explicit that in a
+///   multiplayer game *you choose the opponent as the ability resolves*.
+/// - "That player gains control" (Risky Move), "choose a player at random"
+///   (Scrambleverse), an auction winner (Illicit Auction) — all resolution-time
+///   computations over game state.
+///
+/// None of those need a new `PlayerRef` variant, and none are boxed out by this
+/// function; they need the *lowering* to make the choice, which is the piece
+/// that does not exist yet (`codebase-state.md` item 13).
+///
+/// `Opponent` therefore resolves here only in a two-player game, where CR 102.2
+/// leaves nothing to choose. Above two players it means the resolution step
+/// skipped a choice it owed, so it asserts rather than inventing one.
+fn resolve_set_controller(
+    player_ref: &crate::types::effects::PlayerRef,
+    object_id: ObjectId,
+    effect: &ContinuousEffect,
+    game: &GameState,
+    layer_index: usize,
+    cache: &mut FrameCache,
+) -> Option<PlayerId> {
+    use crate::types::effects::PlayerRef;
+
+    let mut players = FilterPlayers {
+        effect,
+        game,
+        layer_index,
+        cache,
+        you: None,
+        owner: None,
+    };
+
+    match player_ref {
+        PlayerRef::You => Some(players.you()),
+        PlayerRef::Player(pid) => Some(*pid),
+        PlayerRef::Owner => game.objects.get(&object_id).map(|obj| obj.owner),
+        PlayerRef::Opponent => {
+            let you = players.you();
+            let mut opponents = (0..game.num_players()).filter(|&pid| pid != you);
+            match (opponents.next(), opponents.next()) {
+                // CR 102.2 — exactly one opponent, so nothing was ever chosen.
+                (Some(only), None) => Some(only),
+                _ => {
+                    debug_assert!(
+                        false,
+                        "SetController(PlayerRef::Opponent) with {} players. Which                          opponent is a choice the effect's controller makes as it                          resolves, so the row should already carry                          PlayerRef::Player(..); reaching the layer walk means the                          lowering skipped it.",
+                        game.num_players()
+                    );
+                    None
+                }
+            }
+        }
     }
 }
 
@@ -663,6 +766,17 @@ fn evaluate_amount(
 /// `object_id` is the object being computed. Layer 4's subtype arms need it to
 /// derive stable ids for intrinsic mana abilities (CR 305.6) — see
 /// `land_types::intrinsic_mana_ability`.
+/// `origin` is the registry row this modification came from, or `None` for an
+/// intrinsic CDA application (`layers::cda`), which has no row.
+///
+/// Only `SetController` reads it, because it is the only modification that does
+/// not carry its own answer. `AddType(Creature)` says what to do; "the
+/// controller becomes *you*" does not say who "you" is, and CR 109.5 answers
+/// that from the ability's source and the row's origin. The row also supplies
+/// `created_on_turn`, which is when the new controller's CR 302.6 clock starts.
+///
+/// CDAs never reach that arm — CR 613.4a lists 7a as their only P/T sublayer
+/// and none live in Layer 2 — so it asserts instead of guessing.
 pub(super) fn apply_modification(
     modification: &EffectModification,
     chars: &mut EffectiveCharacteristics,
@@ -670,11 +784,34 @@ pub(super) fn apply_modification(
     game: &GameState,
     layer_index: usize,
     cache: &mut FrameCache,
+    origin: Option<&ContinuousEffect>,
 ) {
     match modification {
         // Layer 2
-        EffectModification::SetController(pid) => {
-            chars.controller = *pid;
+        EffectModification::SetController(player_ref) => {
+            let Some(effect) = origin else {
+                debug_assert!(
+                    false,
+                    "SetController reached `apply_modification` with no registry                      row. CR 613.4a puts no characteristic-defining ability in                      Layer 2, so the only caller that passes `None` cannot                      produce this modification."
+                );
+                return;
+            };
+            let Some(new_controller) =
+                resolve_set_controller(player_ref, object_id, effect, game, layer_index, cache)
+            else {
+                return;
+            };
+            // CR 302.6 asks whether control has been *continuous*, so the clock
+            // only restarts when control actually moves. Act of Treason legally
+            // targets a creature you already control; gaining control of
+            // something you control changes nothing, and resetting the epoch
+            // here would invent summoning sickness the CR does not give. (Act
+            // of Treason grants haste, so it would hide the bug; a card that
+            // gains control without haste would not.)
+            if chars.controller != new_controller {
+                chars.controller = new_controller;
+                chars.control_since_turn = effect.created_on_turn;
+            }
         }
 
         // Layer 4

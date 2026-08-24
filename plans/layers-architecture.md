@@ -123,6 +123,9 @@ pub struct EffectiveCharacteristics {
 
     // --- Control (layer 2) ---
     pub controller: PlayerId,
+    /// The turn `controller` took control (CR 302.6). See the Layer 2
+    /// amendment below.
+    pub control_since_turn: u32,
 
     // --- Planeswalker/Battle ---
     pub loyalty: Option<u32>,
@@ -141,6 +144,10 @@ pub struct EffectiveCharacteristics {
     pub face_down: bool,
 }
 ```
+
+**Amendment (2026-08-23, Layer 2 phase) — `control_since_turn`.** CR 302.6 asks whether a creature has been under its controller's control "continuously since their most recent turn began", so the answer to "who controls this" is only half of what summoning sickness needs. `BattlefieldEntity.controller_since_turn` cannot supply the other half once Layer 2 exists: control from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation to hang a field update on and no event to hook. Computing it beside the controller it describes is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry.
+
+The battlefield field survives as the seed, and still owns every control change that is not a Layer 2 effect (entering the battlefield, today the only one). The Layer 2 arm of `apply_modification` overwrites it **only when the controller actually changes**: CR 302.6 asks whether control was *continuous*, and gaining control of a permanent you already control is not a change.
 
 ### 3.3 `ContinuousEffect`
 
@@ -238,7 +245,9 @@ pub enum AffectedSet {
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
 - `PlayerRef::Opponent` is matched as a predicate, `controller != you`, not resolved to an id: CR 102.2 gives one opponent in a two-player game but CR 102.3 gives a set in multiplayer, and the predicate is correct for both.
 
-Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); the gate is a further ~4%. Layer 2 turning the gate on should therefore cost about +7%, not a 10x. Full 2x2 and the sharper-gate option in `codebase-state.md` Deferred Migrations item 11.
+Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
+
+**Updated by the Layer 2 phase (2026-08-23).** That phase put 20 more call sites behind the same gate, so it is no longer a trim: forcing it off now costs 83.7 → 107.2 ms/game, **+28%**. The phase itself cost +4%, under the +7% this section predicted. The per-object "sharper gate" the prediction offered as a fallback was built, measured and discarded — it is not faster, because `ObjectId` is a UUID and the set probe costs a SipHash on every board to save on the rare one. Numbers and the discard argument are on `RegistryScopeSummary::any_control_changing`; the remaining lever is §12's cross-call memoization.
 
 ### 3.5 `EffectModification` + `CharacteristicCategory`
 
@@ -264,7 +273,7 @@ pub enum EffectModification {
     CopyFrom { copiable: CopiableValues },
 
     // --- Layer 2 ---
-    SetController(PlayerId),
+    SetController(PlayerRef),
 
     // --- Layer 3 ---
     SetText(String),
@@ -347,6 +356,17 @@ impl Layer {
     pub fn category(self) -> CharacteristicCategory { ... }
 }
 ```
+
+**Amendment (2026-08-23, Layer 2 phase) — `SetController` carries a `PlayerRef`, not a `PlayerId`.** Same correction §3.4 records for `AffectedSet::Filter`, and for the same rule. CR 109.5 makes a static ability's "you" the *current* controller of the object it is on, so a resolved id stored at registration is a snapshot — Mind Control's "You control enchanted creature" has to follow the Aura when the Aura itself changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so `EffectOrigin::StaticAbility` asks the source and `EffectOrigin::Resolution` reads `ContinuousEffect.controller`, which CR 611.2c locked when the spell resolved.
+
+It also keeps `GameState::static_primitive_rows` a pure map from primitive to rows. That table has no game, no source and no controller, so a `PlayerId` here would have forced `Primitive::GainControl` to stay in the catch-all arm the loud-lowering work exists to empty.
+
+Two per-variant decisions, both deliberate:
+
+- **`Owner` means something different here than in a filter.** In `PermanentFilter::ByController` the `PlayerRef` describes the *source*; in `SetController` it describes the object being moved. Homeward Path's "each player gains control of all creatures they own" hands each creature to *its own* owner, so routing this through `FilterPlayers::owner()` would give every creature to whoever controls the Path.
+- **`Opponent` resolves only in a two-player game**, where CR 102.2 leaves nothing to choose. Above two players it asserts — not because the case is unmodelable, but because it belongs to a different step: "an opponent gains control" does not target, and its ruling (Akroan Horse) is that *you choose the opponent as the ability resolves*. Any identity that is chosen or computed — a random player (Scrambleverse), a per-player trigger's "that player" (Risky Move), an auction winner (Illicit Auction) — is settled at resolution and stored as `Player(pid)`. Only `You` and `Owner` stay symbolic, because only they must be re-derived on every walk. `codebase-state.md` item 13 has the card breadth and the lowering gap that follows.
+
+`apply_modification` gained an `origin: Option<&ContinuousEffect>` parameter to carry the row this needs. `layers::cda` passes `None`: CR 613.4a admits no characteristic-defining ability in Layer 2 (7a is the only sublayer it lists), so the arm is unreachable from the intrinsic pass and asserts rather than guessing.
 
 ### 3.5a Handling CR 305.7 (Blood Moon semantics)
 
@@ -927,6 +947,8 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 **Scope:**
 
 1. Implement Layer 2 (Control). `SetController` effect. Updates `BattlefieldEntity.controller` via compute + a sync step (or reads through compute directly — decide in PR).
+
+   **Decided 2026-08-23: reads through compute, no sync step.** A sync step would have to run somewhere, and there is nowhere for it: a `Duration::UntilEndOfTurn` control effect expires at cleanup by being dropped from the registry, which fires no event and mutates nothing, so a synced field would silently keep the stale controller. The battlefield field stays as CR 110.2's *default* controller — the value the frame seeds from — and 20 call sites moved to `oracle::characteristics::get_effective_controller`. This is also the answer for `control_since_turn`; see the §3.2 amendment.
 2. Implement Layer 5 (Color). `AddColor`, `SetColors`, `RemoveAllColors`.
 3. Implement Layer 6 (Ability add/remove). `GrantKeyword` / `GrantAbility` / `LoseAllAbilities`.
 4. Implement the hybrid dependency algorithm (§9). Standalone `dependency.rs` module with unit tests on synthetic effects.

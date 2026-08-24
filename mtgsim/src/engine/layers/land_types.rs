@@ -238,6 +238,7 @@ mod tests {
             power: None,
             toughness: None,
             controller: 0,
+            control_since_turn: 0,
         }
     }
 

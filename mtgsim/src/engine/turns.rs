@@ -1,4 +1,5 @@
 use crate::state::game_state::{GameState, Phase, PhaseType, StepType, next_step, next_phase};
+use crate::types::ids::ObjectId;
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 
 /// Turn structure engine.
@@ -167,9 +168,19 @@ impl GameState {
         let player = self.get_player_mut(active)?;
         player.reset_lands_played();
 
-        // Untap permanents controlled by the active player
-        for (_id, entry) in &mut self.battlefield {
-            if entry.controller == active {
+        // Untap permanents the active player *effectively* controls (CR 502.1).
+        //
+        // Two passes because the predicate is a `&self` layer query and the
+        // untap is a `&mut self` write. Unordered iteration is fine: untapping
+        // every match is order-irrelevant, so this sweep reaches no decision.
+        let to_untap: Vec<ObjectId> = self
+            .battlefield
+            .keys()
+            .copied()
+            .filter(|&id| crate::oracle::characteristics::controls(self, id, active))
+            .collect();
+        for id in to_untap {
+            if let Some(entry) = self.battlefield.get_mut(&id) {
                 entry.tapped = false;
             }
         }
