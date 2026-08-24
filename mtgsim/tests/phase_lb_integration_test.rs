@@ -7,6 +7,7 @@
 
 use mtgsim::cards::alpha;
 use mtgsim::cards::creatures;
+use mtgsim::cards::utility_creatures;
 use mtgsim::cards::phase5_pre_cards;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
@@ -16,7 +17,9 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{
+    fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_two_player_game,
+};
 
 // ---------------------------------------------------------------------------
 // Test 1: Giant Growth gives +3/+3 until end of turn
@@ -690,4 +693,80 @@ fn test_layer_effects_expire_at_cleanup() {
     assert_eq!(game.continuous_effects.len(), 0);
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: Merfolk Thaumaturgist — Layer 7d from a registered permanent
+//
+// `inside_out` above proves the *primitive*; it can never prove the pool,
+// because its printed cost is hybrid ({1}{U/R}) and it is therefore a fixture
+// that will not be registered. The Thaumaturgist is the registered 7d source,
+// and it reaches the layer through the activated-ability path rather than a
+// spell — the first `AbilityType::Activated` ability in `CardRegistry`, so
+// `run_priority_round`'s ActivateAbility arm gets its first pool-level test
+// here too.
+// ---------------------------------------------------------------------------
+
+// COVERS-PARTIAL: ATOM-613.4d-001
+//
+// Partial: the atom's board is a switch on a creature, which
+// test_inside_out_switches_pt builds exactly. This one differs in how the
+// effect is created (activated ability, tap cost) rather than in what 7d does.
+#[test]
+fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
+    let mut game = setup_two_player_game();
+
+    // Placed before the Thaumaturgist so it holds the earlier timestamp and is
+    // therefore index 0 in the target list — `battlefield_ordered` is what the
+    // DP picks by, and the ordering is the point of that guarantee.
+    let elemental = put_on_battlefield(&mut game, creatures::earth_elemental(), 0);
+    let thaumaturgist =
+        put_on_battlefield(&mut game, utility_creatures::merfolk_thaumaturgist(), 0);
+
+    assert_eq!(get_effective_power(&game, elemental), Some(4));
+    assert_eq!(get_effective_toughness(&game, elemental), Some(5));
+
+    let decisions = ScriptedDecisionProvider::new();
+
+    // [0] Pass, [1] activate the Thaumaturgist — nothing else on this board can
+    // be activated, cast or played.
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id: thaumaturgist,
+        },
+        vec![0],
+    );
+    let result = game.run_priority_round(&decisions).unwrap();
+    assert_eq!(result, PriorityResult::ActionTaken);
+
+    assert!(
+        game.battlefield[&thaumaturgist].tapped,
+        "the {{T}} cost is paid on activation (CR 602.2b), not on resolution"
+    );
+    assert_eq!(
+        get_effective_power(&game, elemental),
+        Some(4),
+        "and nothing has happened yet — the ability is still on the stack"
+    );
+
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    game.run_priority_round(&decisions).unwrap();
+
+    assert_eq!(get_effective_power(&game, elemental), Some(5), "Layer 7d");
+    assert_eq!(get_effective_toughness(&game, elemental), Some(4));
+    assert_eq!(
+        (get_effective_power(&game, thaumaturgist), get_effective_toughness(&game, thaumaturgist)),
+        (Some(1), Some(2)),
+        "it targeted the Elemental, not itself"
+    );
+
+    pass_turn(&mut game);
+    assert_eq!(
+        (get_effective_power(&game, elemental), get_effective_toughness(&game, elemental)),
+        (Some(4), Some(5)),
+        "until end of turn, so cleanup takes it back"
+    );
 }

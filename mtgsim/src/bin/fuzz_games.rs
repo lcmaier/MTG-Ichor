@@ -3,6 +3,7 @@
 // Usage: cargo run --bin fuzz_games -- --games 100 --max-turns 200 --verbose
 //        cargo run --bin fuzz_games -- --games 10 --dump-events events.log
 //        cargo run --bin fuzz_games -- --seed 12345 --games 1 --verbose
+//        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //
 // `--seed N` is a full reproducibility contract: the same seed replays the same
 // games, turn for turn, in any process. Each game's three RNG streams — decks,
@@ -11,6 +12,36 @@
 // `k` can be reproduced from its printed per-game seed alone. Anything that
 // leaks process state into a decision breaks this; see
 // `GameState::battlefield_ordered` for the one that did.
+//
+// **That independence is also what makes the worker pool safe.** Games are
+// distributed across threads by index, but every game's inputs are a pure
+// function of `master_seed + game_num`, so which worker runs which game cannot
+// change an outcome. Results are collected with their index and sorted back
+// into game order before anything is printed or aggregated, so stdout is
+// byte-identical at any `--threads` value — that is the acceptance test for
+// this harness, and `--threads 1` is kept as the serial reference.
+//
+// Timing is reported twice. `Time/game` is wall-clock divided by games, so it
+// falls as workers are added; `CPU/game` is the mean of each game's own
+// measured duration, so it *rises* — 89.8ms alone against 191.5ms with 16
+// games in flight, because the layer walk is allocation-heavy and the workers
+// contend for memory bandwidth rather than for cores.
+//
+// **Which mode to use, measured (200 games / seed 12345, 10 runs each):**
+//
+// - **Coverage — hunting panics and errors — wants threads.** 17.8s -> 2.66s
+//   at 16 workers, a 6.7x speedup, and precision does not matter for a
+//   pass/fail sweep.
+// - **Benchmarking wants `--threads 1`.** Threading inflates run-to-run CV from
+//   2.4% to 6.1%, and matching a serial median-of-five would take roughly 32
+//   threaded runs — which costs *more* wall time than the five serial ones.
+//   Contention noise is not a fixed offset that cancels in an A/B.
+//
+// Scaling is sublinear and worth knowing before sizing a worker pool: on an
+// 8-core/16-thread machine, 8 workers return 5.3x and 16 return 6.7x, and
+// per-game cost inflates from two workers onward. Default to physical cores
+// rather than logical ones. `codebase-state.md` carries the measured curve and
+// what is and is not established about the cause.
 
 use std::collections::HashMap;
 use std::panic;
@@ -40,6 +71,8 @@ struct Args {
     dump_events: Option<String>,
     /// If set, use this seed for reproducibility.
     seed: Option<u64>,
+    /// Worker threads. Defaults to the machine's parallelism; 1 is serial.
+    threads: usize,
 }
 
 fn parse_args() -> Args {
@@ -50,6 +83,9 @@ fn parse_args() -> Args {
         verbose: false,
         dump_events: None,
         seed: None,
+        threads: std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1),
     };
 
     let mut i = 1;
@@ -80,6 +116,12 @@ fn parse_args() -> Args {
                 i += 1;
                 if i < args.len() {
                     result.seed = Some(args[i].parse().unwrap_or(0));
+                }
+            }
+            "--threads" | "-j" => {
+                i += 1;
+                if i < args.len() {
+                    result.threads = args[i].parse().unwrap_or(1).max(1);
                 }
             }
             _ => {
@@ -362,6 +404,13 @@ impl AggregateStats {
 }
 
 /// Append a game's event log to the dump file.
+/// Append one game's formatted event log to `path`.
+///
+/// Called from the serial reporting pass, so blocks land in game order however
+/// many workers produced them. Note when diffing two dumps: event lines carry
+/// `ObjectId`s, which are v4 UUIDs and therefore differ between *processes*
+/// regardless of seed or thread count. Mask them before comparing, or every
+/// line looks changed and `diff` cannot align anything.
 fn dump_event_log(path: &str, game_num: usize, events: &[String]) {
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()
@@ -375,6 +424,158 @@ fn dump_event_log(path: &str, game_num: usize, events: &[String]) {
         writeln!(file, "  {:>4}: {}", i, event).ok();
     }
     writeln!(file).ok();
+}
+
+/// Everything one game produces that the reporting pass needs.
+///
+/// The point of collecting rather than printing is ordering: workers finish out
+/// of order, so nothing is printed or aggregated until every game is back in
+/// game order. `event_log` is `None` unless `--dump-events` asked for it — it is
+/// the only large field, and formatting one per game and dropping it was
+/// wasted work in the serial harness too.
+enum GameOutcome {
+    Completed {
+        result: Option<mtgsim::state::game::GameResult>,
+        turns: u32,
+        stats: GameStats,
+        event_log: Option<Vec<String>>,
+    },
+    Error {
+        message: String,
+        event_log: Option<Vec<String>>,
+    },
+    Panic {
+        message: String,
+    },
+}
+
+/// Run game `game_num`, catching a panic as a result rather than unwinding out.
+///
+/// Depends on nothing but its arguments — that is what lets the pool hand games
+/// out in any order.
+fn run_one_game(
+    registry: &CardRegistry,
+    master_seed: u64,
+    game_num: usize,
+    max_turns: u32,
+    keep_event_log: bool,
+) -> (GameOutcome, std::time::Duration) {
+    // Derive per-game seed from master seed for reproducibility
+    let game_seed = master_seed.wrapping_add(game_num as u64);
+    let mut deck_rng = StdRng::seed_from_u64(game_seed);
+
+    // Three independent streams, all a pure function of `game_seed`: deck
+    // construction, the in-game shuffle, and the AI's choices. Distinct
+    // sub-seeds rather than one — seeding three `StdRng`s identically would
+    // correlate the shuffle with the deck it shuffles.
+    let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
+    let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
+
+    let deck1 = random_deck(registry, &mut deck_rng);
+    let deck2 = random_deck(registry, &mut deck_rng);
+
+    let started = Instant::now();
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        let config = GameConfig::test();
+        let mut game = Game::new(config, vec![deck1, deck2]).expect("Failed to create game");
+        game.reseed(shuffle_seed);
+        let dp = RandomDecisionProvider::seeded(dp_seed);
+        game.setup(&dp).expect("Failed to setup game");
+
+        let mut turns = 0u32;
+
+        while !game.is_over() && turns < max_turns {
+            if let Err(e) = game.run_turn(&dp) {
+                return Err((
+                    format!("Turn {} error: {}", turns, e),
+                    if keep_event_log { Some(game.event_log_snapshot()) } else { None },
+                ));
+            }
+            turns += 1;
+        }
+
+        Ok((
+            game.result.clone(),
+            turns,
+            if keep_event_log { Some(game.event_log_snapshot()) } else { None },
+            extract_stats(game.state.events.events()),
+        ))
+    }));
+    let elapsed = started.elapsed();
+
+    let outcome = match result {
+        Ok(Ok((result, turns, event_log, stats))) => GameOutcome::Completed {
+            result,
+            turns,
+            stats,
+            event_log,
+        },
+        Ok(Err((message, event_log))) => GameOutcome::Error { message, event_log },
+        Err(panic_info) => GameOutcome::Panic {
+            message: if let Some(s) = panic_info.downcast_ref::<String>() {
+                s.clone()
+            } else if let Some(s) = panic_info.downcast_ref::<&str>() {
+                s.to_string()
+            } else {
+                "Unknown panic".to_string()
+            },
+        },
+    };
+    (outcome, elapsed)
+}
+
+/// Run `games` games across `threads` workers and return them in game order.
+///
+/// A shared index rather than a fixed split, so one long game does not leave a
+/// worker idle while another still has a queue. Each worker keeps its own
+/// results and they are merged and sorted at the end — no locking on the hot
+/// path, and the sort is what guarantees the output is thread-count
+/// independent.
+fn run_games(
+    registry: &CardRegistry,
+    master_seed: u64,
+    games: usize,
+    max_turns: u32,
+    keep_event_log: bool,
+    threads: usize,
+) -> Vec<(GameOutcome, std::time::Duration)> {
+    if threads <= 1 || games <= 1 {
+        return (0..games)
+            .map(|n| run_one_game(registry, master_seed, n, max_turns, keep_event_log))
+            .collect();
+    }
+
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut collected: Vec<(usize, (GameOutcome, std::time::Duration))> =
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads.min(games))
+                .map(|_| {
+                    let next = &next;
+                    scope.spawn(move || {
+                        let mut mine = Vec::new();
+                        loop {
+                            let n = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            if n >= games {
+                                break;
+                            }
+                            mine.push((
+                                n,
+                                run_one_game(registry, master_seed, n, max_turns, keep_event_log),
+                            ));
+                        }
+                        mine
+                    })
+                })
+                .collect();
+
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().expect("worker thread panicked outside a game"))
+                .collect()
+        });
+
+    collected.sort_by_key(|(n, _)| *n);
+    collected.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
 fn main() {
@@ -391,6 +592,9 @@ fn main() {
         args.games, args.max_turns
     );
     println!("Master seed: {} (reproduce with --seed {})", master_seed, master_seed);
+    if args.threads > 1 {
+        println!("Threads: {}", args.threads);
+    }
     println!();
 
     let registry = CardRegistry::default_registry();
@@ -405,53 +609,24 @@ fn main() {
     let mut agg_stats = AggregateStats::default();
     let mut winner_counts: HashMap<String, u64> = HashMap::new();
 
-    for game_num in 0..args.games {
-        // Derive per-game seed from master seed for reproducibility
+    let outcomes = run_games(
+        &registry,
+        master_seed,
+        args.games,
+        args.max_turns,
+        args.dump_events.is_some(),
+        args.threads,
+    );
+
+    // Reporting is a serial pass over the games in order, so every line printed
+    // and every number accumulated is what the serial harness produced.
+    let mut cpu_total = std::time::Duration::ZERO;
+    for (game_num, (outcome, game_time)) in outcomes.into_iter().enumerate() {
+        cpu_total += game_time;
         let game_seed = master_seed.wrapping_add(game_num as u64);
-        let mut deck_rng = StdRng::seed_from_u64(game_seed);
 
-        // Three independent streams, all a pure function of `game_seed`: deck
-        // construction, the in-game shuffle, and the AI's choices. Distinct
-        // sub-seeds rather than one — seeding three `StdRng`s identically would
-        // correlate the shuffle with the deck it shuffles.
-        let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
-        let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
-
-        let deck1 = random_deck(&registry, &mut deck_rng);
-        let deck2 = random_deck(&registry, &mut deck_rng);
-
-        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            let config = GameConfig::test();
-            let mut game =
-                Game::new(config, vec![deck1, deck2]).expect("Failed to create game");
-            game.reseed(shuffle_seed);
-            let dp = RandomDecisionProvider::seeded(dp_seed);
-            game.setup(&dp).expect("Failed to setup game");
-
-            let max = args.max_turns;
-            let mut turns = 0u32;
-
-            while !game.is_over() && turns < max {
-                if let Err(e) = game.run_turn(&dp) {
-                    return Err((
-                        format!("Turn {} error: {}", turns, e),
-                        game.event_log_snapshot(),
-                        game.state.events.events().to_vec(),
-                    ));
-                }
-                turns += 1;
-            }
-
-            Ok((
-                game.result.clone(),
-                turns,
-                game.event_log_snapshot(),
-                game.state.events.events().to_vec(),
-            ))
-        }));
-
-        match result {
-            Ok(Ok((game_result, turns, event_log, raw_events))) => {
+        match outcome {
+            GameOutcome::Completed { result: game_result, turns, stats, event_log } => {
                 completed += 1;
                 total_turns += turns as u64;
                 if turns > max_turns_seen {
@@ -461,7 +636,6 @@ fn main() {
                     hit_turn_limit += 1;
                 }
 
-                let stats = extract_stats(&raw_events);
                 agg_stats.add(&stats);
 
                 let result_str = match game_result {
@@ -495,27 +669,20 @@ fn main() {
                     );
                 }
 
-                if let Some(ref path) = args.dump_events {
-                    dump_event_log(path, game_num, &event_log);
+                if let (Some(path), Some(log)) = (args.dump_events.as_ref(), event_log.as_ref()) {
+                    dump_event_log(path, game_num, log);
                 }
             }
-            Ok(Err((e, event_log, _raw_events))) => {
+            GameOutcome::Error { message, event_log } => {
                 errors += 1;
-                println!("Game {:>4} (seed {:>12}): ERROR — {}", game_num + 1, game_seed, e);
-                if let Some(ref path) = args.dump_events {
-                    dump_event_log(path, game_num, &event_log);
+                println!("Game {:>4} (seed {:>12}): ERROR — {}", game_num + 1, game_seed, message);
+                if let (Some(path), Some(log)) = (args.dump_events.as_ref(), event_log.as_ref()) {
+                    dump_event_log(path, game_num, log);
                 }
             }
-            Err(panic_info) => {
+            GameOutcome::Panic { message } => {
                 panics += 1;
-                let msg = if let Some(s) = panic_info.downcast_ref::<String>() {
-                    s.clone()
-                } else if let Some(s) = panic_info.downcast_ref::<&str>() {
-                    s.to_string()
-                } else {
-                    "Unknown panic".to_string()
-                };
-                println!("Game {:>4} (seed {:>12}): PANIC — {}", game_num + 1, game_seed, msg);
+                println!("Game {:>4} (seed {:>12}): PANIC — {}", game_num + 1, game_seed, message);
             }
         }
     }
@@ -541,6 +708,14 @@ fn main() {
     println!(
         "Time/game:       {:.2}ms",
         elapsed.as_millis() as f64 / args.games as f64
+    );
+    // Wall-clock/game falls as workers are added, so it measures the harness
+    // rather than the engine. This is the mean of each game's own measured
+    // duration: comparable across `--threads` values, and the number to
+    // benchmark on.
+    println!(
+        "CPU/game:        {:.2}ms",
+        cpu_total.as_secs_f64() * 1000.0 / args.games as f64
     );
 
     println!();

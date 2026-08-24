@@ -150,10 +150,16 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
         .build()
 }
 
-/// Inside Out - {1}{U}
+/// Inside Out - {1}{U} **as modeled**; the printed cost is {1}{U/R}
 /// Instant
 /// Switch target creature's power and toughness until end of turn.
 /// Draw a card.
+///
+/// The hybrid symbol is the whole reason this stays a fixture and never reaches
+/// `CardRegistry` — hybrid mana is unimplemented (`codebase-state.md`, CR 6),
+/// and a registry that feeds `cli_play` may not quietly recost a card. Layer 7d
+/// gets its registered source from `utility_creatures::merfolk_thaumaturgist`,
+/// whose text needs nothing the engine lacks.
 pub fn inside_out() -> Arc<CardData> {
     CardDataBuilder::new("Inside Out")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))

@@ -6,8 +6,10 @@ use crate::objects::card_data::CardData;
 use super::basic_lands;
 use super::dual_lands;
 use super::alpha;
+use super::artifacts;
 use super::creatures;
 use super::keyword_creatures;
+use super::utility_creatures;
 use super::phase5_pre_cards;
 use super::phase_lc_cards;
 use super::phase_ld_cards;
@@ -127,6 +129,14 @@ impl CardRegistry {
         registry.register("Humility", phase_lf_cards::humility);
         registry.register("Citanul Hierophants", phase_lf_cards::citanul_hierophants);
         registry.register("Act of Treason", phase_lg_cards::act_of_treason);
+
+        // Layer 7b and 7d had no random-play coverage until these two: March of
+        // the Machines was registered with no artifact in the crate to animate,
+        // and nothing anywhere switched a creature's P/T. Sol Ring is colorless,
+        // so every deck gets it; the Thaumaturgist rides in blue decks, which is
+        // where March lives too.
+        registry.register("Sol Ring", artifacts::sol_ring);
+        registry.register("Merfolk Thaumaturgist", utility_creatures::merfolk_thaumaturgist);
 
         // The ten original duals. Nonbasic lands with basic land types, which is
         // what gives `fuzz_games` a mana base Blood Moon can actually affect.

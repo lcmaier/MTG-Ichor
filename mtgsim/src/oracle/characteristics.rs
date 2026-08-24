@@ -71,6 +71,14 @@ pub fn controls(game: &GameState, id: ObjectId, player: PlayerId) -> bool {
 /// `EffectiveCharacteristics::control_since_turn` for why that has to be
 /// derived.
 ///
+/// **Only creatures are ever summoning-sick.** CR 302.6 restricts "a creature's
+/// activated ability" and attacking, so a noncreature permanent is unrestricted
+/// however recently it arrived — a Sol Ring taps for mana the turn it lands.
+/// The type question is answered off the same frame as the control question, so
+/// the two cannot disagree, and it moves with Layer 4: March of the Machines
+/// animating that Sol Ring makes it a creature *and* summoning-sick in one
+/// step, mid-turn, with nothing written to the battlefield.
+///
 /// **The comparison is against the controller's own last turn, not the turn
 /// being played.** Those agree on your turn and disagree on everyone else's:
 /// a creature you cast on your turn is still sick throughout each opponent's
@@ -98,6 +106,9 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     let Some(chars) = compute_characteristics(game, id) else {
         return false;
     };
+    if !chars.types.contains(&CardType::Creature) {
+        return false;
+    }
     let sick = match game.most_recent_turn_began(chars.controller) {
         // Control gained *during* that turn is not control since it began, so
         // the same turn number is still sick.

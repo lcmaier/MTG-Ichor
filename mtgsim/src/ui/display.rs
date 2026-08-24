@@ -68,7 +68,7 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
     if entry.tapped {
         flags.push("tapped");
     }
-    if is_creature(game, id) && crate::oracle::characteristics::has_summoning_sickness(game, id) {
+    if crate::oracle::characteristics::has_summoning_sickness(game, id) {
         flags.push("sick");
     }
     if entry.attacking.is_some() {
