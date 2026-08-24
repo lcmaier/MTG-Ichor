@@ -13,6 +13,55 @@
 
 ---
 
+## 0. The budget — why this stays tight
+
+Written in answer to a review question worth keeping at the top of the file:
+*what stops this sprawling when we start populating cards?* The design makes
+four commitments, each of which is falsifiable and at least one of which has
+already been tested against the whole card pool.
+
+**One. A card is data, not code.** The success condition for RB onward is that
+adding a replacement-effect card touches `src/cards/*.rs` and nothing else. A
+card that needs an engine branch is a design failure and should be treated as
+one at review time, not absorbed. The `then: Option<Effect>` field exists
+precisely so per-card variety ("and its controller taps it", "and you gain that
+much life", "then that creature explores") lands in the effect tree the engine
+already has rather than in a new enum arm.
+
+**Two. There is exactly one growth axis, and it is not card-shaped.** A
+replacement can only replace an event the engine **proposes**, so the set of
+replaceable event kinds is the set of `GameAction` variants — a question about
+`perform_action`, not about 30,000 cards (§8a). `EventPattern` is a mechanical
+projection of that set. `Rewrite` is closed. Growth arrives as *new mutations*,
+and mutations are bounded by the engine plus CR 701's enumerated keyword-action
+list, both finite and both readable.
+
+**Three. The completeness claim was tested, not asserted.** All 561 printed
+cards matching `o:/would.*instead/` were pulled and every clause classified
+(§3.2c). 549 of 574 clauses watch an event kind already in the vocabulary; 14
+want a new `GameAction`; 11 are CR 701 keyword actions; **zero want a sixth
+`Rewrite` arm.** That is the evidence that the pressure lands on the axis this
+design chose to absorb it on. Re-run the pass if a future phase changes the
+algebra — the script is cheap and the answer is a number.
+
+**Four. Performance has one designated lever and a measurement gate.** The
+pipeline sits on `execute_action`, so it is hot by construction. §8 commits to
+building it straight, measuring with `fuzz_games --games 200 --seed 12345`, and
+recording the number here — the discipline the layer phases used — with an
+answer-preserving event-kind bitmask as the only pre-approved optimization and
+semantics-assuming shortcuts ruled out in advance (`can_change_abilities()` is
+the cautionary tale). §11 item 5 prices the two hypothetical-frame call sites
+separately and closes that question on measured numbers rather than taste.
+
+**What this does *not* claim.** The event vocabulary is incomplete and known to
+be (§8a names eight missing kinds). ETB look-ahead has genuinely
+counter-intuitive rulings (§5a works the worst one through). The
+`AmountRewrite` sub-enum has one identified pressure point (§3.2c). Those are
+budgeted, not hidden — a plan whose risks are named and sized is the thing that
+resists sprawl; a plan that claims none is the thing that produces it.
+
+---
+
 ## 1. Verdict — is this the right next step?
 
 **Yes, and the prerequisites are met.** Recorded so a later session does not
@@ -139,7 +188,7 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 | `EnterBattlefield { object, controller, mods }` | 614.1c/d, 614.12, 110.5b | RC | **not** `ZoneChange{to: Battlefield}` — carries the *how* |
 | `DrawCards { player, n }` (outer) | 121.2a, 616.1g | RE | contains N `DrawCard` inner events |
 | `GainLife` / `LoseLife` | 119.10 | exists → RE | |
-| `CreateTokens { def, controller, n }` | 614.16 | RE | |
+| `CreateTokens { defs: Vec<TokenDef>, controller }` | 614.16 | RE | **`Vec`, not `(def, n)`** — Academy Manufactor's "one of each", Chatterfang's "those tokens plus that many Squirrels", Divine Visitation's substitution (§3.2c) |
 | `BeginStep` / `BeginPhase` / `BeginTurn` | 614.10 | RE | skips replace these |
 | `ProduceMana` | 106.6a | RE | |
 
@@ -216,6 +265,12 @@ pub struct ReplacementDef {
     /// CR 903.9b is an explicit exception to CR 614.5 and is the only one in
     /// the rules. Default `false`.
     pub exempt_from_614_5: bool,
+    /// "you **may** ... instead" -- Retriever Phoenix, Library of Leng, and 14
+    /// others (Scryfall 2026-08-24). The affected player is asked before the
+    /// effect is applied, and declining does not consume a `Uses`. Found by the
+    /// 3.2c classification pass, not by reading the CR, which is the point of
+    /// running it.
+    pub optional: bool,
 }
 
 /// CR 616.1a-e. `Other` is 616.1e -- free choice.
@@ -322,7 +377,69 @@ A sixth arm is a claim that CR 614/615 permits an operation this list omits. It
 should arrive with the rule number that says so; absent one, it belongs in
 `Instead` or in `then`.
 
-### 3.2c The outcome is an `Option`, not a fan-out
+**`Instead` carries a template, not a constant.** Several cards build the
+replacement out of the event they are replacing: Chatterfang ("those tokens
+*plus that many* 1/1 Squirrels"), Divine Visitation ("*that many* 4/4 Angels"),
+Rain of Gore ("loses *that much* life instead"), Academy Manufactor ("instead
+create one of each"). So `GameActionTemplate` is a `GameAction` whose fields may
+reference the incoming event's fields, the same way `AmountExpr` references
+resolution context today. This is what keeps those four cards out of the engine
+and in `src/cards/`.
+
+### 3.2c Evidence: the algebra checked against every printed "would ... instead"
+
+The completeness claim above is the kind that deserves testing rather than
+asserting, so it was tested. Every card whose oracle text matches
+`o:/would.*instead/ -is:funny` was pulled from Scryfall (2026-08-24) and each
+matching clause classified — **561 cards, 574 clauses.** Method and script are
+reproducible; the buckets are by *event kind watched*, because that is the axis
+that decides whether the design sprawls.
+
+| | clauses | share |
+|---|---|---|
+| Watches an event kind already in §3.1's `GameAction` table | **549** | 95.6% |
+| Needs a new `GameAction` variant | 14 | 2.4% |
+| Residual — all CR 701 keyword actions (below) | 11 | 1.9% |
+| **Needs a sixth `Rewrite` arm** | **0** | **0%** |
+
+Distribution of the 549: `ZoneChange` 227, `DealDamage` 153, `DrawCard` 46,
+`AddCounters` 35, `CreateTokens` 33, `GainLife` 21, `EnterBattlefield` 15,
+`LoseLife` 8, `BeginStep`/skip 6, `ProduceMana` 5.
+
+**The result to take from this is not "zero" — it is *where* the pressure went.**
+It went entirely onto the `GameAction` vocabulary, which §8a already names as
+the growth axis and which is bounded by the engine's own mutations plus CR 701,
+not by the card pool. It did not go onto `Rewrite`, and it did not go onto
+per-card engine branches.
+
+Three cards from the review, worked through, because they are the ones that
+looked like they would break it:
+
+- **Twinflame Tyrant vs. Bloodletter of Aclazotz.** The subtle difference is
+  real and it is *not* a `Rewrite` difference: Twinflame watches `DealDamage`,
+  Bloodletter watches `LoseLife` "during your turn". Both are
+  `Amount(Times(2))`. Two famously-confusable cards, one arm, two
+  `EventPattern`s — which is the taxonomy working, not straining.
+- **Aether Revolt / Artist's Talent** ("as long as a permanent left the
+  battlefield this turn … plus 2 instead"). The condition is not a rewrite. A
+  conditional static ability's effect *exists* only while the condition holds,
+  which is asked at gather time (§3.3 source 1) exactly as CR 614.4 wants —
+  the same question `static_ability_still_exists` already answers for layers.
+  `Amount(Plus(2))`, gated.
+- **Academy Manufactor** ("if you would create a Clue, Food, or Treasure token,
+  instead create one of each"). `Instead`, and it forces one data-shape
+  decision: **`CreateTokens` must carry `Vec<TokenDef>`, not `(TokenDef, n)`**,
+  or Manufactor, Chatterfang and Divine Visitation each need a special case.
+  Recorded in §3.1.
+
+The one genuine pressure point the pass found is **`AmountRewrite`, not
+`Rewrite`**: the Ali from Cairo family ("damage that would reduce your life
+total to less than 1 reduces it to 1 instead", 8 cards) is a *clamp against
+player state*, not a scale or an offset. It is one `AmountRewrite` variant with
+8 customers and a clear rule shape, and it is named here so it is budgeted
+rather than discovered.
+
+### 3.2d The outcome is an `Option`, and the applied-set follows a *lineage*
 
 ```rust
 /// CR 614.6 -- either the event happens in modified form, or it never happens.
@@ -336,20 +453,48 @@ control, it creates twice that many of those tokens **instead**" (verified on
 Scryfall, 2026-08-24) — one token-creation event whose *count* changes, which
 is `Rewrite::Amount`. Its second ability does the same for counters.
 
-Nothing in CR 614 turns one event into several. What does happen is CR 616.1g's
-**containment**: *performing* a `CreateTokens { n: 2 }` proposes two
-`EnterBattlefield` events, and each of those runs its own pipeline. That is the
-performer's business, not the rewriter's, and §4.1's work queue already handles
-it — which is also why 616.1g's ordering guarantee ("the second effect can't be
-chosen until after the first effect has been chosen") falls out for free: the
-outer event finishes its own replacement chain *before* it is performed, so the
-contained events do not exist yet when the outer choice is made. CR 616.1g's own
-example is exactly this pair.
+A first revision of this section then claimed "nothing in CR 614 turns one event
+into several", and **that was too strong** — flagged in review with Teferi's
+Ageless Insight, which is right. `Rewrite` still yields at most one action, but
+*performing* it can produce several events, and CR 121.2 is explicit that
+drawing two cards is two individual draws. So the question dropping `Split`
+appeared to retire — does a derived event inherit the CR 614.5 applied-set? — is
+alive, load-bearing, and has a determinate answer.
 
-Dropping `Split` also retires a question that had no CR answer — whether a
-fanned-out branch inherits the CR 614.5 applied-set. With one event in and at
-most one out, the applied-set follows a chain, which is precisely what 614.5's
-"an event or any modified events that may replace that event" describes.
+**The rule: the applied-set follows an event's *lineage*. Decomposition
+continues a lineage; containment starts a new one.**
+
+Two printed cards pin it down, and they disagree about which case they are:
+
+- **Teferi's Ageless Insight** — "If you would draw a card … draw two cards
+  instead." The printed ruling: with two copies "each card that player would
+  draw after the first will result in **four** cards being drawn. If they
+  control three, they draw **eight**." Trace it: `DrawCard` → T1 →
+  `DrawCards{2}`, applied `{T1}`; the performer decomposes into two `DrawCard`
+  events, **each inheriting `{T1}`**; each meets T2 → `DrawCards{2}` → four
+  draws inheriting `{T1,T2}`; T3 makes eight. Exactly 2ⁿ. **Without
+  inheritance, T1 re-applies to its own output and the game hangs** — so this is
+  not a nicety, it is the termination argument. The two draws are 614.5's
+  "modified events that may replace that event": same lineage.
+- **CR 616.1g's own example** — Doubling Season creates two Voice of All tokens,
+  and the rule says "the effects of the two Voice of All tokens may be applied
+  in either order", i.e. each token's ETB replacement is a fresh choice. A
+  token's entering is a *consequence* of the creation event, not a modified form
+  of it: new lineage.
+
+The discriminator is whether the derived event is the same kind of thing as its
+parent. `DrawCards{2}` → 2 × `DrawCard` is one event expressed at finer grain.
+`CreateTokens` → `EnterBattlefield` is a different event that the first one
+caused. `perform_action` knows which it is emitting, so the lineage tag rides on
+the call rather than being inferred.
+
+**Doubling Season is the contrast test, and it reaches 2ⁿ by the other route.**
+Its printed ruling — "two Doubling Seasons … four times the original number,
+three … eight times" — is `Amount(Times(2))` composing *within a single event's*
+CR 616.1f loop, no decomposition anywhere. Two mechanisms, same arithmetic. Both
+belong in the suite: `test_two_teferis_draw_four_not_infinity` and
+`test_two_doubling_seasons_quadruple`, and the first one hangs rather than fails
+if the lineage rule is wrong, so give it a bounded iteration guard.
 
 `Rewrite::apply` still needs `&mut GameState` and a `DecisionProvider`, because
 `then` resolves against live state — but that is the existing `resolve_effect`
@@ -407,12 +552,15 @@ It differs in two ways, both because replacement effects are not layered:
 
 ### 4.1 The CR 616.1 loop
 
-One event in, at most one event out (§3.2c). `perform_action` is what proposes
-contained events, and each of those re-enters here.
+One event in, at most one event out (§3.2d). `perform_action` is what proposes
+derived events, and each of those re-enters here — carrying the parent's
+applied-set if it is a *decomposition*, with a fresh one if it is a *contained*
+event of a different kind. That parameter is the whole of §3.2d's lineage rule
+and the reason two Teferi's Ageless Insights draw four cards instead of hanging.
 
 ```
-fn apply_replacements(game, action, ctx) -> Option<GameAction>
-    applied: HashSet<ReplacementInstanceId> = {}
+fn apply_replacements(game, action, ctx, inherited) -> Option<GameAction>
+    applied: HashSet<ReplacementInstanceId> = inherited   # 3.2d lineage
     ev = action
 
     loop:                                                # CR 616.1f
@@ -427,6 +575,9 @@ fn apply_replacements(game, action, ctx) -> Option<GameAction>
         chosen  = if bucket.len() == 1 { bucket[0] }
                   else { ask_choose_replacement(dp, chooser, bucket) }
 
+        if chosen.optional && !ask_apply(dp, chooser, chosen):
+            applied.insert(chosen.instance)              # opportunity taken (CR 614.5)
+            continue                                     # ... but no `consume_use`
         if !chosen.exempt_from_614_5: applied.insert(chosen.instance)
         chosen.consume_use(game)                         # Uses::Once / Shield / CounterBacked
 
@@ -440,24 +591,34 @@ Six things this encodes, each with its rule:
 - **CR 614.4** — `gather` runs against live state at the moment of proposal.
   There is no "go back in time" path because there is no other place to ask.
 - **CR 614.5** — the `applied` set is keyed on the *effect instance*, and it
-  follows the event through every modification, which is what 614.5's "an event
-  or any modified events that may replace that event" describes.
-  `exempt_from_614_5` exists for exactly one rule (903.9b) and must not grow a
-  second user without a CR cite.
+  follows the event through every modification *and into its decomposition*,
+  which is what 614.5's "an event or any modified events that may replace that
+  event" describes (§3.2d). `exempt_from_614_5` exists for exactly one rule
+  (903.9b) and must not grow a second user without a CR cite.
 - **CR 616.1a–e** — `forced_bucket` returns the highest-priority non-empty class
   and only that class; 616.1e is the fallthrough.
 - **CR 616.1f** — the loop re-gathers after every application, so an effect made
   newly applicable by the modification is picked up (CR 616.2).
-- **CR 616.1g** — nothing here handles containment, and nothing needs to. A
-  contained event does not exist until the outer one is *performed*, and this
-  function returns before that happens — so "the second effect can't be chosen
-  until after the first effect has been chosen" is a consequence of the call
-  order rather than a rule the loop enforces. Doubling Season's count is fixed
-  before either Voice of All token has an ETB event to replace; CR 121.2a's
-  "draw N" is fixed before any individual draw exists.
+- **CR 616.1g** — nothing here sequences outer against inner, and nothing needs
+  to. A derived event does not exist until the outer one is *performed*, and
+  this function returns before that happens — so "the second effect can't be
+  chosen until after the first effect has been chosen" is a consequence of the
+  call order rather than a rule the loop enforces. Doubling Season's count is
+  fixed before either Voice of All token has an ETB event to replace (fresh
+  lineage, so both tokens choose freely — 616.1g's own example); CR 121.2a's
+  "draw N" is fixed before any individual draw exists (same lineage, so a draw
+  replacement that already fired does not fire again).
 - **CR 614.6/614.7** — `None` drops the event, and an event that was never
   proposed never reaches this function (CR 614.7a's zero damage is already
   short-circuited in `perform_action`).
+
+**Declining an optional replacement marks it applied but does not consume a
+use.** Both halves are load-bearing. Marking it applied is CR 614.5's "one
+opportunity" — being offered and refusing *is* the opportunity — and without it
+the `continue` re-gathers the same candidate forever, which is a hang rather
+than a wrong answer. Not consuming a use is what leaves Retriever Phoenix's
+ability and a regeneration shield intact for the *next* event. Static-ability
+optionals (Library of Leng) have no use to consume either way.
 
 **`ask_choose_replacement` is called only when `bucket.len() >= 2`.** That is
 CR-correct (there is no choice to make with one candidate), it is what keeps the
@@ -545,9 +706,13 @@ The engine cannot answer that today, and it is not one gap but three:
 | (3) existing effects | `effect_applies_to` hard-requires `game.battlefield.contains_key(&id)` for `AffectedSet::Filter` — an entering object matches no filter-based effect at all |
 
 The fix is a **hypothetical overlay**: a read-side indirection through which
-`compute_to_ceiling` sees a battlefield that contains the entering object under
-the proposed controller, plus the registry rows its own statics would generate,
-plus the pending mods.
+`compute_to_ceiling` computes the entering object as a permanent under the
+proposed controller — with the registry rows its own statics would generate, and
+with the pending mods applied.
+
+**But "as a permanent" is narrower than "on the battlefield", and getting that
+boundary wrong is the failure this section exists to prevent.** See §5a, which
+was written after review flagged the Theros gods.
 
 ```rust
 /// CR 614.12 / 614.17d — `id`'s characteristics as it *would exist* on the
@@ -609,6 +774,70 @@ pub fn compute_as_entering(
   expiry, or a CR 305.7 strip — entering the battlefield is one cause among
   many. So the accessor is parameterized by *what it returns*, not by "is this
   object entering"; the ETB case is one caller supplying one perturbation.
+
+### 5a. Visible to filters, invisible to counts (the Thassa boundary)
+
+Review raised the Theros gods, correctly, as the case where this gets
+counter-intuitive. It does, and the printed rulings are unambiguous. Thassa, God
+of the Sea reads "As long as your devotion to blue is less than five, Thassa
+isn't a creature", and the two rulings that matter say opposite-looking things:
+
+> "As a God enters the battlefield, your devotion to its color will determine
+> whether any replacement effects that affect creatures entering the battlefield
+> apply to that God. **Because replacement effects are considered before the God
+> is on the battlefield, the mana symbols in its mana cost won't be counted when
+> determining this.**"
+
+> "When a God enters the battlefield, your devotion to its color (**including
+> the mana symbols in the mana cost of the God itself**) will determine if a
+> creature entered the battlefield or not for abilities that trigger whenever a
+> creature enters the battlefield."
+
+So with Authority of the Consuls out and devotion at four, an entering Thassa is
+**not** a creature for the ETB-replacement check (she does not count her own
+`{U}`), enters untapped — and *is* a creature a moment later for the trigger
+check. Same permanent, two answers, one instant apart.
+
+**This is not a judge fudge, and it does not need special-casing.** CR 614.12
+asks for "the characteristics of the permanent as it would exist on the
+battlefield" — the characteristics *of the object*. Devotion is a property of
+the **player**, computed from the permanents they control, and the entering
+object is not yet one of them. The gods' own type-changing ability is consulted
+(that is clause 2 working); what differs is the board state it reads.
+
+**The rule that falls out, and the correction it forces:**
+
+> The overlay makes the entering object visible to **effect applicability** —
+> "does this filter match it" — and leaves it invisible to **enumeration** —
+> "which permanents exist".
+
+The first draft of this section said the overlay "sees a battlefield that
+contains the entering object". Taken literally that is **wrong**: it would put
+Thassa's own `{U}` into her devotion count and enter her tapped under Authority
+of the Consuls, against the printed ruling. The two reads are different
+questions that today happen to share one call, and separating them is the
+overlay's real content:
+
+| Read | Sees the entering object? | Sites |
+|---|---|---|
+| **Applicability** — is this object a permanent that a filter can match? | **yes** | `effect_applies_to`'s membership gate (`compute.rs:623`) |
+| **Frame seed** — controller, counters, control-since-turn | **yes**, from the proposed values | `compute.rs:113`, `:180`, `:408` |
+| **Registry slice** — which rows exist | **yes**, plus the object's own would-be rows | `compute.rs:242` |
+| **Enumeration** — which permanents does a player control? | **no** | `battlefield_ordered` / `battlefield_ids_ordered`, and `evaluate_amount`'s `CountOf` / `CardTypesAmong` |
+
+The enumeration row is the one the audit in §5's second note missed, because it
+is not in `compute.rs` at all — it is `evaluate_amount` and the ordered sweeps.
+Devotion is not implemented yet (no `AmountExpr` counts mana symbols), so today
+this costs one line and a test; discovered later it would be a silent wrong
+answer on 15 gods plus every `CountOf`-driven ETB replacement.
+
+**It also bounds the risk this section opened with.** The gods looked like
+evidence the look-ahead is unboundedly hairy. What they actually produced is a
+single sentence with a table behind it and a test:
+`test_god_entering_does_not_count_itself_for_devotion`. That is the shape to
+insist on for the rest of RC-B — an unintuitive ruling that reduces to a
+mechanical rule is fine; one that does not is a signal to stop and re-read the
+CR before writing code.
 
 **De-risking split.** RC Part A implements ETB replacements whose applicability
 does not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is
@@ -720,8 +949,8 @@ CR 122 counter types. That is a check, not an assumption.
 ## 8a. Is the event vocabulary complete? No — and that is a bounded problem
 
 Raised in review of Phase RE: *"are we sure these are all the replacement event
-kinds?"* **No.** The list in §3.1 is not complete, three omissions are already
-known (below), and more will surface with card breadth. What matters is that the
+kinds?"* **No.** The list in §3.1 is not complete, **eight omissions are already
+known and named below**, and more will surface with card breadth. What matters is that the
 question is bounded and that the failure mode is loud rather than silent.
 
 ### The derivation
@@ -776,17 +1005,39 @@ rediscover them as surprises:
 | **Losing the game** — Exquisite Archangel, Lich's Mirror, The Golden Throne, Stunning Reversal | 104.3, 704.5a | 4 | A `GameAction::PlayerLoses`. Interacts with RA's SBA batch, since the loss is SBA-driven |
 | **Winning the game** — Laboratory Maniac's shape | 104.2 | 2 + | Same, `PlayerWins`. Lab Maniac itself is a *draw* replacement and is already in RE |
 | **Discard as an event** — Library of Leng, Dodecapod, Loxodon Smiter | 701.9 | 17 | `ZoneChange { cause: Discarded }` exists in RA; the pattern arm does not. Note the printed wording is "causes you to discard", not "would discard" — the naive Scryfall probe returns 0 |
-| **Turned face up** | 614.1e | needs face-down permanents first | Out of scope; no face-down system exists |
+| **Turned face up** | 614.1e | 2 | Needs face-down permanents; out of scope |
+| **Rolling dice** | 705/706 | 7 | Krark's Thumb, Barbarian Class. CR 705 is ❌ in `codebase-state.md` |
+| **Scry / surveil as an event** | 701.24 | 2 | Eligeth, Crossroads Augur |
+| **Search a library** | 701.19 | 1 | Aven Mindcensor |
+| **Countering a spell** | 701.6 | 1 | Guile — and note the first probe here reported **zero**, because the printed wording is "would counter", not "would be countered" |
 
-Checked and genuinely empty at 0 printed cards: replacements on countering, on
-exiling, and on shuffling. Small: mill (2), paying life (1, Ashiok — and it is
-CR 614.13c's own example), untap (2, plus the 92 stun-counter cards), searching
-(1). Damage-to-life-total replacement (Ali from Cairo, 8 cards) is a `DealDamage`
-replacement and already covered.
+Damage-to-life-total replacement (Ali from Cairo, 8 cards) is a `DealDamage`
+replacement and already covered; mill (2), paying life (1 — Ashiok, and it is
+CR 614.13c's own example) and untap (2, plus 92 stun-counter cards) fold into
+existing variants.
+
+### What the residual actually is: CR 701 keyword actions
+
+The §3.2c classification left 11 clauses unbucketed, and reading them gives the
+generalization this section wanted. They are, without exception, **CR 701
+keyword actions**: flip a coin (Krark's Thumb), connive (Leader, Super-Genius),
+learn (Retriever Phoenix), explore (Topography Tracker, Twists and Turns),
+proliferate (Tekuthal), assemble a Contraption (Steamflogger Boss), planeswalk
+(Susan Foreman).
+
+That is a much better-behaved answer than "cards keep inventing things".
+**A keyword action is a replaceable event**, so the `GameAction` vocabulary must
+eventually cover CR 701 — and CR 701 is an enumerated chapter of roughly sixty
+entries, most of which are already `Primitive` variants. The growth axis is a
+CR chapter, readable in an afternoon, not an open-ended card-driven set. When a
+keyword action becomes an event kind, the card that motivated it usually needs
+no `Rewrite` change at all.
 
 **Phase RE's title is "the remaining event kinds" and should be read as "the
 remaining event kinds we know of."** It gains `PlayerLoses` / `PlayerWins` and
-the discard pattern arm from this audit.
+the discard pattern arm from this audit; the seven above are budgeted against
+the phases that need them, and the CR 701 sweep belongs with Phase 8 card
+breadth rather than here.
 
 ---
 
@@ -897,6 +1148,19 @@ Same discipline as the layer phases:
 - **N-player.** `test_support::setup_game(4)` exists. Any test touching CR 616.1
   ordering gets a 4-player form, because APNAP with one nonactive player is the
   same answer as no APNAP at all.
+
+**Four named acid tests**, each pinning a rule the design would otherwise get
+quietly wrong. Write them as the phase's first tests, not its last:
+
+| Test | Pins | Fails how |
+|---|---|---|
+| `test_two_teferis_draw_four_not_infinity` | §3.2d lineage inheritance on decomposition | **hangs**, not fails — give it a bounded iteration guard |
+| `test_two_doubling_seasons_quadruple` | `Amount` composing inside one CR 616.1f loop (2ⁿ by the other route) | wrong number |
+| `test_god_entering_does_not_count_itself_for_devotion` | §5a's filters-vs-counts boundary | silently wrong on 15 gods |
+| `test_declined_optional_is_not_reoffered` | §4.1's decline path marking applied without consuming a use | hangs |
+
+The first and fourth hang rather than fail, which is the argument for writing
+them before the code they check.
 
 Test cards go in `src/cards/phase_r*_cards.rs`; integration tests in
 `tests/phase_r*_integration_test.rs`.
