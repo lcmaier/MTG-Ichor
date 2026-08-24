@@ -8,7 +8,8 @@
 > of this phase against the others.
 > **Companion:** `layers-architecture.md` is the model for this document and the
 > owner of everything CR 613. Read §5.2 (acyclicity) and §9 (hypothetical check)
-> before touching §5 here — the look-ahead frame is the same machinery.
+> before touching §5 here — the look-ahead frame shares its read-side seam,
+> though not its perturbation (§5).
 
 ---
 
@@ -38,9 +39,11 @@ closed. CR 614 also sits upstream in the code: `execute_action` runs before
 `:240`) can ever see anything.
 
 **Why not the CR 613.8 dependency cluster first.** It is back-stopped to land
-before Phase 8 card breadth, not before this. And §5 below shows this phase
-*pre-pays* part of it: the CR 614.12 look-ahead frame is the same hypothetical
-overlay CR 613.8's step-4 check needs (`layers-architecture.md` §9).
+before Phase 8 card breadth, not before this. It also gets cheaper for waiting:
+§5 shows the CR 614.12 look-ahead forces `compute.rs`'s five concrete state
+reads behind one accessor pair, which is plumbing 613.8's step-4 hypothetical
+check would otherwise have to do itself. (Only the *seam* is shared — 613.8's
+own perturbation is frame-level and much cheaper; §5 and §11 item 5 price both.)
 
 **The honest cost of going first.** Three corpus atoms in the CR 614/615 family
 are tagged Phase 7 because they assert on triggers, not on replacement:
@@ -179,7 +182,7 @@ resolution, so it is not an `Effect::Atom`. It gets its own type, reached
 through the `Effect` variant that `types/effects.rs` has been reserving:
 
 ```rust
-// types/effects.rs — replaces the commented-out `ApplyReplacement` line
+// types/effects.rs -- replaces the commented-out `ApplyReplacement` line
 pub enum Effect {
     // ...
     /// CR 614/615. On a *static* ability, this ability generates a replacement
@@ -190,15 +193,23 @@ pub enum Effect {
 }
 
 pub struct ReplacementDef {
-    /// Which proposed events this watches (CR 614.1, 615.1).
+    /// Which proposed events this watches (CR 614.1, 615.1). See 3.2a.
     pub pattern: EventPattern,
-    /// Which objects/players it shields. Reuses the layer system's
-    /// `AffectedSet` — `SourceOnly` is CR 614.12's "affects only that
-    /// permanent" test, and that is exactly the distinction 614.12 draws.
+    /// Which objects/players it shields -- CR 614.1's "they act like shields
+    /// around whatever they're affecting". Reuses the layer system's
+    /// `AffectedSet`; `SourceOnly` vs `Filter` is exactly CR 614.12's "affects
+    /// only that permanent (as opposed to a general subset of permanents that
+    /// includes it)".
     pub affected: AffectedSet,
-    /// How it rewrites a matching event.
-    pub modification: EventModification,
-    /// CR 616.1a–d — which forced-choice bucket this falls in.
+    /// How it rewrites a matching event. See 3.2b -- a closed algebra, not an
+    /// open taxonomy.
+    pub rewrite: Rewrite,
+    /// The "and also" half: CR 615.5's "the rest of the effect takes place
+    /// immediately afterward", CR 701.19a's tap-and-remove-from-combat,
+    /// CR 122.1c's counter removal. **This is the existing `Effect` tree** --
+    /// no new vocabulary, and it is where per-mechanic variety goes.
+    pub then: Option<Effect>,
+    /// CR 616.1a-d -- which forced-choice bucket this falls in.
     pub class: ReplacementClass,
     /// How many times it can fire (CR 615.7 shields, 701.19a "next time").
     pub uses: Uses,
@@ -207,18 +218,18 @@ pub struct ReplacementDef {
     pub exempt_from_614_5: bool,
 }
 
-/// CR 616.1a–e. `Other` is 616.1e — free choice.
+/// CR 616.1a-e. `Other` is 616.1e -- free choice.
 pub enum ReplacementClass { SelfReplacement, ControlChanging, CopyOnEnter, BackFaceUp, Other }
 
 pub enum Uses {
-    /// CR 614.1a static abilities, 615.10, 701.19b — every time, forever.
+    /// CR 614.1a static abilities, 615.10, 701.19b -- every time, forever.
     Static,
     /// CR 701.19a regeneration shield, CR 615.8 "next time [source] would deal
-    /// damage" — one application, then the effect is gone.
+    /// damage" -- one application, then the effect is gone.
     Once,
-    /// CR 615.7 — "prevent the next N damage"; each point prevented decrements.
+    /// CR 615.7 -- "prevent the next N damage"; each point prevented decrements.
     Shield(u64),
-    /// CR 122.1c/d/h — backed by counters on a permanent. Applying removes one
+    /// CR 122.1c/d/h -- backed by counters on a permanent. Applying removes one
     /// counter; the effect exists while at least one remains. Note the CR's
     /// wording: one *or more* counters create **a single** replacement effect,
     /// so two shield counters do not give two applications to one event.
@@ -226,30 +237,123 @@ pub enum Uses {
 }
 ```
 
-`EventPattern` is a predicate over a proposed `GameAction` plus the affected
-object's *effective* characteristics — never its printed ones. It is written as
-data, not a closure, for the same reason `PermanentFilter` is: closures cannot
-be compared, cloned cheaply, or inspected by the loop detector.
+**Two new open-ended enums was one too many; the count is now one.** `Rewrite`
+is new and closed. `EventPattern` is a mechanical projection of `GameAction`,
+not an independent taxonomy. The per-mechanic variety that would otherwise
+inflate a second enum goes into `then: Option<Effect>` — the tree the engine
+already has. Both growth contracts are stated below and are meant to be
+enforced in review, the way the layer system's "registry membership is not
+effect existence" is.
 
-`EventModification` is the rewriter. It needs `&mut GameState` and a
-`DecisionProvider`, because CR 615.5 ("the rest of the effect takes place
-immediately afterward"), CR 701.19a (regeneration taps and removes from combat)
-and CR 122.1c (remove a counter) all perform work beyond rewriting the event.
-Its return type is the whole of CR 614.6 and 616.1g:
+### 3.2a `EventPattern` — one arm per `GameAction` variant, and no other axis
+
+`EventPattern` is a predicate over a proposed `GameAction`. It is data rather
+than a closure for the same reason `PermanentFilter` is: closures cannot be
+compared, cloned cheaply, or inspected by the loop detector.
+
+**Growth contract: exactly one arm per `GameAction` variant, and it grows on no
+other axis.** It is a projection of §3.1's table. If a card needs a pattern
+`EventPattern` cannot express, the missing thing is a `GameAction` variant or a
+field on one, and that is where the fix goes — because a replacement effect can
+only watch for an event the engine actually proposes (§8a). A change that adds
+an `EventPattern` arm without a corresponding `GameAction` change is the smell
+this contract exists to catch.
+
+Within an arm, constraints on the event's fields reuse existing vocabulary —
+`PermanentFilter`, `PlayerRef`, `ZoneChangeCause`, `CardType` — rather than
+inventing per-mechanic predicates. "If a *red* source would deal damage to a
+*Cleric you control*" (Daunting Defender, CR 615.10's own example) is `ByColor`
+on the source and `And(BySubtype(Cleric), ByController(You))` on the target.
+Both already exist.
+
+### 3.2b `Rewrite` — a closed algebra with a checkable completeness claim
+
+The right question about `Rewrite` is not "will it grow" but "is its
+completeness checkable". It is, because CR 614 and 615 enumerate what a
+replacement effect may do to an event, and the list is short:
 
 ```rust
-pub enum ReplacementOutcome {
-    /// CR 614.6 — the event never happens. Skips, "prevent that damage",
-    /// "instead do nothing".
-    Nothing,
-    /// One modified event, which re-enters the pipeline (CR 616.1f).
-    Modified(GameAction),
-    /// Several — Doubling Season's "creates twice that many instead". Each
-    /// branch inherits the applied-set (CR 614.5's "an event or any modified
-    /// events that may replace that event").
-    Split(Vec<GameAction>),
+pub enum Rewrite {
+    /// CR 614.6 / 615.6 -- the event does not happen. "Prevent that damage",
+    /// "skip", "instead do nothing".
+    Prevent,
+    /// CR 614.5's doublers, CR 615.7's partial prevention, CR 122.6a's
+    /// "enters with N more". Scales or offsets the event's numeric field.
+    Amount(AmountRewrite),
+    /// CR 614.9 redirection, CR 616.1b control-changing. Changes who or what
+    /// the event is about, leaving its kind alone.
+    Retarget(RetargetSpec),
+    /// CR 614.1c/d -- modify the *parameters* of an entering permanent
+    /// (tapped, counters, controller, copy-of) without changing the event.
+    EnterWith(EnterMods),
+    /// CR 614.1a's general "instead" -- replace the event with a different
+    /// proposed action. The escape hatch, and the only unbounded arm.
+    Instead(GameActionTemplate),
 }
 ```
+
+**Only `Instead` is unbounded, and that is the CR's own shape.** CR 614.1a says
+replacement effects "use the word *instead* to indicate what events will be
+replaced with other events", so arbitrary event-for-event substitution is a
+rule, not a design gap — and it costs nothing, because the substitute is a
+`GameAction`, a vocabulary that already has to exist.
+
+The other four arms exist because those are the cases where the replacement is
+*not* a substitution, and flattening them into `Instead` would lose information
+the pipeline needs:
+
+- `Amount` has to **compose**. CR 614.5's worked example — two doublers turning
+  2 damage into 8, "not just 4, and not an infinite amount" — is only
+  expressible if the second doubler sees the first one's output as a number.
+- `Retarget` has to survive CR 614.9's destination check: "if one of those
+  permanents is no longer on the battlefield when the damage would be
+  redirected … the effect does nothing." An `Instead` carrying a baked-in
+  target cannot re-check that at application time.
+- `EnterWith` has to **accumulate across CR 616.1f iterations** while the
+  permanent does not yet exist, and be readable by the CR 614.12 look-ahead
+  (§5) as "replacement effects that have already modified how it enters".
+- `Prevent` is distinguishable from an `Instead` that produces nothing because
+  CR 615.13 lets triggers fire on damage *being prevented*, and CR 615.12
+  ("prevention effects are still applied … those effects won't prevent any
+  damage, but any additional effects they have will take place") needs the
+  engine to know a prevention was attempted.
+
+A sixth arm is a claim that CR 614/615 permits an operation this list omits. It
+should arrive with the rule number that says so; absent one, it belongs in
+`Instead` or in `then`.
+
+### 3.2c The outcome is an `Option`, not a fan-out
+
+```rust
+/// CR 614.6 -- either the event happens in modified form, or it never happens.
+pub type ReplacementOutcome = Option<GameAction>;
+```
+
+This was drafted with a third `Split(Vec<GameAction>)` variant justified by
+Doubling Season. **That was wrong, and the correction matters structurally.**
+Doubling Season reads "If an effect would create one or more tokens under your
+control, it creates twice that many of those tokens **instead**" (verified on
+Scryfall, 2026-08-24) — one token-creation event whose *count* changes, which
+is `Rewrite::Amount`. Its second ability does the same for counters.
+
+Nothing in CR 614 turns one event into several. What does happen is CR 616.1g's
+**containment**: *performing* a `CreateTokens { n: 2 }` proposes two
+`EnterBattlefield` events, and each of those runs its own pipeline. That is the
+performer's business, not the rewriter's, and §4.1's work queue already handles
+it — which is also why 616.1g's ordering guarantee ("the second effect can't be
+chosen until after the first effect has been chosen") falls out for free: the
+outer event finishes its own replacement chain *before* it is performed, so the
+contained events do not exist yet when the outer choice is made. CR 616.1g's own
+example is exactly this pair.
+
+Dropping `Split` also retires a question that had no CR answer — whether a
+fanned-out branch inherits the CR 614.5 applied-set. With one event in and at
+most one out, the applied-set follows a chain, which is precisely what 614.5's
+"an event or any modified events that may replace that event" describes.
+
+`Rewrite::apply` still needs `&mut GameState` and a `DecisionProvider`, because
+`then` resolves against live state — but that is the existing `resolve_effect`
+path, not new machinery.
 
 ### 3.3 Where replacement effects come from
 
@@ -303,34 +407,32 @@ It differs in two ways, both because replacement effects are not layered:
 
 ### 4.1 The CR 616.1 loop
 
+One event in, at most one event out (§3.2c). `perform_action` is what proposes
+contained events, and each of those re-enters here.
+
 ```
-fn apply_replacements(game, action, ctx) -> Vec<GameAction>   // the performed set
+fn apply_replacements(game, action, ctx) -> Option<GameAction>
     applied: HashSet<ReplacementInstanceId> = {}
-    work: VecDeque<GameAction> = [action]
-    out: Vec<GameAction> = []
+    ev = action
 
-    while let Some(ev) = work.pop_front():
-        loop:                                            # CR 616.1f
-            cands = gather(game, ev)                     # §3.3, five sources
-                      .filter(applies_to(ev))            # EventPattern + AffectedSet
-                      .filter(|c| c.exempt_from_614_5    # CR 903.9b
-                                  || !applied.contains(c.instance))   # CR 614.5
-            if cands.is_empty(): break
+    loop:                                                # CR 616.1f
+        cands = gather(game, ev)                         # 3.3, five sources
+                  .filter(applies_to(ev))                # EventPattern + AffectedSet
+                  .filter(|c| c.exempt_from_614_5        # CR 903.9b
+                              || !applied.contains(c.instance))   # CR 614.5
+        if cands.is_empty(): return Some(ev)
 
-            bucket = forced_bucket(cands)                # CR 616.1a → b → c → d → e
-            chooser = affected_chooser(game, ev)         # CR 616.1 / 400.6
-            chosen = if bucket.len() == 1 { bucket[0] }
-                     else { ask_choose_replacement(dp, chooser, bucket) }
+        bucket  = forced_bucket(cands)                   # CR 616.1a -> b -> c -> d -> e
+        chooser = affected_chooser(game, ev)             # CR 616.1 / 400.6
+        chosen  = if bucket.len() == 1 { bucket[0] }
+                  else { ask_choose_replacement(dp, chooser, bucket) }
 
-            if !chosen.exempt_from_614_5: applied.insert(chosen.instance)
-            chosen.consume_use(game)                     # Uses::Once / Shield / CounterBacked
+        if !chosen.exempt_from_614_5: applied.insert(chosen.instance)
+        chosen.consume_use(game)                         # Uses::Once / Shield / CounterBacked
 
-            match chosen.apply(game, ev, ctx)?:           # CR 614.6
-                Nothing      => { ev = DROPPED; break }
-                Modified(e)  => ev = e
-                Split(es)    => { work.extend(es[1..]); ev = es[0] }
-        if ev != DROPPED: out.push(ev)
-    out
+        match chosen.apply(game, ev, ctx)?:              # Rewrite + `then`
+            None     => return None                      # CR 614.6 -- never happens
+            Some(e)  => ev = e                           # CR 616.1f -- re-gather
 ```
 
 Six things this encodes, each with its rule:
@@ -338,18 +440,23 @@ Six things this encodes, each with its rule:
 - **CR 614.4** — `gather` runs against live state at the moment of proposal.
   There is no "go back in time" path because there is no other place to ask.
 - **CR 614.5** — the `applied` set is keyed on the *effect instance*, and it
-  follows the event through every modification. `exempt_from_614_5` exists for
-  exactly one rule (903.9b) and must not grow a second user without a CR cite.
+  follows the event through every modification, which is what 614.5's "an event
+  or any modified events that may replace that event" describes.
+  `exempt_from_614_5` exists for exactly one rule (903.9b) and must not grow a
+  second user without a CR cite.
 - **CR 616.1a–e** — `forced_bucket` returns the highest-priority non-empty class
   and only that class; 616.1e is the fallthrough.
-- **CR 616.1f** — the outer `loop` re-gathers after every application, so an
-  effect made newly applicable by the modification is picked up (CR 616.2).
-- **CR 616.1g** — `Split` pushes to the *back* of `work`, so the outer event
-  finishes its own replacement chain before an inner one starts. Doubling Season
-  before Voice of All's "choose a color"; CR 121.2a's "draw N" before the
-  individual draws.
-- **CR 614.6/614.7** — `Nothing` drops the event, and an event that produced no
-  proposal was never in `work` to begin with (CR 614.7a's zero damage is already
+- **CR 616.1f** — the loop re-gathers after every application, so an effect made
+  newly applicable by the modification is picked up (CR 616.2).
+- **CR 616.1g** — nothing here handles containment, and nothing needs to. A
+  contained event does not exist until the outer one is *performed*, and this
+  function returns before that happens — so "the second effect can't be chosen
+  until after the first effect has been chosen" is a consequence of the call
+  order rather than a rule the loop enforces. Doubling Season's count is fixed
+  before either Voice of All token has an ETB event to replace; CR 121.2a's
+  "draw N" is fixed before any individual draw exists.
+- **CR 614.6/614.7** — `None` drops the event, and an event that was never
+  proposed never reaches this function (CR 614.7a's zero damage is already
   short-circuited in `perform_action`).
 
 **`ask_choose_replacement` is called only when `bucket.len() >= 2`.** That is
@@ -453,23 +560,55 @@ pub fn compute_as_entering(
 ) -> Option<EffectiveCharacteristics>;
 ```
 
-**Two notes that decide how to build it.**
+**Three notes that decide how to build it.**
 
-- **Its second customer is CR 613.8.** `layers-architecture.md` §9 step 4 is a
-  hypothetical check — "temporarily apply B to a frame snapshot, recompute A's
-  `affected`, compare" — and §9 leaves the snapshot shape open ("clone vs. CoW
-  overlay"). Same machinery. Build the overlay here, and the 613.8 cluster
-  inherits it. Design it as a read-side view, not a `GameState` clone;
-  `compute.rs` reads the battlefield in four places and they all become one
-  accessor.
 - **Self does not mean self-affecting.** CR 614.12's own Orb of Dreams example:
   a permanent's *replacement* effect applies to itself only if it "affects only
   that permanent", i.e. `AffectedSet::SourceOnly` — a filter-based one
-  (`Permanents enter tapped`) does not. But clause (2) puts **no such
+  ("Permanents enter tapped") does not. But clause (2) puts **no such
   restriction on the characteristics computation**: an entering creature with
   "Creatures you control get +1/+1" does get its own anthem in the look-ahead
   frame. The self-only test belongs to the replacement's applicability, not to
   the frame. Two different questions, one rule number.
+
+- **Build a read-side view, not a `GameState` clone.** `compute.rs` reaches for
+  concrete state in five places, audited 2026-08-24: four battlefield reads
+  (`compute.rs:113` the `control_since_turn` seed, `:180` the counter entry,
+  `:408` `base_controller`, `:623` `effect_applies_to`'s membership gate) and
+  one registry read (`:242`, `effects_in_layer`). Route those through one
+  accessor pair that a caller can perturb. A `GameState` clone would work here on
+  budget grounds — §11 item 5 prices both call sites — but is the wrong
+  instrument: it duplicates the object store and `GameState.rng`, the latter
+  against the determinism doctrine outright, and it produces a second live copy
+  of every `ObjectId`, which is a v4 UUID and therefore *aliased* rather than
+  distinguishable.
+
+- **CR 613.8 shares the seam, not the overlay** (corrected 2026-08-24 in
+  review). The first draft claimed the two were "the same machinery". They are
+  not, and the difference is worth stating because it changes what gets built:
+
+  | | CR 614.12 look-ahead | CR 613.8 step-4 hypothetical |
+  |---|---|---|
+  | What is perturbed | battlefield membership, controller, the entering object's own registry rows, pending `EnterMods` | one more `EffectModification` applied to a frame |
+  | What is re-evaluated | the whole layer walk for one object | `permanent_matches_filter(A.filter, chars, …)` |
+  | Cost of the perturbation | game-state-shaped | `EffectiveCharacteristics` clone — measured 0.37 → 0.27 µs over N=10–80, i.e. flat (`layers-architecture.md` §12) |
+  | Frequency | once per entering permanent | up to O(effects²) per layer, inside a per-permanent walk |
+
+  613.8's check is **frame-level**. "Recompute A's `affected` with B applied" is
+  a clone of `chars`, one `EffectModification` applied to it, and one
+  `permanent_matches_filter` call — it never asks whether an object is on the
+  battlefield differently than it already is. It does not need the overlay and
+  must not be built on one, because a game-state-shaped perturbation inside an
+  O(effects²) loop inside a per-permanent walk is the cubic this project has
+  spent two phases avoiding.
+
+  What 613.8 *does* inherit is the accessor pair, so it never has to re-plumb
+  `compute.rs`. And the seam has to be general on principle, which is the review
+  question that prompted this correction: dependency (CR 613.8a) can be created
+  or destroyed by a control change, a counter, an ability grant, a duration
+  expiry, or a CR 305.7 strip — entering the battlefield is one cause among
+  many. So the accessor is parameterized by *what it returns*, not by "is this
+  object entering"; the ETB case is one caller supplying one perturbation.
 
 **De-risking split.** RC Part A implements ETB replacements whose applicability
 does not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is
@@ -578,6 +717,79 @@ CR 122 counter types. That is a check, not an assumption.
 
 ---
 
+## 8a. Is the event vocabulary complete? No — and that is a bounded problem
+
+Raised in review of Phase RE: *"are we sure these are all the replacement event
+kinds?"* **No.** The list in §3.1 is not complete, three omissions are already
+known (below), and more will surface with card breadth. What matters is that the
+question is bounded and that the failure mode is loud rather than silent.
+
+### The derivation
+
+A replacement effect can only replace an event the engine actually **proposes**.
+So the set of replaceable event kinds is not a fact about Magic's card pool — it
+is exactly the set of `GameAction` variants. "Did we get all the replacement
+event kinds" therefore reduces to **"did we get the mutation vocabulary right"**,
+which is a question about `perform_action`, not about cards, and which can be
+answered by reading one file instead of surveying 30,000 cards.
+
+That reduction is the whole reason for the RA/RB split. RA's exit criterion —
+every observable state mutation is emitted from exactly one place — is what makes
+the `GameAction` enum an *enumeration of the engine's mutations* rather than a
+list of the ones someone happened to need.
+
+### The failure mode, and the guard
+
+Today, a card needing a mutation with no `GameAction` gets that mutation written
+inline somewhere, where it is **silently invisible to both CR 614 and CR 603**.
+That is not hypothetical — it is the activation-invisibility gap
+(`codebase-state.md`, Before Triggers item 2), where an entire ability
+activation left no trace in the event log, and it is the same class as the 21
+sites that read printed characteristics after Layer 4 landed.
+
+The guard is the pattern `register_static_effects` already uses for lowering
+(commit `67c5a72`, "make the card→registry step refuse to be quiet"): **make the
+quiet path impossible rather than documenting it.** Concretely, as an RA exit
+task:
+
+- No `pub` field on `GameState` that a card-facing module can mutate directly —
+  battlefield entries, life totals, tap state, counters and zone collections go
+  behind `pub(crate)` with `perform_action` as the writer.
+- A test that walks `perform_action`'s match arms and asserts one arm per
+  `GameAction` variant, so a variant added without a performer fails to compile
+  or fails the suite rather than becoming a no-op.
+- A `debug_assert!` at each remaining bypass, of which RA leaves zero.
+
+A new card then costs a `GameAction` variant plus a `perform_action` arm plus an
+`EventPattern` arm — three edits in three known places, and per §3.2b usually no
+`Rewrite` change at all. That is the cost this design is buying; it is not zero,
+and pretending the list is closed would be the more expensive lie.
+
+### Known-missing kinds, named now
+
+Found while checking this review comment (Scryfall, 2026-08-24). None is large,
+and none changes the architecture — they are listed so a later phase does not
+rediscover them as surprises:
+
+| Missing event | CR | Cards | Where it lands |
+|---|---|---|---|
+| **Losing the game** — Exquisite Archangel, Lich's Mirror, The Golden Throne, Stunning Reversal | 104.3, 704.5a | 4 | A `GameAction::PlayerLoses`. Interacts with RA's SBA batch, since the loss is SBA-driven |
+| **Winning the game** — Laboratory Maniac's shape | 104.2 | 2 + | Same, `PlayerWins`. Lab Maniac itself is a *draw* replacement and is already in RE |
+| **Discard as an event** — Library of Leng, Dodecapod, Loxodon Smiter | 701.9 | 17 | `ZoneChange { cause: Discarded }` exists in RA; the pattern arm does not. Note the printed wording is "causes you to discard", not "would discard" — the naive Scryfall probe returns 0 |
+| **Turned face up** | 614.1e | needs face-down permanents first | Out of scope; no face-down system exists |
+
+Checked and genuinely empty at 0 printed cards: replacements on countering, on
+exiling, and on shuffling. Small: mill (2), paying life (1, Ashiok — and it is
+CR 614.13c's own example), untap (2, plus the 92 stun-counter cards), searching
+(1). Damage-to-life-total replacement (Ali from Cairo, 8 cards) is a `DealDamage`
+replacement and already covered.
+
+**Phase RE's title is "the remaining event kinds" and should be read as "the
+remaining event kinds we know of."** It gains `PlayerLoses` / `PlayerWins` and
+the discard pattern arm from this audit.
+
+---
+
 ## 9. Work-phase plan
 
 One branch/PR per phase, matching the Layer phases' size (5–8 commits). Phases
@@ -609,8 +821,9 @@ from tutored, destroyed from sacrificed, and countered from resolved.
 
 ### Phase RB — the pipeline, with counters and regeneration as consumers
 
-1. `ReplacementDef`, `EventPattern`, `EventModification`, `ReplacementOutcome`,
-   `ReplacementClass`, `Uses`; `Effect::Replacement`;
+1. `ReplacementDef`, `EventPattern`, `Rewrite`, `ReplacementOutcome`,
+   `ReplacementClass`, `Uses`; `Effect::Replacement` (and its `then: Option<Effect>`
+   half, which reuses `resolve_effect`);
    `register_static_effects` skips replacement bodies.
 2. `ReplacementRegistry` with duration expiry.
 3. `apply_replacements` — the §4.1 loop, including 616.1a–f, 614.5, 616.1g
@@ -645,13 +858,15 @@ unpreventable + 615.12a single application), damage redirection (614.9),
 doubling (701.10g), the simultaneous-damage shield allocation choice (615.7,
 needs RA's batch), and CR 609.7a's source-choice validation.
 
-### Phase RE — the remaining event kinds
+### Phase RE — the remaining event kinds we know of (see §8a)
 
 Draw replacement (614.11, 614.11a/b, 121.2a's outer event, 121.6a empty
 library), skips (614.10/a/b — per-player consumable `pending_skips` consulted at
 step/phase/turn begin), token and counter doublers (614.16), life-gain
 replacement (119.10), mana replacement (106.6a), CR 608.3e (permanent spell
-whose controller can't put it onto the battlefield).
+whose controller can't put it onto the battlefield), and the three kinds §8a's
+audit added: `PlayerLoses` / `PlayerWins` (CR 104, 6 cards) and the discard
+pattern arm (CR 701.9, 17 cards).
 
 ### Interleaved — Commander
 
@@ -719,11 +934,49 @@ Test cards go in `src/cards/phase_r*_cards.rs`; integration tests in
    count the cards, then decide whether it is a zone parameter on the sweep or a
    separate registry.
 
-5. **Open — the overlay's shape.** `layers-architecture.md` §15.2 item 3 left
-   "clone vs. CoW overlay" open for the dependency algorithm and it is still
-   open. This phase forces the decision (§5). Whichever is chosen, record it in
-   *both* documents — a divergent answer between the 614.12 frame and the 613.8
-   check is two implementations of the same idea.
+5. **The overlay's shape — closed by performance, not by taste.**
+   `layers-architecture.md` §15.2 item 3 left "clone vs. CoW overlay" open for
+   the dependency algorithm. Asked again in review — *are there performance
+   considerations that favour one?* — and the answer is yes, decisively, but the
+   two customers have to be priced separately because §5 establishes they are
+   not the same operation.
+
+   **CR 613.8's check should clone the frame, and that is already cheap.** Its
+   perturbation is `EffectiveCharacteristics`-shaped: clone `chars`, apply one
+   `EffectModification`, re-run `permanent_matches_filter`. `layers-architecture.md`
+   §12 measured frame construction at **0.37 µs at N=10 falling to 0.27 µs at
+   N=80** — flat in board size, "3% and flat" in its own words, explicitly not
+   the bottleneck. So the expensive thing about a
+   snapshot was never the frame; it was the idea of copying the *game*. 613.8
+   does not need to.
+
+   That matters because of where the check sits: up to O(effects²) candidate
+   pairs per layer, inside a walk that runs per permanent, inside a sweep that
+   runs per priority check. §12's table already shows this shape going
+   superlinear when a per-effect cost is added — the ungated CR 613.7a existence
+   check ran 5.2× at N=10 and 8.0× at N=80 for exactly this reason. A
+   game-state-shaped snapshot in that position is not a slow path, it is a
+   different complexity class.
+
+   **CR 614.12's look-ahead genuinely needs game-state-shaped perturbation** —
+   battlefield membership, controller, the entering object's own registry rows —
+   but it runs **once per entering permanent**, which is a few times per turn.
+   Its budget would tolerate a `GameState` clone.
+
+   **It still should not use one**, and the reasons are correctness rather than
+   speed: a clone duplicates `GameState.rng`, which the determinism doctrine
+   forbids reaching for a second time; and it produces a second live copy of
+   every `ObjectId`, which is a v4 UUID and therefore *aliased* rather than
+   distinguishable, so any code that reads an id back out of the snapshot cannot
+   tell which game it belongs to. A read-side view has neither problem and needs
+   the accessor pair that §5's five audited sites want anyway.
+
+   **Decision: read-side accessor pair, no clone at either call site.** Record it
+   in `layers-architecture.md` §9/§15.2 when RC-B lands, and measure the RC-B
+   overlay with `fuzz_games --games 200 --seed 12345` against the pre-RC-B
+   baseline — a look-ahead that runs a few times per turn should not move the
+   number, and if it does, the accessor indirection has leaked into the hot walk
+   and that is the bug to find.
 
 6. **CR 614.10's skips are not `execute_action` events.** They replace the
    *beginning of a step/phase/turn*, which happens in `advance_turn`, not in a
