@@ -30,8 +30,8 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::oracle::legality::legal_attackers;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
-    attach, card_of_type, equipment, pacifism, put_in_graveyard, put_on_battlefield,
-    setup_two_player_game, test_dp, vanilla_creature,
+    attach, aura_enchanting_your_creature, card_of_type, equipment, pacifism, put_in_graveyard,
+    put_on_battlefield, setup_two_player_game, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -532,6 +532,115 @@ fn test_one_control_change_moves_neither_the_equipment_nor_the_aura() {
 
     let host = game.battlefield.get(&creature).unwrap();
     assert!(host.attached_by.contains(&sword) && host.attached_by.contains(&aura));
+}
+
+/// CR 303.4c + 303.4e + Layer 2, composed: the Aura does *not* move with the
+/// creature, and that is exactly why it dies.
+///
+/// "Enchant creature you control" is text on the Aura, so CR 109.5 makes its
+/// "you" the Aura's controller. CR 303.4e leaves the Aura with P0 when P1 takes
+/// the creature. P0 therefore no longer controls what the Aura enchants, the
+/// enchant restriction is violated, and SBA 704.5n puts the Aura into its
+/// owner's graveyard.
+///
+/// Three separate things had to be true at once, and only one of them is Layer
+/// 2. `targeting::permanent_matches_filter` had to learn to resolve
+/// `PlayerRef::You` at all — it returned `Err` for every variant but
+/// `Player(_)`, so this Aura's restriction was unenforceable and 704.5n never
+/// fired. It also had to read the *effective* controller, or the theft would be
+/// invisible to it.
+// COVERS: COMP-303.4c+303.4e+L11-001
+#[test]
+fn test_an_enchant_creature_you_control_aura_falls_off_when_the_creature_is_stolen() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let aura = put_on_battlefield(
+        &mut game,
+        aura_enchanting_your_creature("Test Bond"),
+        0,
+    );
+    attach(&mut game, aura, creature);
+
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert!(
+        game.battlefield.contains_key(&aura),
+        "P0 controls the creature, so the restriction is satisfied"
+    );
+
+    gain_control(&mut game, 1, creature, Duration::Indefinite);
+    game.check_state_based_actions(&test_dp()).unwrap();
+
+    assert_eq!(
+        get_effective_controller(&game, creature),
+        Some(1),
+        "the creature moved"
+    );
+    assert!(
+        !game.battlefield.contains_key(&aura),
+        "CR 704.5n: the Aura's controller no longer controls its host"
+    );
+    assert!(
+        game.players[0].graveyard.contains(&aura),
+        "CR 303.4c: to its owner's graveyard"
+    );
+    assert!(
+        !game.battlefield.get(&creature).unwrap().attached_by.contains(&aura),
+        "and the host's back-pointer is cleaned up"
+    );
+}
+
+/// The control-independent half of the same rule, stated as a filter question
+/// rather than an SBA one: an "Enchant creature you control" Aura controlled by
+/// P1 may legally enchant P1's creatures and not P0's, and stealing a creature
+/// moves it between those two sets.
+#[test]
+fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let filter = SelectionFilter::Permanent(PermanentFilter::And(
+        Box::new(PermanentFilter::ByType(CardType::Creature)),
+        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+    ));
+
+    assert!(
+        game.validate_targets(
+            &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
+            &[ResolvedTarget::Object(creature)],
+            0,
+        )
+        .is_ok(),
+        "P0 controls it"
+    );
+    assert!(
+        game.validate_targets(
+            &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
+            &[ResolvedTarget::Object(creature)],
+            1,
+        )
+        .is_err(),
+        "P1 does not"
+    );
+
+    gain_control(&mut game, 1, creature, Duration::Indefinite);
+
+    assert!(
+        game.validate_targets(
+            &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
+            &[ResolvedTarget::Object(creature)],
+            1,
+        )
+        .is_ok(),
+        "CR 613.1b: and now P1 does"
+    );
+    assert!(
+        game.validate_targets(
+            &EffectRecipient::Target(filter, TargetCount::Exactly(1)),
+            &[ResolvedTarget::Object(creature)],
+            0,
+        )
+        .is_err(),
+        "and P0 does not"
+    );
 }
 
 // ---------------------------------------------------------------------------

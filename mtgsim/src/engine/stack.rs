@@ -54,7 +54,7 @@ impl GameState {
         let recipient = self.extract_recipient(&entry.effect);
         let has_targets = matches!(recipient, EffectRecipient::Target(_, _));
 
-        if has_targets && !self.any_targets_still_legal(&recipient, &entry.chosen_targets) {
+        if has_targets && !self.any_targets_still_legal(&recipient, &entry.chosen_targets, controller) {
             // All targets illegal — spell/ability fizzles (is countered by game rules)
             self.handle_fizzle(object_id, &entry)?;
             return Ok(());

@@ -188,7 +188,7 @@ pub fn castable_spells(
         if let Some(ability) = spell_ability {
             let recipient = spell_recipient(&ability.effect);
             if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) = recipient {
-                if !game.has_any_legal_choice(f, None) {
+                if !game.has_any_legal_choice(f, None, player_id) {
                     continue;
                 }
             }

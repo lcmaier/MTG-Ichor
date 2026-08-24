@@ -877,14 +877,19 @@ impl GameState {
         // Pre-check: is there at least one legal host?
         // Skip the DP prompt entirely if not — no point asking the player
         // to choose from an empty set.
-        if !self.has_any_legal_choice(&filter, Some(aura_id)) {
+        // CR 109.5: "you" on the Aura's enchant clause is the Aura's
+        // controller, which is what makes "Enchant creature you control" mean
+        // something different from "Enchant creature".
+        if !self.has_any_legal_choice(&filter, Some(aura_id), controller) {
             // No legal host exists. Aura stays unattached; 704.5m SBA
             // will put it into the graveyard.
             return Ok(false);
         }
 
         let recipient = EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(1));
-        let legal = crate::oracle::legality::enumerate_legal_selections(self, &filter, Some(aura_id));
+        let legal = crate::oracle::legality::enumerate_legal_selections(
+            self, &filter, Some(aura_id), controller,
+        );
         let choices = crate::ui::ask::ask_select_recipients(
             dp, self, controller, &recipient, aura_id,
             &legal, 1, 1,

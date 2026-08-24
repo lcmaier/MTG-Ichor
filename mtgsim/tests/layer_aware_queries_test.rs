@@ -67,14 +67,14 @@ fn test_animated_artifact_is_a_legal_creature_target() {
 
     // Before: not a creature, so targeting must fail.
     assert!(!is_creature(&game, artifact_id));
-    assert!(game.validate_targets(&recipient, &targets).is_err());
+    assert!(game.validate_targets(&recipient, &targets, 0).is_err());
 
     // Ensoul Artifact: "target artifact you control becomes a 5/5 creature"
     add_layer4(&mut game, artifact_id, EffectModification::AddType(CardType::Creature));
 
     assert!(is_creature(&game, artifact_id));
     assert!(
-        game.validate_targets(&recipient, &targets).is_ok(),
+        game.validate_targets(&recipient, &targets, 0).is_ok(),
         "an animated artifact is a creature and must be targetable as one"
     );
 }
@@ -95,7 +95,7 @@ fn test_detyped_creature_is_not_a_legal_creature_target() {
     let recipient =
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
     let targets = vec![ResolvedTarget::Object(bears_id)];
-    assert!(game.validate_targets(&recipient, &targets).is_ok());
+    assert!(game.validate_targets(&recipient, &targets, 0).is_ok());
 
     add_layer4(
         &mut game,
@@ -105,7 +105,7 @@ fn test_detyped_creature_is_not_a_legal_creature_target() {
 
     assert!(!is_creature(&game, bears_id));
     assert!(
-        game.validate_targets(&recipient, &targets).is_err(),
+        game.validate_targets(&recipient, &targets, 0).is_err(),
         "a permanent that lost the creature type is not a legal creature target"
     );
 }
@@ -128,11 +128,11 @@ fn test_permanent_filter_by_type_sees_layer4() {
         TargetCount::Exactly(1),
     );
     let targets = vec![ResolvedTarget::Object(artifact_id)];
-    assert!(game.validate_targets(&recipient, &targets).is_err());
+    assert!(game.validate_targets(&recipient, &targets, 0).is_err());
 
     add_layer4(&mut game, artifact_id, EffectModification::AddType(CardType::Creature));
 
-    assert!(game.validate_targets(&recipient, &targets).is_ok());
+    assert!(game.validate_targets(&recipient, &targets, 0).is_ok());
 }
 
 // ---------------------------------------------------------------------------

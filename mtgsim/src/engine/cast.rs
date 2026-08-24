@@ -129,7 +129,7 @@ impl GameState {
 
         // --- 601.2c: Choose targets ---
         let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
-            let legal = enumerate_legal_selections(self, filter, Some(card_id));
+            let legal = enumerate_legal_selections(self, filter, Some(card_id), player_id);
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
                 crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
@@ -138,7 +138,7 @@ impl GameState {
                 decisions, self, player_id, &recipient, card_id,
                 &legal, min_sel, max_sel,
             );
-            if let Err(e) = self.validate_targets(&recipient, &chosen) {
+            if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
                 self.change_zone(card_id, Zone::Hand)?;
                 return Err(e);
             }
@@ -311,7 +311,7 @@ impl GameState {
 
         // Choose targets
         let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
-            let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id));
+            let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id), player_id);
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
                 crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
@@ -320,7 +320,7 @@ impl GameState {
                 decisions, self, player_id, &recipient, ability_obj_id,
                 &legal, min_sel, max_sel,
             );
-            if let Err(e) = self.validate_targets(&recipient, &chosen) {
+            if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
                 self.rollback_ability_activation(ability_obj_id);
                 return Err(e);
             }
