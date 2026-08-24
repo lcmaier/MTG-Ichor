@@ -7,7 +7,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~26,900 lines of Rust across 75 `.rs` files. 628 tests, 0 warnings, fuzz harness runs 250-game batches.
+- **Code size:** ~27,000 lines of Rust across 77 `.rs` files. 630 tests, 0 warnings, fuzz harness runs 250-game batches.
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **replacement effects (CR 614–616)** beyond a stub hook, **triggered abilities (CR 603)** beyond an enum variant, CR 800 multiplayer priority/turn rotation.
@@ -556,6 +556,9 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 1. **Trigger dispatcher stub.** `let triggers_placed = false; // Phase 7 stub` at `engine/priority.rs:235`. This is the single-point insertion.
 
 2. **Event shape audit.** Every `events.emit(...)` call site is a potential trigger source. Before wiring triggers, audit that:
+
+   **Known missing already (found 2026-08-24, registering the first activated ability):** `GameEvent` has no variant for an activated ability being put on the stack or resolving. `cast.rs::activate_ability` pushes the ability object onto the stack without `move_object`, so not even a `ZoneChange` is emitted, and the resolution emits nothing either — an activation is completely invisible in the event log. `AbilityCountered` exists, which is the whole of the vocabulary. Triggers that watch activations ("Whenever a player activates an ability…") have nothing to watch, and the event log cannot be used to audit activation behavior at all — measuring how often Merfolk Thaumaturgist's ability resolved needed a temporary probe in `resolve.rs`. Fix as part of this audit, not before it: the variant shape depends on the delta-log-vs-events decision in item 4 above.
+
    - Events are emitted at the correct granularity (e.g., `PermanentEnteredBattlefield` fires per-permanent, not per-batch).
    - Event timing is post-action, not pre-action, so triggers observe the completed state change.
    - Events carry enough context for trigger predicates (controller, source, type filters).
@@ -590,7 +593,11 @@ Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giv
 
 Still crude, and knowingly so: a flat constant over a static pool is not a mana-base model. Replace it with a real picker when card breadth (Phase 8) gives it something to choose between.
 
-**Still open — no artifact exists anywhere in `CardRegistry`,** so March of the Machines is registered and inert for the same reason Blood Moon was. There is no artifact card in the crate at all outside the `phase_l*` fixtures; fixing it means authoring one, not just registering one.
+**~~Still open — no artifact exists anywhere in `CardRegistry`~~ — ✅ fixed 2026-08-24, together with the Layer 7d hole.** March of the Machines was registered and inert for the same reason Blood Moon had been: nothing in the crate outside the `phase_l*` fixtures was an artifact, so Layer 7b had zero random-play coverage. Layer 7d had none either — no registered card switched P/T, and the one fixture that does (`phase5_pre_cards::inside_out`) simplifies a hybrid cost the engine cannot express, so it cannot be registered without misrepresenting the card.
+
+Two real cards, authored verbatim: **Sol Ring** (`cards/artifacts.rs`) and **Merfolk Thaumaturgist** (`cards/utility_creatures.rs`). Sol Ring is colorless, so `random_deck` puts it in every deck rather than only the ones sharing its colors, and its mana value of 1 means it animates into a 1/1 that survives its own SBA check rather than a 0/0 that dies. Measured over 60 games at seed 7: a Sol Ring reached the battlefield in 53, a March in 23, **both in the same game in 20**, and Layer 7d resolved **98 times** (temporary probe, reverted). Both were zero before.
+
+The Thaumaturgist is also the registry's **first `AbilityType::Activated` ability** — every other registered ability is a spell, a mana ability or a static — so `cast.rs::activate_ability`'s stack path, its target selection and its rollback arms now get random-play exposure too.
 
 **Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one.
 

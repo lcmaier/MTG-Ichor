@@ -33,6 +33,8 @@ These cards use **only** already-implemented primitives (DealDamage, DrawCards, 
 | Dark Ritual | {B} Instant — add {B}{B}{B} | {B} | ProduceMana (mana-producing spell, not ability) | |
 | Sign in Blood | {B}{B} Sorcery — target player draws 2, loses 2 life | {B}{B} | DrawCards + LoseLife, player targeting | |
 | Naturalize | {1}{G} Instant — destroy target artifact or enchantment | {1}{G} | Destroy with non-creature targeting | |
+| Sol Ring | {1} Artifact — `{T}: Add {C}{C}` | {1} | ProduceMana; **the pool's first artifact**, which is what gives March of the Machines (Layer 7b) something to animate in fuzz decks | 🃏 2026-08-24 (`cards/artifacts.rs`) |
+| Merfolk Thaumaturgist | {2}{U} Creature 1/2 — `{T}: Switch target creature's power and toughness until end of turn` | {2}{U} | SwitchPowerToughness (Layer 7d) and **the registry's first activated ability** — stack path, target selection, tap cost under CR 302.6 | 🃏 2026-08-24 (`cards/utility_creatures.rs`) |
 
 **Immediate wins (no new primitives needed):**
 

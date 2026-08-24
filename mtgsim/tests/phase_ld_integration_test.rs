@@ -12,6 +12,7 @@
 //! deferred until AbilityOrigin infrastructure exists.
 
 
+use mtgsim::cards::artifacts;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::creatures;
 use mtgsim::cards::phase_ld_cards;
@@ -19,7 +20,7 @@ use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_subtypes,
     get_effective_supertypes, get_effective_toughness, get_effective_types, has_keyword,
-    is_creature,
+    has_summoning_sickness, is_creature,
 };
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
@@ -29,7 +30,9 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{
+    fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp,
+};
 
 /// Helper: cast a spell targeting a permanent with a PermanentFilter.
 /// If `generic_allocation` is Some, queues the allocation for generic mana.
@@ -861,5 +864,59 @@ fn test_self_stripping_land_terminates_and_is_stable() {
     assert!(
         get_effective_subtypes(&game, other_id).contains(&Subtype::Land(LandType::Mountain)),
         "the self-stripping land's effect must still apply to other nonbasic lands"
+    );
+}
+
+// ===========================================================================
+// The registered pair — March of the Machines + Sol Ring
+//
+// The March tests above build their artifacts inline, which is the right way
+// to pin the arithmetic but left the *pool* untested: March was in
+// `CardRegistry` with no artifact anywhere in the crate to animate, so Layer 7b
+// had no random-play coverage at all. This is the board a fuzz deck can now
+// actually draw.
+// ===========================================================================
+
+#[test]
+fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
+    let mut game = setup_two_player_game();
+    let sol_ring = put_on_battlefield(&mut game, artifacts::sol_ring(), 0);
+
+    assert!(!is_creature(&game, sol_ring), "an artifact, printed");
+    assert_eq!(
+        get_effective_power(&game, sol_ring),
+        None,
+        "CR 208.3 — no P/T printed and none granted yet"
+    );
+
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    assert!(is_creature(&game, sol_ring), "Layer 4: AddType(Creature)");
+    assert_eq!(
+        (get_effective_power(&game, sol_ring), get_effective_toughness(&game, sol_ring)),
+        (Some(1), Some(1)),
+        "Layer 7b: P/T each equal to mana value, and Sol Ring costs {{1}}"
+    );
+
+    // 1/1, so it survives the toughness SBA. A {0} artifact would be 0/0 and
+    // die on the spot — which is a real interaction, and the reason the pool's
+    // first artifact is one that lives through its own animation.
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert!(game.battlefield.contains_key(&sol_ring));
+
+    // CR 302.6 asks about *control*, not about how long it has been a creature.
+    // The Sol Ring has been P0's since before the turn began, so becoming a
+    // creature this instant does not make it summoning-sick and its mana
+    // ability stays live.
+    assert!(!has_summoning_sickness(&game, sol_ring));
+
+    let abilities = get_effective_abilities(&game, sol_ring);
+    assert_eq!(abilities.len(), 1, "March grants no ability, only types and P/T");
+    game.activate_mana_ability(0, sol_ring, abilities[0].id)
+        .expect("an animated mana rock still taps for mana");
+    assert_eq!(
+        game.players[0].mana_pool.amount(ManaType::Colorless),
+        2,
+        "{{T}}: Add {{C}}{{C}} — one activation, two mana"
     );
 }
