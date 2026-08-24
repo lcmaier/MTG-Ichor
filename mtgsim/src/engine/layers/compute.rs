@@ -388,31 +388,20 @@ fn effective_controller(
 
 /// The controller an object has before Layer 2 touches it — CR 110.2's default.
 ///
-/// The three arms are CR 108.4's sentence in order: "a card doesn't have a
-/// controller unless that card represents a permanent or spell". A permanent
-/// reads `BattlefieldEntity`, a spell reads its `StackEntry`, and anything else
-/// — a card in a hand, a library, a graveyard — has none, so this reports its
-/// owner. That last arm is a convenience for the layer walk rather than a claim
-/// about the CR: `EffectiveCharacteristics.controller` is not an `Option`, and
-/// owner is the only defensible value for a card that has no controller at all.
+/// The arms are CR 108.4's sentence in order: a permanent reads
+/// `BattlefieldEntity`, a spell reads its `StackEntry`, and a card in a hand or
+/// graveyard has no controller at all — owner is what this reports for it,
+/// because `EffectiveCharacteristics.controller` is not an `Option`.
 ///
-/// **This is the single definition of the pre-Layer-2 seed**, and it has three
-/// users: `compute_to_ceiling`, which seeds the frame with it;
-/// `effective_controller`, whose `any_control_changing` gate returns it instead
-/// of walking; and `oracle::characteristics::get_effective_controller`, whose
-/// gate does the same at the full ceiling. The gates are only exact while all
-/// three agree, and they used to agree by having the same body written out
-/// twice.
+/// **The single definition of the pre-Layer-2 seed.** Both
+/// `any_control_changing` gates return this instead of walking, and they are
+/// only exact while they and `compute_to_ceiling`'s seed agree — which they
+/// used to do by having the same body written out three times.
 pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
-    // Battlefield first, so the common case is one probe rather than three —
-    // a permanent's entry existing already implies the object does.
+    // Battlefield first, so the common case is one probe rather than three.
     if let Some(entry) = game.battlefield.get(&id) {
         return Some(entry.controller);
     }
-    // CR 108.4's other half. A permanent *spell* on the stack has a controller,
-    // and ATOM-110.2b-001 is about gaining control of one: the Layer 2 row
-    // applies to the spell object, and `stack.rs` hands the resulting
-    // permanent to whoever controls the spell as it resolves (CR 110.2).
     if let Some(entry) = game.stack_entries.get(&id) {
         return Some(entry.controller);
     }
@@ -527,26 +516,19 @@ impl FilterPlayers<'_, '_> {
 /// Resolve a Layer 2 `SetController`'s `PlayerRef` to the player who ends up
 /// controlling `object_id` (CR 613.1b).
 ///
-/// `You` and `Player` route through the same `FilterPlayers` that a filter's
-/// `ByController` uses, so CR 109.5 and CR 611.2c have exactly one
-/// implementation between them.
+/// `You` routes through the same `FilterPlayers` a filter's `ByController`
+/// uses, so CR 109.5 and CR 611.2c have one implementation between them.
 ///
-/// **`Owner` deliberately does not.** In a `PermanentFilter::ByController` the
-/// `PlayerRef` describes the *source* — "permanents controlled by this card's
-/// owner" — while here it describes the object being moved: Homeward Path's
-/// "each player gains control of all creatures they own" hands each creature to
-/// *its own* owner, not to the Path's. Same enum, two positions, and the only
-/// defensible reading differs between them; routing `Owner` through
-/// `FilterPlayers::owner()` would silently give every creature to whoever owns
-/// the Path.
+/// `Owner` is the owner of the object being *moved*, not of the effect's
+/// source. Homeward Path's "each player gains control of all creatures they
+/// own" hands each creature to its own owner, which is the opposite of what the
+/// same variant means inside a `PermanentFilter`, where it describes the source.
 ///
-/// **`Opponent` returns `None` and asserts.** Gaining control needs exactly one
-/// player. CR 102.2 makes "your opponent" one player in a two-player game, but
-/// CR 102.3 makes "your opponents" a set in multiplayer, and there is no
-/// principled way to pick from it here — which is why the cards that do this
-/// (Donate, Harmless Offering) *target* a player rather than saying "an
-/// opponent". Modelling one needs a second target, not a `PlayerRef`;
-/// `codebase-state.md` records it.
+/// `Opponent` needs a single player where CR 102.3 has a set, so it resolves
+/// only in a two-player game (CR 102.2) and returns `None` above that. No card
+/// needs the multiplayer case: the ones that give a permanent away — Donate,
+/// Harmless Offering — *target* a player, which is a second target rather than
+/// a `PlayerRef`, and `EffectRecipient` carries one recipient per atom.
 fn resolve_set_controller(
     player_ref: &crate::types::effects::PlayerRef,
     object_id: ObjectId,
@@ -557,27 +539,34 @@ fn resolve_set_controller(
 ) -> Option<PlayerId> {
     use crate::types::effects::PlayerRef;
 
+    let mut players = FilterPlayers {
+        effect,
+        game,
+        layer_index,
+        cache,
+        you: None,
+        owner: None,
+    };
+
     match player_ref {
-        PlayerRef::You => {
-            let mut players = FilterPlayers {
-                effect,
-                game,
-                layer_index,
-                cache,
-                you: None,
-                owner: None,
-            };
-            Some(players.you())
-        }
+        PlayerRef::You => Some(players.you()),
         PlayerRef::Player(pid) => Some(*pid),
         PlayerRef::Owner => game.objects.get(&object_id).map(|obj| obj.owner),
         PlayerRef::Opponent => {
-            debug_assert!(
-                false,
-                "SetController(PlayerRef::Opponent) on '{}': control has to go to                  exactly one player, and CR 102.3 makes \"your opponents\" a set                  in multiplayer. A card that gives a permanent away targets a                  player instead.",
-                effect.source
-            );
-            None
+            let you = players.you();
+            let mut opponents = (0..game.num_players()).filter(|&pid| pid != you);
+            let first = opponents.next();
+            match (first, opponents.next()) {
+                (Some(only), None) => Some(only),
+                _ => {
+                    debug_assert!(
+                        false,
+                        "SetController(PlayerRef::Opponent) with {} players: control                          goes to exactly one player, and CR 102.3 makes \"your                          opponents\" a set. A card that gives a permanent away                          targets a player instead.",
+                        game.num_players()
+                    );
+                    None
+                }
+            }
         }
     }
 }
@@ -756,12 +745,17 @@ fn evaluate_amount(
 /// `object_id` is the object being computed. Layer 4's subtype arms need it to
 /// derive stable ids for intrinsic mana abilities (CR 305.6) — see
 /// `land_types::intrinsic_mana_ability`.
-/// `origin` is the registry row the modification came from, or `None` when it
-/// is an intrinsic CDA application (`layers::cda`), which has no row. Only the
-/// Layer 2 arm reads it: `SetController` needs the row's `origin` to resolve CR
-/// 109.5's "you" and its `created_on_turn` to answer CR 302.6. CR 613.4a puts no
-/// CDA in Layer 2 — the sublayer it lists is 7a — so that arm is unreachable
-/// from `cda.rs` and asserts rather than guessing.
+/// `origin` is the registry row this modification came from, or `None` for an
+/// intrinsic CDA application (`layers::cda`), which has no row.
+///
+/// Only `SetController` reads it, because it is the only modification that does
+/// not carry its own answer. `AddType(Creature)` says what to do; "the
+/// controller becomes *you*" does not say who "you" is, and CR 109.5 answers
+/// that from the ability's source and the row's origin. The row also supplies
+/// `created_on_turn`, which is when the new controller's CR 302.6 clock starts.
+///
+/// CDAs never reach that arm — CR 613.4a lists 7a as their only P/T sublayer
+/// and none live in Layer 2 — so it asserts instead of guessing.
 pub(super) fn apply_modification(
     modification: &EffectModification,
     chars: &mut EffectiveCharacteristics,

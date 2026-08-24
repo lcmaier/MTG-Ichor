@@ -38,28 +38,15 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
 /// The effective controller of a game object after Layer 2 (CR 613.1b).
 ///
 /// **Prefer this over `BattlefieldEntity.controller` for anything on the
-/// battlefield or the stack.** Printed control stopped equalling effective
-/// control when Layer 2 landed, and the failure is silent in exactly the way
-/// the printed-characteristics one was: a stolen creature keeps answering to
-/// the player who lost it, so it untaps on the wrong turn, attacks for the wrong
-/// side and taps for the wrong player's mana. This is the `get_effective_*`
-/// wrapper for the field, and CLAUDE.md's layer-system invariant covers it.
+/// battlefield or the stack** — a stolen permanent otherwise keeps answering to
+/// the player who lost it, silently. Spells included: CR 108.4 gives one a
+/// controller too.
 ///
 /// `None` only when `id` is not in the object store at all.
 ///
-/// Includes the stack: CR 108.4 gives a *spell* a controller, and gaining
-/// control of a permanent spell means the permanent enters under the new
-/// controller (CR 110.2). See `compute::base_controller`.
-///
-/// # Cost
-///
-/// Gated exactly the way `compute::effective_controller` is, and for the same
-/// reason: Layer 2 is the only channel that writes `chars.controller`, so while
-/// no `SetController` row is registered, `base_controller` — the value the walk
-/// would seed the frame with — *is* the walk's answer. On every board with no
-/// control-changing effect this stays the one `HashMap` probe the field read
-/// was, which is what makes migrating the per-permanent sweeps
-/// (`legal_attackers`, `available_mana_sources`, `format_battlefield`) free.
+/// The gate makes this a single `HashMap` probe while no `SetController` row
+/// exists, which is what keeps the migrated per-permanent sweeps affordable;
+/// see `RegistryScopeSummary::any_control_changing` for why it is exact.
 pub fn get_effective_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
     if !game.continuous_effects.summary().any_control_changing {
         return crate::engine::layers::compute::base_controller(game, id);
@@ -79,35 +66,21 @@ pub fn controls(game: &GameState, id: ObjectId, player: PlayerId) -> bool {
 /// > activated unless the creature has been under its controller's control
 /// > continuously since their most recent turn began.
 ///
-/// Both halves come from the layer frame, not from `BattlefieldEntity`.
-/// `control_since_turn` is seeded from `controller_since_turn` and then
-/// overwritten by any Layer 2 effect that actually moves control, so a stolen
-/// creature is sick under its new controller without anything having been
-/// written to the battlefield. See `EffectiveCharacteristics::control_since_turn`
-/// for why it has to be derived rather than stored.
+/// Both halves come from the layer frame, so a stolen creature is sick under its
+/// new controller with nothing written to the battlefield — see
+/// `EffectiveCharacteristics::control_since_turn` for why that has to be
+/// derived. `control_since_turn = 0` is the pregame sentinel (CR 103.6), so
+/// `0 >= 1` is false and a Leyline is not sick.
 ///
-/// Convention: `control_since_turn = 0` is a pregame sentinel (CR 103.6
-/// Leylines), so `0 >= 1` is false → not sick.
+/// `>= game.turn_number` is "control was gained this turn", which is the same
+/// answer as the CR's wording whenever turns alternate. It predates Layer 2 and
+/// Layer 2 does not change it.
 ///
-/// # What `>= game.turn_number` is and is not
-///
-/// It is not literally CR 302.6's "since their most recent turn began" — it is
-/// "control was gained during the current turn", which is the same answer
-/// whenever turns alternate. Gaining control during an opponent's turn N leaves
-/// `control_since_turn = N < N + 1` by the time your turn comes, which is
-/// correct: you have had it since before your turn began. This predates Layer 2
-/// and Layer 2 does not change it.
-///
-/// # Reversion
-///
-/// A `Duration::UntilEndOfTurn` steal expires in the cleanup step, and control
-/// returns to the original controller with no event and no mutation. Strictly,
-/// CR 302.6 makes the creature sick for its original controller at that instant:
-/// control was interrupted during the turn. We report it as not sick, and that
-/// is unobservable — the only window between the expiry and the original
-/// controller's next turn beginning is the cleanup step itself, where no player
-/// receives priority (CR 514.3) and no ability can be activated. Modelling it
-/// would need a record of an interruption that nothing can ever read.
+/// **Known imprecision, unobservable.** When an `UntilEndOfTurn` steal expires,
+/// control was interrupted during the turn, so CR 302.6 makes the creature sick
+/// again for its original controller; we report it as not sick. The only window
+/// before that player's next turn begins is the cleanup step, where nobody gets
+/// priority (CR 514.3), so nothing can ever ask.
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     if !game.battlefield.contains_key(&id) {
         return false;

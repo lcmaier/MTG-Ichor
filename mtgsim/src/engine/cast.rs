@@ -270,10 +270,21 @@ impl GameState {
         if !self.battlefield.contains_key(&source_id) {
             return Err(format!("Permanent {} not on battlefield", source_id));
         }
-        // Effective controller, not the battlefield field: a creature you stole
-        // with Act of Treason is one whose abilities you may activate.
+        // CR 602.1a's *default*, not a universal rule: an activated ability is
+        // activated by the object's controller unless the ability says
+        // otherwise, and 41 printed cards say otherwise with "Any player may
+        // activate this ability" (Aether Storm, Excavation, Feral Hydra). That
+        // permission is unmodeled — `AbilityDef` has nowhere to record it — so
+        // this rejects an activation those cards would allow. Deferred
+        // Migrations, "Before card breadth".
+        //
+        // Effective controller, not the battlefield field, so a stolen
+        // permanent answers to whoever stole it (CR 613.1b).
         if !crate::oracle::characteristics::controls(self, source_id, player_id) {
-            return Err("Can only activate abilities of permanents you control".to_string());
+            return Err(
+                "Only this permanent's controller can activate its abilities                  (CR 602.1a; \"any player may activate\" is not yet modeled)"
+                    .to_string(),
+            );
         }
 
         let card_data = self.get_object(source_id)?.card_data.clone();

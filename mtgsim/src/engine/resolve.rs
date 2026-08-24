@@ -504,7 +504,7 @@ impl GameState {
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
             Primitive::GainControl(duration) => {
-                let target_ids = self.collect_controllable_targets(ctx);
+                let target_ids = self.collect_permanent_or_spell_targets(ctx);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -519,15 +519,10 @@ impl GameState {
                     created_on_turn: self.turn_number,
                     timestamp,
                     affected: AffectedSet::Fixed(target_ids),
-                    // `PlayerRef::You` and not `ctx.controller` directly, even
-                    // though the two are the same player here. The row is
-                    // `EffectOrigin::Resolution`, so `FilterPlayers::you()`
-                    // returns `ContinuousEffect.controller` — which is
-                    // `ctx.controller`, locked at resolution the way CR 611.2c
-                    // wants. Writing the id in would be the same value reached
-                    // by a path that stops being right the moment a *static*
-                    // ability produces this modification (CR 109.5), and the
-                    // lowering table is shared between the two.
+                    // `You` rather than `ctx.controller`, though they name the
+                    // same player: on a `Resolution` row, `FilterPlayers::you()`
+                    // reads `ContinuousEffect.controller`, which CR 611.2c
+                    // locked at resolution.
                     modification: EffectModification::SetController(PlayerRef::You),
                 });
                 Ok(())
@@ -757,17 +752,14 @@ impl GameState {
             .collect()
     }
 
-    /// Resolved targets that currently *have* a controller — CR 108.4's
-    /// "a card doesn't have a controller unless that card represents a
+    /// Resolved targets that are on the battlefield **or** the stack — CR
+    /// 108.4's "a card doesn't have a controller unless that card represents a
     /// permanent or spell".
     ///
     /// The wider sibling of `collect_battlefield_targets`, and only Layer 2
-    /// wants it. Every other continuous effect describes a characteristic a
-    /// permanent has, so restricting to the battlefield is right for them;
-    /// control is the one thing a *spell* on the stack also has, and gaining
-    /// control of a permanent spell is how ATOM-110.2b-001 gets a permanent to
-    /// enter under someone else's control (CR 110.2b).
-    fn collect_controllable_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
+    /// wants it: every other continuous effect describes a characteristic a
+    /// permanent has, while control is the one thing a spell also has.
+    fn collect_permanent_or_spell_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
         ctx.targets
             .iter()
             .filter_map(|t| match t {

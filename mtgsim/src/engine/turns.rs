@@ -168,14 +168,11 @@ impl GameState {
         let player = self.get_player_mut(active)?;
         player.reset_lands_played();
 
-        // Untap permanents controlled by the active player (CR 502.1) —
-        // *effectively* controlled, so a creature stolen with Act of Treason
-        // untaps on the thief's turn and not on its owner's.
+        // Untap permanents the active player *effectively* controls (CR 502.1).
         //
         // Two passes because the predicate is a `&self` layer query and the
-        // untap is a `&mut self` write. The raw `battlefield.iter()` is fine
-        // here for the reason CLAUDE.md carves out: untapping every match is
-        // order-irrelevant, so nothing about this sweep reaches a decision.
+        // untap is a `&mut self` write. Unordered iteration is fine: untapping
+        // every match is order-irrelevant, so this sweep reaches no decision.
         let to_untap: Vec<ObjectId> = self
             .battlefield
             .keys()

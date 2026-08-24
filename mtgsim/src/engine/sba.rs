@@ -174,9 +174,9 @@ impl GameState {
                 if self.objects.contains_key(&id) {
                     if has_supertype(self, id, Supertype::Legendary) {
                         let name = get_effective_name(self, id);
-                        // CR 704.5j groups by controller, and stealing one of
-                        // two legends really does end the conflict — effective
-                        // controller, not the battlefield field.
+                        // CR 704.5j groups by controller, so it has to be the
+                        // effective one: taking an opponent's copy of a legend
+                        // you already control is what creates the conflict.
                         let Some(controller) = get_effective_controller(self, id) else {
                             continue;
                         };
@@ -234,14 +234,10 @@ impl GameState {
                             return Some(id);
                         }
                         // 704.5n: host doesn't match enchant filter
-                        // CR 704.5n, and CR 109.5 supplies the "you": an
-                        // Aura's enchant restriction is text on the Aura, so
-                        // "creature you control" means the *Aura's* controller
-                        // — which CR 303.4e keeps independent of the enchanted
-                        // creature's. That is the whole of
-                        // COMP-303.4c+303.4e+L11-001: stealing the creature
-                        // does not move the Aura, so the Aura's controller
-                        // stops controlling what it enchants and it falls off.
+                        // The enchant restriction is text on the Aura, so
+                        // CR 109.5 makes its "you" the Aura's controller — not
+                        // the enchanted creature's, which CR 303.4e keeps
+                        // separate.
                         if let Some(filter) = &obj.card_data.enchant_filter {
                             let candidate = ResolvedTarget::Object(host_id);
                             let you = get_effective_controller(self, id)?;

@@ -1,19 +1,9 @@
 //! Layer 2 — control-changing effects (CR 613.1b).
 //!
-//! Layer 2 is the second-earliest layer, so almost everything about it is a
-//! statement about what happens *after* it: a filter that says "you control"
-//! reads the post-Layer-2 controller (CR 109.5), and so does anything the
-//! engine asks about a permanent — who untaps it, who may attack with it, whose
-//! mana it makes.
+//! Two things make it unlike the layers implemented so far:
 //!
-//! Two things make it unlike the other layers implemented so far:
-//!
-//! - **It is the only layer whose result carries a time.** CR 302.6 asks
-//!   whether control has been continuous since the controller's most recent
-//!   turn began, so `EffectiveCharacteristics` carries `control_since_turn`
-//!   beside `controller`. It has to be computed rather than stored — a
-//!   `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation and
-//!   no event.
+//! - **Its result carries a time.** CR 302.6 asks whether control has been
+//!   continuous, so the frame carries `control_since_turn` beside `controller`.
 //! - **It reaches the stack.** CR 108.4 gives a *spell* a controller, and
 //!   gaining control of a permanent spell decides who controls the permanent
 //!   (CR 110.2b).
@@ -30,13 +20,13 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::oracle::legality::legal_attackers;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
-    attach, aura_enchanting_your_creature, card_of_type, equipment, pacifism, put_in_graveyard,
-    put_on_battlefield, setup_two_player_game, test_dp, vanilla_creature,
+    attach, aura_enchanting_your_creature, card_of_type, equipment, fill_library, pacifism,
+    put_in_graveyard, put_on_battlefield, setup_two_player_game, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive, SelectionFilter,
-    TargetCount,
+    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_object_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -46,12 +36,8 @@ use mtgsim::types::zones::Zone;
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Resolve Act of Treason's printed effect with `thief` as its controller and
-/// `victim` as its target.
-///
-/// The card's own `AbilityDef`, not a hand-built row: the point of most of
-/// these tests is that the *card* works, and the three atoms sharing one
-/// `ResolutionContext` is what makes "that creature" mean the same creature.
+/// Resolve Act of Treason's printed effect — the card's own `AbilityDef`, not a
+/// hand-built row, so the three atoms share one `ResolutionContext`.
 fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
     let card = phase_lg_cards::act_of_treason();
     let source = GameObject::new(card.clone(), thief, Zone::Stack);
@@ -67,12 +53,8 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         .expect("Act of Treason resolves");
 }
 
-/// "Gain control of target permanent" with no untap and no haste, so a test can
-/// watch CR 302.6 without Act of Treason's haste clause covering for it.
-///
-/// Not a card — a bare `Primitive::GainControl` resolved directly, which is
-/// exactly what the shared lowering produces for the control clause of any card
-/// that has one.
+/// A bare `Primitive::GainControl` — no untap and no haste — so a test can watch
+/// CR 302.6 without Act of Treason's haste clause covering for it.
 fn gain_control(
     game: &mut GameState,
     thief: PlayerId,
@@ -100,15 +82,15 @@ fn gain_control(
     source_id
 }
 
-/// A minimal `StackEntry` for a permanent spell with no targets and no effect.
-fn stack_entry(spell_id: ObjectId, controller: PlayerId) -> StackEntry {
+/// A minimal `StackEntry` for a spell with no targets.
+fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> StackEntry {
     StackEntry {
         object_id: spell_id,
         controller,
         chosen_targets: Vec::new(),
         chosen_modes: Vec::new(),
         x_value: None,
-        effect: Effect::Sequence(Vec::new()),
+        effect,
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
@@ -119,18 +101,9 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId) -> StackEntry {
 // CR 613.1b — Layer 2 runs before the layers that read its answer
 // ---------------------------------------------------------------------------
 
-/// The ordering claim, and the only test here where getting the layers
-/// backwards produces a different number rather than a different owner.
-///
-/// Glorious Anthem is P0's, and its filter is "creatures you control" — a
-/// `ByController(You)` node that `compute::permanent_matches_filter` evaluates
-/// against `chars.controller`. That field is written in Layer 2 and read in
-/// Layer 7c, so stealing P1's Bear makes the Anthem find it.
-///
-/// The corpus named a card called "Mind Snare" here. No such card exists —
-/// Scryfall 404s on both a fuzzy lookup and an exact search — so the atom was
-/// unbuildable as written and the session file now names Act of Treason. Its
-/// haste clause is inert for a P/T query.
+/// The ordering claim: `chars.controller` is written in Layer 2 and read by
+/// Glorious Anthem's "creatures you control" filter in Layer 7c, so stealing
+/// P1's Bear makes P0's anthem find it.
 // COVERS: ATOM-613.1b-001
 #[test]
 fn test_stolen_creature_is_pumped_by_the_thiefs_anthem() {
@@ -155,11 +128,9 @@ fn test_stolen_creature_is_pumped_by_the_thiefs_anthem() {
     );
 }
 
-/// The other side of the same ordering: the anthem the creature *left*.
-///
-/// This is the half a "controller is whatever the battlefield entry says"
-/// implementation still passes by accident, so it is worth pinning separately —
-/// P1's own anthem has to stop seeing the creature the moment P0 takes it.
+/// The other side of the same ordering, which a "controller is whatever the
+/// battlefield entry says" implementation still passes by accident: P1's own
+/// anthem has to stop seeing the creature the moment P0 takes it.
 #[test]
 fn test_stolen_creature_leaves_its_owners_anthem() {
     let mut game = setup_two_player_game();
@@ -176,11 +147,9 @@ fn test_stolen_creature_leaves_its_owners_anthem() {
     );
 }
 
-/// CR 613.6 — one effect, parts in different layers, one affected set.
-///
-/// Act of Treason is the CR's own example. Control is a Layer 2 row and haste
-/// is a Layer 6 row; both are created by one resolution against one
-/// `ResolutionContext`, so "that creature" is the same creature in both.
+/// CR 613.6 — one effect, parts in different layers, one affected set. Control
+/// is a Layer 2 row and haste a Layer 6 row, both from one resolution, so "that
+/// creature" is the same creature in both.
 // COVERS: ATOM-613.6-002
 #[test]
 fn test_act_of_treason_applies_control_in_layer_2_and_haste_in_layer_6() {
@@ -232,7 +201,7 @@ fn test_a_spell_reports_its_caster_not_its_owner() {
     let spell_id = spell.id;
     game.add_object(spell);
     game.stack.push(spell_id);
-    game.stack_entries.insert(spell_id, stack_entry(spell_id, 1));
+    game.stack_entries.insert(spell_id, stack_entry(spell_id, 1, Effect::Sequence(Vec::new())));
 
     assert_eq!(
         get_effective_controller(&game, spell_id),
@@ -249,15 +218,8 @@ fn test_a_spell_reports_its_caster_not_its_owner() {
     assert_eq!(game.objects.get(&spell_id).unwrap().owner, 0);
 }
 
-/// CR 108.4 gives a spell a controller, so Layer 2 can move it, and CR 110.2b
-/// makes the resulting permanent enter under whoever controlled the spell as it
+/// CR 110.2b — the permanent enters under whoever controlled the spell as it
 /// resolved.
-///
-/// Three pieces had to line up. `compute::base_controller` seeds the frame from
-/// `StackEntry` as well as `BattlefieldEntity`; `collect_controllable_targets`
-/// lets a `GainControl` name a target that is on the stack rather than the
-/// battlefield; and `resolve_top_of_stack` reads the controller *before* it
-/// pops, because the pop destroys the `StackEntry` the seed comes from.
 // COVERS: ATOM-110.2b-001
 #[test]
 fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
@@ -268,7 +230,7 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     let spell_id = spell.id;
     game.add_object(spell);
     game.stack.push(spell_id);
-    game.stack_entries.insert(spell_id, stack_entry(spell_id, 0));
+    game.stack_entries.insert(spell_id, stack_entry(spell_id, 0, Effect::Sequence(Vec::new())));
 
     assert_eq!(
         get_effective_controller(&game, spell_id),
@@ -308,15 +270,66 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     );
 }
 
+/// Gaining control of an instant does **not** redirect it to the thief's
+/// graveyard. Two rules pull opposite ways and both hold: the spell's controller
+/// resolves it, so the thief draws, but CR 608.2m sends the finished spell to
+/// its *owner's* graveyard and CR 108.3 never moves ownership.
+///
+/// Worth pinning because this phase edited this function — the controller is now
+/// read ahead of the pop, and the graveyard line sits four lines away reading
+/// `owner`. No permanent-spell test can catch a conflation, since a permanent
+/// never goes to a graveyard on resolution.
+#[test]
+fn test_gaining_control_of_an_instant_does_not_move_its_graveyard() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 1, 3);
+
+    // P0 owns and casts a "draw a card" instant.
+    let spell = GameObject::new(card_of_type("Test Instant", CardType::Instant), 0, Zone::Stack);
+    let spell_id = spell.id;
+    game.add_object(spell);
+    game.stack.push(spell_id);
+    game.stack_entries.insert(
+        spell_id,
+        stack_entry(
+            spell_id,
+            0,
+            Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
+        ),
+    );
+
+    gain_control(&mut game, 1, spell_id, Duration::Indefinite);
+    assert_eq!(get_effective_controller(&game, spell_id), Some(1));
+
+    let p1_hand_before = game.players[1].hand.len();
+    game.resolve_top_of_stack(&test_dp()).expect("the instant resolves");
+
+    assert_eq!(
+        game.players[1].hand.len(),
+        p1_hand_before + 1,
+        "CR 609: the spell's controller resolves it, so P1 draws"
+    );
+    assert!(
+        game.players[0].graveyard.contains(&spell_id),
+        "CR 608.2m + 108.3: but it goes to its *owner's* graveyard"
+    );
+    assert!(!game.players[1].graveyard.contains(&spell_id));
+    assert!(
+        !game.battlefield.contains_key(&spell_id),
+        "an instant is not a permanent"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // CR 302.6 — summoning sickness follows control
 // ---------------------------------------------------------------------------
 
-/// The rule Act of Treason's haste clause is paying for.
-///
-/// `gain_control` deliberately has no haste, so this is the naked CR 302.6
-/// answer: a creature that changed hands this turn has not been under its new
-/// controller's control continuously since their most recent turn began.
+/// The naked CR 302.6 answer, with no haste clause covering for it: a creature
+/// that changed hands this turn has not been under its new controller's control
+/// since their most recent turn began.
 #[test]
 fn test_gaining_control_gives_the_creature_summoning_sickness() {
     let mut game = setup_two_player_game();
@@ -334,13 +347,11 @@ fn test_gaining_control_gives_the_creature_summoning_sickness() {
     );
 }
 
-/// And why the Layer 2 arm compares before it assigns.
-///
-/// "Target creature" carries no controller restriction, so aiming a
-/// control-gaining spell at your own creature is legal. Control never changes,
-/// so the CR 302.6 clock never restarts. An implementation that writes
-/// `control_since_turn` unconditionally passes every other test in this file
-/// and fails this one.
+/// And why the Layer 2 arm compares before it assigns. "Target creature" has no
+/// controller restriction, so this is legal, and control never changes — so the
+/// CR 302.6 clock never restarts. An implementation that writes
+/// `control_since_turn` unconditionally passes every other test here and fails
+/// this one.
 #[test]
 fn test_gaining_control_of_your_own_creature_does_not_make_it_sick() {
     let mut game = setup_two_player_game();
@@ -535,20 +546,13 @@ fn test_one_control_change_moves_neither_the_equipment_nor_the_aura() {
 }
 
 /// CR 303.4c + 303.4e + Layer 2, composed: the Aura does *not* move with the
-/// creature, and that is exactly why it dies.
+/// creature, and that is exactly why it dies. Its "you" is its own controller
+/// (CR 109.5), who no longer controls what it enchants, so SBA 704.5n puts it
+/// into its owner's graveyard.
 ///
-/// "Enchant creature you control" is text on the Aura, so CR 109.5 makes its
-/// "you" the Aura's controller. CR 303.4e leaves the Aura with P0 when P1 takes
-/// the creature. P0 therefore no longer controls what the Aura enchants, the
-/// enchant restriction is violated, and SBA 704.5n puts the Aura into its
-/// owner's graveyard.
-///
-/// Three separate things had to be true at once, and only one of them is Layer
-/// 2. `targeting::permanent_matches_filter` had to learn to resolve
-/// `PlayerRef::You` at all — it returned `Err` for every variant but
-/// `Player(_)`, so this Aura's restriction was unenforceable and 704.5n never
-/// fired. It also had to read the *effective* controller, or the theft would be
-/// invisible to it.
+/// Only one of the three moving parts is Layer 2 — `targeting`'s filter also
+/// had to learn to resolve `PlayerRef::You` at all, and to read the *effective*
+/// controller.
 // COVERS: COMP-303.4c+303.4e+L11-001
 #[test]
 fn test_an_enchant_creature_you_control_aura_falls_off_when_the_creature_is_stolen() {
@@ -647,9 +651,8 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
 // The row itself
 // ---------------------------------------------------------------------------
 
-/// `SetController` carries a `PlayerRef`, and for a resolution row CR 611.2c
-/// fixes what it means when the effect begins. Moving the *source* afterwards
-/// must not move the effect's allegiance.
+/// CR 611.2c fixes a resolution effect's "you" when the effect begins, so moving
+/// the *source* afterwards must not move the effect's allegiance.
 #[test]
 fn test_a_resolution_control_effect_does_not_follow_its_source() {
     let mut game = setup_two_player_game();
@@ -710,14 +713,15 @@ fn test_the_later_control_effect_wins() {
     );
 }
 
-/// A permanent nobody has stolen still answers, and off the battlefield the
-/// answer is the owner (CR 108.4 gives a card in a hand no controller at all,
-/// and owner is the only defensible value for a non-`Option` field).
+/// CR 108.4 — only a permanent or a spell has a controller.
 ///
-/// Also pins that the gated and ungated paths agree, which is the whole basis
-/// for `any_control_changing` being exact rather than a heuristic.
+/// `get_effective_controller` still has to return something for a card in a
+/// hand, because `EffectiveCharacteristics.controller` is not an `Option`, and
+/// owner is the only defensible value. This pins that fallback chain:
+/// battlefield entry, then stack entry, then owner, then `None` for an object
+/// that does not exist.
 #[test]
-fn test_effective_controller_falls_back_the_way_the_frame_seeds() {
+fn test_controller_off_the_battlefield_falls_back_to_the_owner() {
     let mut game = setup_two_player_game();
     let onboard = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let in_hand = GameObject::new(vanilla_creature(2, 2, &[]), 1, Zone::Hand);
@@ -726,24 +730,49 @@ fn test_effective_controller_falls_back_the_way_the_frame_seeds() {
 
     assert_eq!(get_effective_controller(&game, onboard), Some(1));
     assert_eq!(get_effective_controller(&game, in_hand_id), Some(1));
-    assert_eq!(
-        get_effective_controller(&game, new_object_id()),
-        None,
-        "no such object"
-    );
-
-    // Registering an unrelated control effect flips `any_control_changing`,
-    // which is the only difference between the two paths.
-    let other = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    gain_control(&mut game, 1, other, Duration::Indefinite);
-    assert!(game.continuous_effects.summary().any_control_changing);
-    assert_eq!(get_effective_controller(&game, onboard), Some(1));
-    assert_eq!(get_effective_controller(&game, in_hand_id), Some(1));
+    assert_eq!(get_effective_controller(&game, new_object_id()), None);
 }
 
-/// A CDA is not a registry row (CR 604.3a(3)) and CR 613.4a admits none in
-/// Layer 2, so the CDA pass never produces a `SetController`. This pins that a
-/// board carrying both a CDA and a control effect computes without tripping
+/// `any_control_changing` skips the layer walk and reads the pre-Layer-2 seed
+/// instead. That is only sound if the two paths give the same answer, so this
+/// asks the same three objects twice — once with the flag off, once with it on
+/// — and requires every answer to be unchanged.
+///
+/// The flag is registry-wide, so stealing one unrelated permanent turns it on
+/// for the whole board. Nothing else about these three objects changes.
+#[test]
+fn test_the_gate_never_changes_an_answer() {
+    let mut game = setup_two_player_game();
+    let onboard = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let bystander = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let in_hand = GameObject::new(vanilla_creature(2, 2, &[]), 1, Zone::Hand);
+    let in_hand_id = in_hand.id;
+    game.add_object(in_hand);
+
+    assert!(!game.continuous_effects.summary().any_control_changing);
+    let gated = [
+        get_effective_controller(&game, onboard),
+        get_effective_controller(&game, bystander),
+        get_effective_controller(&game, in_hand_id),
+    ];
+
+    // A third permanent changes hands. `onboard`, `bystander` and the card in
+    // hand are untouched, but the flag is now on for all of them.
+    let victim = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    gain_control(&mut game, 1, victim, Duration::Indefinite);
+    assert!(game.continuous_effects.summary().any_control_changing);
+
+    let walked = [
+        get_effective_controller(&game, onboard),
+        get_effective_controller(&game, bystander),
+        get_effective_controller(&game, in_hand_id),
+    ];
+    assert_eq!(gated, walked, "the gate is exact, not an approximation");
+    assert_eq!(get_effective_controller(&game, victim), Some(1));
+}
+
+/// No CDA lives in Layer 2, so the intrinsic pass never produces a
+/// `SetController`. Pins that a board with both still computes without tripping
 /// `apply_modification`'s `origin: None` assertion.
 #[test]
 fn test_a_cda_and_a_control_effect_coexist() {

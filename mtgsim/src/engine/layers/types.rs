@@ -102,25 +102,11 @@ impl PtValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectModification {
     // --- Layer 2 ---
-    /// CR 613.1b. Carries a `PlayerRef`, **not** a resolved `PlayerId`, and the
-    /// distinction is the same one Deferred Migrations item 11 paid a redesign
-    /// for on `AffectedSet::Filter`.
-    ///
-    /// A static ability's "you" is CR 109.5's *current* controller of the object
-    /// the ability is on, so Mind Control's "You control enchanted creature"
-    /// follows the Aura if the Aura itself changes hands. Storing the id at
-    /// registration would snapshot whoever controlled the source at ETB — the
-    /// exact bug `tests/filter_controller_test.rs` pins. `compute` resolves this
-    /// during the walk through the same `FilterPlayers` that resolves a filter's
-    /// `ByController`, so both halves of CR 109.5 have one implementation:
-    /// `EffectOrigin::StaticAbility` asks the source, `EffectOrigin::Resolution`
-    /// reads `ContinuousEffect.controller`, which CR 611.2c locked when the
-    /// spell resolved.
-    ///
-    /// It also keeps `GameState::static_primitive_rows` a pure function of the
-    /// primitive: that table cannot manufacture a `PlayerId`, so a `PlayerId`
-    /// here would have left `Primitive::GainControl` in the `_ => Vec::new()`
-    /// arm the loud-lowering work exists to empty.
+    /// CR 613.1b. A `PlayerRef` rather than a resolved `PlayerId`, for the
+    /// reason `AffectedSet::Filter` stores its filter unresolved: CR 109.5 makes
+    /// a static ability's "you" the *current* controller of the object it is on,
+    /// so an id captured at registration goes stale the moment the source
+    /// changes hands. `compute::resolve_set_controller` resolves it per walk.
     SetController(PlayerRef),
 
     // --- Layer 4 ---
@@ -287,21 +273,14 @@ pub struct EffectiveCharacteristics {
     pub power: Option<i32>,
     pub toughness: Option<i32>,
     pub controller: PlayerId,
-    /// The turn `controller` took control (CR 302.6's "continuously since their
-    /// most recent turn began"). Computed, never stored.
+    /// The turn `controller` took control (CR 302.6). **Computed, never stored:**
+    /// an `UntilEndOfTurn` steal reverts when its row leaves the registry, which
+    /// mutates nothing and fires no event, so there is no moment at which a
+    /// stored field could be put back.
     ///
-    /// Summoning sickness is the only reader, and it cannot use
-    /// `BattlefieldEntity.controller_since_turn` once Layer 2 exists: control
-    /// from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn`
-    /// steal reverts at cleanup with no mutation to hang a field update on and
-    /// no event to hook. Deriving it alongside the controller it describes is
-    /// what makes reversion need nothing at all — the value simply stops being
-    /// computed when the row leaves the registry.
-    ///
-    /// Seeded from `BattlefieldEntity.controller_since_turn` (which still owns
-    /// every control change that is *not* a Layer 2 effect — entering the
-    /// battlefield, today the only one) and overwritten by the Layer 2 arm of
-    /// `apply_modification`, but only when the controller actually changes.
-    /// Act of Treason on your own creature must not make it summoning-sick.
+    /// Seeded from `BattlefieldEntity.controller_since_turn`, which still owns
+    /// every control change that is not a Layer 2 effect. The Layer 2 arm
+    /// overwrites it only when the controller actually changes — gaining control
+    /// of your own permanent must not restart the clock.
     pub control_since_turn: u32,
 }

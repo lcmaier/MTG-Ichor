@@ -196,22 +196,18 @@ impl GameState {
         Ok(())
     }
 
-    /// Check whether a permanent matches a PermanentFilter.
+    /// Check whether a permanent matches a `PermanentFilter`.
     ///
-    /// The targeting-side twin of `compute::permanent_matches_filter`, and they
-    /// answer different questions: that one asks whether a continuous effect
-    /// applies to a permanent mid-layer-walk and reads an
-    /// `EffectiveCharacteristics` frame; this one asks whether a permanent is a
-    /// legal *selection* and reads the finished board. They resolve
-    /// `PlayerRef` the same way, which is the point — an Aura printed "Enchant
-    /// creature you control" must mean the same thing to SBA 704.5n that it
-    /// would mean to a static ability.
+    /// Same question as `compute::permanent_matches_filter`, asked from outside
+    /// the layer walk: this one queries each characteristic by id (so every
+    /// read is still post-layers), while that one is handed a partially-applied
+    /// frame it must not re-enter. Both must agree — "Enchant creature you
+    /// control" has to mean the same thing to SBA 704.5n that it would mean to
+    /// a static ability.
     ///
-    /// `PlayerRef::Opponent` is a predicate rather than a resolved id, for
-    /// CR 102.3's reason: "your opponents" is a set in multiplayer, and
-    /// "controlled by someone who isn't you" is the same answer in both
-    /// player counts. `Owner` is the *selected* permanent's owner — a filter
-    /// that says "you control" is about the selection, not about the source.
+    /// `you` resolves `PlayerRef::You`; `Owner` is the *selected* permanent's
+    /// owner, since a selection filter describes the selection rather than the
+    /// source.
     fn permanent_matches_filter(
         &self,
         id: ObjectId,

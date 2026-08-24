@@ -364,7 +364,7 @@ It also keeps `GameState::static_primitive_rows` a pure map from primitive to ro
 Two per-variant decisions, both deliberate:
 
 - **`Owner` means something different here than in a filter.** In `PermanentFilter::ByController` the `PlayerRef` describes the *source*; in `SetController` it describes the object being moved. Homeward Path's "each player gains control of all creatures they own" hands each creature to *its own* owner, so routing this through `FilterPlayers::owner()` would give every creature to whoever controls the Path.
-- **`Opponent` asserts.** Control goes to exactly one player. CR 102.2 makes "your opponent" one player in a two-player game but CR 102.3 makes "your opponents" a set, and there is no principled way to pick — which is why Donate and Harmless Offering *target* a player instead. Modelling one needs a second target, which `EffectRecipient`'s one-recipient-per-atom shape cannot express.
+- **`Opponent` resolves only in a two-player game.** CR 102.2 makes it exactly one player there; CR 102.3 makes "your opponents" a set above that, with nothing to pick from, so it returns `None` and asserts. No card needs the multiplayer case — Donate and Harmless Offering *target* a player, and that is a second target rather than a `PlayerRef`, which `EffectRecipient`'s one-recipient-per-atom shape cannot express.
 
 `apply_modification` gained an `origin: Option<&ContinuousEffect>` parameter to carry the row this needs. `layers::cda` passes `None`: CR 613.4a admits no characteristic-defining ability in Layer 2 (7a is the only sublayer it lists), so the arm is unreachable from the intrinsic pass and asserts rather than guessing.
 

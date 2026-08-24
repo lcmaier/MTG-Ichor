@@ -33,16 +33,11 @@ impl GameState {
         // to remove from the stack Vec a second time).
         let object_id = *self.stack.last().unwrap();
 
-        // Read the controller *before* the pop, and this is not a style choice.
-        // CR 108.4 gives a spell a controller and CR 613.1b lets Layer 2 move
-        // it, so this has to be the effective value — but `base_controller`
-        // finds it on the `StackEntry`, and the two lines below destroy that
-        // entry. Asking afterwards would fall through to the object's owner and
-        // silently undo any control change on a spell nobody stole, while a
-        // `Fixed`-set Layer 2 row (which does not check zones) would still
-        // apply. One value, resolved here, used for both the resolution context
-        // (CR 608.2, "the spell's controller resolves it") and for the
-        // permanent's controller as it enters (CR 110.2b).
+        // Before the pop, deliberately: a spell's controller lives on its
+        // `StackEntry`, which the next two lines destroy. One value, used for
+        // both the resolution context and the permanent's controller as it
+        // enters (CR 110.2b). Note it is *not* used for the graveyard below —
+        // a finished spell goes to its owner's (CR 608.2m).
         let controller = crate::oracle::characteristics::get_effective_controller(self, object_id)
             .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 

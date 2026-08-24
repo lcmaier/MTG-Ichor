@@ -168,8 +168,7 @@ pub fn validate_attackers(
             return Err(CombatError::NotACreature(*creature_id));
         }
 
-        // 3. Must be controlled by the attacking player — effectively (CR
-        // 613.1b), which is the whole point of Act of Treason.
+        // 3. Must be effectively controlled by the attacking player (CR 613.1b)
         if !controls(game, *creature_id, player_id) {
             return Err(CombatError::NotControlledByPlayer(*creature_id, player_id));
         }

@@ -17,31 +17,20 @@ use crate::types::mana::{ManaCost, ManaType};
 /// Gain control of target creature until end of turn. Untap that creature. It
 /// gains haste until end of turn.
 ///
-/// Real text, verbatim. This is the card the CR itself reaches for when it
-/// explains CR 613.6 — an effect whose parts land in different layers — and the
-/// corpus names it in ATOM-613.6-002: control in Layer 2, haste in Layer 6.
+/// Real text, verbatim, and the corpus's example for CR 613.6 in
+/// ATOM-613.6-002: control in Layer 2, haste in Layer 6.
 ///
-/// **The three atoms share one `AbilityDef` and therefore one target.**
-/// `Effect::Sequence` resolves each atom against the same `ResolutionContext`,
-/// which is what "that creature" means. Split into three abilities they would
-/// be three spells.
+/// The three atoms share one `AbilityDef` and so resolve against one
+/// `ResolutionContext`, which is what "that creature" means — split into three
+/// abilities they would be three spells.
 ///
-/// **The haste clause is the card explaining CR 302.6 to you.** Gaining control
-/// restarts the "continuously since their most recent turn began" clock, so the
-/// stolen creature is summoning-sick for the thief and could neither attack nor
-/// tap. Haste is what the card pays to make the theft useful, and it is why a
-/// Layer 2 implementation that forgets summoning sickness looks correct against
-/// this card and only this card.
+/// The haste clause is the card paying for CR 302.6: gaining control restarts
+/// the summoning-sickness clock, so without it the stolen creature could
+/// neither attack nor tap. That also makes this card a poor witness for the
+/// rule; the tests use a bare `GainControl` for that.
 ///
-/// **It is also the reason `SetController` compares before it assigns.** "Target
-/// creature" has no controller restriction, so aiming this at your own creature
-/// is legal, and the CR answer is that nothing about control changes. Haste
-/// would hide a clock reset here; a control-gaining card without haste would
-/// not.
-///
-/// Registry-eligible: real card, faithful definition, and the only production
-/// card that puts a `SetController` row in the registry — which is what turns
-/// `RegistryScopeSummary::any_control_changing` on in `fuzz_games`.
+/// Registry-eligible, and the only production card that registers a
+/// `SetController` row — so it is what exercises Layer 2 in `fuzz_games`.
 pub fn act_of_treason() -> Arc<CardData> {
     let target_creature =
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
