@@ -13,6 +13,7 @@ use super::phase_lc_cards;
 use super::phase_ld_cards;
 use super::phase_le_cards;
 use super::phase_lf_cards;
+use super::phase_lg_cards;
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -125,6 +126,7 @@ impl CardRegistry {
         registry.register("Culling Drone", phase_le_cards::culling_drone);
         registry.register("Humility", phase_lf_cards::humility);
         registry.register("Citanul Hierophants", phase_lf_cards::citanul_hierophants);
+        registry.register("Act of Treason", phase_lg_cards::act_of_treason);
 
         // The ten original duals. Nonbasic lands with basic land types, which is
         // what gives `fuzz_games` a mana base Blood Moon can actually affect.

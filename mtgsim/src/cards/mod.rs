@@ -9,3 +9,4 @@ pub mod phase_lc_cards;
 pub mod phase_ld_cards;
 pub mod phase_le_cards;
 pub mod phase_lf_cards;
+pub mod phase_lg_cards;

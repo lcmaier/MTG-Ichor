@@ -6,7 +6,7 @@ use crate::events::event::DamageTarget;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, Primitive, EffectRecipient, SelectionFilter,
+    AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
 };
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::ui::decision::DecisionProvider;
@@ -501,6 +501,38 @@ impl GameState {
                 Ok(())
             }
 
+            // === Layer 2 — control-changing effects (CR 613.1b) ===
+
+            Primitive::GainControl(duration) => {
+                let target_ids = self.collect_controllable_targets(ctx);
+                if target_ids.is_empty() {
+                    return Ok(());
+                }
+                let timestamp = self.allocate_timestamp();
+                self.continuous_effects.add(ContinuousEffect {
+                    id: 0,
+                    source: ctx.source,
+                    origin: EffectOrigin::Resolution,
+                    layer: Layer::Layer2Control,
+                    duration: *duration,
+                    controller: ctx.controller,
+                    created_on_turn: self.turn_number,
+                    timestamp,
+                    affected: AffectedSet::Fixed(target_ids),
+                    // `PlayerRef::You` and not `ctx.controller` directly, even
+                    // though the two are the same player here. The row is
+                    // `EffectOrigin::Resolution`, so `FilterPlayers::you()`
+                    // returns `ContinuousEffect.controller` — which is
+                    // `ctx.controller`, locked at resolution the way CR 611.2c
+                    // wants. Writing the id in would be the same value reached
+                    // by a path that stops being right the moment a *static*
+                    // ability produces this modification (CR 109.5), and the
+                    // lowering table is shared between the two.
+                    modification: EffectModification::SetController(PlayerRef::You),
+                });
+                Ok(())
+            }
+
             // === Phase 3+ primitives — stubs ===
 
             Primitive::Exile
@@ -518,8 +550,7 @@ impl GameState {
             | Primitive::RemoveCounters(_, _)
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
-            | Primitive::Tap
-            | Primitive::GainControl(_) => {
+            | Primitive::Tap => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
         }
@@ -722,6 +753,31 @@ impl GameState {
                     }
                 }
                 None
+            })
+            .collect()
+    }
+
+    /// Resolved targets that currently *have* a controller — CR 108.4's
+    /// "a card doesn't have a controller unless that card represents a
+    /// permanent or spell".
+    ///
+    /// The wider sibling of `collect_battlefield_targets`, and only Layer 2
+    /// wants it. Every other continuous effect describes a characteristic a
+    /// permanent has, so restricting to the battlefield is right for them;
+    /// control is the one thing a *spell* on the stack also has, and gaining
+    /// control of a permanent spell is how ATOM-110.2b-001 gets a permanent to
+    /// enter under someone else's control (CR 110.2b).
+    fn collect_controllable_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
+        ctx.targets
+            .iter()
+            .filter_map(|t| match t {
+                ResolvedTarget::Object(id)
+                    if self.battlefield.contains_key(id)
+                        || self.stack_entries.contains_key(id) =>
+                {
+                    Some(*id)
+                }
+                _ => None,
             })
             .collect()
     }

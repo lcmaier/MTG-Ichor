@@ -687,7 +687,7 @@ impl GameState {
     ) -> Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>
     {
         use crate::engine::layers::types::{EffectModification, Layer, PtValue};
-        use crate::types::effects::{ColorChange, Primitive};
+        use crate::types::effects::{ColorChange, Primitive, PlayerRef};
 
         let single = |layer, modification| vec![(layer, modification)];
 
@@ -733,6 +733,16 @@ impl GameState {
                     ColorChange::Set(colors) => EffectModification::SetColors(colors.clone()),
                     ColorChange::RemoveAll => EffectModification::RemoveAllColors,
                 },
+            ),
+            // CR 613.1b. `PlayerRef::You` rather than a resolved id, and that is
+            // what keeps this function a pure map from primitive to rows: it has
+            // no game, no source and no controller to resolve one with.
+            // `compute::resolve_set_controller` does it during the walk, which
+            // is also the only place CR 109.5's "current controller of the
+            // object it's on" can be asked.
+            Primitive::GainControl(_dur) => single(
+                Layer::Layer2Control,
+                EffectModification::SetController(PlayerRef::You),
             ),
             Primitive::ChangeType(type_change, _dur) => {
                 let mut mods: Vec<EffectModification> = Vec::new();
