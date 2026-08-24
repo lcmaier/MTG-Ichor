@@ -603,6 +603,29 @@ Two real cards, authored verbatim: **Sol Ring** (`cards/artifacts.rs`) and **Mer
 
 The Thaumaturgist is also the registry's **first `AbilityType::Activated` ability** — every other registered ability is a spell, a mana ability or a static — so `cast.rs::activate_ability`'s stack path, its target selection and its rollback arms now get random-play exposure too.
 
+**Perf: the code costs nothing, the pool costs ~9%.** Four binaries built side by side and run **interleaved**, 200 games / seed 12345, median of five, `--release`:
+
+| Binary | ms/game | ms/turn | vs main | turns/game |
+|---|---|---|---|---|
+| `main` | 79.56 | 2.6257 | — | 30.3 |
+| this branch, **both cards unregistered** | 79.26 | 2.6158 | **−0.4%** | 30.3 |
+| this branch as shipped | 86.64 | 2.8880 | +10.0% | 30.0 |
+
+The second row is the only equal-work comparison in the table, and it is exact: with the two `registry.register` lines removed the binary plays games **byte-identical** to `main`, so −0.4% is the whole cost of the summoning-sickness type gate, the two dropped `is_creature` calls in `costs.rs`/`display.rs`, and the one added in `can_attack`. Inside noise, and it nets slightly favorable because a tap-cost check now does one layer walk where it did two.
+
+Every other row plays *different games* — a new card changes deck composition and therefore every random choice downstream — so those percentages measure the pool, not shared code. Attribution, second interleaved batch against its own baseline (medians of five; note the baseline itself moved 2.6257 → 2.5297 ms/turn between batches, which is exactly the session drift that makes interleaving mandatory):
+
+| Pool | ms/game | ms/turn | vs main |
+|---|---|---|---|
+| `main` | 76.65 | 2.5297 | — |
+| + Sol Ring only | 74.16 | 2.6391 | +4.3% |
+| + Merfolk Thaumaturgist only | 80.39 | 2.6977 | +6.6% |
+| + both | 83.13 | 2.7710 | +9.5% |
+
+Sol Ring is the interesting row: it makes each turn 4.3% more expensive and each *game* 3% cheaper, because acceleration ends games sooner (28.1 turns vs 30.3). ms/turn is the honest statistic for exactly this reason.
+
+**Accepted.** The extra work is layers 7b and 7d actually running, which is what the cards were registered to cause — March of the Machines was free before because it applied to nothing. If fuzz throughput ever binds on this, the knob is deck composition (Sol Ring is colorless, so it is in *every* deck) rather than the engine, and the thread-parallel harness on the audit's list would dwarf it either way.
+
 **Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one.
 
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
