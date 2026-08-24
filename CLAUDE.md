@@ -24,7 +24,7 @@ python plans/specdb.py stats             # rules coverage by phase
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
 | `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live; its `L##`/`T##` ticket vocabulary is defined in `plans/archive/implementation-plan-final.md` |
-| `design_doc.md` (repo root) | The original design. Historical except §8/§11 (the delta-log proposal — an open fork, see `codebase-state.md` "Before Replacement effects") and the §636–664 algorithm, adopted verbatim by `layers-architecture.md` |
+| `design_doc.md` (repo root) | The original design. Historical except the §636–664 algorithm, adopted verbatim by `layers-architecture.md`. The §8/§11 delta-log fork was **resolved against** on 2026-08-24 — trigger detection is the performed-action event stream; see `codebase-state.md` "Before Replacement effects" item 4 |
 | `plans/roadmap.md`, `plans/workflow-prompts.md` | Historical. What still holds in the roadmap: Milestone 8 ("Commander Playable") and Phase 10 (GUI / AI API / parallel fuzz), which are the v1 target shape. Its phase graph and v1 definition are superseded by **Critical path to v1** below |
 | `plans/archive/*` | Superseded. Do not act on it |
 | `plans/references/scryfall-syntax.md` | External tooling reference (Scryfall search filters), not rules authority. Fetch card examples/rulings via Bash+curl with a UA header — Scryfall 403s the `WebFetch` tool |
