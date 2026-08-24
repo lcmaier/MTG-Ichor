@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# ARCHIVED 2026-08-24 — do not run.
+#
+# This generated the markdown test indexes from `atomic-tests/summaries/` while
+# `plans/specdb.py` built the database from `atomic-tests/sessions/`. Two
+# parsers over two tiers: corrections landed in the sessions, the summaries
+# stayed frozen at 2026-08-19, and by the time anyone checked the two disagreed
+# by 27 entries and on the size of three phases (Phase 7: 202 against 133).
+#
+# `specdb.py build` now writes the indexes from the same parse that builds the
+# database, so they cannot drift from it. `normalize_phase` was the only part
+# still in use and now lives in `specdb.py`. Kept for the record.
 """
 Extract per-phase ATOM/BOUNDARY/COMP indexes from session summaries.
 

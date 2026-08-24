@@ -548,7 +548,6 @@ fn cast_and_resolve_targeted_spell(
 // Cast order: Shapecraft (7b), Bull Rush (7c), Inside Out (7d)
 // ---------------------------------------------------------------------------
 
-// COVERS: ATOM-613.4d-004
 #[test]
 fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     let mut game = setup_two_player_game();
@@ -587,6 +586,18 @@ fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
 // Proves the layer system applies in fixed order, not cast order.
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-613.4d-004
+//
+// The atom's mechanism exactly: Bull Rush's +2/+0 is created *after* the switch
+// and still applies before it, so the pump lands on the unswitched side and the
+// switch happens last (2/2 -> 4/2 -> 2/4). Partial because the atom's board is a
+// 1/3 under two modifiers (+0/+1 and +5/+0, expecting 4/6) and this is a 2/2
+// under one.
+//
+// The annotation used to sit on `test_layer_ordering_7b_7c_7d_cast_in_layer_order`
+// as a full COVERS, which is the one arrangement that cannot show this: casting
+// in layer order means nothing is ever added after the switch. Caught by
+// `specdb suspicious` (2026-08-24).
 #[test]
 fn test_layer_ordering_cast_in_reverse_order() {
     let mut game = setup_two_player_game();
