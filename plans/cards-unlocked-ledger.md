@@ -183,7 +183,7 @@ Recommended integration tests:
 |-----------|---------------|---------------|--------|
 | L09 | Ability-granting/removing effects | Any "gains flying" spell; Humility (L19) | |
 | L10 (+ T05) | Type-changing, color-changing, SetLandType effects | Blood Moon, Urborg (L17) | |
-| L11 (+ T09) | Control-change effects | Mind Snare / Control Magic (L17) | |
+| L11 (+ T09) | Control-change effects | Act of Treason ✅ (2026-08-23); Control Magic / Mind Control still need an "enchanted permanent" `AffectedSet` | "Mind Snare" was an invented name — see ATOM-613.1b-001's corpus correction |
 | L12 | Text-changing effects | Mind Bend, Sleight of Mind (deferred — infrastructure ready) | |
 | L14 | Dependency detection for all layer interactions | Blood Moon + Urborg interaction (L17/L20) | |
 | L15 | Player action restrictions, cost modification scaffolding, `lands_per_turn` | Exploration (+1 land/turn); Thalia (cost increase) — scaffolding only | |

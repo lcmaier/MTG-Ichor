@@ -123,6 +123,9 @@ pub struct EffectiveCharacteristics {
 
     // --- Control (layer 2) ---
     pub controller: PlayerId,
+    /// The turn `controller` took control (CR 302.6). See the Layer 2
+    /// amendment below.
+    pub control_since_turn: u32,
 
     // --- Planeswalker/Battle ---
     pub loyalty: Option<u32>,
@@ -141,6 +144,10 @@ pub struct EffectiveCharacteristics {
     pub face_down: bool,
 }
 ```
+
+**Amendment (2026-08-23, Layer 2 phase) — `control_since_turn`.** CR 302.6 asks whether a creature has been under its controller's control "continuously since their most recent turn began", so the answer to "who controls this" is only half of what summoning sickness needs. `BattlefieldEntity.controller_since_turn` cannot supply the other half once Layer 2 exists: control from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation to hang a field update on and no event to hook. Computing it beside the controller it describes is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry.
+
+The battlefield field survives as the seed, and still owns every control change that is not a Layer 2 effect (entering the battlefield, today the only one). The Layer 2 arm of `apply_modification` overwrites it **only when the controller actually changes**: CR 302.6 asks whether control was *continuous*, and gaining control of a permanent you already control is not a change.
 
 ### 3.3 `ContinuousEffect`
 
@@ -266,7 +273,7 @@ pub enum EffectModification {
     CopyFrom { copiable: CopiableValues },
 
     // --- Layer 2 ---
-    SetController(PlayerId),
+    SetController(PlayerRef),
 
     // --- Layer 3 ---
     SetText(String),
@@ -349,6 +356,17 @@ impl Layer {
     pub fn category(self) -> CharacteristicCategory { ... }
 }
 ```
+
+**Amendment (2026-08-23, Layer 2 phase) — `SetController` carries a `PlayerRef`, not a `PlayerId`.** Same correction §3.4 records for `AffectedSet::Filter`, and for the same rule. CR 109.5 makes a static ability's "you" the *current* controller of the object it is on, so a resolved id stored at registration is a snapshot — Mind Control's "You control enchanted creature" has to follow the Aura when the Aura itself changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so `EffectOrigin::StaticAbility` asks the source and `EffectOrigin::Resolution` reads `ContinuousEffect.controller`, which CR 611.2c locked when the spell resolved.
+
+It also keeps `GameState::static_primitive_rows` a pure map from primitive to rows. That table has no game, no source and no controller, so a `PlayerId` here would have forced `Primitive::GainControl` to stay in the catch-all arm the loud-lowering work exists to empty.
+
+Two per-variant decisions, both deliberate:
+
+- **`Owner` means something different here than in a filter.** In `PermanentFilter::ByController` the `PlayerRef` describes the *source*; in `SetController` it describes the object being moved. Homeward Path's "each player gains control of all creatures they own" hands each creature to *its own* owner, so routing this through `FilterPlayers::owner()` would give every creature to whoever controls the Path.
+- **`Opponent` asserts.** Control goes to exactly one player. CR 102.2 makes "your opponent" one player in a two-player game but CR 102.3 makes "your opponents" a set, and there is no principled way to pick — which is why Donate and Harmless Offering *target* a player instead. Modelling one needs a second target, which `EffectRecipient`'s one-recipient-per-atom shape cannot express.
+
+`apply_modification` gained an `origin: Option<&ContinuousEffect>` parameter to carry the row this needs. `layers::cda` passes `None`: CR 613.4a admits no characteristic-defining ability in Layer 2 (7a is the only sublayer it lists), so the arm is unreachable from the intrinsic pass and asserts rather than guessing.
 
 ### 3.5a Handling CR 305.7 (Blood Moon semantics)
 
@@ -929,6 +947,8 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 **Scope:**
 
 1. Implement Layer 2 (Control). `SetController` effect. Updates `BattlefieldEntity.controller` via compute + a sync step (or reads through compute directly — decide in PR).
+
+   **Decided 2026-08-23: reads through compute, no sync step.** A sync step would have to run somewhere, and there is nowhere for it: a `Duration::UntilEndOfTurn` control effect expires at cleanup by being dropped from the registry, which fires no event and mutates nothing, so a synced field would silently keep the stale controller. The battlefield field stays as CR 110.2's *default* controller — the value the frame seeds from — and 20 call sites moved to `oracle::characteristics::get_effective_controller`. This is also the answer for `control_since_turn`; see the §3.2 amendment.
 2. Implement Layer 5 (Color). `AddColor`, `SetColors`, `RemoveAllColors`.
 3. Implement Layer 6 (Ability add/remove). `GrantKeyword` / `GrantAbility` / `LoseAllAbilities`.
 4. Implement the hybrid dependency algorithm (§9). Standalone `dependency.rs` module with unit tests on synthetic effects.
