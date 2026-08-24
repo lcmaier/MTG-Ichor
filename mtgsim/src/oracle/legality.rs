@@ -15,9 +15,14 @@ use crate::ui::decision::PriorityAction;
 
 /// Check if a creature can attack (not summoning-sick, or has haste).
 /// Rule 702.10b: Haste bypasses summoning sickness for attacking.
+///
+/// The creature check is part of the answer, not the caller's job: CR 508.1a
+/// lets only creatures be declared as attackers, and `has_summoning_sickness`
+/// is false for a noncreature permanent — so without it this would report that
+/// an untapped Sol Ring can attack.
 pub fn can_attack(game: &GameState, id: ObjectId) -> bool {
     if game.battlefield.contains_key(&id) {
-        !has_summoning_sickness(game, id)
+        is_creature(game, id) && !has_summoning_sickness(game, id)
     } else {
         false
     }
@@ -225,6 +230,24 @@ mod tests {
     use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::CardType;
     use crate::types::zones::Zone;
+
+    /// CR 508.1a — only creatures attack, and `has_summoning_sickness` answers
+    /// `false` for a noncreature permanent because CR 302.6 does not restrict
+    /// one. Without the type half, an untapped mana rock would be reported as a
+    /// legal attacker.
+    #[test]
+    fn test_a_noncreature_permanent_cannot_attack() {
+        let mut game = GameState::new(2, 20);
+        let sol_ring = crate::test_support::put_on_battlefield(
+            &mut game,
+            crate::cards::artifacts::sol_ring(),
+            0,
+        );
+
+        assert!(!crate::oracle::characteristics::is_creature(&game, sol_ring));
+        assert!(!has_summoning_sickness(&game, sol_ring), "not a creature, not sick");
+        assert!(!can_attack(&game, sol_ring));
+    }
 
     #[test]
     fn test_can_attack_not_summoning_sick() {

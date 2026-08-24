@@ -31,7 +31,8 @@ use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 use mtgsim::test_support::{
-    fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp,
+    fill_library, pass_turn, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn,
+    registered, setup_two_player_game, test_dp,
 };
 
 /// Helper: cast a spell targeting a permanent with a PermanentFilter.
@@ -919,4 +920,142 @@ fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
         2,
         "{{T}}: Add {{C}}{{C}} — one activation, two mana"
     );
+}
+
+// ===========================================================================
+// CR 302.6 through Layer 4 — a permanent that *becomes* a creature inherits
+// the summoning-sickness question, and answers it from how long its
+// controller has had it, not from how long it has been a creature.
+//
+// > A noncreature permanent that turns into a creature is subject to the
+// > "summoning sickness" rule: It can only attack, and its {T} abilities can
+// > only be activated, if its controller has continuously controlled that
+// > permanent since the beginning of their most recent turn.
+// >   — March of the Machines ruling, 2009-10-01
+//
+// > It doesn't matter how long the permanent has been a creature. Notably, if
+// > you turn Mishra's Factory into a creature on the turn it entered the
+// > battlefield, you won't be able to then activate its first or last
+// > abilities.
+// >   — Mishra's Factory ruling, 2022-12-08
+//
+// Both halves are checked below. This is the interaction Sol Ring was chosen
+// for: it is the pool's only permanent whose mana ability can stop working
+// because a *different* card resolved.
+// ===========================================================================
+
+/// The restriction arrives with the creature type, mid-turn, on a permanent
+/// that was legally tapping for mana a moment earlier.
+#[test]
+fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
+    use mtgsim::oracle::mana_helpers::available_mana_sources;
+
+    let mut game = setup_two_player_game();
+
+    // Two, so the "before" assertion can spend one and leave the other
+    // untapped for the "after" assertion. Both entered this turn.
+    let spent = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
+    let held = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
+
+    // CR 302.6 opens with "A creature's activated ability", so a noncreature
+    // permanent is unrestricted no matter how recently it arrived — this is
+    // why a turn-one Sol Ring is a turn-one Sol Ring.
+    assert!(!is_creature(&game, spent));
+    let ability_id = get_effective_abilities(&game, spent)[0].id;
+    game.activate_mana_ability(0, spent, ability_id)
+        .expect("a noncreature artifact is not subject to summoning sickness");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
+
+    let held_ability = get_effective_abilities(&game, held)[0].id;
+    assert!(
+        available_mana_sources(&game, 0).iter().any(|s| s.permanent_id == held),
+        "and the other one is a mana source"
+    );
+
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    assert!(is_creature(&game, held), "Layer 4 — and now CR 302.6 applies");
+    assert!(has_summoning_sickness(&game, held));
+
+    let err = game
+        .activate_mana_ability(0, held, held_ability)
+        .expect_err("its controller has not had it since their turn began");
+    assert!(
+        err.contains("summoning sickness"),
+        "rejected for the wrong reason: {err}"
+    );
+
+    // The enumeration half matters as much as the rejection: this is the list
+    // that decides what the AI believes it can afford, and a mana source that
+    // cannot legally be tapped must leave it.
+    assert!(
+        !available_mana_sources(&game, 0).iter().any(|s| s.permanent_id == held),
+        "an animated, summoning-sick rock is not an available mana source"
+    );
+}
+
+/// CR 702.10c buys it back, on a permanent whose creature-ness came from
+/// somewhere else entirely.
+#[test]
+fn test_haste_lets_a_freshly_animated_sol_ring_tap_the_turn_it_arrived() {
+    let mut game = setup_two_player_game();
+    let ring = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    assert!(has_summoning_sickness(&game, ring));
+
+    game.continuous_effects.add(registered(
+        ring,
+        mtgsim::engine::layers::types::Layer::Layer6Ability,
+        100,
+        mtgsim::engine::layers::types::EffectModification::GrantKeywordFlag(KeywordFlag::Haste),
+    ));
+
+    assert!(has_keyword(&game, ring, KeywordFlag::Haste));
+    assert!(
+        !has_summoning_sickness(&game, ring),
+        "CR 702.10c: haste covers {{T}} costs, not just attacking"
+    );
+
+    let ability_id = get_effective_abilities(&game, ring)[0].id;
+    game.activate_mana_ability(0, ring, ability_id)
+        .expect("haste answers the only objection");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
+}
+
+/// The other half of the Mishra's Factory ruling: the clock is on *control*,
+/// so a rock that has been yours since an earlier turn taps the instant it is
+/// animated, having been a creature for no time at all.
+#[test]
+fn test_a_sol_ring_from_an_earlier_turn_taps_the_moment_march_animates_it() {
+    let mut game = setup_two_player_game();
+    for player in 0..2 {
+        fill_library(&mut game, player, 8);
+    }
+
+    let ring = put_on_battlefield_this_turn(&mut game, artifacts::sol_ring(), 0);
+    assert!(
+        !has_summoning_sickness(&game, ring),
+        "CR 302.6 restricts creatures, and this is still just an artifact"
+    );
+
+    // Round the table back to P0: turn 2 is P1's, turn 3 is P0's.
+    pass_turn(&mut game);
+    pass_turn(&mut game);
+    assert_eq!((game.turn_number, game.active_player), (3, 0));
+
+    // March resolves *now*, so the Sol Ring has been a creature for an instant
+    // and under P0's control since turn 1.
+    put_on_battlefield(&mut game, phase_ld_cards::march_of_the_machines(), 0);
+
+    assert!(is_creature(&game, ring));
+    assert!(
+        !has_summoning_sickness(&game, ring),
+        "control since turn 1, and P0's most recent turn began on turn 3"
+    );
+
+    let ability_id = get_effective_abilities(&game, ring)[0].id;
+    game.activate_mana_ability(0, ring, ability_id)
+        .expect("continuous control since before this turn began");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 }

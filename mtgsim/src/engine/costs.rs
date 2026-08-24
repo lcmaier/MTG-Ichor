@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::oracle::characteristics::{has_summoning_sickness, is_creature};
+use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -52,8 +52,9 @@ impl GameState {
                     return Err("Permanent is already tapped".to_string());
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // tapping, unless they have haste.
-                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                // tapping, unless they have haste. `has_summoning_sickness` is
+                // false for a noncreature permanent, so it needs no type gate here.
+                if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
                 Ok(())
@@ -66,7 +67,7 @@ impl GameState {
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // paying {Q} (untap symbol), unless they have haste.
-                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
                 Ok(())
@@ -142,7 +143,7 @@ impl GameState {
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // tapping, unless they have haste.
-                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
                 let entry = self.battlefield.get_mut(&source_id).unwrap();
@@ -157,7 +158,7 @@ impl GameState {
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // paying {Q} (untap symbol), unless they have haste.
-                if is_creature(self, source_id) && has_summoning_sickness(self, source_id) {
+                if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
                 let entry = self.battlefield.get_mut(&source_id).unwrap();
