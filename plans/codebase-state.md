@@ -589,7 +589,7 @@ Surfaced by writing the March-of-the-Machines animation tests, whose interaction
 
 **~~The corpus had two parsers over two tiers.~~ — fixed 2026-08-24.** `extract-phase-index.py` generated the markdown indexes from `summaries/` (frozen 2026-08-19) while `specdb.py` built the database from `sessions/` (the authored tier, corrected twice since). The channel was not merely stale: the two disagreed by 27 entries and on the size of three phases — the Phase 7 index claimed 202 entries against the database's 133 — so a session grounding its scope in an index was reading a different corpus than one querying the database.
 
-`specdb.py build` now writes `global-test-index.md` and `phase-index-*.md` from the same parse that builds the sqlite, `normalize_phase` moved in-house, and `extract-phase-index.py` is archived. `summaries/` carries a README saying it generates nothing.
+`specdb.py build` now writes `global-test-index.md` and `phase-index-*.md` from the same parse that builds the sqlite, `normalize_phase` moved in-house, and the extraction script is **deleted** — it lived at `plans/atomic-tests/extract-phase-index.py` and is recoverable with `git log --diff-filter=D -- plans/atomic-tests/extract-phase-index.py`. It was briefly moved to `plans/archive/` instead, which was wrong: that directory holds superseded *documents*, which are read, and this was a *script*, which can be run — and running it regenerates the indexes from `summaries/` and puts the drift straight back. A comment saying "do not run" is not a guard. `summaries/` carries a README saying it generates nothing.
 
 Two bugs fell out of the same parse, both silent:
 
