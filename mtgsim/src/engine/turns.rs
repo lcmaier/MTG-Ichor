@@ -37,8 +37,8 @@ impl GameState {
         // Check for turn transition (Ending -> Beginning = new turn)
         if old_phase == PhaseType::Ending && new_phase_type == PhaseType::Beginning {
             self.on_turn_end()?;
-            self.turn_number += 1;
-            self.active_player = (self.active_player + 1) % self.num_players();
+            let next_player = (self.active_player + 1) % self.num_players();
+            self.begin_turn(self.turn_number + 1, next_player);
             self.priority_player = self.active_player;
         }
 
@@ -113,8 +113,8 @@ impl GameState {
                 self.priority_player = self.active_player;
             }
             StepType::Cleanup => {
-                // Rule 514.1: Discard to hand size — requires DecisionProvider (future)
-                // TODO: wire up discard-to-hand-size once DecisionProvider is integrated
+                // Rule 514.1 (discard to hand size) needs a DecisionProvider, so it
+                // lives one level up in `Game::perform_cleanup_actions`, not here.
 
                 // Rule 514.2: Remove all damage marked on permanents and end
                 // "until end of turn" / "this turn" effects (simultaneous)

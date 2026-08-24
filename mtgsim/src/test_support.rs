@@ -52,10 +52,36 @@ use crate::ui::decision::ScriptedDecisionProvider;
 
 /// Create a minimal two-player game in precombat main phase with player 0 active.
 pub fn setup_two_player_game() -> GameState {
-    let mut game = GameState::new(2, 20);
+    setup_game(2)
+}
+
+/// The N-player form of [`setup_two_player_game`]: `num_players` players, in
+/// precombat main phase, player 0 active.
+///
+/// Anything that reads the *player set* rather than "me and the other one"
+/// needs a board wider than two to be tested at all — CR 302.6's window spans
+/// every opponent's turn, and three of them is a different answer from one.
+pub fn setup_game(num_players: usize) -> GameState {
+    let mut game = GameState::new(num_players, 20);
     game.phase = Phase::new(PhaseType::Precombat);
     game.active_player = 0;
     game
+}
+
+/// Advance `game` to the beginning of the next player's turn.
+///
+/// Walks the real phase machinery, so everything a turn transition records —
+/// untaps, the CR 302.6 turn-start clock — is recorded the way a game records
+/// it. Assigning `turn_number` directly does not.
+pub fn pass_turn(game: &mut GameState) {
+    let start = game.turn_number;
+    for _ in 0..200 {
+        game.advance_turn().expect("advancing a step");
+        if game.turn_number > start {
+            return;
+        }
+    }
+    panic!("the turn never ended");
 }
 
 /// A no-op decision provider for tests that never reach a choice point.

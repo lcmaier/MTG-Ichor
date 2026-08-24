@@ -8,20 +8,22 @@
 //!   gaining control of a permanent spell decides who controls the permanent
 //!   (CR 110.2b).
 
-use mtgsim::cards::{phase5_pre_cards, phase_le_cards, phase_lg_cards};
+use mtgsim::cards::{phase5_pre_cards, phase_le_cards, phase_lf_cards, phase_lg_cards};
 use mtgsim::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
 };
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
-    get_effective_controller, get_effective_power, has_keyword, has_summoning_sickness,
+    get_effective_abilities, get_effective_controller, get_effective_power, has_keyword,
+    has_summoning_sickness,
 };
 use mtgsim::oracle::legality::legal_attackers;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
     attach, aura_enchanting_your_creature, card_of_type, equipment, fill_library, pacifism,
-    put_in_graveyard, put_on_battlefield, setup_two_player_game, test_dp, vanilla_creature,
+    pass_turn, put_in_graveyard, put_on_battlefield, put_on_battlefield_this_turn, setup_game,
+    setup_two_player_game, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -791,5 +793,132 @@ fn test_a_cda_and_a_control_effect_coexist() {
         get_effective_power(&game, goyf),
         Some(1),
         "the CDA still runs at Layer 7a: one card type in graveyards"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// CR 302.6 — the window is the *controller's* turn, not the game's turn
+//
+// The engine used to answer "has control been continuous since their most
+// recent turn began?" with `control_since_turn >= game.turn_number`, which is
+// "was control gained during the turn now being played". Those agree on your
+// own turn and disagree on everyone else's: the creature you cast on your turn
+// went unsick the moment the turn passed, one full turn early. Nothing in the
+// pool could tap a creature until Citanul Hierophants handed one a mana
+// ability, which is why it survived this long.
+// ---------------------------------------------------------------------------
+
+/// The window itself, at two players.
+#[test]
+fn test_a_creature_cast_on_your_turn_stays_sick_through_the_opponents_turn() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    fill_library(&mut game, 1, 5);
+
+    let bears = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert!(has_summoning_sickness(&game, bears), "cast this turn");
+
+    pass_turn(&mut game);
+    assert_eq!((game.turn_number, game.active_player), (2, 1));
+    assert!(
+        has_summoning_sickness(&game, bears),
+        "CR 302.6: P0's most recent turn is still turn 1, and the creature was not there when it began"
+    );
+
+    pass_turn(&mut game);
+    assert_eq!((game.turn_number, game.active_player), (3, 0));
+    assert!(
+        !has_summoning_sickness(&game, bears),
+        "P0's next turn has begun, so the clock is satisfied"
+    );
+}
+
+/// The reachable consequence, end to end: Citanul Hierophants hands a creature
+/// "{T}: Add {G}", and the CR forbids paying that tap cost on the opponent's
+/// turn. Instant-speed mana activation is a real path — it is how a player
+/// holds up Counterspell mana — so this is a wrong answer a game can reach.
+#[test]
+fn test_a_granted_tap_ability_stays_locked_on_the_opponents_turn() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    fill_library(&mut game, 1, 5);
+
+    let bears = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+
+    let granted = get_effective_abilities(&game, bears);
+    assert_eq!(granted.len(), 1, "the Hierophants' grant, and nothing else");
+    let granted_id = granted[0].id;
+
+    pass_turn(&mut game);
+    let err = game
+        .activate_mana_ability(0, bears, granted_id)
+        .expect_err("CR 302.6 forbids the tap on P1's turn");
+    assert!(
+        err.contains("summoning sickness"),
+        "rejected for the wrong reason: {err}"
+    );
+    assert!(!game.battlefield[&bears].tapped);
+
+    pass_turn(&mut game);
+    game.activate_mana_ability(0, bears, granted_id)
+        .expect("P0's turn has begun, so the ability is live");
+    assert!(game.battlefield[&bears].tapped);
+}
+
+/// The N-player form, which is the whole reason the fix tracks turn starts per
+/// player instead of subtracting one from the turn number: at four players the
+/// creature is sick through *three* opponents' turns.
+#[test]
+fn test_summoning_sickness_spans_every_opponents_turn_in_a_four_player_game() {
+    let mut game = setup_game(4);
+    for player in 0..4 {
+        fill_library(&mut game, player, 8);
+    }
+
+    let bears = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    for turn in 2..=4 {
+        pass_turn(&mut game);
+        assert_eq!(game.turn_number, turn);
+        assert!(
+            has_summoning_sickness(&game, bears),
+            "still sick on turn {turn} — P0's most recent turn is turn 1"
+        );
+    }
+
+    pass_turn(&mut game);
+    assert_eq!((game.turn_number, game.active_player), (5, 0));
+    assert!(!has_summoning_sickness(&game, bears));
+}
+
+/// The turn-0 sentinel (CR 103.6 openers), for a controller who has had no turn
+/// at all: a Leyline on P1's side is not sick during P0's first turn. The
+/// corrected comparison has to keep answering this, and "control since the
+/// start of the game" is what makes it come out right.
+#[test]
+fn test_a_pregame_permanent_is_not_sick_before_its_controllers_first_turn() {
+    let mut game = setup_two_player_game();
+    let leyline = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    assert!(!has_summoning_sickness(&game, leyline));
+}
+
+/// And its opposite: a creature that entered *during* P0's turn 1 under P1's
+/// control has not been P1's since any turn of theirs began, because P1 has not
+/// had one.
+#[test]
+fn test_a_creature_entering_before_its_controllers_first_turn_is_sick() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 1, 5);
+    let flashed = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 1);
+    assert!(
+        has_summoning_sickness(&game, flashed),
+        "P1 has had no turn yet"
+    );
+
+    pass_turn(&mut game);
+    assert!(
+        !has_summoning_sickness(&game, flashed),
+        "P1's first turn has now begun"
     );
 }
