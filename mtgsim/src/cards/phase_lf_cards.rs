@@ -6,8 +6,10 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, Primitive,
+    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, PermanentFilter, PlayerRef,
+    Primitive,
 };
+use crate::types::costs::Cost;
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -89,4 +91,70 @@ mod tests {
         }
         assert!(!card.abilities[0].is_characteristic_defining);
     }
+}
+
+/// Citanul Hierophants — {3}{G}
+/// Creature — Human Druid, 3/2
+/// Creatures you control have "{T}: Add {G}."
+///
+/// Real card, verbatim, and here because it is the **only** production card
+/// exercising `Primitive::GrantAbility` on a *static* ability. That arm has
+/// been in `static_primitive_rows` since the Layer 6 phase with nothing
+/// reaching it: every `GrantAbility` in the pool arrives through a resolution
+/// (`resolve::register_granted_static_effects`), which is a different code
+/// path with a different `AffectedSet` shape — `Fixed`, locked to the spell's
+/// targets, rather than a live `Filter`.
+///
+/// **Why this one works when "a static ability granting a static ability over a
+/// filter" does not** (`codebase-state.md` item 7, the open filter half): the
+/// granted ability here is a *mana* ability, so it generates no continuous
+/// effect of its own. There is nothing to derive, nothing for CR 613.7a to
+/// re-check, and the whole card is one Layer 6 row over a filter. Swap the
+/// granted body for a static one and it lands in the open case immediately.
+///
+/// It also crosses the layer system into mana enumeration, which is the part
+/// that broke last time: `oracle::mana_helpers::activatable_abilities`,
+/// `engine::priority`'s id→index re-derivation, and `engine::cast::
+/// activate_ability` must all index the *effective* ability list, or a creature
+/// under this card taps for the wrong thing. That coupling is called out in
+/// CLAUDE.md and had no card able to test it end to end until now.
+pub fn citanul_hierophants() -> Arc<CardData> {
+    // The granted body: `{T}: Add {G}`, exactly what a Forest carries.
+    let granted = AbilityDef {
+        is_characteristic_defining: false,
+        id: new_ability_id(),
+        ability_type: AbilityType::Mana,
+        costs: vec![Cost::Tap],
+        effect: Effect::Atom(
+            Primitive::ProduceMana(ManaOutput {
+                mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],
+                special: vec![],
+            }),
+            EffectRecipient::Implicit,
+        ),
+    };
+
+    CardDataBuilder::new("Citanul Hierophants")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 3))
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .power_toughness(3, 2)
+        .rules_text("Creatures you control have \"{T}: Add {G}.\"")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::GrantAbility(
+                    Box::new(granted),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                )),
+            ),
+        })
+        .build()
 }

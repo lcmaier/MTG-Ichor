@@ -124,6 +124,7 @@ impl CardRegistry {
         registry.register("Tarmogoyf", phase_le_cards::tarmogoyf);
         registry.register("Culling Drone", phase_le_cards::culling_drone);
         registry.register("Humility", phase_lf_cards::humility);
+        registry.register("Citanul Hierophants", phase_lf_cards::citanul_hierophants);
 
         // The ten original duals. Nonbasic lands with basic land types, which is
         // what gives `fuzz_games` a mana base Blood Moon can actually affect.
