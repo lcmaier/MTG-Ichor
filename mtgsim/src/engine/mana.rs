@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::engine::actions::ActionContext;
 use crate::objects::card_data::AbilityType;
 use crate::types::effects::{Effect, Primitive};
 use crate::state::game_state::GameState;
@@ -25,6 +26,7 @@ impl GameState {
         player_id: PlayerId,
         permanent_id: ObjectId,
         ability_id: AbilityId,
+        ctx: &ActionContext,
     ) -> Result<(), String> {
         // Snapshot the ability definition (clone to release borrow).
         // Effective, not printed — intrinsic land mana abilities (CR 305.6) are
@@ -52,7 +54,7 @@ impl GameState {
         // Pay costs via shared cost payment system.
         // Mana ability costs are always specific (tap, etc.) — no generic allocation needed.
         let no_generic = HashMap::new();
-        self.pay_costs(&ability.costs, player_id, permanent_id, &no_generic)?;
+        self.pay_costs(&ability.costs, player_id, permanent_id, &no_generic, ctx)?;
 
         // Resolve effect immediately (mana abilities don't use the stack)
         self.resolve_mana_effect(&ability.effect, player_id)?;
@@ -106,6 +108,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::test_ctx;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::BattlefieldEntity;
@@ -141,7 +144,7 @@ mod tests {
 
         assert_eq!(game.players[0].mana_pool.total(), 0);
 
-        game.activate_mana_ability(0, forest_id, ability_id).unwrap();
+        game.activate_mana_ability(0, forest_id, ability_id, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
         assert!(game.battlefield.get(&forest_id).unwrap().tapped);
@@ -151,8 +154,8 @@ mod tests {
     fn test_cannot_activate_already_tapped() {
         let (mut game, forest_id, ability_id) = setup_with_forest();
 
-        game.activate_mana_ability(0, forest_id, ability_id).unwrap();
-        let result = game.activate_mana_ability(0, forest_id, ability_id);
+        game.activate_mana_ability(0, forest_id, ability_id, &test_ctx()).unwrap();
+        let result = game.activate_mana_ability(0, forest_id, ability_id, &test_ctx());
         assert!(result.is_err());
     }
 
@@ -160,7 +163,7 @@ mod tests {
     fn test_cannot_activate_opponents_permanent() {
         let (mut game, forest_id, ability_id) = setup_with_forest();
 
-        let result = game.activate_mana_ability(1, forest_id, ability_id);
+        let result = game.activate_mana_ability(1, forest_id, ability_id, &test_ctx());
         assert!(result.is_err());
     }
 }

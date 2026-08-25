@@ -39,6 +39,7 @@ use crate::types::effects::{
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
+use crate::engine::actions::ActionContext;
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
@@ -87,6 +88,25 @@ pub fn pass_turn(game: &mut GameState) {
 /// A no-op decision provider for tests that never reach a choice point.
 pub fn test_dp() -> ScriptedDecisionProvider {
     ScriptedDecisionProvider::new()
+}
+
+/// A no-op [`ActionContext`] for tests that never reach a replacement choice.
+///
+/// `ActionContext` borrows its `DecisionProvider`, so a helper that returns one
+/// has to own the provider somewhere. This leaks a fresh
+/// `ScriptedDecisionProvider` per call — a few dozen bytes each, in a test
+/// binary, behind the `test-support` feature that release builds turn off.
+///
+/// **Fresh rather than shared, on purpose.** A single shared provider would let
+/// one test's scripted expectations leak into the next test that borrowed it.
+/// Nothing reads `ctx.dp` yet (Phase RA threads it; Phase RB consults it), so
+/// the hazard is not live — which is exactly why it is worth closing now,
+/// before a test starts depending on the wrong answer.
+///
+/// If your test needs to script a choice, do not use this: build
+/// `ActionContext::new(&dp)` against a provider you own and can enqueue onto.
+pub fn test_ctx() -> ActionContext<'static> {
+    ActionContext::new(Box::leak(Box::new(ScriptedDecisionProvider::new())))
 }
 
 // ---------------------------------------------------------------------------

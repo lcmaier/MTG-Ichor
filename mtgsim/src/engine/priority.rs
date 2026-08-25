@@ -1,4 +1,5 @@
 use crate::oracle::legality::candidate_priority_actions;
+use crate::engine::actions::ActionContext;
 use crate::state::game_state::GameState;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_priority_action;
@@ -133,7 +134,10 @@ impl GameState {
                             .map(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana)
                             .unwrap_or(false);
                         let result = if is_mana {
-                            self.activate_mana_ability(current_priority, *permanent_id, *ability_id)
+                            self.activate_mana_ability(
+                                current_priority, *permanent_id, *ability_id,
+                                &ActionContext::new(decisions),
+                            )
                         } else {
                             let idx = abilities.iter()
                                 .position(|a| a.id == *ability_id);
