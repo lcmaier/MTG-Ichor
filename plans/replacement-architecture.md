@@ -464,12 +464,60 @@ player state*, not a scale or an offset. It is one `AmountRewrite` variant with
 8 customers and a clear rule shape, and it is named here so it is budgeted
 rather than discovered.
 
-### 3.2d The outcome is an `Option`, and the applied-set follows a *lineage*
+### 3.2d Multiplicity lives in a field, not in a set of events
 
 ```rust
 /// CR 614.6 -- either the event happens in modified form, or it never happens.
 pub type ReplacementOutcome = Option<GameAction>;
 ```
+
+**Read that as a claim about the rewrite's arity, not about how many cards get
+drawn.** A replacement absolutely can multiply what happens — Teferi's Ageless
+Insight turns one draw into two cards in hand, and pretending otherwise would be
+silly. The claim is narrower and load-bearing: *the multiplicity is carried in a
+**field of one event**, never in a set of events*, so `Rewrite` maps one
+`GameAction` to at most one `GameAction`.
+
+That is not an encoding trick to dodge fan-out. `DrawCards { n }` is an object
+the rules themselves talk about, and Alms Collector cannot be written without it.
+Its printed ruling gives the test verbatim:
+
+> "To determine whether a player is instructed to draw multiple **once** or
+> instructed **multiple times to draw one card**, count how many times the word
+> 'draw' is used. Alms Collector's replacement effect watches for one 'draw'
+> that instructs a player to draw multiple cards."
+
+So "draw two cards" is one event with `n = 2`, and two separate "draw a card"
+instructions are two events. Teferi's says "draw two cards instead" — one
+"draw" — so its output is a single `DrawCards { n: 2 }`. `Instead(DrawCards{2})`
+is the faithful encoding, and `Split([DrawCard, DrawCard])` would be the wrong
+one: it skips the instruction level, and an opponent's Alms Collector would then
+have nothing to match.
+
+That the instruction-level event is visible to *other* replacements is also
+printed, and it is CR 616.2 ("a replacement effect can become applicable as the
+result of another replacement effect that modifies the event"):
+
+> "Once a replacement effect has been applied to an event, it can't be applied
+> again to the resulting events. For example, once Alms Collector's replacement
+> effect has modified the effect of a player's Divination, **Thought Reflection
+> can double that player's resulting card draw** without Alms Collector's
+> replacement effect applying again."
+
+**Where heterogeneous multiplicity goes.** When a replacement really does cause
+two unlike things — Alms Collector's "you *and* that player each draw a card",
+Notion Thief's "that player skips that draw *and* you draw a card" — the split is
+between the replaced event and the `then` half, not between two rewrite outputs.
+Notion Thief is `Prevent` + `then:` you draw one; its ruling confirms the
+boundary is real, since "that opponent still discards a card" if the original
+instruction was draw-then-discard. Homogeneous multiplicity is a count field;
+heterogeneous multiplicity is `then`. Between them, nothing needs a fan-out.
+
+**Honest note on why `Split` went.** It was first removed because the question
+"does a fanned-out branch inherit the CR 614.5 applied-set" had no answer. The
+lineage rule below now answers that question either way, so that reason has
+expired. `Option` survives on faithfulness — the instruction-level event is real
+and `Split` would erase it — not on dodging the hard case.
 
 This was drafted with a third `Split(Vec<GameAction>)` variant justified by
 Doubling Season. **That was wrong, and the correction matters structurally.**
@@ -478,13 +526,13 @@ control, it creates twice that many of those tokens **instead**" (verified on
 Scryfall, 2026-08-24) — one token-creation event whose *count* changes, which
 is `Rewrite::Amount`. Its second ability does the same for counters.
 
-A first revision of this section then claimed "nothing in CR 614 turns one event
-into several", and **that was too strong** — flagged in review with Teferi's
-Ageless Insight, which is right. `Rewrite` still yields at most one action, but
-*performing* it can produce several events, and CR 121.2 is explicit that
-drawing two cards is two individual draws. So the question dropping `Split`
-appeared to retire — does a derived event inherit the CR 614.5 applied-set? — is
-alive, load-bearing, and has a determinate answer.
+A first revision of this section claimed "nothing in CR 614 turns one event into
+several", and **that was too strong** — flagged in review with Teferi's Ageless
+Insight, which is right. `Rewrite` yields at most one action, but *performing*
+one can produce several events: CR 121.2 says an instruction to draw N is
+carried out as N individual draws. So the question dropping `Split` appeared to
+retire — does a derived event inherit the CR 614.5 applied-set? — is alive,
+load-bearing, and has a determinate answer.
 
 **The rule: the applied-set follows an event's *lineage*. Decomposition
 continues a lineage; containment starts a new one.**
@@ -577,11 +625,14 @@ It differs in two ways, both because replacement effects are not layered:
 
 ### 4.1 The CR 616.1 loop
 
-One event in, at most one event out (§3.2d). `perform_action` is what proposes
-derived events, and each of those re-enters here — carrying the parent's
-applied-set if it is a *decomposition*, with a fresh one if it is a *contained*
-event of a different kind. That parameter is the whole of §3.2d's lineage rule
-and the reason two Teferi's Ageless Insights draw four cards instead of hanging.
+`Rewrite` maps one `GameAction` to at most one `GameAction` — multiplicity rides
+in a *field* of the event, not in a set of them (§3.2d). Performing that event
+can still produce several: `perform_action` proposes the derived events, and each
+re-enters here carrying the parent's applied-set if it is a **decomposition**
+(`DrawCards{2}` → two `DrawCard`s) and a fresh one if it is a **contained** event
+of a different kind (`CreateTokens` → `EnterBattlefield`). That parameter is the
+whole of §3.2d's lineage rule, and the reason two Teferi's Ageless Insights draw
+four cards instead of hanging.
 
 ```
 fn apply_replacements(game, action, ctx, inherited) -> Option<GameAction>
@@ -1461,6 +1512,36 @@ Test cards go in `src/cards/phase_r*_cards.rs`; integration tests in
 ---
 
 ## 11. Findings and open questions
+
+**Which of these block work, and which resolve as the phases run** (asked in
+review, 2026-08-24). Only one needs an answer before code starts:
+
+| # | Item | Verdict |
+|---|---|---|
+| 1 | CR 903.9 is half an SBA | **Answered.** A finding, not a question — `codebase-state.md` corrected |
+| 2 | `AffectedSet` reuse | **Answered.** A constraint to preserve, not a question |
+| 3 | Self-replacement (CR 614.15) plumbing | **Defer to RB.** The `ActionContext::resolution` hook lands in RB; the `ResolutionContext` field lands with the first card that needs it. Low breadth, and building a general mechanism first is what §0 commitment one warns against |
+| 4 | Replacement effects outside the battlefield | **Defer, but size it in RB.** Per `dont-over-defer`: count the cards during RB rather than at the end of RE, because the answer (zone parameter vs. separate registry) changes the sweep's shape and the sweep is written in RB |
+| 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
+| 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
+| 7 | `ScriptedDecisionProvider` blast radius | **Answered.** The mitigation is §4.1's two-candidate rule; watch it, do not re-decide it |
+| — | **`ZoneChangeCause`'s exact variant list** | **Needed before RA's first commit.** See below |
+
+**The one that blocks.** `ZoneChangeCause` is written by *every* caller of
+`change_zone` in Phase RA, so its variant list is fixed by the end of RA's first
+commit and is expensive to widen afterwards — every existing call site has to be
+revisited to decide which new variant it means, and the ones that guess wrong
+fail silently rather than loudly. Everything else on this list is consumed by
+code that has not been written yet, so a later answer costs a diff instead of an
+audit.
+
+Settle it by enumerating CR 701's zone-moving actions (destroy, sacrifice,
+exile, discard, mill, put, return, shuffle-into) against the SBA sweep's reasons
+(704.5f zero toughness, 704.5g/h lethal damage, 704.5j legend rule, 704.5m/n/p
+attachment) and the stack's three exits (resolved, countered, fizzled) — all
+enumerable from the CR and the existing code in an hour. §8b's projection of ~17
+is that count; confirm it rather than trust it.
+
 
 1. **CR 903.9 is half an SBA, and `codebase-state.md` said otherwise.**
    Current Oracle splits it: **903.9a** (commander in graveyard or exile → its

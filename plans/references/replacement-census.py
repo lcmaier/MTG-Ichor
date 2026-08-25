@@ -26,6 +26,28 @@ stamped with the date they were taken.
 Results are cached in this directory (gitignored) so a rerun is cheap and a
 rate-limit interruption never loses work. Scryfall asks for a courteous request
 rate; the delay and backoff below are deliberate -- do not tighten them.
+
+WHY THIS IS KEPT, AND WHEN TO DELETE IT
+---------------------------------------
+It exists for exactly one reason: `clauses` backs a *falsifiable* claim -- that
+no printed card needs a sixth `Rewrite` arm -- and a future phase that changes
+the algebra has to re-test it. Reconstructing the classifier from prose is the
+kind of work that does not get done, so the claim would quietly become folklore.
+
+`sizing` is weaker and should go first. It was a one-time bird's-eye pass whose
+numbers are now recorded in section 8b, it is the half with the known-bad
+readings (Regenerate=0, EnterBattlefield=7211), and nothing re-tests it.
+
+Delete this file when either is true:
+  - the `Rewrite` algebra has shipped and stopped changing, so `clauses` has no
+    remaining customer; or
+  - the numbers here are stale enough that a reader would trust them over a
+    fresh look, which is the failure mode the section-8b caveats exist to
+    prevent and a comment cannot.
+
+Its output is prose input, never an artifact. Nothing in the repo is derived
+from it -- that is what separates it from `extract-phase-index.py`, which was
+deleted for regenerating *authoritative* files from a stale source.
 """
 import argparse
 import json
