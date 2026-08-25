@@ -1,8 +1,22 @@
 # MTG-Ichor — Magic: The Gathering Rules Engine
 
-A from-scratch Magic: The Gathering rules engine written in Rust, designed to be **fast**, **correct**, **extensible**, and **manageable**. The engine can power a GUI for two humans playing over a network, or run headless for bot-vs-bot self-play in dozens of parallel games.
+A from-scratch Magic: The Gathering rules engine in Rust. Correctness-first: the
+Comprehensive Rules are the source of truth, and behavior is *implemented*, not
+approximated. The engine is UI-agnostic and does no I/O — it exists to power a GUI for
+humans playing over a network, and to run headless for AI self-play across many parallel
+games.
 
-> **Status:** Post-Phase 4.5 — 287 tests passing, 500/500 fuzz games complete with zero panics. Core gameplay loop (turns, mana, casting, combat, keywords) is fully functional. Currently preparing for Phase 5: Continuous Effects & Layer System.
+**v1 targets two use cases:** peer-to-peer human games through a GUI — specifically
+**4-player Commander** — and **highly parallel AI games** over the CLI. A correct
+two-player game is a checkpoint on the way, not the destination.
+
+> **Status:** The layer system (CR 613) core is live; replacement effects (CR 614–616) are
+> the phase starting now. Build is green with zero warnings.
+>
+> For anything more precise than that — per-rule coverage, what's stubbed, what's next —
+> read [`plans/codebase-state.md`](plans/codebase-state.md). It is the single source of
+> truth and it is maintained as part of the work that changes it. This README deliberately
+> does not duplicate its numbers.
 
 ---
 
@@ -12,7 +26,7 @@ A from-scratch Magic: The Gathering rules engine written in Rust, designed to be
 ┌─────────────────────────────────────────────────────────────┐
 │  Game — lifecycle, setup, config, DecisionProvider dispatch │
 ├─────────────────────────────────────────────────────────────┤
-│  ui/decision.rs — DecisionProvider trait                    │
+│  ui/ — DecisionProvider trait (4 primitives) + ask_* bridge │
 │  (CLI, Random, Scripted, Dispatch implementations)          │
 ├─────────────────────────────────────────────────────────────┤
 │  engine/ — Rules engine (reads + mutates GameState)         │
@@ -20,235 +34,260 @@ A from-scratch Magic: The Gathering rules engine written in Rust, designed to be
 │  │ cast.rs  │ stack.rs │priority.rs │ targeting.rs        │ │
 │  │ turns.rs │ zones.rs │ resolve.rs │ costs.rs            │ │
 │  │ sba.rs   │ mana.rs  │ combat/    │ actions.rs          │ │
+│  │ layers/  │keywords.rs│           │                     │ │
 │  └──────────┴──────────┴────────────┴─────────────────────┘ │
 ├─────────────────────────────────────────────────────────────┤
-│  oracle/ — Read-only game state queries                     │
+│  oracle/ — Read-only queries over EFFECTIVE characteristics │
 │  (characteristics, legality, board, mana_helpers)           │
 ├─────────────────────────────────────────────────────────────┤
-│  state/ — Pure data (GameState, GameConfig, PlayerState)    │
-│  objects/ — GameObject, CardData, BattlefieldEntity         │
+│  state/ — GameState, GameConfig, PlayerState,               │
+│           ContinuousEffectRegistry, BattlefieldEntity       │
+│  objects/ — GameObject, CardData                            │
 │  types/ — Enums and value types (no logic)                  │
 │  events/ — EventLog for game history                        │
 │  cards/ — Card definitions (data only, via CardRegistry)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Key Design Principles
+### Key design principles
 
-- **Central object store:** All game objects live in a single `HashMap<ObjectId, GameObject>`. Zones reference objects by ID.
-- **Single zone-transition chokepoint:** All zone moves go through `move_object()`.
-- **Engine does no I/O:** Every player decision is routed through the `DecisionProvider` trait. The engine is pure state transforms.
-- **Composable effect system:** Card effects are trees built from ~35 `Primitive` variants and ~7 `Effect` combinators (`Atom`, `Sequence`, `Conditional`, `Modal`, etc.).
-- **Immutable card data:** `CardData` is `Arc`-shared across instances — the layer system computes effective characteristics on top of printed values.
-- **Oracle module:** Read-only queries (`has_keyword`, `is_creature`, `get_effective_power/toughness`, `castable_spells`, etc.) are isolated in `oracle/`, making the Phase 5 layer-system swap a single-point change.
-- **Action pipeline:** All observable mutations route through `execute_action(GameAction)`, designed for Phase 7 replacement-effect middleware.
+- **Central object store.** All game objects live in one `HashMap<ObjectId, GameObject>`;
+  zones reference objects by id.
+- **Single zone-transition chokepoint.** Every zone move goes through `move_object()`.
+- **The engine does no I/O.** Every player decision routes through the `DecisionProvider`
+  trait. The engine is pure state transforms.
+- **Composable effects.** Card effects are trees built from `Primitive` variants and
+  `Effect` combinators (`Atom`, `Sequence`, `Conditional`, `Modal`, …).
+- **Immutable card data.** `CardData` is `Arc`-shared across instances; the layer system
+  computes effective characteristics on top of printed values.
+- **Action pipeline.** Observable mutations route through `execute_action(GameAction)` —
+  the seam the replacement-effect pipeline hooks into.
+
+### Three invariants worth knowing before touching the code
+
+These are load-bearing. Each has already cost a redesign or produced silent wrong behavior,
+and each is stated in full in [`CLAUDE.md`](CLAUDE.md).
+
+1. **Never read printed characteristics for anything on the battlefield or the stack.**
+   `card_data.{types,subtypes,supertypes,colors,keywords,abilities}` stopped equalling
+   effective characteristics when Layer 4 landed. Route through `oracle/characteristics.rs`.
+   Ability *indices* count too — a Blood-Mooned land has no printed abilities left and gains
+   an intrinsic `{T}: Add {R}` that exists nowhere in its `CardData`.
+2. **Registry membership is not effect existence.** A static ability's effect applies only
+   while its source still has that ability, and CR 305.7 or Layer 6 can remove it without
+   touching the registry — so existence is re-checked at every layer, against the previous
+   layer's frame. Deciding existence outside the layer walk turns a terminating computation
+   into a fixpoint that invents oscillation the CR does not have.
+3. **Determinism at the decision boundary.** A `DecisionProvider` picks by *index*, so the
+   order a sweep returns in is part of the decision. Sweeps that reach a choice go through
+   `battlefield_ordered` / `battlefield_ids_ordered`, ordered by `BattlefieldEntity::timestamp`
+   — which is CR 613.7's order anyway. Never raw `HashMap` order, and never `ObjectId`, which
+   is a v4 UUID. Randomness is owned, never ambient: draw from `GameState.rng`, not
+   `rand::rng()`.
 
 ---
 
-## What's Implemented
+## What's implemented
 
-| Area                                                                                                                 | Status     |
-| -------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Turn structure (all phases/steps)                                                                                    | ✅          |
-| Mana system (Colored, Generic, Colorless symbols)                                                                    | ✅          |
-| Casting spells (rule 601.2)                                                                                          | ✅          |
-| Stack & resolution (rule 608, pop-first)                                                                             | ✅          |
-| Priority system (rule 117, SBA loop)                                                                                 | ✅          |
-| Targeting (Creature, Player, Any, Permanent, Spell)                                                                  | ✅          |
-| Effect resolver (DealDamage, DrawCards, GainLife, LoseLife, Destroy, etc.)                                           | ⚠️ Partial |
-| State-based actions (704.5a life, 704.5b empty library, lethal damage, zero toughness)                               | ✅          |
-| Combat (declare attackers/blockers, damage assignment, 2025 rules)                                                   | ✅          |
-| 10 keyword abilities (flying, reach, defender, haste, vigilance, first/double strike, trample, lifelink, deathtouch) | ✅          |
-| Oracle module (characteristics, legality, mana helpers, board queries)                                               | ✅          |
-| CLI play (human vs random bot)                                                                                       | ✅          |
-| Fuzz testing (random vs random, 500+ games)                                                                          | ✅          |
+A coarse map. The per-CR-rule breakdown lives in
+[`plans/codebase-state.md`](plans/codebase-state.md).
 
-### Cards (24)
+| Area | Status |
+| --- | --- |
+| Turn structure, all phases and steps (CR 5) | ✅ |
+| Mana: pool, restrictions, persistence, context-aware spending (CR 106, 123) | ✅ |
+| Casting pipeline (CR 601.2), stack and resolution (CR 608) | ✅ core; modes and activation restrictions pending |
+| Priority, mana-ability windows (CR 117, 601.2g) | ✅ |
+| Targeting (CR 115) | ✅ core; changing targets pending |
+| Combat, including 2025 damage-assignment rules (CR 506–511) | ✅ |
+| State-based actions (CR 704) | ✅ |
+| Keyword abilities (CR 702) | ✅ evergreen set; infect/wither, equip, bestow pending |
+| **Layer system (CR 613)** | 🟡 Layers 2, 4, 5, 6, 7a–7d live; 1 and 3 stubbed; **613.8 dependency algorithm not started** |
+| Characteristic-defining abilities (CR 604.3) | ✅ |
+| CR 305.7 land-type replacement (Blood Moon, Urborg) | ✅ |
+| **Replacement and prevention (CR 614–616)** | ❌ stub hook only — the phase starting now |
+| **Triggered abilities (CR 603)** | ❌ enum variant only |
+| Commander (CR 903) | 🟡 skeleton: command zone, commander-damage SBA and accumulation |
+| Multiplayer (CR 800/802) | ❌ |
+| CLI play, seeded and threaded fuzz harness | ✅ |
 
-- **Basic lands:** Plains, Island, Swamp, Mountain, Forest
-- **Instants/Sorceries:** Lightning Bolt, Ancestral Recall, Counterspell, Burst of Energy, Volcanic Upheaval
-- **Vanilla creatures:** Grizzly Bears, Hill Giant, Savannah Lions, Earth Elemental
-- **Keyword creatures:** Serra Angel, Thornweald Archer, Raging Cougar, Wall of Stone, Elvish Archers, Ridgetop Raptor, War Mammoth, Knight of Meadowgrain, Rhox War Monk, Giant Spider, Vampire Nighthawk
+**Cards:** 54 registered — basic and dual lands, Alpha staples, vanilla and keyword
+creatures, and the layer-exercising set that arrived with Phases LB–LG (Blood Moon,
+Humility, Glorious Anthem, March of the Machines, Tarmogoyf, Merfolk Thaumaturgist,
+Moonlace, …). Cards are data, not engine code — see `mtgsim/src/cards/`, and
+[`plans/cards-unlocked-ledger.md`](plans/cards-unlocked-ledger.md) for which ticket unlocks
+what.
 
 ---
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (edition 2024)
 
-### Build & Test
+### Build and test
 
 ```bash
-cd mtgsim
-cargo build
-cargo test
+cd mtgsim && cargo test
 ```
 
-### Run the CLI (Human vs Random Bot)
+`cargo build --all-targets` must print **zero warnings** — a hard bar, not a preference.
+
+### Play at the terminal
 
 ```bash
-cargo run --bin cli_play
+cd mtgsim && cargo run --bin cli_play
 ```
 
-You play as Player 0 (CLI) against a random-decision bot (Player 1). The game uses a fixed test deck of Mountains, Forests, creatures, and Lightning Bolts.
+You play Player 0 against a random-decision bot.
 
-### Run the Fuzz Harness
+### Fuzz harness
 
 ```bash
-# Run 500 random-vs-random games
-cargo run --bin fuzz_games -- --games 500
-
-# Verbose mode with event log dump
-cargo run --bin fuzz_games -- --games 100 --verbose --dump-events events.log
+cd mtgsim && cargo run --bin fuzz_games -- --games 500 --seed 42 --threads 8
 ```
 
-CLI flags: `--games N`, `--max-turns N`, `--verbose`, `--dump-events <path>`
+Flags: `--games N`, `--max-turns N`, `--seed N`, `--threads N`, `--verbose`,
+`--dump-events <path>`.
 
----
+A given `--seed` reproduces a run exactly. Three runs at one seed must agree on every line
+except the two wall-clock lines; a differing turn count or outcome means process state
+reached a decision, which is a bug.
 
-## Project Structure
+### Rules-coverage queries
 
-```
-mtgsim/
-├── src/
-│   ├── main.rs                  # Entry point stub
-│   ├── lib.rs                   # Crate root (module declarations)
-│   ├── bin/
-│   │   ├── cli_play.rs          # Human vs bot binary
-│   │   └── fuzz_games.rs        # Random-vs-random fuzz harness
-│   ├── cards/
-│   │   ├── registry.rs          # CardRegistry (name → CardData factory)
-│   │   ├── basic_lands.rs       # Plains, Island, Swamp, Mountain, Forest
-│   │   ├── alpha.rs             # Lightning Bolt, Ancestral Recall, Counterspell, etc.
-│   │   ├── creatures.rs         # Vanilla creatures (Bears, Giant, Lions, Elemental)
-│   │   └── keyword_creatures.rs # Keyword-bearing creatures (11 cards)
-│   ├── engine/
-│   │   ├── actions.rs           # GameAction enum + execute_action chokepoint
-│   │   ├── cast.rs              # Spell casting (rule 601.2)
-│   │   ├── costs.rs             # Cost validation + payment
-│   │   ├── combat/              # Combat subsystem
-│   │   │   ├── validation.rs    # Attack/block validation + constraints
-│   │   │   ├── resolution.rs    # Damage assignment + application
-│   │   │   ├── steps.rs         # Combat step processors
-│   │   │   └── keywords.rs      # Combat keyword helpers (first strike, trample)
-│   │   ├── keywords.rs          # Non-combat keyword hooks (deathtouch, lifelink)
-│   │   ├── mana.rs              # Mana ability resolution
-│   │   ├── priority.rs          # Priority loop (rule 117)
-│   │   ├── resolve.rs           # Effect tree resolver
-│   │   ├── sba.rs               # State-based actions (rule 704)
-│   │   ├── stack.rs             # Stack management + spell resolution
-│   │   ├── targeting.rs         # Target validation
-│   │   ├── turns.rs             # Turn/phase/step progression
-│   │   └── zones.rs             # Zone transitions (move_object)
-│   ├── events/
-│   │   └── event.rs             # GameEvent enum + EventLog
-│   ├── objects/
-│   │   ├── card_data.rs         # CardData, AbilityDef, Cost, CardDataBuilder
-│   │   └── object.rs            # GameObject (central object)
-│   ├── oracle/
-│   │   ├── characteristics.rs   # has_keyword, is_creature, effective P/T
-│   │   ├── legality.rs          # playable_lands, legal_attackers/blockers
-│   │   ├── board.rs             # permanents_controlled_by
-│   │   └── mana_helpers.rs      # castable_spells, find_mana_sources, etc.
-│   ├── state/
-│   │   ├── game_state.rs        # GameState, Phase, StackEntry
-│   │   ├── game.rs              # Game lifecycle wrapper
-│   │   ├── game_config.rs       # GameConfig (format presets)
-│   │   ├── player.rs            # PlayerState (life, hand, library, mana pool)
-│   │   └── battlefield.rs       # BattlefieldEntity (tapped, damage, combat state)
-│   ├── types/
-│   │   ├── ids.rs               # ObjectId, PlayerId, AbilityId
-│   │   ├── mana.rs              # ManaSymbol, ManaCost, ManaPool
-│   │   ├── effects.rs           # Primitive, Effect, TargetSpec, Duration, etc.
-│   │   ├── card_types.rs        # CardType, Supertype, Subtype (full enums)
-│   │   ├── colors.rs            # Color enum
-│   │   ├── keywords.rs          # KeywordAbility enum
-│   │   └── zones.rs             # Zone enum
-│   └── ui/
-│       ├── decision.rs          # DecisionProvider trait + Dispatch + shared helpers
-│       ├── cli.rs               # CliDecisionProvider (stdin/stdout)
-│       ├── random.rs            # RandomDecisionProvider (fuzz/bot)
-│       └── display.rs           # Text formatting for CLI/logs
-├── tests/
-│   ├── integration_test.rs
-│   ├── phase2_integration_test.rs
-│   ├── phase3_integration_test.rs
-│   ├── phase4_integration_test.rs
-│   └── pre_phase3_integration_test.rs
-├── Cargo.toml
-└── Cargo.lock
+```bash
+python plans/specdb.py stats
 ```
 
----
-
-## Roadmap
-
-| Phase   | Scope                                                   | Status     |
-| ------- | ------------------------------------------------------- | ---------- |
-| **1**   | Types, GameState, zones, turn structure, mana, priority | ✅ Complete |
-| **2**   | Stack, casting, spell resolution, one-shot effects      | ✅ Complete |
-| **3**   | Creatures, combat (full), SBAs                          | ✅ Complete |
-| **4**   | Keywords (10 abilities)                                 | ✅ Complete |
-| **4.5** | Oracle helpers, CLI + Random DPs, fuzz harness          | ✅ Complete |
-| **5**   | **Continuous effects & layer system (rule 613)**        | 🔜 Next    |
-| **6**   | Triggered abilities (rule 603)                          | Planned    |
-| **7**   | Replacement & prevention effects (rules 614–616)        | Planned    |
-
-### Phase 5: Continuous Effects & Layers
-
-The next major milestone. Implements all 7 layers of the continuous effect system (rule 613), dependency detection (rule 613.8), duration tracking, cost restriction activation, and the cost modification pipeline (rule 601.2e).
-
-**New cards:** Giant Growth, Glorious Anthem, Honor of the Pure, Clone
-
-### Phase 6: Triggered Abilities
-
-"When/whenever/at" abilities that go on the stack (rule 603). ETB triggers, death triggers, upkeep triggers. APNAP ordering and delayed triggers.
-
-**Target cards:** Soul Warden, Blood Artist
-
-### Phase 7: Replacement & Prevention Effects
-
-"If X would happen, instead Y" (rule 614) and damage prevention (rule 615). Hooks into the `execute_action` pipeline.
-
-**Target cards:** Fog, enters-tapped lands
+`specdb` joins the atomic-test corpus to the test suite and to the CR, so "what is covered"
+is a query rather than hand-maintained prose. Also available: `next --phase`,
+`show <ATOM-ID>`, `gaps --chapter N`, `orphans`, `suspicious`.
 
 ---
 
 ## DecisionProvider
 
-The engine is completely UI-agnostic. All player choices route through the `DecisionProvider` trait (8 methods):
+The engine is completely UI-agnostic, and the trait is deliberately **narrow**: four
+primitives, rather than one method per kind of decision.
 
-| Method                              | Purpose                                                  |
-| ----------------------------------- | -------------------------------------------------------- |
-| `choose_priority_action`            | What to do when you have priority (cast, activate, pass) |
-| `choose_targets`                    | Target selection for spells/abilities                    |
-| `choose_attackers`                  | Declare attackers                                        |
-| `choose_blockers`                   | Declare blockers                                         |
-| `choose_discard`                    | Choose cards to discard (cleanup step)                   |
-| `choose_attacker_damage_assignment` | Divide combat damage among blockers                      |
-| `choose_trample_damage_assignment`  | Divide trample damage (blockers + defender)              |
-| `choose_generic_mana_allocation`    | Which mana types to spend for generic costs              |
+| Primitive | Purpose |
+| --- | --- |
+| `pick_n` | Choose between *min* and *max* options from a list |
+| `pick_number` | Choose a number in a range (X values, counter counts) |
+| `allocate` | Distribute a quantity across recipients (damage assignment, generic mana) |
+| `choose_ordering` | Order a set (trigger stacking, library arrangement) |
 
-**Built-in implementations:**
+What a given choice *means* is carried alongside it by a `ChoiceContext` with a
+`ChoiceKind` enum — `DeclareAttackers`, `AssignTrampleDamage`, `ChooseXValue`, and so on.
+Adding a new decision to the engine means adding a `ChoiceKind` variant: the trait and every
+implementation of it stay unchanged, and exhaustive matching makes the compiler point at
+every UI site that needs a new screen.
 
-- `CliDecisionProvider` — interactive stdin/stdout for human play
-- `RandomDecisionProvider` — makes random legal choices (for fuzz testing and bot opponents)
-- `ScriptedDecisionProvider` — pre-programmed decisions (for deterministic integration tests)
-- `PassiveDecisionProvider` — always passes priority (for unit tests)
-- `DispatchDecisionProvider` — routes decisions to different providers per player ID
+Engine code never calls the trait directly. It goes through the typed `ask_*` free functions
+in `ui/ask.rs`, which build the context, pack the options, call the right primitive, and
+validate the response (bounds, counts, sums, permutations) before unpacking it into typed
+results.
+
+**Built-in implementations:** `CliDecisionProvider` (interactive stdin/stdout),
+`RandomDecisionProvider` (fuzzing and bot opponents; `::seeded` for replayable runs),
+`ScriptedDecisionProvider` (deterministic integration tests), and
+`DispatchDecisionProvider` (routes decisions per player id).
 
 ---
 
-## Design Documents
+## Roadmap
 
-- [`design_doc.md`](design_doc.md) — Single source of truth for architecture, status, and upcoming work
-- [`effect_system_plan.md`](effect_system_plan.md) — Detailed design for the Primitive/Effect combinator system
-- [`implementation_phases.md`](implementation_phases.md) — Phase scope summary
+Dependency order — each item needs the ones above it. [`CLAUDE.md`](CLAUDE.md) →
+"Critical path to v1" owns this ordering; when another doc disagrees, it wins.
+
+| # | Scope | Status |
+| --- | --- | --- |
+| 1 | Layer system core → Layer 4 → static-ability effect existence | ✅ |
+| 2 | Characteristic-defining abilities (CR 604.3 / 613.4a) | ✅ |
+| 3 | Layer 6 — ability adding and removing (Humility) | ✅ |
+| 4 | Layer 2 — control changing | ✅ |
+| 5 | **Replacement and prevention effects (CR 614–616)** | 🔜 **starting now** |
+| 6 | Triggered abilities (CR 603) — takes LKI and conditional statics with it | Planned |
+| 7 | The CR 613.8 cluster — dependency algorithm, board-wide sequential pass, memoization | Planned |
+
+Interleaved after 5 rather than sequenced against it: the **Commander and multiplayer
+track** — cost modification (commander tax), CR 903.9a/b, `GameConfig::commander()`, CR 800
+priority, turn rotation and elimination, and CR 802.
+
+Item 7 is a hard back-stop before broad card work: a Commander-viable pool is dense in
+exactly the static abilities that interact, so dependency-ordering-sensitive cards cannot be
+authored until it lands.
+
+**On the ordering:** replacement effects come *before* triggered abilities. Replacement
+gates most real cards and Commander's 903.9b command-zone redirection, and triggers need to
+fire on events observed after replacement has applied.
+
+The execution plan for the current phase is
+[`plans/replacement-architecture.md`](plans/replacement-architecture.md): phases RA (event
+spine) → RB (pipeline) → RC (ETB replacements) → RD (damage) → RE (remaining event kinds).
+
+---
+
+## Project layout
+
+```
+mtgsim/src/
+├── bin/            cli_play.rs, fuzz_games.rs
+├── cards/          Card definitions (data only) + registry.rs
+├── engine/         actions, cast, costs, mana, priority, resolve, sba,
+│                   stack, targeting, turns, zones, keywords
+│   ├── combat/     validation, resolution, steps, keywords
+│   └── layers/     compute, types, cda, land_types  ← CR 613
+├── events/         GameEvent + EventLog
+├── objects/        CardData, AbilityDef, GameObject
+├── oracle/         characteristics, legality, board, mana_helpers
+├── state/          game, game_state, game_config, player, battlefield,
+│                   continuous_effects  ← the ContinuousEffect registry
+├── types/          ids, mana, effects, costs, card_types, colors,
+│                   keywords, keyword_actions, zones
+└── ui/             decision (trait), ask (typed bridge), choice_types,
+                    cli, random, display
+```
+
+Integration tests live in `mtgsim/tests/`, one file per phase.
+
+---
+
+## Documentation map
+
+Authority order — when two docs disagree, the higher one wins.
+
+| Doc | Authoritative for |
+| --- | --- |
+| [`plans/codebase-state.md`](plans/codebase-state.md) | **Current state.** Beats every other doc, this README included |
+| [`CLAUDE.md`](CLAUDE.md) | Invariants, conventions, commands, critical-path ordering |
+| [`plans/layers-architecture.md`](plans/layers-architecture.md) | The layer system: type shapes, module layout, dependency algorithm |
+| [`plans/replacement-architecture.md`](plans/replacement-architecture.md) | Replacement and prevention (CR 614–616): event vocabulary, the CR 616.1 pipeline, phase sequencing |
+| [`plans/atomic-tests/sessions/`](plans/atomic-tests/sessions/) | The spec corpus — atomic tests from a close read of the CR. Authored, never generated |
+| [`MTG-Rules/versions/`](MTG-Rules/versions/) | The CR itself; `tmnt.txt` is the baseline the engine targets |
+| [`plans/cards-unlocked-ledger.md`](plans/cards-unlocked-ledger.md) | Which cards each ticket unlocks |
+| [`design_doc.md`](design_doc.md) | The original design. **Historical**, except its §636–664 algorithm, adopted verbatim by `layers-architecture.md` |
+| `plans/archive/` | Superseded. Do not act on it |
+
+`spec.sqlite` and the generated index files under `plans/atomic-tests/` come from
+`specdb.py build` — never hand-edit them; fix the session file and rebuild.
+
+---
+
+## Contributing
+
+- Small commits. Commit messages explain *why* — they are part of the project record.
+- One branch per unit of work → PR → merge with a merge commit, never squash. This project
+  leans on its written record, and squashing discards per-commit messages.
+- A bugfix must be shown to fail against the pre-fix tree before it is committed.
+- New cards go in `mtgsim/src/cards/`, integration tests in `mtgsim/tests/`.
+- Annotate tests with `// COVERS:` / `// COVERS-PARTIAL:` atom ids at write time. Never
+  claim an atom a test does not prove — a false link is worse than a blank.
 
 ---
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE).
