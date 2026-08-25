@@ -63,10 +63,21 @@ semantics-assuming shortcuts ruled out in advance (`can_change_abilities()` is
 the cautionary tale). §11 item 5 prices the two hypothetical-frame call sites
 separately and closes that question on measured numbers rather than taste.
 
+**The axis this absorbs breadth on.** Card variety is real and unbounded, and
+§8c separates where it lands: event *kinds* are a closed enum, event *predicates*
+are a composed grammar, and *results* reuse the `Effect` tree. Nothing in the
+design has a variant per card, which is the only route to the "thousands of
+entries" the review worried about. §8c works six deliberately awkward cards
+through end to end and prices the total at three already-budgeted variants and
+two struct fields.
+
 **What this does *not* claim.** The event vocabulary is incomplete and known to
 be (§8a names eight missing kinds). ETB look-ahead has genuinely
 counter-intuitive rulings (§5a works the worst one through). The
-`AmountRewrite` sub-enum has one identified pressure point (§3.2c). Those are
+`AmountRewrite` sub-enum has one identified pressure point (§3.2c). And the one
+risk that measurement cannot close today is named rather than waved at: whether
+the predicate grammar stays a grammar instead of becoming a per-card DSL (§8c's
+last section, with three guards and a 5% escape-hatch budget). Those are
 budgeted, not hidden — a plan whose risks are named and sized is the thing that
 resists sprawl; a plan that claims none is the thing that produces it.
 
@@ -877,6 +888,7 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 | `engine/combat/steps.rs:70` | attackers tap — emit `Tapped` | RA |
 | `engine/combat/resolution.rs::apply_combat_damage` | batch, not a loop (CR 510.2, 615.7) | RA/RD |
 | `engine/cast.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA |
+| `state/game_state.rs::StackEntry` | add `cast_from: Zone` — §8c, two customers | RA |
 | `engine/sba.rs` | batch sweep (CR 704.3/704.7); `cause` on each move | RA/RB |
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
 | `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
@@ -934,6 +946,11 @@ sweep. A `fuzz_games --seed N` run must still reproduce line-for-line.
 ---
 
 ## 8. Performance
+
+> **§8 through §8c are one argument** — will this scale, in cost and in code?
+> §8 is the measurement discipline, §8a asks whether the event vocabulary is
+> complete, §8b sizes the types, §8c answers where card breadth actually lands.
+> Read them together; §8c carries the verdict.
 
 `execute_action` is on every mutation, and the gather sweep reads effective
 abilities for every permanent. That is a `compute_characteristics` call per
@@ -1182,6 +1199,139 @@ costs a `Rewrite` arm — 0 of 574 did.
 
 ---
 
+## 8c. Where card breadth actually lands — three axes, not one
+
+§8b counted keyword actions, and review pushed back correctly: **plenty of
+mechanically distinct cards are not keyword-shaped at all.** Alms Collector,
+Don't Blink, Krark's Thumb, Tekuthal, Aeon Engine, Aboleth Spawn. The worry
+behind the list — could `GameEvent` reach "thousands of entries", and would that
+sink performance and maintainability — deserves a direct answer rather than
+another count.
+
+**The answer is that three different things are being sized as one.** Card
+variety is real and unbounded. It lands almost entirely on the axis that is
+*designed* to absorb it, and almost not at all on the enums.
+
+| Axis | Shape | Grows with | Size |
+|---|---|---|---|
+| **1. Event kinds** — `GameAction`, `GameEvent` | closed enum | the engine's mutations, bounded by CR 701 | 16→50 (§8b) |
+| **2. Predicates over events** — `EventPattern`'s field constraints, trigger conditions | **composed grammar**, not enumerated | card variety — **this is where breadth lands** | unbounded expressions, small grammar |
+| **3. Results** — `Effect` / `then` | existing tree | card variety | already exists, already absorbs it |
+
+Nothing in the design has a variant per card, which is the only way to reach
+thousands. A card contributes a *value*, not an arm.
+
+### The six cards, worked through
+
+| Card | Event kind | Predicate (axis 2) | Result | New engine surface |
+|---|---|---|---|---|
+| **Alms Collector** — "if an opponent would draw two or more cards, instead you and that player each draw a card" | `DrawCards { player, n }`, the CR 121.2a *outer* event — Phase RE | `player is opponent && n >= 2` | `Instead(DrawCards{opp,1})` + `then:` you draw 1 | **none** |
+| **Don't Blink** — "if one or more creatures would enter from exile or after being cast from exile, their owners shuffle them into their libraries instead" | `EnterBattlefield` — RC | `is creature && (from == Exile \|\| cast_from == Exile)` | `Instead(ZoneChange → Library, shuffled)` | **one struct field** — `StackEntry.cast_from: Zone` |
+| **Krark's Thumb** — "if you would flip a coin, instead flip two coins and ignore one" | `FlipCoin` — CR 705, already on §8a's list | `player is you` | `Instead(FlipCoins{2})` + `then:` DP picks one to ignore | one variant, already budgeted |
+| **Tekuthal** — "if you would proliferate, proliferate twice instead" | `Proliferate { times }` — Phase 8 | `player is you` | `Amount(Times(2))` on `times` | one variant, already budgeted |
+| **Aeon Engine** — "reverse the game's turn order" | **not an event at all** | — | — | a `GameState` field |
+| **Aboleth Spawn** — "whenever a creature entering under an opponent's control causes a triggered ability of that creature to trigger, you may copy that ability" | `AbilityTriggered { source, ability, cause }` — CR 603 | `cause is EnterBattlefield && cause.controller is opponent && ability.source == cause.object` | (a trigger, not a replacement) | **one `GameEvent` variant, carrying its cause** |
+
+Total new engine surface across six deliberately awkward cards: **three enum
+variants, all already budgeted in §8a/§8b; one struct field; one `GameState`
+field. Zero new `Rewrite` arms. Zero per-card code.** Four of the six are pure
+data.
+
+Three of them teach something worth keeping:
+
+- **Alms Collector proves the outer `DrawCards { n }` event is load-bearing**, not
+  a convenience. CR 121.2a exists precisely so "would draw two or more" has an
+  event to match; without the outer action the card is inexpressible. It also
+  shows where "you *and* that player each draw" goes: the replaced event is the
+  opponent's draw, and your draw is the `then` half (CR 615.5's shape). That
+  boundary is a modelling judgment the CR does not always draw sharply — when it
+  is ambiguous, ask which half can itself be replaced, because that half is the
+  event.
+- **Don't Blink needs one field the engine does not have** — where a spell was
+  cast from. `StackEntry` carries controller, targets, modes, X and costs, but
+  not the origin zone. Second customer: CR 903.8's commander tax counts casts
+  *from the command zone*. (Flashback belongs to the same *class* — a stack
+  object remembering how it got there — but not to this field: CR 702.34a keys
+  on whether the flashback **cost was paid**, which `StackEntry.
+  chosen_alternative_cost` already records.) One field, two customers, lands
+  with RA.
+- **Aeon Engine is the useful negative.** Reversing turn order is a
+  game-rule-modifying continuous effect (CR 611.2c), not an event and not a
+  replacement. The corpus already has `ATOM-611.2c-002` for exactly this class.
+  **Not everything mechanically strange is an event** — some of it is a field on
+  `GameState`, and mistaking the two is how an event vocabulary starts growing
+  without bound.
+
+**Aboleth Spawn is the one that looks worst and is not.** A trigger that watches
+other triggers sounds like it needs the trigger system to know about itself. It
+needs one `GameEvent` variant — "an ability triggered" — carrying *why* it
+triggered. The card's specificity ("a creature entering under an opponent's
+control causes that creature's own ability to trigger") is entirely axis 2. What
+it genuinely needs beyond that is CR 706 ability copying and an inspectable
+pending-trigger queue, which is CR 603's problem and already on its list.
+
+### Performance: enum size is not the cost, and a bounded enum is the fix
+
+Worth separating firmly, because the review put them together.
+
+**Enum size costs nothing.** A `match` over 50 variants compiles to a jump
+table. Going from 28 `GameEvent` variants to 50 is not measurable.
+
+**What costs is watchers consulted per event** — and that scales with *board
+size*, not vocabulary size. Concretely, at the v1 target: 4-player Commander,
+~15–25 permanents each, so 60–100 permanents carrying maybe 100–300 abilities
+between them. That is the population, and it is hundreds, not thousands.
+
+**And this is where the closed enum pays for itself.** Because event kinds are a
+small closed set, watchers can be indexed by kind in a dense array — a `u8`
+discriminant into `Vec<Vec<WatcherId>>` — so an event consults only the handful
+registered for its kind and skips the sweep entirely when that bucket is empty.
+§8b's distribution says most buckets *are* empty: seven kinds carry ~390 of the
+574 replacement clauses. An open-ended vocabulary (strings, per-card ids) would
+force a hash lookup and make the empty-bucket fast path impossible. **The
+bounded enum is not a constraint the performance story survives; it is the
+mechanism the performance story runs on.**
+
+### The genuine risk, named: axis 2 becoming a mini-language
+
+The design's real exposure is not enum count. It is that `EventPattern`'s
+constraint vocabulary and the filter types it borrows (`PermanentFilter`, 9
+variants; `AmountExpr`, 9) grow one variant per awkward card until they are an
+untyped DSL nobody can review. That is the failure mode to watch, and it is the
+one this document cannot close by measurement today — it needs Phase 8 data.
+
+Three guards, adopted now because they are cheap now:
+
+1. **Compose, do not enumerate.** `And`/`Not`/`ByController`/`ByType` already
+   compose; a new leaf must be a genuinely primitive question, never a card's
+   whole condition spelled as one variant.
+2. **Two customers before a variant.** A predicate leaf with exactly one card
+   behind it is the warning sign. One customer is a card-specific predicate;
+   several is a grammar feature.
+3. **Budget an escape hatch, and measure it.** Every mature engine has per-card
+   code for a long tail, and `design_doc.md` reserved `Custom(CardId)` for it.
+   Keep that reservation. The boundary is principled: a card may get custom code
+   for a unique *predicate* or *result*; it may never get a custom *event kind*,
+   because that is what breaks the index above and hides the mutation from CR 614
+   and CR 603 both. **If more than ~5% of the Phase 8 pool needs the hatch, the
+   grammar is wrong and should be revisited rather than patched** — record the
+   fraction in `codebase-state.md` as the pool grows.
+
+### Verdict
+
+Manageable, on the evidence available, with one honestly open question.
+
+Closed by measurement: axis 1 is bounded (§8b), `Rewrite` is closed and tested
+at 0/574 (§3.2c), and six adversarially-chosen cards cost three budgeted
+variants and two fields between them.
+
+Open until Phase 8: whether the axis-2 grammar stays a grammar. That is the
+right thing to be nervous about, and thinking about it now is not premature —
+the guards above cost nothing today and are expensive to retrofit once a hundred
+cards depend on the shape.
+
+---
+
 ## 9. Work-phase plan
 
 One branch/PR per phase, matching the Layer phases' size (5–8 commits). Phases
@@ -1206,6 +1356,8 @@ The Deferred Migrations item 3 ticket list, verbatim, plus the DP plumbing.
 8. Demote `CreatureDied` / `PlaneswalkerDied` / `LegendRuleSacrificed` to
    display sugar.
 9. `execute_actions` batch form; `apply_combat_damage` and the SBA sweep use it.
+10. `StackEntry.cast_from: Zone` — the origin a spell was cast from (§8c). Two
+    customers: Don't Blink's "cast from exile", and CR 903.8's commander tax.
 
 **Exit criterion:** every state mutation observable by CR 614 or CR 603 is
 emitted from exactly one place, and an event log replay can distinguish drawn
