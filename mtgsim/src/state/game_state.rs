@@ -12,6 +12,7 @@ use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::zones::Zone;
 
 /// Metadata for a spell or ability on the stack.
 ///
@@ -42,6 +43,25 @@ pub struct StackEntry {
     /// Additional costs that were paid for this spell (rule 118.8).
     /// Multiple additional costs can be paid (e.g. kicker + buyback).
     pub additional_costs_paid: Vec<AdditionalCost>,
+    /// The zone this spell was cast from (CR 601.2a), captured before the card
+    /// moved to the stack.
+    ///
+    /// **Invariant: `cast_from.is_some() == is_spell`.** An activated ability is
+    /// not cast from anywhere — CR 602.2a gives it a *source*, which is a
+    /// different fact, and folding the two together is how a field starts
+    /// drifting. `None` for abilities is the honest answer, not a missing value.
+    ///
+    /// Two known customers, neither implemented yet:
+    /// - CR 903.8 commander tax, which counts casts **from the command zone**
+    ///   specifically. The cast counter cannot be incremented correctly without
+    ///   this, because a commander recast from hand after being bounced does not
+    ///   add tax.
+    /// - "Cast from exile" riders (Don't Blink and kin), which need the origin
+    ///   at *resolution* time, by which point the card has already left it.
+    ///
+    /// Recorded at cast time because it is unrecoverable afterward: the object
+    /// is on the stack and its `zone` field says so.
+    pub cast_from: Option<Zone>,
 }
 
 /// The complete state of a game of Magic.
@@ -1090,7 +1110,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        };
+                    cast_from: Some(Zone::Hand),
+};
         assert!(entry.chosen_alternative_cost.is_none());
         assert!(entry.additional_costs_paid.is_empty());
     }

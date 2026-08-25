@@ -268,7 +268,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
         id
     }
 
@@ -395,7 +396,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
         id
     }
 
@@ -470,7 +472,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
         id
     }
 
@@ -521,7 +524,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
         id
     }
 

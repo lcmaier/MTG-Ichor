@@ -645,7 +645,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
 
         let output = format_stack(&game);
         assert!(output.contains("top/bottom"), "Single item should show top/bottom marker");
@@ -675,7 +676,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
 
         let recall = CardDataBuilder::new("Ancestral Recall")
             .card_type(CardType::Instant)
@@ -694,7 +696,8 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+});
 
         let output = format_stack(&game);
         assert!(output.contains("top (resolves next)"), "Top item should have resolves-next marker");

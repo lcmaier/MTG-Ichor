@@ -88,6 +88,10 @@ impl GameState {
         };
 
         // --- 601.2a: Move to stack ---
+        // Capture the origin first: once the card is on the stack its `zone`
+        // field says Stack, and CR 903.8 / "cast from exile" both need to know
+        // where it came from. See `StackEntry::cast_from`.
+        let cast_from = self.get_object(card_id)?.zone;
         self.change_zone(card_id, Zone::Stack, ZoneChangeCause::Cast, &actx)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
@@ -173,6 +177,7 @@ impl GameState {
             is_spell: true,
             chosen_alternative_cost: chosen_alt.clone(),
             additional_costs_paid: chosen_additional.clone(),
+            cast_from: Some(cast_from),
         };
         self.stack_entries.insert(card_id, entry);
 
@@ -358,6 +363,9 @@ impl GameState {
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            // An activated ability is not cast from anywhere (CR 602.2a gives
+            // it a source, which is a different fact). See `cast_from`.
+            cast_from: None,
         };
         self.stack_entries.insert(ability_obj_id, stack_entry);
 
@@ -598,6 +606,72 @@ mod tests {
         }, vec![1]);
 
         (game, card_id, decisions)
+    }
+
+    #[test]
+    fn test_cast_records_origin_zone() {
+        let (mut game, card_id, decisions) = setup_for_casting();
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        // CR 601.2a's origin, captured before the card moved. Unrecoverable
+        // afterward — the object's own `zone` now says Stack, which is the
+        // whole reason the field exists (CR 903.8 commander tax counts casts
+        // *from the command zone*).
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert_eq!(entry.cast_from, Some(Zone::Hand));
+        assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Stack);
+    }
+
+    #[test]
+    fn test_activated_ability_has_no_origin_zone() {
+        // The `cast_from.is_some() == is_spell` invariant, from the other side.
+        // An activated ability is not cast from anywhere; CR 602.2a gives it a
+        // *source*, which is a different fact and must not collapse into this
+        // field.
+        let mut game = crate::test_support::setup_two_player_game();
+        let thaum = crate::test_support::put_on_battlefield(
+            &mut game,
+            crate::cards::utility_creatures::merfolk_thaumaturgist(),
+            0,
+        );
+        // Summoning sickness would block the {T} cost (CR 302.6). 0 = pregame,
+        // the convention has_summoning_sickness reads.
+        game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
+            .iter()
+            .find(|a| a.ability_type == AbilityType::Activated)
+            .expect("Merfolk Thaumaturgist has an activated ability")
+            .id;
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(
+                SelectionFilter::Creature,
+                TargetCount::Exactly(1),
+            ),
+            spell_id: thaum,
+        }, vec![0]);
+
+        let idx = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
+            .iter()
+            .position(|a| a.id == ability_id)
+            .unwrap();
+        game.activate_ability(0, thaum, idx, &decisions).unwrap();
+
+        // There is an ability on the stack, and it records no origin zone.
+        let ability_entries: Vec<_> = game.stack_entries.values()
+            .filter(|e| !e.is_spell)
+            .collect();
+        assert_eq!(ability_entries.len(), 1, "the ability should be on the stack");
+        assert_eq!(ability_entries[0].cast_from, None);
+
+        for entry in game.stack_entries.values() {
+            assert_eq!(
+                entry.cast_from.is_some(),
+                entry.is_spell,
+                "cast_from must be Some exactly when the entry is a spell",
+            );
+        }
     }
 
     #[test]
