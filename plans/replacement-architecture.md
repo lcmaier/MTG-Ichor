@@ -915,9 +915,12 @@ The fix is a **hypothetical overlay**: a read-side indirection through which
 proposed controller — with the registry rows its own statics would generate, and
 with the pending mods applied.
 
-**But "as a permanent" is narrower than "on the battlefield", and getting that
-boundary wrong is the failure this section exists to prevent.** See §5a, which
-was written after review flagged the Theros gods.
+**But the overlay is a hypothetical about one object's characteristics, not
+about the game state, and getting that boundary wrong is the failure this
+section exists to prevent.** See §5a. (An earlier draft framed this as
+*"as a permanent" is narrower than "on the battlefield"*. That was wrong and is
+struck — CR 110.1 makes the two coextensive, so no boundary can run between
+them. The real boundary is applicability vs. enumeration.)
 
 ```rust
 /// CR 614.12 / 614.17d — `id`'s characteristics as it *would exist* on the
@@ -1035,6 +1038,33 @@ is not in `compute.rs` at all — it is `evaluate_amount` and the ordered sweeps
 Devotion is not implemented yet (no `AmountExpr` counts mana symbols), so today
 this costs one line and a test; discovered later it would be a silent wrong
 answer on 15 gods plus every `CountOf`-driven ETB replacement.
+
+**Grist is the same rule without the confound, and is the cleaner test to write
+first.** Grist, the Hunger Tide reads "As long as Grist isn't on the
+battlefield, it's a 1/1 Insect creature in addition to its other types"
+(Scryfall, 2026-08-25) — a static ability functioning in every zone (CR 604.3),
+whose condition is about *the object itself*. Its ruling: "Anywhere but on the
+battlefield, Grist is a Legendary Planeswalker Creature — Grist Insect. Once it
+enters the battlefield, it is no longer a creature and is just a planeswalker."
+So an entering Grist is **not** a creature in the look-ahead frame, and
+Authority of the Consuls does not apply to it.
+
+Put beside Thassa, the pair states the rule with no room left:
+
+| | Grist | Thassa |
+|---|---|---|
+| What the entering object's own static asks | "am *I* on the battlefield?" | "what is my controller's devotion?" |
+| What the frame answers | **yes** — clause (2), the object's own characteristics in the would-be state | devotion is read off the **real** board, which does not contain her |
+| Result | not a creature; ETB creature-replacements miss | not a creature *for the replacement check*; is one an instant later for triggers |
+
+Both are clause (2) working. The difference is not which object is consulted —
+it is the same object both times — but whether the question is *about this
+object's characteristics* or *a count over the permanents a player controls*.
+CR 614.12 licenses a hypothetical only for the former; the latter reads the
+board as it actually is, which is exactly what the ruling's own justification
+says ("because replacement effects are considered before the God is on the
+battlefield"). Write `test_grist_entering_is_not_a_creature` first: it isolates
+the clause with no devotion arithmetic in the way.
 
 **It also bounds the risk this section opened with.** The gods looked like
 evidence the look-ahead is unboundedly hairy. What they actually produced is a
