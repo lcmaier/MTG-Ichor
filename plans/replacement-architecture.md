@@ -42,8 +42,8 @@ cards matching `o:/would.*instead/` were pulled and every clause classified
 want a new `GameAction`; 11 are CR 701 keyword actions; **zero want a sixth
 `Rewrite` arm.** That is the evidence that the pressure lands on the axis this
 design chose to absorb it on. Re-run the pass if a future phase changes the
-algebra — `plans/references/replacement-census.py` re-runs both passes and the
-answer is a number.
+algebra — `plans/references/replacement-census.py` re-runs the clause pass and
+the answer is a number.
 
 **Three-and-a-half. The types have a measured ceiling.** §8b sizes them from
 both ends — CR 701's 67 enumerated keyword actions from the top, and what cards
@@ -437,7 +437,7 @@ matching clause classified — **561 cards, 574 clauses.** The buckets are by
 sprawls. Reproduce with:
 
 ```bash
-python plans/references/replacement-census.py clauses
+python plans/references/replacement-census.py
 ```
 
 | | clauses | share |
@@ -1162,11 +1162,16 @@ game actions; it grows by a few per set and never by more.
 card watches it **as a unit** — a replacement ("if you would X … instead") or a
 trigger ("whenever … X"). Otherwise it decomposes and needs nothing. Both hooks
 are counted because §2's spine gives them one vocabulary. 46 keyword actions plus
-10 core mutations were queried against Scryfall (2026-08-24). Reproduce with:
+10 core mutations were queried against Scryfall (2026-08-24), one text search
+per phrasing.
 
-```bash
-python plans/references/replacement-census.py sizing
-```
+**These numbers are the record; there is no script behind them.** A `sizing`
+subcommand existed briefly and was **deleted rather than fixed** (2026-08-24),
+because two of its readings were known-wrong — Regenerate came back 0, since it
+replaces *destruction* and nothing says "would be regenerated", and
+`EnterBattlefield`'s 7,211 is every ETB creature ever printed. A tool that
+prints answers known to be wrong is worse than no tool. This was a one-time
+bird's-eye question; if it needs re-asking, write a better instrument then.
 
 **Precision caveat, stated up front:** these are per-phrasing text searches, so
 they are order-of-magnitude signals, not exact counts. Two known distortions:
@@ -1388,6 +1393,45 @@ Three guards, adopted now because they are cheap now:
    grammar is wrong and should be revisited rather than patched** — record the
    fraction in `codebase-state.md` as the pool grows.
 
+### Should the grammar work move earlier?
+
+Asked at merge (2026-08-24), given that the predicate grammar is the last open
+item: is it worth pulling that work forward? **No — but change what RB ships,
+not when it ships.**
+
+**Reordering is not available.** The grammar's first real pressure is Phase RD's
+two-sided damage predicates (CR 615.10's own Daunting Defender: "if a source
+would deal damage to a Cleric creature you control"), and its strangest is RE's
+*stateful* ones (Teferi's and Notion Thief both say "except the first one you
+draw in each of your draw steps", which needs a per-turn draw counter, not a
+filter). Neither can move: RD needs RB's pipeline and RA's batch form, RE needs
+both. Moving them earlier means building the pipeline twice.
+
+**But there is a real hazard in leaving it, and it is cheap to fix.** Everything
+RB currently ships has a *trivial* predicate — shield/stun/finality counters are
+"this permanent", regeneration is `SourceOnly`, and RC Part A is `SourceOnly`
+unconditional by design. So `EventPattern` would be **defined in RB under no
+pressure at all** and first stressed two phases later. That is the
+designed-against-the-easy-case failure, and this project has paid for it before:
+`AffectedSet::Filter` carried a controller snapshot until CR 109.5 proved it
+wrong, because nothing at design time had a moving controller.
+
+**The fix is one card, not a reordering.** Add a filter-based, two-sided
+replacement to RB's card list so the grammar takes real weight the moment its
+type is written. Kalitas, Traitor of Ghet is the natural pick — "If a nontoken
+creature an opponent controls would die, instead exile that card and create a
+2/2 black Zombie creature token" exercises `EventPattern` over a zone change, `AffectedSet::Filter` with
+two clauses and an opponent-relative controller, and the `then` half, all at
+once. It also immediately demands one grammar leaf `PermanentFilter` lacks —
+nontoken — which is the *point*: it is a live test of the "two customers before
+a variant" guard at the moment the guard is cheapest to apply.
+
+**And one bounded research pass, not a census.** Predicates are free-form text,
+so a regex bucketing would be the same instrument that just got the `sizing`
+numbers wrong. Instead: read ~50 clauses by hand during RB and tabulate which
+predicate leaves they actually need. An hour, honest, and it lands before RD
+commits to a shape.
+
 ### Verdict
 
 Manageable, on the evidence available, with one honestly open question.
@@ -1449,10 +1493,17 @@ from tutored, destroyed from sacrificed, and countered from resolved.
    CR 122.1c/d/h effects. No card text; 164 cards.
 6. **Consumer 2 — regeneration.** CR 701.19a shield (`Uses::Once`), 701.19b
    static, 701.19c "can't be regenerated" blocking application not creation.
-7. **CR 704.6d — commander in graveyard/exile → command zone.** See §11 item 1:
+7. **Consumer 3 — Kalitas, Traitor of Ghet**, added deliberately so
+   `EventPattern` is not defined under trivial pressure (§8c, "should the grammar
+   work move earlier?"). It is the only RB card with a two-sided filter and a
+   `then` half, and it forces the first `PermanentFilter` leaf decision
+   (`nontoken`) at the moment the "two customers before a variant" guard is
+   cheapest to apply. Plus the hand-read of ~50 predicate clauses described
+   there.
+8. **CR 704.6d — commander in graveyard/exile → command zone.** See §11 item 1:
    this is an SBA, *not* a replacement, and `check_state_based_actions` already
    takes a DP. It can ship here or earlier.
-8. CR 903.9b — commander to hand/library, with `exempt_from_614_5: true`.
+9. CR 903.9b — commander to hand/library, with `exempt_from_614_5: true`.
 
 ### Phase RC — ETB replacements (the big unlock)
 
