@@ -369,18 +369,33 @@ impl GameState {
             }
 
             GameAction::Untap { object } => {
-                if let Some(entry) = self.battlefield.get_mut(&object) {
-                    entry.tapped = false;
+                // Loud: an untap proposed for something not on the battlefield
+                // is a caller bug, not a no-op. The caller checks legality —
+                // see `Primitive::Untap` in resolve.rs and CR 608.2b.
+                let entry = self.battlefield.get_mut(&object).ok_or_else(|| {
+                    format!("Cannot untap {}: not on the battlefield", object)
+                })?;
+                // CR 701.26b — only tapped permanents can be untapped — and
+                // CR 603.2e makes "becomes untapped" a transition, not a state.
+                if !entry.tapped {
+                    return Ok(());
                 }
-                // No event emitted for untap yet — will be added when
-                // tap/untap triggers are needed (Phase 6).
+                entry.tapped = false;
+                self.events.emit(GameEvent::Untapped { object_id: object });
                 Ok(())
             }
 
             GameAction::Tap { object } => {
-                if let Some(entry) = self.battlefield.get_mut(&object) {
-                    entry.tapped = true;
+                let entry = self.battlefield.get_mut(&object).ok_or_else(|| {
+                    format!("Cannot tap {}: not on the battlefield", object)
+                })?;
+                // CR 701.26a — only untapped permanents can be tapped — and
+                // CR 603.2e makes "becomes tapped" a transition, not a state.
+                if entry.tapped {
+                    return Ok(());
                 }
+                entry.tapped = true;
+                self.events.emit(GameEvent::Tapped { object_id: object });
                 Ok(())
             }
         }
@@ -415,6 +430,56 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         (game, id)
+    }
+
+    fn tap_events(game: &GameState) -> Vec<&'static str> {
+        game.events.events().iter().filter_map(|e| match e {
+            GameEvent::Tapped { .. } => Some("tapped"),
+            GameEvent::Untapped { .. } => Some("untapped"),
+            _ => None,
+        }).collect()
+    }
+
+    #[test]
+    fn test_tap_emits_only_on_the_transition() {
+        let (mut game, bears_id) = setup_game_with_creature();
+
+        game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(game.battlefield.get(&bears_id).unwrap().tapped);
+        assert_eq!(tap_events(&game), vec!["tapped"]);
+
+        // CR 701.26a: only untapped permanents can be tapped. CR 603.2e: the
+        // trigger event is the *change*, so a redundant tap announces nothing.
+        game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(game.battlefield.get(&bears_id).unwrap().tapped);
+        assert_eq!(tap_events(&game), vec!["tapped"], "a redundant tap is not a second event");
+    }
+
+    #[test]
+    fn test_untap_emits_only_on_the_transition() {
+        let (mut game, bears_id) = setup_game_with_creature();
+
+        // Already untapped — CR 701.26b, nothing to untap, nothing announced.
+        game.execute_action(GameAction::Untap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(tap_events(&game).is_empty());
+
+        game.battlefield.get_mut(&bears_id).unwrap().tapped = true;
+        game.execute_action(GameAction::Untap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(!game.battlefield.get(&bears_id).unwrap().tapped);
+        assert_eq!(tap_events(&game), vec!["untapped"]);
+    }
+
+    #[test]
+    fn test_tap_and_untap_are_loud_off_the_battlefield() {
+        let (mut game, bears_id) = setup_game_with_creature();
+        game.battlefield.remove(&bears_id);
+
+        // Previously a silent no-op, against the loud-lowering doctrine. The
+        // caller checks legality (CR 608.2b partial resolution); the performer
+        // asserts its precondition.
+        assert!(game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).is_err());
+        assert!(game.execute_action(GameAction::Untap { object: bears_id }, &test_ctx()).is_err());
+        assert!(tap_events(&game).is_empty());
     }
 
     #[test]

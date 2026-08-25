@@ -238,9 +238,18 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // Untap target permanent (rule 701.21a).
+                // Untap target permanent (rule 701.26b).
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
+                        // CR 608.2b: a spell whose targets are not *all* illegal
+                        // still resolves and does as much as it can, so a target
+                        // that has left the battlefield is skipped rather than
+                        // erroring. The performer is loud (RA-2), which makes
+                        // checking here the caller's job — same shape as
+                        // `Primitive::Destroy` above.
+                        if !self.battlefield.contains_key(id) {
+                            continue;
+                        }
                         self.execute_action(GameAction::Untap {
                             object: *id,
                         }, &actx)?;

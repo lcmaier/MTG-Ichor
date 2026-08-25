@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -149,9 +149,9 @@ impl GameState {
                 if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
-                let entry = self.battlefield.get_mut(&source_id).unwrap();
-                entry.tapped = true;
-                Ok(())
+                // Through the chokepoint: CR 603.2e "becomes tapped" watchers
+                // and CR 122.1d stun counters both act on this.
+                self.execute_action(GameAction::Tap { object: source_id }, ctx)
             }
             Cost::Untap => {
                 let entry = self.battlefield.get(&source_id)
@@ -164,9 +164,9 @@ impl GameState {
                 if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
-                let entry = self.battlefield.get_mut(&source_id).unwrap();
-                entry.tapped = false;
-                Ok(())
+                // {Q} — same chokepoint as Cost::Tap. CR 122.1d makes Untap
+                // replaceable, which is why this cannot stay a direct write.
+                self.execute_action(GameAction::Untap { object: source_id }, ctx)
             }
             Cost::Mana(mana_cost) => {
                 let player = self.get_player_mut(player_id)?;

@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::combat::resolution::assign_combat_damage;
 use crate::engine::combat::validation::{
     can_block, validate_attackers, validate_blockers,
@@ -64,12 +64,15 @@ impl GameState {
             .collect();
 
         // Apply: tap each attacker and set attacking info (rule 508.1f)
+        let actx = ActionContext::new(decisions);
         for (creature_id, target) in &proposed {
-            if let Some(entry) = self.battlefield.get_mut(creature_id) {
+            if self.battlefield.contains_key(creature_id) {
                 // Rule 702.20b: Vigilance prevents tapping from attacking
                 if !vigilance_set.contains(creature_id) {
-                    entry.tapped = true;
+                    self.execute_action(GameAction::Tap { object: *creature_id }, &actx)?;
                 }
+            }
+            if let Some(entry) = self.battlefield.get_mut(creature_id) {
                 entry.attacking = Some(AttackingInfo {
                     target: target.clone(),
                     is_blocked: false,

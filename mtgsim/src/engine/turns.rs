@@ -100,7 +100,7 @@ impl GameState {
                     self.active_player,
                     self.turn_number,
                 );
-                self.process_untap_step()?;
+                self.process_untap_step(ctx)?;
             }
             StepType::Draw => {
                 self.process_draw_step(ctx)?;
@@ -165,7 +165,7 @@ impl GameState {
 
     /// Untap step: untap all permanents controlled by the active player,
     /// reset land drops (rule 502)
-    fn process_untap_step(&mut self) -> Result<(), String> {
+    fn process_untap_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
         // Reset land drops for the new turn
@@ -175,18 +175,22 @@ impl GameState {
         // Untap permanents the active player *effectively* controls (CR 502.1).
         //
         // Two passes because the predicate is a `&self` layer query and the
-        // untap is a `&mut self` write. Unordered iteration is fine: untapping
-        // every match is order-irrelevant, so this sweep reaches no decision.
+        // untap is a `&mut self` write.
+        //
+        // **Ordered, and that is not cosmetic.** This sweep used to iterate
+        // `battlefield.keys()` under a comment saying it reached no decision.
+        // True while each untap was a direct write; false now that each is a
+        // replaceable `GameAction::Untap`. CR 616.1 prompts the affected
+        // permanent's controller when two effects want one untap (stun counters,
+        // CR 122.1d), so the order the proposals are made in is observable and
+        // `HashMap` order differs per process.
         let to_untap: Vec<ObjectId> = self
-            .battlefield
-            .keys()
-            .copied()
+            .battlefield_ids_ordered()
+            .into_iter()
             .filter(|&id| crate::oracle::characteristics::controls(self, id, active))
             .collect();
         for id in to_untap {
-            if let Some(entry) = self.battlefield.get_mut(&id) {
-                entry.tapped = false;
-            }
+            self.execute_action(GameAction::Untap { object: id }, ctx)?;
         }
 
         // No player gets priority during untap step
@@ -309,6 +313,45 @@ mod tests {
         // Turn 3, player 0's untap step — forest should be untapped
         let entry = game.battlefield.get(&forest_id).unwrap();
         assert!(!entry.tapped, "Forest should be untapped after untap step");
+    }
+
+    #[test]
+    fn test_untap_step_announces_only_the_permanents_it_actually_untapped() {
+        let mut game = GameState::new(2, 20);
+        stock_libraries(&mut game, 5);
+
+        let land = |name: &str| CardDataBuilder::new(name)
+            .card_type(CardType::Land)
+            .supertype(Supertype::Basic)
+            .mana_ability_single(ManaType::Green)
+            .build();
+
+        // One tapped, one already untapped, both controlled by player 0.
+        let tapped_id = game.add_object(GameObject::new(
+            land("Tapped Forest"), 0, crate::types::zones::Zone::Battlefield));
+        game.place_on_battlefield(tapped_id, 0).tapped = true;
+        let untapped_id = game.add_object(GameObject::new(
+            land("Untapped Forest"), 0, crate::types::zones::Zone::Battlefield));
+        game.place_on_battlefield(untapped_id, 0).tapped = false;
+
+        let before = game.events.len();
+        // Walk to player 0's next untap step.
+        for _ in 0..26 {
+            game.advance_turn(&test_ctx()).unwrap();
+        }
+
+        let untapped: Vec<crate::types::ids::ObjectId> = game.events.events()[before..].iter()
+            .filter_map(|e| match e {
+                crate::events::event::GameEvent::Untapped { object_id } => Some(*object_id),
+                _ => None,
+            })
+            .collect();
+
+        // CR 502.1 untaps every permanent the active player controls, but
+        // CR 603.2e only *announces* the ones that changed state. A sweep that
+        // emitted per-permanent rather than per-transition would report both.
+        assert_eq!(untapped, vec![tapped_id]);
+        assert!(!game.battlefield.get(&tapped_id).unwrap().tapped);
     }
 
     #[test]

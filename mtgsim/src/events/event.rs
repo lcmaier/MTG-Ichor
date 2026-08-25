@@ -26,6 +26,18 @@ pub enum GameEvent {
         to: Zone,
     },
 
+    /// A permanent became tapped (CR 701.26a).
+    ///
+    /// **Only on the transition.** CR 603.2e: "becomes tapped" triggers only
+    /// when a permanent already on the battlefield changes from untapped to
+    /// tapped — it does not fire for a redundant tap, and does not fire for a
+    /// permanent that *enters* tapped. CR 701.26a agrees from the other side:
+    /// only untapped permanents can be tapped at all.
+    Tapped { object_id: ObjectId },
+
+    /// A permanent became untapped (CR 701.26b). Transition-only, as `Tapped`.
+    Untapped { object_id: ObjectId },
+
     /// A player drew a card (CR 121.1).
     ///
     /// **Not redundant with the `ZoneChange` it accompanies.** CR 121.5: moving

@@ -408,6 +408,8 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         ZoneChange { object_id, owner, from, to } => {
             format!("ZoneChange: {} [P{}] {:?} -> {:?}", obj_name(game, *object_id), owner, from, to)
         }
+        Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
+        Untapped { object_id } => format!("Untapped: {}", obj_name(game, *object_id)),
         CardDrawn { player_id, card_id } => {
             format!("CardDrawn: P{} drew {}", player_id, obj_name(game, *card_id))
         }
