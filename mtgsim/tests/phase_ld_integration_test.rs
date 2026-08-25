@@ -30,6 +30,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
+use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
     fill_library, pass_turn, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn,
     registered, setup_two_player_game, test_dp,
@@ -611,7 +612,7 @@ fn test_activating_blood_mooned_land_produces_red() {
 
     // Activate it by the id the enumeration handed out. This is the step that
     // fails if intrinsic ability ids aren't stable across compute calls.
-    game.activate_mana_ability(0, land_id, sources[0].ability_id)
+    game.activate_mana_ability(0, land_id, sources[0].ability_id, &test_ctx())
         .expect("intrinsic Mountain ability should be activatable");
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1);
@@ -759,7 +760,7 @@ fn test_effect_returns_when_blood_moon_leaves() {
 
     assert!(!has_keyword(&game, bear_id, KeywordFlag::Flying));
 
-    game.change_zone(blood_moon_id, Zone::Graveyard).unwrap();
+    game.change_zone(blood_moon_id, Zone::Graveyard, &test_ctx()).unwrap();
 
     assert!(
         has_keyword(&game, bear_id, KeywordFlag::Flying),
@@ -813,7 +814,7 @@ fn test_static_ability_does_not_function_from_the_graveyard() {
 
     assert!(has_keyword(&game, bear_id, KeywordFlag::Flying));
 
-    game.change_zone(land_id, Zone::Graveyard).unwrap();
+    game.change_zone(land_id, Zone::Graveyard, &test_ctx()).unwrap();
 
     // CR 113.6 — an ability of a permanent functions only while that permanent
     // is on the battlefield.
@@ -913,7 +914,7 @@ fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
 
     let abilities = get_effective_abilities(&game, sol_ring);
     assert_eq!(abilities.len(), 1, "March grants no ability, only types and P/T");
-    game.activate_mana_ability(0, sol_ring, abilities[0].id)
+    game.activate_mana_ability(0, sol_ring, abilities[0].id, &test_ctx())
         .expect("an animated mana rock still taps for mana");
     assert_eq!(
         game.players[0].mana_pool.amount(ManaType::Colorless),
@@ -962,7 +963,7 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
     // why a turn-one Sol Ring is a turn-one Sol Ring.
     assert!(!is_creature(&game, spent));
     let ability_id = get_effective_abilities(&game, spent)[0].id;
-    game.activate_mana_ability(0, spent, ability_id)
+    game.activate_mana_ability(0, spent, ability_id, &test_ctx())
         .expect("a noncreature artifact is not subject to summoning sickness");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 
@@ -978,7 +979,7 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
     assert!(has_summoning_sickness(&game, held));
 
     let err = game
-        .activate_mana_ability(0, held, held_ability)
+        .activate_mana_ability(0, held, held_ability, &test_ctx())
         .expect_err("its controller has not had it since their turn began");
     assert!(
         err.contains("summoning sickness"),
@@ -1018,7 +1019,7 @@ fn test_haste_lets_a_freshly_animated_sol_ring_tap_the_turn_it_arrived() {
     );
 
     let ability_id = get_effective_abilities(&game, ring)[0].id;
-    game.activate_mana_ability(0, ring, ability_id)
+    game.activate_mana_ability(0, ring, ability_id, &test_ctx())
         .expect("haste answers the only objection");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 }
@@ -1055,7 +1056,7 @@ fn test_a_sol_ring_from_an_earlier_turn_taps_the_moment_march_animates_it() {
     );
 
     let ability_id = get_effective_abilities(&game, ring)[0].id;
-    game.activate_mana_ability(0, ring, ability_id)
+    game.activate_mana_ability(0, ring, ability_id, &test_ctx())
         .expect("continuous control since before this turn began");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 }

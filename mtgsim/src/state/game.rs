@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::engine::actions::ActionContext;
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
@@ -343,7 +344,9 @@ impl Game {
                 return Err("Chosen card is not in hand".to_string());
             }
 
-            self.state.change_zone(card_id, Zone::Graveyard)?;
+            // CR 514.1 cleanup discard — a turn-based action, no resolution.
+            let actx = ActionContext::new(decisions);
+            self.state.change_zone(card_id, Zone::Graveyard, &actx)?;
         }
 
         Ok(())

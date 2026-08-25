@@ -20,6 +20,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::oracle::legality::legal_attackers;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StackEntry, StepType};
+use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
     attach, aura_enchanting_your_creature, card_of_type, equipment, fill_library, pacifism,
     pass_turn, put_in_graveyard, put_on_battlefield, put_on_battlefield_this_turn, setup_game,
@@ -852,7 +853,7 @@ fn test_a_granted_tap_ability_stays_locked_on_the_opponents_turn() {
 
     pass_turn(&mut game);
     let err = game
-        .activate_mana_ability(0, bears, granted_id)
+        .activate_mana_ability(0, bears, granted_id, &test_ctx())
         .expect_err("CR 302.6 forbids the tap on P1's turn");
     assert!(
         err.contains("summoning sickness"),
@@ -861,7 +862,7 @@ fn test_a_granted_tap_ability_stays_locked_on_the_opponents_turn() {
     assert!(!game.battlefield[&bears].tapped);
 
     pass_turn(&mut game);
-    game.activate_mana_ability(0, bears, granted_id)
+    game.activate_mana_ability(0, bears, granted_id, &test_ctx())
         .expect("P0's turn has begun, so the ability is live");
     assert!(game.battlefield[&bears].tapped);
 }

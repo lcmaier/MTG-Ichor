@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 
+use crate::engine::actions::ActionContext;
 use crate::engine::combat::resolution::assign_combat_damage;
 use crate::engine::combat::validation::{
     can_block, validate_attackers, validate_blockers,
@@ -221,8 +222,10 @@ impl GameState {
             first_strike_only,
         );
 
-        // Apply damage (mutating)
-        self.apply_combat_damage(assignments)?;
+        // Apply damage (mutating). Combat damage is a turn-based action, not
+        // part of any resolution (CR 510.2).
+        let actx = ActionContext::new(decisions);
+        self.apply_combat_damage(assignments, &actx)?;
 
         // Track who dealt damage in the first-strike step
         if first_strike_only {

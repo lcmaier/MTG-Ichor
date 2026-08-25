@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::basic_lands;
+use mtgsim::test_support::test_ctx;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::{AbilityType, CardData};
 use mtgsim::objects::object::GameObject;
@@ -71,13 +72,13 @@ fn test_full_opening_sequence() {
 
     // -- Tap the land for mana (explicit ability ID) --
     let ability_id = get_mana_ability_id(&game, land_id);
-    game.activate_mana_ability(0, land_id, ability_id).unwrap();
+    game.activate_mana_ability(0, land_id, ability_id, &test_ctx()).unwrap();
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
     assert!(game.battlefield.get(&land_id).unwrap().tapped);
 
     // -- Can't tap again --
-    assert!(game.activate_mana_ability(0, land_id, ability_id).is_err());
+    assert!(game.activate_mana_ability(0, land_id, ability_id, &test_ctx()).is_err());
 
     // -- Advance through the rest of the turn --
     for _ in 0..10 {
@@ -105,7 +106,7 @@ fn test_two_turn_land_and_mana_cycle() {
     let land1_id = game.players[0].hand[0];
     game.play_land(0, land1_id, Zone::Hand).unwrap();
     let ability1 = get_mana_ability_id(&game, land1_id);
-    game.activate_mana_ability(0, land1_id, ability1).unwrap();
+    game.activate_mana_ability(0, land1_id, ability1, &test_ctx()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
 
     for _ in 0..10 {
@@ -123,7 +124,7 @@ fn test_two_turn_land_and_mana_cycle() {
     let land2_id = game.players[1].hand[0];
     game.play_land(1, land2_id, Zone::Hand).unwrap();
     let ability2 = get_mana_ability_id(&game, land2_id);
-    game.activate_mana_ability(1, land2_id, ability2).unwrap();
+    game.activate_mana_ability(1, land2_id, ability2, &test_ctx()).unwrap();
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Red), 1);
 
     for _ in 0..10 {
@@ -136,7 +137,7 @@ fn test_two_turn_land_and_mana_cycle() {
 
     assert!(!game.battlefield.get(&land1_id).unwrap().tapped);
 
-    game.activate_mana_ability(0, land1_id, ability1).unwrap();
+    game.activate_mana_ability(0, land1_id, ability1, &test_ctx()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
 }
 

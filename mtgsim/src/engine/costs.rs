@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::engine::actions::ActionContext;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -119,9 +120,10 @@ impl GameState {
         player_id: PlayerId,
         source_id: ObjectId,
         generic_allocation: &HashMap<ManaType, u64>,
+        ctx: &ActionContext,
     ) -> Result<(), String> {
         for cost in costs {
-            self.pay_single_cost(cost, player_id, source_id, generic_allocation)?;
+            self.pay_single_cost(cost, player_id, source_id, generic_allocation, ctx)?;
         }
         Ok(())
     }
@@ -133,6 +135,7 @@ impl GameState {
         player_id: PlayerId,
         source_id: ObjectId,
         generic_allocation: &HashMap<ManaType, u64>,
+        ctx: &ActionContext,
     ) -> Result<(), String> {
         match cost {
             Cost::Tap => {
@@ -185,7 +188,7 @@ impl GameState {
                 Ok(())
             }
             Cost::SacrificeSelf => {
-                self.change_zone(source_id, crate::types::zones::Zone::Graveyard)
+                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ctx)
             }
             Cost::Sacrifice(_, _)
             | Cost::Discard(_, _)
@@ -266,6 +269,7 @@ fn apply_cost_modifications(costs: Vec<Cost>) -> Vec<Cost> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::test_ctx;
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::costs::Cost;
     use crate::objects::object::GameObject;
@@ -295,7 +299,7 @@ mod tests {
     fn test_pay_tap_cost() {
         let (mut game, forest_id) = setup_with_forest();
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc).unwrap();
+        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
         assert!(game.battlefield.get(&forest_id).unwrap().tapped);
     }
 
@@ -303,8 +307,8 @@ mod tests {
     fn test_pay_tap_cost_already_tapped() {
         let (mut game, forest_id) = setup_with_forest();
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc).unwrap();
-        assert!(game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc).is_err());
+        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
+        assert!(game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc, &test_ctx()).is_err());
     }
 
     #[test]
@@ -313,7 +317,7 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Green, 2);
         let cost = ManaCost::build(&[ManaType::Green], 0);
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &no_alloc).unwrap();
+        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &no_alloc, &test_ctx()).unwrap();
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
     }
 
@@ -326,7 +330,7 @@ mod tests {
         let cost = ManaCost::build(&[ManaType::Green], 1);
         let mut alloc = HashMap::new();
         alloc.insert(ManaType::Red, 1);
-        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &alloc).unwrap();
+        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &alloc, &test_ctx()).unwrap();
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
     }
@@ -335,7 +339,7 @@ mod tests {
     fn test_pay_life_cost() {
         let (mut game, forest_id) = setup_with_forest();
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc).unwrap();
+        game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
         assert_eq!(game.players[0].life_total, 17);
     }
 
@@ -343,7 +347,7 @@ mod tests {
     fn test_pay_life_cost_insufficient() {
         let (mut game, forest_id) = setup_with_forest();
         let no_alloc = HashMap::new();
-        assert!(game.pay_costs(&[Cost::PayLife(21)], 0, forest_id, &no_alloc).is_err());
+        assert!(game.pay_costs(&[Cost::PayLife(21)], 0, forest_id, &no_alloc, &test_ctx()).is_err());
     }
 
     // --- Cost::Untap ({Q}) summoning sickness tests (T10 / E13) ---
@@ -373,7 +377,7 @@ mod tests {
         // Creature enters on turn 1, game is on turn 1 → summoning sick → can't pay {Q}
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
         let no_alloc = HashMap::new();
-        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc);
+        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("summoning sickness"));
     }
@@ -383,7 +387,7 @@ mod tests {
         // Creature with haste enters on turn 1, game is on turn 1 → haste bypasses sickness
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc).unwrap();
+        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 
@@ -403,7 +407,7 @@ mod tests {
         game.battlefield.insert(id, entry);
 
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Untap], 0, id, &no_alloc).unwrap();
+        game.pay_costs(&[Cost::Untap], 0, id, &no_alloc, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&id).unwrap().tapped);
     }
 
@@ -418,7 +422,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         let no_alloc = HashMap::new();
-        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc);
+        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("summoning sickness"));
     }
@@ -432,7 +436,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc).unwrap();
+        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 

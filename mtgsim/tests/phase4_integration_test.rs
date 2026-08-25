@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::creatures;
+use mtgsim::test_support::test_ctx;
 use mtgsim::cards::keyword_creatures;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::combat::validation::{
@@ -180,7 +181,7 @@ fn test_first_strike_kills_before_normal_damage() {
     assert_eq!(assignments[0].amount, 2);
 
     // Apply first strike damage
-    game.apply_combat_damage(assignments).unwrap();
+    game.apply_combat_damage(assignments, &test_ctx()).unwrap();
     game.dealt_first_strike_damage.insert(archers);
 
     // Bears now have 2 damage marked on 2 toughness — SBA kills them
@@ -213,7 +214,7 @@ fn test_double_strike_deals_twice() {
     let assignments = assign_combat_damage(&game, &dp, 0, true);
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].amount, 2);
-    game.apply_combat_damage(assignments).unwrap();
+    game.apply_combat_damage(assignments, &test_ctx()).unwrap();
     game.dealt_first_strike_damage.insert(raptor);
 
     assert_eq!(game.players[1].life_total, 18);
@@ -222,7 +223,7 @@ fn test_double_strike_deals_twice() {
     let assignments = assign_combat_damage(&game, &dp, 0, false);
     assert_eq!(assignments.len(), 1);
     assert_eq!(assignments[0].amount, 2);
-    game.apply_combat_damage(assignments).unwrap();
+    game.apply_combat_damage(assignments, &test_ctx()).unwrap();
 
     assert_eq!(game.players[1].life_total, 16); // 20 - 2 - 2 = 16
 }
@@ -281,7 +282,7 @@ fn test_deathtouch_trades_up() {
     let assignments = assign_combat_damage(&game, &dp, 0, false);
 
     // Apply all combat damage
-    game.apply_combat_damage(assignments).unwrap();
+    game.apply_combat_damage(assignments, &test_ctx()).unwrap();
 
     // Giant took 2 damage from deathtouch source → damaged_by_deathtouch = true
     assert!(game.battlefield.get(&giant).unwrap().damaged_by_deathtouch);
@@ -308,7 +309,7 @@ fn test_lifelink_heals_on_combat_damage() {
 
     let dp = ScriptedDecisionProvider::new();
     let assignments = assign_combat_damage(&game, &dp, 0, false);
-    game.apply_combat_damage(assignments).unwrap();
+    game.apply_combat_damage(assignments, &test_ctx()).unwrap();
 
     // Player 1 took 2 damage
     assert_eq!(game.players[1].life_total, 18);
@@ -403,7 +404,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     assert_eq!(to_player[0].amount, 3);
 
     // Apply and check SBA
-    game.apply_combat_damage(assignments).unwrap();
+    game.apply_combat_damage(assignments, &test_ctx()).unwrap();
     game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
 
     // Blocker should be dead (1 deathtouch damage)

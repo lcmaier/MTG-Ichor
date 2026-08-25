@@ -1,4 +1,4 @@
-use crate::engine::actions::GameAction;
+use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
@@ -93,8 +93,11 @@ impl GameState {
         primitive: &Primitive,
         recipient: &EffectRecipient,
         ctx: &ResolutionContext,
-        _dp: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        // Every mutation a primitive proposes belongs to *this* resolution
+        // (CR 614.15 / the resolution stamp on each emitted event).
+        let actx = ActionContext::resolving(dp, ctx);
         match primitive {
             // === Phase 2 primitives ===
 
@@ -110,7 +113,7 @@ impl GameState {
                         target: damage_target,
                         amount,
                         is_combat: false,
-                    })?;
+                    }, &actx)?;
                 }
                 Ok(())
             }
@@ -122,7 +125,7 @@ impl GameState {
                 for _ in 0..count {
                     self.execute_action(GameAction::DrawCard {
                         player: player_id,
-                    })?;
+                    }, &actx)?;
                 }
                 Ok(())
             }
@@ -134,7 +137,7 @@ impl GameState {
                     player: player_id,
                     amount,
                     source: ctx.source,
-                })?;
+                }, &actx)?;
                 Ok(())
             }
 
@@ -144,7 +147,7 @@ impl GameState {
                 self.execute_action(GameAction::LoseLife {
                     player: player_id,
                     amount,
-                })?;
+                }, &actx)?;
                 Ok(())
             }
 
@@ -175,7 +178,7 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target {
                         let id = *id;
                         if self.stack.contains(&id) {
-                            self.change_zone(id, crate::types::zones::Zone::Graveyard)?;
+                            self.change_zone(id, crate::types::zones::Zone::Graveyard, &actx)?;
                             self.events.emit(crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
                                 countered_by: ctx.source,
@@ -225,7 +228,7 @@ impl GameState {
                                 object: *id,
                                 from: crate::types::zones::Zone::Battlefield,
                                 to: crate::types::zones::Zone::Graveyard,
-                            })?;
+                            }, &actx)?;
                         }
                         // If not on battlefield, destroy does nothing (rule 701.7b)
                     }
@@ -239,7 +242,7 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target {
                         self.execute_action(GameAction::Untap {
                             object: *id,
-                        })?;
+                        }, &actx)?;
                     }
                 }
                 Ok(())

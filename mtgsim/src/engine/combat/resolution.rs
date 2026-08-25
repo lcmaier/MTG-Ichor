@@ -1,7 +1,7 @@
 // Combat damage assignment and resolution.
 // See rules 510.1–510.2.
 
-use crate::engine::actions::GameAction;
+use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::combat::keywords::{
     assign_trample_damage, attack_target_to_damage_target, should_deal_damage_this_step,
 };
@@ -171,10 +171,15 @@ impl GameState {
     /// Apply all combat damage assignments simultaneously (rule 510.2).
     ///
     /// Each assignment is routed through `execute_action(GameAction::DealDamage)`
-    /// so that Phase 6 replacement effects automatically intercept combat damage.
+    /// so that Phase RB replacement effects automatically intercept combat damage.
+    ///
+    /// Still a loop, not a batch: CR 510.2 makes combat damage simultaneous, and
+    /// CR 615.7's "one shield, several simultaneous sources" allocation needs to
+    /// see all of it at once. That is RA-3's `execute_actions` batch form.
     pub fn apply_combat_damage(
         &mut self,
         assignments: Vec<CombatDamageAssignment>,
+        ctx: &ActionContext,
     ) -> Result<(), String> {
         for assignment in assignments {
             self.execute_action(GameAction::DealDamage {
@@ -182,7 +187,7 @@ impl GameState {
                 target: assignment.target,
                 amount: assignment.amount,
                 is_combat: true,
-            })?;
+            }, ctx)?;
         }
         Ok(())
     }
@@ -191,6 +196,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::test_ctx;
     use crate::state::battlefield::{AttackTarget, AttackingInfo};
     use crate::types::keywords::KeywordFlag;
     use crate::ui::choice_types::ChoiceKind;
@@ -290,7 +296,7 @@ mod tests {
             amount: 3,
         }];
 
-        game.apply_combat_damage(assignments).unwrap();
+        game.apply_combat_damage(assignments, &test_ctx()).unwrap();
         assert_eq!(game.players[1].life_total, 17);
     }
 
@@ -306,7 +312,7 @@ mod tests {
             amount: 2,
         }];
 
-        game.apply_combat_damage(assignments).unwrap();
+        game.apply_combat_damage(assignments, &test_ctx()).unwrap();
         assert_eq!(game.battlefield.get(&blocker).unwrap().damage_marked, 2);
     }
 

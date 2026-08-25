@@ -1,8 +1,43 @@
 use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
+use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
+use crate::ui::decision::DecisionProvider;
+
+/// Who is asking for a mutation, and what resolution it belongs to.
+///
+/// `execute_action` has no `DecisionProvider` of its own, and CR 616.1 needs
+/// one: when two or more replacement effects want the same event, *the affected
+/// object's controller* chooses which to apply — not the controller of the
+/// effect. Rather than thread a bare `&dyn DecisionProvider`, this carries the
+/// second thing the pipeline will want, so the plumbing is paid for once.
+///
+/// **Phase RA threads it; nothing reads either field yet.** Phase RB is where
+/// `apply_replacements` starts consulting them:
+///
+/// - `dp` answers the CR 616.1 ordering prompt.
+/// - `resolution` is where CR 614.15 self-replacement effects live (they belong
+///   to the resolving spell or ability, not to any registry), and it is what
+///   stamps every emitted `GameEvent` with the resolution that caused it.
+pub struct ActionContext<'a> {
+    pub dp: &'a dyn DecisionProvider,
+    pub resolution: Option<&'a ResolutionContext>,
+}
+
+impl<'a> ActionContext<'a> {
+    /// A mutation that belongs to no resolution: a turn-based action, a
+    /// state-based action, cost payment, combat damage.
+    pub fn new(dp: &'a dyn DecisionProvider) -> Self {
+        ActionContext { dp, resolution: None }
+    }
+
+    /// A mutation proposed by a resolving spell or ability.
+    pub fn resolving(dp: &'a dyn DecisionProvider, resolution: &'a ResolutionContext) -> Self {
+        ActionContext { dp, resolution: Some(resolution) }
+    }
+}
 
 /// A game action that is *about to happen*.
 ///
@@ -76,16 +111,22 @@ impl GameState {
     /// observable (i.e., that triggered abilities and replacement effects care
     /// about).
     ///
-    /// **Current behavior (pre-Phase 6):** direct passthrough — performs the
-    /// mutation immediately and emits the event.
+    /// **Current behavior (through Phase RA):** direct passthrough — performs
+    /// the mutation immediately and emits the event. `ctx` is threaded but not
+    /// yet read; RA's job is to make sure it is *available* everywhere a
+    /// mutation happens.
     ///
-    /// **Phase 6:** A `apply_replacement_effects(action)` call will be inserted
-    /// here, potentially modifying or replacing the action before execution.
+    /// **Phase RB:** an `apply_replacements(action, ctx, ...)` call goes in
+    /// between, potentially modifying or dropping the action before execution.
     /// The replacement pipeline handles rule 614 (replacement effects),
     /// rule 615 (prevention effects), and rule 616 (interaction ordering).
-    pub fn execute_action(&mut self, action: GameAction) -> Result<(), String> {
-        // Phase 6: let action = self.apply_replacement_effects(action, decisions)?;
-        self.perform_action(action)
+    pub fn execute_action(
+        &mut self,
+        action: GameAction,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        // Phase RB: let Some(action) = self.apply_replacements(action, ctx, ...) else { return Ok(()) };
+        self.perform_action(action, ctx)
     }
 
     /// Convenience wrapper for the most common zone change: caller knows the
@@ -97,16 +138,31 @@ impl GameState {
     /// `draw_card` and `play_land` still call `move_object` directly — they
     /// live inside `engine/zones.rs` and go through the same chokepoint
     /// transitively via `execute_action`'s ZoneChange arm.
-    pub fn change_zone(&mut self, object: ObjectId, to: Zone) -> Result<(), String> {
+    pub fn change_zone(
+        &mut self,
+        object: ObjectId,
+        to: Zone,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
         let from = self.get_object(object)?.zone;
-        self.execute_action(GameAction::ZoneChange { object, from, to })
+        self.execute_action(GameAction::ZoneChange { object, from, to }, ctx)
     }
 
     /// Perform the actual state mutation and emit the event.
     ///
     /// This is separated from `execute_action` so that the replacement pipeline
-    /// (Phase 6) can call this with the final, possibly-modified action.
-    fn perform_action(&mut self, action: GameAction) -> Result<(), String> {
+    /// (Phase RB) can call this with the final, possibly-modified action.
+    ///
+    /// `_ctx` is the one place in the RA sweep where the context is threaded but
+    /// has nothing to read yet. It is a parameter here rather than absent
+    /// because this is where it is used *first*: RA-2 routes lifelink's life
+    /// gain through `execute_action`, and that proposal is made from inside the
+    /// `DealDamage` arm below.
+    fn perform_action(
+        &mut self,
+        action: GameAction,
+        _ctx: &ActionContext,
+    ) -> Result<(), String> {
         match action {
             GameAction::DealDamage { source, target, amount, is_combat } => {
                 if amount == 0 {
@@ -247,6 +303,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::test_ctx;
     use crate::events::event::DamageTarget;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -282,7 +339,7 @@ mod tests {
             target: DamageTarget::Object(bears_id),
             amount: 3,
             is_combat: false,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
         // Should have emitted a DamageDealt event
@@ -298,7 +355,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 3,
             is_combat: false,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
         // DamageDealt + LifeChanged
@@ -314,7 +371,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 0,
             is_combat: false,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 20);
         assert_eq!(game.events.len(), 0);
@@ -328,7 +385,7 @@ mod tests {
             player: 0,
             amount: 5,
             source: bears_id,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 25);
         assert_eq!(game.events.len(), 1);
@@ -341,7 +398,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 17);
         assert_eq!(game.events.len(), 1);
@@ -354,7 +411,7 @@ mod tests {
 
         game.execute_action(GameAction::Untap {
             object: bears_id,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert!(!game.battlefield.get(&bears_id).unwrap().tapped);
     }
@@ -389,7 +446,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         // Player 1 took 2 damage: 20 - 2 = 18
         assert_eq!(game.players[1].life_total, 18);
@@ -406,7 +463,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 3,
             is_combat: false,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
         assert_eq!(game.players[0].life_total, 23);
@@ -421,7 +478,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 18);
         // Player 0 should NOT have gained life
@@ -441,7 +498,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (lifelink gain for P0)
         let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
@@ -498,13 +555,13 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
             source: creature_b,
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         // P1 took 4 total damage
         assert_eq!(game.players[1].life_total, 16);
@@ -556,7 +613,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 4,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
         assert_eq!(game.players[1].commander_damage_taken.get(&cmdr).copied(), Some(4));
@@ -572,7 +629,7 @@ mod tests {
                 target: DamageTarget::Player(1),
                 amount: 7,
                 is_combat: true,
-            }).unwrap();
+            }, &test_ctx()).unwrap();
         }
 
         // 3 × 7 = 21 — triggers the loss SBA when checked.
@@ -589,7 +646,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 4,
             is_combat: false,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
         assert!(game.players[1].commander_damage_taken.get(&cmdr).is_none());
@@ -605,7 +662,7 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert!(game.players[1].commander_damage_taken.get(&bears_id).is_none());
     }
@@ -634,10 +691,10 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: cmdr_a, target: DamageTarget::Player(1), amount: 3, is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
             source: cmdr_b, target: DamageTarget::Player(1), amount: 3, is_combat: true,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].commander_damage_taken.get(&cmdr_a).copied(), Some(3));
         assert_eq!(game.players[1].commander_damage_taken.get(&cmdr_b).copied(), Some(3));
@@ -651,7 +708,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
-        }).unwrap();
+        }, &test_ctx()).unwrap();
 
         let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
             if let GameEvent::LifeChanged { source, .. } = e {

@@ -17,6 +17,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
+use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
     fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_two_player_game,
 };
@@ -300,7 +301,7 @@ fn test_glorious_anthem_removed_on_ltb() {
     assert_eq!(game.continuous_effects.len(), 1);
 
     // Destroy the anthem (move to graveyard)
-    game.change_zone(anthem_id, Zone::Graveyard).unwrap();
+    game.change_zone(anthem_id, Zone::Graveyard, &test_ctx()).unwrap();
 
     // Effect removed, creature back to base
     assert_eq!(game.continuous_effects.len(), 0);

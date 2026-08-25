@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::engine::actions::ActionContext;
 use crate::engine::costs::assemble_total_cost;
 use crate::events::event::GameEvent;
 use crate::objects::card_data::AbilityType;
@@ -46,6 +47,9 @@ impl GameState {
         // --- Pre-proposal legality check (rule 601.3) ---
         self.check_cast_legality(player_id, card_id)?;
 
+        // Casting is not itself a resolution (CR 601), so no resolution stamp.
+        let actx = ActionContext::new(decisions);
+
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
 
@@ -84,7 +88,7 @@ impl GameState {
         };
 
         // --- 601.2a: Move to stack ---
-        self.change_zone(card_id, Zone::Stack)?;
+        self.change_zone(card_id, Zone::Stack, &actx)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
@@ -96,7 +100,7 @@ impl GameState {
         // Validate alt cost index is in range
         if let Some(idx) = chosen_alt_cost_idx {
             if idx >= card_data.alternative_costs.len() {
-                self.change_zone(card_id, Zone::Hand)?;
+                self.change_zone(card_id, Zone::Hand, &actx)?;
                 return Err(format!(
                     "Alternative cost index {} out of range (card has {})",
                     idx, card_data.alternative_costs.len()
@@ -113,7 +117,7 @@ impl GameState {
         // Validate additional cost indices are in range
         for &idx in &chosen_additional_cost_indices {
             if idx >= card_data.additional_costs.len() {
-                self.change_zone(card_id, Zone::Hand)?;
+                self.change_zone(card_id, Zone::Hand, &actx)?;
                 return Err(format!(
                     "Additional cost index {} out of range (card has {})",
                     idx, card_data.additional_costs.len()
@@ -143,7 +147,7 @@ impl GameState {
                 &legal, min_sel, max_sel,
             );
             if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
-                self.change_zone(card_id, Zone::Hand)?;
+                self.change_zone(card_id, Zone::Hand, &actx)?;
                 return Err(e);
             }
             chosen
@@ -211,7 +215,7 @@ impl GameState {
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
             // Rollback: move card back to hand. The zone-change chokepoint
             // cleans up stack_entries via `remove_from_zone_collection(Stack)`.
-            self.change_zone(card_id, Zone::Hand)?;
+            self.change_zone(card_id, Zone::Hand, &actx)?;
             return Err(e);
         }
 
@@ -235,7 +239,7 @@ impl GameState {
             HashMap::new()
         };
 
-        self.pay_costs(&total_costs, player_id, card_id, &generic_allocation)?;
+        self.pay_costs(&total_costs, player_id, card_id, &generic_allocation, &actx)?;
 
         // --- 601.2i: Emit SpellCast event ---
         self.events.emit(GameEvent::SpellCast {
@@ -365,9 +369,10 @@ impl GameState {
         // triggers rollback.
         self.run_mana_ability_window(player_id, source_id, &ability_costs, decisions);
 
-        // Pay ability costs
+        // Pay ability costs. Activation is CR 602, not a resolution.
+        let actx = ActionContext::new(decisions);
         let generic_allocation = HashMap::new();
-        if let Err(e) = self.pay_costs(&ability_costs, player_id, source_id, &generic_allocation) {
+        if let Err(e) = self.pay_costs(&ability_costs, player_id, source_id, &generic_allocation, &actx) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e);
         }
@@ -448,7 +453,8 @@ impl GameState {
                 decisions, self, player_id, spell_or_ability_id, &remaining, &legal,
             ) {
                 Some((perm_id, ability_id)) => {
-                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id) {
+                    let actx = ActionContext::new(decisions);
+                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, &actx) {
                         // Enumeration said this was legal but activation
                         // failed — likely staleness or a `can_pay_ability_costs`
                         // over-approximation bug. Blacklist so we can't loop

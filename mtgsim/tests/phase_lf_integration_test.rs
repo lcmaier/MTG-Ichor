@@ -25,7 +25,7 @@ use mtgsim::test_support::{
     setup_two_player_game, static_ability, vanilla_creature,
 };
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::test_support::test_dp;
+use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
     TargetCount,
@@ -667,6 +667,6 @@ fn test_citanul_hierophants_grant_retires_when_it_leaves() {
         put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
     assert_eq!(get_effective_abilities(&game, bears).len(), 1);
 
-    game.change_zone(hierophants, Zone::Graveyard).unwrap();
+    game.change_zone(hierophants, Zone::Graveyard, &test_ctx()).unwrap();
     assert!(get_effective_abilities(&game, bears).is_empty());
 }

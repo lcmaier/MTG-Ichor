@@ -8,6 +8,7 @@ use crate::oracle::characteristics::{
 use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
+use crate::engine::actions::ActionContext;
 use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
@@ -28,6 +29,8 @@ impl GameState {
         &mut self,
         decisions: &dyn DecisionProvider,
     ) -> Result<bool, String> {
+        // CR 704 sweeps are turn-based, not part of any resolution.
+        let actx = ActionContext::new(decisions);
         let mut any_performed = false;
 
         // 704.5a — Player with 0 or less life loses the game
@@ -103,7 +106,7 @@ impl GameState {
 
         for id in zero_toughness {
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.change_zone(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard, &actx)?;
             self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
         }
@@ -133,7 +136,7 @@ impl GameState {
             }
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
             // TODO: check for regeneration
-            self.change_zone(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard, &actx)?;
             self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
             any_performed = true;
         }
@@ -154,7 +157,7 @@ impl GameState {
 
         for id in pw_zero_loyalty {
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.change_zone(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard, &actx)?;
             self.events.emit(GameEvent::PlaneswalkerDied { object_id: id, owner });
             self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
@@ -203,7 +206,7 @@ impl GameState {
 
             for id in to_remove {
                 let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-                self.change_zone(id, Zone::Graveyard)?;
+                self.change_zone(id, Zone::Graveyard, &actx)?;
                 self.events.emit(GameEvent::LegendRuleSacrificed { object_id: id, owner });
                 self.events.emit(GameEvent::StateBasedActionPerformed);
                 any_performed = true;
@@ -253,7 +256,7 @@ impl GameState {
 
         for id in auras_to_graveyard {
             let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.change_zone(id, Zone::Graveyard)?;
+            self.change_zone(id, Zone::Graveyard, &actx)?;
             self.events.emit(GameEvent::AuraDied { object_id: id, owner });
             self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
