@@ -100,7 +100,7 @@ impl GameState {
         // Validate alt cost index is in range
         if let Some(idx) = chosen_alt_cost_idx {
             if idx >= card_data.alternative_costs.len() {
-                self.change_zone(card_id, Zone::Hand, &actx)?;
+                self.rollback_cast_to_hand(card_id)?;
                 return Err(format!(
                     "Alternative cost index {} out of range (card has {})",
                     idx, card_data.alternative_costs.len()
@@ -117,7 +117,7 @@ impl GameState {
         // Validate additional cost indices are in range
         for &idx in &chosen_additional_cost_indices {
             if idx >= card_data.additional_costs.len() {
-                self.change_zone(card_id, Zone::Hand, &actx)?;
+                self.rollback_cast_to_hand(card_id)?;
                 return Err(format!(
                     "Additional cost index {} out of range (card has {})",
                     idx, card_data.additional_costs.len()
@@ -147,7 +147,7 @@ impl GameState {
                 &legal, min_sel, max_sel,
             );
             if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
-                self.change_zone(card_id, Zone::Hand, &actx)?;
+                self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
             }
             chosen
@@ -213,9 +213,8 @@ impl GameState {
         // --- 601.2h: Pay total cost ---
         // Pre-check: can we pay? If not, roll back.
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
-            // Rollback: move card back to hand. The zone-change chokepoint
-            // cleans up stack_entries via `remove_from_zone_collection(Stack)`.
-            self.change_zone(card_id, Zone::Hand, &actx)?;
+            // CR 601.2 rewind, not a zone change — see rollback_cast_to_hand.
+            self.rollback_cast_to_hand(card_id)?;
             return Err(e);
         }
 
@@ -474,6 +473,30 @@ impl GameState {
                 }
             }
         }
+    }
+
+    /// Put a card back in its owner's hand after a failed `cast_spell`.
+    ///
+    /// **This is not a zone change, and it deliberately bypasses the
+    /// chokepoint.** CR 601.2 rewinds the entire casting process when a step
+    /// cannot be completed: the card was never legally on the stack, so nothing
+    /// in the game may observe it moving back. Routing this through
+    /// `change_zone` would offer a replacement effect an event that did not
+    /// happen — and CR 903.9b redirecting a commander mid-rollback is exactly
+    /// the wrong answer.
+    ///
+    /// It is also what the no-catchall rule predicts. `ZoneChangeCause` names
+    /// why the engine moved an object, every mover names its reason, and a
+    /// rewind has no honest reason to give (`replacement-architecture.md` §11).
+    /// A site with nothing to say is a site that does not belong on the
+    /// chokepoint, not a site that needs an `Other` variant.
+    ///
+    /// `move_object` still does the full teardown — `remove_from_zone_collection(Stack)`
+    /// clears the `StackEntry` — so behavior is identical to the `change_zone`
+    /// call this replaces.
+    fn rollback_cast_to_hand(&mut self, card_id: ObjectId) -> Result<(), String> {
+        // CAST-ROLLBACK: see the doc comment. Do not "fix" this into change_zone.
+        self.move_object(card_id, Zone::Hand)
     }
 
     /// Remove an ability object that was pushed onto the stack by a failed
