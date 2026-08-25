@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
@@ -346,7 +346,7 @@ impl Game {
 
             // CR 514.1 cleanup discard — a turn-based action, no resolution.
             let actx = ActionContext::new(decisions);
-            self.state.change_zone(card_id, Zone::Graveyard, &actx)?;
+            self.state.change_zone(card_id, Zone::Graveyard, ZoneChangeCause::Discarded, &actx)?;
         }
 
         Ok(())

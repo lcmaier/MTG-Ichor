@@ -39,6 +39,86 @@ impl<'a> ActionContext<'a> {
     }
 }
 
+/// Why the engine is moving an object between zones.
+///
+/// This is the semantic carrier that makes CR 701.8b answerable: `(from, to)`
+/// cannot distinguish a sacrifice from a destruction from an SBA, and 1,287
+/// printed cards trigger on "dies" while 278 want "sacrifices" specifically.
+///
+/// **Derived from call sites, not researched from the card pool.** It records
+/// what the engine was doing, so the input set is finite and readable off the
+/// tree (`replacement-architecture.md` §11). No printed card asks for a cause
+/// finer than a call site can name: "destroyed by" appears on 1 card in all of
+/// Magic, "was sacrificed" on 3, "if it was destroyed" on 0.
+///
+/// Three rules, all learned the hard way elsewhere in this tree:
+///
+/// - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
+///   `perform_action` cannot recover that from `(from, to)`.
+/// - **Nothing may branch on it outside the replacement pipeline and the
+///   trigger matcher.** A third reader is a third place for it to drift.
+/// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
+///   This is the whole of what makes the enum cheap to extend later. Widening
+///   is only expensive when an existing site was labelled with a coarse variant
+///   that should have been finer, and re-triaging it is guesswork that fails
+///   silently — which requires a catchall to lump into. A genuinely new mutation
+///   arrives with its own new call site, so it adds a variant and touches
+///   nothing existing. A site with no honest reason to give is a site whose
+///   reason nobody has worked out, which is the bug — see
+///   `cast.rs::rollback_cast_to_hand` for what that looks like when it happens.
+///
+/// Several variants have no call site yet because their `Primitive` is still
+/// `NotImplemented` (`resolve.rs`). They are listed anyway: the enum is the
+/// statement of the vocabulary, and nothing matches on it exhaustively until
+/// Phase RB.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZoneChangeCause {
+    // --- effects (CR 701), one per object-moving `Primitive` ---
+    /// 701.8b way 1 — an effect using the word "destroy".
+    Destroyed,
+    /// 701.21 — NOT destruction. The distinction 278 cards care about.
+    Sacrificed,
+    /// 701.13.
+    Exiled,
+    /// 701.9 — includes the CR 514.1 cleanup discard.
+    Discarded,
+    /// 701.17.
+    Milled,
+    /// "return to hand" / "return to the battlefield".
+    Returned,
+    /// Top, bottom, or shuffled in. *Position* is a field, not a cause.
+    PutIntoLibrary,
+
+    // --- state-based actions (CR 704.5) ---
+    /// 704.5g lethal damage + 704.5h deathtouch. One variant, because CR 701.8b
+    /// calls both "destroyed" and no card distinguishes them as a *cause*.
+    DestroyedBySba,
+    /// 704.5f — NOT destruction, so regeneration and indestructible do not help.
+    ZeroToughness,
+    /// 704.5i.
+    ZeroLoyalty,
+    /// 704.5j.
+    LegendRule,
+    /// 704.5m. (704.5n only unattaches an Equipment; it moves nothing.)
+    AuraSba,
+
+    // --- the stack ---
+    /// Hand (or elsewhere) → stack.
+    Cast,
+    /// 608.2m — stack → battlefield or graveyard.
+    Resolved,
+    /// 701.6.
+    Countered,
+    /// 608.2b — countered by game rules, all targets illegal.
+    Fizzled,
+
+    // --- turn structure and special actions ---
+    /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
+    Drawn,
+    /// 305.1 / 505.6b.
+    PlayedAsLand,
+}
+
 /// A game action that is *about to happen*.
 ///
 /// This is the pre-mutation counterpart to `GameEvent` (which records what
@@ -80,10 +160,13 @@ pub enum GameAction {
     },
 
     /// Move an object from one zone to another.
+    ///
+    /// `cause` is set by the caller and is required — see [`ZoneChangeCause`].
     ZoneChange {
         object: ObjectId,
         from: Zone,
         to: Zone,
+        cause: ZoneChangeCause,
     },
 
     /// Untap a permanent.
@@ -142,10 +225,11 @@ impl GameState {
         &mut self,
         object: ObjectId,
         to: Zone,
+        cause: ZoneChangeCause,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         let from = self.get_object(object)?.zone;
-        self.execute_action(GameAction::ZoneChange { object, from, to }, ctx)
+        self.execute_action(GameAction::ZoneChange { object, from, to, cause }, ctx)
     }
 
     /// Perform the actual state mutation and emit the event.
@@ -274,7 +358,10 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::ZoneChange { object, from: _, to } => {
+            // `cause` is carried, not consumed: Phase RB's `apply_replacements`
+            // matches on it (CR 701.8b), and RA-3 stamps it onto the emitted
+            // `GameEvent`. Nothing else may read it — see `ZoneChangeCause`.
+            GameAction::ZoneChange { object, from: _, to, cause: _ } => {
                 // Delegate to move_object which handles all zone bookkeeping
                 // and emits its own ZoneChange event.
                 self.move_object(object, to)?;

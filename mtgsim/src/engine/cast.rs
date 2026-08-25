@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::costs::assemble_total_cost;
 use crate::events::event::GameEvent;
 use crate::objects::card_data::AbilityType;
@@ -88,7 +88,7 @@ impl GameState {
         };
 
         // --- 601.2a: Move to stack ---
-        self.change_zone(card_id, Zone::Stack, &actx)?;
+        self.change_zone(card_id, Zone::Stack, ZoneChangeCause::Cast, &actx)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {

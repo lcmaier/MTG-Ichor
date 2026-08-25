@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -188,7 +188,7 @@ impl GameState {
                 Ok(())
             }
             Cost::SacrificeSelf => {
-                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ctx)
+                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Sacrificed, ctx)
             }
             Cost::Sacrifice(_, _)
             | Cost::Discard(_, _)

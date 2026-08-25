@@ -30,6 +30,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
+use mtgsim::engine::actions::ZoneChangeCause;
 use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
     fill_library, pass_turn, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn,
@@ -760,7 +761,7 @@ fn test_effect_returns_when_blood_moon_leaves() {
 
     assert!(!has_keyword(&game, bear_id, KeywordFlag::Flying));
 
-    game.change_zone(blood_moon_id, Zone::Graveyard, &test_ctx()).unwrap();
+    game.change_zone(blood_moon_id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
 
     assert!(
         has_keyword(&game, bear_id, KeywordFlag::Flying),
@@ -814,7 +815,7 @@ fn test_static_ability_does_not_function_from_the_graveyard() {
 
     assert!(has_keyword(&game, bear_id, KeywordFlag::Flying));
 
-    game.change_zone(land_id, Zone::Graveyard, &test_ctx()).unwrap();
+    game.change_zone(land_id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
 
     // CR 113.6 — an ability of a permanent functions only while that permanent
     // is on the battlefield.
