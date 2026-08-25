@@ -1562,44 +1562,128 @@ cards depend on the shape.
 ## 9. Work-phase plan
 
 One branch/PR per phase, matching the Layer phases' size (5–8 commits). Phases
-RC and RE split into Parts A/B if they run long, as LD did. **RA should be
-presumed to split rather than discovered mid-branch** (audit 2026-08-25): its
-twelve tickets are two to three layer-phases of work. The natural seam is
-RA-1 — `ActionContext` plumbing plus the routing tickets (1–5, 10–12) — and
-RA-2 — the payload upgrades, bypass closure, demotion and batch form (6–9).
+RC and RE split into Parts A/B if they run long, as LD did. **RA ships as three
+PRs** — sized against the tree 2026-08-25; see below.
 
 ### Phase RA — the event spine (no replacement behavior)
 
 The Deferred Migrations item 3 ticket list, verbatim, plus the DP plumbing.
 **Whole suite stays green with no behavior change** except newly-emitted events.
 
+**The split.** The twelve tickets keep their numbers — `codebase-state.md` and §6
+cite them — but they land in three groups. The grouping is dependency-clean:
+nothing in a later group is a prerequisite for an earlier one.
+
+| Sub-phase | Tickets | Shape | Measured size |
+|---|---|---|---|
+| **RA-1 — plumbing** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites |
+| **RA-2 — routing** | 3, 4, 5, 10, 11, 12 | six independent "make the silent site loud" tickets | 5 new `GameEvent` variants; ~10 sites each |
+| **RA-3 — payloads** | 9, 6, 7, 8 *(that order)* | the deep half: batches, LKI, the bypass closure | 3 bypass sites, the SBA sweep, `apply_combat_damage` |
+
+**Why three, and not the two-way seam this doc proposed first.** Ticket 1 alone
+is a session. Counted 2026-08-25: `execute_action` 7 external call sites,
+`change_zone` 13 + 5 test, `advance_turn` 12 + 44 test, `pay_costs` 15,
+`activate_mana_ability` 6 + 13 test, `apply_combat_damage` 3 + 6 test — and two
+whole chains carry no `DecisionProvider` at all, so threading reaches every
+function in them: `turns.rs` (`advance_turn` → `on_phase_begin` / `on_phase_end` /
+`on_step_begin` / `on_step_end` / `on_turn_end` → `process_untap_step` /
+`process_draw_step`) and `costs.rs` (`pay_costs` → `pay_single_cost`).
+Bundling ~165 mechanical call-site edits with five behavior-adding routing
+tickets is the session that overruns. Split off, RA-1 is the safest PR shape the
+project writes: the diff is a signature sweep, and green-on-the-nose is the whole
+test.
+
+#### RA-1 — the plumbing (tickets 1–2)
+
 1. `ActionContext` threaded through `execute_action` / `change_zone` /
-   `advance_turn` / `apply_combat_damage` / the SBA sweep.
+   `advance_turn` / `apply_combat_damage` / the SBA sweep. `resolve_effect` and
+   `resolve_primitive` already carry `(ctx, dp)` and just repackage them;
+   `check_state_based_actions` and `resolve_top_of_stack` already carry a `dp`.
 2. `ZoneChangeCause` on `ZoneChange`; every caller sets it.
+
+   **Safe to land here precisely because nothing reads it yet** — there is no
+   pipeline and no trigger matcher in RA, so labelling is additive and the
+   no-catchall ban (§11) costs nothing to enforce. It rides with ticket 1 rather
+   than waiting, because otherwise the `change_zone` sites churn twice.
+
+   **Only 9 of the 13 production movers are labellable, and that is the finding.**
+   Four (`cast.rs:99,116,146,214`) are CR 601.2 cast *rollbacks* — the game state
+   is rewound, no object legally moved, and no replacement effect may ever see
+   one. Under "a site with nothing honest to say is a site whose reason nobody
+   worked out", the honest answer is that they are not zone changes: **take them
+   back out of the chokepoint** as direct `move_object` calls tagged
+   `// CAST-ROLLBACK:`, with a Deferred Migrations line. Decide this in RA-1, not
+   by inventing a cause for it.
+
+   Note also that 9 of the 10 object-moving `Primitive`s (`Exile`, `Sacrifice`,
+   `ReturnToHand`, …) are still `NotImplemented` at `resolve.rs:533`, so seven of
+   the §3.1 variants have no call site to label today. Define them anyway — the
+   enum is documentation of the vocabulary and nothing matches on it in RA — but
+   do not go looking for sites that do not exist.
+
+   Test-side: `test_support` gains a ctx helper; `pass_turn` absorbs it.
+
+**RA-1 exit:** `cargo test` green, `cargo build --all-targets` zero warnings,
+three `fuzz_games` runs at one seed identical but for the timing lines. No new
+events, no new behavior — if the fuzz numbers move, the sweep changed something
+it should not have.
+
+#### RA-2 — routing the silent sites (tickets 3–5, 10–12)
+
+Six tickets, each independently testable, roughly one commit apiece.
+
 3. Route the draw-step draw through the chokepoint; add `CardDrawn` (CR 121.5 —
    106 cards say "whenever you draw", 54 say "your second card").
+   `state/game.rs:117`'s opening hands stay direct: pregame, nothing observes them.
 4. Tap/untap through the chokepoint with `Tapped`/`Untapped` (CR 603.2e); the
    four silent sites in `costs.rs`, `turns.rs`, `combat/steps.rs`. While there,
    make the two `perform_action` arms loud — today they silently no-op for an
    object not on the battlefield, against the loud-lowering doctrine.
+
+   **The untap sweep's ordering comment goes stale here, not in RA-3.**
+   `process_untap_step` iterates `battlefield.keys()` under a comment saying the
+   sweep "reaches no decision". True today; false the moment each untap is a
+   replaceable `Untap` (stun counters, CR 122.1d), because CR 616.1 prompts when
+   two effects want one untap and the proposal order is then observable. Move it
+   to `battlefield_ids_ordered` in the same commit that makes it an action.
 5. `AbilityActivated` + identity-bearing `AbilityResolved` (CR 603.7h).
+10. `StackEntry.cast_from: Zone` — the origin a spell was cast from (§8c). Two
+    customers: Don't Blink's "cast from exile", and CR 903.8's commander tax.
+    Fully independent of everything else in RA; take it first if RA-2 wants a
+    warm-up commit.
+11. Route lifelink's life gain through `execute_action(GainLife)`
+    (`engine/keywords.rs:58` — see §6; audit 2026-08-25).
+
+    **This is the first re-entrant `execute_action`**: `apply_lifelink` runs
+    *inside* `perform_action(DealDamage)`, so the proposal nests. Harmless in RA
+    (the pipeline is a pass-through) and correct in RB under §3.2d's
+    contained-event lineage — but it is the shape RD's CR 120.3 decomposition
+    generalizes, so record it rather than rediscovering it there.
+12. Route `Cost::PayLife` through `execute_action(LoseLife)`
+    (`engine/costs.rs:184` — CR 119.4; same audit).
+
+**RA-2 exit:** grep-provable — no production site outside `perform_action`'s own
+arms writes `entry.tapped`, writes `life_total`, or moves a card library→hand.
+
+#### RA-3 — payloads and structure (tickets 9, 6, 7, 8)
+
+In that order: 9 first because 6's batch id has nowhere to live without it, and
+7 after 6 because the bypass sites are where the LKI frame is captured.
+
+9. `execute_actions` batch form; `apply_combat_damage` and the SBA sweep use it.
 6. Payload upgrades: layer-computed LKI frame on battlefield-leaving zone
    changes (CR 603.10a), `cause`, batch id, resolution context.
 7. Close the three `// REPLACEMENT-BYPASS:` sites with the pop-aware dispatch.
 8. Demote `CreatureDied` / `PlaneswalkerDied` / `LegendRuleSacrificed` to
-   display sugar.
-9. `execute_actions` batch form; `apply_combat_damage` and the SBA sweep use it.
-10. `StackEntry.cast_from: Zone` — the origin a spell was cast from (§8c). Two
-    customers: Don't Blink's "cast from exile", and CR 903.8's commander tax.
-11. Route lifelink's life gain through `execute_action(GainLife)`
-    (`engine/keywords.rs:58` — see §6; audit 2026-08-25).
-12. Route `Cost::PayLife` through `execute_action(LoseLife)`
-    (`engine/costs.rs:184` — CR 119.4; same audit).
+   display sugar. There is no matcher in RA, so the deliverable is a test proving
+   the `ZoneChange` + LKI frame carries everything the three events carried, plus
+   doc comments marking them display-only. `fuzz_games`' `creatures_died` stat
+   and `ui/display.rs` keep reading them; nothing else may.
 
-**Exit criterion:** every state mutation observable by CR 614 or CR 603 is
-emitted from exactly one place, and an event log replay can distinguish drawn
-from tutored, destroyed from sacrificed, and countered from resolved. "Every"
-includes the life mutations: after RA the only `life_total` writers are
+**Exit criterion (all of RA):** every state mutation observable by CR 614 or
+CR 603 is emitted from exactly one place, and an event log replay can distinguish
+drawn from tutored, destroyed from sacrificed, and countered from resolved.
+"Every" includes the life mutations: after RA the only `life_total` writers are
 `perform_action`'s own arms.
 
 ### Phase RB — the pipeline, with counters and regeneration as consumers
@@ -1765,7 +1849,9 @@ researched from the pool. The derivation is finite and already readable today:
 | Turn structure & casting | **3** — cleanup discard, draw, cast (hand→stack) | `state/game.rs`, `engine/zones.rs`, `engine/cast.rs` |
 
 That is the whole input set, and the production tree currently has **13 zone-move
-call sites** to label. An afternoon of reading, no query required.
+call sites**, of which **9 are labellable** — the other four are cast rollbacks
+that leave the chokepoint instead (§9, RA-1). An afternoon of reading, no query
+required.
 
 Merging the 25 raw inputs down to the **18 variants** in §3.1 takes four
 judgments, all checkable:
