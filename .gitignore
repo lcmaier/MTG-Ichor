@@ -17,3 +17,6 @@ spec.sqlite
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Scryfall census caches (plans/references/replacement-census.py) — derived, re-fetchable
+plans/references/.census-*.json
