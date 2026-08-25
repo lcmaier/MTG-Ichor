@@ -413,7 +413,7 @@ fn test_untap_step_untaps_the_permanents_you_effectively_control() {
     game.active_player = 1;
     game.phase = Phase::new(PhaseType::Ending);
     while game.phase.step != Some(StepType::Untap) {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
     assert_eq!(game.active_player, 0);
 

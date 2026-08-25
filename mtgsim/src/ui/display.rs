@@ -408,6 +408,9 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         ZoneChange { object_id, owner, from, to } => {
             format!("ZoneChange: {} [P{}] {:?} -> {:?}", obj_name(game, *object_id), owner, from, to)
         }
+        CardDrawn { player_id, card_id } => {
+            format!("CardDrawn: P{} drew {}", player_id, obj_name(game, *card_id))
+        }
         ManaAdded { player_id, source_id, mana } => {
             let mana_str: Vec<String> = mana.iter()
                 .filter(|(_, v)| **v > 0)

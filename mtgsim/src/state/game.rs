@@ -104,7 +104,7 @@ impl Game {
     /// Mulligan handling is stubbed — players always keep their first hand.
     /// Full London mulligan support requires multiple `DecisionProvider`
     /// calls per player and will be implemented when needed.
-    pub fn setup(&mut self, _decisions: &dyn DecisionProvider) -> Result<(), String> {
+    pub fn setup(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
         // Shuffle each player's library
         for player_id in 0..self.state.num_players() {
             self.state.shuffle_library(player_id);
@@ -113,9 +113,15 @@ impl Game {
         // Draw opening hands
         let hand_size = self.config.starting_hand_size;
         let num_players = self.state.num_players();
+        // CR 103.4 calls this drawing, so it goes through the chokepoint like
+        // any other draw. Safe by construction rather than by exemption: the
+        // battlefield is empty and the registry has no rows, so no replacement
+        // can be gathered and no choice can arise. Leylines (CR 103.6) arrive
+        // after this point.
+        let actx = ActionContext::new(decisions);
         for player_id in 0..num_players {
             for _ in 0..hand_size {
-                self.state.draw_card(player_id)?;
+                self.state.draw_card(player_id, &actx)?;
             }
         }
 
@@ -199,7 +205,7 @@ impl Game {
             }
 
             // 4. Advance to next step/phase
-            self.state.advance_turn()?;
+            self.state.advance_turn(&ActionContext::new(decisions))?;
 
             if self.state.turn_number > starting_turn {
                 return Ok(());

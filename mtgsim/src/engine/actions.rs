@@ -316,7 +316,7 @@ impl GameState {
                 // Delegate to the existing draw_card method which handles
                 // empty-library flagging and zone transitions.
                 // draw_card already emits ZoneChange events via move_object.
-                self.draw_card(player)?;
+                self.draw_card(player, _ctx)?;
                 Ok(())
             }
 

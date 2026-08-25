@@ -1,3 +1,4 @@
+use crate::engine::actions::{ActionContext, GameAction};
 use crate::state::game_state::{GameState, Phase, PhaseType, StepType, next_step, next_phase};
 use crate::types::ids::ObjectId;
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
@@ -11,7 +12,10 @@ impl GameState {
     /// Advance the game state to the next step or phase.
     ///
     /// Returns the new (PhaseType, Option<StepType>) after advancing.
-    pub fn advance_turn(&mut self) -> Result<(PhaseType, Option<StepType>), String> {
+    pub fn advance_turn(
+        &mut self,
+        ctx: &ActionContext,
+    ) -> Result<(PhaseType, Option<StepType>), String> {
         // If we're in a phase with steps, try to advance to the next step
         if let Some(current_step) = self.phase.step {
             if let Some(next) = next_step(self.phase.phase_type, current_step) {
@@ -20,7 +24,7 @@ impl GameState {
 
                 // Move to the next step within this phase
                 self.phase.step = Some(next);
-                self.on_step_begin(next)?;
+                self.on_step_begin(next, ctx)?;
 
                 return Ok((self.phase.phase_type, self.phase.step));
             }
@@ -47,7 +51,7 @@ impl GameState {
 
         // If the new phase starts with a step, process that step's begin
         if let Some(step) = self.phase.step {
-            self.on_step_begin(step)?;
+            self.on_step_begin(step, ctx)?;
         }
 
         Ok((self.phase.phase_type, self.phase.step))
@@ -88,7 +92,7 @@ impl GameState {
 
     // --- Step lifecycle callbacks ---
 
-    fn on_step_begin(&mut self, step_type: StepType) -> Result<(), String> {
+    fn on_step_begin(&mut self, step_type: StepType, ctx: &ActionContext) -> Result<(), String> {
         match step_type {
             StepType::Untap => {
                 // Expire "until your next turn" effects for the active player
@@ -99,7 +103,7 @@ impl GameState {
                 self.process_untap_step()?;
             }
             StepType::Draw => {
-                self.process_draw_step()?;
+                self.process_draw_step(ctx)?;
             }
             StepType::Upkeep
             | StepType::BeginCombat
@@ -190,7 +194,7 @@ impl GameState {
     }
 
     /// Draw step: active player draws a card, then gets priority (rule 504)
-    fn process_draw_step(&mut self) -> Result<(), String> {
+    fn process_draw_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
         // Rule 103.8a: first player skips the draw step of their first turn.
@@ -200,7 +204,10 @@ impl GameState {
         if self.skip_first_draw {
             self.skip_first_draw = false;
         } else {
-            self.draw_card(active)?; // Ok(None) on empty library just flags SBA
+            // Through the chokepoint, not straight to `draw_card`: CR 614.11
+            // draw replacements and CR 614.10 skips both act on the *proposal*,
+            // and the turn-based action is where the proposal is born.
+            self.execute_action(GameAction::DrawCard { player: active }, ctx)?;
         }
 
         self.priority_player = active;
@@ -211,6 +218,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::test_ctx;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, PhaseType, StepType};
@@ -228,12 +236,12 @@ mod tests {
         assert_eq!(game.phase.step, Some(StepType::Untap));
 
         // Advance: Untap -> Upkeep
-        let (phase, step) = game.advance_turn().unwrap();
+        let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
         assert_eq!(phase, PhaseType::Beginning);
         assert_eq!(step, Some(StepType::Upkeep));
 
         // Advance: Upkeep -> Draw
-        let (phase, step) = game.advance_turn().unwrap();
+        let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
         assert_eq!(phase, PhaseType::Beginning);
         assert_eq!(step, Some(StepType::Draw));
 
@@ -241,7 +249,7 @@ mod tests {
         assert_eq!(game.players[0].hand.len(), 1);
 
         // Advance: Draw -> Precombat main (no step)
-        let (phase, step) = game.advance_turn().unwrap();
+        let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
         assert_eq!(phase, PhaseType::Precombat);
         assert_eq!(step, None);
     }
@@ -263,7 +271,7 @@ mod tests {
         // Total: 13 advances to complete one turn
 
         for _ in 0..13 {
-            game.advance_turn().unwrap();
+            game.advance_turn(&test_ctx()).unwrap();
         }
 
         assert_eq!(game.turn_number, 2);
@@ -288,14 +296,14 @@ mod tests {
         game.place_on_battlefield(forest_id, 0).tapped = true;
 
         // Advance past turn 1 (on_step_begin already fired for current untap)
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
         for _ in 0..12 {
-            game.advance_turn().unwrap();
+            game.advance_turn(&test_ctx()).unwrap();
         }
 
         // Advance through player 1's full turn
         for _ in 0..13 {
-            game.advance_turn().unwrap();
+            game.advance_turn(&test_ctx()).unwrap();
         }
 
         // Turn 3, player 0's untap step — forest should be untapped
@@ -314,7 +322,7 @@ mod tests {
 
         // Advance through Beginning phase (3 steps) to Precombat main
         for _ in 0..3 {
-            game.advance_turn().unwrap();
+            game.advance_turn(&test_ctx()).unwrap();
         }
 
         // Mana should have been emptied when we left the Beginning phase

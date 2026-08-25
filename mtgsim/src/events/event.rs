@@ -26,6 +26,19 @@ pub enum GameEvent {
         to: Zone,
     },
 
+    /// A player drew a card (CR 121.1).
+    ///
+    /// **Not redundant with the `ZoneChange` it accompanies.** CR 121.5: moving
+    /// cards from library to hand *without the word "draw"* means the player has
+    /// not drawn them, and that difference is trigger-visible — 106 cards say
+    /// "whenever you draw a card" and 54 count "your second card". A tutor and a
+    /// draw produce the same library→hand `ZoneChange`; only this event
+    /// separates them.
+    ///
+    /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
+    /// handles the attempt as a state-based action instead.
+    CardDrawn { player_id: PlayerId, card_id: ObjectId },
+
     // --- Mana ---
     ManaAdded {
         player_id: PlayerId,

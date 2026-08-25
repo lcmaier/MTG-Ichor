@@ -273,7 +273,7 @@ fn test_type_change_expires_at_cleanup() {
 
     // Advance to cleanup (9 steps from precombat main)
     for _ in 0..9 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     // Effect should be gone — back to just Creature
