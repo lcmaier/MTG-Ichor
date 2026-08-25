@@ -216,28 +216,48 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 `ZoneChangeCause` is the semantic carrier that makes CR 701.8b answerable:
 
 ```rust
+// Derived from call sites, not researched from the card pool — see §11.
+// **No catchall.** Every mover names its reason.
 pub enum ZoneChangeCause {
-    /// CR 701.8b, way 1 — an effect that uses the word "destroy".
-    Destroyed,
-    /// CR 701.8b, ways 2 and 3 — the SBAs that check lethal damage / deathtouch.
-    DestroyedBySba,
-    Sacrificed,          // CR 701.21 — NOT destruction
-    ZeroToughness,       // CR 704.5f — NOT destruction
-    LegendRule,          // CR 704.5j
-    AuraOrEquipmentSba,  // CR 704.5m/n/p
-    Discarded, Milled, Drawn,
-    Cast, Resolved, Countered, Fizzled,
-    Returned, Exiled, PutOntoBattlefield,
+    // --- effects (CR 701), one per object-moving `Primitive` ---
+    Destroyed,       // 701.8b way 1 — an effect using the word "destroy"
+    Sacrificed,      // 701.21 — NOT destruction
+    Exiled,          // 701.13
+    Discarded,       // 701.9 — includes the CR 514.1 cleanup discard
+    Milled,          // 701.17
+    Returned,        // "return to hand" / "return to the battlefield"
+    PutIntoLibrary,  // top / bottom / shuffled-in; *position* is a field, not a cause
+
+    // --- state-based actions (CR 704.5) ---
+    DestroyedBySba,  // 704.5g lethal damage + 704.5h deathtouch = 701.8b ways 2 and 3
+    ZeroToughness,   // 704.5f — NOT destruction
+    ZeroLoyalty,     // 704.5i
+    LegendRule,      // 704.5j
+    AuraSba,         // 704.5m — 704.5n only unattaches, it does not move
+
+    // --- the stack ---
+    Cast,            // hand (or elsewhere) → stack
+    Resolved,        // 608.2m — stack → battlefield or graveyard
+    Countered,       // 701.6
+    Fizzled,         // 608.2b — countered by game rules
+
+    // --- turn structure and special actions ---
+    Drawn,           // 121.5 makes this trigger-visibly distinct from "put into hand"
+    PlayedAsLand,    // 305.1 / 505.6b
 }
 ```
 
-Two rules for `cause`, both learned the hard way elsewhere in this tree:
+Three rules for `cause`, all learned the hard way elsewhere in this tree:
 
 - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
   `perform_action` cannot recover that from `(from, to)`.
 - **Nothing may branch on `cause` outside the replacement pipeline and the
   trigger matcher.** It is not a general-purpose tag; a third reader is a third
   place for it to drift.
+- **No catchall variant.** No `Other`, no `Unknown`, no `#[non_exhaustive]`.
+  This is the whole of what makes the enum cheap to extend later — see §11's
+  "the one that blocks". A site with no honest reason to give is a site whose
+  reason nobody worked out.
 
 Type-specific death events (`CreatureDied`, `PlaneswalkerDied`,
 `LegendRuleSacrificed`) become display sugar in Phase RA and stop being trigger
@@ -1215,7 +1235,7 @@ than a hope — and it is still gated on measuring first.
 | `GameAction` | **~16** | ~30 | low 40s |
 | `EventPattern` | = `GameAction`, by contract (§3.2a) | | |
 | `Rewrite` | **5** | 5 | 5 + `AmountRewrite`'s clamp |
-| `ZoneChangeCause` | ~17 | ~20 | ~20 |
+| `ZoneChangeCause` | **18, derived** (§11) | ~20 | ~20 |
 | `ReplacementClass` | 5 | 5 | 5 (CR 616.1a–e is closed) |
 | `Uses` | 4 | 4 | 4 |
 
@@ -1525,22 +1545,71 @@ review, 2026-08-24). Only one needs an answer before code starts:
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
 | 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
 | 7 | `ScriptedDecisionProvider` blast radius | **Answered.** The mitigation is §4.1's two-candidate rule; watch it, do not re-decide it |
-| — | **`ZoneChangeCause`'s exact variant list** | **Needed before RA's first commit.** See below |
+| — | **`ZoneChangeCause`** | **Not the list — the *catchall ban*.** Needed before RA's first commit; the list itself is derived, not researched. See below |
 
-**The one that blocks.** `ZoneChangeCause` is written by *every* caller of
-`change_zone` in Phase RA, so its variant list is fixed by the end of RA's first
-commit and is expensive to widen afterwards — every existing call site has to be
-revisited to decide which new variant it means, and the ones that guess wrong
-fail silently rather than loudly. Everything else on this list is consumed by
-code that has not been written yet, so a later answer costs a diff instead of an
-audit.
+**The one that blocks — and it is not what the first draft said.** Review pushed
+back that pinning `ZoneChangeCause` sounds like it needs a carefully crafted
+Scryfall query, and could produce a long tail of variants with one card each.
+That pushback exposed a framing error, and correcting it makes RA *less* blocked,
+not more.
 
-Settle it by enumerating CR 701's zone-moving actions (destroy, sacrifice,
-exile, discard, mill, put, return, shuffle-into) against the SBA sweep's reasons
-(704.5f zero toughness, 704.5g/h lethal damage, 704.5j legend rule, 704.5m/n/p
-attachment) and the stack's three exits (resolved, countered, fizzled) — all
-enumerable from the CR and the existing code in an hour. §8b's projection of ~17
-is that count; confirm it rather than trust it.
+**`ZoneChangeCause` is not a card question.** It records *what the engine was
+doing when it moved the object*, so it is derived from call sites, not
+researched from the pool. The derivation is finite and already readable today:
+
+| Source | Count | Where |
+|---|---|---|
+| `Primitive`s that move an object | **10** — Destroy, Exile, Sacrifice, ReturnToHand, ReturnToBattlefield, PutOnTopOfLibrary, PutOnBottomOfLibrary, ShuffleIntoLibrary, Mill, Discard | `types/effects.rs`, "Zone movement (rule 701)" |
+| SBA sweep reasons | **8** — CR 704.5d tokens, 704.5f zero toughness, 704.5g lethal damage, 704.5h deathtouch, 704.5i loyalty, 704.5j legend rule, 704.5m/n attachment | `engine/sba.rs`, 5 live sites today |
+| Stack exits | **4** — resolved→battlefield, resolved→graveyard, countered, fizzled | `engine/stack.rs`, the three `REPLACEMENT-BYPASS:` sites |
+| Turn structure & casting | **3** — cleanup discard, draw, cast (hand→stack) | `state/game.rs`, `engine/zones.rs`, `engine/cast.rs` |
+
+That is the whole input set, and the production tree currently has **13 zone-move
+call sites** to label. An afternoon of reading, no query required.
+
+Merging the 25 raw inputs down to the **18 variants** in §3.1 takes four
+judgments, all checkable:
+
+- **704.5g + 704.5h → one variant.** CR 701.8b calls both "destroyed"; no card
+  distinguishes lethal damage from deathtouch as a *cause*.
+- **704.5n is not a mover.** It unattaches an Equipment and leaves it on the
+  battlefield, so it produces no zone change at all.
+- **704.5d is not a zone change.** A token ceasing to exist is removal from the
+  game, and `TokenCeasedToExist` already exists as its own event.
+- **Library position is a field, not a cause.** Top, bottom and shuffled-in
+  share `PutIntoLibrary`; *where* in the library is a parameter of the action.
+
+Everything else survives one-to-one, which is what "derived" is supposed to
+mean.
+
+**Cards decide only the granularity, and they ask for less than the call sites
+offer.** The demand side is short and flat (Scryfall, 2026-08-24): dies 1,287
+triggers, sacrifices 278, discards 266, exiled 74, milled 50, destroyed 5. And
+the feared long tail is measurably absent — **"destroyed by" appears on 1 card in
+all of Magic, "was sacrificed" on 3, and "if it was destroyed" on 0.** No printed
+card asks for a cause *finer* than the engine can name from its own call site, so
+there is no research problem to solve.
+
+**What actually blocks is the catchall, not the list.** Widening the enum later
+is only expensive in one scenario: an existing site was labeled with a coarse
+variant that should have been finer, and re-triaging it is guesswork that fails
+silently. That scenario requires an `Other` / `Unknown` variant to lump into. Ban
+it, and the failure mode disappears:
+
+- **No catchall variant, ever.** Every call site names its reason. A site with
+  nothing honest to say is a site whose reason nobody has worked out, which is
+  the bug.
+- **A genuinely new mutation arrives with its own new call site**, so it adds a
+  variant and touches nothing existing — a normal diff, not an audit.
+- The enum is `#[non_exhaustive]`-free and matched exhaustively wherever it is
+  read (§3.1 limits that to the replacement pipeline and the trigger matcher), so
+  a new variant fails to compile at every reader rather than defaulting.
+
+So the pre-RA task is one line of policy plus an hour of labelling, and the
+"get the list right first" framing was overcautious. §8b's projection of ~17 is
+close to the derivation's 25 raw inputs before merging the ones that collapse
+(the four stack exits share `from: Stack`; several SBA reasons differ only by
+rule number) — confirm the merge at labelling time.
 
 
 1. **CR 903.9 is half an SBA, and `codebase-state.md` said otherwise.**
