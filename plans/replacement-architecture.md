@@ -42,7 +42,17 @@ cards matching `o:/would.*instead/` were pulled and every clause classified
 want a new `GameAction`; 11 are CR 701 keyword actions; **zero want a sixth
 `Rewrite` arm.** That is the evidence that the pressure lands on the axis this
 design chose to absorb it on. Re-run the pass if a future phase changes the
-algebra — the script is cheap and the answer is a number.
+algebra — `plans/references/replacement-census.py` re-runs both passes and the
+answer is a number.
+
+**Three-and-a-half. The types have a measured ceiling.** §8b sizes them from
+both ends — CR 701's 67 enumerated keyword actions from the top, and what cards
+actually watch from the bottom. `GameAction` projects to ~16 at end of RE and
+~30 for a Commander-viable pool, against a derived ceiling in the low 40s;
+`Rewrite` stays at 5. For calibration, `Primitive` is already 36 variants and
+`GameEvent` 28, and neither causes trouble. The single largest structural saving
+is that `ZoneChange { cause }` absorbs eight keyword actions and ~1,500
+trigger-watching cards into one arm.
 
 **Four. Performance has one designated lever and a measurement gate.** The
 pipeline sits on `execute_action`, so it is hot by construction. §8 commits to
@@ -391,9 +401,13 @@ and in `src/cards/`.
 The completeness claim above is the kind that deserves testing rather than
 asserting, so it was tested. Every card whose oracle text matches
 `o:/would.*instead/ -is:funny` was pulled from Scryfall (2026-08-24) and each
-matching clause classified — **561 cards, 574 clauses.** Method and script are
-reproducible; the buckets are by *event kind watched*, because that is the axis
-that decides whether the design sprawls.
+matching clause classified — **561 cards, 574 clauses.** The buckets are by
+*event kind watched*, because that is the axis that decides whether the design
+sprawls. Reproduce with:
+
+```bash
+python plans/references/replacement-census.py clauses
+```
 
 | | clauses | share |
 |---|---|---|
@@ -1038,6 +1052,133 @@ remaining event kinds we know of."** It gains `PlayerLoses` / `PlayerWins` and
 the discard pattern arm from this audit; the seven above are budgeted against
 the phases that need them, and the CR 701 sweep belongs with Phase 8 card
 breadth rather than here.
+
+---
+
+## 8b. Sizing — how big do these types actually get?
+
+§8a establishes that the growth axis is `GameAction`. That is only reassuring if
+`GameAction` has a knowable size, so this section measures it. Asked in review:
+*a bird's-eye view of roughly how big these structs get would ground the
+performance and sprawl claims.* Agreed — here it is.
+
+### Method, and what it is worth
+
+Two independent bounds, top-down and bottom-up.
+
+**Top-down:** CR 701 enumerates the keyword actions. `tmnt.txt` has **67** of
+them (701.2 Activate through 701.68 Blight). That is the whole universe of named
+game actions; it grows by a few per set and never by more.
+
+**Bottom-up:** a keyword action needs its own `GameAction` variant only if some
+card watches it **as a unit** — a replacement ("if you would X … instead") or a
+trigger ("whenever … X"). Otherwise it decomposes and needs nothing. Both hooks
+are counted because §2's spine gives them one vocabulary. 46 keyword actions plus
+10 core mutations were queried against Scryfall (2026-08-24). Reproduce with:
+
+```bash
+python plans/references/replacement-census.py sizing
+```
+
+**Precision caveat, stated up front:** these are per-phrasing text searches, so
+they are order-of-magnitude signals, not exact counts. Two known distortions:
+Regenerate reports 0 because nothing says "would be regenerated" — it replaces
+*destruction*, which is the point, not an omission; and `EnterBattlefield`'s
+7,211 triggers is essentially "every ETB creature ever printed", which is true
+but not informative. Read the column ordering, not the digits.
+
+### What is watched, and by which hook
+
+| Event kind | replacements | triggers | Needs its own `GameAction`? |
+|---|---|---|---|
+| Enters the battlefield | 15 | 7211 | **yes** — RC |
+| Step/phase/turn begins | 9 | 2656 | **yes** — RE |
+| Cast a spell | 0 | 2263 | **no** — event only, see below |
+| Zone change | 110 | 1436 | **yes** — RA |
+| Discard | 7 | 1045 | no — `ZoneChange { cause: Discarded }` |
+| Deal damage | 145 | 817 | **yes** — exists |
+| Draw | 47 | 391 | **yes** — RA/RE |
+| Gain life | 21 | 351 | **yes** — exists |
+| Sacrifice | 0 | 278 | no — `ZoneChange { cause: Sacrificed }` |
+| Create tokens | 32 | 249 | **yes** — RE |
+| Counter a spell | 1 | 172 | **yes** — RE |
+| Tap / untap | 2 | 150 | **yes** — RA |
+| Fight | 0 | 121 | no — two `DealDamage` |
+| Lose life | 10 | 107 | **yes** — exists |
+| Counters placed | 21 | 72 | **yes** — RB |
+| Exile | 0 | 74 | no — `ZoneChange { to: Exile }` |
+| Connive / Explore / Mill / Scry | 6 | 176 | mixed — see below |
+| Lose the game | 4 | 26 | **yes** — §8a |
+| Roll dice / flip coin | 8 | 27 | **yes** — CR 705/706, Phase 8 |
+| Search, shuffle, reveal, vote, goad, transform, proliferate, exert, attach, activate, surveil, monstrosity, investigate, discover, manifest, amass, learn, forage, incubate, adapt, clash, play | 5 | ~200 total | mostly Phase 8, mostly decomposing |
+| Exchange, Regenerate, Populate, Venture, Support, Bolster, Meld, Detain, Fateseal | 0 | 0 | **never** — watched by nothing |
+
+**Nine of the 46 sampled keyword actions are watched by nothing at all.** They
+can never need a variant, because a variant exists only to be matched against.
+
+### Three findings that do the sizing work
+
+**1. `ZoneChange { cause }` is where the collapse happens.** Discard (1,045
+triggers), sacrifice (278), exile (74), mill (50), destroy-as-a-result, shuffle-
+into, return, and put-onto-battlefield are all one variant plus a field on
+`ZoneChangeCause`. That is **eight keyword actions and ~1,500 trigger-watching
+cards absorbed by one arm.** It is the single most important structural decision
+in §3.1 and the reason the enum does not track the card pool.
+
+**2. The trigger vocabulary is strictly larger than the replaceable one, and
+this phase only pays for the smaller.** Cast is the clearest case: 2,263 cards
+trigger on it, **zero** replace it, so casting is a `GameEvent` with no
+`GameAction`. Same for attack/block declarations and ability activation. So
+`EventPattern` — one arm per `GameAction`, per §3.2a — stays smaller than the CR
+603 matcher will eventually need, and CR 603's extra breadth lands in `GameEvent`
+(already 28 variants) rather than here.
+
+**3. Most events are of a kind nothing watches, which is what makes a gate
+work.** Seven event kinds carry ~390 of the 574 replacement clauses. On a real
+board the overwhelming majority of proposed actions are of kinds with zero
+registered watchers, so §8's answer-preserving event-kind bitmask should skip the
+gather sweep outright for most calls. That is now a measured expectation rather
+than a hope — and it is still gated on measuring first.
+
+### The projection
+
+| Type | At end of RE | Commander-viable pool | Ceiling |
+|---|---|---|---|
+| `GameAction` | **~16** | ~30 | low 40s |
+| `EventPattern` | = `GameAction`, by contract (§3.2a) | | |
+| `Rewrite` | **5** | 5 | 5 + `AmountRewrite`'s clamp |
+| `ZoneChangeCause` | ~17 | ~20 | ~20 |
+| `ReplacementClass` | 5 | 5 | 5 (CR 616.1a–e is closed) |
+| `Uses` | 4 | 4 | 4 |
+
+The ceiling is derived, not guessed: 67 CR 701 actions, minus the ~30 that
+provably decompose into other mutations, minus the 9 nothing watches, plus the
+~10 non-701 core mutations (damage, life, draw, counters, zone change, tap,
+untap, step begin, mana, game loss).
+
+**For calibration, against types this codebase already runs on:**
+
+| Existing enum | Variants |
+|---|---|
+| `Primitive` | 36 |
+| `GameEvent` | 28 |
+| `EffectModification` | 21 |
+| `CounterType` | 16 |
+| `ChoiceKind` | 13 |
+| `Layer` | 10 |
+
+`GameAction` at 16→30 lands squarely inside the size class of types that already
+exist here and have not caused trouble — and unlike `Primitive`, its growth is
+bounded by an enumerated CR chapter rather than by what cards decide to do next.
+
+### The per-card cost, stated concretely
+
+Adding a replacement-effect card costs, in the common case, **one `ReplacementDef`
+value in `src/cards/*.rs` and nothing else** — that is §0 commitment one, and the
+§3.2c pass says 549 of 574 clauses land there. When a card needs an event kind
+the engine does not propose, it costs **three edits in three known files**: a
+`GameAction` variant, a `perform_action` arm, an `EventPattern` arm. It never
+costs a `Rewrite` arm — 0 of 574 did.
 
 ---
 
