@@ -1,6 +1,9 @@
 # Replacement & Prevention Effects — CR 614–616
 
-> **Status:** design, authored 2026-08-24. No code written yet.
+> **Status:** design, authored 2026-08-24; revised 2026-08-25 after a
+> grounded-in-code audit — §4.1a (`then` timing, researched), §4.2 (applied-set
+> scope corrected), RA items 11–12 (life-mutation routing), RD's CR 120.3
+> decomposition, and the RA split note. No code written yet.
 > **Authority:** type shapes, the pipeline algorithm, the event vocabulary, and
 > the phase sequencing for CR 614/615/616. Where this contradicts
 > `codebase-state.md`, that file wins on *what exists*; this file wins on *what
@@ -298,6 +301,10 @@ pub struct ReplacementDef {
     /// immediately afterward", CR 701.19a's tap-and-remove-from-combat,
     /// CR 122.1c's counter removal. **This is the existing `Effect` tree** --
     /// no new vocabulary, and it is where per-mechanic variety goes.
+    ///
+    /// **Timing contract (§4.1a):** queued when this replacement is applied,
+    /// resolved immediately AFTER the final modified event is performed --
+    /// never mid-loop. Unconditional once queued (CR 615.12), fresh lineage.
     pub then: Option<Effect>,
     /// CR 616.1a-d -- which forced-choice bucket this falls in.
     pub class: ReplacementClass,
@@ -589,9 +596,10 @@ belong in the suite: `test_two_teferis_draw_four_not_infinity` and
 `test_two_doubling_seasons_quadruple`, and the first one hangs rather than fails
 if the lineage rule is wrong, so give it a bounded iteration guard.
 
-`Rewrite::apply` still needs `&mut GameState` and a `DecisionProvider`, because
-`then` resolves against live state — but that is the existing `resolve_effect`
-path, not new machinery.
+`then` resolves through the existing `resolve_effect` path, not new machinery —
+but **after** the pipeline returns, never inside `Rewrite::apply` (§4.1a).
+`Rewrite::apply` itself still needs game state and a `DecisionProvider` for
+`GameActionTemplate` evaluation and optional-effect prompts.
 
 ### 3.3 Where replacement effects come from
 
@@ -655,7 +663,10 @@ whole of §3.2d's lineage rule, and the reason two Teferi's Ageless Insights dra
 four cards instead of hanging.
 
 ```
-fn apply_replacements(game, action, ctx, inherited) -> Option<GameAction>
+fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction>
+    # `riders` collects every applied effect's `then` half, in application
+    # order. The caller resolves them AFTER performing the returned event
+    # (and even when the return is None) -- §4.1a.
     applied: HashSet<ReplacementInstanceId> = inherited   # 3.2d lineage
     ev = action
 
@@ -677,8 +688,10 @@ fn apply_replacements(game, action, ctx, inherited) -> Option<GameAction>
         if !chosen.exempt_from_614_5: applied.insert(chosen.instance)
         chosen.consume_use(game)                         # Uses::Once / Shield / CounterBacked
 
-        match chosen.apply(game, ev, ctx)?:              # Rewrite + `then`
+        if chosen.then is Some(t): riders.push(t)        # queued, NOT resolved (§4.1a)
+        match chosen.rewrite.apply(game, ev, ctx)?:      # Rewrite only
             None     => return None                      # CR 614.6 -- never happens
+                                                         # (queued riders still run)
             Some(e)  => ev = e                           # CR 616.1f -- re-gather
 ```
 
@@ -714,12 +727,89 @@ opportunity" — being offered and refusing *is* the opportunity — and without
 the `continue` re-gathers the same candidate forever, which is a hang rather
 than a wrong answer. Not consuming a use is what leaves Retriever Phoenix's
 ability and a regeneration shield intact for the *next* event. Static-ability
-optionals (Library of Leng) have no use to consume either way.
+optionals (Library of Leng) have no use to consume either way. One caveat
+recorded at audit (2026-08-25): mark-on-decline is a *reading* of CR 614.5, not
+a cited ruling — the corner is a declined optional whose event a later
+replacement then modifies into something the player now wants to replace after
+all. Check printed rulings when the first optional card lands; if one
+contradicts this, it changes the loop, not the types.
 
 **`ask_choose_replacement` is called only when `bucket.len() >= 2`.** That is
 CR-correct (there is no choice to make with one candidate), it is what keeps the
 existing `ScriptedDecisionProvider` tests green rather than drowning them in
 unexpected prompts, and it is what loop-detection Tier 1 counts as "forced".
+
+### 4.1a When `then` runs — and the other "then", which never enters the pipeline
+
+Researched 2026-08-25, because the first draft resolved `then` inside
+`chosen.apply`, mid-loop — under-specified on sequencing and on survival. Two
+different "then"s have to be separated first, because they answer to different
+rules.
+
+**One: the rider on a replacement effect** — Kalitas's "and create a 2/2
+Zombie", Notion Thief's "and you draw a card", regeneration's
+tap-and-remove-from-combat. This is `ReplacementDef.then`, and CR 615.5 states
+its timing outright: the prevention takes place at the time the original event
+would have happened, and the rest of the effect takes place *immediately
+afterward*. Three consequences, each load-bearing:
+
+- **Queue at application, resolve after the performed event.** During the
+  CR 616.1f loop nothing has happened yet — the loop is deciding what the event
+  *is*. A rider resolved mid-loop runs before the event it rides on, which is
+  observably wrong the moment triggers land: Kalitas's Zombie would enter the
+  battlefield before the creature it replaced has left it, and the LKI frame
+  order inverts. So `execute_action` performs the surviving event, emits its
+  `GameEvent`, then resolves the queued riders in application order.
+- **Unconditional once queued.** CR 615.12: prevention effects applied to
+  unpreventable damage prevent nothing, "but any additional effects they have
+  will take place." A rider belongs to the *application* of its replacement,
+  not to the survival of the event — a later replacement in the same loop
+  further modifying or even dropping the event does not un-queue an earlier
+  rider.
+- **Fresh lineage.** A rider's actions are new events the replacement caused,
+  not modified forms of the original, so they re-enter the pipeline with a
+  fresh applied-set (§3.2d containment). Not theoretical: Kalitas plus Doubling
+  Season makes two Zombies — the rider's `CreateTokens` is itself replaceable.
+
+**Two: "A, then B" in card text** — Goggles of Night: "Whenever equipped
+creature deals combat damage to a player, scry 1, then draw a card." This
+"then" is CR 608.2c instruction sequencing inside a resolution and **never
+reaches the pipeline as a unit**: each instruction proposes its own events, one
+at a time, and a replacement rewriting instruction A's event touches nothing
+about instruction B.
+
+Worked through, because it pins two behaviors at once — Goggles of Night
+triggers while you control Eligeth, Crossroads Augur ("If you would scry a
+number of cards, draw that many cards instead"; mandatory, no "may"; the `Scry`
+event kind is on §8a's known-missing list):
+
+1. Instruction 1 proposes `Scry { n: 1 }`. Eligeth rewrites it —
+   `Instead(DrawCards { n: 1 })`, an `Instead` that **changes the event's
+   kind**, which the arm permits. The draw happens *at that point in the
+   resolution* (CR 614.6 — the modified event occurs in the original's place).
+2. Instruction 2 proposes `DrawCards { n: 1 }` as its own event, and resolves
+   normally.
+
+Net: **draw two cards, zero scrys.** "Whenever you scry" triggers never fire
+(CR 614.6 — a replaced event never happens); draw-watchers see two separate
+one-card instructions, neither of which is "draw two or more" (§3.2d's Alms
+Collector granularity). The substituted draw keeps the original event's
+applied-set — that is the loop's own mechanics (`ev = e` under one `applied`
+set, kind change or not), so Eligeth cannot re-apply, while a draw-watching
+replacement such as Teferi's Ageless Insight applies fresh and doubles it —
+CR 616.2's Alms-Collector-then-Thought-Reflection shape with the event kind
+having changed in between.
+
+If B references A's outcome ("…then put one of the cards you looked at into
+your hand"), CR 614.6's second sentence answers it: a modified event may
+contain instructions that can't be carried out, and an impossible instruction
+is simply ignored. B does as much as it can against what actually happened.
+
+**What this costs the engine: nothing new.** `Effect::Sequence` already
+resolves atoms in order and each atom already proposes independently. What it
+*pins* is that `Instead` may change the event kind with the applied-set carried
+across, and that `apply_replacements` returns riders instead of resolving them.
+Tests in §10.
 
 ### 4.2 Batches and simultaneity
 
@@ -743,10 +833,29 @@ pub fn execute_actions(&mut self, batch: Vec<GameAction>, ctx: &ActionContext)
     -> Result<Vec<GameAction>, String>;
 ```
 
-The batch shares one `applied` set and one batch id (which lands on every
-emitted `GameEvent`, satisfying the CR 603.2c/603.6a "one or more" trigger
-requirement that Phase 7 will need). `execute_action` becomes
-`execute_actions(vec![action])`.
+The batch shares one batch id (which lands on every emitted `GameEvent`,
+satisfying the CR 603.2c/603.6a "one or more" trigger requirement that Phase 7
+will need). `execute_action` becomes `execute_actions(vec![action])`.
+
+**Each batch member keeps its own `applied` set.** A first draft had the batch
+share one, and that is wrong: CR 614.5 is per *event*, and batch members are
+separate events. Kalitas's own ruling pins it — when Kalitas dies at the same
+time as several opponent creatures, every one of those cards is exiled and each
+makes a Zombie: one static replacement, applied once *per death*. Under a
+shared set the first death would consume Kalitas's application and the rest
+would go to the graveyard. (Wrath of God under Leyline of the Void is the same
+shape: all five zone changes get replaced, not one.)
+
+What a shared set was reaching for is **CR 704.7**, and that rule is a
+*same-result collapse*, not a cross-member share: multiple state-based actions
+with the same result at the same time (a player who would lose the game for
+both life and poison) merge into **one** event before the pipeline runs, and
+that one event has one applied-set. Implement 704.7 as a dedupe step on the
+batch, upstream of `apply_replacements`.
+
+`Uses` needs no batch special-casing either way: `consume_use` writes game
+state, so a regeneration shield spent on batch member one is correctly gone
+when member two asks (CR 701.19a — one shield, one destruction replaced).
 
 Callers that must batch: `apply_combat_damage` (CR 510.2), the SBA sweep
 (704.3), and any "each player …" effect (CR 101.4).
@@ -966,6 +1075,9 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
 | `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-B |
 | `engine/turns.rs::advance_turn` | gains `dp`; consults pending skips (CR 614.10) | RA / RE |
+| `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA |
+| `engine/costs.rs:184` `Cost::PayLife` | routes through `execute_action(LoseLife)` — CR 119.4 makes paying life a life loss (Bloodletter doubles it). Same audit finding, same emit-without-propose shape | RA |
+| `engine/actions.rs` `DealDamage` performer | CR 120.3 results decomposition — player damage contains a `LoseLife`, planeswalker damage removes loyalty counters (CR 120.3c, unimplemented; tracked in `codebase-state.md`) | RD |
 
 ### The `ActionContext` plumbing
 
@@ -1450,7 +1562,11 @@ cards depend on the shape.
 ## 9. Work-phase plan
 
 One branch/PR per phase, matching the Layer phases' size (5–8 commits). Phases
-RC and RE split into Parts A/B if they run long, as LD did.
+RC and RE split into Parts A/B if they run long, as LD did. **RA should be
+presumed to split rather than discovered mid-branch** (audit 2026-08-25): its
+twelve tickets are two to three layer-phases of work. The natural seam is
+RA-1 — `ActionContext` plumbing plus the routing tickets (1–5, 10–12) — and
+RA-2 — the payload upgrades, bypass closure, demotion and batch form (6–9).
 
 ### Phase RA — the event spine (no replacement behavior)
 
@@ -1463,7 +1579,9 @@ The Deferred Migrations item 3 ticket list, verbatim, plus the DP plumbing.
 3. Route the draw-step draw through the chokepoint; add `CardDrawn` (CR 121.5 —
    106 cards say "whenever you draw", 54 say "your second card").
 4. Tap/untap through the chokepoint with `Tapped`/`Untapped` (CR 603.2e); the
-   four silent sites in `costs.rs`, `turns.rs`, `combat/steps.rs`.
+   four silent sites in `costs.rs`, `turns.rs`, `combat/steps.rs`. While there,
+   make the two `perform_action` arms loud — today they silently no-op for an
+   object not on the battlefield, against the loud-lowering doctrine.
 5. `AbilityActivated` + identity-bearing `AbilityResolved` (CR 603.7h).
 6. Payload upgrades: layer-computed LKI frame on battlefield-leaving zone
    changes (CR 603.10a), `cause`, batch id, resolution context.
@@ -1473,10 +1591,16 @@ The Deferred Migrations item 3 ticket list, verbatim, plus the DP plumbing.
 9. `execute_actions` batch form; `apply_combat_damage` and the SBA sweep use it.
 10. `StackEntry.cast_from: Zone` — the origin a spell was cast from (§8c). Two
     customers: Don't Blink's "cast from exile", and CR 903.8's commander tax.
+11. Route lifelink's life gain through `execute_action(GainLife)`
+    (`engine/keywords.rs:58` — see §6; audit 2026-08-25).
+12. Route `Cost::PayLife` through `execute_action(LoseLife)`
+    (`engine/costs.rs:184` — CR 119.4; same audit).
 
 **Exit criterion:** every state mutation observable by CR 614 or CR 603 is
 emitted from exactly one place, and an event log replay can distinguish drawn
-from tutored, destroyed from sacrificed, and countered from resolved.
+from tutored, destroyed from sacrificed, and countered from resolved. "Every"
+includes the life mutations: after RA the only `life_total` writers are
+`perform_action`'s own arms.
 
 ### Phase RB — the pipeline, with counters and regeneration as consumers
 
@@ -1524,6 +1648,16 @@ unpreventable + 615.12a single application), damage redirection (614.9),
 doubling (701.10g), the simultaneous-damage shield allocation choice (615.7,
 needs RA's batch), and CR 609.7a's source-choice validation.
 
+Plus the **CR 120.3 results-of-damage decomposition**: performing `DealDamage`
+against a player proposes a contained `LoseLife` (fresh lineage, §3.2d —
+without it the §3.2c Bloodletter example never sees combat damage, its
+headline use), and against a planeswalker removes that many loyalty counters
+(CR 120.3c — unimplemented today; `perform_action` marks damage on any
+battlefield object and nothing reads it off a planeswalker, so one can never
+die to damage. Unreachable until a planeswalker is registered, but Lightning
+Bolt's "any target" already validates them as targets). Lifelink's contained
+`GainLife` is the same shape and is why RA routes it (RA item 11).
+
 ### Phase RE — the remaining event kinds we know of (see §8a)
 
 Draw replacement (614.11, 614.11a/b, 121.2a's outer event, 121.6a empty
@@ -1540,6 +1674,15 @@ Per `CLAUDE.md`, the Commander/multiplayer track interleaves after item 5 rather
 than sequencing against it. `GameConfig::commander()`, commander designation,
 commander tax (CR 903.8, needs cost modification), and CR 800 priority rotation
 are not gated on this doc beyond RB items 7–8.
+
+**Cost modification needs a phase marker of its own** (audit 2026-08-25):
+"interleaved" has left it with no home, and it is not small — the
+`apply_cost_modifications` stub, the `SourcePower`-class `AmountExpr` gap, and
+CR 613.11/601.2f sequencing all live there (`codebase-state.md`, Before
+Replacement effects → item 3 of the Layers section). Commander tax runs through
+it, so it blocks the Commander skeleton being *playable*, not just complete.
+Suggested slot: its own small phase between RB and RD, once the pipeline shape
+is stable — it does not depend on RC/RD/RE and nothing in them depends on it.
 
 ---
 
@@ -1559,7 +1702,8 @@ Same discipline as the layer phases:
   *modified* outcome and on the pipeline having been entered, not just on the
   final board.
 - **Determinism.** After RA and after RB, run `fuzz_games` three times at one
-  seed from the shell; every line must match except the two wall-clock lines.
+  seed from the shell; every line must match except the three timing lines
+  (`Total time`, `Time/game`, `CPU/game`).
 - **N-player.** `test_support::setup_game(4)` exists. Any test touching CR 616.1
   ordering gets a 4-player form, because APNAP with one nonactive player is the
   same answer as no APNAP at all.
@@ -1573,6 +1717,9 @@ quietly wrong. Write them as the phase's first tests, not its last:
 | `test_two_doubling_seasons_quadruple` | `Amount` composing inside one CR 616.1f loop (2ⁿ by the other route) | wrong number |
 | `test_god_entering_does_not_count_itself_for_devotion` | §5a's filters-vs-counts boundary | silently wrong on 15 gods |
 | `test_declined_optional_is_not_reoffered` | §4.1's decline path marking applied without consuming a use | hangs |
+| `test_kalitas_simultaneous_deaths_each_exile_and_make_a_zombie` | §4.2 per-event applied sets — Kalitas's printed ruling | one Zombie instead of N; N−1 cards reach the graveyard |
+| `test_then_rider_resolves_after_the_performed_event` | §4.1a rider timing (CR 615.5) | passes vacuously until events/LKI order is asserted — assert on the event log, not the end state |
+| `test_goggles_with_eligeth_draws_two_and_never_scrys` | §4.1a's instruction split + kind-changing `Instead` (needs the `Scry` event kind — RE at the earliest, §8a) | wrong draw count, or a scry event exists in the log |
 
 The first and fourth hang rather than fail, which is the argument for writing
 them before the code they check.
@@ -1596,6 +1743,8 @@ review, 2026-08-24). Only one needs an answer before code starts:
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
 | 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
 | 7 | `ScriptedDecisionProvider` blast radius | **Answered.** The mitigation is §4.1's two-candidate rule; watch it, do not re-decide it |
+| 8 | `then` timing | **Answered 2026-08-25 (audit).** Riders queue at application and resolve after the performed event (CR 615.5, 615.12); card-text "A, then B" never enters the pipeline as a unit (CR 608.2c). §4.1a |
+| 9 | Batch `applied`-set scope | **Answered 2026-08-25 (audit).** Per event, never per batch — a first draft shared one set and Kalitas's own ruling refutes it; CR 704.7 is a same-result dedupe, not a share. §4.2 |
 | — | **`ZoneChangeCause`** | **Not the list — the *catchall ban*.** Needed before RA's first commit; the list itself is derived, not researched. See below |
 
 **The one that blocks — and it is not what the first draft said.** Review pushed
