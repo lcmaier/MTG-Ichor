@@ -432,46 +432,6 @@ here. None is blocking RB.
     the type level. Unreachable until Layer 1 (copy) and Station land; recorded so
     neither phase quietly removes it.
 
-### Fuzz-pool coverage — audited 2026-08-26
-
-**The pool is thin exactly where the engine is thin, and card selection cannot
-outrun that.** Audited before Phase RB, because RA-3 wrote SBA-batch code whose
-branches the harness never reaches. 55 registered cards; every one targets
-`TargetCount::Exactly(1)`.
-
-State-based actions and paths with **zero** `fuzz_games` coverage, each with its
-actual blocker — none of them is a card-selection problem:
-
-| Never exercised | Blocked by |
-|---|---|
-| 704.5m/n Aura SBAs; 608.3c Aura ETB attach | `engine/cast.rs` never reads `enchant_filter` (0 references). A cast Aura reaches `resolve_popped` with no targets and the Aura branch errors. **Registering an Aura today would produce fuzz errors**, not coverage. Sibling of item 8 |
-| 704.5d token cease-to-exist | `Primitive::CreateToken` is a stub |
-| 704.5q counter annihilation | `Primitive::AddCounters` / `RemoveCounters` are stubs |
-| 704.5p Equipment detach | needs Equip (CR 702.6) |
-| 704.5i planeswalker zero loyalty | loyalty abilities need the special-action path, and CR 120.3c (damage → loyalty) is unimplemented, so a planeswalker can never die |
-| Mass removal; multi-member `Destroy` batches | `EffectRecipient::FilteredPermanents` is read only by `register_static_effects` — it is a *static-ability* recipient. At resolution `ctx.targets` is empty, so `Primitive::Destroy` over a filter destroys nothing. Wrath of God cannot be written. The CR 608.2f batch added 2026-08-26 is correct and reachable only from a multi-target spell, of which the pool has none |
-
-**One gap was card-fixable and was closed: indestructible.** `KeywordFlag::Indestructible`
-is read in two places — SBA 704.5g and `Primitive::Destroy` — and no card in any
-card file carried it, so neither branch was ever taken. **Darksteel Myr** ({3}
-Artifact Creature — Myr, 0/1, Indestructible) is registered as of 2026-08-26 and
-the SBA branch now fires ~15,000 times per 50-game run. Chosen over other
-indestructible creatures for three reasons: RB item 4 *moves* that check to the
-CR 614.17 "can't" path and coverage before a move is worth more than after;
-Humility strips the keyword, so the pool now carries a Layer 6 effect that
-changes an SBA outcome on every run; and it is the registry's second artifact,
-which gives March of the Machines a second subject.
-
-**Baseline moved once, deliberately, before RB** (`--games 50 --seed 12345`):
-P0 28 (56.0%) / P1 22 (44.0%), spells 20.8, lands 17.9, combat 11.4, creatures
-died 5.6, damage events 24.4, total damage 53.6, life changes 18.0. Creature
-deaths fell (6.2 → 5.6) and combats rose (9.7 → 11.4), which is what an
-unkillable 0/1 blocker does.
-
-**The rule this establishes:** when a mechanic has no fuzz coverage, name the
-blocker before reaching for a card. If the blocker is a stubbed primitive or a
-missing subsystem, adding a card buys errors rather than coverage.
-
 ### Phasing (CR 702.26) — sized 2026-08-26, not started
 
 Recorded because it reads as a large unknown and is not one. **CR 110.5 settles

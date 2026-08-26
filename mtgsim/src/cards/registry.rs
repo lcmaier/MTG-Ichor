@@ -136,7 +136,6 @@ impl CardRegistry {
         // so every deck gets it; the Thaumaturgist rides in blue decks, which is
         // where March lives too.
         registry.register("Sol Ring", artifacts::sol_ring);
-        registry.register("Darksteel Myr", artifacts::darksteel_myr);
         registry.register("Merfolk Thaumaturgist", utility_creatures::merfolk_thaumaturgist);
 
         // The ten original duals. Nonbasic lands with basic land types, which is
