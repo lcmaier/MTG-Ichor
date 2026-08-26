@@ -314,15 +314,36 @@ here. None is blocking RB.
    passes the effective controller where it should pass `entry.controller`. One
    line plus the test, and it wants doing before CR 800 rather than after.
 
-   **Uphill Battle is how this was found, and it is not why it matters.**
-   "Creatures played by your opponents enter tapped" is a CR 614 replacement
-   whose predicate is *who cast the spell* rather than who controls it, so
-   stealing an opponent's creature spell still enters it tapped under your Uphill
-   Battle. But `o:"played by"` is **1 card in all of Magic** (Scryfall,
-   2026-08-26; `o:"cast by"` is 2). That is not a vocabulary gap worth building
-   `PermanentFilter` support for, and RC should not carry a "played by" leaf on
-   its account. The 110.2b error above is the finding; Uphill Battle was the
-   flashlight.
+   **Three unrelated customers for one fact — record it (updated 2026-08-26).**
+
+   1. **CR 110.2b itself**, above: the default controller *is* the caster, so the
+      rule cannot be implemented without the fact.
+   2. **Uphill Battle** ("Creatures played by your opponents enter tapped") — a
+      CR 614 replacement whose predicate is who *cast* the spell, not who
+      controls it. Weak on its own: `o:"played by"` is **1 card in all of
+      Magic**, `o:"cast by"` is 2. The "played by" `PermanentFilter` leaf stays
+      deferred on that count; the fact underneath it does not.
+   3. **Bringer of the Last Gift** and its whole template — "When this creature
+      enters, **if you cast it**, …". That is a CR 603.4 intervening-if whose
+      "you" is the *ability's* controller, so a copy of the trigger controlled by
+      someone who did not cast the permanent fails the check and does nothing.
+      **`o:"if you cast it"` is 82 cards.**
+
+   Note what RA already supplies for customer 3, and what it does not. "Was it
+   cast at all, or put onto the battlefield by an effect" is answered by RA-3's
+   `ZoneChangeCause` on the entering zone change — a resolved permanent spell
+   arrives with `Resolved`, an effect putting one onto the battlefield will
+   arrive with its own cause. What is missing is only *by whom*, which is the
+   `entry.controller` value this item is already about.
+
+   **The rule this settles, and it is worth stating generally: count cards to
+   decide when to build a *feature*; never to decide whether to record a *fact*.**
+   A feature — a filter leaf, a `Rewrite` arm — is a normal diff whenever it is
+   added, so §8c's two-customers guard applies and deferring is free. A fact —
+   who cast this, is this the same object, what were its characteristics an
+   instant ago — is unrecoverable if it is not captured at the moment it exists,
+   and adding it later means re-threading every system built in between. Phase RA
+   was, in its entirety, a facts phase; that is what "the event spine" meant.
 
 10. **CR 400.7 is unimplemented: an object keeps its identity across zones (found
     2026-08-26).** `move_object` preserves the `ObjectId`, and
@@ -395,6 +416,36 @@ here. None is blocking RB.
     that, and the `Option` must never be flattened to an `i32` with a default at
     the type level. Unreachable until Layer 1 (copy) and Station land; recorded so
     neither phase quietly removes it.
+
+### Phasing (CR 702.26) — sized 2026-08-26, not started
+
+Recorded because it reads as a large unknown and is not one. **CR 110.5 settles
+the shape:** "A permanent's status is its physical state. There are four status
+categories, each of which has two possible values: tapped/untapped,
+flipped/unflipped, face up/face down, and **phased in/phased out**."
+
+`BattlefieldEntity` already carries all four — `tapped`, `flipped`, `face_down`,
+`phased_out`. The state is modelled; the behavior is not. Three consequences
+worth having written down before someone re-derives them anxiously:
+
+- **Phasing is not a zone change.** CR 110.5d: only permanents have status, and a
+  phased-out permanent is still on the battlefield. So the whole RA event spine
+  is untouched — no `ZoneChangeCause`, no LKI frame, no batch. CR 603.10b gives
+  phase-out triggers their own look-back, which is the same shape as 603.10a's.
+- **"Treated as though it doesn't exist" is an enumeration boundary**, and this
+  engine has exactly one: `battlefield_ordered` / `battlefield_ids_ordered`,
+  which `CLAUDE.md` already makes a hard invariant for determinism. That is the
+  same boundary `replacement-architecture.md` §5a draws for the look-ahead frame
+  — visible to applicability, invisible to enumeration — so the two want the same
+  predicate, not two.
+- **The turn-based action is CR 502.1**, phasing in and out *before* untapping,
+  which `process_untap_step` already owns and which RA-3 already batched.
+
+Size: 20 rules under 702.26; 13 cards with the phasing keyword, 47 touching it at
+all. One status field (exists), one predicate at two enumeration functions, one
+turn-based action, and the CR 603.10b look-back. It is a Phase 8-class mechanic
+by card count and a small one by shape, and it does not interact with the
+replacement pipeline beyond the boundary §5a already needs.
 
 ### Before Layers (CR 613) — now DURING Layers
 
