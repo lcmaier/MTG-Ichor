@@ -408,6 +408,10 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         ZoneChange { object_id, owner, from, to } => {
             format!("ZoneChange: {} [P{}] {:?} -> {:?}", obj_name(game, *object_id), owner, from, to)
         }
+        AbilityActivated { identity, controller } => format!(
+            "AbilityActivated: {} [P{}]", obj_name(game, identity.source), controller),
+        AbilityResolved { identity, controller } => format!(
+            "AbilityResolved: {} [P{}]", obj_name(game, identity.source), controller),
         Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
         Untapped { object_id } => format!("Untapped: {}", obj_name(game, *object_id)),
         CardDrawn { player_id, card_id } => {
@@ -651,6 +655,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
 
         let output = format_stack(&game);
@@ -682,6 +687,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
 
         let recall = CardDataBuilder::new("Ancestral Recall")
@@ -702,6 +708,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
 
         let output = format_stack(&game);

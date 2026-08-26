@@ -11,7 +11,7 @@ use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
 /// Metadata for a spell or ability on the stack.
@@ -62,6 +62,29 @@ pub struct StackEntry {
     /// Recorded at cast time because it is unrecoverable afterward: the object
     /// is on the stack and its `zone` field says so.
     pub cast_from: Option<Zone>,
+    /// For an activated ability: which ability of which permanent this is.
+    ///
+    /// **Invariant: `ability_identity.is_some() == !is_spell`** — the mirror of
+    /// [`Self::cast_from`], and for the same reason. An ability on the stack is
+    /// a new object with a fresh `ObjectId` that ceases to exist on resolution
+    /// (CR 608.2m), so the ephemeral id identifies nothing once it is gone.
+    ///
+    /// CR 603.7h needs the durable identity: a delayed trigger that fires when
+    /// "this ability has resolved for the third time this turn" is counting
+    /// *this* ability of *this* permanent (Ashling the Pilgrim), and neither
+    /// half can be recovered from the ephemeral.
+    pub ability_identity: Option<AbilityIdentity>,
+}
+
+/// Which ability of which object — the durable identity of an activated ability,
+/// as opposed to the ephemeral stack object representing one activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AbilityIdentity {
+    /// The permanent the ability was activated from.
+    pub source: ObjectId,
+    /// Which of its abilities. Stable across activations; see
+    /// `oracle::characteristics::get_effective_abilities`.
+    pub ability: AbilityId,
 }
 
 /// The complete state of a game of Magic.
@@ -1111,6 +1134,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 };
         assert!(entry.chosen_alternative_cost.is_none());
         assert!(entry.additional_costs_paid.is_empty());

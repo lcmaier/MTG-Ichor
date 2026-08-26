@@ -1,7 +1,7 @@
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
-use crate::state::game_state::{PhaseType, StepType};
+use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 
 use std::collections::HashMap;
 
@@ -87,6 +87,18 @@ pub enum GameEvent {
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
     SpellResolved { spell_id: ObjectId },
+    /// An activated ability finished resolving (CR 608.2m), identified by what
+    /// it *is* rather than by the stack object that represented it.
+    ///
+    /// `SpellResolved` carries the ephemeral ability object's id, which ceases
+    /// to exist at resolution and therefore identifies nothing afterward.
+    /// CR 603.7h counting — "whenever this ability resolves for the third time
+    /// this turn" (Ashling the Pilgrim; Ashling, Flame Dancer) — needs the
+    /// durable (source, ability) pair, which is why this event exists
+    /// alongside it rather than replacing it.
+    AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
+    /// An activated ability was put onto the stack (CR 602.2a).
+    AbilityActivated { identity: AbilityIdentity, controller: PlayerId },
     SpellCountered { spell_id: ObjectId, countered_by: ObjectId },
     AbilityCountered { ability_id: ObjectId, countered_by: ObjectId },
     /// Spell or ability fizzled (countered by game rules due to all targets

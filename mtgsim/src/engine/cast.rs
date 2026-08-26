@@ -178,6 +178,7 @@ impl GameState {
             chosen_alternative_cost: chosen_alt.clone(),
             additional_costs_paid: chosen_additional.clone(),
             cast_from: Some(cast_from),
+            ability_identity: None,
         };
         self.stack_entries.insert(card_id, entry);
 
@@ -315,6 +316,10 @@ impl GameState {
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs.clone();
+        let identity = crate::state::game_state::AbilityIdentity {
+            source: source_id,
+            ability: ability.id,
+        };
         let recipient = match &effect {
             crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
             _ => EffectRecipient::Implicit,
@@ -366,8 +371,13 @@ impl GameState {
             // An activated ability is not cast from anywhere (CR 602.2a gives
             // it a source, which is a different fact). See `cast_from`.
             cast_from: None,
+            ability_identity: Some(identity),
         };
         self.stack_entries.insert(ability_obj_id, stack_entry);
+
+        // CR 602.2a — the ability is on the stack. Identified durably: the
+        // ephemeral `ability_obj_id` is deleted at resolution.
+        self.events.emit(GameEvent::AbilityActivated { identity, controller: player_id });
 
         // --- 602.1b: Mana ability window ---
         // Same rules-correct model as 601.2g for spells. The player activates
@@ -620,6 +630,60 @@ mod tests {
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.cast_from, Some(Zone::Hand));
         assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Stack);
+    }
+
+    #[test]
+    fn test_ability_activation_and_resolution_carry_a_durable_identity() {
+        use crate::events::event::GameEvent;
+        let mut game = crate::test_support::setup_two_player_game();
+        let thaum = crate::test_support::put_on_battlefield(
+            &mut game,
+            crate::cards::utility_creatures::merfolk_thaumaturgist(),
+            0,
+        );
+        game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(
+                SelectionFilter::Creature,
+                TargetCount::Exactly(1),
+            ),
+            spell_id: thaum,
+        }, vec![0]);
+
+        let abilities = crate::oracle::characteristics::get_effective_abilities(&game, thaum);
+        let idx = abilities.iter()
+            .position(|a| a.ability_type == AbilityType::Activated)
+            .unwrap();
+        let ability_id = abilities[idx].id;
+
+        game.activate_ability(0, thaum, idx, &decisions).unwrap();
+        game.resolve_top_of_stack(&decisions).unwrap();
+
+        let activated: Vec<_> = game.events.events().iter().filter_map(|e| match e {
+            GameEvent::AbilityActivated { identity, .. } => Some(*identity),
+            _ => None,
+        }).collect();
+        let resolved: Vec<_> = game.events.events().iter().filter_map(|e| match e {
+            GameEvent::AbilityResolved { identity, .. } => Some(*identity),
+            _ => None,
+        }).collect();
+
+        // The point of the pair: both name (source, ability), not the ephemeral
+        // stack object — which by now has been deleted (CR 608.2m). CR 603.7h
+        // counts resolutions of *this ability of this permanent*, and neither
+        // half survives in the ephemeral id.
+        assert_eq!(activated.len(), 1);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(activated[0].source, thaum);
+        assert_eq!(activated[0].ability, ability_id);
+        assert_eq!(resolved[0], activated[0], "same identity across activation and resolution");
+
+        // And the ephemeral really is gone, so nothing could have used it.
+        let ephemeral_still_present = game.objects.values()
+            .any(|o| o.zone == Zone::Stack);
+        assert!(!ephemeral_still_present);
     }
 
     #[test]

@@ -151,9 +151,19 @@ impl GameState {
         }
 
         // --- Emit event ---
+        // SpellResolved carries the object id, which for an ability is the
+        // ephemeral just deleted above and identifies nothing afterward. Keep it
+        // for spells and the log; add the durable identity for abilities, which
+        // is what CR 603.7h counting needs.
         self.events.emit(GameEvent::SpellResolved {
             spell_id: object_id,
         });
+        if let Some(identity) = entry.ability_identity {
+            self.events.emit(GameEvent::AbilityResolved {
+                identity,
+                controller: entry.controller,
+            });
+        }
 
         Ok(())
     }
@@ -269,6 +279,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
         id
     }
@@ -397,6 +408,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
         id
     }
@@ -473,6 +485,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
         id
     }
@@ -525,6 +538,7 @@ mod tests {
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
+                    ability_identity: None,
 });
         id
     }
