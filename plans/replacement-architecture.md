@@ -1781,7 +1781,7 @@ because §9 is where the next phase reads:
 
   RA-3 shipped the pop-aware dispatch as specified and documented the artifact
   rather than removing it mid-ticket. **The removal is sized in
-  `codebase-state.md` (Deferred Migrations 6a) and slotted for RC**, because RC
+  `codebase-state.md` (Deferred Migrations 7) and slotted for RC**, because RC
   turns `place_on_battlefield` into `EnterBattlefield`'s performer and therefore
   rewrites `init_zone_state` — the other reader of `GameState::resolving` —
   anyway. Doing both at once leaves `resolving` deleted or reduced to one field,
@@ -1857,7 +1857,7 @@ and the CR 601.2a announcement above.
   unconditional ETB replacements — enters tapped (CR 110.5b), enters with
   counters (CR 122.6a), CR 614.12a choice-before-entry. ~1,350 cards.
   **Ride along: delete the early stack pop** (`codebase-state.md` Deferred
-  Migrations 6a). Part A rewrites `init_zone_state`, which is one of
+  Migrations 7). Part A rewrites `init_zone_state`, which is one of
   `GameState::resolving`'s two readers; removing the pop deletes the other.
   Audit the five production `stack.is_empty()` readers first — none is reachable
   during a resolution today, but CR 608.2g's "unless an effect instructs" case
