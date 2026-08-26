@@ -240,7 +240,7 @@ pub enum ZoneChangeCause {
 
     // --- the stack ---
     Cast,            // hand (or elsewhere) → stack
-    Resolved,        // 608.2m — stack → battlefield or graveyard
+    Resolved,        // 608.2n (instant/sorcery → graveyard), 608.3a/c (permanent spell → battlefield)
     Countered,       // 701.6
     Fizzled,         // 608.2b — countered by game rules
 
@@ -840,15 +840,17 @@ does not add one speculatively; RB restores it the moment `apply_replacements`
 gives it a customer. Nothing else about the signature moved.
 
 The batch shares one batch id (which lands on every emitted `GameEvent`,
-satisfying the CR 603.2c/603.6a "one or more" trigger requirement that Phase 7
+satisfying the CR 603.2c "one or more" trigger requirement that Phase 7
 will need). `execute_action` becomes `execute_actions(vec![action])`.
 
 **A nested `execute_actions` joins the enclosing batch rather than opening its
 own** (decided in RA-3, and it is a rules point, not an implementation
-convenience). CR 702.15b makes lifelink's life gain happen *simultaneously with*
-the damage that caused it, and lifelink proposes from inside
-`perform_action(DealDamage)`. A second batch id there would tell a CR 603.2c
-trigger that two events happened. RD's CR 120.3 decomposition is the same shape.
+convenience). CR 120.3f makes lifelink's life gain a *result of* the damage, and
+CR 120.4c/d process the results and then let the one damage event occur — so the
+gain is not merely simultaneous with the damage, it is part of the same event.
+Lifelink proposes from inside `perform_action(DealDamage)`, and a second batch id
+there would tell a CR 603.2c trigger that two events happened. RD's CR 120.3
+decomposition is the same shape.
 
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
@@ -1734,6 +1736,16 @@ In that order: 9 first because 6's batch id has nowhere to live without it, and
    the `ZoneChange` + LKI frame carries everything the three events carried, plus
    doc comments marking them display-only. `fuzz_games`' `creatures_died` stat
    and `ui/display.rs` keep reading them; nothing else may.
+
+   **Executed as deletion, not demotion** (2026-08-26, review). "Display-only"
+   is a policy in a doc comment, and the type system can enforce the same thing
+   for free by removing the variant. `AuraDied` and `SpellResolved` went with
+   them for the same reason, and `PermanentLeftBattlefield` had never had an
+   emitter. The deciding argument was measured rather than aesthetic: the
+   redundancy was hiding an undercount. `CreatureDied` was emitted only from the
+   SBA sweep, so a creature killed by a spell produced none, and `creatures_died`
+   read 5.3 where the zone changes say 6.2. That is the one fuzz number RA-3
+   moves.
 
 **What executing it changed in this document.** Four things, recorded here
 because §9 is where the next phase reads:

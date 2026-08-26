@@ -214,9 +214,17 @@ fn test_a_land_play_is_a_zone_change_with_a_reason() {
 
 #[test]
 fn test_a_stale_zone_change_proposal_is_loud() {
-    // The proposal describes a board. Performing it against a different one is
-    // a caller bug, and RB will match replacement effects on `from` — so a
-    // stale value is a wrong match rather than a cosmetic mismatch.
+    // The proposal describes where the object *is*, and performing it against a
+    // different board is a caller bug: RB matches replacement effects on
+    // `from`, so a stale value is a wrong match rather than a cosmetic
+    // mismatch.
+    //
+    // **This checks the zone and nothing else.** It is not a general staleness
+    // guard — a proposal built when a permanent was untapped and performed
+    // after it was tapped sails through, and should, because no field of
+    // `ZoneChange` claims anything about tapped. Each arm asserts its own
+    // preconditions: `Tap`/`Untap` error for an object that is not on the
+    // battlefield, `DealDamage` for a target that is not.
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, self_anthem_creature(), 0);
     game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
@@ -315,8 +323,12 @@ fn test_an_event_names_the_resolution_that_proposed_it() {
     assert_eq!(
         damage.resolution(),
         Some(ResolutionStamp { source: bolt, controller: 0 }),
-        "CR 614.15 self-replacement effects belong to the resolving object, so \
-         the record has to say which resolution a mutation came from",
+        "the stamp is provenance: which resolution proposed this mutation. \
+         CR 614.15 is what makes the *proposal* side of it load-bearing — a \
+         self-replacement effect belongs to the resolving spell rather than to \
+         any registry, so `apply_replacements` finds it through \
+         `ActionContext::resolution`. Carrying it onto the record as well is a \
+         separate, weaker call: nothing matches on it yet",
     );
 }
 
@@ -395,7 +407,7 @@ fn test_a_land_play_and_a_later_one_are_separate_batches() {
 }
 
 // ---------------------------------------------------------------------------
-// CR 608.2m — leaving the stack is a zone change like any other
+// CR 608.2n / 608.3 — leaving the stack is a zone change like any other
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -446,9 +458,27 @@ fn test_a_resolving_instant_moves_through_the_chokepoint() {
 
 #[test]
 fn test_a_fizzling_spell_moves_through_the_chokepoint() {
-    // The third bypass, and the one v1 Commander needs most: a commander
-    // creature spell whose target vanished goes stack -> graveyard here, and
-    // CR 903.9b must get a say.
+    // The third bypass. CR 608.2b's counter-by-game-rules is a real zone
+    // change, and 39 printed cards replace "a card that would be put into a
+    // graveyard from anywhere" (Leyline of the Void, Rest in Peace) — none of
+    // which could see this while the site wrote `obj.zone` by hand.
+    //
+    // **An earlier version of this comment said a commander creature spell
+    // fizzles here. It cannot, twice over.** A creature spell has no targets, so
+    // CR 608.3a resolves it unconditionally; only an Aura or a mutating creature
+    // spell can fail CR 608.3b, and that is a different code path from this one.
+    // And a fizzled spell goes to the *graveyard*, so the Commander rule with an
+    // interest is CR 903.9a — a state-based action (CR 704.6d) that is not
+    // blocked on this phase at all — not CR 903.9b, which is hand or library.
+    //
+    // What is true is narrower and newer: **Ashaya's Enduring Bond** (Legendary
+    // Sorcery, "Ashaya's Enduring Bond can be your commander"; Scryfall
+    // 2026-08-26) makes a *fizzling commander spell* reachable for the first
+    // time. Before it, every commander was a permanent, and permanents that
+    // resolve do not come through here.
+    //
+    // The spell under test is an instant, which is what CR 608.2b is written
+    // for.
     let mut game = setup_two_player_game();
     let victim = put_on_battlefield(&mut game, self_anthem_creature(), 1);
     let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
@@ -480,9 +510,9 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
 
 #[test]
 fn test_a_resolving_ability_leaves_no_zone_change() {
-    // An activated ability is not a card and has no destination zone: CR 608.2m
-    // says it simply ceases to exist. Routing the *spell* paths through the
-    // chokepoint must not sweep this one along with them.
+    // An activated ability is not a card and has no destination zone: CR 608.2n
+    // removes it from the stack and it ceases to exist. Routing the *spell*
+    // paths through the chokepoint must not sweep this one along with them.
     let mut game = setup_two_player_game();
     let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
 
@@ -516,12 +546,10 @@ fn creature_planeswalker() -> Arc<CardData> {
 
 #[test]
 fn test_one_death_carries_every_type_that_died() {
-    // The reason the type-specific death events cannot be matched on. A Gideon
-    // dying to lethal damage emits `CreatureDied` and not `PlaneswalkerDied`,
-    // so a matcher reading those events would miss every "whenever a
-    // planeswalker dies" trigger on the board. The `ZoneChange` plus its LKI
-    // frame answers both from one event, which is also what CR 704.3 says
-    // happened: one event, not one per type.
+    // The reason there is no `CreatureDied` or `PlaneswalkerDied`. A Gideon is
+    // both, and any event that named one type would make a reader miss every
+    // trigger keyed on the other. One zone change, and the CR 603.10a frame
+    // answers for every type it had.
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, creature_planeswalker(), 0);
     game.battlefield.get_mut(&id).unwrap().damage_marked = 2;
@@ -538,25 +566,16 @@ fn test_one_death_carries_every_type_that_died() {
     assert!(lki.types.contains(&CardType::Creature));
     assert!(
         lki.types.contains(&CardType::Planeswalker),
-        "the frame carries the whole type set; the death events carry one each",
-    );
-
-    // And what the sugar actually said: one of the two applicable types.
-    let announced_pw = game.events.events().any(|e| matches!(e, GameEvent::PlaneswalkerDied { .. }));
-    assert!(
-        !announced_pw,
-        "704.5g claimed it, so `PlaneswalkerDied` never fired — which is exactly \
-         why nothing may match on these",
+        "the frame carries the whole type set, which is what a single \
+         type-specific event never could",
     );
 }
 
 #[test]
 fn test_the_zone_change_carries_everything_the_death_events_did() {
-    // Field-for-field: `CreatureDied { creature_id, owner }`,
-    // `PlaneswalkerDied { object_id, owner }` and
-    // `LegendRuleSacrificed { object_id, owner }` are all
-    // `(id, owner)` plus a type and a rule number, and every one of those five
-    // facts is on the zone change or its frame.
+    // Field-for-field against the four events RA-3 deleted. Each was
+    // `(id, owner)` plus one type and an implied rule number, and every one of
+    // those facts is on the zone change or its frame.
     let mut game = setup_two_player_game();
     let doomed = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 1);
     let other = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 1);
@@ -586,7 +605,7 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
         .expect("the legend rule moved it");
 
     let (owner, from, to, cause, lki) = record;
-    assert_eq!(owner, 1, "the `owner` the death events carried");
+    assert_eq!(owner, 1, "the `owner` the deleted events carried");
     assert_eq!((from, to), (Zone::Battlefield, Zone::Graveyard), "\"dies\"");
     assert_eq!(cause, ZoneChangeCause::LegendRule, "the rule number, as a cause");
     let lki = lki.expect("a permanent leaving the battlefield has a frame");
@@ -599,11 +618,11 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
 
 #[test]
 fn test_an_ability_resolving_is_not_a_spell_resolving() {
-    // The old name was `SpellResolved`, and `resolve_top_of_stack` emits it
-    // unconditionally — so it fired for activated abilities too, and always
-    // had. A matcher keying "whenever a spell resolves" on it would have been
-    // wrong about every ability in the game. Renamed, and the durable fact an
-    // ability actually offers is `AbilityResolved` (CR 603.7h).
+    // There is no `SpellResolved`. `resolve_top_of_stack` emitted it
+    // unconditionally, so it fired for activated abilities too and always had —
+    // a matcher keying "whenever a spell resolves" on it would have been wrong
+    // about every ability in the game. What an ability leaves behind instead is
+    // `AbilityResolved` and no zone change at all (CR 608.2n).
     let mut game = setup_two_player_game();
     let thaum = put_on_battlefield(
         &mut game,
@@ -629,17 +648,38 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
     game.resolve_top_of_stack(&decisions).unwrap();
 
     assert!(
-        game.events.events().any(|e| matches!(e, GameEvent::StackObjectResolved { .. })),
-        "it fires for abilities, which is what made the old name a lie",
-    );
-    assert!(
         game.events.events().any(|e| matches!(e, GameEvent::AbilityResolved { .. })),
-        "and the durable identity is what a CR 603.7h counter reads",
+        "an ability announces itself by its durable identity, which is what a \
+         CR 603.7h counter reads",
     );
     assert!(
         zone_changes(&game).is_empty(),
         "an ability is not a card: it ceases to exist rather than going anywhere",
     );
+}
+
+#[test]
+fn test_the_log_line_still_says_what_died() {
+    // The four deleted events were also four log lines, and deleting them is
+    // only safe if the one that replaced them says as much. Object, owner, the
+    // rule that moved it, and what it was — the last of which the old lines
+    // could give one type at a time.
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, creature_planeswalker(), 0);
+    game.battlefield.get_mut(&id).unwrap().damage_marked = 2;
+
+    let decisions = ScriptedDecisionProvider::new();
+    assert!(game.check_state_based_actions(&decisions).unwrap());
+
+    let line = mtgsim::ui::display::format_event_log(&game)
+        .into_iter()
+        .find(|l| l.starts_with("ZoneChange:"))
+        .expect("the death is in the log");
+
+    for expected in ["Gideon, Test Subject", "P0", "Battlefield", "Graveyard",
+                     "DestroyedBySba", "Creature", "Planeswalker"] {
+        assert!(line.contains(expected), "log line {:?} is missing {:?}", line, expected);
+    }
 }
 
 // ---------------------------------------------------------------------------

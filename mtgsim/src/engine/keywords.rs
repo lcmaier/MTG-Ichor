@@ -38,9 +38,14 @@ pub fn apply_deathtouch_flag(
 
 /// Apply lifelink: controller gains life equal to damage dealt.
 ///
-/// Rule 702.15b: A source with lifelink causes its controller to gain
-/// life equal to the damage dealt, simultaneously with that damage.
-/// Multiple instances don't stack (rule 702.15f) — boolean check.
+/// Rule 702.15b / CR 120.3f: damage dealt by a source with lifelink causes that
+/// source's controller to gain that much life, in addition to the damage's other
+/// results. Multiple instances don't stack (rule 702.15f) — boolean check.
+///
+/// The gain is not merely simultaneous with the damage, it is *part of the same
+/// event*: CR 120.4c processes damage into its results and CR 120.4d says the
+/// damage event then occurs, once. (An earlier version of this comment cited
+/// 702.15b for the word "simultaneously", which 702.15b does not contain.)
 ///
 /// The gain is **proposed**, not written. Until RA-2 this function subtracted
 /// into `life_total` and emitted `LifeChanged` itself — emitting without
@@ -189,10 +194,11 @@ mod tests {
 
     #[test]
     fn test_lifelinks_gain_joins_the_damage_batch() {
-        // CR 702.15b — the life gain "happens simultaneously with that damage",
-        // so the nested `execute_action` must join the damage's batch rather
-        // than opening one of its own. Two batch ids would tell a CR 603.2c
-        // trigger that two events happened.
+        // CR 120.3f makes the life gain one of the damage's *results*, and
+        // CR 120.4c/d process the results and then let the one damage event
+        // occur. So the nested `execute_action` must join the damage's batch
+        // rather than opening one of its own: two batch ids would tell a
+        // CR 603.2c trigger that two events happened.
         let mut game = GameState::new(2, 20);
         let source = crate::test_support::place_vanilla_creature(
             &mut game, 0, 2, 2, &[KeywordFlag::Lifelink]);

@@ -19,25 +19,33 @@ impl GameState {
     /// 2. Look up its StackEntry.
     /// 3. Re-validate targets (608.2b) — fizzle if all illegal.
     /// 4. Resolve the effect via resolve_effect().
-    /// 5. Post-resolution: move spell to graveyard or battlefield, or remove
-    ///    the ability (608.2m/n) — through `change_zone` like anything else.
-    /// 6. Emit the resolution events.
+    /// 5. Post-resolution: instant or sorcery to its owner's graveyard and the
+    ///    ability removed (608.2n), permanent spell onto the battlefield
+    ///    (608.3a/c) — through `change_zone` like anything else.
+    /// 6. Emit `AbilityResolved` if it was an ability.
     pub fn resolve_top_of_stack(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         if self.stack.is_empty() {
             return Err("Cannot resolve: stack is empty".to_string());
         }
 
         // Pop the top of stack (last element = top, LIFO).
-        // The spell/ability is removed from the stack Vec BEFORE resolution so
-        // that effects which inspect the stack (e.g. CounterSpell) don't see
-        // the currently-resolving object.
+        //
+        // The object comes off the stack `Vec` before it resolves. **This is not
+        // what the CR describes** — CR 608.2 keeps a resolving spell on the
+        // stack until 608.2n or 608.3a moves it — and the reason the pattern was
+        // originally given, that it stops an in-flight Counterspell from seeing
+        // the resolving object, does not hold: CR 608.2g forbids casting a spell
+        // during a resolution at all, and a spell cannot choose itself at
+        // CR 601.2c because target enumeration already excludes it by
+        // `exclude_id`. Kept for now, described honestly, and tracked for removal
+        // in `codebase-state.md` — see `GameState::resolving`.
         let object_id = *self.stack.last().unwrap();
 
         // Before the pop, deliberately: a spell's controller lives on its
         // `StackEntry`, which the next two lines destroy. One value, used for
         // both the resolution context and the permanent's controller as it
         // enters (CR 110.2b). Note it is *not* used for the graveyard below —
-        // a finished spell goes to its owner's (CR 608.2m).
+        // a finished spell goes to its owner's (CR 608.2n).
         let controller = crate::oracle::characteristics::get_effective_controller(self, object_id)
             .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 
@@ -45,10 +53,13 @@ impl GameState {
         let entry = self.stack_entries.remove(&object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
-        // The object is now popped but not yet anywhere. Say so, so that
-        // CR 608.2m's zone change can go through the ordinary chokepoint rather
-        // than around it — see `GameState::resolving`, and note the field is
-        // cleared on every path out, including the error ones.
+        // Record the window the pop just opened. Two things downstream need to
+        // know about it, and both used to be served by writing `obj.zone` by
+        // hand at three sites instead: the stack removal in `move_object` (which
+        // would otherwise report a missing object as a bug) and CR 110.2b's
+        // controller (which the `StackEntry` just taken above was carrying).
+        // Cleared on every path out, including the error ones — that is what
+        // `resolve_popped` exists to make single-sited.
         self.resolving = Some(ResolvingObject { id: object_id, controller });
         let result = self.resolve_popped(object_id, entry, controller, dp);
         self.resolving = None;
@@ -99,8 +110,9 @@ impl GameState {
             let is_permanent_type = has_permanent_type(self, object_id);
 
             if is_permanent_type {
-                // Permanent spell: it becomes a permanent (CR 608.2m). Rule
-                // 110.2b gives control to whoever controlled the spell, which
+                // Permanent spell: it becomes a permanent and enters the
+                // battlefield (CR 608.3a; 608.3c for an Aura, handled below).
+                // CR 110.2b gives control to whoever controlled the spell, which
                 // `init_zone_state` reads off `resolving`.
                 self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
                 // Carry X value from the stack entry to the permanent (rule 107.3f)
@@ -135,7 +147,8 @@ impl GameState {
                     }
                 }
             } else {
-                // Instant/sorcery: to its owner's graveyard (CR 608.2m).
+                // Instant/sorcery: to its owner's graveyard as the final part
+                // of resolution (CR 608.2n).
                 self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
             }
         } else {
@@ -144,13 +157,11 @@ impl GameState {
         }
 
         // --- Emit event ---
-        // A log line, and named for what it is: this fires for abilities as
-        // well as spells, and for an ability the id belongs to the ephemeral
-        // just deleted above, which identifies nothing afterward. The durable
-        // identity follows, and it is what CR 603.7h counting needs.
-        self.events.emit(GameEvent::StackObjectResolved {
-            object_id,
-        });
+        // A spell finishing resolution is already recorded: the `ZoneChange`
+        // above carries `ZoneChangeCause::Resolved` and says where it went. An
+        // ability leaves no zone change, so this is where it is announced —
+        // durably, by what it *is* (CR 603.7h), because the ephemeral object
+        // CR 608.2n just destroyed identifies nothing afterward.
         if let Some(identity) = entry.ability_identity {
             self.events.emit(GameEvent::AbilityResolved {
                 identity,

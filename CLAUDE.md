@@ -115,8 +115,8 @@ Propose with `execute_action` / `change_zone`; let the arm do the writing.
   single event, CR 704.7's same-result collapse and CR 615.7's shield
   allocation are all unreachable from a loop of `execute_action` calls.
   A batch shares one `BatchId`; a *nested* call joins the enclosing batch
-  rather than opening its own, because CR 702.15b makes lifelink's gain
-  simultaneous with the damage that caused it.
+  rather than opening its own, because CR 120.3f makes lifelink's gain a
+  *result of* the damage and CR 120.4c/d let the one damage event occur.
 
 One exemption, tagged in `engine/zones.rs`'s `move_object` doc and permanent:
 `// CAST-ROLLBACK:` — CR 601.2 rewinds are not events. (`// REPLACEMENT-BYPASS:`

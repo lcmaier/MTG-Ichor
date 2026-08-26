@@ -277,7 +277,7 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
 
 /// Gaining control of an instant does **not** redirect it to the thief's
 /// graveyard. Two rules pull opposite ways and both hold: the spell's controller
-/// resolves it, so the thief draws, but CR 608.2m sends the finished spell to
+/// resolves it, so the thief draws, but CR 608.2n sends the finished spell to
 /// its *owner's* graveyard and CR 108.3 never moves ownership.
 ///
 /// Worth pinning because this phase edited this function — the controller is now
@@ -319,7 +319,7 @@ fn test_gaining_control_of_an_instant_does_not_move_its_graveyard() {
     );
     assert!(
         game.players[0].graveyard.contains(&spell_id),
-        "CR 608.2m + 108.3: but it goes to its *owner's* graveyard"
+        "CR 608.2n + 108.3: but it goes to its *owner's* graveyard"
     );
     assert!(!game.players[1].graveyard.contains(&spell_id));
     assert!(

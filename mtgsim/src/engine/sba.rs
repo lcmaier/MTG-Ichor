@@ -22,48 +22,26 @@ use crate::ui::decision::DecisionProvider;
 /// the stack — they just happen. If any SBA is performed, they're all checked
 /// again before a player actually gets priority.
 
-/// One permanent leaving the battlefield because of a state-based action.
+/// The zone change `cause` calls for on `id`, paired with the object id.
 ///
-/// Gathered against the pre-check game state and performed in one batch, per
-/// CR 704.3. The `display` event is sugar for the log — the `ZoneChange` and
-/// its LKI frame are what a trigger matcher reads.
-struct SbaZoneChange {
-    /// Kept out of `action` so the CR 704.7 dedupe does not have to match on a
-    /// `GameAction` variant to find the object.
-    object: ObjectId,
-    action: GameAction,
-    display: GameEvent,
-}
-
-impl GameState {
-    /// Build the state-based zone change that `cause` calls for on `id`.
-    ///
-    /// Reads the owner *before* the batch runs, which is the point of gathering:
-    /// every field of the proposal describes the board as the check saw it.
-    fn sba_death(&self, id: ObjectId, cause: ZoneChangeCause) -> SbaZoneChange {
-        let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-        let display = match cause {
-            ZoneChangeCause::ZeroToughness | ZoneChangeCause::DestroyedBySba => {
-                GameEvent::CreatureDied { creature_id: id, owner }
-            }
-            ZoneChangeCause::ZeroLoyalty => GameEvent::PlaneswalkerDied { object_id: id, owner },
-            ZoneChangeCause::LegendRule => {
-                GameEvent::LegendRuleSacrificed { object_id: id, owner }
-            }
-            ZoneChangeCause::AuraSba => GameEvent::AuraDied { object_id: id, owner },
-            other => unreachable!("{:?} is not a state-based zone change", other),
-        };
-        SbaZoneChange {
+/// The pair rather than the bare action: the CR 704.7 dedupe below keys on the
+/// object, and digging it back out of a `GameAction::ZoneChange` would make the
+/// dedupe match on a variant it has no other reason to know about.
+///
+/// This was a struct with a third field until 2026-08-26, carrying the
+/// `CreatureDied`/`PlaneswalkerDied`/`LegendRuleSacrificed`/`AuraDied` event to
+/// emit after the batch. Those events are gone — a reader wants the zone change
+/// and its LKI frame — and the struct went with them.
+fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameAction) {
+    (
+        id,
+        GameAction::ZoneChange {
             object: id,
-            action: GameAction::ZoneChange {
-                object: id,
-                from: Zone::Battlefield,
-                to: Zone::Graveyard,
-                cause,
-            },
-            display,
-        }
-    }
+            from: Zone::Battlefield,
+            to: Zone::Graveyard,
+            cause,
+        },
+    )
 }
 
 impl GameState {
@@ -143,7 +121,7 @@ impl GameState {
         //
         // Ordered sweeps throughout: the batch order is the order a CR 616.1
         // prompt would be offered in, and the graveyard is an ordered zone.
-        let mut deaths: Vec<SbaZoneChange> = Vec::new();
+        let mut deaths: Vec<(ObjectId, GameAction)> = Vec::new();
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         for id in self.battlefield_ids_ordered() {
@@ -151,7 +129,7 @@ impl GameState {
                 continue;
             }
             if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                deaths.push(self.sba_death(id, ZoneChangeCause::ZeroToughness));
+                deaths.push(sba_zone_change(id, ZoneChangeCause::ZeroToughness));
             }
         }
 
@@ -175,7 +153,7 @@ impl GameState {
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
             if lethal {
-                deaths.push(self.sba_death(id, ZoneChangeCause::DestroyedBySba));
+                deaths.push(sba_zone_change(id, ZoneChangeCause::DestroyedBySba));
             }
         }
 
@@ -185,7 +163,7 @@ impl GameState {
                 continue;
             }
             if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                deaths.push(self.sba_death(id, ZoneChangeCause::ZeroLoyalty));
+                deaths.push(sba_zone_change(id, ZoneChangeCause::ZeroLoyalty));
             }
         }
 
@@ -237,7 +215,7 @@ impl GameState {
                 }
             }
             for id in chosen {
-                deaths.push(self.sba_death(id, ZoneChangeCause::LegendRule));
+                deaths.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
             }
         }
 
@@ -283,7 +261,7 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            deaths.push(self.sba_death(id, ZoneChangeCause::AuraSba));
+            deaths.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
         }
 
         // --- Perform the gathered zone changes as one event (CR 704.3) ------
@@ -295,17 +273,11 @@ impl GameState {
         // — a creature that is both a duplicate legend and dead to lethal damage
         // was destroyed (704.5g), not put away by the legend rule.
         let mut seen: HashSet<ObjectId> = HashSet::new();
-        deaths.retain(|d| seen.insert(d.object));
+        deaths.retain(|(object, _)| seen.insert(*object));
 
         if !deaths.is_empty() {
-            let batch = deaths.iter().map(|d| d.action.clone()).collect();
+            let batch = deaths.into_iter().map(|(_, action)| action).collect();
             self.execute_actions(batch, &actx)?;
-            // Display sugar, emitted after the event it describes. A trigger
-            // matcher keys on the `ZoneChange` and its LKI frame — see the doc
-            // comments on `GameEvent::CreatureDied` and its two siblings.
-            for death in deaths {
-                self.events.emit(death.display);
-            }
             any_performed = true;
         }
 
@@ -763,6 +735,18 @@ mod tests {
         // them." Same result means one event: the doomed legend is gathered by
         // both 704.5g and 704.5j and must move once, under the cause that came
         // first in CR order.
+        //
+        // **This is not the general mechanism, and CR 704.7's own example is
+        // outside it.** The dedupe is per *object*, over the zone-change
+        // sweeps. A player who would lose for both 704.5a (0 life) and 704.5b
+        // (drew from an empty library) is the case the rule is written around —
+        // Lich's Mirror, ATOM-704.7-001 — and it never reaches here: player
+        // loss is written straight into `player_lost` above and never becomes a
+        // `GameAction`, so there is nothing to dedupe and nothing for a
+        // replacement to see. The `!player_lost[i]` guard makes the *outcome*
+        // right by accident. A real 704.7 for it needs `GameAction::PlayerLoses`
+        // (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE),
+        // and it is recorded in `codebase-state.md`.
         let mut game = GameState::new(2, 20);
         let (doomed, healthy) = two_isamarus(&mut game);
         game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
@@ -787,15 +771,6 @@ mod tests {
             ZoneChangeCause::DestroyedBySba,
             "704.5g comes first in CR order, so it is what claims the permanent",
         );
-        let deaths = game.events.events().filter(|e| matches!(
-            e, crate::events::event::GameEvent::CreatureDied { creature_id, .. }
-                if *creature_id == doomed
-        )).count();
-        let legend_sacs = game.events.events().filter(|e| matches!(
-            e, crate::events::event::GameEvent::LegendRuleSacrificed { object_id, .. }
-                if *object_id == doomed
-        )).count();
-        assert_eq!((deaths, legend_sacs), (1, 0), "one event, announced once");
     }
 
     #[test]
@@ -1068,9 +1043,16 @@ mod tests {
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
 
-        // Verify AuraDied event was emitted
+        // Verify the move was recorded, and recorded as 704.5m's doing. There
+        // is no `AuraDied` — the zone change plus its cause says more than it
+        // did, including where the Aura went.
         let has_event = game.events.events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::AuraDied { object_id, .. } if *object_id == aura_id)
+            matches!(
+                e,
+                crate::events::event::GameEvent::ZoneChange {
+                    object_id, to: Zone::Graveyard, cause: ZoneChangeCause::AuraSba, ..
+                } if *object_id == aura_id
+            )
         });
         assert!(has_event);
     }

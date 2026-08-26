@@ -342,8 +342,8 @@ mod tests {
             game.advance_turn(&test_ctx()).unwrap();
         }
 
-        let untapped: Vec<crate::types::ids::ObjectId> = game.events.events_from(before)
-            .filter_map(|e| match e {
+        let untapped: Vec<crate::types::ids::ObjectId> = game.events.records_from(before).iter()
+            .filter_map(|r| match &r.event {
                 crate::events::event::GameEvent::Untapped { object_id } => Some(*object_id),
                 _ => None,
             })

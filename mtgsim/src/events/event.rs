@@ -110,22 +110,15 @@ pub enum GameEvent {
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
 
-    /// A stack object finished resolving (CR 608.2m).
-    ///
-    /// **Display only, and renamed because the old name lied.** It was
-    /// `SpellResolved`, and `resolve_top_of_stack` emits it unconditionally —
-    /// so it has always fired for activated abilities as well as spells, and a
-    /// matcher keying "whenever a spell resolves" on it would have been wrong
-    /// about every ability in the game.
-    ///
-    /// Nothing needs it. A spell finishing resolution is a
-    /// [`Self::ZoneChange`] out of the stack with
-    /// [`ZoneChangeCause::Resolved`] — which also says *where* it went, the
-    /// thing this event never carried. An ability finishing is
-    /// [`Self::AbilityResolved`], which carries the durable identity CR 603.7h
-    /// counting needs. This one is a log line.
-    StackObjectResolved { object_id: ObjectId },
-    /// An activated ability finished resolving (CR 608.2m), identified by what
+    // There is no `SpellResolved`/`StackObjectResolved` either, and it went for
+    // the same reason plus one of its own: `resolve_top_of_stack` emitted it
+    // unconditionally, so it fired for activated abilities as well as spells and
+    // a matcher keying "whenever a spell resolves" on it would have been wrong
+    // about every ability in the game. A spell finishing resolution is a
+    // `ZoneChange` out of the stack with `ZoneChangeCause::Resolved`, which also
+    // says *where* it went; an ability finishing is `AbilityResolved`, which
+    // carries the durable identity CR 603.7h counting needs.
+    /// An activated ability finished resolving (CR 608.2n), identified by what
     /// it *is* rather than by the stack object that represented it.
     ///
     /// [`Self::StackObjectResolved`] carries the ephemeral ability object's id,
@@ -144,35 +137,32 @@ pub enum GameEvent {
     /// becoming illegal). No source object — this is a game-rules counter.
     SpellFizzled { spell_id: ObjectId },
 
-    // --- Deaths: display sugar, not matchable facts ---
+    // --- Deaths are not events of their own ---
     //
-    // All three of these are `ZoneChange { from: Battlefield, to: Graveyard }`
-    // with a `cause` and an `lki` frame, said less precisely. **Nothing may
-    // match a trigger on them**, for two reasons that are both structural:
+    // There is no `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed` or
+    // `AuraDied`. Each was a `ZoneChange { from: Battlefield, to: Graveyard }`
+    // with a `cause` and an `lki` frame, said less precisely, and each was
+    // deleted rather than documented as display-only, for two structural
+    // reasons and one measured one:
     //
-    // - **They partition the same event by type, and permanent types are not a
+    // - **They partition one event by type, and permanent types are not a
     //   partition.** A Gideon is a creature *and* a planeswalker; Circuit Mender
-    //   is an artifact creature. Whichever of these events the engine chose to
-    //   emit, a matcher reading it would miss every trigger keyed on the other
-    //   type. The `lki` frame carries the whole type set, so one event matches
-    //   everything applicable.
-    // - **They name a subset without naming its boundary.** "Dies" is
+    //   is an artifact creature. Whichever event the engine emitted, a reader
+    //   would miss every trigger keyed on the other type. The `lki` frame
+    //   carries the whole type set, so one event answers for all of them.
+    // - **They named a subset without naming its boundary.** "Dies" is
     //   battlefield → graveyard; "leaves the battlefield" is battlefield →
-    //   anywhere; CR 603.6c's own atom (ATOM-603.6c-001) turns on *which* zone
-    //   the card went to. An event carrying only an id cannot answer that, which
-    //   is why `PermanentLeftBattlefield` was deleted rather than wired up.
+    //   anywhere; and ATOM-603.6c-001 turns on *which* zone the card went to.
+    //   An event carrying one id cannot answer that. (`PermanentLeftBattlefield`
+    //   was deleted for the same reason, having never had an emitter at all.)
+    // - **The redundancy was hiding a bug.** `CreatureDied` was emitted only
+    //   from the state-based-action sites, so a creature killed by a spell
+    //   produced none, and `fuzz_games` undercounted deaths at 5.3 per game
+    //   where the zone changes say 6.2.
     //
-    // `fuzz_games` counts `CreatureDied` and `ui/display.rs` prints all three.
-    // That is the whole permitted consumer set.
-
-    /// Display only — see the note above. Use the `ZoneChange`.
-    CreatureDied { creature_id: ObjectId, owner: PlayerId },
-    /// Display only — a planeswalker put into its owner's graveyard by
-    /// SBA 704.5i (0 loyalty). Use the `ZoneChange` and its `cause`.
-    PlaneswalkerDied { object_id: ObjectId, owner: PlayerId },
-    /// Display only — a permanent put into its owner's graveyard by the legend
-    /// rule (704.5j). Use the `ZoneChange` and its `cause`.
-    LegendRuleSacrificed { object_id: ObjectId, owner: PlayerId },
+    // A reader that wants deaths matches `ZoneChange { from: Battlefield, to:
+    // Graveyard, lki, .. }` and asks the frame what died. `ui/display.rs` and
+    // `fuzz_games` both do exactly that.
 
     // --- Player loss ---
     PlayerLost { player_id: PlayerId, reason: LossReason },
@@ -182,10 +172,6 @@ pub enum GameEvent {
     CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
 
     // --- Attachment SBAs ---
-    /// Display only, as the deaths above — an Aura put into its owner's
-    /// graveyard by SBA 704.5m/704.5n (unattached, or attached to an illegal or
-    /// missing object).
-    AuraDied { object_id: ObjectId, owner: PlayerId },
     /// An Equipment or Fortification was detached by SBA 704.5p
     /// (attached to a non-creature). Equipment stays on battlefield.
     EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
@@ -224,9 +210,12 @@ pub enum DamageTarget {
 /// Three rules need an event *set* rather than an event: CR 704.3 ("performs
 /// all applicable state-based actions simultaneously as a single event"),
 /// CR 510.2 (combat damage), and CR 502.1 (the untap step). Every event a
-/// batch emits carries the same `BatchId`, which is what CR 603.2c/603.6a's
-/// "one or more" phrasing needs — "whenever one or more creatures die" fires
-/// once for the batch, not once per member.
+/// batch emits carries the same `BatchId`, which is what **CR 603.2c** needs:
+/// "an ability triggers only once each time its trigger event occurs. However,
+/// it can trigger repeatedly if one event contains multiple occurrences." The
+/// batch is that boundary. "Whenever one or more creatures die" takes the whole
+/// batch as its trigger event and fires once; "whenever a creature dies" fires
+/// once per death inside it.
 ///
 /// **Nothing reads this in RA.** Phase 6's trigger matcher is the customer;
 /// RA's job is that the grouping exists and is recorded.
@@ -235,11 +224,20 @@ pub struct BatchId(pub u64);
 
 /// Which resolution an event belongs to (CR 608.2).
 ///
-/// `source` is the stack object that was resolving, and that object identifies
-/// the *resolution* rather than the card: a spell has one stack object, and an
-/// activated ability gets a fresh ephemeral one per activation (CR 608.2m). So
-/// "did this happen during the resolution that also did X" is answerable
-/// without a separate id.
+/// `source` is the stack object that was resolving, and it identifies the
+/// *resolution* rather than the card, because this engine gives every stack
+/// object a fresh v4 `ObjectId`: one per cast, and one per activation for an
+/// ability's ephemeral object, which CR 608.2n destroys rather than recycles.
+/// That is an engine property, not a rule.
+///
+/// **Who reads it.** RB's pipeline is the first: CR 614.15 self-replacement
+/// effects belong to the resolving spell or ability rather than to any registry,
+/// so `apply_replacements` has to know which resolution proposed an action in
+/// order to find them. That lookup uses `ActionContext::resolution`, the
+/// *proposal* side. Stamping it on the performed record as well is provenance —
+/// specified by the event-stream design in `codebase-state.md`, wanted by the
+/// CR 731 loop-detection transcripts, and useful in a log. **No trigger matcher
+/// needs it today**, and this comment should not be read as claiming one does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolutionStamp {
     pub source: ObjectId,
@@ -293,8 +291,20 @@ impl EventRecord {
 #[derive(Debug, Clone, Default)]
 pub struct EventLog {
     records: Vec<EventRecord>,
-    /// Stamped onto everything emitted while it is installed. See
-    /// [`Self::open_batch`].
+    /// Stamped onto everything emitted while it is installed.
+    ///
+    /// **Ambient, and deliberately so.** The alternative is an
+    /// `emit_with(event, stamp)` at all 45 emission sites, which is 45 chances
+    /// to forget and no way to notice — the stamp has no test of its own at most
+    /// of them. Scoping it to `execute_actions` instead means the context is
+    /// established once per performed action, by the one function that knows it.
+    ///
+    /// This is not the ambient state `CLAUDE.md` bans. That rule is about
+    /// `rand::rng()`: an ambient *source* silently changes the game's outcome
+    /// and destroys replayability. This is an ambient *label* on a record —
+    /// it changes what the log says about a mutation, never whether the mutation
+    /// happens — and its lifetime is a single `open_batch`/`close_batch` pair
+    /// that `execute_actions` opens and closes on the same code path.
     stamp: EventStamp,
     /// Allocator for [`BatchId`]. Monotonic, never reused within a game.
     next_batch: u64,
@@ -312,10 +322,12 @@ impl EventLog {
     /// Open a batch, returning the stamp to hand back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new
-    /// one.** CR 702.15b is why it has to: lifelink's life gain is proposed
-    /// from inside `perform_action(DealDamage)` and happens *simultaneously
-    /// with that damage*, so it belongs to the damage's batch. The same shape
-    /// generalizes to CR 120.3's results-of-damage decomposition in Phase RD.
+    /// one.** CR 120.3f and 120.4 are why it has to: lifelink's life gain is one
+    /// of the damage's *results*, CR 120.4c processes the results, and CR 120.4d
+    /// then lets the one damage event occur. Lifelink proposes from inside
+    /// `perform_action(DealDamage)`, so a second batch id would split one event
+    /// into two. The same shape generalizes to CR 120.3's results-of-damage
+    /// decomposition in Phase RD.
     ///
     /// `resolution` is not inherited the same way — it comes from the proposing
     /// `ActionContext` every time, because the honest answer to "which
@@ -337,22 +349,31 @@ impl EventLog {
         self.stamp = previous;
     }
 
-    /// The full records, with their batch context.
+    /// The log. `records()` is the whole of it; [`Self::events`] is a
+    /// convenience over the same data for readers that do not want the stamp.
+    ///
+    /// **Nothing in the engine reads either yet.** Every caller today is a test,
+    /// `ui/display.rs`, or `fuzz_games`, and that is expected rather than a
+    /// smell: RA built the record, and Phase 6's trigger matcher is its first
+    /// production consumer. Keep the surface small until then — an earlier draft
+    /// of this API also had an `events_from`, which was two call sites of sugar
+    /// over `records_from` and is gone.
     pub fn records(&self) -> &[EventRecord] {
         &self.records
     }
 
-    /// Just the events, for callers that do not care which batch they came from.
+    /// Just the events, for readers that do not care which batch or resolution
+    /// they came from — the display path, and most assertions.
     pub fn events(&self) -> impl Iterator<Item = &GameEvent> + '_ {
         self.records.iter().map(|r| &r.event)
     }
 
-    /// The events emitted since `index` — pass an earlier [`Self::len`].
-    pub fn events_from(&self, index: usize) -> impl Iterator<Item = &GameEvent> + '_ {
-        self.records_from(index).iter().map(|r| &r.event)
-    }
-
-    /// Get records since the given index (useful for checking "what happened since last check")
+    /// The records since `index` — pass an earlier [`Self::len`] to ask "what
+    /// happened since I last looked".
+    ///
+    /// Clamped rather than sliced, so a stale mark returns nothing instead of
+    /// panicking. That matters for the trigger matcher, whose mark is taken
+    /// before a resolution that may clear the log.
     pub fn records_from(&self, index: usize) -> &[EventRecord] {
         if index >= self.records.len() {
             &[]
@@ -430,9 +451,10 @@ mod tests {
 
     #[test]
     fn test_a_nested_batch_joins_the_enclosing_one() {
-        // CR 702.15b — lifelink's gain is proposed from inside the damage's
-        // performance and is simultaneous with it, so it must not open a batch
-        // of its own.
+        // CR 120.3f makes lifelink's gain a result of the damage, and CR 120.4d
+        // lets the one damage event occur after its results are processed. The
+        // gain is proposed from inside the damage's performance, so it must not
+        // open a batch of its own.
         let mut log = EventLog::new();
         let outer = log.open_batch(None);
         log.emit(GameEvent::StateBasedActionPerformed);

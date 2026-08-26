@@ -40,10 +40,13 @@ impl<'a> ActionContext<'a> {
 
     /// The resolution to stamp onto every event this proposal emits.
     ///
-    /// Drops the targets: an event log wants to know *which resolution* caused
-    /// a mutation, and the resolving object's id answers that (CR 608.2m makes
-    /// it unique per resolution). Carrying the target list would copy it onto
-    /// every event.
+    /// Drops the targets: an event log wants to know *which resolution* caused a
+    /// mutation, and the resolving object's id answers that. **That is a
+    /// property of this engine, not a rule** — a cast produces one stack object
+    /// and `activate_ability` mints a fresh ephemeral one per activation, each
+    /// with its own v4 `ObjectId`, and CR 608.2n destroys the ability's object
+    /// rather than recycling it. Carrying the target list would copy it onto
+    /// every event for no reader.
     pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
         self.resolution.map(|r| ResolutionStamp {
             source: r.source,
@@ -139,7 +142,9 @@ pub enum ZoneChangeCause {
     // --- the stack ---
     /// Hand (or elsewhere) → stack.
     Cast,
-    /// 608.2m — stack → battlefield or graveyard.
+    /// A stack object finished resolving: CR 608.2n for an instant or sorcery
+    /// (to its owner's graveyard), CR 608.3a/c for a permanent spell (onto the
+    /// battlefield, attached if it is an Aura).
     Resolved,
     /// 701.6.
     Countered,
@@ -261,9 +266,13 @@ impl GameState {
     ///   the choice cannot exist unless all of the damage is proposed at once.
     ///
     /// Every event the batch emits carries one [`BatchId`](crate::events::event::BatchId),
-    /// which is what
-    /// CR 603.2c/603.6a's "one or more" phrasing needs — "whenever one or more
-    /// creatures die" fires once for the batch, not once per member.
+    /// which is what **CR 603.2c** needs: "an ability triggers only once each
+    /// time its trigger event occurs. However, it can trigger repeatedly if one
+    /// event contains multiple occurrences." Both readings hang off the batch
+    /// boundary. "Whenever one or more creatures die" has the whole batch as its
+    /// trigger event and fires once; "whenever a creature dies" fires once per
+    /// occurrence inside it. Without a boundary the engine cannot tell them
+    /// apart.
     ///
     /// **Each member keeps its own applied set** when the pipeline lands.
     /// CR 614.5 is per *event* and batch members are separate events: Kalitas

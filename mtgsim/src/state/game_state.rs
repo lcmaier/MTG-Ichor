@@ -67,7 +67,7 @@ pub struct StackEntry {
     /// **Invariant: `ability_identity.is_some() == !is_spell`** — the mirror of
     /// [`Self::cast_from`], and for the same reason. An ability on the stack is
     /// a new object with a fresh `ObjectId` that ceases to exist on resolution
-    /// (CR 608.2m), so the ephemeral id identifies nothing once it is gone.
+    /// (CR 608.2n), so the ephemeral id identifies nothing once it is gone.
     ///
     /// CR 603.7h needs the durable identity: a delayed trigger that fires when
     /// "this ability has resolved for the third time this turn" is counting
@@ -77,7 +77,8 @@ pub struct StackEntry {
 }
 
 /// A stack object between being popped for resolution and reaching its
-/// destination zone. See [`GameState::resolving`].
+/// destination zone — a window this engine creates and the CR does not have.
+/// See [`GameState::resolving`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvingObject {
     pub id: ObjectId,
@@ -120,22 +121,33 @@ pub struct GameState {
     pub stack: Vec<ObjectId>,
     /// Stack entry metadata — keyed by ObjectId
     pub stack_entries: HashMap<ObjectId, StackEntry>,
-    /// The stack object currently resolving (CR 608.2), if any.
+    /// The stack object currently resolving, if any.
     ///
-    /// `resolve_top_of_stack` pops the object off `stack` *before* resolution
-    /// begins, so that effects which inspect the stack mid-resolution — a
-    /// Counterspell resolving in response, say — do not see the object that is
-    /// resolving. That leaves it in an in-between state: no longer in the stack
-    /// `Vec`, not yet in its destination zone, and still owning two facts that
-    /// nothing else can answer. This field states that in-between state instead
-    /// of leaving it implicit, which is what lets CR 608.2m's zone change go
-    /// through the ordinary chokepoint:
+    /// **This models an engine artifact, not a game state.** CR 608.2 keeps a
+    /// resolving spell *on* the stack for the whole of its resolution, and
+    /// CR 608.2n/608.3a move it only at the end. There is no in-between zone in
+    /// the rules. `resolve_top_of_stack` nonetheless pops the object off `stack`
+    /// before resolving, which leaves a window this field exists to describe:
+    /// no longer in the stack `Vec`, not yet in its destination zone.
     ///
-    /// - `remove_from_zone_collection(Stack)` would otherwise fail to find it
-    ///   and report a bug that is not one.
-    /// - `init_zone_state(Battlefield)` needs CR 110.2b's controller — whoever
-    ///   controlled the *spell* — and the `StackEntry` that recorded it is gone
-    ///   by then.
+    /// Two readers, and they want different things:
+    ///
+    /// - `remove_from_zone_collection(Stack)` would otherwise fail to find the
+    ///   object and report a bug that is not one. **This reader exists only
+    ///   because of the early pop** — see the note below.
+    /// - `init_zone_state(Battlefield)` needs CR 110.2b's controller, the player
+    ///   who controlled the *spell*, and the `StackEntry` that recorded it has
+    ///   been taken by then. This reader is real regardless of the pop.
+    ///
+    /// **The early pop's stated reason does not survive inspection (audited
+    /// 2026-08-26).** It was documented as keeping in-flight effects — a
+    /// Counterspell — from seeing the resolving object. Nothing can: CR 608.2g
+    /// says no spell may normally be cast and no ability activated during a
+    /// resolution, so no effect can *acquire* the resolving object as a target
+    /// mid-resolution, and a spell cannot pick itself at CR 601.2c because
+    /// `enumerate_legal_selections` and `has_any_legal_choice` already exclude
+    /// it by `exclude_id`. Removing the pop is tracked in `codebase-state.md`;
+    /// it would delete the first reader above and leave the second.
     ///
     /// Always `None` outside a resolution. `resolve_top_of_stack` clears it on
     /// every exit path, including the error ones.

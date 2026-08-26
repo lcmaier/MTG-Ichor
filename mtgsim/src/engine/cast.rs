@@ -671,7 +671,7 @@ mod tests {
         }).collect();
 
         // The point of the pair: both name (source, ability), not the ephemeral
-        // stack object — which by now has been deleted (CR 608.2m). CR 603.7h
+        // stack object — which by now has been deleted (CR 608.2n). CR 603.7h
         // counts resolutions of *this ability of this permanent*, and neither
         // half survives in the ephemeral id.
         assert_eq!(activated.len(), 1);
