@@ -272,7 +272,7 @@ impl GameState {
 
                 // Keyword hooks (delegated to engine/keywords.rs)
                 apply_deathtouch_flag(self, source, &target);
-                apply_lifelink(self, source, amount)?;
+                apply_lifelink(self, source, amount, _ctx)?;
 
                 // Rule 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
