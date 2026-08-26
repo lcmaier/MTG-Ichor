@@ -816,26 +816,39 @@ Tests in §10.
 Three rules need an event *set*, not an event:
 
 - **CR 704.3** — "performs all applicable state-based actions **simultaneously
-  as a single event**". `engine/sba.rs` currently performs them one
-  `change_zone` at a time.
+  as a single event**". `engine/sba.rs` performed them one `change_zone` at a
+  time, and worse, evaluated 704.5g's conditions only after 704.5f's moves had
+  happened.
 - **CR 704.7** — "if multiple state-based actions would have the same result at
   the same time, a single replacement effect will replace all of them."
   Unreachable without the batch.
 - **CR 615.7** — "if damage would be dealt … by two or more applicable sources
   at the same time, the … controller chooses which damage the shield prevents."
-  `apply_combat_damage` currently loops one assignment at a time, so this choice
-  cannot exist.
+  `apply_combat_damage` looped one assignment at a time, so this choice could
+  not exist.
 
-So `execute_action` gains a batch sibling:
+So `execute_action` gains a batch sibling (shipped RA-3):
 
 ```rust
 pub fn execute_actions(&mut self, batch: Vec<GameAction>, ctx: &ActionContext)
-    -> Result<Vec<GameAction>, String>;
+    -> Result<(), String>;
 ```
+
+**The return type is `()` rather than the `Vec<GameAction>` this section first
+specified.** The performed-action vector has no consumer in RA and the project
+does not add one speculatively; RB restores it the moment `apply_replacements`
+gives it a customer. Nothing else about the signature moved.
 
 The batch shares one batch id (which lands on every emitted `GameEvent`,
 satisfying the CR 603.2c/603.6a "one or more" trigger requirement that Phase 7
 will need). `execute_action` becomes `execute_actions(vec![action])`.
+
+**A nested `execute_actions` joins the enclosing batch rather than opening its
+own** (decided in RA-3, and it is a rules point, not an implementation
+convenience). CR 702.15b makes lifelink's life gain happen *simultaneously with*
+the damage that caused it, and lifelink proposes from inside
+`perform_action(DealDamage)`. A second batch id there would tell a CR 603.2c
+trigger that two events happened. RD's CR 120.3 decomposition is the same shape.
 
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
@@ -858,7 +871,18 @@ state, so a regeneration shield spent on batch member one is correctly gone
 when member two asks (CR 701.19a — one shield, one destruction replaced).
 
 Callers that must batch: `apply_combat_damage` (CR 510.2), the SBA sweep
-(704.3), and any "each player …" effect (CR 101.4).
+(704.3), **the untap step (CR 502.1 — "all the permanents untap
+simultaneously", which this list originally missed)**, and any "each player …"
+effect (CR 101.4). All three of the named ones batch as of RA-3.
+
+**The dedupe is where CR 704.7 lives, and RA-3 implemented it as one action per
+object.** Two state-based actions that would put the same permanent into the
+same graveyard at the same time have the same *result*, so they are one event
+with one applied-set. The first condition in CR order names the cause: a creature
+that is both a duplicate legend and dead to lethal damage was destroyed
+(704.5g), not put away by the legend rule. Note this is the *within-batch*
+collapse; §4.2's opening paragraph on per-member applied sets is about distinct
+events and still holds.
 
 ### 4.3 N players, from day one
 
@@ -1087,19 +1111,20 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 
 | Site | Change | Phase |
 |---|---|---|
-| `engine/actions.rs::execute_action` | the pipeline call; gains `ActionContext`; batch sibling | RA/RB |
+| `engine/actions.rs::execute_action` | the pipeline call; gains `ActionContext`; batch sibling `execute_actions` | RA ✅ / RB |
 | `engine/actions.rs::change_zone` | gains `cause` and `ActionContext` | RA |
-| `engine/zones.rs::move_object` | performer only; emission moves here | RA |
+| `engine/zones.rs::move_object` | performer only; emission moves **out** of it, into `perform_action`'s `ZoneChange` arm — the only place that knows the `cause` and can capture the LKI frame before the object stops being a permanent | RA ✅ |
+| `engine/zones.rs::play_land` | gains `ActionContext`; routes through `change_zone` with `PlayedAsLand`. **Not in the original table** — a fourth chokepoint bypass §11's derivation missed, and the most frequent zone change in the game | RA ✅ |
 | `engine/zones.rs::draw_card` | routes through `execute_action(DrawCard)`; emits `CardDrawn` | RA |
-| `engine/stack.rs` × 3 `// REPLACEMENT-BYPASS:` | pop-aware `ZoneChange` dispatch that skips the stack-Vec removal; also where the LKI frame is captured | RA |
+| `engine/stack.rs` × 3 `// REPLACEMENT-BYPASS:` | closed by naming the state instead of dispatching around it: `GameState::resolving` records the popped object and CR 110.2b's controller, so `remove_from_zone_collection(Stack)` and `init_zone_state` can both consult it and the sites use plain `change_zone` | RA ✅ |
 | `engine/turns.rs::process_draw_step` | stop calling `draw_card` directly (CR 614.11, 614.10) | RA |
-| `engine/turns.rs::process_untap_step` | route through `Untap`; emit `Untapped` (CR 122.1d) | RA |
+| `engine/turns.rs::process_untap_step` | route through `Untap`; emit `Untapped` (CR 122.1d); **one batch**, per CR 502.1's "simultaneously" | RA ✅ |
 | `engine/costs.rs:150,165` | `Cost::Tap`, `{Q}` — emit `Tapped` | RA |
 | `engine/combat/steps.rs:70` | attackers tap — emit `Tapped` | RA |
 | `engine/combat/resolution.rs::apply_combat_damage` | batch, not a loop (CR 510.2, 615.7) | RA/RD |
 | `engine/cast.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA |
 | `state/game_state.rs::StackEntry` | add `cast_from: Zone` — §8c, two customers | RA |
-| `engine/sba.rs` | batch sweep (CR 704.3/704.7); `cause` on each move | RA/RB |
+| `engine/sba.rs` | one CR 704.3 event: gather every condition against one game state, dedupe per object (704.7's same-result collapse), perform as one batch, `cause` on each move | RA ✅ |
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
 | `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
@@ -1604,11 +1629,11 @@ The Deferred Migrations item 3 ticket list, verbatim, plus the DP plumbing.
 cite them — but they land in three groups. The grouping is dependency-clean:
 nothing in a later group is a prerequisite for an earlier one.
 
-| Sub-phase | Tickets | Shape | Measured size |
-|---|---|---|---|
-| **RA-1 — plumbing** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites |
-| **RA-2 — routing** | 3, 4, 5, 10, 11, 12 | six independent "make the silent site loud" tickets | 5 new `GameEvent` variants; ~10 sites each |
-| **RA-3 — payloads** | 9, 6, 7, 8 *(that order)* | the deep half: batches, LKI, the bypass closure | 3 bypass sites, the SBA sweep, `apply_combat_damage` |
+| Sub-phase | Tickets | Shape | Measured size | Status |
+|---|---|---|---|---|
+| **RA-1 — plumbing** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites | ✅ PR #58 |
+| **RA-2 — routing** | 3, 4, 5, 10, 11, 12 | six independent "make the silent site loud" tickets | 5 new `GameEvent` variants; ~10 sites each | ✅ PR #59 |
+| **RA-3 — payloads** | 9, 6, 7, 8 *(that order)* | the deep half: batches, LKI, the bypass closure | 3 bypass sites, the SBA sweep, `apply_combat_damage` | ✅ 2026-08-25 |
 
 **Why three, and not the two-way seam this doc proposed first.** Ticket 1 alone
 is a session. Counted 2026-08-25: `execute_action` 7 external call sites,
@@ -1695,7 +1720,7 @@ Six tickets, each independently testable, roughly one commit apiece.
 **RA-2 exit:** grep-provable — no production site outside `perform_action`'s own
 arms writes `entry.tapped`, writes `life_total`, or moves a card library→hand.
 
-#### RA-3 — payloads and structure (tickets 9, 6, 7, 8)
+#### RA-3 — payloads and structure (tickets 9, 6, 7, 8) — ✅ landed 2026-08-25
 
 In that order: 9 first because 6's batch id has nowhere to live without it, and
 7 after 6 because the bypass sites are where the LKI frame is captured.
@@ -1710,11 +1735,57 @@ In that order: 9 first because 6's batch id has nowhere to live without it, and
    doc comments marking them display-only. `fuzz_games`' `creatures_died` stat
    and `ui/display.rs` keep reading them; nothing else may.
 
-**Exit criterion (all of RA):** every state mutation observable by CR 614 or
-CR 603 is emitted from exactly one place, and an event log replay can distinguish
-drawn from tutored, destroyed from sacrificed, and countered from resolved.
-"Every" includes the life mutations: after RA the only `life_total` writers are
-`perform_action`'s own arms.
+**What executing it changed in this document.** Four things, recorded here
+because §9 is where the next phase reads:
+
+- **The untap sweep is a third batch caller.** §4.2 named `apply_combat_damage`,
+  the SBA sweep and "any 'each player …' effect"; CR 502.1 says the untap step's
+  permanents untap *simultaneously*, which is the same rule and the ticket did
+  not name it. Batched.
+- **`execute_actions` returns `Result<(), String>`, not `Result<Vec<GameAction>, String>`.**
+  §4.2 specified the performed-action vector; in RA nothing consumes it, and the
+  project does not add a return value speculatively. RB adds it when
+  `apply_replacements` gives it a customer — a one-line change.
+- **`play_land` was a fourth chokepoint bypass** that §11's derivation missed,
+  because that derivation counted `change_zone` callers and `play_land` wrote
+  straight to `move_object`. It is the most frequent zone change in the game, and
+  it is why `ZoneChangeCause::PlayedAsLand` had no call site. Fixed in ticket 6.
+  Running correction: **11** production movers, not the 9 §11 derived or the 10
+  RA-2 corrected it to.
+- **The CR 601.2 rewind has two halves and RA-3 fixed one.** The rollback is now
+  silent, which is what `// CAST-ROLLBACK:` had claimed since RA-1. The *forward*
+  hand→stack move is still announced at CR 601.2a, before it is knowable whether
+  the cast rewinds, so a replay still contains a move the rules say never
+  happened. Deferring the announcement to 601.2i without deferring the move is a
+  two-phase cast; recorded as Deferred Migrations item 5 and wanted before
+  Phase 6, since the trigger matcher reads that log.
+
+**One design point the ticket list did not settle, decided during execution.**
+CR 704.3 says the game checks every condition and *then* performs all applicable
+state-based actions "simultaneously as a single event". The old sweep performed
+704.5f's moves before it evaluated 704.5g's conditions, so it converged to the
+right board through `check_state_based_actions_loop` but could never produce the
+simultaneity CR 704.7 and CR 616.1 are written against. The sweep now gathers
+against one game state and performs one batch, deduped per object with the first
+condition in CR order naming the cause. That is a real behavior change with a
+visible consequence: **a player controlling two Isamarus, one dead to lethal
+damage, is now asked which to keep** — the old sweep skipped the prompt by
+having already removed the dead one. Both then die, which is what the rule says.
+`fuzz_games --games 50 --seed 12345` did not move, so the case is rare in the
+current pool, but it is a live `DecisionProvider` call and RB's §11 item 7
+blast-radius watch applies to it.
+
+**Exit criterion (all of RA) — met 2026-08-25:** every state mutation observable
+by CR 614 or CR 603 is emitted from exactly one place, and an event log replay
+can distinguish drawn from tutored, destroyed from sacrificed, and countered from
+resolved. "Every" includes the life mutations: after RA the only `life_total`
+writers are `perform_action`'s own arms, and the only emitter of
+`GameEvent::ZoneChange` is its `ZoneChange` arm.
+
+Two mutations are outside it by construction rather than by oversight, and both
+are recorded in `codebase-state.md`: counter annihilation and attachment SBAs
+have no `GameAction` variant to propose through (RB item 5 gives counters one),
+and the CR 601.2a announcement above.
 
 ### Phase RB — the pipeline, with counters and regeneration as consumers
 
@@ -2035,13 +2106,18 @@ rule number) — confirm the merge at labelling time.
 
 Update as part of the work that changes them, not in a later pass:
 
-- `codebase-state.md` — the CR 614–616 row, the CR 9 table (item 11.1 above),
-  and Deferred Migrations: item 3 closes with RA, item 2's three bypasses close
-  with RA, and every new stub gets a line at commit time.
-- `CLAUDE.md` — an authority-table row for this file; a new invariant if the
-  chokepoint discipline needs one stated (it probably does: *"never mutate
-  observable state outside `perform_action`"* is this phase's analogue of the
-  layer-system invariant).
+- `codebase-state.md` — ✅ through RA. The CR 614–616 row, the CR 9 table
+  (item 11.1 above), and Deferred Migrations: **item 3 closed with RA-3, item 2's
+  three bypasses closed with RA-3**, and two new items were opened at commit time
+  (the CR 601.2a announcement, and the SBA mutations with no `GameAction`
+  variant). Keep adding a line per stub.
+- `CLAUDE.md` — ✅ through RA. The authority-table row exists; the chokepoint
+  invariant is stated, and RA-3 added its one-performer/one-emitter and
+  simultaneity sub-rules and struck the `// REPLACEMENT-BYPASS:` exemption.
 - `layers-architecture.md` §9 / §15.2 item 3 — the overlay decision, once made.
+  **Untouched by RA**, correctly: RA-3's LKI frame is a `compute_characteristics`
+  call taken *before* a mutation, not a hypothetical about a perturbed board, so
+  it needed neither the accessor pair nor a clone. The overlay is still RC-B's,
+  and §11 item 5's decision still stands unrecorded there.
 - `cards-unlocked-ledger.md` — the ETB unlock is the largest single entry the
-  ledger will take; add it with RC.
+  ledger will take; add it with RC. RA unlocks no cards by itself.

@@ -103,10 +103,24 @@ Propose with `execute_action` / `change_zone`; let the arm do the writing.
 - **Routing a sweep makes its order observable.** CR 616.1 prompts when two
   effects want one event, so a loop that proposes actions needs
   `battlefield_ids_ordered` even if the old direct-write loop did not.
+- **One performer, one emitter, and they are different functions.**
+  `move_object` performs a zone change and announces nothing;
+  `perform_action`'s `ZoneChange` arm is the only production emitter of
+  `GameEvent::ZoneChange`, because it is the only place that knows the
+  `cause` and the only place that can capture the CR 603.10a LKI frame
+  *before* the object stops being a permanent. Emitting from the performer
+  is how a CR 601.2 cast rewind spent a phase in the log claiming to be a
+  real move.
+- **A simultaneous rule needs `execute_actions`, not a loop.** CR 704.3's
+  single event, CR 704.7's same-result collapse and CR 615.7's shield
+  allocation are all unreachable from a loop of `execute_action` calls.
+  A batch shares one `BatchId`; a *nested* call joins the enclosing batch
+  rather than opening its own, because CR 702.15b makes lifelink's gain
+  simultaneous with the damage that caused it.
 
-Exempt, both tagged in `engine/zones.rs`'s `move_object` doc: `// CAST-ROLLBACK:`
-(CR 601.2 rewinds — not events, permanently exempt) and `// REPLACEMENT-BYPASS:`
-(real zone changes, temporarily exempt until RA-3's pop-aware dispatch).
+One exemption, tagged in `engine/zones.rs`'s `move_object` doc and permanent:
+`// CAST-ROLLBACK:` — CR 601.2 rewinds are not events. (`// REPLACEMENT-BYPASS:`
+is gone; RA-3 closed its three sites with `GameState::resolving`.)
 
 ## Determinism at the decision boundary
 
@@ -138,7 +152,8 @@ shell: every line must match except the timing lines (`Total time`, `Time/game`,
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅ (2026-05 → 2026-08)
 5. Replacement effects (CR 614–616) — execute from `plans/replacement-architecture.md`
-   (phases RA–RE). Gates most real cards and Commander's 903.9b redirection
+   (phases RA–RE). **Phase RA — the event spine — landed 2026-08-25; RB is the
+   pipeline itself.** Gates most real cards and Commander's 903.9b redirection
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes
    LKI formalization and conditional static abilities with it
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass +
