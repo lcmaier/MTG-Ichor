@@ -45,7 +45,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 /// is what makes it the right probe for *when* the LKI frame is captured.
 fn self_anthem_creature() -> Arc<CardData> {
     CardDataBuilder::new("Standard Bearer")
-        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
@@ -392,6 +392,110 @@ fn test_a_land_play_and_a_later_one_are_separate_batches() {
         .collect();
     assert_eq!(batches.len(), 2);
     assert_ne!(batches[0], batches[1], "two events, not one");
+}
+
+// ---------------------------------------------------------------------------
+// CR 608.2m — leaving the stack is a zone change like any other
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_a_resolving_permanent_spell_moves_through_the_chokepoint() {
+    // One of the three `// REPLACEMENT-BYPASS:` sites. CR 903.9b has to be able
+    // to offer the command zone instead of the battlefield here, and could not
+    // while the site wrote `obj.zone` by hand.
+    let mut game = setup_two_player_game();
+    let id = put_in_hand(&mut game, self_anthem_creature(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    game.cast_spell(0, id, &decisions).unwrap();
+    game.resolve_top_of_stack(&decisions).unwrap();
+
+    assert!(game.battlefield.contains_key(&id));
+    assert_eq!(
+        zone_changes(&game),
+        vec![
+            (id, Zone::Hand, Zone::Stack, ZoneChangeCause::Cast),
+            (id, Zone::Stack, Zone::Battlefield, ZoneChangeCause::Resolved),
+        ],
+    );
+}
+
+#[test]
+fn test_a_resolving_instant_moves_through_the_chokepoint() {
+    let mut game = setup_two_player_game();
+    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: bolt,
+        },
+        vec![1],
+    );
+    game.cast_spell(0, bolt, &decisions).unwrap();
+    game.resolve_top_of_stack(&decisions).unwrap();
+
+    assert_eq!(
+        zone_changes(&game).last().copied(),
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Resolved)),
+    );
+}
+
+#[test]
+fn test_a_fizzling_spell_moves_through_the_chokepoint() {
+    // The third bypass, and the one v1 Commander needs most: a commander
+    // creature spell whose target vanished goes stack -> graveyard here, and
+    // CR 903.9b must get a say.
+    let mut game = setup_two_player_game();
+    let victim = put_on_battlefield(&mut game, self_anthem_creature(), 1);
+    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    // Candidates for `Any` are [Player(0), Player(1), <the one creature>].
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: bolt,
+        },
+        vec![2],
+    );
+    game.cast_spell(0, bolt, &decisions).unwrap();
+
+    // The target leaves before the spell resolves, so all its targets are
+    // illegal and CR 608.2b counters it by game rules.
+    game.change_zone(victim, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.resolve_top_of_stack(&decisions).unwrap();
+
+    assert!(game.events.events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
+    assert_eq!(
+        zone_changes(&game).last().copied(),
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)),
+        "countered by game rules is not the same fact as resolved",
+    );
+}
+
+#[test]
+fn test_a_resolving_ability_leaves_no_zone_change() {
+    // An activated ability is not a card and has no destination zone: CR 608.2m
+    // says it simply ceases to exist. Routing the *spell* paths through the
+    // chokepoint must not sweep this one along with them.
+    let mut game = setup_two_player_game();
+    let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
+
+    let before = game.events.len();
+    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+
+    assert!(
+        !game.events.records_from(before).iter().any(|r| matches!(
+            r.event,
+            GameEvent::ZoneChange { to: Zone::Graveyard, .. }
+        )),
+        "an ability ceases to exist; it does not go anywhere",
+    );
 }
 
 // ---------------------------------------------------------------------------

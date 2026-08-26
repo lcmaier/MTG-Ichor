@@ -76,6 +76,17 @@ pub struct StackEntry {
     pub ability_identity: Option<AbilityIdentity>,
 }
 
+/// A stack object between being popped for resolution and reaching its
+/// destination zone. See [`GameState::resolving`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvingObject {
+    pub id: ObjectId,
+    /// CR 110.2b — whoever controlled the spell as it resolved, and therefore
+    /// who controls the permanent it becomes. Read off the `StackEntry` before
+    /// the pop destroys it.
+    pub controller: PlayerId,
+}
+
 /// Which ability of which object — the durable identity of an activated ability,
 /// as opposed to the ephemeral stack object representing one activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +120,26 @@ pub struct GameState {
     pub stack: Vec<ObjectId>,
     /// Stack entry metadata — keyed by ObjectId
     pub stack_entries: HashMap<ObjectId, StackEntry>,
+    /// The stack object currently resolving (CR 608.2), if any.
+    ///
+    /// `resolve_top_of_stack` pops the object off `stack` *before* resolution
+    /// begins, so that effects which inspect the stack mid-resolution — a
+    /// Counterspell resolving in response, say — do not see the object that is
+    /// resolving. That leaves it in an in-between state: no longer in the stack
+    /// `Vec`, not yet in its destination zone, and still owning two facts that
+    /// nothing else can answer. This field states that in-between state instead
+    /// of leaving it implicit, which is what lets CR 608.2m's zone change go
+    /// through the ordinary chokepoint:
+    ///
+    /// - `remove_from_zone_collection(Stack)` would otherwise fail to find it
+    ///   and report a bug that is not one.
+    /// - `init_zone_state(Battlefield)` needs CR 110.2b's controller — whoever
+    ///   controlled the *spell* — and the `StackEntry` that recorded it is gone
+    ///   by then.
+    ///
+    /// Always `None` outside a resolution. `resolve_top_of_stack` clears it on
+    /// every exit path, including the error ones.
+    pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
     pub battlefield: HashMap<ObjectId, BattlefieldEntity>,
     /// Exile zone
@@ -287,6 +318,7 @@ impl GameState {
             players,
             stack: Vec::new(),
             stack_entries: HashMap::new(),
+            resolving: None,
             battlefield: HashMap::new(),
             exile: Vec::new(),
             command: Vec::new(),

@@ -261,7 +261,7 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     // after the spell becomes a permanent, so `get_effective_controller` would
     // answer 1 even if the permanent had entered under P0's control and the row
     // were merely still applying on top. CR 110.2b is a claim about what
-    // `init_zone_state_with_controller` was handed.
+    // `init_zone_state` read off `GameState::resolving` as the permanent entered.
     assert_eq!(
         game.battlefield.get(&spell_id).unwrap().controller,
         1,

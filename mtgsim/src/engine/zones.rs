@@ -29,18 +29,18 @@ impl GameState {
     /// `GameAction::ZoneChange` arm itself, and existing unit tests) can still
     /// call it.
     ///
-    /// **Two documented classes of exception, and they are not the same kind:**
+    /// **One documented class of exception, and it is permanent:**
+    /// `// CAST-ROLLBACK:` — `cast_spell`'s failure paths, via
+    /// `rollback_cast_to_hand`. These are **not** zone changes at all: CR 601.2
+    /// rewinds the casting process, so no object legally moved and nothing may
+    /// observe it. They must never be routed through the chokepoint.
     ///
-    /// - `// REPLACEMENT-BYPASS:` — the three sites in `engine/stack.rs`. These
-    ///   *are* real zone changes that the pipeline ought to see; they bypass
-    ///   only because the stack-pop-first pattern removes the object from the
-    ///   stack `Vec` before resolution begins. **Temporary** — RA-3 closes them
-    ///   with a pop-aware dispatch.
-    /// - `// CAST-ROLLBACK:` — `cast_spell`'s failure paths, via
-    ///   `rollback_cast_to_hand`. These are **not** zone changes at all: CR
-    ///   601.2 rewinds the casting process, so no object legally moved and
-    ///   nothing may observe it. **Permanent** — they must never be routed
-    ///   through the chokepoint.
+    /// The `// REPLACEMENT-BYPASS:` class is gone. Its three sites in
+    /// `engine/stack.rs` *were* real zone changes the pipeline had to see; they
+    /// bypassed only because the stack-pop-first pattern removes the object
+    /// from the stack `Vec` before resolution begins, so this function would
+    /// have removed it twice. RA-3 closed them by naming the in-between state
+    /// instead of routing around it — see [`GameState::resolving`].
     ///
     /// **This function performs the move and announces nothing.** The
     /// `GameEvent::ZoneChange` is emitted by `perform_action`'s own arm, which
@@ -249,6 +249,13 @@ impl GameState {
                     self.stack.remove(pos);
                     self.stack_entries.remove(&id);
                     Ok(())
+                } else if self.resolving.map(|r| r.id) == Some(id) {
+                    // Already off the `Vec`: `resolve_top_of_stack` pops before
+                    // resolving so in-flight effects cannot see the resolving
+                    // object (CR 608.2). Expected, not a bug — and the *only*
+                    // way it is expected. See `GameState::resolving`.
+                    self.stack_entries.remove(&id);
+                    Ok(())
                 } else {
                     Err(format!("Object {} not found on stack", id))
                 }
@@ -317,25 +324,22 @@ impl GameState {
 
     /// Initialize zone-specific state when entering a zone.
     /// Default controller is the object's owner (correct for play_land, tokens, etc.).
+    /// Initialize zone-specific state when entering a zone.
+    ///
+    /// The entering permanent's controller is its owner (correct for a land
+    /// play and for tokens) *except* when it is a resolving permanent spell:
+    /// CR 110.2b gives it to whoever controlled the spell on the stack, which a
+    /// control-changing effect on the spell can make someone other than the
+    /// owner (ATOM-110.2b-001). `GameState::resolving` is where that answer
+    /// survives the pop.
     pub(crate) fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         if zone == Zone::Battlefield {
-            let obj = self.get_object(id)?;
-            let controller = obj.owner; // default controller is owner
+            let controller = match self.resolving {
+                Some(r) if r.id == id => r.controller,
+                _ => self.get_object(id)?.owner,
+            };
             self.place_on_battlefield(id, controller);
         }
-        Ok(())
-    }
-
-    /// Initialize battlefield state with an explicit controller.
-    /// Used when a permanent spell resolves — the controller is whoever
-    /// controlled the spell on the stack (rule 110.2), which may differ
-    /// from the owner if a control-changing effect was applied.
-    pub(crate) fn init_zone_state_with_controller(
-        &mut self,
-        id: ObjectId,
-        controller: PlayerId,
-    ) -> Result<(), String> {
-        self.place_on_battlefield(id, controller);
         Ok(())
     }
 
