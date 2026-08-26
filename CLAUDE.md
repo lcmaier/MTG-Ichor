@@ -81,6 +81,33 @@ object: copy and text-changing effects hand the flag along, and **a Layer 6
 `GrantAbility` must clear it** — a granted ability is never a CDA.
 `layers-architecture.md` §6.
 
+## The chokepoint invariant
+
+**Never mutate observable game state outside `perform_action`'s own arms.** A
+mutation written directly is invisible to CR 614 no matter how loudly it is
+*emitted* — the pipeline reads the proposal, not the event. Lifelink was the
+proof: it emitted `LifeChanged` and wrote `life_total` by hand, so a census of
+emission sites showed it wired up while Tainted Remedy could never have seen it.
+Propose with `execute_action` / `change_zone`; let the arm do the writing.
+
+- **`ZoneChange` carries a `ZoneChangeCause`, and there is no catchall.**
+  `(from, to)` cannot tell a sacrifice from a destruction. Every mover names its
+  reason; a site with nothing honest to say does not belong on the chokepoint
+  (`cast.rs::rollback_cast_to_hand` is what that looks like). Nothing may branch
+  on `cause` outside the replacement pipeline and the trigger matcher.
+- **Performers are loud; callers check legality.** `perform_action` errors for a
+  tap of something not on the battlefield. That makes CR 608.2b's partial
+  resolution the *caller's* job — see `Primitive::Untap`/`Destroy`.
+- **"Becomes" events fire on the transition only** (CR 603.2e). A redundant tap
+  succeeds and announces nothing.
+- **Routing a sweep makes its order observable.** CR 616.1 prompts when two
+  effects want one event, so a loop that proposes actions needs
+  `battlefield_ids_ordered` even if the old direct-write loop did not.
+
+Exempt, both tagged in `engine/zones.rs`'s `move_object` doc: `// CAST-ROLLBACK:`
+(CR 601.2 rewinds — not events, permanently exempt) and `// REPLACEMENT-BYPASS:`
+(real zone changes, temporarily exempt until RA-3's pop-aware dispatch).
+
 ## Determinism at the decision boundary
 
 **Never iterate `game.battlefield` directly where the order is observable — go through

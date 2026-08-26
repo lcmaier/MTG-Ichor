@@ -97,6 +97,8 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        cast_from: Some(Zone::Hand),
+        ability_identity: None,
     }
 }
 
@@ -412,7 +414,7 @@ fn test_untap_step_untaps_the_permanents_you_effectively_control() {
     game.active_player = 1;
     game.phase = Phase::new(PhaseType::Ending);
     while game.phase.step != Some(StepType::Untap) {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
     assert_eq!(game.active_player, 0);
 

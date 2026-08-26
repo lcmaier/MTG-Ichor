@@ -1,3 +1,4 @@
+use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
@@ -23,14 +24,23 @@ impl GameState {
     /// **Do not call this directly from engine modules** — use
     /// [`GameState::change_zone`] or
     /// [`GameState::execute_action`] with [`GameAction::ZoneChange`]. Both
-    /// route through the replacement-effects chokepoint that will land in
-    /// Phase 6 (CR 614). This function is `pub(crate)` so internal helpers
-    /// (`draw_card`, `play_land`, the `GameAction::ZoneChange` arm itself,
-    /// and existing unit tests) can still call it. The three sites in
-    /// `engine/stack.rs` that bypass this function are tagged
-    /// `// REPLACEMENT-BYPASS:` and are documented structural exceptions
-    /// because the stack-pop-first pattern removes the object from the
-    /// stack `Vec` before resolution begins.
+    /// route through the replacement-effects chokepoint (CR 614). This function
+    /// is `pub(crate)` so internal helpers (`draw_card`, `play_land`, the
+    /// `GameAction::ZoneChange` arm itself, and existing unit tests) can still
+    /// call it.
+    ///
+    /// **Two documented classes of exception, and they are not the same kind:**
+    ///
+    /// - `// REPLACEMENT-BYPASS:` — the three sites in `engine/stack.rs`. These
+    ///   *are* real zone changes that the pipeline ought to see; they bypass
+    ///   only because the stack-pop-first pattern removes the object from the
+    ///   stack `Vec` before resolution begins. **Temporary** — RA-3 closes them
+    ///   with a pop-aware dispatch.
+    /// - `// CAST-ROLLBACK:` — `cast_spell`'s failure paths, via
+    ///   `rollback_cast_to_hand`. These are **not** zone changes at all: CR
+    ///   601.2 rewinds the casting process, so no object legally moved and
+    ///   nothing may observe it. **Permanent** — they must never be routed
+    ///   through the chokepoint.
     pub(crate) fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
         let from = {
             let obj = self.get_object(id)?;
@@ -75,7 +85,21 @@ impl GameState {
     /// Returns `Ok(Some(id))` if a card was drawn, `Ok(None)` if the library
     /// was empty (the player is flagged for SBA 704.5b loss but the game
     /// continues — SBAs will handle the actual loss when checked).
-    pub fn draw_card(&mut self, player_id: PlayerId) -> Result<Option<ObjectId>, String> {
+    /// **This is the performer, not the entry point.** Callers propose a draw
+    /// with `execute_action(GameAction::DrawCard { .. })` so CR 614.11 draw
+    /// replacements (Phase RE) see it; this runs after the pipeline has decided
+    /// the draw happens.
+    ///
+    /// The empty-library case is deliberately handled *here* rather than at the
+    /// proposal: CR 121.6a says a draw-replacement applies even when there are
+    /// no cards to draw, so the proposal must still reach the pipeline. What
+    /// does not happen is the draw itself — no `CardDrawn`, just the CR 704.5b
+    /// flag.
+    pub fn draw_card(
+        &mut self,
+        player_id: PlayerId,
+        ctx: &ActionContext,
+    ) -> Result<Option<ObjectId>, String> {
         let player = self.get_player(player_id)?;
 
         if player.library.is_empty() {
@@ -92,7 +116,9 @@ impl GameState {
             *player.library.last().unwrap()
         };
 
-        self.move_object(card_id, Zone::Hand)?;
+        self.change_zone(card_id, Zone::Hand, ZoneChangeCause::Drawn, ctx)?;
+        // CR 121.5 — the zone change alone cannot distinguish this from a tutor.
+        self.events.emit(GameEvent::CardDrawn { player_id, card_id });
         Ok(Some(card_id))
     }
 
@@ -100,10 +126,15 @@ impl GameState {
     ///
     /// Returns the IDs of cards actually drawn. If the library runs out mid-draw,
     /// the player is flagged for SBA loss and the remaining draws are skipped.
-    pub fn draw_cards(&mut self, player_id: PlayerId, count: u64) -> Result<Vec<ObjectId>, String> {
+    pub fn draw_cards(
+        &mut self,
+        player_id: PlayerId,
+        count: u64,
+        ctx: &ActionContext,
+    ) -> Result<Vec<ObjectId>, String> {
         let mut drawn = Vec::new();
         for _ in 0..count {
-            match self.draw_card(player_id)? {
+            match self.draw_card(player_id, ctx)? {
                 Some(id) => drawn.push(id),
                 None => break, // library empty, flagged for SBA
             }
@@ -339,10 +370,84 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::test_ctx;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
     use crate::types::zones::Zone;
     use crate::test_support::{forest as make_forest, stock_libraries};
+
+    /// Put one card in player 0's library and return its id.
+    fn game_with_one_card_library() -> (GameState, crate::types::ids::ObjectId) {
+        let mut game = GameState::new(2, 20);
+        let forest = GameObject::in_library(make_forest(), 0);
+        let forest_id = game.add_object(forest);
+        game.players[0].library.push(forest_id);
+        (game, forest_id)
+    }
+
+    fn card_drawn_events(game: &GameState) -> Vec<crate::types::ids::ObjectId> {
+        game.events.events().iter().filter_map(|e| match e {
+            crate::events::event::GameEvent::CardDrawn { card_id, .. } => Some(*card_id),
+            _ => None,
+        }).collect()
+    }
+
+    #[test]
+    fn test_draw_emits_card_drawn_alongside_the_zone_change() {
+        let (mut game, forest_id) = game_with_one_card_library();
+        game.draw_card(0, &test_ctx()).unwrap();
+
+        // Both, not either: CR 121.1 is a library→hand move, and CR 121.5 makes
+        // "was it a draw" a separate, trigger-visible fact about that move.
+        assert_eq!(card_drawn_events(&game), vec![forest_id]);
+        let zone_changes = game.events.events().iter().filter(|e| matches!(
+            e, crate::events::event::GameEvent::ZoneChange { from: Zone::Library, to: Zone::Hand, .. }
+        )).count();
+        assert_eq!(zone_changes, 1);
+    }
+
+    // COVERS-PARTIAL: ATOM-121.5-001
+    // Builds the "no draw event emitted" half. The atom's trigger half ("no draw
+    // triggers fire") needs CR 603, and its empty-library half needs a library→hand
+    // effect that can run on an empty library — neither exists yet.
+    #[test]
+    fn test_library_to_hand_without_drawing_is_not_a_draw() {
+        let (mut game, forest_id) = game_with_one_card_library();
+
+        // The same movement a draw makes, proposed as a plain zone change —
+        // this is what Nadu, Winged Wisdom lowers to ("reveal the top card of
+        // your library … otherwise, put it into your hand"), and what 857 cards
+        // that move library→hand without the word "draw" lower to. CR 121.5:
+        // the player has not drawn it.
+        game.change_zone(
+            forest_id,
+            Zone::Hand,
+            crate::engine::actions::ZoneChangeCause::PutIntoHand,
+            &test_ctx(),
+        ).unwrap();
+
+        assert_eq!(game.players[0].hand, vec![forest_id]);
+        assert!(
+            card_drawn_events(&game).is_empty(),
+            "a library→hand move without the word \"draw\" is not a draw (CR 121.5)",
+        );
+    }
+
+    #[test]
+    fn test_draw_from_empty_library_emits_no_card_drawn() {
+        let mut game = GameState::new(2, 20);
+        assert!(game.players[0].library.is_empty());
+
+        let drawn = game.draw_card(0, &test_ctx()).unwrap();
+
+        // Nothing was drawn, so nothing is announced. CR 704.5b picks the
+        // attempt up as a state-based action instead. (A *replacement* on the
+        // draw would still have applied — CR 121.6a — which is why the empty
+        // check lives in the performer and not at the proposal.)
+        assert_eq!(drawn, None);
+        assert!(card_drawn_events(&game).is_empty());
+        assert!(game.players[0].has_drawn_from_empty_library);
+    }
 
     #[test]
     fn test_draw_card() {
@@ -354,7 +459,7 @@ mod tests {
         game.players[0].library.push(forest_id);
 
         // Draw it
-        let drawn = game.draw_card(0).unwrap();
+        let drawn = game.draw_card(0, &test_ctx()).unwrap();
         assert_eq!(drawn, Some(forest_id));
         assert!(game.players[0].library.is_empty());
         assert_eq!(game.players[0].hand.len(), 1);
@@ -368,7 +473,7 @@ mod tests {
     #[test]
     fn test_draw_from_empty_library() {
         let mut game = GameState::new(2, 20);
-        let result = game.draw_card(0).unwrap();
+        let result = game.draw_card(0, &test_ctx()).unwrap();
         assert_eq!(result, None);
         assert!(game.players[0].has_drawn_from_empty_library);
     }
@@ -380,7 +485,7 @@ mod tests {
 
         // Advance to Precombat main phase (Untap -> Upkeep -> Draw -> Precombat)
         for _ in 0..3 {
-            game.advance_turn().unwrap();
+            game.advance_turn(&test_ctx()).unwrap();
         }
         assert_eq!(game.phase.phase_type, crate::state::game_state::PhaseType::Precombat);
 
@@ -430,7 +535,7 @@ mod tests {
 
         // Advance to Precombat main (player 0 is active)
         for _ in 0..3 {
-            game.advance_turn().unwrap();
+            game.advance_turn(&test_ctx()).unwrap();
         }
 
         // Player 1 tries to play a land during player 0's turn

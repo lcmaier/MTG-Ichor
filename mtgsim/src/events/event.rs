@@ -1,7 +1,7 @@
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
-use crate::state::game_state::{PhaseType, StepType};
+use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 
 use std::collections::HashMap;
 
@@ -25,6 +25,31 @@ pub enum GameEvent {
         from: Zone,
         to: Zone,
     },
+
+    /// A permanent became tapped (CR 701.26a).
+    ///
+    /// **Only on the transition.** CR 603.2e: "becomes tapped" triggers only
+    /// when a permanent already on the battlefield changes from untapped to
+    /// tapped — it does not fire for a redundant tap, and does not fire for a
+    /// permanent that *enters* tapped. CR 701.26a agrees from the other side:
+    /// only untapped permanents can be tapped at all.
+    Tapped { object_id: ObjectId },
+
+    /// A permanent became untapped (CR 701.26b). Transition-only, as `Tapped`.
+    Untapped { object_id: ObjectId },
+
+    /// A player drew a card (CR 121.1).
+    ///
+    /// **Not redundant with the `ZoneChange` it accompanies.** CR 121.5: moving
+    /// cards from library to hand *without the word "draw"* means the player has
+    /// not drawn them, and that difference is trigger-visible — 106 cards say
+    /// "whenever you draw a card" and 54 count "your second card". A tutor and a
+    /// draw produce the same library→hand `ZoneChange`; only this event
+    /// separates them.
+    ///
+    /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
+    /// handles the attempt as a state-based action instead.
+    CardDrawn { player_id: PlayerId, card_id: ObjectId },
 
     // --- Mana ---
     ManaAdded {
@@ -62,6 +87,18 @@ pub enum GameEvent {
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
     SpellResolved { spell_id: ObjectId },
+    /// An activated ability finished resolving (CR 608.2m), identified by what
+    /// it *is* rather than by the stack object that represented it.
+    ///
+    /// `SpellResolved` carries the ephemeral ability object's id, which ceases
+    /// to exist at resolution and therefore identifies nothing afterward.
+    /// CR 603.7h counting — "whenever this ability resolves for the third time
+    /// this turn" (Ashling the Pilgrim; Ashling, Flame Dancer) — needs the
+    /// durable (source, ability) pair, which is why this event exists
+    /// alongside it rather than replacing it.
+    AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
+    /// An activated ability was put onto the stack (CR 602.2a).
+    AbilityActivated { identity: AbilityIdentity, controller: PlayerId },
     SpellCountered { spell_id: ObjectId, countered_by: ObjectId },
     AbilityCountered { ability_id: ObjectId, countered_by: ObjectId },
     /// Spell or ability fizzled (countered by game rules due to all targets

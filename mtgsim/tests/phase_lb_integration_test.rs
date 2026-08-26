@@ -17,6 +17,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
+use mtgsim::engine::actions::ZoneChangeCause;
 use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
     fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_two_player_game,
@@ -119,7 +120,7 @@ fn test_giant_growth_expires_at_cleanup() {
     // End → Cleanup = 1
     // Total: 9 advances from Precombat to Cleanup
     for _ in 0..9 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     // Verify we're in cleanup
@@ -186,7 +187,7 @@ fn test_two_giant_growths_stack() {
 
     // Advance to cleanup — both expire
     for _ in 0..9 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     assert_eq!(game.continuous_effects.len(), 0);
@@ -301,7 +302,7 @@ fn test_glorious_anthem_removed_on_ltb() {
     assert_eq!(game.continuous_effects.len(), 1);
 
     // Destroy the anthem (move to graveyard)
-    game.change_zone(anthem_id, Zone::Graveyard, &test_ctx()).unwrap();
+    game.change_zone(anthem_id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
 
     // Effect removed, creature back to base
     assert_eq!(game.continuous_effects.len(), 0);
@@ -698,7 +699,7 @@ fn test_layer_effects_expire_at_cleanup() {
 
     // Advance to cleanup (9 steps from precombat main)
     for _ in 0..9 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     // All effects expired, back to base 2/2

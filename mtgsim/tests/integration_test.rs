@@ -49,15 +49,15 @@ fn test_full_opening_sequence() {
     assert_eq!(game.phase.phase_type, PhaseType::Beginning);
 
     // -- Advance through Beginning phase --
-    game.advance_turn().unwrap();
+    game.advance_turn(&test_ctx()).unwrap();
     assert_eq!(game.phase.step, Some(StepType::Upkeep));
 
-    game.advance_turn().unwrap();
+    game.advance_turn(&test_ctx()).unwrap();
     assert_eq!(game.phase.step, Some(StepType::Draw));
     assert_eq!(game.players[0].hand.len(), 1, "Player 0 should have drawn a card");
     assert_eq!(game.players[0].library.len(), 9);
 
-    game.advance_turn().unwrap();
+    game.advance_turn(&test_ctx()).unwrap();
     assert_eq!(game.phase.phase_type, PhaseType::Precombat);
     assert_eq!(game.phase.step, None);
 
@@ -82,7 +82,7 @@ fn test_full_opening_sequence() {
 
     // -- Advance through the rest of the turn --
     for _ in 0..10 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     assert_eq!(game.turn_number, 2);
@@ -99,7 +99,7 @@ fn test_two_turn_land_and_mana_cycle() {
 
     // -- Turn 1: Player 0 --
     for _ in 0..3 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
     assert_eq!(game.phase.phase_type, PhaseType::Precombat);
 
@@ -110,7 +110,7 @@ fn test_two_turn_land_and_mana_cycle() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
 
     for _ in 0..10 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     // -- Turn 2: Player 1 --
@@ -118,7 +118,7 @@ fn test_two_turn_land_and_mana_cycle() {
     assert_eq!(game.active_player, 1);
 
     for _ in 0..3 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     let land2_id = game.players[1].hand[0];
@@ -128,7 +128,7 @@ fn test_two_turn_land_and_mana_cycle() {
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Red), 1);
 
     for _ in 0..10 {
-        game.advance_turn().unwrap();
+        game.advance_turn(&test_ctx()).unwrap();
     }
 
     // -- Turn 3: Player 0 again --
@@ -148,13 +148,13 @@ fn test_event_log_records_zone_changes() {
 
     let initial_events = game.events.len();
 
-    game.advance_turn().unwrap(); // Untap -> Upkeep
-    game.advance_turn().unwrap(); // Upkeep -> Draw
+    game.advance_turn(&test_ctx()).unwrap(); // Untap -> Upkeep
+    game.advance_turn(&test_ctx()).unwrap(); // Upkeep -> Draw
 
     assert!(game.events.len() > initial_events, "Should have emitted events");
 
     let events_before_play = game.events.len();
-    game.advance_turn().unwrap(); // Draw -> Precombat
+    game.advance_turn(&test_ctx()).unwrap(); // Draw -> Precombat
 
     let land_id = game.players[0].hand[0];
     game.play_land(0, land_id, Zone::Hand).unwrap();
@@ -179,7 +179,7 @@ fn test_card_registry_integration() {
     assert_eq!(game.players[0].library.len(), 3);
     assert_eq!(game.players[1].library.len(), 2);
 
-    let drawn_id = game.draw_card(0).unwrap().expect("Should have drawn a card");
+    let drawn_id = game.draw_card(0, &test_ctx()).unwrap().expect("Should have drawn a card");
     let drawn_obj = game.get_object(drawn_id).unwrap();
     assert_eq!(drawn_obj.card_data.name, "Swamp");
 }

@@ -39,6 +39,107 @@ impl<'a> ActionContext<'a> {
     }
 }
 
+/// Why the engine is moving an object between zones.
+///
+/// This is the semantic carrier that makes CR 701.8b answerable: `(from, to)`
+/// cannot distinguish a sacrifice from a destruction from an SBA, and 1,287
+/// printed cards trigger on "dies" while 278 want "sacrifices" specifically.
+///
+/// **Derived from call sites, not researched from the card pool.** It records
+/// what the engine was doing, so the input set is finite and readable off the
+/// tree (`replacement-architecture.md` §11). No printed card asks for a cause
+/// finer than a call site can name: "destroyed by" appears on 1 card in all of
+/// Magic, "was sacrificed" on 3, "if it was destroyed" on 0.
+///
+/// Three rules, all learned the hard way elsewhere in this tree:
+///
+/// - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
+///   `perform_action` cannot recover that from `(from, to)`.
+/// - **Nothing may branch on it outside the replacement pipeline and the
+///   trigger matcher.** A third reader is a third place for it to drift.
+/// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
+///   This is the whole of what makes the enum cheap to extend later. Widening
+///   is only expensive when an existing site was labelled with a coarse variant
+///   that should have been finer, and re-triaging it is guesswork that fails
+///   silently — which requires a catchall to lump into. A genuinely new mutation
+///   arrives with its own new call site, so it adds a variant and touches
+///   nothing existing. A site with no honest reason to give is a site whose
+///   reason nobody has worked out, which is the bug — see
+///   `cast.rs::rollback_cast_to_hand` for what that looks like when it happens.
+///
+/// Several variants have no call site yet because their `Primitive` is still
+/// `NotImplemented` (`resolve.rs`). They are listed anyway: the enum is the
+/// statement of the vocabulary, and nothing matches on it exhaustively until
+/// Phase RB.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZoneChangeCause {
+    // --- effects (CR 701), one per object-moving `Primitive` ---
+    /// 701.8b way 1 — an effect using the word "destroy".
+    Destroyed,
+    /// 701.21 — NOT destruction. The distinction 278 cards care about.
+    Sacrificed,
+    /// 701.13.
+    Exiled,
+    /// 701.9 — includes the CR 514.1 cleanup discard.
+    Discarded,
+    /// 701.17.
+    Milled,
+    /// "return to hand" / "return to the battlefield" — an object going *back*
+    /// somewhere. Not the same as [`Self::PutIntoHand`]; see there.
+    Returned,
+    /// A card put into a hand from somewhere it was never in — the CR 121.5
+    /// non-draw, and specifically **not** a draw: Nadu, Winged Wisdom ("reveal
+    /// the top card of your library … otherwise, put it into your hand"),
+    /// impulse-style "look at the top N and put one in your hand".
+    ///
+    /// 857 cards move library→hand without the word "draw" (493 say "put it
+    /// into your hand"), so this is a class, not a corner.
+    ///
+    /// **Kept separate from `Returned` on naming honesty, not on card demand.**
+    /// The merge criterion in §11 asks whether a printed card distinguishes two
+    /// reasons *as a cause*, and by that test these would collapse — nothing
+    /// asks "was it returned or put". They stay apart because `Returned` means
+    /// an object going back where it was, a Nadu card was never in hand, and a
+    /// site labelled with a variant whose name does not describe it is exactly
+    /// the coarse-label failure the no-catchall ban exists to prevent. The cost
+    /// of the extra variant is zero while nothing matches exhaustively.
+    ///
+    /// Note this carries no draw/non-draw meaning by itself — `GameEvent::CardDrawn`
+    /// is what CR 121.5 turns on. This is the *reason for the move*.
+    PutIntoHand,
+    /// Top, bottom, or shuffled in. *Position* is a field, not a cause.
+    PutIntoLibrary,
+
+    // --- state-based actions (CR 704.5) ---
+    /// 704.5g lethal damage + 704.5h deathtouch. One variant, because CR 701.8b
+    /// calls both "destroyed" and no card distinguishes them as a *cause*.
+    DestroyedBySba,
+    /// 704.5f — NOT destruction, so regeneration and indestructible do not help.
+    ZeroToughness,
+    /// 704.5i.
+    ZeroLoyalty,
+    /// 704.5j.
+    LegendRule,
+    /// 704.5m. (704.5n only unattaches an Equipment; it moves nothing.)
+    AuraSba,
+
+    // --- the stack ---
+    /// Hand (or elsewhere) → stack.
+    Cast,
+    /// 608.2m — stack → battlefield or graveyard.
+    Resolved,
+    /// 701.6.
+    Countered,
+    /// 608.2b — countered by game rules, all targets illegal.
+    Fizzled,
+
+    // --- turn structure and special actions ---
+    /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
+    Drawn,
+    /// 305.1 / 505.6b.
+    PlayedAsLand,
+}
+
 /// A game action that is *about to happen*.
 ///
 /// This is the pre-mutation counterpart to `GameEvent` (which records what
@@ -80,10 +181,13 @@ pub enum GameAction {
     },
 
     /// Move an object from one zone to another.
+    ///
+    /// `cause` is set by the caller and is required — see [`ZoneChangeCause`].
     ZoneChange {
         object: ObjectId,
         from: Zone,
         to: Zone,
+        cause: ZoneChangeCause,
     },
 
     /// Untap a permanent.
@@ -142,10 +246,11 @@ impl GameState {
         &mut self,
         object: ObjectId,
         to: Zone,
+        cause: ZoneChangeCause,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         let from = self.get_object(object)?.zone;
-        self.execute_action(GameAction::ZoneChange { object, from, to }, ctx)
+        self.execute_action(GameAction::ZoneChange { object, from, to, cause }, ctx)
     }
 
     /// Perform the actual state mutation and emit the event.
@@ -188,7 +293,7 @@ impl GameState {
 
                 // Keyword hooks (delegated to engine/keywords.rs)
                 apply_deathtouch_flag(self, source, &target);
-                apply_lifelink(self, source, amount)?;
+                apply_lifelink(self, source, amount, _ctx)?;
 
                 // Rule 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
@@ -232,7 +337,7 @@ impl GameState {
                 // Delegate to the existing draw_card method which handles
                 // empty-library flagging and zone transitions.
                 // draw_card already emits ZoneChange events via move_object.
-                self.draw_card(player)?;
+                self.draw_card(player, _ctx)?;
                 Ok(())
             }
 
@@ -274,7 +379,10 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::ZoneChange { object, from: _, to } => {
+            // `cause` is carried, not consumed: Phase RB's `apply_replacements`
+            // matches on it (CR 701.8b), and RA-3 stamps it onto the emitted
+            // `GameEvent`. Nothing else may read it — see `ZoneChangeCause`.
+            GameAction::ZoneChange { object, from: _, to, cause: _ } => {
                 // Delegate to move_object which handles all zone bookkeeping
                 // and emits its own ZoneChange event.
                 self.move_object(object, to)?;
@@ -282,18 +390,33 @@ impl GameState {
             }
 
             GameAction::Untap { object } => {
-                if let Some(entry) = self.battlefield.get_mut(&object) {
-                    entry.tapped = false;
+                // Loud: an untap proposed for something not on the battlefield
+                // is a caller bug, not a no-op. The caller checks legality —
+                // see `Primitive::Untap` in resolve.rs and CR 608.2b.
+                let entry = self.battlefield.get_mut(&object).ok_or_else(|| {
+                    format!("Cannot untap {}: not on the battlefield", object)
+                })?;
+                // CR 701.26b — only tapped permanents can be untapped — and
+                // CR 603.2e makes "becomes untapped" a transition, not a state.
+                if !entry.tapped {
+                    return Ok(());
                 }
-                // No event emitted for untap yet — will be added when
-                // tap/untap triggers are needed (Phase 6).
+                entry.tapped = false;
+                self.events.emit(GameEvent::Untapped { object_id: object });
                 Ok(())
             }
 
             GameAction::Tap { object } => {
-                if let Some(entry) = self.battlefield.get_mut(&object) {
-                    entry.tapped = true;
+                let entry = self.battlefield.get_mut(&object).ok_or_else(|| {
+                    format!("Cannot tap {}: not on the battlefield", object)
+                })?;
+                // CR 701.26a — only untapped permanents can be tapped — and
+                // CR 603.2e makes "becomes tapped" a transition, not a state.
+                if entry.tapped {
+                    return Ok(());
                 }
+                entry.tapped = true;
+                self.events.emit(GameEvent::Tapped { object_id: object });
                 Ok(())
             }
         }
@@ -328,6 +451,56 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         (game, id)
+    }
+
+    fn tap_events(game: &GameState) -> Vec<&'static str> {
+        game.events.events().iter().filter_map(|e| match e {
+            GameEvent::Tapped { .. } => Some("tapped"),
+            GameEvent::Untapped { .. } => Some("untapped"),
+            _ => None,
+        }).collect()
+    }
+
+    #[test]
+    fn test_tap_emits_only_on_the_transition() {
+        let (mut game, bears_id) = setup_game_with_creature();
+
+        game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(game.battlefield.get(&bears_id).unwrap().tapped);
+        assert_eq!(tap_events(&game), vec!["tapped"]);
+
+        // CR 701.26a: only untapped permanents can be tapped. CR 603.2e: the
+        // trigger event is the *change*, so a redundant tap announces nothing.
+        game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(game.battlefield.get(&bears_id).unwrap().tapped);
+        assert_eq!(tap_events(&game), vec!["tapped"], "a redundant tap is not a second event");
+    }
+
+    #[test]
+    fn test_untap_emits_only_on_the_transition() {
+        let (mut game, bears_id) = setup_game_with_creature();
+
+        // Already untapped — CR 701.26b, nothing to untap, nothing announced.
+        game.execute_action(GameAction::Untap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(tap_events(&game).is_empty());
+
+        game.battlefield.get_mut(&bears_id).unwrap().tapped = true;
+        game.execute_action(GameAction::Untap { object: bears_id }, &test_ctx()).unwrap();
+        assert!(!game.battlefield.get(&bears_id).unwrap().tapped);
+        assert_eq!(tap_events(&game), vec!["untapped"]);
+    }
+
+    #[test]
+    fn test_tap_and_untap_are_loud_off_the_battlefield() {
+        let (mut game, bears_id) = setup_game_with_creature();
+        game.battlefield.remove(&bears_id);
+
+        // Previously a silent no-op, against the loud-lowering doctrine. The
+        // caller checks legality (CR 608.2b partial resolution); the performer
+        // asserts its precondition.
+        assert!(game.execute_action(GameAction::Tap { object: bears_id }, &test_ctx()).is_err());
+        assert!(game.execute_action(GameAction::Untap { object: bears_id }, &test_ctx()).is_err());
+        assert!(tap_events(&game).is_empty());
     }
 
     #[test]

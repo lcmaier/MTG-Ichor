@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -149,9 +149,9 @@ impl GameState {
                 if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
-                let entry = self.battlefield.get_mut(&source_id).unwrap();
-                entry.tapped = true;
-                Ok(())
+                // Through the chokepoint: CR 603.2e "becomes tapped" watchers
+                // and CR 122.1d stun counters both act on this.
+                self.execute_action(GameAction::Tap { object: source_id }, ctx)
             }
             Cost::Untap => {
                 let entry = self.battlefield.get(&source_id)
@@ -164,9 +164,9 @@ impl GameState {
                 if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
-                let entry = self.battlefield.get_mut(&source_id).unwrap();
-                entry.tapped = false;
-                Ok(())
+                // {Q} — same chokepoint as Cost::Tap. CR 122.1d makes Untap
+                // replaceable, which is why this cannot stay a direct write.
+                self.execute_action(GameAction::Untap { object: source_id }, ctx)
             }
             Cost::Mana(mana_cost) => {
                 let player = self.get_player_mut(player_id)?;
@@ -177,18 +177,26 @@ impl GameState {
                 }
             }
             Cost::PayLife(amount) => {
-                let player = self.get_player_mut(player_id)?;
+                // CR 119.4 gates the payment on the player's *current* life
+                // total, before any replacement gets to touch the loss.
+                let player = self.get_player(player_id)?;
                 if player.life_total < *amount as i64 {
                     return Err(format!(
                         "Cannot pay {} life, only {} available",
                         amount, player.life_total
                     ));
                 }
-                player.life_total -= *amount as i64;
-                Ok(())
+                // "the player loses that much life" — CR 119.4's second
+                // sentence, which is why this is a proposal and not a
+                // subtraction. Bloodletter of Aclazotz doubles paid life
+                // precisely because it is a loss.
+                self.execute_action(
+                    GameAction::LoseLife { player: player_id, amount: *amount },
+                    ctx,
+                )
             }
             Cost::SacrificeSelf => {
-                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ctx)
+                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Sacrificed, ctx)
             }
             Cost::Sacrifice(_, _)
             | Cost::Discard(_, _)
@@ -341,6 +349,28 @@ mod tests {
         let no_alloc = HashMap::new();
         game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
         assert_eq!(game.players[0].life_total, 17);
+    }
+
+    #[test]
+    fn test_paying_life_is_a_life_loss() {
+        let (mut game, forest_id) = setup_with_forest();
+        let no_alloc = HashMap::new();
+        let before = game.events.len();
+
+        game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
+
+        // CR 119.4: "the player loses that much life". Paying life used to be a
+        // silent subtraction — no event at all — so nothing watching life loss
+        // could see it. Bloodletter of Aclazotz doubles paid life precisely
+        // because it *is* a loss, and it can only do that if this is proposed.
+        let changes: Vec<(i64, i64)> = game.events.events()[before..].iter()
+            .filter_map(|e| match e {
+                crate::events::event::GameEvent::LifeChanged { player_id: 0, old, new, .. }
+                    => Some((*old, *new)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(changes, vec![(20, 17)]);
     }
 
     #[test]

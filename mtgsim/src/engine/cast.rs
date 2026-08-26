@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::costs::assemble_total_cost;
 use crate::events::event::GameEvent;
 use crate::objects::card_data::AbilityType;
@@ -88,7 +88,11 @@ impl GameState {
         };
 
         // --- 601.2a: Move to stack ---
-        self.change_zone(card_id, Zone::Stack, &actx)?;
+        // Capture the origin first: once the card is on the stack its `zone`
+        // field says Stack, and CR 903.8 / "cast from exile" both need to know
+        // where it came from. See `StackEntry::cast_from`.
+        let cast_from = self.get_object(card_id)?.zone;
+        self.change_zone(card_id, Zone::Stack, ZoneChangeCause::Cast, &actx)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
@@ -100,7 +104,7 @@ impl GameState {
         // Validate alt cost index is in range
         if let Some(idx) = chosen_alt_cost_idx {
             if idx >= card_data.alternative_costs.len() {
-                self.change_zone(card_id, Zone::Hand, &actx)?;
+                self.rollback_cast_to_hand(card_id)?;
                 return Err(format!(
                     "Alternative cost index {} out of range (card has {})",
                     idx, card_data.alternative_costs.len()
@@ -117,7 +121,7 @@ impl GameState {
         // Validate additional cost indices are in range
         for &idx in &chosen_additional_cost_indices {
             if idx >= card_data.additional_costs.len() {
-                self.change_zone(card_id, Zone::Hand, &actx)?;
+                self.rollback_cast_to_hand(card_id)?;
                 return Err(format!(
                     "Additional cost index {} out of range (card has {})",
                     idx, card_data.additional_costs.len()
@@ -147,7 +151,7 @@ impl GameState {
                 &legal, min_sel, max_sel,
             );
             if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
-                self.change_zone(card_id, Zone::Hand, &actx)?;
+                self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
             }
             chosen
@@ -173,6 +177,8 @@ impl GameState {
             is_spell: true,
             chosen_alternative_cost: chosen_alt.clone(),
             additional_costs_paid: chosen_additional.clone(),
+            cast_from: Some(cast_from),
+            ability_identity: None,
         };
         self.stack_entries.insert(card_id, entry);
 
@@ -213,9 +219,8 @@ impl GameState {
         // --- 601.2h: Pay total cost ---
         // Pre-check: can we pay? If not, roll back.
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
-            // Rollback: move card back to hand. The zone-change chokepoint
-            // cleans up stack_entries via `remove_from_zone_collection(Stack)`.
-            self.change_zone(card_id, Zone::Hand, &actx)?;
+            // CR 601.2 rewind, not a zone change — see rollback_cast_to_hand.
+            self.rollback_cast_to_hand(card_id)?;
             return Err(e);
         }
 
@@ -311,6 +316,10 @@ impl GameState {
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs.clone();
+        let identity = crate::state::game_state::AbilityIdentity {
+            source: source_id,
+            ability: ability.id,
+        };
         let recipient = match &effect {
             crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
             _ => EffectRecipient::Implicit,
@@ -359,8 +368,16 @@ impl GameState {
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            // An activated ability is not cast from anywhere (CR 602.2a gives
+            // it a source, which is a different fact). See `cast_from`.
+            cast_from: None,
+            ability_identity: Some(identity),
         };
         self.stack_entries.insert(ability_obj_id, stack_entry);
+
+        // CR 602.2a — the ability is on the stack. Identified durably: the
+        // ephemeral `ability_obj_id` is deleted at resolution.
+        self.events.emit(GameEvent::AbilityActivated { identity, controller: player_id });
 
         // --- 602.1b: Mana ability window ---
         // Same rules-correct model as 601.2g for spells. The player activates
@@ -476,6 +493,30 @@ impl GameState {
         }
     }
 
+    /// Put a card back in its owner's hand after a failed `cast_spell`.
+    ///
+    /// **This is not a zone change, and it deliberately bypasses the
+    /// chokepoint.** CR 601.2 rewinds the entire casting process when a step
+    /// cannot be completed: the card was never legally on the stack, so nothing
+    /// in the game may observe it moving back. Routing this through
+    /// `change_zone` would offer a replacement effect an event that did not
+    /// happen — and CR 903.9b redirecting a commander mid-rollback is exactly
+    /// the wrong answer.
+    ///
+    /// It is also what the no-catchall rule predicts. `ZoneChangeCause` names
+    /// why the engine moved an object, every mover names its reason, and a
+    /// rewind has no honest reason to give (`replacement-architecture.md` §11).
+    /// A site with nothing to say is a site that does not belong on the
+    /// chokepoint, not a site that needs an `Other` variant.
+    ///
+    /// `move_object` still does the full teardown — `remove_from_zone_collection(Stack)`
+    /// clears the `StackEntry` — so behavior is identical to the `change_zone`
+    /// call this replaces.
+    fn rollback_cast_to_hand(&mut self, card_id: ObjectId) -> Result<(), String> {
+        // CAST-ROLLBACK: see the doc comment. Do not "fix" this into change_zone.
+        self.move_object(card_id, Zone::Hand)
+    }
+
     /// Remove an ability object that was pushed onto the stack by a failed
     /// `activate_ability` call. Used to keep state clean when target
     /// validation or cost payment fails mid-activation (see D26 / SPECIAL-2).
@@ -575,6 +616,126 @@ mod tests {
         }, vec![1]);
 
         (game, card_id, decisions)
+    }
+
+    #[test]
+    fn test_cast_records_origin_zone() {
+        let (mut game, card_id, decisions) = setup_for_casting();
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        // CR 601.2a's origin, captured before the card moved. Unrecoverable
+        // afterward — the object's own `zone` now says Stack, which is the
+        // whole reason the field exists (CR 903.8 commander tax counts casts
+        // *from the command zone*).
+        let entry = game.stack_entries.get(&card_id).unwrap();
+        assert_eq!(entry.cast_from, Some(Zone::Hand));
+        assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Stack);
+    }
+
+    #[test]
+    fn test_ability_activation_and_resolution_carry_a_durable_identity() {
+        use crate::events::event::GameEvent;
+        let mut game = crate::test_support::setup_two_player_game();
+        let thaum = crate::test_support::put_on_battlefield(
+            &mut game,
+            crate::cards::utility_creatures::merfolk_thaumaturgist(),
+            0,
+        );
+        game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(
+                SelectionFilter::Creature,
+                TargetCount::Exactly(1),
+            ),
+            spell_id: thaum,
+        }, vec![0]);
+
+        let abilities = crate::oracle::characteristics::get_effective_abilities(&game, thaum);
+        let idx = abilities.iter()
+            .position(|a| a.ability_type == AbilityType::Activated)
+            .unwrap();
+        let ability_id = abilities[idx].id;
+
+        game.activate_ability(0, thaum, idx, &decisions).unwrap();
+        game.resolve_top_of_stack(&decisions).unwrap();
+
+        let activated: Vec<_> = game.events.events().iter().filter_map(|e| match e {
+            GameEvent::AbilityActivated { identity, .. } => Some(*identity),
+            _ => None,
+        }).collect();
+        let resolved: Vec<_> = game.events.events().iter().filter_map(|e| match e {
+            GameEvent::AbilityResolved { identity, .. } => Some(*identity),
+            _ => None,
+        }).collect();
+
+        // The point of the pair: both name (source, ability), not the ephemeral
+        // stack object — which by now has been deleted (CR 608.2m). CR 603.7h
+        // counts resolutions of *this ability of this permanent*, and neither
+        // half survives in the ephemeral id.
+        assert_eq!(activated.len(), 1);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(activated[0].source, thaum);
+        assert_eq!(activated[0].ability, ability_id);
+        assert_eq!(resolved[0], activated[0], "same identity across activation and resolution");
+
+        // And the ephemeral really is gone, so nothing could have used it.
+        let ephemeral_still_present = game.objects.values()
+            .any(|o| o.zone == Zone::Stack);
+        assert!(!ephemeral_still_present);
+    }
+
+    #[test]
+    fn test_activated_ability_has_no_origin_zone() {
+        // The `cast_from.is_some() == is_spell` invariant, from the other side.
+        // An activated ability is not cast from anywhere; CR 602.2a gives it a
+        // *source*, which is a different fact and must not collapse into this
+        // field.
+        let mut game = crate::test_support::setup_two_player_game();
+        let thaum = crate::test_support::put_on_battlefield(
+            &mut game,
+            crate::cards::utility_creatures::merfolk_thaumaturgist(),
+            0,
+        );
+        // Summoning sickness would block the {T} cost (CR 302.6). 0 = pregame,
+        // the convention has_summoning_sickness reads.
+        game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
+
+        let decisions = ScriptedDecisionProvider::new();
+        let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
+            .iter()
+            .find(|a| a.ability_type == AbilityType::Activated)
+            .expect("Merfolk Thaumaturgist has an activated ability")
+            .id;
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(
+                SelectionFilter::Creature,
+                TargetCount::Exactly(1),
+            ),
+            spell_id: thaum,
+        }, vec![0]);
+
+        let idx = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
+            .iter()
+            .position(|a| a.id == ability_id)
+            .unwrap();
+        game.activate_ability(0, thaum, idx, &decisions).unwrap();
+
+        // There is an ability on the stack, and it records no origin zone.
+        let ability_entries: Vec<_> = game.stack_entries.values()
+            .filter(|e| !e.is_spell)
+            .collect();
+        assert_eq!(ability_entries.len(), 1, "the ability should be on the stack");
+        assert_eq!(ability_entries[0].cast_from, None);
+
+        for entry in game.stack_entries.values() {
+            assert_eq!(
+                entry.cast_from.is_some(),
+                entry.is_spell,
+                "cast_from must be Some exactly when the entry is a spell",
+            );
+        }
     }
 
     #[test]

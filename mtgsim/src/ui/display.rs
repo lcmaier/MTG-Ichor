@@ -408,6 +408,15 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         ZoneChange { object_id, owner, from, to } => {
             format!("ZoneChange: {} [P{}] {:?} -> {:?}", obj_name(game, *object_id), owner, from, to)
         }
+        AbilityActivated { identity, controller } => format!(
+            "AbilityActivated: {} [P{}]", obj_name(game, identity.source), controller),
+        AbilityResolved { identity, controller } => format!(
+            "AbilityResolved: {} [P{}]", obj_name(game, identity.source), controller),
+        Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
+        Untapped { object_id } => format!("Untapped: {}", obj_name(game, *object_id)),
+        CardDrawn { player_id, card_id } => {
+            format!("CardDrawn: P{} drew {}", player_id, obj_name(game, *card_id))
+        }
         ManaAdded { player_id, source_id, mana } => {
             let mana_str: Vec<String> = mana.iter()
                 .filter(|(_, v)| **v > 0)
@@ -645,7 +654,9 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+                    ability_identity: None,
+});
 
         let output = format_stack(&game);
         assert!(output.contains("top/bottom"), "Single item should show top/bottom marker");
@@ -675,7 +686,9 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+                    ability_identity: None,
+});
 
         let recall = CardDataBuilder::new("Ancestral Recall")
             .card_type(CardType::Instant)
@@ -694,7 +707,9 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-        });
+                    cast_from: Some(Zone::Hand),
+                    ability_identity: None,
+});
 
         let output = format_stack(&game);
         assert!(output.contains("top (resolves next)"), "Top item should have resolves-next marker");

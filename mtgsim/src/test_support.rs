@@ -77,7 +77,7 @@ pub fn setup_game(num_players: usize) -> GameState {
 pub fn pass_turn(game: &mut GameState) {
     let start = game.turn_number;
     for _ in 0..200 {
-        game.advance_turn().expect("advancing a step");
+        game.advance_turn(&test_ctx()).expect("advancing a step");
         if game.turn_number > start {
             return;
         }

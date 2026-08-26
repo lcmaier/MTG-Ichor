@@ -221,7 +221,25 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **The phase has an architecture doc as of 2026-08-24: `plans/replacement-architecture.md`.** It is authoritative for the type shapes, the CR 616.1 pipeline, the ETB look-ahead frame, and the RA–RE sequencing; item 3 below *is* its Phase RA. This section stays the status ledger.
 
-**RA ships as three PRs (sized 2026-08-25, `replacement-architecture.md` §9).** RA-1 = the `ActionContext` sweep + `ZoneChangeCause` (pure mechanical, ~165 call sites, zero behavior change); RA-2 = the six routing tickets (draw, tap/untap, ability events, `cast_from`, lifelink, `Cost::PayLife`); RA-3 = batch form, LKI/cause/batch-id payloads, the three bypass closures, and the death-event demotion. Ticket numbers below are stable and cited by §9.
+**RA ships as three PRs (sized 2026-08-25, `replacement-architecture.md` §9).** RA-1 = the `ActionContext` sweep + `ZoneChangeCause`; RA-2 = the six routing tickets; RA-3 = batch form, LKI/cause/batch-id payloads, the three bypass closures, and the death-event demotion. Ticket numbers below are stable and cited by §9.
+
+**Status 2026-08-25: RA-1 ✅ (PR #58 + two follow-up commits), RA-2 ✅, RA-3 ❌ remaining.** What landed:
+
+- `ActionContext { dp, resolution }` threaded through every mutation chokepoint. Neither field is *read* yet — RB is where `apply_replacements` consults them.
+- `ZoneChangeCause` on `GameAction::ZoneChange`, 10 production movers labelled (not 9 — the derivation in §11 counted `change_zone` callers and missed `resolve.rs`'s direct `execute_action(ZoneChange)` for `Primitive::Destroy`).
+- **Cast rollbacks left the chokepoint.** Four `cast_spell` failure paths had been routing CR 601.2 rewinds through `change_zone` since the Phase 6 migration. A rewind is not a zone change and no replacement may see one — under RB, CR 903.9b would have redirected a commander whose cast merely failed. Now `rollback_cast_to_hand`, tagged `// CAST-ROLLBACK:`.
+- New events: `CardDrawn` (CR 121.5), `Tapped`/`Untapped` (transition-only per CR 603.2e), `AbilityActivated`/`AbilityResolved` (durable `(source, ability)` identity per CR 603.7h).
+- `StackEntry.cast_from: Option<Zone>` and `StackEntry.ability_identity: Option<AbilityIdentity>`, with complementary invariants against `is_spell`.
+- `perform_action`'s `Tap`/`Untap` arms are loud; `Primitive::Untap` gained the CR 608.2b guard that makes them safe.
+- The untap sweep moved to `battlefield_ids_ordered` — routing it made its order observable.
+- **RA-2's exit criterion holds and is grep-provable:** the only production writes to `life_total` or `entry.tapped` are `perform_action`'s own arms.
+
+Still owed by RA-3: the `execute_actions` batch form, the layer-computed LKI frame plus `cause`/batch-id/resolution stamping on emitted events, the three `// REPLACEMENT-BYPASS:` closures (item 2 below), and demoting the type-specific death events.
+
+Two follow-ups surfaced by review of PR #59, neither blocking RA-3:
+
+- **`SpellResolved` is a misnomer and always has been** (not new in RA-2). `resolve_top_of_stack` emits it unconditionally, so it fires for activated abilities as well as spells; a trigger matcher keying "whenever a spell resolves" on it would be wrong. Same class as `CreatureDied`/`PlaneswalkerDied` — a type-specific event whose name overpromises — so **fold it into RA-3 ticket 8** rather than treating it separately. Cheap: `ui/display.rs` is the only consumer today.
+- **`StackEntry.is_spell` should become a sum type — but at Phase 6 triggers, not in RA-3.** Measured 2026-08-25: 12 construction sites (10 of them test fixtures) and only **2 production readers**, `stack.rs:69` and `stack.rs:180`, both making the same spell-goes-somewhere / ability-evaporates split. The bool plus `cast_from: Option<Zone>` plus `ability_identity: Option<AbilityIdentity>` is honest today, with both invariants asserted. It stops being honest when CR 603 lands: a triggered ability is a third kind of stack object (no cast zone; an identity that is a trigger instance, whose source may already have left the battlefield), at which point `is_spell == false` means "activated *or* triggered" and needs a fourth field to disambiguate. Do it as the first commit of the triggers phase, where there is a forcing function and a third variant to design against — not speculatively now.
 
 The replacement pipeline is designed to sit inside `execute_action` at `engine/actions.rs:86-89`. Every mutating action must flow through there for replacements to observe them. Status:
 

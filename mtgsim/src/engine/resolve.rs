@@ -1,4 +1,4 @@
-use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
@@ -178,7 +178,7 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target {
                         let id = *id;
                         if self.stack.contains(&id) {
-                            self.change_zone(id, crate::types::zones::Zone::Graveyard, &actx)?;
+                            self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Countered, &actx)?;
                             self.events.emit(crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
                                 countered_by: ctx.source,
@@ -228,6 +228,7 @@ impl GameState {
                                 object: *id,
                                 from: crate::types::zones::Zone::Battlefield,
                                 to: crate::types::zones::Zone::Graveyard,
+                                cause: ZoneChangeCause::Destroyed,
                             }, &actx)?;
                         }
                         // If not on battlefield, destroy does nothing (rule 701.7b)
@@ -237,9 +238,18 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // Untap target permanent (rule 701.21a).
+                // Untap target permanent (rule 701.26b).
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
+                        // CR 608.2b: a spell whose targets are not *all* illegal
+                        // still resolves and does as much as it can, so a target
+                        // that has left the battlefield is skipped rather than
+                        // erroring. The performer is loud (RA-2), which makes
+                        // checking here the caller's job — same shape as
+                        // `Primitive::Destroy` above.
+                        if !self.battlefield.contains_key(id) {
+                            continue;
+                        }
                         self.execute_action(GameAction::Untap {
                             object: *id,
                         }, &actx)?;
