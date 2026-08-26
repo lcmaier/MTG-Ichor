@@ -285,6 +285,116 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
 8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger.
 
+### Found by a judge-corpus pass (2026-08-26)
+
+Five card interactions were put to the engine by the owner. Two moved
+`replacement-architecture.md` §5 (see §5b/§5c there); three are general and land
+here. None is blocking RB.
+
+9. **CR 110.2b: a permanent spell's default controller is its *caster*, and we
+   store the thief (found 2026-08-26).** `stack.rs` hands
+   `get_effective_controller(spell)` to `place_on_battlefield`, so
+   `BattlefieldEntity.controller` — which `compute.rs::base_controller` treats as
+   the *default*, the value Layer 2 modifies — becomes the player who stole the
+   spell. CR 110.2b says the opposite: "the first player controls the permanent
+   that spell becomes, **but the permanent's controller by default is the player
+   who put that spell onto the stack**." CR 400.7a is what keeps the thief in
+   control — the steal's Layer 2 row continues to apply to the permanent — so the
+   *effective* answer is right today and the base is wrong underneath it.
+
+   **Where it bites: CR 800.4c**, which the rule's own parenthetical points at.
+   When the thief leaves a multiplayer game and the control effect ends, the
+   permanent should revert to the caster or be exiled; with the base wrong it
+   stays with a player who is gone. That is 4-player Commander, i.e. v1.
+   `tests/phase_lg_integration_test.rs::test_gaining_control_of_a_permanent_spell_moves_the_permanent`
+   currently asserts the wrong value and its comment argues for it.
+
+   **Cheap:** `StackEntry.controller` already *is* the caster (set at cast, never
+   mutated — the steal goes through the registry, not the field). `resolve_popped`
+   passes the effective controller where it should pass `entry.controller`. One
+   line plus the test, and it wants doing before CR 800 rather than after.
+
+   Second customer, same field: **Uphill Battle** ("Creatures played by your
+   opponents enter tapped") is a CR 614 replacement whose predicate is *who cast
+   the spell*, not who controls it — if you steal an opponent's creature spell,
+   your Uphill Battle still sees it as played by an opponent and it enters
+   tapped. `PermanentFilter::ByController` cannot express that, and the caster is
+   the fact it needs. Whether the permanent must carry the caster past resolution
+   (a `BattlefieldEntity` field) or the filter can read it off the stack is an RC
+   question; recording it now so the field is not re-derived there.
+
+10. **CR 400.7 is unimplemented: an object keeps its identity across zones (found
+    2026-08-26).** `move_object` preserves the `ObjectId`, and
+    `cleanup_zone_state` removes only effects *sourced by* the leaving object,
+    never effects *targeting* it. So a `Duration::UntilEndOfTurn` pump on a
+    creature that dies and returns the same turn still applies to it, against
+    "an object that moves from one zone to another becomes a new object with no
+    memory of, or relation to, its previous existence."
+
+    Two consequences worth separating. The **default** is wrong as above. The
+    **exceptions** (400.7a–c: effects that changed a permanent spell's
+    characteristics or controller, and prevention effects, continue to apply to
+    the permanent it becomes) currently work *by accident*, because we never
+    break the relation in the first place — so implementing 400.7 without its
+    exception list would regress item 9's control case and Xu-Ifit's
+    "has no abilities" rider.
+
+    `plans/alchemy-mechanics-audit.md` already designed a
+    `last_zone_change_epoch` on `GameObject` for this and calls it "already
+    designed"; that document is **not** in `CLAUDE.md`'s authority table and
+    nothing implements it. Either promote the design or restate it here before
+    the first card needs it. This is the general form of the Xu-Ifit case in
+    `replacement-architecture.md` §5c, and it is a replacement × continuous
+    interaction, so RC is the natural forcing function.
+
+11. **`AbilityType::Mana` is a printed tag; CR 605.1 defines mana abilities
+    dynamically (found 2026-08-26, via Toph + Caged Sun).** `engine/mana.rs` and
+    `engine/priority.rs` dispatch on the tag a card author wrote. The rule does
+    not care what the author thought:
+
+    - **CR 605.1a** — an *activated* ability is a mana ability if it doesn't
+      require a target, could add mana, and isn't a loyalty ability, "regardless
+      of what other effects they may generate". An ability that adds mana and
+      also draws a card is a mana ability. A mis-tagged one is dispatched to the
+      stack and gets priority it should never have. **A Layer 6 `GrantAbility`
+      carries its author's tag onto a new object**, which is the same failure
+      with no card author in the loop.
+    - **CR 605.1b** — a *triggered* ability is a mana ability if it triggers from
+      a mana ability's activation or resolution (or from mana being added) and
+      could add mana. Triggered mana abilities **resolve immediately and never
+      use the stack**, and that is not optional polish: CR 601.2g's mana window
+      during casting depends on it. Entirely unmodelled. Caged Sun's "Whenever a
+      land's ability causes you to add one or more mana of the chosen color, add
+      an additional one" is exactly this, and Toph, the First Metalbender
+      ("Nontoken artifacts you control are lands in addition to their other
+      types") makes Caged Sun a land, so Caged Sun's own ability becomes a land's
+      ability and the loop question the CR is imprecise about becomes reachable.
+      Do not build a loop guard for it — CR 731 detection is out of scope
+      (`replacement-architecture.md` §12) and the ambiguity is the rules', not
+      ours. Do model 605.1 properly, so that when the case arrives the engine is
+      wrong for the same reason a judge would be, not for a modelling shortcut.
+
+    **What is already right:** `engine/layers/land_types.rs` grants the intrinsic
+    `{T}: Add` on a *basic land subtype* (CR 305.6), not on `CardType::Land`, so
+    Toph's reminder text — "(They don't gain the ability to {T} for mana.)" — is
+    honored without doing anything. It has no test naming Toph; it should.
+
+12. **`EffectiveCharacteristics.toughness: Option<i32>` is load-bearing, and
+    `unwrap_or(0)` in the SBA sweep is doing rules work (found 2026-08-26, via
+    Taskmaster + The Seriema).** Taskmaster, Mercenary Mimic copying a stationed
+    Spacecraft dies immediately, and the chain is three rules deep: CR 721.2b
+    makes a station symbol's `[P/T]` part of a *static ability* ("as long as this
+    permanent has N or more charge counters… is a creature with base power and
+    toughness [P/T]"), CR 721.2c gives station cards no P/T off the battlefield,
+    and CR 707.2 excludes counters from copiable values. So the copy has the
+    station ability, zero charge counters, and **no power or toughness at all** —
+    and 704.5f puts it into the graveyard. `get_effective_toughness(...)
+    .unwrap_or(0) <= 0` produces exactly that. The 2026-08-26 review audit
+    classified that `unwrap_or(0)` as "0 is a real value here"; it is more than
+    that, and the `Option` must never be flattened to an `i32` with a default at
+    the type level. Unreachable until Layer 1 (copy) and Station land; recorded so
+    neither phase quietly removes it.
+
 ### Before Layers (CR 613) — now DURING Layers
 
 The layer system's designated single-point change site is `oracle/characteristics.rs`. Status as of 2026-08-19, after Phases LA–LD:

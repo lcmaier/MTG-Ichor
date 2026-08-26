@@ -1100,10 +1100,90 @@ insist on for the rest of RC-B — an unintuitive ruling that reduces to a
 mechanical rule is fine; one that does not is a signal to stop and re-read the
 CR before writing code.
 
+### 5b. Three corrections from a judge-corpus pass (2026-08-26)
+
+Five card interactions were put to this design by the owner. Two confirm it, one
+moves the RC Part A/B seam, and two add rules it did not state.
+
+**The overlay is about one object, and the rest of the board is read as it
+actually is — second worked example.** Elvish Archdruid ("Other Elf creatures you
+control get +1/+1") enters while Master Biomancer ("Each other creature you
+control enters with a number of additional +1/+1 counters on it equal to this
+creature's power", a 2/4 **Elf** Wizard) is on the battlefield. Archdruid enters
+with **2** counters, not 3: Biomancer's power is read off the real board, where
+Archdruid's anthem is not yet applying, because Archdruid is not yet a permanent
+and CR 604.3 makes its static ability function on the battlefield. This is §5's
+second note working, stated from the other side — Thassa shows a *count* over the
+board is not perturbed; Archdruid shows another *object's characteristics* are
+not either. §5a's table gains a row:
+
+| Read | Sees the entering object? |
+|---|---|
+| **Any other object's characteristics** (an `AmountExpr` reading a permanent's power, a filter's `you`) | **no** — computed against the real board |
+
+Note the asymmetry this creates and do not smooth it over: clause (2) puts the
+entering object's own anthem into *its own* frame, but that anthem does not reach
+any other object's frame. One object is hypothetical; nothing else is.
+
+**Simultaneous entries are computed against the board before any of them
+entered.** Two Master Biomancers entering as one event give each other nothing —
+neither is on the battlefield when the other's replacements are applied. RA-3's
+`execute_actions` is the mechanism (one batch, one `BatchId`), and the rule RC
+owes is that the *frame* is batch-scoped: every member's look-ahead reads the
+pre-batch board. This is a different axis from §4.2's per-member `applied` set,
+which is about CR 614.5 and stays per-event.
+
+**Two copy effects: the later one overwrites the earlier, riders included.** A
+copy `Rewrite` is a *set* of the copiable values, not a modification of them
+(CR 707.2), so a second copy-on-enter replacement discards the first's result
+*and* its "except ..." clauses. §3.2b's algebra must not model copy as a
+composable modify, and §3.2c's 0/574 completeness claim was measured without
+copy-on-enter in scope — re-check it when Layer 1 lands and RC-B fills the
+CR 616.1c bucket.
+
+### 5c. Dress Down moves the Part A/B seam
+
+**The finding.** Dress Down ("Creatures lose all abilities") is on the
+battlefield; a Clone is cast. Clone's "You may have this creature enter as a copy
+of any creature on the battlefield" is an ETB replacement, and CR 614.12 clause
+(3) says the look-ahead frame takes into account continuous effects that already
+exist and would apply to the entering object. Dress Down is one. So in the frame
+Clone **has no abilities**, its copy replacement does not exist, and it enters as
+a 0/0 and dies. Xu-Ifit, Osteoharmonist is the same shape from a resolution
+rather than a static, and its Gatherer ruling is explicit — a permanent it
+returns "will lose that ability before it can trigger… before it can apply…
+[including] Clone's ability that causes it to enter as a copy".
+
+**Why this is not just another RC-B card.** §5 split RC on the claim that Part A
+handles "ETB replacements whose applicability does not depend on the frame —
+`AffectedSet::SourceOnly`, unconditional… 'this land enters tapped'". That claim
+is false, and Dress Down is the proof: whether the entering land *has* its
+enters-tapped ability is itself a frame question. The design collapses two
+questions into one:
+
+1. **Does the entering object still have its own replacement ability?** Answered
+   by the frame's Layer 6 output under clause (3). Prior to everything else.
+2. **Which replacements apply to this event?** §5's clauses, the question the
+   overlay was designed for.
+
+Question 1 needs exactly the piece Part B was going to build: the membership gate
+at `compute.rs:622`, which returns `false` for any `AffectedSet::Filter` effect
+against an object not in `game.battlefield` — so today an entering Clone matches
+no filter, Dress Down included, and keeps its ability.
+
+**The seam moves, the split survives.** Part A takes the membership gate and the
+frame's ability list — enough to ask "what abilities would this object have on the
+battlefield", which is the whole of question 1. Part B keeps clause (1)'s pending
+`EnterMods`, the filter-based *applicability* of other permanents' replacements
+(Orb of Dreams), and the 614.13a/b exclusion sets. Part A is still the smaller,
+lower-risk half; it is just not overlay-free, and shipping it overlay-free would
+enter a Dress Downed Clone as a copy.
+
 **De-risking split.** RC Part A implements ETB replacements whose applicability
 does not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is
 "this land enters tapped" and "this enters with N +1/+1 counters", which is the
-overwhelming bulk of the 773 + 580. RC Part B builds the overlay and turns on
+overwhelming bulk of the 773 + 580, **plus the membership gate and the frame's
+ability list, per §5c**. RC Part B builds the rest of the overlay and turns on
 filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 614.13a/b exclusion sets. Same Part A/B shape as Phase LD.
 
@@ -1856,6 +1936,9 @@ and the CR 601.2a announcement above.
   `place_on_battlefield` becomes its performer; `AffectedSet::SourceOnly`
   unconditional ETB replacements — enters tapped (CR 110.5b), enters with
   counters (CR 122.6a), CR 614.12a choice-before-entry. ~1,350 cards.
+  **Plus the membership gate and the frame's ability list (§5c)** — without them
+  a Dress Downed Clone still copies, and an enters-tapped land still enters
+  tapped after losing the ability that says so.
   **Ride along: delete the early stack pop** (`codebase-state.md` Deferred
   Migrations 7). Part A rewrites `init_zone_state`, which is one of
   `GameState::resolving`'s two readers; removing the pop deletes the other.
