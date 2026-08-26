@@ -1119,6 +1119,7 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 | `engine/zones.rs::play_land` | gains `ActionContext`; routes through `change_zone` with `PlayedAsLand`. **Not in the original table** — a fourth chokepoint bypass §11's derivation missed, and the most frequent zone change in the game | RA ✅ |
 | `engine/zones.rs::draw_card` | routes through `execute_action(DrawCard)`; emits `CardDrawn` | RA |
 | `engine/stack.rs` × 3 `// REPLACEMENT-BYPASS:` | closed by naming the state instead of dispatching around it: `GameState::resolving` records the popped object and CR 110.2b's controller, so `remove_from_zone_collection(Stack)` and `init_zone_state` can both consult it and the sites use plain `change_zone` | RA ✅ |
+| `engine/stack.rs::resolve_top_of_stack` — the early pop | **stop popping.** The pattern has no surviving justification (below), and the CR keeps a resolving spell on the stack. Deletes the leniency branch `resolving` needed | RC, with `init_zone_state` |
 | `engine/turns.rs::process_draw_step` | stop calling `draw_card` directly (CR 614.11, 614.10) | RA |
 | `engine/turns.rs::process_untap_step` | route through `Untap`; emit `Untapped` (CR 122.1d); **one batch**, per CR 502.1's "simultaneously" | RA ✅ |
 | `engine/costs.rs:150,165` | `Cost::Tap`, `{Q}` — emit `Tapped` | RA |
@@ -1731,6 +1732,8 @@ In that order: 9 first because 6's batch id has nowhere to live without it, and
 6. Payload upgrades: layer-computed LKI frame on battlefield-leaving zone
    changes (CR 603.10a), `cause`, batch id, resolution context.
 7. Close the three `// REPLACEMENT-BYPASS:` sites with the pop-aware dispatch.
+   (Shipped as written. The *pop* itself turns out to be unjustified — see the
+   divergence note below — and its removal is RC's, not this ticket's.)
 8. Demote `CreatureDied` / `PlaneswalkerDied` / `LegendRuleSacrificed` to
    display sugar. There is no matcher in RA, so the deliverable is a test proving
    the `ZoneChange` + LKI frame carries everything the three events carried, plus
@@ -1764,6 +1767,27 @@ because §9 is where the next phase reads:
   it is why `ZoneChangeCause::PlayedAsLand` had no call site. Fixed in ticket 6.
   Running correction: **11** production movers, not the 9 §11 derived or the 10
   RA-2 corrected it to.
+- **The early stack pop has no surviving justification, and this document
+  endorsed it.** Ticket 7 is written as a "pop-aware dispatch", which takes the
+  pop as given. Audited in review (2026-08-26): `resolve_top_of_stack` removes
+  the object from the `stack` `Vec` before resolving, documented as keeping an
+  in-flight Counterspell from seeing it. Nothing can see it. **CR 608.2g** says
+  no spell may normally be cast and no ability activated during a resolution, so
+  nothing can *acquire* the resolving object as a target mid-resolution; and a
+  spell cannot choose itself at CR 601.2c because `enumerate_legal_selections`
+  and `has_any_legal_choice` already exclude it by `exclude_id`. Meanwhile
+  **CR 608.2 keeps a resolving spell on the stack** until 608.2n or 608.3a moves
+  it, so the pop is an engine artifact the rules do not have.
+
+  RA-3 shipped the pop-aware dispatch as specified and documented the artifact
+  rather than removing it mid-ticket. **The removal is sized in
+  `codebase-state.md` (Deferred Migrations 6a) and slotted for RC**, because RC
+  turns `place_on_battlefield` into `EnterBattlefield`'s performer and therefore
+  rewrites `init_zone_state` — the other reader of `GameState::resolving` —
+  anyway. Doing both at once leaves `resolving` deleted or reduced to one field,
+  and deletes a `remove_from_zone_collection` leniency branch that can currently
+  mask a genuinely missing stack object.
+
 - **The CR 601.2 rewind has two halves and RA-3 fixed one.** The rollback is now
   silent, which is what `// CAST-ROLLBACK:` had claimed since RA-1. The *forward*
   hand→stack move is still announced at CR 601.2a, before it is knowable whether
@@ -1832,6 +1856,12 @@ and the CR 601.2a announcement above.
   `place_on_battlefield` becomes its performer; `AffectedSet::SourceOnly`
   unconditional ETB replacements — enters tapped (CR 110.5b), enters with
   counters (CR 122.6a), CR 614.12a choice-before-entry. ~1,350 cards.
+  **Ride along: delete the early stack pop** (`codebase-state.md` Deferred
+  Migrations 6a). Part A rewrites `init_zone_state`, which is one of
+  `GameState::resolving`'s two readers; removing the pop deletes the other.
+  Audit the five production `stack.is_empty()` readers first — none is reachable
+  during a resolution today, but CR 608.2g's "unless an effect instructs" case
+  makes `cast.rs:576` reachable once RC-era cards arrive.
 - **Part B:** the §5 hypothetical overlay; CR 614.12 clauses (2) and (3);
   CR 614.17d; CR 614.13/613a/b auxiliary zone changes and exclusion sets;
   CR 616.1b/c classes (control-changing and copy-on-enter get their buckets even
