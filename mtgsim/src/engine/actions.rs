@@ -84,8 +84,29 @@ pub enum ZoneChangeCause {
     Discarded,
     /// 701.17.
     Milled,
-    /// "return to hand" / "return to the battlefield".
+    /// "return to hand" / "return to the battlefield" — an object going *back*
+    /// somewhere. Not the same as [`Self::PutIntoHand`]; see there.
     Returned,
+    /// A card put into a hand from somewhere it was never in — the CR 121.5
+    /// non-draw, and specifically **not** a draw: Nadu, Winged Wisdom ("reveal
+    /// the top card of your library … otherwise, put it into your hand"),
+    /// impulse-style "look at the top N and put one in your hand".
+    ///
+    /// 857 cards move library→hand without the word "draw" (493 say "put it
+    /// into your hand"), so this is a class, not a corner.
+    ///
+    /// **Kept separate from `Returned` on naming honesty, not on card demand.**
+    /// The merge criterion in §11 asks whether a printed card distinguishes two
+    /// reasons *as a cause*, and by that test these would collapse — nothing
+    /// asks "was it returned or put". They stay apart because `Returned` means
+    /// an object going back where it was, a Nadu card was never in hand, and a
+    /// site labelled with a variant whose name does not describe it is exactly
+    /// the coarse-label failure the no-catchall ban exists to prevent. The cost
+    /// of the extra variant is zero while nothing matches exhaustively.
+    ///
+    /// Note this carries no draw/non-draw meaning by itself — `GameEvent::CardDrawn`
+    /// is what CR 121.5 turns on. This is the *reason for the move*.
+    PutIntoHand,
     /// Top, bottom, or shuffled in. *Position* is a field, not a cause.
     PutIntoLibrary,
 

@@ -415,12 +415,14 @@ mod tests {
         let (mut game, forest_id) = game_with_one_card_library();
 
         // The same movement a draw makes, proposed as a plain zone change —
-        // this is what "put the top card of your library into your hand" lowers
-        // to. CR 121.5: the player has not drawn it.
+        // this is what Nadu, Winged Wisdom lowers to ("reveal the top card of
+        // your library … otherwise, put it into your hand"), and what 857 cards
+        // that move library→hand without the word "draw" lower to. CR 121.5:
+        // the player has not drawn it.
         game.change_zone(
             forest_id,
             Zone::Hand,
-            crate::engine::actions::ZoneChangeCause::Returned,
+            crate::engine::actions::ZoneChangeCause::PutIntoHand,
             &test_ctx(),
         ).unwrap();
 
