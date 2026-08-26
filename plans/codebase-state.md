@@ -314,14 +314,15 @@ here. None is blocking RB.
    passes the effective controller where it should pass `entry.controller`. One
    line plus the test, and it wants doing before CR 800 rather than after.
 
-   Second customer, same field: **Uphill Battle** ("Creatures played by your
-   opponents enter tapped") is a CR 614 replacement whose predicate is *who cast
-   the spell*, not who controls it — if you steal an opponent's creature spell,
-   your Uphill Battle still sees it as played by an opponent and it enters
-   tapped. `PermanentFilter::ByController` cannot express that, and the caster is
-   the fact it needs. Whether the permanent must carry the caster past resolution
-   (a `BattlefieldEntity` field) or the filter can read it off the stack is an RC
-   question; recording it now so the field is not re-derived there.
+   **Uphill Battle is how this was found, and it is not why it matters.**
+   "Creatures played by your opponents enter tapped" is a CR 614 replacement
+   whose predicate is *who cast the spell* rather than who controls it, so
+   stealing an opponent's creature spell still enters it tapped under your Uphill
+   Battle. But `o:"played by"` is **1 card in all of Magic** (Scryfall,
+   2026-08-26; `o:"cast by"` is 2). That is not a vocabulary gap worth building
+   `PermanentFilter` support for, and RC should not carry a "played by" leaf on
+   its account. The 110.2b error above is the finding; Uphill Battle was the
+   flashlight.
 
 10. **CR 400.7 is unimplemented: an object keeps its identity across zones (found
     2026-08-26).** `move_object` preserves the `ObjectId`, and

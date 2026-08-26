@@ -1133,6 +1133,15 @@ owes is that the *frame* is batch-scoped: every member's look-ahead reads the
 pre-batch board. This is a different axis from §4.2's per-member `applied` set,
 which is about CR 614.5 and stays per-event.
 
+**Not every judge example is a requirement.** Uphill Battle ("Creatures played
+by your opponents enter tapped") looked like a demand for a "played by" filter
+leaf until it was counted: `o:"played by"` matches **1 card in all of Magic**
+(Scryfall, 2026-08-26). It stays a worked example of why CR 110.2b's default
+controller matters (`codebase-state.md` item 9) and buys no `PermanentFilter`
+vocabulary. Apply §8c's two-customers-before-a-variant guard to interaction
+findings as well as to cards — an illuminating example is not automatically a
+breadth argument.
+
 **Two copy effects: the later one overwrites the earlier, riders included.** A
 copy `Rewrite` is a *set* of the copiable values, not a modification of them
 (CR 707.2), so a second copy-on-enter replacement discards the first's result
