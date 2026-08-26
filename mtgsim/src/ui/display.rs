@@ -405,8 +405,9 @@ fn obj_name(game: &GameState, id: ObjectId) -> String {
 pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -> String {
     use crate::events::event::GameEvent::*;
     match event {
-        ZoneChange { object_id, owner, from, to } => {
-            format!("ZoneChange: {} [P{}] {:?} -> {:?}", obj_name(game, *object_id), owner, from, to)
+        ZoneChange { object_id, owner, from, to, cause, .. } => {
+            format!("ZoneChange: {} [P{}] {:?} -> {:?} ({:?})",
+                    obj_name(game, *object_id), owner, from, to, cause)
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source), controller),

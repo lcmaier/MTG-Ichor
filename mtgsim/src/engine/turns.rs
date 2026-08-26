@@ -383,7 +383,7 @@ mod tests {
         // once for the step instead of once per permanent.
         let batches: Vec<_> = game.events.records_from(before).iter()
             .filter(|r| matches!(r.event, crate::events::event::GameEvent::Untapped { .. }))
-            .map(|r| r.batch)
+            .map(|r| r.batch())
             .collect();
         assert_eq!(batches.len(), 2, "both lands untapped");
         assert!(batches[0].is_some(), "the untap step is batched");

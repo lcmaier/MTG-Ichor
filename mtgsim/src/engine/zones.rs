@@ -41,6 +41,14 @@ impl GameState {
     ///   601.2 rewinds the casting process, so no object legally moved and
     ///   nothing may observe it. **Permanent** — they must never be routed
     ///   through the chokepoint.
+    ///
+    /// **This function performs the move and announces nothing.** The
+    /// `GameEvent::ZoneChange` is emitted by `perform_action`'s own arm, which
+    /// is the only place that knows the [`ZoneChangeCause`] and the only place
+    /// that can capture the CR 603.10a LKI frame before the object stops being
+    /// a permanent. Splitting it that way is also what finally makes the
+    /// `// CAST-ROLLBACK:` tag true: a rewind now really is unobservable,
+    /// where before it still pushed a Stack→Hand event into the log.
     pub(crate) fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
         let from = {
             let obj = self.get_object(id)?;
@@ -65,17 +73,8 @@ impl GameState {
         self.init_zone_state(id, to)?;
 
         // Update the object's zone field
-        let owner = self.get_object(id)?.owner;
         let obj = self.get_object_mut(id)?;
         obj.zone = to;
-
-        // Emit zone change event
-        self.events.emit(GameEvent::ZoneChange {
-            object_id: id,
-            owner,
-            from,
-            to,
-        });
 
         Ok(())
     }
@@ -147,7 +146,13 @@ impl GameState {
     /// The `from` parameter specifies which zone the land is being played from.
     /// Normally this is `Zone::Hand`, but continuous effects can allow playing
     /// lands from other zones (e.g. graveyard via Crucible of Worlds).
-    pub fn play_land(&mut self, player_id: PlayerId, card_id: ObjectId, from: Zone) -> Result<(), String> {
+    pub fn play_land(
+        &mut self,
+        player_id: PlayerId,
+        card_id: ObjectId,
+        from: Zone,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
         // Rule 505.6b: Only the active player can play a land
         if player_id != self.active_player {
             return Err("Only the active player can play a land".to_string());
@@ -186,8 +191,12 @@ impl GameState {
             return Err("Already played maximum lands this turn".to_string());
         }
 
-        // Move to battlefield
-        self.move_object(card_id, Zone::Battlefield)?;
+        // Move to battlefield, through the chokepoint. This was a direct
+        // `move_object` until RA-3 — a fourth, undocumented bypass, and the
+        // most frequent zone change in the game. CR 305.1 makes playing a land
+        // a special action that still puts a permanent onto the battlefield, so
+        // every ETB replacement in Phase RC has to see it.
+        self.change_zone(card_id, Zone::Battlefield, ZoneChangeCause::PlayedAsLand, ctx)?;
 
         // Increment land drop counter
         let player = self.get_player_mut(player_id)?;
@@ -495,7 +504,7 @@ mod tests {
         game.players[0].hand.push(forest_id);
 
         // Play it
-        game.play_land(0, forest_id, Zone::Hand).unwrap();
+        game.play_land(0, forest_id, Zone::Hand, &test_ctx()).unwrap();
 
         assert!(game.players[0].hand.len() == 1); // drew 1 card during draw step
         assert!(game.battlefield.contains_key(&forest_id));
@@ -509,7 +518,7 @@ mod tests {
         let forest2_id = game.add_object(forest2);
         game.players[0].hand.push(forest2_id);
 
-        let result = game.play_land(0, forest2_id, Zone::Hand);
+        let result = game.play_land(0, forest2_id, Zone::Hand, &test_ctx());
         assert!(result.is_err());
     }
 
@@ -523,7 +532,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[0].hand.push(forest_id);
 
-        let result = game.play_land(0, forest_id, Zone::Hand);
+        let result = game.play_land(0, forest_id, Zone::Hand, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("main phase"));
     }
@@ -543,7 +552,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[1].hand.push(forest_id);
 
-        let result = game.play_land(1, forest_id, Zone::Hand);
+        let result = game.play_land(1, forest_id, Zone::Hand, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("active player"));
     }

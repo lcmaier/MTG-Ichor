@@ -207,7 +207,7 @@ mod tests {
             &test_ctx(),
         ).unwrap();
 
-        let batches: Vec<_> = game.events.records().iter().map(|r| r.batch).collect();
+        let batches: Vec<_> = game.events.records().iter().map(|r| r.batch()).collect();
         assert!(batches.len() >= 2, "damage plus the life it gains");
         let first = batches[0].expect("a performed action is in a batch");
         assert!(

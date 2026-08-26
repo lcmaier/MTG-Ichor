@@ -1,4 +1,5 @@
 use crate::oracle::characteristics::{has_permanent_type, has_subtype};
+use crate::engine::actions::ZoneChangeCause;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
@@ -103,6 +104,10 @@ impl GameState {
                     owner,
                     from: Zone::Stack,
                     to: Zone::Battlefield,
+                    cause: ZoneChangeCause::Resolved,
+                    // Nothing left the battlefield, so there is nothing to look
+                    // back at (CR 603.10a).
+                    lki: None,
                 });
                 self.events.emit(GameEvent::PermanentEnteredBattlefield {
                     object_id,
@@ -143,6 +148,8 @@ impl GameState {
                     owner,
                     from: Zone::Stack,
                     to: Zone::Graveyard,
+                    cause: ZoneChangeCause::Resolved,
+                    lki: None,
                 });
             }
         } else {
@@ -189,6 +196,8 @@ impl GameState {
                 owner,
                 from: Zone::Stack,
                 to: Zone::Graveyard,
+                cause: ZoneChangeCause::Fizzled,
+                lki: None,
             });
         } else {
             // Ability: just remove from objects

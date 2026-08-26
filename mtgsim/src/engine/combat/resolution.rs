@@ -333,7 +333,7 @@ mod tests {
         // askable if the pipeline sees the set rather than the members.
         let batches: Vec<_> = game.events.records().iter()
             .filter(|r| matches!(r.event, crate::events::event::GameEvent::DamageDealt { .. }))
-            .map(|r| r.batch)
+            .map(|r| r.batch())
             .collect();
         assert_eq!(batches.len(), 2);
         assert!(batches[0].is_some(), "combat damage is batched");

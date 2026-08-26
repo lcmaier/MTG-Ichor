@@ -1,6 +1,6 @@
 use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::resolve::ResolutionContext;
-use crate::events::event::{DamageTarget, GameEvent};
+use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
@@ -36,6 +36,19 @@ impl<'a> ActionContext<'a> {
     /// A mutation proposed by a resolving spell or ability.
     pub fn resolving(dp: &'a dyn DecisionProvider, resolution: &'a ResolutionContext) -> Self {
         ActionContext { dp, resolution: Some(resolution) }
+    }
+
+    /// The resolution to stamp onto every event this proposal emits.
+    ///
+    /// Drops the targets: an event log wants to know *which resolution* caused
+    /// a mutation, and the resolving object's id answers that (CR 608.2m makes
+    /// it unique per resolution). Carrying the target list would copy it onto
+    /// every event.
+    pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
+        self.resolution.map(|r| ResolutionStamp {
+            source: r.source,
+            controller: r.controller,
+        })
     }
 }
 
@@ -271,7 +284,7 @@ impl GameState {
         // Phase RB: the CR 704.7 same-result dedupe, then `apply_replacements`
         // per member, goes here — the batch is gathered before any of it is
         // performed precisely so that both can see the whole set.
-        let previous = self.events.open_batch();
+        let previous = self.events.open_batch(ctx.resolution_stamp());
         let result = batch
             .into_iter()
             .try_for_each(|action| self.perform_action(action, ctx));
@@ -425,13 +438,52 @@ impl GameState {
                 Ok(())
             }
 
-            // `cause` is carried, not consumed: Phase RB's `apply_replacements`
-            // matches on it (CR 701.8b), and RA-3 stamps it onto the emitted
-            // `GameEvent`. Nothing else may read it — see `ZoneChangeCause`.
-            GameAction::ZoneChange { object, from: _, to, cause: _ } => {
-                // Delegate to move_object which handles all zone bookkeeping
-                // and emits its own ZoneChange event.
+            // **The only production emitter of `GameEvent::ZoneChange`.**
+            // `move_object` performs the move and says nothing; the cause and
+            // the CR 603.10a look-back frame are known here and nowhere else,
+            // and an event assembled anywhere else would be missing them.
+            GameAction::ZoneChange { object, from, to, cause } => {
+                // Loud: the proposal describes a board, and performing it
+                // against a different one is a caller bug. The pipeline (RB)
+                // matches on `from`, so a stale value is a wrong match, not a
+                // cosmetic mismatch.
+                let actual = self.get_object(object)?.zone;
+                if actual != from {
+                    return Err(format!(
+                        "ZoneChange proposed {:?}→{:?} for {}, which is in {:?}",
+                        from, to, object, actual
+                    ));
+                }
+                if from == to {
+                    // Nothing moved, so nothing is announced — the same
+                    // no-op `move_object` has always performed, made visible.
+                    return Ok(());
+                }
+
+                // CR 603.10a — capture the frame while the object is still a
+                // permanent. A moment later `cleanup_zone_state` has retired
+                // the continuous effects its static abilities generated
+                // (CR 611.2a) and the answer is unrecoverable. This is the one
+                // place in the engine that has to run the layer walk *before* a
+                // mutation rather than after.
+                let lki = if from == Zone::Battlefield {
+                    crate::engine::layers::compute::compute_characteristics(self, object)
+                        .map(Box::new)
+                } else {
+                    None
+                };
+                let owner = self.get_object(object)?.owner;
+
                 self.move_object(object, to)?;
+
+                self.events.emit(GameEvent::ZoneChange {
+                    object_id: object,
+                    owner,
+                    from,
+                    to,
+                    cause,
+                    lki,
+                });
                 Ok(())
             }
 

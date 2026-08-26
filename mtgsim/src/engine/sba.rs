@@ -445,6 +445,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::actions::ZoneChangeCause;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -673,16 +674,20 @@ mod tests {
         (id1, id2)
     }
 
-    /// The `(object, batch)` of every zone change in the log, in order.
+    /// The `(object, cause, batch)` of every zone change in the log, in order.
     fn zone_changes(
         game: &GameState,
-    ) -> Vec<(crate::types::ids::ObjectId, Option<crate::events::event::BatchId>)> {
+    ) -> Vec<(
+        crate::types::ids::ObjectId,
+        ZoneChangeCause,
+        Option<crate::events::event::BatchId>,
+    )> {
         game.events
             .records()
             .iter()
             .filter_map(|r| match &r.event {
-                crate::events::event::GameEvent::ZoneChange { object_id, .. } => {
-                    Some((*object_id, r.batch))
+                crate::events::event::GameEvent::ZoneChange { object_id, cause, .. } => {
+                    Some((*object_id, *cause, r.batch()))
                 }
                 _ => None,
             })
@@ -707,8 +712,8 @@ mod tests {
         // "whenever one or more creatures die" fire once rather than twice.
         let moves = zone_changes(&game);
         assert_eq!(moves.len(), 2, "both creatures died");
-        let batch = moves[0].1.expect("a state-based action is performed in a batch");
-        assert_eq!(moves[1].1, Some(batch), "one check, one event");
+        let batch = moves[0].2.expect("a state-based action is performed in a batch");
+        assert_eq!(moves[1].2, Some(batch), "one check, one event");
 
         // "The check repeats — no more SBAs found, so priority is granted."
         assert!(!game.check_state_based_actions(&dp).unwrap());
@@ -741,20 +746,14 @@ mod tests {
             !game.battlefield.contains_key(&healthy),
             "704.5j applied: keeping the damaged one puts the healthy one away",
         );
-        // Which rule claimed which permanent. RA-3 ticket 6 replaces this with
-        // the `cause` on the zone change itself, which is the durable key.
+        // Which rule claimed which permanent, read off the zone change itself.
         assert_eq!(
-            zone_changes(&game).into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
-            vec![doomed, healthy],
+            zone_changes(&game).into_iter().map(|(id, c, _)| (id, c)).collect::<Vec<_>>(),
+            vec![
+                (doomed, ZoneChangeCause::DestroyedBySba),
+                (healthy, ZoneChangeCause::LegendRule),
+            ],
         );
-        assert!(game.events.events().any(|e| matches!(
-            e, crate::events::event::GameEvent::CreatureDied { creature_id, .. }
-                if *creature_id == doomed
-        )));
-        assert!(game.events.events().any(|e| matches!(
-            e, crate::events::event::GameEvent::LegendRuleSacrificed { object_id, .. }
-                if *object_id == healthy
-        )));
     }
 
     #[test]
@@ -779,11 +778,15 @@ mod tests {
 
         let moves = zone_changes(&game);
         assert_eq!(
-            moves.iter().filter(|(id, _)| *id == doomed).count(),
+            moves.iter().filter(|(id, _, _)| *id == doomed).count(),
             1,
             "one permanent, one zone change — not one per rule that wanted it",
         );
-        // 704.5g comes first in CR order, so it is what claims the permanent.
+        assert_eq!(
+            moves[0].1,
+            ZoneChangeCause::DestroyedBySba,
+            "704.5g comes first in CR order, so it is what claims the permanent",
+        );
         let deaths = game.events.events().filter(|e| matches!(
             e, crate::events::event::GameEvent::CreatureDied { creature_id, .. }
                 if *creature_id == doomed

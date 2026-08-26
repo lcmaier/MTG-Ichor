@@ -1,6 +1,8 @@
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
+use crate::engine::actions::ZoneChangeCause;
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 
 use std::collections::HashMap;
@@ -24,6 +26,28 @@ pub enum GameEvent {
         owner: PlayerId,
         from: Zone,
         to: Zone,
+        /// Why the engine moved it. `(from, to)` cannot tell a sacrifice from a
+        /// destruction, and 278 printed cards want that difference.
+        ///
+        /// **Only the replacement pipeline and the trigger matcher may branch
+        /// on this.** See [`ZoneChangeCause`](crate::engine::actions::ZoneChangeCause).
+        cause: ZoneChangeCause,
+        /// CR 603.10a — the permanent's characteristics an instant *before* it
+        /// left the battlefield. `None` when it did not leave the battlefield,
+        /// because then there is nothing to look back at.
+        ///
+        /// Leaves-the-battlefield abilities "look back in time": the game reads
+        /// the object as it existed before the event, which is how a creature
+        /// with "when this dies, draw a card" still has that ability at the
+        /// moment it is asked, and how a dying Aura still knows what it was
+        /// enchanting. Capturing it late is not merely inaccurate, it is
+        /// impossible — CR 611.2a drops every registry row the object's static
+        /// abilities generated the instant it leaves, so the layer walk a
+        /// moment later answers about a graveyard card.
+        ///
+        /// Boxed because `EffectiveCharacteristics` is the widest type in the
+        /// engine and every `GameEvent` in the log would otherwise pay for it.
+        lki: Option<Box<EffectiveCharacteristics>>,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -172,19 +196,55 @@ pub enum DamageTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BatchId(pub u64);
 
-/// One entry in the event log: what happened, plus the context it happened in.
+/// Which resolution an event belongs to (CR 608.2).
 ///
-/// The context is an envelope rather than fields on each `GameEvent` variant
-/// because it is the same two facts for every kind of event, and a variant that
-/// forgets to carry them fails silently.
+/// `source` is the stack object that was resolving, and that object identifies
+/// the *resolution* rather than the card: a spell has one stack object, and an
+/// activated ability gets a fresh ephemeral one per activation (CR 608.2m). So
+/// "did this happen during the resolution that also did X" is answerable
+/// without a separate id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolutionStamp {
+    pub source: ObjectId,
+    pub controller: PlayerId,
+}
+
+/// The context every emitted event is stamped with.
+///
+/// An envelope rather than fields on each `GameEvent` variant: it is the same
+/// two facts for every kind of event, and a variant that forgets to carry them
+/// fails silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct EventStamp {
+    /// The batch this event was performed as part of. `None` for an event
+    /// emitted outside `GameState::execute_actions` — a phase beginning, a
+    /// spell being cast, an activation.
+    pub batch: Option<BatchId>,
+    /// The resolution that proposed it. `None` for a turn-based action, a
+    /// state-based action, cost payment, or combat damage — none of which
+    /// belongs to a resolution.
+    pub resolution: Option<ResolutionStamp>,
+}
+
+/// One entry in the event log: what happened, and the context it happened in.
 #[derive(Debug, Clone)]
 pub struct EventRecord {
     /// What happened.
     pub event: GameEvent,
-    /// The batch this event was performed as part of, if any. `None` for an
-    /// event emitted outside [`GameState::execute_actions`] — a phase
-    /// beginning, a spell being cast, an activation.
-    pub batch: Option<BatchId>,
+    /// See [`EventStamp`].
+    pub stamp: EventStamp,
+}
+
+impl EventRecord {
+    /// The batch this event was performed as part of, if any.
+    pub fn batch(&self) -> Option<BatchId> {
+        self.stamp.batch
+    }
+
+    /// The resolution that proposed this event, if any.
+    pub fn resolution(&self) -> Option<ResolutionStamp> {
+        self.stamp.resolution
+    }
 }
 
 /// An event log that records game events in order.
@@ -196,9 +256,9 @@ pub struct EventRecord {
 #[derive(Debug, Clone, Default)]
 pub struct EventLog {
     records: Vec<EventRecord>,
-    /// The batch currently being performed, stamped onto everything emitted
-    /// while it is open. See [`Self::open_batch`].
-    current_batch: Option<BatchId>,
+    /// Stamped onto everything emitted while it is installed. See
+    /// [`Self::open_batch`].
+    stamp: EventStamp,
     /// Allocator for [`BatchId`]. Monotonic, never reused within a game.
     next_batch: u64,
 }
@@ -209,28 +269,35 @@ impl EventLog {
     }
 
     pub fn emit(&mut self, event: GameEvent) {
-        self.records.push(EventRecord { event, batch: self.current_batch });
+        self.records.push(EventRecord { event, stamp: self.stamp });
     }
 
-    /// Open a batch, returning the value to hand back to [`Self::close_batch`].
+    /// Open a batch, returning the stamp to hand back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new
     /// one.** CR 702.15b is why it has to: lifelink's life gain is proposed
     /// from inside `perform_action(DealDamage)` and happens *simultaneously
     /// with that damage*, so it belongs to the damage's batch. The same shape
     /// generalizes to CR 120.3's results-of-damage decomposition in Phase RD.
-    pub(crate) fn open_batch(&mut self) -> Option<BatchId> {
-        let previous = self.current_batch;
-        if previous.is_none() {
-            self.current_batch = Some(BatchId(self.next_batch));
+    ///
+    /// `resolution` is not inherited the same way — it comes from the proposing
+    /// `ActionContext` every time, because the honest answer to "which
+    /// resolution emitted this" is the one that proposed it. In practice the
+    /// nested call carries the enclosing context, so the two rules agree.
+    pub(crate) fn open_batch(&mut self, resolution: Option<ResolutionStamp>) -> EventStamp {
+        let previous = self.stamp;
+        let batch = previous.batch.or_else(|| {
+            let id = BatchId(self.next_batch);
             self.next_batch += 1;
-        }
+            Some(id)
+        });
+        self.stamp = EventStamp { batch, resolution };
         previous
     }
 
     /// Close a batch, restoring what [`Self::open_batch`] returned.
-    pub(crate) fn close_batch(&mut self, previous: Option<BatchId>) {
-        self.current_batch = previous;
+    pub(crate) fn close_batch(&mut self, previous: EventStamp) {
+        self.stamp = previous;
     }
 
     /// The full records, with their batch context.
@@ -268,7 +335,7 @@ impl EventLog {
     /// Clear the log (e.g., between games)
     pub fn clear(&mut self) {
         self.records.clear();
-        self.current_batch = None;
+        self.stamp = EventStamp::default();
         self.next_batch = 0;
     }
 }
@@ -307,21 +374,21 @@ mod tests {
     fn test_events_outside_a_batch_carry_no_batch_id() {
         let mut log = EventLog::new();
         log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
-        assert_eq!(log.records()[0].batch, None);
+        assert_eq!(log.records()[0].batch(), None);
     }
 
     #[test]
     fn test_a_batch_stamps_every_event_it_emits() {
         let mut log = EventLog::new();
-        let outer = log.open_batch();
+        let outer = log.open_batch(None);
         log.emit(GameEvent::Tapped { object_id: uuid::Uuid::nil() });
         log.emit(GameEvent::Untapped { object_id: uuid::Uuid::nil() });
         log.close_batch(outer);
         log.emit(GameEvent::StateBasedActionPerformed);
 
-        let b = log.records()[0].batch.expect("inside a batch");
-        assert_eq!(log.records()[1].batch, Some(b), "one batch, one id");
-        assert_eq!(log.records()[2].batch, None, "closing restores the outer context");
+        let b = log.records()[0].batch().expect("inside a batch");
+        assert_eq!(log.records()[1].batch(), Some(b), "one batch, one id");
+        assert_eq!(log.records()[2].batch(), None, "closing restores the outer context");
     }
 
     #[test]
@@ -330,29 +397,29 @@ mod tests {
         // performance and is simultaneous with it, so it must not open a batch
         // of its own.
         let mut log = EventLog::new();
-        let outer = log.open_batch();
+        let outer = log.open_batch(None);
         log.emit(GameEvent::StateBasedActionPerformed);
-        let inner = log.open_batch();
+        let inner = log.open_batch(None);
         log.emit(GameEvent::StateBasedActionPerformed);
         log.close_batch(inner);
         log.emit(GameEvent::StateBasedActionPerformed);
         log.close_batch(outer);
 
-        let b = log.records()[0].batch.expect("inside a batch");
-        assert!(log.records().iter().all(|r| r.batch == Some(b)),
+        let b = log.records()[0].batch().expect("inside a batch");
+        assert!(log.records().iter().all(|r| r.batch() == Some(b)),
                 "a nested batch joins the enclosing one rather than opening its own");
     }
 
     #[test]
     fn test_separate_batches_get_separate_ids() {
         let mut log = EventLog::new();
-        let prev = log.open_batch();
+        let prev = log.open_batch(None);
         log.emit(GameEvent::StateBasedActionPerformed);
         log.close_batch(prev);
-        let prev = log.open_batch();
+        let prev = log.open_batch(None);
         log.emit(GameEvent::StateBasedActionPerformed);
         log.close_batch(prev);
 
-        assert_ne!(log.records()[0].batch, log.records()[1].batch);
+        assert_ne!(log.records()[0].batch(), log.records()[1].batch());
     }
 }
