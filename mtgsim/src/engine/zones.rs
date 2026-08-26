@@ -29,18 +29,26 @@ impl GameState {
     /// `GameAction::ZoneChange` arm itself, and existing unit tests) can still
     /// call it.
     ///
-    /// **Two documented classes of exception, and they are not the same kind:**
+    /// **One documented class of exception, and it is permanent:**
+    /// `// CAST-ROLLBACK:` — `cast_spell`'s failure paths, via
+    /// `rollback_cast_to_hand`. These are **not** zone changes at all: CR 601.2
+    /// rewinds the casting process, so no object legally moved and nothing may
+    /// observe it. They must never be routed through the chokepoint.
     ///
-    /// - `// REPLACEMENT-BYPASS:` — the three sites in `engine/stack.rs`. These
-    ///   *are* real zone changes that the pipeline ought to see; they bypass
-    ///   only because the stack-pop-first pattern removes the object from the
-    ///   stack `Vec` before resolution begins. **Temporary** — RA-3 closes them
-    ///   with a pop-aware dispatch.
-    /// - `// CAST-ROLLBACK:` — `cast_spell`'s failure paths, via
-    ///   `rollback_cast_to_hand`. These are **not** zone changes at all: CR
-    ///   601.2 rewinds the casting process, so no object legally moved and
-    ///   nothing may observe it. **Permanent** — they must never be routed
-    ///   through the chokepoint.
+    /// The `// REPLACEMENT-BYPASS:` class is gone. Its three sites in
+    /// `engine/stack.rs` *were* real zone changes the pipeline had to see; they
+    /// bypassed only because the stack-pop-first pattern removes the object
+    /// from the stack `Vec` before resolution begins, so this function would
+    /// have removed it twice. RA-3 closed them by naming the in-between state
+    /// instead of routing around it — see [`GameState::resolving`].
+    ///
+    /// **This function performs the move and announces nothing.** The
+    /// `GameEvent::ZoneChange` is emitted by `perform_action`'s own arm, which
+    /// is the only place that knows the [`ZoneChangeCause`] and the only place
+    /// that can capture the CR 603.10a LKI frame before the object stops being
+    /// a permanent. Splitting it that way is also what finally makes the
+    /// `// CAST-ROLLBACK:` tag true: a rewind now really is unobservable,
+    /// where before it still pushed a Stack→Hand event into the log.
     pub(crate) fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
         let from = {
             let obj = self.get_object(id)?;
@@ -65,17 +73,8 @@ impl GameState {
         self.init_zone_state(id, to)?;
 
         // Update the object's zone field
-        let owner = self.get_object(id)?.owner;
         let obj = self.get_object_mut(id)?;
         obj.zone = to;
-
-        // Emit zone change event
-        self.events.emit(GameEvent::ZoneChange {
-            object_id: id,
-            owner,
-            from,
-            to,
-        });
 
         Ok(())
     }
@@ -147,7 +146,13 @@ impl GameState {
     /// The `from` parameter specifies which zone the land is being played from.
     /// Normally this is `Zone::Hand`, but continuous effects can allow playing
     /// lands from other zones (e.g. graveyard via Crucible of Worlds).
-    pub fn play_land(&mut self, player_id: PlayerId, card_id: ObjectId, from: Zone) -> Result<(), String> {
+    pub fn play_land(
+        &mut self,
+        player_id: PlayerId,
+        card_id: ObjectId,
+        from: Zone,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
         // Rule 505.6b: Only the active player can play a land
         if player_id != self.active_player {
             return Err("Only the active player can play a land".to_string());
@@ -186,8 +191,12 @@ impl GameState {
             return Err("Already played maximum lands this turn".to_string());
         }
 
-        // Move to battlefield
-        self.move_object(card_id, Zone::Battlefield)?;
+        // Move to battlefield, through the chokepoint. This was a direct
+        // `move_object` until RA-3 — a fourth, undocumented bypass, and the
+        // most frequent zone change in the game. CR 305.1 makes playing a land
+        // a special action that still puts a permanent onto the battlefield, so
+        // every ETB replacement in Phase RC has to see it.
+        self.change_zone(card_id, Zone::Battlefield, ZoneChangeCause::PlayedAsLand, ctx)?;
 
         // Increment land drop counter
         let player = self.get_player_mut(player_id)?;
@@ -238,6 +247,13 @@ impl GameState {
             Zone::Stack => {
                 if let Some(pos) = self.stack.iter().position(|&x| x == id) {
                     self.stack.remove(pos);
+                    self.stack_entries.remove(&id);
+                    Ok(())
+                } else if self.resolving.map(|r| r.id) == Some(id) {
+                    // Already off the `Vec`: `resolve_top_of_stack` pops before
+                    // resolving so in-flight effects cannot see the resolving
+                    // object (CR 608.2). Expected, not a bug — and the *only*
+                    // way it is expected. See `GameState::resolving`.
                     self.stack_entries.remove(&id);
                     Ok(())
                 } else {
@@ -308,25 +324,25 @@ impl GameState {
 
     /// Initialize zone-specific state when entering a zone.
     /// Default controller is the object's owner (correct for play_land, tokens, etc.).
+    /// Initialize zone-specific state when entering a zone.
+    ///
+    /// The entering permanent's controller is its owner (correct for a land play
+    /// and for tokens) *except* when it is a resolving permanent spell, where
+    /// CR 110.2b makes it the player who put that spell onto the stack.
+    ///
+    /// This is the **default** controller — the value Layer 2 modifies, not the
+    /// answer `get_effective_controller` gives. A stolen permanent spell enters
+    /// under its caster's control here and is moved to the thief by the Layer 2
+    /// row CR 400.7a keeps alive. `GameState::resolving` is where the answer
+    /// survives the pop.
     pub(crate) fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         if zone == Zone::Battlefield {
-            let obj = self.get_object(id)?;
-            let controller = obj.owner; // default controller is owner
+            let controller = match self.resolving {
+                Some(r) if r.id == id => r.default_controller,
+                _ => self.get_object(id)?.owner,
+            };
             self.place_on_battlefield(id, controller);
         }
-        Ok(())
-    }
-
-    /// Initialize battlefield state with an explicit controller.
-    /// Used when a permanent spell resolves — the controller is whoever
-    /// controlled the spell on the stack (rule 110.2), which may differ
-    /// from the owner if a control-changing effect was applied.
-    pub(crate) fn init_zone_state_with_controller(
-        &mut self,
-        id: ObjectId,
-        controller: PlayerId,
-    ) -> Result<(), String> {
-        self.place_on_battlefield(id, controller);
         Ok(())
     }
 
@@ -386,7 +402,7 @@ mod tests {
     }
 
     fn card_drawn_events(game: &GameState) -> Vec<crate::types::ids::ObjectId> {
-        game.events.events().iter().filter_map(|e| match e {
+        game.events.events().filter_map(|e| match e {
             crate::events::event::GameEvent::CardDrawn { card_id, .. } => Some(*card_id),
             _ => None,
         }).collect()
@@ -400,7 +416,7 @@ mod tests {
         // Both, not either: CR 121.1 is a library→hand move, and CR 121.5 makes
         // "was it a draw" a separate, trigger-visible fact about that move.
         assert_eq!(card_drawn_events(&game), vec![forest_id]);
-        let zone_changes = game.events.events().iter().filter(|e| matches!(
+        let zone_changes = game.events.events().filter(|e| matches!(
             e, crate::events::event::GameEvent::ZoneChange { from: Zone::Library, to: Zone::Hand, .. }
         )).count();
         assert_eq!(zone_changes, 1);
@@ -495,7 +511,7 @@ mod tests {
         game.players[0].hand.push(forest_id);
 
         // Play it
-        game.play_land(0, forest_id, Zone::Hand).unwrap();
+        game.play_land(0, forest_id, Zone::Hand, &test_ctx()).unwrap();
 
         assert!(game.players[0].hand.len() == 1); // drew 1 card during draw step
         assert!(game.battlefield.contains_key(&forest_id));
@@ -509,7 +525,7 @@ mod tests {
         let forest2_id = game.add_object(forest2);
         game.players[0].hand.push(forest2_id);
 
-        let result = game.play_land(0, forest2_id, Zone::Hand);
+        let result = game.play_land(0, forest2_id, Zone::Hand, &test_ctx());
         assert!(result.is_err());
     }
 
@@ -523,7 +539,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[0].hand.push(forest_id);
 
-        let result = game.play_land(0, forest_id, Zone::Hand);
+        let result = game.play_land(0, forest_id, Zone::Hand, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("main phase"));
     }
@@ -543,7 +559,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[1].hand.push(forest_id);
 
-        let result = game.play_land(1, forest_id, Zone::Hand);
+        let result = game.play_land(1, forest_id, Zone::Hand, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("active player"));
     }

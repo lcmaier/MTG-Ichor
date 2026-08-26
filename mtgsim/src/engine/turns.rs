@@ -189,9 +189,11 @@ impl GameState {
             .into_iter()
             .filter(|&id| crate::oracle::characteristics::controls(self, id, active))
             .collect();
-        for id in to_untap {
-            self.execute_action(GameAction::Untap { object: id }, ctx)?;
-        }
+        // One batch: CR 502.1 says the permanents untap *simultaneously*, and
+        // CR 603.2c's "whenever one or more permanents untap" reads the batch,
+        // not its members.
+        let batch = to_untap.into_iter().map(|object| GameAction::Untap { object }).collect();
+        self.execute_actions(batch, ctx)?;
 
         // No player gets priority during untap step
         Ok(())
@@ -340,8 +342,8 @@ mod tests {
             game.advance_turn(&test_ctx()).unwrap();
         }
 
-        let untapped: Vec<crate::types::ids::ObjectId> = game.events.events()[before..].iter()
-            .filter_map(|e| match e {
+        let untapped: Vec<crate::types::ids::ObjectId> = game.events.records_from(before).iter()
+            .filter_map(|r| match &r.event {
                 crate::events::event::GameEvent::Untapped { object_id } => Some(*object_id),
                 _ => None,
             })
@@ -352,6 +354,40 @@ mod tests {
         // emitted per-permanent rather than per-transition would report both.
         assert_eq!(untapped, vec![tapped_id]);
         assert!(!game.battlefield.get(&tapped_id).unwrap().tapped);
+    }
+
+    #[test]
+    fn test_the_untap_step_is_one_batch() {
+        let mut game = GameState::new(2, 20);
+        stock_libraries(&mut game, 5);
+
+        let land = |name: &str| CardDataBuilder::new(name)
+            .card_type(CardType::Land)
+            .supertype(Supertype::Basic)
+            .mana_ability_single(ManaType::Green)
+            .build();
+
+        for name in ["Forest A", "Forest B"] {
+            let id = game.add_object(GameObject::new(
+                land(name), 0, crate::types::zones::Zone::Battlefield));
+            game.place_on_battlefield(id, 0).tapped = true;
+        }
+
+        let before = game.events.len();
+        for _ in 0..26 {
+            game.advance_turn(&test_ctx()).unwrap();
+        }
+
+        // CR 502.1: "all the permanents untap simultaneously." One batch id is
+        // what lets CR 603.2c's "whenever one or more permanents untap" fire
+        // once for the step instead of once per permanent.
+        let batches: Vec<_> = game.events.records_from(before).iter()
+            .filter(|r| matches!(r.event, crate::events::event::GameEvent::Untapped { .. }))
+            .map(|r| r.batch())
+            .collect();
+        assert_eq!(batches.len(), 2, "both lands untapped");
+        assert!(batches[0].is_some(), "the untap step is batched");
+        assert_eq!(batches[0], batches[1], "one step, one event");
     }
 
     #[test]

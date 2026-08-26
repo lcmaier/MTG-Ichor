@@ -240,7 +240,7 @@ pub enum ZoneChangeCause {
 
     // --- the stack ---
     Cast,            // hand (or elsewhere) → stack
-    Resolved,        // 608.2m — stack → battlefield or graveyard
+    Resolved,        // 608.2n (instant/sorcery → graveyard), 608.3a/c (permanent spell → battlefield)
     Countered,       // 701.6
     Fizzled,         // 608.2b — countered by game rules
 
@@ -816,26 +816,41 @@ Tests in §10.
 Three rules need an event *set*, not an event:
 
 - **CR 704.3** — "performs all applicable state-based actions **simultaneously
-  as a single event**". `engine/sba.rs` currently performs them one
-  `change_zone` at a time.
+  as a single event**". `engine/sba.rs` performed them one `change_zone` at a
+  time, and worse, evaluated 704.5g's conditions only after 704.5f's moves had
+  happened.
 - **CR 704.7** — "if multiple state-based actions would have the same result at
   the same time, a single replacement effect will replace all of them."
   Unreachable without the batch.
 - **CR 615.7** — "if damage would be dealt … by two or more applicable sources
   at the same time, the … controller chooses which damage the shield prevents."
-  `apply_combat_damage` currently loops one assignment at a time, so this choice
-  cannot exist.
+  `apply_combat_damage` looped one assignment at a time, so this choice could
+  not exist.
 
-So `execute_action` gains a batch sibling:
+So `execute_action` gains a batch sibling (shipped RA-3):
 
 ```rust
 pub fn execute_actions(&mut self, batch: Vec<GameAction>, ctx: &ActionContext)
-    -> Result<Vec<GameAction>, String>;
+    -> Result<(), String>;
 ```
 
+**The return type is `()` rather than the `Vec<GameAction>` this section first
+specified.** The performed-action vector has no consumer in RA and the project
+does not add one speculatively; RB restores it the moment `apply_replacements`
+gives it a customer. Nothing else about the signature moved.
+
 The batch shares one batch id (which lands on every emitted `GameEvent`,
-satisfying the CR 603.2c/603.6a "one or more" trigger requirement that Phase 7
+satisfying the CR 603.2c "one or more" trigger requirement that Phase 7
 will need). `execute_action` becomes `execute_actions(vec![action])`.
+
+**A nested `execute_actions` joins the enclosing batch rather than opening its
+own** (decided in RA-3, and it is a rules point, not an implementation
+convenience). CR 120.3f makes lifelink's life gain a *result of* the damage, and
+CR 120.4c/d process the results and then let the one damage event occur — so the
+gain is not merely simultaneous with the damage, it is part of the same event.
+Lifelink proposes from inside `perform_action(DealDamage)`, and a second batch id
+there would tell a CR 603.2c trigger that two events happened. RD's CR 120.3
+decomposition is the same shape.
 
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
@@ -858,7 +873,27 @@ state, so a regeneration shield spent on batch member one is correctly gone
 when member two asks (CR 701.19a — one shield, one destruction replaced).
 
 Callers that must batch: `apply_combat_damage` (CR 510.2), the SBA sweep
-(704.3), and any "each player …" effect (CR 101.4).
+(704.3), **the untap step (CR 502.1 — "all the permanents untap
+simultaneously", which this list originally missed)**, and **a spell's actions
+over several objects (CR 608.2f — "in most cases, each such action is processed
+simultaneously"), which is what a board wipe is**. All four batch as of
+2026-08-26; `Primitive::Destroy` was the last loop and was converted in review,
+since RA-3's ticket named only two of them.
+
+That last one is where the pipeline earns the batch most visibly. Kalitas,
+Traitor of Ghet applies once *per death* in a wipe — CR 614.5 is per event and
+batch members are separate events — but the CR 616.1 loop can only reach that
+answer if the deaths arrive as one proposal set. A loop of `execute_action`
+hands it N unrelated events and the question never comes up.
+
+**The dedupe is where CR 704.7 lives, and RA-3 implemented it as one action per
+object.** Two state-based actions that would put the same permanent into the
+same graveyard at the same time have the same *result*, so they are one event
+with one applied-set. The first condition in CR order names the cause: a creature
+that is both a duplicate legend and dead to lethal damage was destroyed
+(704.5g), not put away by the legend rule. Note this is the *within-batch*
+collapse; §4.2's opening paragraph on per-member applied sets is about distinct
+events and still holds.
 
 ### 4.3 N players, from day one
 
@@ -1074,10 +1109,99 @@ insist on for the rest of RC-B — an unintuitive ruling that reduces to a
 mechanical rule is fine; one that does not is a signal to stop and re-read the
 CR before writing code.
 
+### 5b. Three corrections from a judge-corpus pass (2026-08-26)
+
+Five card interactions were put to this design by the owner. Two confirm it, one
+moves the RC Part A/B seam, and two add rules it did not state.
+
+**The overlay is about one object, and the rest of the board is read as it
+actually is — second worked example.** Elvish Archdruid ("Other Elf creatures you
+control get +1/+1") enters while Master Biomancer ("Each other creature you
+control enters with a number of additional +1/+1 counters on it equal to this
+creature's power", a 2/4 **Elf** Wizard) is on the battlefield. Archdruid enters
+with **2** counters, not 3: Biomancer's power is read off the real board, where
+Archdruid's anthem is not yet applying, because Archdruid is not yet a permanent
+and CR 604.3 makes its static ability function on the battlefield. This is §5's
+second note working, stated from the other side — Thassa shows a *count* over the
+board is not perturbed; Archdruid shows another *object's characteristics* are
+not either. §5a's table gains a row:
+
+| Read | Sees the entering object? |
+|---|---|
+| **Any other object's characteristics** (an `AmountExpr` reading a permanent's power, a filter's `you`) | **no** — computed against the real board |
+
+Note the asymmetry this creates and do not smooth it over: clause (2) puts the
+entering object's own anthem into *its own* frame, but that anthem does not reach
+any other object's frame. One object is hypothetical; nothing else is.
+
+**Simultaneous entries are computed against the board before any of them
+entered.** Two Master Biomancers entering as one event give each other nothing —
+neither is on the battlefield when the other's replacements are applied. RA-3's
+`execute_actions` is the mechanism (one batch, one `BatchId`), and the rule RC
+owes is that the *frame* is batch-scoped: every member's look-ahead reads the
+pre-batch board. This is a different axis from §4.2's per-member `applied` set,
+which is about CR 614.5 and stays per-event.
+
+**Not every judge example is a requirement.** Uphill Battle ("Creatures played
+by your opponents enter tapped") looked like a demand for a "played by" filter
+leaf until it was counted: `o:"played by"` matches **1 card in all of Magic**
+(Scryfall, 2026-08-26). It stays a worked example of why CR 110.2b's default
+controller matters (`codebase-state.md` item 9) and buys no `PermanentFilter`
+vocabulary. Apply §8c's two-customers-before-a-variant guard to interaction
+findings as well as to cards — an illuminating example is not automatically a
+breadth argument.
+
+**Two copy effects: the later one overwrites the earlier, riders included.** A
+copy `Rewrite` is a *set* of the copiable values, not a modification of them
+(CR 707.2), so a second copy-on-enter replacement discards the first's result
+*and* its "except ..." clauses. §3.2b's algebra must not model copy as a
+composable modify, and §3.2c's 0/574 completeness claim was measured without
+copy-on-enter in scope — re-check it when Layer 1 lands and RC-B fills the
+CR 616.1c bucket.
+
+### 5c. Dress Down moves the Part A/B seam
+
+**The finding.** Dress Down ("Creatures lose all abilities") is on the
+battlefield; a Clone is cast. Clone's "You may have this creature enter as a copy
+of any creature on the battlefield" is an ETB replacement, and CR 614.12 clause
+(3) says the look-ahead frame takes into account continuous effects that already
+exist and would apply to the entering object. Dress Down is one. So in the frame
+Clone **has no abilities**, its copy replacement does not exist, and it enters as
+a 0/0 and dies. Xu-Ifit, Osteoharmonist is the same shape from a resolution
+rather than a static, and its Gatherer ruling is explicit — a permanent it
+returns "will lose that ability before it can trigger… before it can apply…
+[including] Clone's ability that causes it to enter as a copy".
+
+**Why this is not just another RC-B card.** §5 split RC on the claim that Part A
+handles "ETB replacements whose applicability does not depend on the frame —
+`AffectedSet::SourceOnly`, unconditional… 'this land enters tapped'". That claim
+is false, and Dress Down is the proof: whether the entering land *has* its
+enters-tapped ability is itself a frame question. The design collapses two
+questions into one:
+
+1. **Does the entering object still have its own replacement ability?** Answered
+   by the frame's Layer 6 output under clause (3). Prior to everything else.
+2. **Which replacements apply to this event?** §5's clauses, the question the
+   overlay was designed for.
+
+Question 1 needs exactly the piece Part B was going to build: the membership gate
+at `compute.rs:622`, which returns `false` for any `AffectedSet::Filter` effect
+against an object not in `game.battlefield` — so today an entering Clone matches
+no filter, Dress Down included, and keeps its ability.
+
+**The seam moves, the split survives.** Part A takes the membership gate and the
+frame's ability list — enough to ask "what abilities would this object have on the
+battlefield", which is the whole of question 1. Part B keeps clause (1)'s pending
+`EnterMods`, the filter-based *applicability* of other permanents' replacements
+(Orb of Dreams), and the 614.13a/b exclusion sets. Part A is still the smaller,
+lower-risk half; it is just not overlay-free, and shipping it overlay-free would
+enter a Dress Downed Clone as a copy.
+
 **De-risking split.** RC Part A implements ETB replacements whose applicability
 does not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is
 "this land enters tapped" and "this enters with N +1/+1 counters", which is the
-overwhelming bulk of the 773 + 580. RC Part B builds the overlay and turns on
+overwhelming bulk of the 773 + 580, **plus the membership gate and the frame's
+ability list, per §5c**. RC Part B builds the rest of the overlay and turns on
 filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 614.13a/b exclusion sets. Same Part A/B shape as Phase LD.
 
@@ -1087,19 +1211,21 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 
 | Site | Change | Phase |
 |---|---|---|
-| `engine/actions.rs::execute_action` | the pipeline call; gains `ActionContext`; batch sibling | RA/RB |
+| `engine/actions.rs::execute_action` | the pipeline call; gains `ActionContext`; batch sibling `execute_actions` | RA ✅ / RB |
 | `engine/actions.rs::change_zone` | gains `cause` and `ActionContext` | RA |
-| `engine/zones.rs::move_object` | performer only; emission moves here | RA |
+| `engine/zones.rs::move_object` | performer only; emission moves **out** of it, into `perform_action`'s `ZoneChange` arm — the only place that knows the `cause` and can capture the LKI frame before the object stops being a permanent | RA ✅ |
+| `engine/zones.rs::play_land` | gains `ActionContext`; routes through `change_zone` with `PlayedAsLand`. **Not in the original table** — a fourth chokepoint bypass §11's derivation missed, and the most frequent zone change in the game | RA ✅ |
 | `engine/zones.rs::draw_card` | routes through `execute_action(DrawCard)`; emits `CardDrawn` | RA |
-| `engine/stack.rs` × 3 `// REPLACEMENT-BYPASS:` | pop-aware `ZoneChange` dispatch that skips the stack-Vec removal; also where the LKI frame is captured | RA |
+| `engine/stack.rs` × 3 `// REPLACEMENT-BYPASS:` | closed by naming the state instead of dispatching around it: `GameState::resolving` records the popped object and CR 110.2b's controller, so `remove_from_zone_collection(Stack)` and `init_zone_state` can both consult it and the sites use plain `change_zone` | RA ✅ |
+| `engine/stack.rs::resolve_top_of_stack` — the early pop | **stop popping.** The pattern has no surviving justification (below), and the CR keeps a resolving spell on the stack. Deletes the leniency branch `resolving` needed | RC, with `init_zone_state` |
 | `engine/turns.rs::process_draw_step` | stop calling `draw_card` directly (CR 614.11, 614.10) | RA |
-| `engine/turns.rs::process_untap_step` | route through `Untap`; emit `Untapped` (CR 122.1d) | RA |
+| `engine/turns.rs::process_untap_step` | route through `Untap`; emit `Untapped` (CR 122.1d); **one batch**, per CR 502.1's "simultaneously" | RA ✅ |
 | `engine/costs.rs:150,165` | `Cost::Tap`, `{Q}` — emit `Tapped` | RA |
 | `engine/combat/steps.rs:70` | attackers tap — emit `Tapped` | RA |
 | `engine/combat/resolution.rs::apply_combat_damage` | batch, not a loop (CR 510.2, 615.7) | RA/RD |
 | `engine/cast.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA |
 | `state/game_state.rs::StackEntry` | add `cast_from: Zone` — §8c, two customers | RA |
-| `engine/sba.rs` | batch sweep (CR 704.3/704.7); `cause` on each move | RA/RB |
+| `engine/sba.rs` | one CR 704.3 event: gather every condition against one game state, dedupe per object (704.7's same-result collapse), perform as one batch, `cause` on each move | RA ✅ |
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
 | `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
@@ -1604,11 +1730,11 @@ The Deferred Migrations item 3 ticket list, verbatim, plus the DP plumbing.
 cite them — but they land in three groups. The grouping is dependency-clean:
 nothing in a later group is a prerequisite for an earlier one.
 
-| Sub-phase | Tickets | Shape | Measured size |
-|---|---|---|---|
-| **RA-1 — plumbing** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites |
-| **RA-2 — routing** | 3, 4, 5, 10, 11, 12 | six independent "make the silent site loud" tickets | 5 new `GameEvent` variants; ~10 sites each |
-| **RA-3 — payloads** | 9, 6, 7, 8 *(that order)* | the deep half: batches, LKI, the bypass closure | 3 bypass sites, the SBA sweep, `apply_combat_damage` |
+| Sub-phase | Tickets | Shape | Measured size | Status |
+|---|---|---|---|---|
+| **RA-1 — plumbing** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites | ✅ PR #58 |
+| **RA-2 — routing** | 3, 4, 5, 10, 11, 12 | six independent "make the silent site loud" tickets | 5 new `GameEvent` variants; ~10 sites each | ✅ PR #59 |
+| **RA-3 — payloads** | 9, 6, 7, 8 *(that order)* | the deep half: batches, LKI, the bypass closure | 3 bypass sites, the SBA sweep, `apply_combat_damage` | ✅ 2026-08-25 |
 
 **Why three, and not the two-way seam this doc proposed first.** Ticket 1 alone
 is a session. Counted 2026-08-25: `execute_action` 7 external call sites,
@@ -1695,7 +1821,7 @@ Six tickets, each independently testable, roughly one commit apiece.
 **RA-2 exit:** grep-provable — no production site outside `perform_action`'s own
 arms writes `entry.tapped`, writes `life_total`, or moves a card library→hand.
 
-#### RA-3 — payloads and structure (tickets 9, 6, 7, 8)
+#### RA-3 — payloads and structure (tickets 9, 6, 7, 8) — ✅ landed 2026-08-25
 
 In that order: 9 first because 6's batch id has nowhere to live without it, and
 7 after 6 because the bypass sites are where the LKI frame is captured.
@@ -1704,17 +1830,96 @@ In that order: 9 first because 6's batch id has nowhere to live without it, and
 6. Payload upgrades: layer-computed LKI frame on battlefield-leaving zone
    changes (CR 603.10a), `cause`, batch id, resolution context.
 7. Close the three `// REPLACEMENT-BYPASS:` sites with the pop-aware dispatch.
+   (Shipped as written. The *pop* itself turns out to be unjustified — see the
+   divergence note below — and its removal is RC's, not this ticket's.)
 8. Demote `CreatureDied` / `PlaneswalkerDied` / `LegendRuleSacrificed` to
    display sugar. There is no matcher in RA, so the deliverable is a test proving
    the `ZoneChange` + LKI frame carries everything the three events carried, plus
    doc comments marking them display-only. `fuzz_games`' `creatures_died` stat
    and `ui/display.rs` keep reading them; nothing else may.
 
-**Exit criterion (all of RA):** every state mutation observable by CR 614 or
-CR 603 is emitted from exactly one place, and an event log replay can distinguish
-drawn from tutored, destroyed from sacrificed, and countered from resolved.
-"Every" includes the life mutations: after RA the only `life_total` writers are
-`perform_action`'s own arms.
+   **Executed as deletion, not demotion** (2026-08-26, review). "Display-only"
+   is a policy in a doc comment, and the type system can enforce the same thing
+   for free by removing the variant. `AuraDied` and `SpellResolved` went with
+   them for the same reason, and `PermanentLeftBattlefield` had never had an
+   emitter. The deciding argument was measured rather than aesthetic: the
+   redundancy was hiding an undercount. `CreatureDied` was emitted only from the
+   SBA sweep, so a creature killed by a spell produced none, and `creatures_died`
+   read 5.3 where the zone changes say 6.2. That is the one fuzz number RA-3
+   moves.
+
+**What executing it changed in this document.** Four things, recorded here
+because §9 is where the next phase reads:
+
+- **The untap sweep is a third batch caller.** §4.2 named `apply_combat_damage`,
+  the SBA sweep and "any 'each player …' effect"; CR 502.1 says the untap step's
+  permanents untap *simultaneously*, which is the same rule and the ticket did
+  not name it. Batched.
+- **`execute_actions` returns `Result<(), String>`, not `Result<Vec<GameAction>, String>`.**
+  §4.2 specified the performed-action vector; in RA nothing consumes it, and the
+  project does not add a return value speculatively. RB adds it when
+  `apply_replacements` gives it a customer — a one-line change.
+- **`play_land` was a fourth chokepoint bypass** that §11's derivation missed,
+  because that derivation counted `change_zone` callers and `play_land` wrote
+  straight to `move_object`. It is the most frequent zone change in the game, and
+  it is why `ZoneChangeCause::PlayedAsLand` had no call site. Fixed in ticket 6.
+  Running correction: **11** production movers, not the 9 §11 derived or the 10
+  RA-2 corrected it to.
+- **The early stack pop has no surviving justification, and this document
+  endorsed it.** Ticket 7 is written as a "pop-aware dispatch", which takes the
+  pop as given. Audited in review (2026-08-26): `resolve_top_of_stack` removes
+  the object from the `stack` `Vec` before resolving, documented as keeping an
+  in-flight Counterspell from seeing it. Nothing can see it. **CR 608.2g** says
+  no spell may normally be cast and no ability activated during a resolution, so
+  nothing can *acquire* the resolving object as a target mid-resolution; and a
+  spell cannot choose itself at CR 601.2c because `enumerate_legal_selections`
+  and `has_any_legal_choice` already exclude it by `exclude_id`. Meanwhile
+  **CR 608.2 keeps a resolving spell on the stack** until 608.2n or 608.3a moves
+  it, so the pop is an engine artifact the rules do not have.
+
+  RA-3 shipped the pop-aware dispatch as specified and documented the artifact
+  rather than removing it mid-ticket. **The removal is sized in
+  `codebase-state.md` (Deferred Migrations 7) and slotted for RC**, because RC
+  turns `place_on_battlefield` into `EnterBattlefield`'s performer and therefore
+  rewrites `init_zone_state` — the other reader of `GameState::resolving` —
+  anyway. Doing both at once leaves `resolving` deleted or reduced to one field,
+  and deletes a `remove_from_zone_collection` leniency branch that can currently
+  mask a genuinely missing stack object.
+
+- **The CR 601.2 rewind has two halves and RA-3 fixed one.** The rollback is now
+  silent, which is what `// CAST-ROLLBACK:` had claimed since RA-1. The *forward*
+  hand→stack move is still announced at CR 601.2a, before it is knowable whether
+  the cast rewinds, so a replay still contains a move the rules say never
+  happened. Deferring the announcement to 601.2i without deferring the move is a
+  two-phase cast; recorded as Deferred Migrations item 5 and wanted before
+  Phase 6, since the trigger matcher reads that log.
+
+**One design point the ticket list did not settle, decided during execution.**
+CR 704.3 says the game checks every condition and *then* performs all applicable
+state-based actions "simultaneously as a single event". The old sweep performed
+704.5f's moves before it evaluated 704.5g's conditions, so it converged to the
+right board through `check_state_based_actions_loop` but could never produce the
+simultaneity CR 704.7 and CR 616.1 are written against. The sweep now gathers
+against one game state and performs one batch, deduped per object with the first
+condition in CR order naming the cause. That is a real behavior change with a
+visible consequence: **a player controlling two Isamarus, one dead to lethal
+damage, is now asked which to keep** — the old sweep skipped the prompt by
+having already removed the dead one. Both then die, which is what the rule says.
+`fuzz_games --games 50 --seed 12345` did not move, so the case is rare in the
+current pool, but it is a live `DecisionProvider` call and RB's §11 item 7
+blast-radius watch applies to it.
+
+**Exit criterion (all of RA) — met 2026-08-25:** every state mutation observable
+by CR 614 or CR 603 is emitted from exactly one place, and an event log replay
+can distinguish drawn from tutored, destroyed from sacrificed, and countered from
+resolved. "Every" includes the life mutations: after RA the only `life_total`
+writers are `perform_action`'s own arms, and the only emitter of
+`GameEvent::ZoneChange` is its `ZoneChange` arm.
+
+Two mutations are outside it by construction rather than by oversight, and both
+are recorded in `codebase-state.md`: counter annihilation and attachment SBAs
+have no `GameAction` variant to propose through (RB item 5 gives counters one),
+and the CR 601.2a announcement above.
 
 ### Phase RB — the pipeline, with counters and regeneration as consumers
 
@@ -1749,6 +1954,15 @@ drawn from tutored, destroyed from sacrificed, and countered from resolved.
   `place_on_battlefield` becomes its performer; `AffectedSet::SourceOnly`
   unconditional ETB replacements — enters tapped (CR 110.5b), enters with
   counters (CR 122.6a), CR 614.12a choice-before-entry. ~1,350 cards.
+  **Plus the membership gate and the frame's ability list (§5c)** — without them
+  a Dress Downed Clone still copies, and an enters-tapped land still enters
+  tapped after losing the ability that says so.
+  **Ride along: delete the early stack pop** (`codebase-state.md` Deferred
+  Migrations 7). Part A rewrites `init_zone_state`, which is one of
+  `GameState::resolving`'s two readers; removing the pop deletes the other.
+  Audit the five production `stack.is_empty()` readers first — none is reachable
+  during a resolution today, but CR 608.2g's "unless an effect instructs" case
+  makes `cast.rs:576` reachable once RC-era cards arrive.
 - **Part B:** the §5 hypothetical overlay; CR 614.12 clauses (2) and (3);
   CR 614.17d; CR 614.13/613a/b auxiliary zone changes and exclusion sets;
   CR 616.1b/c classes (control-changing and copy-on-enter get their buckets even
@@ -2035,13 +2249,18 @@ rule number) — confirm the merge at labelling time.
 
 Update as part of the work that changes them, not in a later pass:
 
-- `codebase-state.md` — the CR 614–616 row, the CR 9 table (item 11.1 above),
-  and Deferred Migrations: item 3 closes with RA, item 2's three bypasses close
-  with RA, and every new stub gets a line at commit time.
-- `CLAUDE.md` — an authority-table row for this file; a new invariant if the
-  chokepoint discipline needs one stated (it probably does: *"never mutate
-  observable state outside `perform_action`"* is this phase's analogue of the
-  layer-system invariant).
+- `codebase-state.md` — ✅ through RA. The CR 614–616 row, the CR 9 table
+  (item 11.1 above), and Deferred Migrations: **item 3 closed with RA-3, item 2's
+  three bypasses closed with RA-3**, and two new items were opened at commit time
+  (the CR 601.2a announcement, and the SBA mutations with no `GameAction`
+  variant). Keep adding a line per stub.
+- `CLAUDE.md` — ✅ through RA. The authority-table row exists; the chokepoint
+  invariant is stated, and RA-3 added its one-performer/one-emitter and
+  simultaneity sub-rules and struck the `// REPLACEMENT-BYPASS:` exemption.
 - `layers-architecture.md` §9 / §15.2 item 3 — the overlay decision, once made.
+  **Untouched by RA**, correctly: RA-3's LKI frame is a `compute_characteristics`
+  call taken *before* a mutation, not a hypothetical about a perturbed board, so
+  it needed neither the accessor pair nor a clone. The overlay is still RC-B's,
+  and §11 item 5's decision still stands unrecorded there.
 - `cards-unlocked-ledger.md` — the ETB unlock is the largest single entry the
-  ledger will take; add it with RC.
+  ledger will take; add it with RC. RA unlocks no cards by itself.

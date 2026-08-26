@@ -345,12 +345,12 @@ struct GameStats {
 }
 
 /// Extract action statistics from raw GameEvents.
-fn extract_stats(events: &[GameEvent]) -> GameStats {
+fn extract_stats<'a>(events: impl Iterator<Item = &'a GameEvent>) -> GameStats {
     let mut stats = GameStats::default();
     for event in events {
         match event {
             GameEvent::SpellCast { .. } => stats.spells_cast += 1,
-            GameEvent::CreatureDied { .. } => stats.creatures_died += 1,
+
             GameEvent::DamageDealt { amount, .. } => {
                 stats.damage_events += 1;
                 stats.total_damage += amount;
@@ -359,12 +359,24 @@ fn extract_stats(events: &[GameEvent]) -> GameStats {
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
                 stats.combat_phases_with_attackers += 1;
             }
-            GameEvent::ZoneChange { from, to, .. } => {
-                if *from == mtgsim::types::zones::Zone::Hand
-                    && *to == mtgsim::types::zones::Zone::Battlefield
-                {
+            GameEvent::ZoneChange { from, to, lki, .. } => {
+                use mtgsim::types::zones::Zone;
+                if *from == Zone::Hand && *to == Zone::Battlefield {
                     // This counts land plays (spells go Hand→Stack→Battlefield)
                     stats.lands_played += 1;
+                }
+                // Deaths, read off the zone change rather than a type-specific
+                // event. **This is why the number moved** (5.3 → 6.2 at
+                // --games 50 --seed 12345): `CreatureDied` was emitted only by
+                // the state-based-action sweep, so a creature killed by a spell
+                // never counted. The CR 603.10a frame says what it was.
+                if *from == Zone::Battlefield && *to == Zone::Graveyard {
+                    let was_creature = lki.as_ref().is_some_and(|f| {
+                        f.types.contains(&mtgsim::types::card_types::CardType::Creature)
+                    });
+                    if was_creature {
+                        stats.creatures_died += 1;
+                    }
                 }
             }
             _ => {}

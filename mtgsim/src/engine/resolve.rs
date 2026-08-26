@@ -218,22 +218,40 @@ impl GameState {
                 // Destroy target permanent (rule 701.7a).
                 // Moves the permanent from battlefield to its owner's graveyard.
                 // Indestructible permanents can't be destroyed (rule 702.12b).
+                //
+                // **One batch, because CR 608.2f says so.** "Some spells and
+                // abilities include actions taken on multiple players and/or
+                // objects. In most cases, each such action is processed
+                // simultaneously." A board wipe destroys everything at one
+                // instant, so the deaths are one event — which is what lets a
+                // CR 614 replacement apply once *per death* rather than the
+                // pipeline seeing N unrelated events, and what CR 615.7's
+                // shield allocation and CR 603.2c's "one or more creatures die"
+                // both read. This was a loop of `execute_action` until
+                // 2026-08-26; §4.2 named this caller class ("any 'each
+                // player ...' effect") and RA-3 converted only two of the three.
+                let mut batch = Vec::new();
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
+                            // CR 701.8a / 614.17: indestructible is a "can't",
+                            // checked ahead of the pipeline rather than being a
+                            // replacement. RB moves this into the performer of
+                            // `GameAction::Destroy`; until then it filters here.
                             if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordFlag::Indestructible) {
                                 continue;
                             }
-                            self.execute_action(GameAction::ZoneChange {
+                            batch.push(GameAction::ZoneChange {
                                 object: *id,
                                 from: crate::types::zones::Zone::Battlefield,
                                 to: crate::types::zones::Zone::Graveyard,
                                 cause: ZoneChangeCause::Destroyed,
-                            }, &actx)?;
+                            });
                         }
                         // If not on battlefield, destroy does nothing (rule 701.7b)
                     }
                 }
+                self.execute_actions(batch, &actx)?;
                 Ok(())
             }
 

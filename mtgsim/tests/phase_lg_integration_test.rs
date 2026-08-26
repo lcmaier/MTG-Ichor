@@ -226,6 +226,12 @@ fn test_a_spell_reports_its_caster_not_its_owner() {
 /// CR 110.2b — the permanent enters under whoever controlled the spell as it
 /// resolved.
 // COVERS: ATOM-110.2b-001
+// COVERS-PARTIAL: ATOM-400.7a-001
+// Builds the *controller* clause of CR 400.7a -- "effects ... that change the
+// characteristics or controller of a permanent spell on the stack continue to
+// apply to the permanent that spell becomes". The atom's own scenario is the
+// characteristics clause (Deathlace recolouring a creature spell), which needs a
+// colour-changing effect that can target a stack object; that half is still open.
 #[test]
 fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     let mut game = setup_two_player_game();
@@ -256,18 +262,29 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
         game.battlefield.contains_key(&spell_id),
         "it is a permanent now"
     );
-    // The *base* controller, not the effective one, and the difference is the
-    // whole rule. `Duration::Indefinite` leaves the Layer 2 row in the registry
-    // after the spell becomes a permanent, so `get_effective_controller` would
-    // answer 1 even if the permanent had entered under P0's control and the row
-    // were merely still applying on top. CR 110.2b is a claim about what
-    // `init_zone_state_with_controller` was handed.
+    // **The distinguishing observation, and it was pinned to the wrong branch
+    // until 2026-08-26.** Both halves of CR 110.2b are true at once and they name
+    // different players: "the first player controls the permanent that spell
+    // becomes, *but the permanent's controller by default is the player who put
+    // that spell onto the stack*." `BattlefieldEntity.controller` is the
+    // **default** — `compute::base_controller` reads it as the value Layer 2
+    // modifies — so it is P0, and the thief's control comes from the Layer 2 row
+    // that CR 400.7a keeps applying on top.
+    //
+    // `get_effective_controller` cannot tell those apart: it answers 1 whether
+    // the permanent entered under P0 with a row on top, or entered under P1
+    // with the row double-counting. That is why this asserts both, and why
+    // asserting only the effective value would let either model pass.
     assert_eq!(
         game.battlefield.get(&spell_id).unwrap().controller,
-        1,
-        "CR 110.2b: it *enters* under the control of whoever controlled the spell"
+        0,
+        "CR 110.2b: the permanent's controller *by default* is whoever put the          spell on the stack -- P0, who cast it"
     );
-    assert_eq!(get_effective_controller(&game, spell_id), Some(1));
+    assert_eq!(
+        get_effective_controller(&game, spell_id),
+        Some(1),
+        "CR 400.7a: and the steal's Layer 2 effect continues to apply to the          permanent the spell became, so P1 controls it"
+    );
     assert_eq!(
         game.objects.get(&spell_id).unwrap().owner,
         0,
@@ -277,7 +294,7 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
 
 /// Gaining control of an instant does **not** redirect it to the thief's
 /// graveyard. Two rules pull opposite ways and both hold: the spell's controller
-/// resolves it, so the thief draws, but CR 608.2m sends the finished spell to
+/// resolves it, so the thief draws, but CR 608.2n sends the finished spell to
 /// its *owner's* graveyard and CR 108.3 never moves ownership.
 ///
 /// Worth pinning because this phase edited this function — the controller is now
@@ -319,7 +336,7 @@ fn test_gaining_control_of_an_instant_does_not_move_its_graveyard() {
     );
     assert!(
         game.players[0].graveyard.contains(&spell_id),
-        "CR 608.2m + 108.3: but it goes to its *owner's* graveyard"
+        "CR 608.2n + 108.3: but it goes to its *owner's* graveyard"
     );
     assert!(!game.players[1].graveyard.contains(&spell_id));
     assert!(

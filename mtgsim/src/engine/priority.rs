@@ -105,7 +105,10 @@ impl GameState {
                         false,
                     ),
                     PriorityAction::PlayLand(card_id) => (
-                        self.play_land(current_priority, *card_id, Zone::Hand),
+                        self.play_land(
+                            current_priority, *card_id, Zone::Hand,
+                            &ActionContext::new(decisions),
+                        ),
                         false,
                     ),
                     PriorityAction::ActivateAbility(permanent_id, ability_id) => {

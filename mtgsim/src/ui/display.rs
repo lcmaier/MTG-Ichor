@@ -405,8 +405,21 @@ fn obj_name(game: &GameState, id: ObjectId) -> String {
 pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -> String {
     use crate::events::event::GameEvent::*;
     match event {
-        ZoneChange { object_id, owner, from, to } => {
-            format!("ZoneChange: {} [P{}] {:?} -> {:?}", obj_name(game, *object_id), owner, from, to)
+        ZoneChange { object_id, owner, from, to, cause, lki } => {
+            // This one line replaced four events. `CreatureDied`,
+            // `PlaneswalkerDied`, `LegendRuleSacrificed` and `AuraDied` each
+            // said the object, its owner and one of its types; the cause says
+            // which rule moved it and the CR 603.10a frame says every type it
+            // had, which is what a Gideon or an artifact creature needs.
+            let was = lki.as_ref().map(|f| {
+                // Sorted: `types` is a `HashSet`, and an unsorted log line
+                // differs run to run.
+                let mut names: Vec<String> = f.types.iter().map(|t| format!("{:?}", t)).collect();
+                names.sort();
+                format!(" ({})", names.join(" "))
+            }).unwrap_or_default();
+            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}]",
+                    obj_name(game, *object_id), was, owner, from, to, cause)
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source), controller),
@@ -440,9 +453,6 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         PermanentEnteredBattlefield { object_id, controller } => {
             format!("ETB: {} [P{}]", obj_name(game, *object_id), controller)
         }
-        PermanentLeftBattlefield { object_id } => {
-            format!("LTB: {}", obj_name(game, *object_id))
-        }
         LifeChanged { player_id, old, new, source } => {
             let src = match source {
                 Some(id) => format!(" (source: {})", obj_name(game, *id)),
@@ -463,9 +473,6 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         SpellCast { spell_id, caster } => {
             format!("SpellCast: P{} casts {}", caster, obj_name(game, *spell_id))
         }
-        SpellResolved { spell_id } => {
-            format!("SpellResolved: {}", obj_name(game, *spell_id))
-        }
         SpellCountered { spell_id, countered_by } => {
             format!("SpellCountered: {} countered by {}", obj_name(game, *spell_id), obj_name(game, *countered_by))
         }
@@ -475,23 +482,11 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         SpellFizzled { spell_id } => {
             format!("SpellFizzled: {}", obj_name(game, *spell_id))
         }
-        CreatureDied { creature_id, owner } => {
-            format!("CreatureDied: {} [P{}]", obj_name(game, *creature_id), owner)
-        }
-        PlaneswalkerDied { object_id, owner } => {
-            format!("PlaneswalkerDied: {} [P{}]", obj_name(game, *object_id), owner)
-        }
-        LegendRuleSacrificed { object_id, owner } => {
-            format!("LegendRuleSacrificed: {} [P{}]", obj_name(game, *object_id), owner)
-        }
         PlayerLost { player_id, reason } => {
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
-        }
-        AuraDied { object_id, owner } => {
-            format!("AuraDied: {} [P{}]", obj_name(game, *object_id), owner)
         }
         EquipmentDetached { equipment_id, former_host } => {
             format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
@@ -505,7 +500,7 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
 
 /// Format the entire event log with resolved card names.
 pub fn format_event_log(game: &GameState) -> Vec<String> {
-    game.events.events().iter()
+    game.events.events()
         .map(|e| format_event(game, e))
         .collect()
 }

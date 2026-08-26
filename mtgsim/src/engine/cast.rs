@@ -661,17 +661,17 @@ mod tests {
         game.activate_ability(0, thaum, idx, &decisions).unwrap();
         game.resolve_top_of_stack(&decisions).unwrap();
 
-        let activated: Vec<_> = game.events.events().iter().filter_map(|e| match e {
+        let activated: Vec<_> = game.events.events().filter_map(|e| match e {
             GameEvent::AbilityActivated { identity, .. } => Some(*identity),
             _ => None,
         }).collect();
-        let resolved: Vec<_> = game.events.events().iter().filter_map(|e| match e {
+        let resolved: Vec<_> = game.events.events().filter_map(|e| match e {
             GameEvent::AbilityResolved { identity, .. } => Some(*identity),
             _ => None,
         }).collect();
 
         // The point of the pair: both name (source, ability), not the ephemeral
-        // stack object — which by now has been deleted (CR 608.2m). CR 603.7h
+        // stack object — which by now has been deleted (CR 608.2n). CR 603.7h
         // counts resolutions of *this ability of this permanent*, and neither
         // half survives in the ephemeral id.
         assert_eq!(activated.len(), 1);

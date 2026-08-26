@@ -103,10 +103,24 @@ Propose with `execute_action` / `change_zone`; let the arm do the writing.
 - **Routing a sweep makes its order observable.** CR 616.1 prompts when two
   effects want one event, so a loop that proposes actions needs
   `battlefield_ids_ordered` even if the old direct-write loop did not.
+- **One performer, one emitter, and they are different functions.**
+  `move_object` performs a zone change and announces nothing;
+  `perform_action`'s `ZoneChange` arm is the only production emitter of
+  `GameEvent::ZoneChange`, because it is the only place that knows the
+  `cause` and the only place that can capture the CR 603.10a LKI frame
+  *before* the object stops being a permanent. Emitting from the performer
+  is how a CR 601.2 cast rewind spent a phase in the log claiming to be a
+  real move.
+- **A simultaneous rule needs `execute_actions`, not a loop.** CR 704.3's
+  single event, CR 704.7's same-result collapse and CR 615.7's shield
+  allocation are all unreachable from a loop of `execute_action` calls.
+  A batch shares one `BatchId`; a *nested* call joins the enclosing batch
+  rather than opening its own, because CR 120.3f makes lifelink's gain a
+  *result of* the damage and CR 120.4c/d let the one damage event occur.
 
-Exempt, both tagged in `engine/zones.rs`'s `move_object` doc: `// CAST-ROLLBACK:`
-(CR 601.2 rewinds — not events, permanently exempt) and `// REPLACEMENT-BYPASS:`
-(real zone changes, temporarily exempt until RA-3's pop-aware dispatch).
+One exemption, tagged in `engine/zones.rs`'s `move_object` doc and permanent:
+`// CAST-ROLLBACK:` — CR 601.2 rewinds are not events. (`// REPLACEMENT-BYPASS:`
+is gone; RA-3 closed its three sites with `GameState::resolving`.)
 
 ## Determinism at the decision boundary
 
@@ -138,7 +152,8 @@ shell: every line must match except the timing lines (`Total time`, `Time/game`,
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅ (2026-05 → 2026-08)
 5. Replacement effects (CR 614–616) — execute from `plans/replacement-architecture.md`
-   (phases RA–RE). Gates most real cards and Commander's 903.9b redirection
+   (phases RA–RE). **Phase RA — the event spine — landed 2026-08-25; RB is the
+   pipeline itself.** Gates most real cards and Commander's 903.9b redirection
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes
    LKI formalization and conditional static abilities with it
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass +
@@ -168,6 +183,7 @@ python plans/specdb.py show ATOM-305.7-002      # one ticket, implementable
 python plans/specdb.py gaps --chapter 6         # CR rules the corpus never examined
 python plans/specdb.py orphans                  # COVERS ids that match no atom
 python plans/specdb.py suspicious               # links that exist but look wrong
+python plans/specdb.py owed                     # what a shipped phase left behind
 ```
 
 Annotate at write time, directly above `#[test]`: `// COVERS:` when the test builds
@@ -175,6 +191,22 @@ the atom's whole scenario, `// COVERS-PARTIAL:` otherwise. **Never claim an atom
 test doesn't prove** — a false link is worse than a blank. `suspicious` is a smell
 test: a hit means read it; silence proves nothing. Tests with no atom are normal —
 this measures rules coverage, not completeness. Read `stats` per phase; TOTAL is noise.
+
+**A phase does not close until `owed` is clean for it.** Every atom in the phase is
+covered, or explicitly deferred with a reason written down. This is a gate, not a
+report: Phase 5-Pre shipped carrying 223 atoms and zero coverage, one of which
+specified the CR 400.7 `zone_change_epoch` field by name, and nothing asked — so the
+design was lost for two years and rediscovered by hand. Add the phase to
+`SHIPPED_PHASES` in `specdb.py` when it lands; that is what arms the gate.
+
+Triage what `owed` reports as a **fact** or a **feature**, because they have opposite
+economics. A *fact* — object identity, who cast this, an object's characteristics an
+instant ago — is unrecoverable if not captured at the moment it exists, and adding it
+later means re-threading every system built in between; record it on the first
+customer. A *feature* — a filter leaf, an enum arm — is a normal diff whenever it
+lands, so defer it freely and apply the two-customers guard. Count cards to decide
+when to build a feature; never to decide whether to record a fact. Phase RA was, in
+its entirety, a facts phase.
 
 ## Git workflow
 

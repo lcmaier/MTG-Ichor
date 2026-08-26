@@ -63,7 +63,7 @@ fn test_full_opening_sequence() {
 
     // -- Play a land from hand --
     let land_id = game.players[0].hand[0];
-    game.play_land(0, land_id, Zone::Hand).unwrap();
+    game.play_land(0, land_id, Zone::Hand, &test_ctx()).unwrap();
 
     assert!(game.battlefield.contains_key(&land_id));
     assert_eq!(game.get_object(land_id).unwrap().zone, Zone::Battlefield);
@@ -104,7 +104,7 @@ fn test_two_turn_land_and_mana_cycle() {
     assert_eq!(game.phase.phase_type, PhaseType::Precombat);
 
     let land1_id = game.players[0].hand[0];
-    game.play_land(0, land1_id, Zone::Hand).unwrap();
+    game.play_land(0, land1_id, Zone::Hand, &test_ctx()).unwrap();
     let ability1 = get_mana_ability_id(&game, land1_id);
     game.activate_mana_ability(0, land1_id, ability1, &test_ctx()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
@@ -122,7 +122,7 @@ fn test_two_turn_land_and_mana_cycle() {
     }
 
     let land2_id = game.players[1].hand[0];
-    game.play_land(1, land2_id, Zone::Hand).unwrap();
+    game.play_land(1, land2_id, Zone::Hand, &test_ctx()).unwrap();
     let ability2 = get_mana_ability_id(&game, land2_id);
     game.activate_mana_ability(1, land2_id, ability2, &test_ctx()).unwrap();
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Red), 1);
@@ -157,7 +157,7 @@ fn test_event_log_records_zone_changes() {
     game.advance_turn(&test_ctx()).unwrap(); // Draw -> Precombat
 
     let land_id = game.players[0].hand[0];
-    game.play_land(0, land_id, Zone::Hand).unwrap();
+    game.play_land(0, land_id, Zone::Hand, &test_ctx()).unwrap();
 
     assert!(game.events.len() > events_before_play, "Playing a land should emit a zone change event");
 }

@@ -38,9 +38,14 @@ pub fn apply_deathtouch_flag(
 
 /// Apply lifelink: controller gains life equal to damage dealt.
 ///
-/// Rule 702.15b: A source with lifelink causes its controller to gain
-/// life equal to the damage dealt, simultaneously with that damage.
-/// Multiple instances don't stack (rule 702.15f) — boolean check.
+/// Rule 702.15b / CR 120.3f: damage dealt by a source with lifelink causes that
+/// source's controller to gain that much life, in addition to the damage's other
+/// results. Multiple instances don't stack (rule 702.15f) — boolean check.
+///
+/// The gain is not merely simultaneous with the damage, it is *part of the same
+/// event*: CR 120.4c processes damage into its results and CR 120.4d says the
+/// damage event then occurs, once. (An earlier version of this comment cited
+/// 702.15b for the word "simultaneously", which 702.15b does not contain.)
 ///
 /// The gain is **proposed**, not written. Until RA-2 this function subtracted
 /// into `life_total` and emitted `LifeChanged` itself — emitting without
@@ -176,7 +181,8 @@ mod tests {
         // *proposal* a CR 614 watcher needs (Tainted Remedy must see lifelink),
         // and there was none. Locking the shape here so the routing cannot be
         // quietly undone.
-        match game.events.events() {
+        let emitted: Vec<&GameEvent> = game.events.events().collect();
+        match emitted.as_slice() {
             [GameEvent::LifeChanged { player_id, old, new, source: src }] => {
                 assert_eq!(*player_id, 0);
                 assert_eq!((*old, *new), (20, 22));
@@ -184,5 +190,35 @@ mod tests {
             }
             other => panic!("expected one LifeChanged, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_lifelinks_gain_joins_the_damage_batch() {
+        // CR 120.3f makes the life gain one of the damage's *results*, and
+        // CR 120.4c/d process the results and then let the one damage event
+        // occur. So the nested `execute_action` must join the damage's batch
+        // rather than opening one of its own: two batch ids would tell a
+        // CR 603.2c trigger that two events happened.
+        let mut game = GameState::new(2, 20);
+        let source = crate::test_support::place_vanilla_creature(
+            &mut game, 0, 2, 2, &[KeywordFlag::Lifelink]);
+
+        game.execute_action(
+            crate::engine::actions::GameAction::DealDamage {
+                source,
+                target: crate::events::event::DamageTarget::Player(1),
+                amount: 2,
+                is_combat: false,
+            },
+            &test_ctx(),
+        ).unwrap();
+
+        let batches: Vec<_> = game.events.records().iter().map(|r| r.batch()).collect();
+        assert!(batches.len() >= 2, "damage plus the life it gains");
+        let first = batches[0].expect("a performed action is in a batch");
+        assert!(
+            batches.iter().all(|b| *b == Some(first)),
+            "lifelink's gain is simultaneous with the damage, so it shares its batch",
+        );
     }
 }

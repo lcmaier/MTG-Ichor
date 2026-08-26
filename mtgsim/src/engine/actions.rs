@@ -1,6 +1,6 @@
 use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::resolve::ResolutionContext;
-use crate::events::event::{DamageTarget, GameEvent};
+use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
@@ -36,6 +36,22 @@ impl<'a> ActionContext<'a> {
     /// A mutation proposed by a resolving spell or ability.
     pub fn resolving(dp: &'a dyn DecisionProvider, resolution: &'a ResolutionContext) -> Self {
         ActionContext { dp, resolution: Some(resolution) }
+    }
+
+    /// The resolution to stamp onto every event this proposal emits.
+    ///
+    /// Drops the targets: an event log wants to know *which resolution* caused a
+    /// mutation, and the resolving object's id answers that. **That is a
+    /// property of this engine, not a rule** — a cast produces one stack object
+    /// and `activate_ability` mints a fresh ephemeral one per activation, each
+    /// with its own v4 `ObjectId`, and CR 608.2n destroys the ability's object
+    /// rather than recycling it. Carrying the target list would copy it onto
+    /// every event for no reader.
+    pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
+        self.resolution.map(|r| ResolutionStamp {
+            source: r.source,
+            controller: r.controller,
+        })
     }
 }
 
@@ -126,7 +142,9 @@ pub enum ZoneChangeCause {
     // --- the stack ---
     /// Hand (or elsewhere) → stack.
     Cast,
-    /// 608.2m — stack → battlefield or graveyard.
+    /// A stack object finished resolving: CR 608.2n for an instant or sorcery
+    /// (to its owner's graveyard), CR 608.3a/c for a permanent spell (onto the
+    /// battlefield, attached if it is an Aura).
     Resolved,
     /// 701.6.
     Countered,
@@ -229,8 +247,58 @@ impl GameState {
         action: GameAction,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        // Phase RB: let Some(action) = self.apply_replacements(action, ctx, ...) else { return Ok(()) };
-        self.perform_action(action, ctx)
+        self.execute_actions(vec![action], ctx)
+    }
+
+    /// Execute a set of actions as **one event** (CR 704.3, 510.2, 502.1).
+    ///
+    /// Three rules need an event *set* rather than an event, and none of them
+    /// is reachable from a loop of `execute_action` calls:
+    ///
+    /// - **CR 704.3** — state-based actions are performed "simultaneously as a
+    ///   single event".
+    /// - **CR 704.7** — "if multiple state-based actions would have the same
+    ///   result at the same time, a single replacement effect will replace all
+    ///   of them". That is a same-result dedupe *on the batch*, upstream of the
+    ///   pipeline, and it needs the whole set in hand.
+    /// - **CR 615.7** — one prevention shield facing several simultaneous
+    ///   damage sources: its controller chooses which damage it prevents, and
+    ///   the choice cannot exist unless all of the damage is proposed at once.
+    ///
+    /// Every event the batch emits carries one [`BatchId`](crate::events::event::BatchId),
+    /// which is what **CR 603.2c** needs: "an ability triggers only once each
+    /// time its trigger event occurs. However, it can trigger repeatedly if one
+    /// event contains multiple occurrences." Both readings hang off the batch
+    /// boundary. "Whenever one or more creatures die" has the whole batch as its
+    /// trigger event and fires once; "whenever a creature dies" fires once per
+    /// occurrence inside it. Without a boundary the engine cannot tell them
+    /// apart.
+    ///
+    /// **Each member keeps its own applied set** when the pipeline lands.
+    /// CR 614.5 is per *event* and batch members are separate events: Kalitas
+    /// dying alongside several opponent creatures exiles every one of them from
+    /// one static replacement, applied once per death. Nothing here has to
+    /// arrange that, but nothing here may assume otherwise
+    /// (`replacement-architecture.md` §4.2).
+    ///
+    /// **Routing a sweep through here makes its order observable.** CR 616.1
+    /// prompts when two effects want one event, so the order the batch is built
+    /// in is part of a decision — build it from `battlefield_ids_ordered`, never
+    /// from a raw `HashMap` walk.
+    pub fn execute_actions(
+        &mut self,
+        batch: Vec<GameAction>,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        // Phase RB: the CR 704.7 same-result dedupe, then `apply_replacements`
+        // per member, goes here — the batch is gathered before any of it is
+        // performed precisely so that both can see the whole set.
+        let previous = self.events.open_batch(ctx.resolution_stamp());
+        let result = batch
+            .into_iter()
+            .try_for_each(|action| self.perform_action(action, ctx));
+        self.events.close_batch(previous);
+        result
     }
 
     /// Convenience wrapper for the most common zone change: caller knows the
@@ -379,13 +447,52 @@ impl GameState {
                 Ok(())
             }
 
-            // `cause` is carried, not consumed: Phase RB's `apply_replacements`
-            // matches on it (CR 701.8b), and RA-3 stamps it onto the emitted
-            // `GameEvent`. Nothing else may read it — see `ZoneChangeCause`.
-            GameAction::ZoneChange { object, from: _, to, cause: _ } => {
-                // Delegate to move_object which handles all zone bookkeeping
-                // and emits its own ZoneChange event.
+            // **The only production emitter of `GameEvent::ZoneChange`.**
+            // `move_object` performs the move and says nothing; the cause and
+            // the CR 603.10a look-back frame are known here and nowhere else,
+            // and an event assembled anywhere else would be missing them.
+            GameAction::ZoneChange { object, from, to, cause } => {
+                // Loud: the proposal describes a board, and performing it
+                // against a different one is a caller bug. The pipeline (RB)
+                // matches on `from`, so a stale value is a wrong match, not a
+                // cosmetic mismatch.
+                let actual = self.get_object(object)?.zone;
+                if actual != from {
+                    return Err(format!(
+                        "ZoneChange proposed {:?}→{:?} for {}, which is in {:?}",
+                        from, to, object, actual
+                    ));
+                }
+                if from == to {
+                    // Nothing moved, so nothing is announced — the same
+                    // no-op `move_object` has always performed, made visible.
+                    return Ok(());
+                }
+
+                // CR 603.10a — capture the frame while the object is still a
+                // permanent. A moment later `cleanup_zone_state` has retired
+                // the continuous effects its static abilities generated
+                // (CR 611.2a) and the answer is unrecoverable. This is the one
+                // place in the engine that has to run the layer walk *before* a
+                // mutation rather than after.
+                let lki = if from == Zone::Battlefield {
+                    crate::engine::layers::compute::compute_characteristics(self, object)
+                        .map(Box::new)
+                } else {
+                    None
+                };
+                let owner = self.get_object(object)?.owner;
+
                 self.move_object(object, to)?;
+
+                self.events.emit(GameEvent::ZoneChange {
+                    object_id: object,
+                    owner,
+                    from,
+                    to,
+                    cause,
+                    lki,
+                });
                 Ok(())
             }
 
@@ -454,7 +561,7 @@ mod tests {
     }
 
     fn tap_events(game: &GameState) -> Vec<&'static str> {
-        game.events.events().iter().filter_map(|e| match e {
+        game.events.events().filter_map(|e| match e {
             GameEvent::Tapped { .. } => Some("tapped"),
             GameEvent::Untapped { .. } => Some("untapped"),
             _ => None,
@@ -674,7 +781,7 @@ mod tests {
         }, &test_ctx()).unwrap();
 
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (lifelink gain for P0)
-        let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
+        let life_events: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id, old, new, source } = e {
                 Some((*player_id, *old, *new, *source))
             } else {
@@ -742,7 +849,7 @@ mod tests {
         assert_eq!(game.players[0].life_total, 24);
 
         // Collect all LifeChanged events for P0 (lifelink gains)
-        let lifelink_gains: Vec<_> = game.events.events().iter().filter_map(|e| {
+        let lifelink_gains: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id: 0, source, .. } = e {
                 Some(*source)
             } else {
@@ -883,7 +990,7 @@ mod tests {
             amount: 3,
         }, &test_ctx()).unwrap();
 
-        let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
+        let life_events: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { source, .. } = e {
                 Some(*source)
             } else {

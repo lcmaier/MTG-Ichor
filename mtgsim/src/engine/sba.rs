@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
@@ -8,7 +8,7 @@ use crate::oracle::characteristics::{
 use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
@@ -21,6 +21,28 @@ use crate::ui::decision::DecisionProvider;
 /// SBAs are checked whenever a player would receive priority. They don't use
 /// the stack — they just happen. If any SBA is performed, they're all checked
 /// again before a player actually gets priority.
+
+/// The zone change `cause` calls for on `id`, paired with the object id.
+///
+/// The pair rather than the bare action: the CR 704.7 dedupe below keys on the
+/// object, and digging it back out of a `GameAction::ZoneChange` would make the
+/// dedupe match on a variant it has no other reason to know about.
+///
+/// This was a struct with a third field until 2026-08-26, carrying the
+/// `CreatureDied`/`PlaneswalkerDied`/`LegendRuleSacrificed`/`AuraDied` event to
+/// emit after the batch. Those events are gone — a reader wants the zone change
+/// and its LKI frame — and the struct went with them.
+fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameAction) {
+    (
+        id,
+        GameAction::ZoneChange {
+            object: id,
+            from: Zone::Battlefield,
+            to: Zone::Graveyard,
+            cause,
+        },
+    )
+}
 
 impl GameState {
     /// Check and perform all state-based actions.
@@ -41,7 +63,6 @@ impl GameState {
                     player_id: i,
                     reason: LossReason::LifeReachedZero,
                 });
-                self.events.emit(GameEvent::StateBasedActionPerformed);
                 any_performed = true;
             }
         }
@@ -54,7 +75,6 @@ impl GameState {
                     player_id: i,
                     reason: LossReason::DrawnFromEmptyLibrary,
                 });
-                self.events.emit(GameEvent::StateBasedActionPerformed);
                 any_performed = true;
             }
         }
@@ -67,7 +87,6 @@ impl GameState {
                     player_id: i,
                     reason: LossReason::PoisonCounters,
                 });
-                self.events.emit(GameEvent::StateBasedActionPerformed);
                 any_performed = true;
             }
         }
@@ -83,84 +102,69 @@ impl GameState {
                         player_id: i,
                         reason: LossReason::CommanderDamage,
                     });
-                    self.events.emit(GameEvent::StateBasedActionPerformed);
-                    any_performed = true;
+                        any_performed = true;
                 }
             }
         }
 
-        // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
-        // Ordered, not raw `battlefield.keys()`: two creatures dying to the same
-        // SBA check reach the graveyard in this order, and the graveyard is an
-        // ordered zone.
-        let zero_toughness: Vec<ObjectId> = self.battlefield_ids_ordered()
-            .into_iter()
-            .filter(|id| {
-                if is_creature(self, *id) {
-                    let effective_t = get_effective_toughness(self, *id).unwrap_or(0);
-                    return effective_t <= 0;
-                }
-                false
-            })
-            .collect();
+        // --- CR 704.3: one check, one event -------------------------------
+        //
+        // "The game checks for any of the listed conditions for state-based
+        // actions, then performs all applicable state-based actions
+        // simultaneously as a single event."
+        //
+        // Every condition below is evaluated against *this* game state, before
+        // any of the resulting moves is performed. That is the whole difference
+        // from the sweep this replaces, which performed 704.5f's moves before it
+        // asked 704.5g's question, and so could never produce the simultaneity
+        // CR 704.7 and CR 616.1 are written against.
+        //
+        // Ordered sweeps throughout: the batch order is the order a CR 616.1
+        // prompt would be offered in, and the graveyard is an ordered zone.
+        let mut deaths: Vec<(ObjectId, GameAction)> = Vec::new();
 
-        for id in zero_toughness {
-            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.change_zone(id, Zone::Graveyard, ZoneChangeCause::ZeroToughness, &actx)?;
-            self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
-            any_performed = true;
+        // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
+        for id in self.battlefield_ids_ordered() {
+            if !is_creature(self, id) {
+                continue;
+            }
+            if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
+                deaths.push(sba_zone_change(id, ZoneChangeCause::ZeroToughness));
+            }
         }
 
         // 704.5g — Creature with lethal damage is destroyed
         // Also handles deathtouch (rule 702.2b): any nonzero damage from a
         // deathtouch source is lethal.
-        let lethal_damage: Vec<ObjectId> = self.battlefield_ids_ordered()
-            .into_iter()
-            .filter(|id| {
-                if is_creature(self, *id) {
-                    let effective_t = get_effective_toughness(self, *id).unwrap_or(0);
-                    if effective_t <= 0 { return false; } // handled by 704.5f
-                    let entry = self.battlefield.get(id).unwrap();
-                    // Normal lethal damage OR any damage from deathtouch source
-                    return entry.damage_marked >= effective_t as u32
-                        || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
-                }
-                false
-            })
-            .collect();
-
-        for id in lethal_damage {
+        for id in self.battlefield_ids_ordered() {
+            if !is_creature(self, id) {
+                continue;
+            }
+            let effective_t = get_effective_toughness(self, id).unwrap_or(0);
+            if effective_t <= 0 {
+                continue; // handled by 704.5f
+            }
             // Indestructible creatures are not destroyed by lethal damage (rule 702.12b)
             if has_keyword(self, id, KeywordFlag::Indestructible) {
                 continue;
             }
-            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
+            let entry = self.battlefield.get(&id).unwrap();
             // TODO: check for regeneration
-            self.change_zone(id, Zone::Graveyard, ZoneChangeCause::DestroyedBySba, &actx)?;
-            self.events.emit(GameEvent::CreatureDied { creature_id: id, owner });
-            any_performed = true;
+            let lethal = entry.damage_marked >= effective_t as u32
+                || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
+            if lethal {
+                deaths.push(sba_zone_change(id, ZoneChangeCause::DestroyedBySba));
+            }
         }
 
         // 704.5i — Planeswalker with 0 loyalty is put into owner's graveyard
-        let pw_zero_loyalty: Vec<ObjectId> = self.battlefield_ids_ordered()
-            .into_iter()
-            .filter(|id| {
-                if self.objects.contains_key(id) {
-                    if has_type(self, *id, CardType::Planeswalker) {
-                        let entry = self.battlefield.get(id).unwrap();
-                        return entry.counter_count(CounterType::Loyalty) == 0;
-                    }
-                }
-                false
-            })
-            .collect();
-
-        for id in pw_zero_loyalty {
-            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.change_zone(id, Zone::Graveyard, ZoneChangeCause::ZeroLoyalty, &actx)?;
-            self.events.emit(GameEvent::PlaneswalkerDied { object_id: id, owner });
-            self.events.emit(GameEvent::StateBasedActionPerformed);
-            any_performed = true;
+        for id in self.battlefield_ids_ordered() {
+            if !self.objects.contains_key(&id) || !has_type(self, id, CardType::Planeswalker) {
+                continue;
+            }
+            if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
+                deaths.push(sba_zone_change(id, ZoneChangeCause::ZeroLoyalty));
+            }
         }
 
         // 704.5j — Legend rule: if a player controls two or more legendary
@@ -188,8 +192,15 @@ impl GameState {
                 }
             }
 
-            // For each group with more than one, the controller chooses one to keep
-            let mut to_remove: Vec<ObjectId> = Vec::new();
+            // For each group with more than one, the controller chooses one to keep.
+            //
+            // Note this now runs against a board that still contains creatures
+            // dying elsewhere in the same check — CR 704.3 is explicit that every
+            // condition is read before anything is performed — so a player with
+            // two Isamarus, one of them dead to lethal damage, is genuinely asked
+            // which to keep. The old sequential sweep skipped that prompt by
+            // having already removed the dead one.
+            let mut chosen: Vec<ObjectId> = Vec::new();
             for ((controller, name), ids) in &legend_groups {
                 if ids.len() > 1 {
                     // The group key, not a re-read: the key is what put these
@@ -198,26 +209,21 @@ impl GameState {
                     let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
                     for &id in ids {
                         if id != keep {
-                            to_remove.push(id);
+                            chosen.push(id);
                         }
                     }
                 }
             }
-
-            for id in to_remove {
-                let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-                self.change_zone(id, Zone::Graveyard, ZoneChangeCause::LegendRule, &actx)?;
-                self.events.emit(GameEvent::LegendRuleSacrificed { object_id: id, owner });
-                self.events.emit(GameEvent::StateBasedActionPerformed);
-                any_performed = true;
+            for id in chosen {
+                deaths.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
             }
         }
 
         // 704.5k — World rule
         // (future SBAs added here as needed)
 
-        // 704.5m — Aura not attached to anything → owner's graveyard
-        // 704.5n — Aura attached to an illegal object → owner's graveyard
+        // 704.5m — Aura not attached to anything -> owner's graveyard
+        // 704.5n — Aura attached to an illegal object -> owner's graveyard
         //
         // Collect aura IDs in a single pass to avoid borrow-checker issues:
         // we need &self.objects for subtype checks but &mut self for move_object.
@@ -255,10 +261,23 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            let owner = self.objects.get(&id).map(|o| o.owner).unwrap_or(0);
-            self.change_zone(id, Zone::Graveyard, ZoneChangeCause::AuraSba, &actx)?;
-            self.events.emit(GameEvent::AuraDied { object_id: id, owner });
-            self.events.emit(GameEvent::StateBasedActionPerformed);
+            deaths.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
+        }
+
+        // --- Perform the gathered zone changes as one event (CR 704.3) ------
+        //
+        // CR 704.7's same-result collapse is the dedupe: two state-based
+        // actions that would put the same permanent into the same graveyard at
+        // the same time have the same *result*, so they are one event with one
+        // applied set, not two. The first condition in CR order names the cause
+        // — a creature that is both a duplicate legend and dead to lethal damage
+        // was destroyed (704.5g), not put away by the legend rule.
+        let mut seen: HashSet<ObjectId> = HashSet::new();
+        deaths.retain(|(object, _)| seen.insert(*object));
+
+        if !deaths.is_empty() {
+            let batch = deaths.into_iter().map(|(_, action)| action).collect();
+            self.execute_actions(batch, &actx)?;
             any_performed = true;
         }
 
@@ -288,7 +307,6 @@ impl GameState {
                 host.attached_by.retain(|&aid| aid != equip_id);
             }
             self.events.emit(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
-            self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
         }
 
@@ -319,7 +337,6 @@ impl GameState {
                 host.attached_by.retain(|&aid| aid != att_id);
             }
             self.events.emit(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
-            self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
         }
 
@@ -352,7 +369,6 @@ impl GameState {
                 entry.remove_counters(CounterType::MinusOneMinusOne, pairs);
             }
             self.events.emit(GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs });
-            self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
         }
 
@@ -371,8 +387,14 @@ impl GameState {
             // Remove from central object store
             self.objects.remove(&id);
             self.events.emit(GameEvent::TokenCeasedToExist { object_id: id });
-            self.events.emit(GameEvent::StateBasedActionPerformed);
             any_performed = true;
+        }
+
+        // CR 704.3 — one check, one event. This used to be emitted once per
+        // performed action (and not at all for the two creature-death sweeps),
+        // which announced a simultaneity the rule denies.
+        if any_performed {
+            self.events.emit(GameEvent::StateBasedActionPerformed);
         }
 
         Ok(any_performed)
@@ -395,6 +417,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::actions::ZoneChangeCause;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -547,7 +570,7 @@ mod tests {
         assert!(!game.players[0].graveyard.contains(&id));
 
         // Should have emitted TokenCeasedToExist event
-        let has_event = game.events.events().iter().any(|e| {
+        let has_event = game.events.events().any(|e| {
             matches!(e, crate::events::event::GameEvent::TokenCeasedToExist { object_id } if *object_id == id)
         });
         assert!(has_event);
@@ -594,6 +617,177 @@ mod tests {
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
         assert!(game.battlefield.contains_key(&bears_id));
+    }
+
+    // -----------------------------------------------------------------------
+    // CR 704.3 — one check, one event (RA-3 ticket 9)
+    // -----------------------------------------------------------------------
+
+    /// Two legendary creatures with the same name, both controlled by player 0.
+    fn two_isamarus(
+        game: &mut GameState,
+    ) -> (crate::types::ids::ObjectId, crate::types::ids::ObjectId) {
+        let place = || {
+            let data = CardDataBuilder::new("Isamaru, Hound of Konda")
+                .card_type(CardType::Creature)
+                .supertype(Supertype::Legendary)
+                .power_toughness(2, 2)
+                .build();
+            let obj = GameObject::new(data, 0, Zone::Battlefield);
+            let id = obj.id;
+            (obj, id)
+        };
+        let (o1, id1) = place();
+        game.add_object(o1);
+        game.place_on_battlefield(id1, 0);
+        let (o2, id2) = place();
+        game.add_object(o2);
+        game.place_on_battlefield(id2, 0);
+        (id1, id2)
+    }
+
+    /// The `(object, cause, batch)` of every zone change in the log, in order.
+    fn zone_changes(
+        game: &GameState,
+    ) -> Vec<(
+        crate::types::ids::ObjectId,
+        ZoneChangeCause,
+        Option<crate::events::event::BatchId>,
+    )> {
+        game.events
+            .records()
+            .iter()
+            .filter_map(|r| match &r.event {
+                crate::events::event::GameEvent::ZoneChange { object_id, cause, .. } => {
+                    Some((*object_id, *cause, r.batch()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    // COVERS: ATOM-704.3-001
+    #[test]
+    fn test_lethal_damage_deaths_are_one_event() {
+        // The atom's board: a 2/2 with 2 damage and a 1/1 with 1 damage.
+        let mut game = GameState::new(2, 20);
+        let big = crate::test_support::place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+        let small = crate::test_support::place_vanilla_creature(&mut game, 0, 1, 1, &[]);
+        game.battlefield.get_mut(&big).unwrap().damage_marked = 2;
+        game.battlefield.get_mut(&small).unwrap().damage_marked = 1;
+
+        let dp = ScriptedDecisionProvider::new();
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        // CR 704.3: "performs all applicable state-based actions simultaneously
+        // as a single event." One batch id across both deaths is what makes
+        // "whenever one or more creatures die" fire once rather than twice.
+        let moves = zone_changes(&game);
+        assert_eq!(moves.len(), 2, "both creatures died");
+        let batch = moves[0].2.expect("a state-based action is performed in a batch");
+        assert_eq!(moves[1].2, Some(batch), "one check, one event");
+
+        // "The check repeats — no more SBAs found, so priority is granted."
+        assert!(!game.check_state_based_actions(&dp).unwrap());
+    }
+
+    #[test]
+    fn test_a_dying_legend_is_still_a_legend_when_the_rule_is_checked() {
+        // CR 704.3 reads every condition against the same game state, so a
+        // creature dead to lethal damage has not left the battlefield yet when
+        // 704.5j asks who controls two legends with one name. Sequencing the
+        // sweeps — perform 704.5g, then look — skips the prompt entirely and
+        // silently lets the survivor live.
+        let mut game = GameState::new(2, 20);
+        let (doomed, healthy) = two_isamarus(&mut game);
+        game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
+
+        // The player is asked, and keeps the one that is about to die anyway.
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(
+            ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+            vec![0],
+        );
+        let keep_first = game.battlefield_ids_ordered()[0];
+        assert_eq!(keep_first, doomed, "fixture assumes the damaged one sorts first");
+
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        assert!(!game.battlefield.contains_key(&doomed), "704.5g destroyed it");
+        assert!(
+            !game.battlefield.contains_key(&healthy),
+            "704.5j applied: keeping the damaged one puts the healthy one away",
+        );
+        // Which rule claimed which permanent, read off the zone change itself.
+        assert_eq!(
+            zone_changes(&game).into_iter().map(|(id, c, _)| (id, c)).collect::<Vec<_>>(),
+            vec![
+                (doomed, ZoneChangeCause::DestroyedBySba),
+                (healthy, ZoneChangeCause::LegendRule),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_two_state_based_actions_with_the_same_result_are_one_event() {
+        // CR 704.7 — "if multiple state-based actions would have the same result
+        // at the same time, a single replacement effect will replace all of
+        // them." Same result means one event: the doomed legend is gathered by
+        // both 704.5g and 704.5j and must move once, under the cause that came
+        // first in CR order.
+        //
+        // **This is not the general mechanism, and CR 704.7's own example is
+        // outside it.** The dedupe is per *object*, over the zone-change
+        // sweeps. A player who would lose for both 704.5a (0 life) and 704.5b
+        // (drew from an empty library) is the case the rule is written around —
+        // Lich's Mirror, ATOM-704.7-001 — and it never reaches here: player
+        // loss is written straight into `player_lost` above and never becomes a
+        // `GameAction`, so there is nothing to dedupe and nothing for a
+        // replacement to see. The `!player_lost[i]` guard makes the *outcome*
+        // right by accident. A real 704.7 for it needs `GameAction::PlayerLoses`
+        // (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE),
+        // and it is recorded in `codebase-state.md`.
+        let mut game = GameState::new(2, 20);
+        let (doomed, healthy) = two_isamarus(&mut game);
+        game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
+
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(
+            ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+            vec![1],
+        );
+        assert_eq!(game.battlefield_ids_ordered()[1], healthy, "fixture assumes this order");
+
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        let moves = zone_changes(&game);
+        assert_eq!(
+            moves.iter().filter(|(id, _, _)| *id == doomed).count(),
+            1,
+            "one permanent, one zone change — not one per rule that wanted it",
+        );
+        assert_eq!(
+            moves[0].1,
+            ZoneChangeCause::DestroyedBySba,
+            "704.5g comes first in CR order, so it is what claims the permanent",
+        );
+    }
+
+    #[test]
+    fn test_one_check_announces_one_state_based_action_performed() {
+        let mut game = GameState::new(2, 20);
+        let a = crate::test_support::place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+        let b = crate::test_support::place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+        game.battlefield.get_mut(&a).unwrap().damage_marked = 2;
+        game.battlefield.get_mut(&b).unwrap().damage_marked = 2;
+
+        let dp = ScriptedDecisionProvider::new();
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        let announced = game.events.events()
+            .filter(|e| matches!(e, crate::events::event::GameEvent::StateBasedActionPerformed))
+            .count();
+        assert_eq!(announced, 1, "CR 704.3 performs one event per check");
     }
 
     // -----------------------------------------------------------------------
@@ -849,9 +1043,16 @@ mod tests {
         assert!(!game.battlefield.contains_key(&aura_id));
         assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
 
-        // Verify AuraDied event was emitted
-        let has_event = game.events.events().iter().any(|e| {
-            matches!(e, crate::events::event::GameEvent::AuraDied { object_id, .. } if *object_id == aura_id)
+        // Verify the move was recorded, and recorded as 704.5m's doing. There
+        // is no `AuraDied` — the zone change plus its cause says more than it
+        // did, including where the Aura went.
+        let has_event = game.events.events().any(|e| {
+            matches!(
+                e,
+                crate::events::event::GameEvent::ZoneChange {
+                    object_id, to: Zone::Graveyard, cause: ZoneChangeCause::AuraSba, ..
+                } if *object_id == aura_id
+            )
         });
         assert!(has_event);
     }
@@ -944,7 +1145,7 @@ mod tests {
         assert!(game.battlefield.get(&land_id).unwrap().attached_by.is_empty());
 
         // Verify EquipmentDetached event
-        let has_event = game.events.events().iter().any(|e| {
+        let has_event = game.events.events().any(|e| {
             matches!(e, crate::events::event::GameEvent::EquipmentDetached { equipment_id, former_host }
                 if *equipment_id == equip_id && *former_host == land_id)
         });
@@ -1097,7 +1298,7 @@ mod tests {
         assert!(!game.player_lost[1]);
 
         // Verify correct LossReason
-        let has_event = game.events.events().iter().any(|e| {
+        let has_event = game.events.events().any(|e| {
             matches!(e, crate::events::event::GameEvent::PlayerLost {
                 player_id: 0,
                 reason: crate::events::event::LossReason::PoisonCounters,
@@ -1130,7 +1331,7 @@ mod tests {
         assert!(performed);
         assert!(game.player_lost[1]);
 
-        let has_event = game.events.events().iter().any(|e| {
+        let has_event = game.events.events().any(|e| {
             matches!(e, crate::events::event::GameEvent::PlayerLost {
                 player_id: 1,
                 reason: crate::events::event::LossReason::CommanderDamage,
