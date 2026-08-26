@@ -499,6 +499,150 @@ fn test_a_resolving_ability_leaves_no_zone_change() {
 }
 
 // ---------------------------------------------------------------------------
+// The death events are display sugar
+// ---------------------------------------------------------------------------
+
+/// A 2/2 that is a Creature *and* a Planeswalker — the Gideon shape.
+fn creature_planeswalker() -> Arc<CardData> {
+    CardDataBuilder::new("Gideon, Test Subject")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .card_type(CardType::Planeswalker)
+        .power_toughness(2, 2)
+        .loyalty(4)
+        .build()
+}
+
+#[test]
+fn test_one_death_carries_every_type_that_died() {
+    // The reason the type-specific death events cannot be matched on. A Gideon
+    // dying to lethal damage emits `CreatureDied` and not `PlaneswalkerDied`,
+    // so a matcher reading those events would miss every "whenever a
+    // planeswalker dies" trigger on the board. The `ZoneChange` plus its LKI
+    // frame answers both from one event, which is also what CR 704.3 says
+    // happened: one event, not one per type.
+    let mut game = setup_two_player_game();
+    let id = put_on_battlefield(&mut game, creature_planeswalker(), 0);
+    game.battlefield.get_mut(&id).unwrap().damage_marked = 2;
+
+    let decisions = ScriptedDecisionProvider::new();
+    assert!(game.check_state_based_actions(&decisions).unwrap());
+
+    assert_eq!(
+        zone_changes(&game),
+        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::DestroyedBySba)],
+        "one permanent left the battlefield once",
+    );
+    let lki = lki_for(&game, id).expect("it was a permanent");
+    assert!(lki.types.contains(&CardType::Creature));
+    assert!(
+        lki.types.contains(&CardType::Planeswalker),
+        "the frame carries the whole type set; the death events carry one each",
+    );
+
+    // And what the sugar actually said: one of the two applicable types.
+    let announced_pw = game.events.events().any(|e| matches!(e, GameEvent::PlaneswalkerDied { .. }));
+    assert!(
+        !announced_pw,
+        "704.5g claimed it, so `PlaneswalkerDied` never fired — which is exactly \
+         why nothing may match on these",
+    );
+}
+
+#[test]
+fn test_the_zone_change_carries_everything_the_death_events_did() {
+    // Field-for-field: `CreatureDied { creature_id, owner }`,
+    // `PlaneswalkerDied { object_id, owner }` and
+    // `LegendRuleSacrificed { object_id, owner }` are all
+    // `(id, owner)` plus a type and a rule number, and every one of those five
+    // facts is on the zone change or its frame.
+    let mut game = setup_two_player_game();
+    let doomed = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 1);
+    let other = put_on_battlefield(&mut game, phase5_pre_cards::isamaru_hound_of_konda(), 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_pick_n(
+        ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+        vec![0],
+    );
+    assert!(game.check_state_based_actions(&decisions).unwrap());
+
+    let kept = game.battlefield_ids_ordered()[0];
+    let died = if kept == doomed { other } else { doomed };
+
+    let record = game
+        .events
+        .records()
+        .iter()
+        .find_map(|r| match &r.event {
+            GameEvent::ZoneChange { object_id, owner, from, to, cause, lki }
+                if *object_id == died =>
+            {
+                Some((*owner, *from, *to, *cause, lki.as_deref()))
+            }
+            _ => None,
+        })
+        .expect("the legend rule moved it");
+
+    let (owner, from, to, cause, lki) = record;
+    assert_eq!(owner, 1, "the `owner` the death events carried");
+    assert_eq!((from, to), (Zone::Battlefield, Zone::Graveyard), "\"dies\"");
+    assert_eq!(cause, ZoneChangeCause::LegendRule, "the rule number, as a cause");
+    let lki = lki.expect("a permanent leaving the battlefield has a frame");
+    assert!(lki.types.contains(&CardType::Creature), "the type the event named");
+    assert!(
+        lki.supertypes.contains(&mtgsim::types::card_types::Supertype::Legendary),
+        "and more besides — the frame is the whole object, not one field of it",
+    );
+}
+
+#[test]
+fn test_an_ability_resolving_is_not_a_spell_resolving() {
+    // The old name was `SpellResolved`, and `resolve_top_of_stack` emits it
+    // unconditionally — so it fired for activated abilities too, and always
+    // had. A matcher keying "whenever a spell resolves" on it would have been
+    // wrong about every ability in the game. Renamed, and the durable fact an
+    // ability actually offers is `AbilityResolved` (CR 603.7h).
+    let mut game = setup_two_player_game();
+    let thaum = put_on_battlefield(
+        &mut game,
+        mtgsim::cards::utility_creatures::merfolk_thaumaturgist(),
+        0,
+    );
+    game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id: thaum,
+        },
+        vec![0],
+    );
+    let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, thaum);
+    let idx = abilities
+        .iter()
+        .position(|a| a.ability_type == mtgsim::objects::card_data::AbilityType::Activated)
+        .unwrap();
+    game.activate_ability(0, thaum, idx, &decisions).unwrap();
+    game.resolve_top_of_stack(&decisions).unwrap();
+
+    assert!(
+        game.events.events().any(|e| matches!(e, GameEvent::StackObjectResolved { .. })),
+        "it fires for abilities, which is what made the old name a lie",
+    );
+    assert!(
+        game.events.events().any(|e| matches!(e, GameEvent::AbilityResolved { .. })),
+        "and the durable identity is what a CR 603.7h counter reads",
+    );
+    assert!(
+        zone_changes(&game).is_empty(),
+        "an ability is not a card: it ceases to exist rather than going anywhere",
+    );
+}
+
+// ---------------------------------------------------------------------------
 // The chokepoint holds
 // ---------------------------------------------------------------------------
 

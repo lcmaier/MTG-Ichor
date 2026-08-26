@@ -99,7 +99,6 @@ pub enum GameEvent {
 
     // --- Permanents ---
     PermanentEnteredBattlefield { object_id: ObjectId, controller: PlayerId },
-    PermanentLeftBattlefield { object_id: ObjectId },
 
     // --- Life ---
     LifeChanged { player_id: PlayerId, old: i64, new: i64, source: Option<ObjectId> },
@@ -110,12 +109,28 @@ pub enum GameEvent {
 
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
-    SpellResolved { spell_id: ObjectId },
+
+    /// A stack object finished resolving (CR 608.2m).
+    ///
+    /// **Display only, and renamed because the old name lied.** It was
+    /// `SpellResolved`, and `resolve_top_of_stack` emits it unconditionally —
+    /// so it has always fired for activated abilities as well as spells, and a
+    /// matcher keying "whenever a spell resolves" on it would have been wrong
+    /// about every ability in the game.
+    ///
+    /// Nothing needs it. A spell finishing resolution is a
+    /// [`Self::ZoneChange`] out of the stack with
+    /// [`ZoneChangeCause::Resolved`] — which also says *where* it went, the
+    /// thing this event never carried. An ability finishing is
+    /// [`Self::AbilityResolved`], which carries the durable identity CR 603.7h
+    /// counting needs. This one is a log line.
+    StackObjectResolved { object_id: ObjectId },
     /// An activated ability finished resolving (CR 608.2m), identified by what
     /// it *is* rather than by the stack object that represented it.
     ///
-    /// `SpellResolved` carries the ephemeral ability object's id, which ceases
-    /// to exist at resolution and therefore identifies nothing afterward.
+    /// [`Self::StackObjectResolved`] carries the ephemeral ability object's id,
+    /// which ceases to exist at resolution and therefore identifies nothing
+    /// afterward.
     /// CR 603.7h counting — "whenever this ability resolves for the third time
     /// this turn" (Ashling the Pilgrim; Ashling, Flame Dancer) — needs the
     /// durable (source, ability) pair, which is why this event exists
@@ -129,13 +144,34 @@ pub enum GameEvent {
     /// becoming illegal). No source object — this is a game-rules counter.
     SpellFizzled { spell_id: ObjectId },
 
-    // --- Creatures ---
-    CreatureDied { creature_id: ObjectId, owner: PlayerId },
+    // --- Deaths: display sugar, not matchable facts ---
+    //
+    // All three of these are `ZoneChange { from: Battlefield, to: Graveyard }`
+    // with a `cause` and an `lki` frame, said less precisely. **Nothing may
+    // match a trigger on them**, for two reasons that are both structural:
+    //
+    // - **They partition the same event by type, and permanent types are not a
+    //   partition.** A Gideon is a creature *and* a planeswalker; Circuit Mender
+    //   is an artifact creature. Whichever of these events the engine chose to
+    //   emit, a matcher reading it would miss every trigger keyed on the other
+    //   type. The `lki` frame carries the whole type set, so one event matches
+    //   everything applicable.
+    // - **They name a subset without naming its boundary.** "Dies" is
+    //   battlefield → graveyard; "leaves the battlefield" is battlefield →
+    //   anywhere; CR 603.6c's own atom (ATOM-603.6c-001) turns on *which* zone
+    //   the card went to. An event carrying only an id cannot answer that, which
+    //   is why `PermanentLeftBattlefield` was deleted rather than wired up.
+    //
+    // `fuzz_games` counts `CreatureDied` and `ui/display.rs` prints all three.
+    // That is the whole permitted consumer set.
 
-    // --- Permanents put into graveyard by SBA ---
-    /// A planeswalker was put into its owner's graveyard by SBA (704.5i, 0 loyalty).
+    /// Display only — see the note above. Use the `ZoneChange`.
+    CreatureDied { creature_id: ObjectId, owner: PlayerId },
+    /// Display only — a planeswalker put into its owner's graveyard by
+    /// SBA 704.5i (0 loyalty). Use the `ZoneChange` and its `cause`.
     PlaneswalkerDied { object_id: ObjectId, owner: PlayerId },
-    /// A permanent was put into its owner's graveyard by the legend rule (704.5j).
+    /// Display only — a permanent put into its owner's graveyard by the legend
+    /// rule (704.5j). Use the `ZoneChange` and its `cause`.
     LegendRuleSacrificed { object_id: ObjectId, owner: PlayerId },
 
     // --- Player loss ---
@@ -146,8 +182,9 @@ pub enum GameEvent {
     CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
 
     // --- Attachment SBAs ---
-    /// An Aura was put into its owner's graveyard by SBA 704.5m/704.5n
-    /// (unattached or attached to an illegal/missing object).
+    /// Display only, as the deaths above — an Aura put into its owner's
+    /// graveyard by SBA 704.5m/704.5n (unattached, or attached to an illegal or
+    /// missing object).
     AuraDied { object_id: ObjectId, owner: PlayerId },
     /// An Equipment or Fortification was detached by SBA 704.5p
     /// (attached to a non-creature). Equipment stays on battlefield.

@@ -441,9 +441,6 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         PermanentEnteredBattlefield { object_id, controller } => {
             format!("ETB: {} [P{}]", obj_name(game, *object_id), controller)
         }
-        PermanentLeftBattlefield { object_id } => {
-            format!("LTB: {}", obj_name(game, *object_id))
-        }
         LifeChanged { player_id, old, new, source } => {
             let src = match source {
                 Some(id) => format!(" (source: {})", obj_name(game, *id)),
@@ -464,8 +461,8 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         SpellCast { spell_id, caster } => {
             format!("SpellCast: P{} casts {}", caster, obj_name(game, *spell_id))
         }
-        SpellResolved { spell_id } => {
-            format!("SpellResolved: {}", obj_name(game, *spell_id))
+        StackObjectResolved { object_id } => {
+            format!("StackObjectResolved: {}", obj_name(game, *object_id))
         }
         SpellCountered { spell_id, countered_by } => {
             format!("SpellCountered: {} countered by {}", obj_name(game, *spell_id), obj_name(game, *countered_by))

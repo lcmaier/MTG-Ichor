@@ -21,7 +21,7 @@ impl GameState {
     /// 4. Resolve the effect via resolve_effect().
     /// 5. Post-resolution: move spell to graveyard or battlefield, or remove
     ///    the ability (608.2m/n) — through `change_zone` like anything else.
-    /// 6. Emit SpellResolved event.
+    /// 6. Emit the resolution events.
     pub fn resolve_top_of_stack(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         if self.stack.is_empty() {
             return Err("Cannot resolve: stack is empty".to_string());
@@ -144,12 +144,12 @@ impl GameState {
         }
 
         // --- Emit event ---
-        // SpellResolved carries the object id, which for an ability is the
-        // ephemeral just deleted above and identifies nothing afterward. Keep it
-        // for spells and the log; add the durable identity for abilities, which
-        // is what CR 603.7h counting needs.
-        self.events.emit(GameEvent::SpellResolved {
-            spell_id: object_id,
+        // A log line, and named for what it is: this fires for abilities as
+        // well as spells, and for an ability the id belongs to the ephemeral
+        // just deleted above, which identifies nothing afterward. The durable
+        // identity follows, and it is what CR 603.7h counting needs.
+        self.events.emit(GameEvent::StackObjectResolved {
+            object_id,
         });
         if let Some(identity) = entry.ability_identity {
             self.events.emit(GameEvent::AbilityResolved {
