@@ -682,6 +682,51 @@ fn test_the_log_line_still_says_what_died() {
     }
 }
 
+#[test]
+fn test_a_multi_target_destroy_is_one_event() {
+    // CR 608.2f: "Some spells and abilities include actions taken on multiple
+    // players and/or objects. In most cases, each such action is processed
+    // simultaneously." A board wipe is one event, not N.
+    //
+    // This is what a CR 614 replacement reads. Kalitas, Traitor of Ghet ("If a
+    // nontoken creature an opponent controls would die, instead exile that card
+    // and create a 2/2 black Zombie") applies once *per death* -- CR 614.5 is
+    // per event and batch members are separate events -- but the pipeline only
+    // gets to make that judgement if the deaths arrive together. A loop of
+    // `execute_action` would hand it N unrelated events instead.
+    let mut game = setup_two_player_game();
+    let a = put_on_battlefield(&mut game, self_anthem_creature(), 1);
+    let b = put_on_battlefield(&mut game, self_anthem_creature(), 1);
+    let c = put_on_battlefield(&mut game, self_anthem_creature(), 1);
+
+    let ctx = mtgsim::engine::resolve::ResolutionContext {
+        source: a,
+        controller: 0,
+        targets: vec![
+            mtgsim::engine::resolve::ResolvedTarget::Object(a),
+            mtgsim::engine::resolve::ResolvedTarget::Object(b),
+            mtgsim::engine::resolve::ResolvedTarget::Object(c),
+        ],
+    };
+    let dp = ScriptedDecisionProvider::new();
+    game.resolve_effect(
+        &Effect::Atom(Primitive::Destroy, EffectRecipient::Implicit),
+        &ctx,
+        &dp,
+    ).unwrap();
+
+    let batches: Vec<_> = game.events.records().iter()
+        .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
+        .map(|r| r.batch())
+        .collect();
+    assert_eq!(batches.len(), 3, "all three were destroyed");
+    assert!(batches[0].is_some());
+    assert!(
+        batches.iter().all(|x| *x == batches[0]),
+        "one spell, one event -- a replacement effect gets to apply once per          death within it, which it cannot judge if they arrive separately",
+    );
+}
+
 // ---------------------------------------------------------------------------
 // The chokepoint holds
 // ---------------------------------------------------------------------------

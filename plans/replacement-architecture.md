@@ -874,8 +874,17 @@ when member two asks (CR 701.19a — one shield, one destruction replaced).
 
 Callers that must batch: `apply_combat_damage` (CR 510.2), the SBA sweep
 (704.3), **the untap step (CR 502.1 — "all the permanents untap
-simultaneously", which this list originally missed)**, and any "each player …"
-effect (CR 101.4). All three of the named ones batch as of RA-3.
+simultaneously", which this list originally missed)**, and **a spell's actions
+over several objects (CR 608.2f — "in most cases, each such action is processed
+simultaneously"), which is what a board wipe is**. All four batch as of
+2026-08-26; `Primitive::Destroy` was the last loop and was converted in review,
+since RA-3's ticket named only two of them.
+
+That last one is where the pipeline earns the batch most visibly. Kalitas,
+Traitor of Ghet applies once *per death* in a wipe — CR 614.5 is per event and
+batch members are separate events — but the CR 616.1 loop can only reach that
+answer if the deaths arrive as one proposal set. A loop of `execute_action`
+hands it N unrelated events and the question never comes up.
 
 **The dedupe is where CR 704.7 lives, and RA-3 implemented it as one action per
 object.** Two state-based actions that would put the same permanent into the
