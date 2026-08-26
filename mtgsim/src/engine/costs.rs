@@ -363,7 +363,7 @@ mod tests {
         // silent subtraction — no event at all — so nothing watching life loss
         // could see it. Bloodletter of Aclazotz doubles paid life precisely
         // because it *is* a loss, and it can only do that if this is proposed.
-        let changes: Vec<(i64, i64)> = game.events.events()[before..].iter()
+        let changes: Vec<(i64, i64)> = game.events.events_from(before)
             .filter_map(|e| match e {
                 crate::events::event::GameEvent::LifeChanged { player_id: 0, old, new, .. }
                     => Some((*old, *new)),

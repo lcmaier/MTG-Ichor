@@ -158,6 +158,35 @@ pub enum DamageTarget {
     Object(ObjectId),
 }
 
+/// Identifies a set of events performed as one.
+///
+/// Three rules need an event *set* rather than an event: CR 704.3 ("performs
+/// all applicable state-based actions simultaneously as a single event"),
+/// CR 510.2 (combat damage), and CR 502.1 (the untap step). Every event a
+/// batch emits carries the same `BatchId`, which is what CR 603.2c/603.6a's
+/// "one or more" phrasing needs — "whenever one or more creatures die" fires
+/// once for the batch, not once per member.
+///
+/// **Nothing reads this in RA.** Phase 6's trigger matcher is the customer;
+/// RA's job is that the grouping exists and is recorded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BatchId(pub u64);
+
+/// One entry in the event log: what happened, plus the context it happened in.
+///
+/// The context is an envelope rather than fields on each `GameEvent` variant
+/// because it is the same two facts for every kind of event, and a variant that
+/// forgets to carry them fails silently.
+#[derive(Debug, Clone)]
+pub struct EventRecord {
+    /// What happened.
+    pub event: GameEvent,
+    /// The batch this event was performed as part of, if any. `None` for an
+    /// event emitted outside [`GameState::execute_actions`] — a phase
+    /// beginning, a spell being cast, an activation.
+    pub batch: Option<BatchId>,
+}
+
 /// An event log that records game events in order.
 ///
 /// This serves multiple purposes:
@@ -166,42 +195,81 @@ pub enum DamageTarget {
 /// 3. UI display
 #[derive(Debug, Clone, Default)]
 pub struct EventLog {
-    events: Vec<GameEvent>,
+    records: Vec<EventRecord>,
+    /// The batch currently being performed, stamped onto everything emitted
+    /// while it is open. See [`Self::open_batch`].
+    current_batch: Option<BatchId>,
+    /// Allocator for [`BatchId`]. Monotonic, never reused within a game.
+    next_batch: u64,
 }
 
 impl EventLog {
     pub fn new() -> Self {
-        EventLog { events: Vec::new() }
+        EventLog::default()
     }
 
     pub fn emit(&mut self, event: GameEvent) {
-        self.events.push(event);
+        self.records.push(EventRecord { event, batch: self.current_batch });
     }
 
-    pub fn events(&self) -> &[GameEvent] {
-        &self.events
+    /// Open a batch, returning the value to hand back to [`Self::close_batch`].
+    ///
+    /// **A nested call joins the enclosing batch rather than opening a new
+    /// one.** CR 702.15b is why it has to: lifelink's life gain is proposed
+    /// from inside `perform_action(DealDamage)` and happens *simultaneously
+    /// with that damage*, so it belongs to the damage's batch. The same shape
+    /// generalizes to CR 120.3's results-of-damage decomposition in Phase RD.
+    pub(crate) fn open_batch(&mut self) -> Option<BatchId> {
+        let previous = self.current_batch;
+        if previous.is_none() {
+            self.current_batch = Some(BatchId(self.next_batch));
+            self.next_batch += 1;
+        }
+        previous
     }
 
-    /// Get events since the given index (useful for checking "what happened since last check")
-    pub fn events_since(&self, index: usize) -> &[GameEvent] {
-        if index >= self.events.len() {
+    /// Close a batch, restoring what [`Self::open_batch`] returned.
+    pub(crate) fn close_batch(&mut self, previous: Option<BatchId>) {
+        self.current_batch = previous;
+    }
+
+    /// The full records, with their batch context.
+    pub fn records(&self) -> &[EventRecord] {
+        &self.records
+    }
+
+    /// Just the events, for callers that do not care which batch they came from.
+    pub fn events(&self) -> impl Iterator<Item = &GameEvent> + '_ {
+        self.records.iter().map(|r| &r.event)
+    }
+
+    /// The events emitted since `index` — pass an earlier [`Self::len`].
+    pub fn events_from(&self, index: usize) -> impl Iterator<Item = &GameEvent> + '_ {
+        self.records_from(index).iter().map(|r| &r.event)
+    }
+
+    /// Get records since the given index (useful for checking "what happened since last check")
+    pub fn records_from(&self, index: usize) -> &[EventRecord] {
+        if index >= self.records.len() {
             &[]
         } else {
-            &self.events[index..]
+            &self.records[index..]
         }
     }
 
     pub fn len(&self) -> usize {
-        self.events.len()
+        self.records.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
+        self.records.is_empty()
     }
 
     /// Clear the log (e.g., between games)
     pub fn clear(&mut self) {
-        self.events.clear();
+        self.records.clear();
+        self.current_batch = None;
+        self.next_batch = 0;
     }
 }
 
@@ -228,10 +296,63 @@ mod tests {
         log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning });
         log.emit(GameEvent::StepBegin { step: StepType::Untap });
 
-        let since = log.events_since(1);
+        let since = log.records_from(1);
         assert_eq!(since.len(), 2);
 
-        let since_end = log.events_since(3);
+        let since_end = log.records_from(3);
         assert_eq!(since_end.len(), 0);
+    }
+
+    #[test]
+    fn test_events_outside_a_batch_carry_no_batch_id() {
+        let mut log = EventLog::new();
+        log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
+        assert_eq!(log.records()[0].batch, None);
+    }
+
+    #[test]
+    fn test_a_batch_stamps_every_event_it_emits() {
+        let mut log = EventLog::new();
+        let outer = log.open_batch();
+        log.emit(GameEvent::Tapped { object_id: uuid::Uuid::nil() });
+        log.emit(GameEvent::Untapped { object_id: uuid::Uuid::nil() });
+        log.close_batch(outer);
+        log.emit(GameEvent::StateBasedActionPerformed);
+
+        let b = log.records()[0].batch.expect("inside a batch");
+        assert_eq!(log.records()[1].batch, Some(b), "one batch, one id");
+        assert_eq!(log.records()[2].batch, None, "closing restores the outer context");
+    }
+
+    #[test]
+    fn test_a_nested_batch_joins_the_enclosing_one() {
+        // CR 702.15b — lifelink's gain is proposed from inside the damage's
+        // performance and is simultaneous with it, so it must not open a batch
+        // of its own.
+        let mut log = EventLog::new();
+        let outer = log.open_batch();
+        log.emit(GameEvent::StateBasedActionPerformed);
+        let inner = log.open_batch();
+        log.emit(GameEvent::StateBasedActionPerformed);
+        log.close_batch(inner);
+        log.emit(GameEvent::StateBasedActionPerformed);
+        log.close_batch(outer);
+
+        let b = log.records()[0].batch.expect("inside a batch");
+        assert!(log.records().iter().all(|r| r.batch == Some(b)),
+                "a nested batch joins the enclosing one rather than opening its own");
+    }
+
+    #[test]
+    fn test_separate_batches_get_separate_ids() {
+        let mut log = EventLog::new();
+        let prev = log.open_batch();
+        log.emit(GameEvent::StateBasedActionPerformed);
+        log.close_batch(prev);
+        let prev = log.open_batch();
+        log.emit(GameEvent::StateBasedActionPerformed);
+        log.close_batch(prev);
+
+        assert_ne!(log.records()[0].batch, log.records()[1].batch);
     }
 }

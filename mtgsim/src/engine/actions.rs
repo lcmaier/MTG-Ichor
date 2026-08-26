@@ -229,8 +229,54 @@ impl GameState {
         action: GameAction,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        // Phase RB: let Some(action) = self.apply_replacements(action, ctx, ...) else { return Ok(()) };
-        self.perform_action(action, ctx)
+        self.execute_actions(vec![action], ctx)
+    }
+
+    /// Execute a set of actions as **one event** (CR 704.3, 510.2, 502.1).
+    ///
+    /// Three rules need an event *set* rather than an event, and none of them
+    /// is reachable from a loop of `execute_action` calls:
+    ///
+    /// - **CR 704.3** — state-based actions are performed "simultaneously as a
+    ///   single event".
+    /// - **CR 704.7** — "if multiple state-based actions would have the same
+    ///   result at the same time, a single replacement effect will replace all
+    ///   of them". That is a same-result dedupe *on the batch*, upstream of the
+    ///   pipeline, and it needs the whole set in hand.
+    /// - **CR 615.7** — one prevention shield facing several simultaneous
+    ///   damage sources: its controller chooses which damage it prevents, and
+    ///   the choice cannot exist unless all of the damage is proposed at once.
+    ///
+    /// Every event the batch emits carries one [`BatchId`](crate::events::event::BatchId),
+    /// which is what
+    /// CR 603.2c/603.6a's "one or more" phrasing needs — "whenever one or more
+    /// creatures die" fires once for the batch, not once per member.
+    ///
+    /// **Each member keeps its own applied set** when the pipeline lands.
+    /// CR 614.5 is per *event* and batch members are separate events: Kalitas
+    /// dying alongside several opponent creatures exiles every one of them from
+    /// one static replacement, applied once per death. Nothing here has to
+    /// arrange that, but nothing here may assume otherwise
+    /// (`replacement-architecture.md` §4.2).
+    ///
+    /// **Routing a sweep through here makes its order observable.** CR 616.1
+    /// prompts when two effects want one event, so the order the batch is built
+    /// in is part of a decision — build it from `battlefield_ids_ordered`, never
+    /// from a raw `HashMap` walk.
+    pub fn execute_actions(
+        &mut self,
+        batch: Vec<GameAction>,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        // Phase RB: the CR 704.7 same-result dedupe, then `apply_replacements`
+        // per member, goes here — the batch is gathered before any of it is
+        // performed precisely so that both can see the whole set.
+        let previous = self.events.open_batch();
+        let result = batch
+            .into_iter()
+            .try_for_each(|action| self.perform_action(action, ctx));
+        self.events.close_batch(previous);
+        result
     }
 
     /// Convenience wrapper for the most common zone change: caller knows the
@@ -454,7 +500,7 @@ mod tests {
     }
 
     fn tap_events(game: &GameState) -> Vec<&'static str> {
-        game.events.events().iter().filter_map(|e| match e {
+        game.events.events().filter_map(|e| match e {
             GameEvent::Tapped { .. } => Some("tapped"),
             GameEvent::Untapped { .. } => Some("untapped"),
             _ => None,
@@ -674,7 +720,7 @@ mod tests {
         }, &test_ctx()).unwrap();
 
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (lifelink gain for P0)
-        let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
+        let life_events: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id, old, new, source } = e {
                 Some((*player_id, *old, *new, *source))
             } else {
@@ -742,7 +788,7 @@ mod tests {
         assert_eq!(game.players[0].life_total, 24);
 
         // Collect all LifeChanged events for P0 (lifelink gains)
-        let lifelink_gains: Vec<_> = game.events.events().iter().filter_map(|e| {
+        let lifelink_gains: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id: 0, source, .. } = e {
                 Some(*source)
             } else {
@@ -883,7 +929,7 @@ mod tests {
             amount: 3,
         }, &test_ctx()).unwrap();
 
-        let life_events: Vec<_> = game.events.events().iter().filter_map(|e| {
+        let life_events: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { source, .. } = e {
                 Some(*source)
             } else {

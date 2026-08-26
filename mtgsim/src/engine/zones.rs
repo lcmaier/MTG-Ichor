@@ -386,7 +386,7 @@ mod tests {
     }
 
     fn card_drawn_events(game: &GameState) -> Vec<crate::types::ids::ObjectId> {
-        game.events.events().iter().filter_map(|e| match e {
+        game.events.events().filter_map(|e| match e {
             crate::events::event::GameEvent::CardDrawn { card_id, .. } => Some(*card_id),
             _ => None,
         }).collect()
@@ -400,7 +400,7 @@ mod tests {
         // Both, not either: CR 121.1 is a library→hand move, and CR 121.5 makes
         // "was it a draw" a separate, trigger-visible fact about that move.
         assert_eq!(card_drawn_events(&game), vec![forest_id]);
-        let zone_changes = game.events.events().iter().filter(|e| matches!(
+        let zone_changes = game.events.events().filter(|e| matches!(
             e, crate::events::event::GameEvent::ZoneChange { from: Zone::Library, to: Zone::Hand, .. }
         )).count();
         assert_eq!(zone_changes, 1);

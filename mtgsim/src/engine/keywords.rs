@@ -176,7 +176,8 @@ mod tests {
         // *proposal* a CR 614 watcher needs (Tainted Remedy must see lifelink),
         // and there was none. Locking the shape here so the routing cannot be
         // quietly undone.
-        match game.events.events() {
+        let emitted: Vec<&GameEvent> = game.events.events().collect();
+        match emitted.as_slice() {
             [GameEvent::LifeChanged { player_id, old, new, source: src }] => {
                 assert_eq!(*player_id, 0);
                 assert_eq!((*old, *new), (20, 22));
@@ -184,5 +185,34 @@ mod tests {
             }
             other => panic!("expected one LifeChanged, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_lifelinks_gain_joins_the_damage_batch() {
+        // CR 702.15b — the life gain "happens simultaneously with that damage",
+        // so the nested `execute_action` must join the damage's batch rather
+        // than opening one of its own. Two batch ids would tell a CR 603.2c
+        // trigger that two events happened.
+        let mut game = GameState::new(2, 20);
+        let source = crate::test_support::place_vanilla_creature(
+            &mut game, 0, 2, 2, &[KeywordFlag::Lifelink]);
+
+        game.execute_action(
+            crate::engine::actions::GameAction::DealDamage {
+                source,
+                target: crate::events::event::DamageTarget::Player(1),
+                amount: 2,
+                is_combat: false,
+            },
+            &test_ctx(),
+        ).unwrap();
+
+        let batches: Vec<_> = game.events.records().iter().map(|r| r.batch).collect();
+        assert!(batches.len() >= 2, "damage plus the life it gains");
+        let first = batches[0].expect("a performed action is in a batch");
+        assert!(
+            batches.iter().all(|b| *b == Some(first)),
+            "lifelink's gain is simultaneous with the damage, so it shares its batch",
+        );
     }
 }

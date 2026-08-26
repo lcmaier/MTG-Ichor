@@ -505,7 +505,7 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
 
 /// Format the entire event log with resolved card names.
 pub fn format_event_log(game: &GameState) -> Vec<String> {
-    game.events.events().iter()
+    game.events.events()
         .map(|e| format_event(game, e))
         .collect()
 }

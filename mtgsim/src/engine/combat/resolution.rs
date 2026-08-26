@@ -170,26 +170,30 @@ pub fn assign_combat_damage(
 impl GameState {
     /// Apply all combat damage assignments simultaneously (rule 510.2).
     ///
-    /// Each assignment is routed through `execute_action(GameAction::DealDamage)`
-    /// so that Phase RB replacement effects automatically intercept combat damage.
+    /// **One batch, not a loop.** CR 510.2 makes combat damage simultaneous,
+    /// and CR 615.7's "one shield, several simultaneous sources" allocation
+    /// asks the shield's controller which damage it prevents — a choice that
+    /// cannot exist unless the whole assignment set reaches the pipeline at
+    /// once. The batch also gives every `DamageDealt` one `BatchId`, which is
+    /// what "whenever one or more creatures deal combat damage" needs.
     ///
-    /// Still a loop, not a batch: CR 510.2 makes combat damage simultaneous, and
-    /// CR 615.7's "one shield, several simultaneous sources" allocation needs to
-    /// see all of it at once. That is RA-3's `execute_actions` batch form.
+    /// The order within the batch is `assign_combat_damage`'s, which walks
+    /// `battlefield_ordered` — so the CR 616.1 prompt order is deterministic.
     pub fn apply_combat_damage(
         &mut self,
         assignments: Vec<CombatDamageAssignment>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        for assignment in assignments {
-            self.execute_action(GameAction::DealDamage {
-                source: assignment.source,
-                target: assignment.target,
-                amount: assignment.amount,
+        let batch = assignments
+            .into_iter()
+            .map(|a| GameAction::DealDamage {
+                source: a.source,
+                target: a.target,
+                amount: a.amount,
                 is_combat: true,
-            }, ctx)?;
-        }
-        Ok(())
+            })
+            .collect();
+        self.execute_actions(batch, ctx)
     }
 }
 
@@ -298,6 +302,42 @@ mod tests {
 
         game.apply_combat_damage(assignments, &test_ctx()).unwrap();
         assert_eq!(game.players[1].life_total, 17);
+    }
+
+    // COVERS-PARTIAL: ATOM-510.2-001
+    // Builds the simultaneity half — one batch id across every assignment. The
+    // atom's "no player can respond between assignment and dealing" half is
+    // priority, not damage.
+    #[test]
+    fn test_combat_damage_is_dealt_as_one_batch() {
+        let mut game = GameState::new(2, 20);
+        let attacker = place_creature_with_pt(&mut game, 0, 3, 3);
+        let blocker = place_creature_with_pt(&mut game, 1, 2, 2);
+
+        let assignments = vec![
+            CombatDamageAssignment {
+                source: attacker,
+                target: DamageTarget::Object(blocker),
+                amount: 3,
+            },
+            CombatDamageAssignment {
+                source: blocker,
+                target: DamageTarget::Object(attacker),
+                amount: 2,
+            },
+        ];
+        game.apply_combat_damage(assignments, &test_ctx()).unwrap();
+
+        // CR 510.2 deals it all at one instant, and CR 615.7's "two or more
+        // applicable sources at the same time" shield allocation is only
+        // askable if the pipeline sees the set rather than the members.
+        let batches: Vec<_> = game.events.records().iter()
+            .filter(|r| matches!(r.event, crate::events::event::GameEvent::DamageDealt { .. }))
+            .map(|r| r.batch)
+            .collect();
+        assert_eq!(batches.len(), 2);
+        assert!(batches[0].is_some(), "combat damage is batched");
+        assert_eq!(batches[0], batches[1], "one combat damage step, one event");
     }
 
     #[test]

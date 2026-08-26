@@ -345,7 +345,7 @@ struct GameStats {
 }
 
 /// Extract action statistics from raw GameEvents.
-fn extract_stats(events: &[GameEvent]) -> GameStats {
+fn extract_stats<'a>(events: impl Iterator<Item = &'a GameEvent>) -> GameStats {
     let mut stats = GameStats::default();
     for event in events {
         match event {
