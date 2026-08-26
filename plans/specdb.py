@@ -827,6 +827,60 @@ def orphans():
         print("  %-28s %s:%d" % (aid, f, ln))
 
 
+# Phases whose work has shipped. An atom parked in one of these was supposed to
+# be built and is not being waited on by anything -- which is the only way debt
+# goes quiet. Add a phase here when it lands; that is what makes `owed` a gate
+# rather than a report.
+SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers")
+
+
+def owed(phase=None, show_all=False):
+    """Atoms a shipped phase left behind: no test, and a ticket that promised one.
+
+    This is the query that was missing when Phase 5-Pre closed. That phase
+    carried 223 atoms and shipped with none of them covered, including
+    ATOM-400.7-001, whose ticket specified a `zone_change_epoch` field on
+    `GameObject` down to the name. Nothing asked at close time, so the design was
+    lost for two years and rediscovered by hand in 2026-08.
+
+    A `NEW ...` ticket is the strong signal -- the corpus author judged that the
+    atom needed infrastructure that did not exist. `--all` drops that filter and
+    shows every uncovered atom in a shipped phase, which is a much longer and
+    much noisier list.
+    """
+    db = connect()
+    phases = (phase,) if phase else SHIPPED_PHASES
+    marks = ",".join("?" * len(phases))
+    ticket_filter = "" if show_all else "AND a.ticket LIKE 'NEW%'"
+    rows = db.execute(f"""
+        SELECT a.id, a.rule_num, a.phase, a.summary, a.ticket FROM atoms a
+        WHERE a.phase IN ({marks}) {ticket_filter}
+          AND a.id NOT IN (SELECT atom_id FROM coverage)
+        ORDER BY a.rule_num, a.id
+    """, phases).fetchall()
+
+    total = db.execute(
+        f"SELECT COUNT(*) FROM atoms WHERE phase IN ({marks})", phases).fetchone()[0]
+    scope = "uncovered" if show_all else "uncovered, ticketed NEW"
+    print(f"shipped phases: {', '.join(phases)}  ({total} atoms)")
+    print(f"{len(rows)} {scope}\n")
+    if not rows:
+        print("nothing owed - every atom in a shipped phase is covered or was")
+        print("explicitly deferred. That is the state to keep it in.")
+        return
+    for aid, rule, ph, summary, ticket in rows:
+        print("  %-22s %-10s %s" % (aid, rule or "-", (summary or "")[:66]))
+        if ticket:
+            print("  %-22s %-10s -> %s" % ("", "", ticket[:66]))
+    print()
+    print("Triage each as a FACT or a FEATURE before scheduling it.")
+    print("  fact    - unrecoverable if not captured when it exists (object")
+    print("            identity, who cast this, characteristics an instant ago).")
+    print("            Costs a re-thread through every system built meanwhile.")
+    print("  feature - a normal diff whenever it is added. Defer freely.")
+    print("See codebase-state.md, 'Before Replacement effects' item 9.")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -848,6 +902,11 @@ def main():
     g.add_argument("--chapter", type=int, help="CR chapter 1-9")
     g.add_argument("--limit", type=int, default=25)
     g.add_argument("--all", action="store_true", dest="show_all")
+    o = sub.add_parser("owed",
+                       help="atoms a shipped phase left uncovered (the phase-exit gate)")
+    o.add_argument("--phase", help="one phase instead of every shipped one")
+    o.add_argument("--all", action="store_true", dest="owed_all",
+                   help="every uncovered atom, not just those ticketed NEW")
     a = ap.parse_args()
     {"build": lambda: build(),
      "stats": lambda: stats(),
@@ -855,7 +914,8 @@ def main():
      "show": lambda: show(a.atom_id),
      "orphans": lambda: orphans(),
      "suspicious": lambda: suspicious(a.threshold),
-     "gaps": lambda: gaps(a.chapter, a.limit, a.show_all)}[a.cmd]()
+     "gaps": lambda: gaps(a.chapter, a.limit, a.show_all),
+     "owed": lambda: owed(a.phase, a.owed_all)}[a.cmd]()
 
 
 if __name__ == "__main__":

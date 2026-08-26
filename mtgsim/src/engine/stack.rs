@@ -42,16 +42,34 @@ impl GameState {
         let object_id = *self.stack.last().unwrap();
 
         // Before the pop, deliberately: a spell's controller lives on its
-        // `StackEntry`, which the next two lines destroy. One value, used for
-        // both the resolution context and the permanent's controller as it
-        // enters (CR 110.2b). Note it is *not* used for the graveyard below —
-        // a finished spell goes to its owner's (CR 608.2n).
-        let controller = crate::oracle::characteristics::get_effective_controller(self, object_id)
-            .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
+        // `StackEntry`, which the next two lines destroy. Note it is *not* used
+        // for the graveyard below — a finished spell goes to its owner's
+        // (CR 608.2n).
+        //
+        // **Two different controllers, and CR 110.2b is the reason.** The
+        // *effective* controller is who controls the spell right now, which a
+        // steal makes someone other than the caster; that player follows the
+        // spell's instructions (CR 608.2c) and controls the permanent it
+        // becomes. But "the permanent's controller **by default** is the player
+        // who put that spell onto the stack" — and the default is precisely what
+        // `BattlefieldEntity.controller` holds, since `compute.rs::base_controller`
+        // reads it as the value Layer 2 modifies. Writing the effective value
+        // there double-counts the steal: right today because CR 400.7a keeps the
+        // Layer 2 row applying, wrong the moment it stops (CR 800.4c, a player
+        // leaving a multiplayer game).
+        let effective_controller =
+            crate::oracle::characteristics::get_effective_controller(self, object_id)
+                .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 
         self.stack.pop();
         let entry = self.stack_entries.remove(&object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
+
+        // CR 110.2b's default. `StackEntry.controller` is written once at
+        // CR 601.2a / 602.2a and never mutated — a control-changing effect on
+        // the spell goes through the continuous-effects registry, not this
+        // field — so it *is* "the player who put that spell onto the stack".
+        let default_controller = entry.controller;
 
         // Record the window the pop just opened. Two things downstream need to
         // know about it, and both used to be served by writing `obj.zone` by
@@ -60,8 +78,11 @@ impl GameState {
         // controller (which the `StackEntry` just taken above was carrying).
         // Cleared on every path out, including the error ones — that is what
         // `resolve_popped` exists to make single-sited.
-        self.resolving = Some(ResolvingObject { id: object_id, controller });
-        let result = self.resolve_popped(object_id, entry, controller, dp);
+        self.resolving = Some(ResolvingObject {
+            id: object_id,
+            default_controller,
+        });
+        let result = self.resolve_popped(object_id, entry, effective_controller, dp);
         self.resolving = None;
         result
     }
@@ -112,8 +133,10 @@ impl GameState {
             if is_permanent_type {
                 // Permanent spell: it becomes a permanent and enters the
                 // battlefield (CR 608.3a; 608.3c for an Aura, handled below).
-                // CR 110.2b gives control to whoever controlled the spell, which
-                // `init_zone_state` reads off `resolving`.
+                // It enters under its CR 110.2b *default* controller, which
+                // `init_zone_state` reads off `resolving`; the steal's Layer 2
+                // row continues to apply on top per CR 400.7a, so the effective
+                // controller is still the thief.
                 self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
                 // Carry X value from the stack entry to the permanent (rule 107.3f)
                 if let Some(bf_entry) = self.battlefield.get_mut(&object_id) {

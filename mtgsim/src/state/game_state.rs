@@ -82,10 +82,15 @@ pub struct StackEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvingObject {
     pub id: ObjectId,
-    /// CR 110.2b — whoever controlled the spell as it resolved, and therefore
-    /// who controls the permanent it becomes. Read off the `StackEntry` before
-    /// the pop destroys it.
-    pub controller: PlayerId,
+    /// CR 110.2b's **default** controller: "the player who put that spell onto
+    /// the stack". Read off the `StackEntry` before the pop destroys it.
+    ///
+    /// Not the effective controller. If an opponent stole the spell they control
+    /// the permanent it becomes — but by a Layer 2 effect that CR 400.7a keeps
+    /// applying, layered over this value, rather than by this value being
+    /// theirs. The distinction is invisible until the effect ends, which is
+    /// CR 800.4c and therefore 4-player Commander.
+    pub default_controller: PlayerId,
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
@@ -135,9 +140,10 @@ pub struct GameState {
     /// - `remove_from_zone_collection(Stack)` would otherwise fail to find the
     ///   object and report a bug that is not one. **This reader exists only
     ///   because of the early pop** — see the note below.
-    /// - `init_zone_state(Battlefield)` needs CR 110.2b's controller, the player
-    ///   who controlled the *spell*, and the `StackEntry` that recorded it has
-    ///   been taken by then. This reader is real regardless of the pop.
+    /// - `init_zone_state(Battlefield)` needs CR 110.2b's *default* controller —
+    ///   the player who put the spell on the stack — and the `StackEntry` that
+    ///   recorded it has been taken by then. This reader is real regardless of
+    ///   the pop.
     ///
     /// **The early pop's stated reason does not survive inspection (audited
     /// 2026-08-26).** It was documented as keeping in-flight effects — a

@@ -326,16 +326,19 @@ impl GameState {
     /// Default controller is the object's owner (correct for play_land, tokens, etc.).
     /// Initialize zone-specific state when entering a zone.
     ///
-    /// The entering permanent's controller is its owner (correct for a land
-    /// play and for tokens) *except* when it is a resolving permanent spell:
-    /// CR 110.2b gives it to whoever controlled the spell on the stack, which a
-    /// control-changing effect on the spell can make someone other than the
-    /// owner (ATOM-110.2b-001). `GameState::resolving` is where that answer
+    /// The entering permanent's controller is its owner (correct for a land play
+    /// and for tokens) *except* when it is a resolving permanent spell, where
+    /// CR 110.2b makes it the player who put that spell onto the stack.
+    ///
+    /// This is the **default** controller — the value Layer 2 modifies, not the
+    /// answer `get_effective_controller` gives. A stolen permanent spell enters
+    /// under its caster's control here and is moved to the thief by the Layer 2
+    /// row CR 400.7a keeps alive. `GameState::resolving` is where the answer
     /// survives the pop.
     pub(crate) fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         if zone == Zone::Battlefield {
             let controller = match self.resolving {
-                Some(r) if r.id == id => r.controller,
+                Some(r) if r.id == id => r.default_controller,
                 _ => self.get_object(id)?.owner,
             };
             self.place_on_battlefield(id, controller);

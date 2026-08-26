@@ -291,8 +291,8 @@ Five card interactions were put to the engine by the owner. Two moved
 `replacement-architecture.md` §5 (see §5b/§5c there); three are general and land
 here. None is blocking RB.
 
-9. **CR 110.2b: a permanent spell's default controller is its *caster*, and we
-   store the thief (found 2026-08-26).** `stack.rs` hands
+9. **CR 110.2b: a permanent spell's default controller is its *caster* — ✅ FIXED
+   2026-08-26 (found and fixed the same day).** `stack.rs` hands
    `get_effective_controller(spell)` to `place_on_battlefield`, so
    `BattlefieldEntity.controller` — which `compute.rs::base_controller` treats as
    the *default*, the value Layer 2 modifies — becomes the player who stole the
@@ -309,10 +309,25 @@ here. None is blocking RB.
    `tests/phase_lg_integration_test.rs::test_gaining_control_of_a_permanent_spell_moves_the_permanent`
    currently asserts the wrong value and its comment argues for it.
 
-   **Cheap:** `StackEntry.controller` already *is* the caster (set at cast, never
-   mutated — the steal goes through the registry, not the field). `resolve_popped`
-   passes the effective controller where it should pass `entry.controller`. One
-   line plus the test, and it wants doing before CR 800 rather than after.
+   **The fix.** `resolve_top_of_stack` now reads two controllers instead of one:
+   `effective_controller` (who follows the spell's instructions, CR 608.2c, and
+   controls the permanent) and `default_controller = entry.controller` (CR
+   110.2b's "player who put that spell onto the stack"). `ResolvingObject` carries
+   the second, `init_zone_state` writes it, and the steal's Layer 2 row layers the
+   thief back on top per CR 400.7a.
+
+   `tests/phase_lg_integration_test.rs::test_gaining_control_of_a_permanent_spell_moves_the_permanent`
+   is the distinguishing observation and now asserts **both** halves — base 0,
+   effective 1. It previously asserted base 1, which is the wrong branch of an
+   underdetermined pair: `get_effective_controller` answers 1 whether the permanent
+   entered under P0 with a row on top or under P1 with the row double-counting, so
+   an effective-only assertion lets either model pass. It also now carries
+   `COVERS-PARTIAL: ATOM-400.7a-001` for that rule's *controller* clause; the
+   atom's own scenario is the characteristics clause (Deathlace recolouring a
+   creature spell) and stays open.
+
+   Still owed from this item: carrying the caster onto the *permanent*, which
+   customer 3 below needs at ETB-trigger time and which is RC's to place.
 
    **Three unrelated customers for one fact — record it (updated 2026-08-26).**
 

@@ -183,6 +183,7 @@ python plans/specdb.py show ATOM-305.7-002      # one ticket, implementable
 python plans/specdb.py gaps --chapter 6         # CR rules the corpus never examined
 python plans/specdb.py orphans                  # COVERS ids that match no atom
 python plans/specdb.py suspicious               # links that exist but look wrong
+python plans/specdb.py owed                     # what a shipped phase left behind
 ```
 
 Annotate at write time, directly above `#[test]`: `// COVERS:` when the test builds
@@ -190,6 +191,22 @@ the atom's whole scenario, `// COVERS-PARTIAL:` otherwise. **Never claim an atom
 test doesn't prove** — a false link is worse than a blank. `suspicious` is a smell
 test: a hit means read it; silence proves nothing. Tests with no atom are normal —
 this measures rules coverage, not completeness. Read `stats` per phase; TOTAL is noise.
+
+**A phase does not close until `owed` is clean for it.** Every atom in the phase is
+covered, or explicitly deferred with a reason written down. This is a gate, not a
+report: Phase 5-Pre shipped carrying 223 atoms and zero coverage, one of which
+specified the CR 400.7 `zone_change_epoch` field by name, and nothing asked — so the
+design was lost for two years and rediscovered by hand. Add the phase to
+`SHIPPED_PHASES` in `specdb.py` when it lands; that is what arms the gate.
+
+Triage what `owed` reports as a **fact** or a **feature**, because they have opposite
+economics. A *fact* — object identity, who cast this, an object's characteristics an
+instant ago — is unrecoverable if not captured at the moment it exists, and adding it
+later means re-threading every system built in between; record it on the first
+customer. A *feature* — a filter leaf, an enum arm — is a normal diff whenever it
+lands, so defer it freely and apply the two-customers guard. Count cards to decide
+when to build a feature; never to decide whether to record a fact. Phase RA was, in
+its entirety, a facts phase.
 
 ## Git workflow
 
