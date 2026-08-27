@@ -127,17 +127,27 @@ pub(crate) fn gather(
     // one, which the registry summary reports. Both over-approximate (CR 305.7
     // and Humility can strip a printed ability without touching the set), and
     // over-approximating costs a walk, never an answer.
+    let affected = affected_of(action);
+    let mut candidates = Vec::new();
+
+    // --- Game rules that behave as replacement effects (CR 903.9b) ---------
+    //
+    // Ahead of the fast-path gate, because this source is neither a battlefield
+    // sweep nor a registry row and the gate would skip it. It costs one
+    // `HashMap` lookup and is exact: 903.9b only ever applies to the object the
+    // event is already about.
+    if let Some(instance) = commander_zone_replacement(game, action) {
+        push_if_applicable(game, &mut candidates, instance, action, affected);
+    }
+
     let has_static_source = !game.replacement_ability_sources.is_empty()
         || game.continuous_effects.summary().any_granted_replacement;
     if !has_static_source
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
     {
-        return Vec::new();
+        return candidates;
     }
-
-    let affected = affected_of(action);
-    let mut candidates = Vec::new();
 
     // --- Sources 1 and 5: the battlefield sweep ----------------------------
     for id in game.battlefield_ids_ordered() {
@@ -465,4 +475,82 @@ pub(crate) fn forced_bucket(candidates: Vec<ReplacementInstance>) -> Vec<Replace
         "forced_bucket picked a class nothing is in"
     );
     candidates.into_iter().filter(|c| c.def.class == top).collect()
+}
+
+// ---------------------------------------------------------------------------
+// CR 903.9b — the commander zone replacement
+// ---------------------------------------------------------------------------
+
+/// > 903.9b If a commander would be put into its owner's hand or library from
+/// > anywhere, its owner may put it into the command zone instead. **This
+/// > replacement effect may apply more than once to the same event. This is an
+/// > exception to rule 614.5.**
+///
+/// The rules' *only* stated exception to CR 614.5, which is why
+/// `ReplacementDef::exempt_from_614_5` exists and why it must not grow a second
+/// user without a CR cite.
+///
+/// Synthesized per event rather than registered, for the same reason counters
+/// are: it comes from a rule, and nothing on the card says so. "From anywhere"
+/// means no `from` constraint; the destination is read off the event so that
+/// one arm covers both hand and library without `EventPattern` growing an
+/// or-of-zones axis it has no other use for.
+///
+/// Note the chooser falls out of CR 616.1 without a special case: a card in a
+/// graveyard, library or hand has no controller, so `chooser_for` answers with
+/// its owner — which is exactly whom 903.9b asks.
+fn commander_zone_replacement(
+    game: &GameState,
+    action: &GameAction,
+) -> Option<ReplacementInstance> {
+    let GameAction::ZoneChange { object, to, .. } = action else {
+        return None;
+    };
+    if !matches!(to, Zone::Hand | Zone::Library) {
+        return None;
+    }
+    let obj = game.objects.get(object)?;
+    if !obj.is_commander {
+        return None;
+    }
+    // "Its owner's hand or library" — a commander headed for someone else's
+    // hand is not this rule's business.
+    if obj.owner != owner_of_destination(game, *object) {
+        return None;
+    }
+    let mut def = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            from: None,
+            to: Some(*to),
+            cause: None,
+            object: None,
+        },
+        AffectedSet::Fixed(vec![*object]),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+            to: Zone::Command,
+            cause: ZoneChangeCause::CommanderZoneReplacement,
+        }),
+    )
+    .optional();
+    def.exempt_from_614_5 = true;
+    Some(ReplacementInstance {
+        id: ReplacementInstanceId::GameRule(
+            *object,
+            super::GameRuleReplacement::CommanderZone,
+        ),
+        source: *object,
+        controller: obj.owner,
+        def,
+    })
+}
+
+/// Whose hand or library a zone change is headed for.
+///
+/// `add_to_zone_collection` puts a card into its **owner's** hand or library
+/// unconditionally, so the destination's player is the owner and 903.9b's
+/// "its owner's" clause is satisfied by construction. Written out anyway,
+/// because the day an effect puts a card into a *different* player's library
+/// this becomes the check that stops 903.9b firing on it.
+fn owner_of_destination(game: &GameState, object: ObjectId) -> PlayerId {
+    game.objects.get(&object).map(|o| o.owner).unwrap_or(0)
 }

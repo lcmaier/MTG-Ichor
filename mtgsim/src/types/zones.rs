@@ -115,6 +115,17 @@ pub enum ZoneChangeCause {
     /// 608.2b — countered by game rules, all targets illegal.
     Fizzled,
 
+    // --- Commander (CR 903) ---
+    /// CR 903.9b — a commander that would go to its owner's hand or library
+    /// goes to the command zone instead, if its owner chooses. A *replacement*,
+    /// and the rules' only stated exception to CR 614.5.
+    CommanderZoneReplacement,
+    /// CR 704.6d / 903.9a — a commander in a graveyard or exile is moved to the
+    /// command zone by a **state-based action**, not by a replacement effect.
+    /// Two rules, two variants: the engine's reason for the move differs even
+    /// though the destination does not.
+    CommanderZoneSba,
+
     // --- turn structure and special actions ---
     /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
     Drawn,

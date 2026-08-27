@@ -565,6 +565,29 @@ pub fn ask_choose_generic_mana_allocation(
 // State-Based & Cleanup
 // ===========================================================================
 
+/// CR 704.6d / 903.9a — may this commander go to the command zone?
+///
+/// A **state-based action**, not a replacement effect, and the correction is
+/// recorded rather than incidental: `codebase-state.md` had CR 903.9 down as
+/// one replacement effect until 2026-08-24. Current Oracle splits it — 903.9a
+/// (graveyard or exile) is listed at CR 704.6d and is an SBA, and only 903.9b
+/// (hand or library) is a replacement. So the graveyard half never needed the
+/// replacement pipeline at all.
+pub fn ask_commander_to_command_zone(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    owner: PlayerId,
+    commander: ObjectId,
+) -> bool {
+    let options = vec![ChoiceOption::Object(commander)];
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::CommanderToCommandZoneSba { commander },
+    };
+    let picked = dp.pick_n(game, owner, &ctx, &options, (0, 1));
+    validate_pick_n(&picked, options.len(), (0, 1), "commander_to_command_zone");
+    !picked.is_empty()
+}
+
 /// Choose a card to discard (cleanup step discard-to-hand-size).
 /// Returns the ObjectId of the chosen card, or None if hand is empty.
 pub fn ask_choose_discard(

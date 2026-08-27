@@ -72,9 +72,17 @@ impl GameState {
         // Initialize zone-specific state for the new zone
         self.init_zone_state(id, to)?;
 
-        // Update the object's zone field
+        // Update the object's zone field, and stamp *when* it moved.
+        //
+        // Here rather than in `perform_action` because this is the performer:
+        // the epoch is a property of the move, and the CR 601.2 cast rollback
+        // is a move too (it just is not an event). CR 704.6d reads the stamp;
+        // CR 400.7 will read the same one.
+        let epoch = self.next_zone_change_epoch;
+        self.next_zone_change_epoch += 1;
         let obj = self.get_object_mut(id)?;
         obj.zone = to;
+        obj.zone_change_epoch = epoch;
 
         Ok(())
     }

@@ -1474,3 +1474,261 @@ fn test_kalitas_and_a_finality_counter_are_one_choice_not_two_exiles() {
          first because Kalitas entered first"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Items 8 and 9 — Commander's two halves (CR 704.6d and CR 903.9b)
+// ---------------------------------------------------------------------------
+
+/// Put a commander into a zone and designate it (CR 903.7).
+fn place_commander(game: &mut GameState, owner: PlayerId, zone: Zone) -> ObjectId {
+    let obj = mtgsim::objects::object::GameObject::new(
+        vanilla_creature(3, 3, &[]),
+        owner,
+        zone,
+    );
+    let id = obj.id;
+    game.add_object(obj);
+    match zone {
+        Zone::Battlefield => {
+            game.place_on_battlefield(id, owner);
+        }
+        Zone::Graveyard => game.players[owner].graveyard.push(id),
+        Zone::Library => game.players[owner].library.push(id),
+        Zone::Hand => game.players[owner].hand.push(id),
+        Zone::Exile => game.exile.push(id),
+        Zone::Stack | Zone::Command => panic!("not a fixture zone"),
+    }
+    game.objects.get_mut(&id).unwrap().is_commander = true;
+    id
+}
+
+// COVERS: ATOM-704.6c-001
+#[test]
+fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
+    // CR 704.6d / 903.9a — "if a commander is in a graveyard or in exile and
+    // that object was put into that zone since the last time state-based
+    // actions were checked, its owner **may** put it into the command zone.
+    // **This is a state-based action.**"
+    //
+    // Not a replacement effect, which is the correction `codebase-state.md`
+    // took in 2026-08-24: only 903.9b (hand or library) is one. So this half
+    // was never blocked on the pipeline at all.
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![0],
+    );
+    let performed = game.check_state_based_actions(&dp).unwrap();
+
+    assert!(performed);
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
+    assert!(game.command.contains(&cmdr));
+}
+
+#[test]
+fn test_the_commander_sba_is_a_may_and_declining_leaves_it_in_the_graveyard() {
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![],
+    );
+    game.check_state_based_actions(&dp).unwrap();
+
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
+}
+
+#[test]
+fn test_the_offer_is_made_once_not_on_every_later_check() {
+    // "**Since the last time state-based actions were checked**" — the whole
+    // point of the zone-change epoch. Decline once, and a commander sitting in
+    // the graveyard is not re-offered on every subsequent check for the rest of
+    // the game.
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![],
+    );
+    game.check_state_based_actions(&dp).unwrap();
+
+    // A second check with nothing scripted: `ScriptedDecisionProvider` panics
+    // on an unexpected call, so this asserts the absence of a prompt.
+    game.check_state_based_actions(&dp).unwrap();
+    game.check_state_based_actions(&dp).unwrap();
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
+}
+
+#[test]
+fn test_a_commander_killed_by_a_state_based_action_is_still_offered() {
+    // The case that decides *where* the epoch boundary is read. A commander
+    // that CR 704.5g puts into a graveyard moves during a check, so a boundary
+    // written at the **end** of that check would place the move before the
+    // boundary it is supposed to be after — and the commander would never be
+    // offered its command zone at all. Reading it at the top is what makes the
+    // next check see the move.
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+    game.battlefield.get_mut(&cmdr).unwrap().damage_marked = 3;
+
+    let dp = ScriptedDecisionProvider::new();
+    // Check one: 704.5g kills it. Nothing to ask yet — 704.3 reads every
+    // condition before performing anything, so 704.6d saw it on the battlefield.
+    assert!(game.check_state_based_actions(&dp).unwrap());
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
+
+    // Check two: now it is in the graveyard, and it got there since check one.
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![0],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
+}
+
+#[test]
+fn test_a_noncommander_in_the_graveyard_is_never_offered() {
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+
+    // Unscripted: the provider panics if anything asks.
+    let dp = ScriptedDecisionProvider::new();
+    game.check_state_based_actions(&dp).unwrap();
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+}
+
+#[test]
+fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
+    // CR 903.9b — "if a commander would be put into its owner's hand or library
+    // from anywhere, its owner may put it into the command zone instead."
+    // A replacement effect, so the hand event never happens (CR 614.6).
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        vec![0],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(cmdr, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
+
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
+    assert_eq!(
+        zone_changes(&game),
+        vec![(
+            cmdr,
+            Zone::Battlefield,
+            Zone::Command,
+            ZoneChangeCause::CommanderZoneReplacement
+        )],
+        "one event, the modified one — the hand move never happened"
+    );
+}
+
+#[test]
+fn test_903_9b_covers_the_library_too_and_declining_lets_it_through() {
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        vec![],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(cmdr, Zone::Library, ZoneChangeCause::PutIntoLibrary, &ctx)
+        .unwrap();
+
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Library);
+}
+
+#[test]
+fn test_declining_903_9b_terminates_despite_the_614_5_exemption() {
+    // **The interaction that hangs.** CR 903.9b is `exempt_from_614_5`, so the
+    // applied set does not filter it — that is the whole of the exception. It
+    // is also optional. §4.1's decline path marks the effect applied and
+    // continues, so with only an applied set the loop re-offers the same
+    // declined choice forever: the mark is there and the filter ignores it.
+    //
+    // Declining is tracked separately for exactly this reason, and the two sets
+    // are genuinely different questions — CR 614.5 is about *applying* more than
+    // once, and nothing exempts anything from a decline being final for this
+    // event.
+    //
+    // A single scripted decline is the assertion: the provider panics on a
+    // second call, and without the fix the loop would hit its iteration cap and
+    // return an error.
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        vec![],
+    );
+    let ctx = ActionContext::new(&dp);
+    let result = game.change_zone(cmdr, Zone::Hand, ZoneChangeCause::Returned, &ctx);
+
+    assert!(result.is_ok(), "the loop converged: {result:?}");
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Hand);
+    assert!(dp.is_empty(), "asked exactly once");
+}
+
+// COVERS: ATOM-614.5-001
+#[test]
+fn test_declined_optional_is_not_reoffered() {
+    // §10's named acid test, which "hangs rather than fails" — the same
+    // mechanism as the test above, stated as the general rule rather than as
+    // Commander's corner. A declined optional is marked applied (CR 614.5's one
+    // opportunity taken) and is not re-gathered.
+    //
+    // Kalitas is the second replacement here, so the decline has to be a real
+    // decline rather than a lack of candidates: after the commander rule is
+    // declined, Kalitas's exile still applies to the same event.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 1);
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        vec![],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(cmdr, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
+
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Hand);
+    assert!(dp.is_empty());
+}
+
+#[test]
+fn test_903_9b_does_not_touch_a_commander_going_to_a_graveyard() {
+    // "Hand or library", not "anywhere". A commander headed for the graveyard
+    // is CR 704.6d's business, and the two must not both fire.
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+
+    // Unscripted: the provider panics if the replacement offers itself.
+    let dp = ScriptedDecisionProvider::new();
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+        .unwrap();
+
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
+}

@@ -73,6 +73,12 @@ pub enum ChoiceKind {
     /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.
     ApplyOptionalReplacement { affected_object: Option<ObjectId>, source: ObjectId },
 
+    // --- Commander (CR 903) ---
+    /// CR 704.6d / 903.9a — a commander is in a graveyard or exile and its
+    /// owner **may** put it into the command zone. A state-based action with a
+    /// choice, not a replacement effect.
+    CommanderToCommandZoneSba { commander: ObjectId },
+
     // --- State-Based & Cleanup ---
     DiscardToHandSize,
     LegendRule { legend_name: String },

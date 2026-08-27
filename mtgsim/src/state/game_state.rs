@@ -268,6 +268,24 @@ pub struct GameState {
     /// Cleared at the CR 514.2 cleanup with everything else that lasts a turn.
     pub(crate) cant_be_regenerated: HashSet<ObjectId>,
 
+    /// The next tick to stamp onto a moving object's
+    /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
+    ///
+    /// Starts at 1 so that a pregame object's `0` is strictly earlier than any
+    /// move. Allocated by `move_object`, which is the engine's one performer of
+    /// zone changes.
+    pub(crate) next_zone_change_epoch: u64,
+
+    /// The tick as of the **start of the previous** state-based-action check.
+    ///
+    /// CR 704.6d's window is "since the last time state-based actions were
+    /// checked", and the boundary has to be read at the *start* of a check
+    /// rather than at its end. A commander that CR 704.5g puts into a graveyard
+    /// does so during a check, so an end-of-check boundary would place the move
+    /// before the boundary it is supposed to be after, and the commander would
+    /// never be offered its command zone at all.
+    pub(crate) last_sba_check_epoch: u64,
+
     // --- Event log ---
     pub events: EventLog,
 
@@ -417,6 +435,8 @@ impl GameState {
             replacement_effects: ReplacementRegistry::new(),
             replacement_ability_sources: HashSet::new(),
             cant_be_regenerated: HashSet::new(),
+            next_zone_change_epoch: 1,
+            last_sba_check_epoch: 1,
             events: EventLog::new(),
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }

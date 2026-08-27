@@ -61,6 +61,20 @@ pub enum ReplacementInstanceId {
     /// counters do not give two applications to one event. Keying on the kind
     /// rather than on a counter gives that structurally.
     Counter(ObjectId, CounterType, CounterEffectKind),
+    /// A replacement effect that belongs to no object's text — a *rule* that
+    /// behaves as one. CR 903.9b is the only member. The `ObjectId` is the
+    /// commander the rule is about, so two commanders leaving at once are two
+    /// instances and CR 614.5 (or its 903.9b exception) applies to each.
+    GameRule(ObjectId, GameRuleReplacement),
+}
+
+/// Which rule-shaped replacement effect a [`ReplacementInstanceId::GameRule`]
+/// names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GameRuleReplacement {
+    /// CR 903.9b — a commander that would be put into its owner's hand or
+    /// library may go to the command zone instead.
+    CommanderZone,
 }
 
 /// One applicable replacement effect, resolved against the object that has it.

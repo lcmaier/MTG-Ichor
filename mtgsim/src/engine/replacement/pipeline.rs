@@ -92,6 +92,20 @@ pub(crate) fn apply_replacements(
     riders: &mut Vec<Rider>,
 ) -> Result<Option<GameAction>, String> {
     let mut applied: HashSet<ReplacementInstanceId> = inherited.clone();
+    // Declining is tracked **separately from CR 614.5's applied set**, and it
+    // has to be.
+    //
+    // CR 903.9b is `exempt_from_614_5`, which means the applied set does not
+    // filter it — that is the whole of the exception. It is also `optional`.
+    // Put those together with §4.1's decline path, which marks the effect
+    // applied and continues, and the loop re-offers the same declined choice
+    // forever: the mark is there but the filter ignores it. A hang, not a wrong
+    // answer, which is the worst shape of bug.
+    //
+    // The two sets are genuinely different questions. CR 614.5 is about
+    // *applying* more than once, and 903.9b's exception is to that. Declining
+    // is a final answer about this event, and no rule exempts anything from it.
+    let mut declined: HashSet<ReplacementInstanceId> = HashSet::new();
     let mut event = action;
 
     for _ in 0..MAX_616_1F_ITERATIONS {
@@ -108,6 +122,8 @@ pub(crate) fn apply_replacements(
             .into_iter()
             // CR 614.5, with CR 903.9b as the rules' only stated exception.
             .filter(|c| c.def.exempt_from_614_5 || !applied.contains(&c.id))
+            // No exception to this one — see `declined`.
+            .filter(|c| !declined.contains(&c.id))
             .collect();
 
         if candidates.is_empty() {
@@ -170,7 +186,10 @@ pub(crate) fn apply_replacements(
                 affected_object(affected),
                 &chosen,
             ) {
+                // Marking it applied is CR 614.5's "one opportunity" — being
+                // offered and refusing *is* the opportunity.
                 applied.insert(chosen.id);
+                declined.insert(chosen.id);
                 continue;
             }
         }
