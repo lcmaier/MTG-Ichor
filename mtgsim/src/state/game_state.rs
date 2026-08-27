@@ -8,6 +8,7 @@ use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
+use crate::state::replacement_effects::ReplacementRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -212,6 +213,20 @@ pub struct GameState {
     // --- Continuous effects registry (CR 613) ---
     pub continuous_effects: ContinuousEffectRegistry,
 
+    // --- Replacement effects registry (CR 614/615) ---
+    /// Replacement and prevention effects created by *resolutions* — CR 614.3's
+    /// "prevent all damage that would be dealt this turn", CR 615.7's shields,
+    /// CR 701.19a's regeneration.
+    ///
+    /// **Only two of the five sources in `replacement-architecture.md` §3.3
+    /// live here.** The other three — static abilities of permanents, static
+    /// abilities functioning in other zones, and counters — are discovered by
+    /// sweeping the battlefield at the instant an event is proposed, which is
+    /// what makes Humility strip a replacement ability for free and what puts
+    /// CR 614.4's "must exist before the event" question at the only moment it
+    /// can honestly be asked.
+    pub replacement_effects: ReplacementRegistry,
+
     // --- Event log ---
     pub events: EventLog,
 
@@ -358,6 +373,7 @@ impl GameState {
             player_lost: vec![false; num_players],
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
+            replacement_effects: ReplacementRegistry::new(),
             events: EventLog::new(),
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
@@ -715,6 +731,15 @@ impl GameState {
 
         match &ability.effect {
             Effect::Atom(p, r) => vec![(p, r)],
+
+            // CR 614.1a — a static ability that generates a replacement effect
+            // produces no continuous effect and therefore no layer rows. It is
+            // not an authoring error and it is not silently dropped: the effect
+            // is discovered by `engine::replacement::gather`, which reads this
+            // object's *effective* ability list at the instant an event is
+            // proposed. Registering it here as well would be the CDA mistake in
+            // a second costume — one ability applying through two channels.
+            Effect::Replacement(_) => Vec::new(),
 
             Effect::Sequence(effects) => {
                 let mut atoms = Vec::with_capacity(effects.len());

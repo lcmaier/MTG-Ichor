@@ -62,6 +62,24 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 614.1a. A replacement effect written as a *static* ability
+            // never reaches here — `engine::replacement::gather` reads it off
+            // the source's effective ability list, which is what lets Humility
+            // strip it. This arm is the other half: a replacement effect
+            // created by a *resolution*, which CR 614.3 gives a duration
+            // ("prevent all damage that would be dealt this turn").
+            //
+            // Loud rather than silently registering an endless one, because the
+            // duration is the missing piece and there is nowhere honest to read
+            // it from. CR 701.19a's regeneration shield — the one resolution-
+            // created replacement Phase RB has — is a keyword action and comes
+            // through `Primitive::Regenerate`, which knows both its duration
+            // (this turn) and its affected set (the targets).
+            Effect::Replacement(_) => Err(
+                "a replacement effect created by a resolution needs a CR 614.3                  duration, which `Effect::Replacement` does not carry (Phase RD).                  A static ability's replacement effect does not resolve at all —                  put it on an `AbilityType::Static` ability and                  `engine::replacement::gather` will find it. For CR 701.19a's                  regeneration shield, use `Primitive::Regenerate`."
+                    .to_string(),
+            ),
+
             Effect::Conditional(_condition, _inner) => {
                 // Phase 6: evaluate condition, then resolve inner if true
                 Err("Conditional effects not yet implemented".to_string())

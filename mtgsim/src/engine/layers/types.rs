@@ -10,10 +10,22 @@ use std::collections::HashSet;
 use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::{Duration, PermanentFilter, PlayerRef};
+use crate::types::effects::{Duration, PlayerRef};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
+
+/// Re-exported for the layer system's own readers.
+///
+/// The definition moved to `types::effects` when Phase RB gave it a second
+/// consumer: CR 614.1's replacement effects "act like shields around whatever
+/// they're affecting", and `ReplacementDef.affected` is the same question the
+/// layer system asks — `SourceOnly` vs. `Filter` is precisely CR 614.12's
+/// "affects only that permanent (as opposed to a general subset of permanents
+/// that includes it)" (`replacement-architecture.md` §11 item 2). The enum is
+/// pure data over `types`, and `src/types/` has no `crate::engine` edge to
+/// spend, so the shared vocabulary lives where both readers can reach it.
+pub use crate::types::effects::AffectedSet;
 
 /// Unique identifier for a registered continuous effect.
 pub type EffectId = u64;
@@ -171,29 +183,6 @@ pub enum EffectOrigin {
     /// pairing `mana_helpers::activatable_abilities` and
     /// `engine::mana::activate_mana_ability` already use.
     StaticAbility { ability: AbilityId },
-}
-
-/// Selects which objects a continuous effect applies to.
-#[derive(Debug, Clone, PartialEq)]
-pub enum AffectedSet {
-    /// The source permanent itself ("this creature has flying").
-    SourceOnly,
-    /// A data-driven filter ("creatures you control").
-    ///
-    /// **The filter is stored unresolved.** `PermanentFilter::ByController`
-    /// carries a `PlayerRef`, and `compute::effect_applies_to` resolves it
-    /// during the layer walk against the source's *effective* controller.
-    ///
-    /// This used to carry a `controller: Option<PlayerId>` that
-    /// `register_static_effects` filled in at ETB. CR 109.5 says the opposite —
-    /// "for a static ability, [you] is the **current** controller of the object
-    /// it's on" — so a snapshot taken when the source entered is wrong the
-    /// moment control of the source changes, and Glorious Anthem kept buffing
-    /// the team of whoever controlled it at ETB.
-    Filter { filter: PermanentFilter },
-    /// A fixed set captured at effect creation time.
-    /// Pump spells use this — the target is locked at resolution.
-    Fixed(Vec<ObjectId>),
 }
 
 /// CR-level identity of a continuous effect, for CR 613.6.

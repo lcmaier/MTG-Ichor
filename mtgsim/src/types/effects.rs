@@ -1,5 +1,5 @@
 use super::colors::Color;
-use super::ids::PlayerId;
+use super::ids::{ObjectId, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
 
@@ -86,6 +86,29 @@ pub enum PermanentFilter {
     PowerLE(i32),
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     Not(Box<PermanentFilter>),
+}
+
+/// Selects which objects a continuous effect applies to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AffectedSet {
+    /// The source permanent itself ("this creature has flying").
+    SourceOnly,
+    /// A data-driven filter ("creatures you control").
+    ///
+    /// **The filter is stored unresolved.** `PermanentFilter::ByController`
+    /// carries a `PlayerRef`, and `compute::effect_applies_to` resolves it
+    /// during the layer walk against the source's *effective* controller.
+    ///
+    /// This used to carry a `controller: Option<PlayerId>` that
+    /// `register_static_effects` filled in at ETB. CR 109.5 says the opposite —
+    /// "for a static ability, [you] is the **current** controller of the object
+    /// it's on" — so a snapshot taken when the source entered is wrong the
+    /// moment control of the source changes, and Glorious Anthem kept buffing
+    /// the team of whoever controlled it at ETB.
+    Filter { filter: PermanentFilter },
+    /// A fixed set captured at effect creation time.
+    /// Pump spells use this — the target is locked at resolution.
+    Fixed(Vec<ObjectId>),
 }
 
 /// Filter for matching cards (extensible)
@@ -505,9 +528,29 @@ pub enum Effect {
     /// "Do this N times"
     Repeat(AmountExpr, Box<Effect>),
 
+    /// CR 614/615 — this ability generates a replacement or prevention effect.
+    ///
+    /// On a **static** ability it produces no layer rows: `register_static_effects`
+    /// skips it, and `engine::replacement::gather` discovers it by reading the
+    /// source's *effective* ability list at the instant an event is proposed.
+    /// That is not a shortcut — it is what makes Humility and Blood Moon strip a
+    /// replacement ability for free, and it is CR 614.4's "must exist before the
+    /// event" asked at the one moment that matters.
+    ///
+    /// A **resolving** spell or ability does not create one through this
+    /// variant: CR 614.3 gives such an effect a duration ("prevent all damage
+    /// that would be dealt this turn") and this carries none, so
+    /// `resolve_effect` rejects it by name. CR 701.19a's regeneration shield,
+    /// the one resolution-created replacement Phase RB has, is a keyword action
+    /// and comes through `Primitive::Regenerate`, which knows both its duration
+    /// and its affected set. Phase RD is where the durational form lands.
+    ///
+    /// Boxed because `ReplacementDef` carries an `Effect` of its own (the
+    /// CR 615.5 rider), so the recursion is real.
+    Replacement(Box<crate::types::replacement::ReplacementDef>),
+
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),
-    // ApplyReplacement(ReplacementEffectDef),
     // ApplyPrevention(PreventionEffectDef),
     // CreateDelayedTrigger(TriggerCondition, Box<Effect>, Duration),
     // Custom(CardId),  // escape hatch
