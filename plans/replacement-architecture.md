@@ -332,12 +332,26 @@ pub enum Uses {
     Once,
     /// CR 615.7 -- "prevent the next N damage"; each point prevented decrements.
     Shield(u64),
-    /// CR 122.1c/d/h -- backed by counters on a permanent. Applying removes one
-    /// counter; the effect exists while at least one remains. Note the CR's
-    /// wording: one *or more* counters create **a single** replacement effect,
-    /// so two shield counters do not give two applications to one event.
-    CounterBacked(CounterType),
 }
+```
+
+**`Uses::CounterBacked` did not survive contact with the CR, and RB removed it.**
+It was specified here as "applying removes one counter; the effect exists while
+at least one remains". CR 122.1c and 122.1d state their effects verbatim, and in
+both the counter removal is the *substituted event* — "instead remove a stun
+counter from it" — or the CR 615.5 rider, never bookkeeping. Modelling it as a
+use would have written `BattlefieldEntity.counters` from inside `consume_use`,
+which is exactly the invisible-to-CR-614 write the chokepoint invariant exists
+to prevent. Existence is asked at gather time instead ("does this permanent have
+at least one such counter"), which is where CR 614.4 wants it asked. The CR's
+"one *or more* counters create **a single** replacement effect" is handled by
+the instance key — `Counter(ObjectId, CounterType, half)` — not by a count.
+
+`Shield(u64)` survives and belongs to RD. RB ships `Uses { Static, Once }`.
+
+```rust
+// (shipped)
+pub enum Uses { Static, Once }
 ```
 
 **Two new open-ended enums was one too many; the count is now one.** `Rewrite`
@@ -667,7 +681,8 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
     # `riders` collects every applied effect's `then` half, in application
     # order. The caller resolves them AFTER performing the returned event
     # (and even when the return is None) -- §4.1a.
-    applied: HashSet<ReplacementInstanceId> = inherited   # 3.2d lineage
+    applied:  HashSet<ReplacementInstanceId> = inherited  # 3.2d lineage
+    declined: HashSet<ReplacementInstanceId> = {}        # nothing is exempt
     ev = action
 
     loop:                                                # CR 616.1f
@@ -675,6 +690,7 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
                   .filter(applies_to(ev))                # EventPattern + AffectedSet
                   .filter(|c| c.exempt_from_614_5        # CR 903.9b
                               || !applied.contains(c.instance))   # CR 614.5
+                  .filter(|c| !declined.contains(c.instance))     # see below
         if cands.is_empty(): return Some(ev)
 
         bucket  = forced_bucket(cands)                   # CR 616.1a -> b -> c -> d -> e
@@ -684,9 +700,10 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
 
         if chosen.optional && !ask_apply(dp, chooser, chosen):
             applied.insert(chosen.instance)              # opportunity taken (CR 614.5)
+            declined.insert(chosen.instance)             # ... and it is final
             continue                                     # ... but no `consume_use`
         if !chosen.exempt_from_614_5: applied.insert(chosen.instance)
-        chosen.consume_use(game)                         # Uses::Once / Shield / CounterBacked
+        chosen.consume_use(game)                         # Uses::Once (Shield: RD)
 
         if chosen.then is Some(t): riders.push(t)        # queued, NOT resolved (§4.1a)
         match chosen.rewrite.apply(game, ev, ctx)?:      # Rewrite only
@@ -727,7 +744,22 @@ opportunity" — being offered and refusing *is* the opportunity — and without
 the `continue` re-gathers the same candidate forever, which is a hang rather
 than a wrong answer. Not consuming a use is what leaves Retriever Phoenix's
 ability and a regeneration shield intact for the *next* event. Static-ability
-optionals (Library of Leng) have no use to consume either way. One caveat
+optionals (Library of Leng) have no use to consume either way.
+
+**The applied set alone is not enough, and RB found that out by hanging.**
+CR 903.9b is `exempt_from_614_5`, which means the applied set does not filter
+it — that is the whole of the exception — *and* it is optional. Put those two
+together with the decline path above and the loop re-offers the same declined
+choice forever: the mark is there and the filter ignores it. A hang, not a wrong
+answer, which is the worst shape of bug and exactly the one this section warned
+about for the other reason. Declining is therefore tracked in a **second set**
+that nothing is exempt from. The two are genuinely different questions:
+CR 614.5 is about *applying* more than once and 903.9b's exception is to that,
+while a decline is a final answer about this event and no rule exempts anything
+from it. `tests/phase_rb_integration_test.rs::test_declining_903_9b_terminates_despite_the_614_5_exemption`
+is the regression.
+
+One caveat
 recorded at audit (2026-08-25): mark-on-decline is a *reading* of CR 614.5, not
 a cited ruling — the corner is a declined optional whose event a later
 replacement then modifies into something the player now wants to replace after
@@ -1921,7 +1953,7 @@ are recorded in `codebase-state.md`: counter annihilation and attachment SBAs
 have no `GameAction` variant to propose through (RB item 5 gives counters one),
 and the CR 601.2a announcement above.
 
-### Phase RB — the pipeline, with counters and regeneration as consumers
+### Phase RB — the pipeline, with counters and regeneration as consumers — ✅ landed 2026-08-26
 
 1. `ReplacementDef`, `EventPattern`, `Rewrite`, `ReplacementOutcome`,
    `ReplacementClass`, `Uses`; `Effect::Replacement` (and its `then: Option<Effect>`
@@ -1947,6 +1979,114 @@ and the CR 601.2a announcement above.
    this is an SBA, *not* a replacement, and `check_state_based_actions` already
    takes a DP. It can ship here or earlier.
 9. CR 903.9b — commander to hand/library, with `exempt_from_614_5: true`.
+
+**What executing it changed in this document — ✅ landed 2026-08-26.** Nine
+items, one PR, and the corrections are recorded here because §9 is where the
+next phase reads.
+
+- **`Uses::CounterBacked` is gone; `Uses` ships as `{ Static, Once }`.** §3.2
+  now carries the reasoning. The short form: CR 122.1c/d state their effects
+  verbatim and the counter removal is the substituted event or the rider, never
+  a spent use — and a use would have written `BattlefieldEntity.counters` from
+  inside `consume_use`, off the chokepoint.
+
+- **CR 122.1c is two effects, and its replacement half is narrower than it
+  looks.** "One or more shield counters ... create a single replacement effect
+  **and** a single prevention effect", and the replacement half reads "would be
+  destroyed **as the result of an effect**" — CR 701.8b way 1 only. A shield
+  counter never answers CR 704.5g through that path; its prevention half stops
+  the damage first. Read loosely, one counter saves a creature twice. This is
+  what gives `GameAction::Destroy`'s `source` field a customer on day one, as
+  `DestructionSource { Effect(id), StateBasedAction }`.
+
+- **`EventPattern` ships five arms, not one per `GameAction` variant.**
+  `DrawCard`/`GainLife`/`LoseLife` affect a *player* and `AffectedSet` names
+  only objects, so an arm for one would have no scoping mechanism and would be
+  a card that silently does nothing. §9 schedules draw and life replacement for
+  RE anyway; they land there with the player-scoping mechanism CR 614.1's
+  "whatever they're affecting" needs for a player. The growth contract
+  constrains the *axis*, and the axis is intact.
+
+- **`Rewrite` ships `Prevent` and `Instead`.** `Amount`, `Retarget` and
+  `EnterWith` have no RB customer and no application path, and an arm the
+  pipeline cannot apply is the same silent card. The five-arm algebra and the
+  574-clause census are recorded in the enum's own docs with the phase that
+  gives each arm a customer, so the completeness claim survives as documentation
+  rather than as three `todo!()`s. §3.2b is unchanged and still the spec.
+
+- **`execute_actions` is three phases, and the split is CR 704.3.** Decide for
+  every member against one board, then perform, then run riders. That is what
+  "checks for any of the listed conditions ... then performs all applicable
+  state-based actions simultaneously as a single event" asks for, and it is
+  where §4.3's CR 101.4 APNAP ordering lives: choices in APNAP order of chooser,
+  performance in batch order, riders last (CR 615.5). **CR 101.4d's restart is
+  unreachable in this shape rather than unimplemented** — no event is performed
+  during the decision phase, so the only state a choice can change is
+  `consume_use`, which strictly *removes* candidates and can never widen an
+  earlier player's options.
+
+- **§4.1's loop needed a second set, and it hangs without one.** CR 903.9b is
+  the only `exempt_from_614_5` effect *and* it is optional, so the decline path's
+  "mark applied and continue" is ignored by a filter the exemption bypasses.
+  Recorded in §4.1.
+
+- **`gather` needs a fast path, and it is not an optimization.** Reading
+  effective abilities is a full `compute_characteristics` walk, and an ungated
+  sweep runs one per permanent per proposed action — measured against the untap
+  step alone that is thousands of extra layer walks per fuzz game on boards
+  where nothing has a replacement ability. The gate is exact rather than
+  heuristic: an object can only *have* a static replacement ability if it
+  printed one (`GameState::replacement_ability_sources`, recorded at ETB, a set
+  so it cannot drift) or a Layer 6 row granted it one
+  (`RegistryScopeSummary::any_granted_replacement`, narrowed to grants of
+  replacement bodies so the flag is not permanently on). Counters are scanned
+  rather than cached, so no test fixture can place one and be silently ignored.
+  Measured: 13.01 → 13.04 ms/game at `--games 200 --seed 12345`, medians of
+  three interleaved runs in one worktree.
+
+- **`AffectedSet` and `ZoneChangeCause` moved into `types/`.** `src/types/` had
+  zero `crate::engine` references and `ReplacementDef` needs both. Each moved
+  with a `pub use` left behind, so no call site changed.
+
+- **Items 6 and 7 needed engine vocabulary §9 did not budget**, and every piece
+  of it is named by a rule: `Primitive::{Tap, RemoveFromCombat, RemoveAllDamage}`
+  for CR 701.19a's rider, `Primitive::{AddCounters, RemoveCounters}` plus their
+  `GameAction`s for CR 122.1, `Primitive::CreateToken` for Kalitas's rider, and
+  `PermanentFilter::Token` for its nontoken clause. `CreateTokens` as a
+  *replaceable* event is still RE's — until a CR 614.16 doubler exists there is
+  nothing to replace.
+
+- **CR 704.6d needed a fact nobody was recording.** "Put into that zone since
+  the last time state-based actions were checked" is unanswerable a moment
+  later, so `GameObject.zone_change_epoch` is stamped by `move_object`. The
+  window is read at the **top** of `check_state_based_actions`, not the bottom:
+  a commander that CR 704.5g puts into a graveyard moves *during* a check, and
+  an end-of-check boundary would place the move before the boundary it is
+  supposed to be after. This is the field `codebase-state.md` item 10 wants for
+  CR 400.7; it does not implement 400.7, which also needs the 400.7a–c
+  exceptions.
+
+- **CR 704.7's dedupe stayed in the SBA sweep**, where RA-3 put it, rather than
+  moving into `execute_actions` as §4.2 specifies. The sweep is what knows CR
+  order for naming the cause, and a generic same-result dedupe would have to
+  re-derive it. §4.2's sentence should be read as "upstream of
+  `apply_replacements`", which it is.
+
+- **§11 item 7's blast-radius watch held.** Every existing test now traverses
+  the pipeline and **not one new `DecisionProvider` prompt appeared** on the
+  current pool. §4.1's two-candidate rule was never relaxed. `fuzz_games --games
+  50 --seed 12345` is identical to the pre-RB baseline on every line.
+
+**Not done in RB, and named rather than discovered later:** CR 614.15's
+self-replacement effects have a `ReplacementClass::SelfReplacement` bucket and
+no producer, so `ResolutionContext` still has three fields (§11 item 3 — land
+the fourth with the first card that needs it); CR 614.17c's blocked-event path
+therefore always drops the event, which is right today and will need revisiting
+when a self-replacement exists. §3.3's source 2 (static abilities functioning in
+other zones) is untouched and still deferred past RE — §11 item 4 asked RB to
+*size* it, and RB did not; the sweep it would change is now written, so the cost
+is a zone parameter on one loop in `engine/replacement/gather.rs` plus a
+timestamp on `GameObject` (Deferred Migrations item 9's, already owed).
 
 ### Phase RC — ETB replacements (the big unlock)
 
@@ -2066,11 +2206,11 @@ review, 2026-08-24). Only one needs an answer before code starts:
 |---|---|---|
 | 1 | CR 903.9 is half an SBA | **Answered.** A finding, not a question — `codebase-state.md` corrected |
 | 2 | `AffectedSet` reuse | **Answered.** A constraint to preserve, not a question |
-| 3 | Self-replacement (CR 614.15) plumbing | **Defer to RB.** The `ActionContext::resolution` hook lands in RB; the `ResolutionContext` field lands with the first card that needs it. Low breadth, and building a general mechanism first is what §0 commitment one warns against |
-| 4 | Replacement effects outside the battlefield | **Defer, but size it in RB.** Per `dont-over-defer`: count the cards during RB rather than at the end of RE, because the answer (zone parameter vs. separate registry) changes the sweep's shape and the sweep is written in RB |
+| 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RB, as planned.** RB gave `SelfReplacement` its CR 616.1a bucket and no producer; `ResolutionContext` still has three fields. The field lands with the first card that needs it |
+| 4 | Replacement effects outside the battlefield | **Still open — RB wrote the sweep but did not size it.** Now that `gather` exists the shape question is answerable: a zone parameter on one loop plus a timestamp on `GameObject`. The card count is still owed |
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
 | 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
-| 7 | `ScriptedDecisionProvider` blast radius | **Answered.** The mitigation is §4.1's two-candidate rule; watch it, do not re-decide it |
+| 7 | `ScriptedDecisionProvider` blast radius | **Answered, and the watch held (RB, 2026-08-26).** Every test now traverses the pipeline and zero new prompts appeared. The rule was never relaxed |
 | 8 | `then` timing | **Answered 2026-08-25 (audit).** Riders queue at application and resolve after the performed event (CR 615.5, 615.12); card-text "A, then B" never enters the pipeline as a unit (CR 608.2c). §4.1a |
 | 9 | Batch `applied`-set scope | **Answered 2026-08-25 (audit).** Per event, never per batch — a first draft shared one set and Kalitas's own ruling refutes it; CR 704.7 is a same-result dedupe, not a share. §4.2 |
 | — | **`ZoneChangeCause`** | **Not the list — the *catchall ban*.** Needed before RA's first commit; the list itself is derived, not researched. See below |
@@ -2249,12 +2389,12 @@ rule number) — confirm the merge at labelling time.
 
 Update as part of the work that changes them, not in a later pass:
 
-- `codebase-state.md` — ✅ through RA. The CR 614–616 row, the CR 9 table
+- `codebase-state.md` — ✅ through RB. The CR 614–616 row, the CR 9 table
   (item 11.1 above), and Deferred Migrations: **item 3 closed with RA-3, item 2's
   three bypasses closed with RA-3**, and two new items were opened at commit time
   (the CR 601.2a announcement, and the SBA mutations with no `GameAction`
   variant). Keep adding a line per stub.
-- `CLAUDE.md` — ✅ through RA. The authority-table row exists; the chokepoint
+- `CLAUDE.md` — ✅ through RB. The authority-table row exists; the chokepoint
   invariant is stated, and RA-3 added its one-performer/one-emitter and
   simultaneity sub-rules and struck the `// REPLACEMENT-BYPASS:` exemption.
 - `layers-architecture.md` §9 / §15.2 item 3 — the overlay decision, once made.
@@ -2262,5 +2402,5 @@ Update as part of the work that changes them, not in a later pass:
   call taken *before* a mutation, not a hypothetical about a perturbed board, so
   it needed neither the accessor pair nor a clone. The overlay is still RC-B's,
   and §11 item 5's decision still stands unrecorded there.
-- `cards-unlocked-ledger.md` — the ETB unlock is the largest single entry the
-  ledger will take; add it with RC. RA unlocks no cards by itself.
+- `cards-unlocked-ledger.md` — ✅ RB's entry is in. The ETB unlock is the largest
+  single entry the ledger will take; add it with RC.

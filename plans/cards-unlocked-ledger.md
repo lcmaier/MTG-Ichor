@@ -209,6 +209,49 @@ Recommended integration tests:
 
 ---
 
+---
+
+## Part 3: Replacement Effects (Phases RA–RE)
+
+Ticket ids here are the RA/RB/... sub-phases of `plans/replacement-architecture.md`
+§9, not the `L##`/`T##` vocabulary above.
+
+### Phase RA — the event spine — ✅ 2026-08-25
+
+**Unlocks no cards by itself**, and that is the point: RA made every observable
+mutation a proposal without changing what any of them do.
+
+### Phase RB — the CR 616.1 pipeline — ✅ 2026-08-26
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| RB item 5 | **Every card that puts a shield, stun or finality counter on a permanent — **164** printed cards, verified on Scryfall 2026-08-26 (92 + 31 + 41). No card text at all: CR 122.1c/d/h state the effects and `engine::replacement::gather` synthesizes them from the counter | Stun (92): Unstoppable Slasher, Mjölnir, Storm Hammer. Shield (31): Titan of Industry, Elspeth Resplendent. Finality (41): Meathook Massacre II, Scavenger's Talent | 🧪 2026-08-26 — the *mechanic* is covered end to end; **no card registered**, because each of these needs a primitive that puts the counter on |
+| RB item 6 | **Regeneration** — CR 701.19a shields from a resolving ability, CR 701.19b static regeneration, CR 701.19c "can't be regenerated" | Drudge Skeletons, Mossbridge Troll, Wall of Bone; the "it can't be regenerated" clause on hundreds of removal spells | 🧪 2026-08-26 — `Primitive::Regenerate` and `Primitive::CantBeRegenerated` exist; no card registered |
+| RB item 7 | **Kalitas, Traitor of Ghet** and the two-sided-filter shape it stands for | Kalitas | 🃏 2026-08-26 (`cards/phase_rb_cards.rs`) — **written, deliberately not registered**; see the note below |
+| RB items 8–9 | **Commander zone redirection**, both halves: CR 704.6d (graveyard/exile, a state-based action) and CR 903.9b (hand/library, a replacement) | Every commander in every Commander deck | 🧪 2026-08-26 — reachable only once something sets `GameObject.is_commander`, which is CR 903.7's setup hook and still missing |
+| RB — vocabulary | Four stubbed primitives implemented as a side effect: `Tap`, `AddCounters`, `RemoveCounters`, `CreateToken` | **Raise the Alarm is now buildable** — the Notes below flagged it as blocked on `Primitive::CreateToken` | |
+
+**Why Kalitas is written and not registered.** Registering a card puts it in the
+`fuzz_games` pool permanently and moves the baseline; that is a separate
+decision from writing one. Kalitas would move it a long way — every opponent
+creature death becomes an exile plus a token, on a pool with no other token
+support — and the fuzz-pool audit's rule applies in reverse here: add a card to
+buy *coverage*, and Kalitas's coverage is already bought by 20 integration
+tests.
+
+**What RB did not unlock, despite appearances.** CR 615's prevention machinery
+is Phase RD, not this one. RB has `Rewrite::Prevent` and CR 122.1c's prevention
+half; it has no damage shields, no prevention amounts, and no redirection — so
+Fog, Healing Salve, Circle of Protection and the whole "prevent the next N
+damage" family stay blocked.
+
+### Phase RC — ETB replacements
+
+**The largest single entry this ledger will take (~1,350 cards).** Add it with
+RC.
+
+---
+
 ## Card Registry Expansion Tracker
 
 Cards currently in registry (24): 5 basic lands, 5 spells (alpha.rs), 4 vanilla creatures, 11 keyword creatures.
@@ -339,6 +382,6 @@ Priority is based on: (1) exercises the most tickets, (2) catches the most integ
 ## Notes
 
 - **Test planeswalker:** No real PW is simple enough for early testing. Create a test-only `TestPlaneswalker` card: {2}{U}{U}, 4 loyalty, +1: draw a card, -3: counter target spell. Register as "Test Planeswalker" in the registry. This avoids needing the full PW activation pipeline (which requires Phase 6 for loyalty ability activation as a special action) — for now, just test ETB loyalty counters + combat damage → loyalty removal → 0 loyalty SBA.
-- **Raise the Alarm requires token creation primitive.** If `Primitive::CreateToken` isn't implemented yet, defer this card until it is. The token cease-to-exist SBA (T13) can be unit-tested without a real token-creating card.
+- ~~**Raise the Alarm requires token creation primitive.**~~ — discharged 2026-08-26. `Primitive::CreateToken` landed with Phase RB item 7 (Kalitas's rider needed it). Note what it is *not*: token creation is not yet a `GameAction`, so CR 614.16's doublers have nothing to replace — that is Phase RE. A token's *entering* is not a proposal either; that is Phase RC.
 - **Aura casting requires T15b.** Holy Strength needs the full Aura attachment-on-resolve path from T15b, not just the SBA from T15.
 - **Cards stay in the registry permanently.** Once added, they become part of the fuzz pool and regression suite. Choose cards that are simple enough to not break the random player but complex enough to exercise the new systems.

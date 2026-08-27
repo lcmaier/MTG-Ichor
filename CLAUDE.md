@@ -94,7 +94,8 @@ Propose with `execute_action` / `change_zone`; let the arm do the writing.
   `(from, to)` cannot tell a sacrifice from a destruction. Every mover names its
   reason; a site with nothing honest to say does not belong on the chokepoint
   (`cast.rs::rollback_cast_to_hand` is what that looks like). Nothing may branch
-  on `cause` outside the replacement pipeline and the trigger matcher.
+  on `cause` outside the replacement pipeline (`EventPattern::ZoneChange`, its
+  first real reader as of Phase RB) and the trigger matcher.
 - **Performers are loud; callers check legality.** `perform_action` errors for a
   tap of something not on the battlefield. That makes CR 608.2b's partial
   resolution the *caller's* job — see `Primitive::Untap`/`Destroy`.
@@ -121,6 +122,54 @@ Propose with `execute_action` / `change_zone`; let the arm do the writing.
 One exemption, tagged in `engine/zones.rs`'s `move_object` doc and permanent:
 `// CAST-ROLLBACK:` — CR 601.2 rewinds are not events. (`// REPLACEMENT-BYPASS:`
 is gone; RA-3 closed its three sites with `GameState::resolving`.)
+
+## The replacement pipeline (CR 614–616)
+
+`apply_replacements` sits inside `execute_actions`, between the proposal and the
+mutation. Six rules, each of which has already cost something:
+
+- **Never prompt a `DecisionProvider` with fewer than two candidates.** CR 616.1
+  makes a choice only among "two or more"; the engine consequence is larger than
+  the rule, because every test that reaches `execute_action` now traverses this
+  loop and the one-candidate short circuit is what keeps that at zero prompts.
+  Relaxing it to make something work is a design error, not a test fix.
+- **A "can't" is not a replacement effect (CR 614.17).** It is checked ahead of
+  the pipeline and it wins (CR 101.2) — `engine::replacement::is_blocked`, never
+  a `ReplacementDef`. Filtering one out at the call site instead is the shape
+  indestructible had before Phase RB: observationally right, and it left two
+  call sites free to disagree while making CR 614.17c unreachable.
+- **A static replacement ability is discovered off the *effective* ability list,
+  never from a registry.** That is the same reasoning as "registry membership is
+  not effect existence", and it is what makes Humility and Blood Moon strip a
+  replacement ability for free. `GameState::replacement_ability_sources` is a
+  *hint* that gates the sweep, not the answer — **add a new gather source and
+  you must add it to the gate**, or the source is silently dead on every board
+  the gate skips.
+- **Declining an optional is tracked separately from CR 614.5's applied set.**
+  CR 903.9b is `exempt_from_614_5` *and* optional, so a decline recorded only in
+  the applied set is re-offered forever — a hang, not a wrong answer.
+- **Deciding is separated from performing (CR 704.3).** A batch decides every
+  member's replacements against one board, then performs, then runs riders. That
+  is what "checks the conditions, then performs ... as a single event" means,
+  and it is where CR 101.4's APNAP ordering of simultaneous choices lives.
+- **Riders resolve after the performed event, never mid-loop (CR 615.5).** They
+  are unconditional once queued (CR 615.12) and re-enter with a fresh
+  applied-set. During the loop nothing has happened yet, so a rider run inside
+  it runs before the event it rides on.
+
+**Growth contracts, meant to be enforced in review.** `EventPattern` grows on
+exactly one axis — one arm per `GameAction` variant; a pattern it cannot express
+means the missing thing is a `GameAction` variant or a field on one. `Rewrite`
+is a closed algebra: a sixth arm is a claim that CR 614/615 permits an operation
+the list omits, and should arrive with the rule number that says so. Per-mechanic
+variety goes in `ReplacementDef.then`, which is the existing `Effect` tree.
+
+**An arm the pipeline cannot apply is worse than a missing one.** Both enums
+ship narrower than `replacement-architecture.md` §3.2 specifies, because a
+variant with no application path is a card that silently does nothing — and this
+tree has paid for that failure mode more than once. They are matched exhaustively
+and are not `#[non_exhaustive]`, so adding one is a normal diff that fails to
+compile at every reader.
 
 ## Determinism at the decision boundary
 
@@ -152,8 +201,9 @@ shell: every line must match except the timing lines (`Total time`, `Time/game`,
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅ (2026-05 → 2026-08)
 5. Replacement effects (CR 614–616) — execute from `plans/replacement-architecture.md`
-   (phases RA–RE). **Phase RA — the event spine — landed 2026-08-25; RB is the
-   pipeline itself.** Gates most real cards and Commander's 903.9b redirection
+   (phases RA–RE). **RA (the event spine) and RB (the CR 616.1 pipeline, with
+   counters, regeneration and Commander's 903.9 pair) landed 2026-08-25/26. RC —
+   ETB replacements — is next, and is the ~1,350-card unlock.**
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes
    LKI formalization and conditional static abilities with it
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass +
@@ -163,7 +213,8 @@ shell: every line must match except the timing lines (`Total time`, `Time/game`,
 (Numbering is stable — other docs cite these items by number.)
 
 Interleaved after 5: the Commander/multiplayer track — cost modification (commander
-tax), 903.9a/b, `GameConfig::commander()`, CR 800/802.
+tax), `GameConfig::commander()`, CR 903.7 designation, CR 800/802. **903.9a/b are
+done** (Phase RB), but unreachable until something sets `GameObject.is_commander`.
 
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and
 highly parallel AI games over the CLI. Two-player Standard is a checkpoint, not the
