@@ -456,6 +456,50 @@ here. None is blocking RB.
     the type level. Unreachable until Layer 1 (copy) and Station land; recorded so
     neither phase quietly removes it.
 
+### Found by the "can't" design pass (2026-08-27)
+
+Three facts recorded by `plans/cant-effects-architecture.md`, which is now the
+authority for CR 101.2 / 614.17 / 613.11. The design is written; none of it is
+built, and none of it blocks RC-1 through RC-3.
+
+13. **Ticket `L15` is superseded and was never built.** `plans/archive/
+    implementation-plan-final.md`'s "Post-layer pass" specified a
+    `PlayerActionRestriction` enum with `CantCastSpells(PlayerId)`,
+    `CantGainLife(PlayerId)`, `CantAttack(PlayerId)`,
+    `CantActivateAbilities(PlayerId, Option<String>)` and
+    `CantDrawExtraCards(PlayerId)` as sibling variants. Grep confirms none of it
+    exists in `src/`. It is a variant per card wearing a rule's name —
+    `CantGainLife` and `CantDrawExtraCards` are the same restriction with
+    different `EventPattern`s — and `cant-effects-architecture.md` §6.2 replaces
+    it. **What L15 owned that the restriction model does not:** `lands_per_turn`
+    is still a raw field (`state/player.rs:23`, read directly by
+    `PlayerState::can_play_land`) and is a *computed player-scoped value*, not a
+    restriction. It belongs with the cost-modification phase, the other CR 613.11
+    consumer (Before Layers item 3). Four corpus atoms still carry the `L15`
+    ticket: `ATOM-601.3-001`, `ATOM-613.10-001`, `ATOM-613.11-001/002`.
+
+14. **`turns.rs:138` hardcodes a duration CR 611.2a does not give it.** The
+    CR 514.2 cleanup clears `GameState::cant_be_regenerated` under a comment
+    asserting that "can't be regenerated" is a this-turn fact, with no rule
+    cited. CR 611.2a: a continuous effect from a resolution with **no stated
+    duration lasts until the end of the game**, and "Destroy all creatures. They
+    can't be regenerated." states none. Reachable: Wrath of God destroys a
+    creature carrying a CR 122.1c shield counter, the shield replaces the
+    destruction, the creature survives *still flagged*, and on a later turn the
+    engine lets it regenerate where the CR does not. Narrow, and it is a wrong
+    answer produced by a hardcoded duration that a `Duration` field cannot
+    produce. **Open question for the owner** before RS-1 encodes either answer
+    (`cant-effects-architecture.md` §9 finding 1) — the model is neutral.
+
+15. **Four `KeywordFlag` variants are constructible and enforced nowhere.**
+    `Hexproof`, `Shroud`, `Menace` and `Intimidate`. The only `KeywordFlag::`
+    references to them in `src/` outside the enum definition are `ui/display.rs`
+    (two of the four) and `layers/land_types.rs`'s hexproof insertion. A card
+    carrying one can be registered today and will quietly do nothing.
+    `engine/targeting.rs:39` still carries the `T22` TODO that would fix two of
+    them; `Menace` and `Intimidate` are `T21b`'s. All four are Tier 1a/1d in
+    `cant-effects-architecture.md` §2.3 and land in RS-2 / RS-3.
+
 ### Fuzz-pool coverage — audited 2026-08-26
 
 **The pool is thin exactly where the engine is thin, and card selection cannot
