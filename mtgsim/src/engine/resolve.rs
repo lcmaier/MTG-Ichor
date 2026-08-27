@@ -12,7 +12,6 @@ use crate::types::effects::{
 };
 use crate::oracle::characteristics::get_effective_controller;
 use crate::state::replacement_effects::RegisteredReplacement;
-use crate::types::effects::{PermanentFilter, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
@@ -616,7 +615,7 @@ impl GameState {
                     )
                     .once()
                     .regeneration()
-                    .with_then(regeneration_rider());
+                    .with_then(crate::types::replacement::regeneration_rider());
                     self.replacement_effects.add(RegisteredReplacement {
                         id: 0,
                         source: ctx.source,
@@ -1436,30 +1435,8 @@ mod tests {
     }
 }
 
-/// CR 701.19a's rider, verbatim.
-///
-/// > ... instead remove all damage marked on it and its controller taps it. If
-/// > it's an attacking or blocking creature, remove it from combat.
-///
-/// In that order, because the order is observable in the event log once
-/// triggers land. `EffectRecipient::Target` names the shielded permanent: a
-/// rider resolves against a `ResolutionContext` whose single resolved target is
-/// the affected object (`GameState::resolve_rider`).
-fn regeneration_rider() -> Effect {
-    let it = || {
-        EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::All),
-            TargetCount::Exactly(1),
-        )
-    };
-    Effect::Sequence(vec![
-        Effect::Atom(Primitive::RemoveAllDamage, it()),
-        Effect::Atom(Primitive::Tap, it()),
-        Effect::Atom(Primitive::RemoveFromCombat, it()),
-    ])
-}
-
-/// Lower a [`TokenDef`] into the `CardData` its `GameObject` reads.
+/// Lower a [`TokenDef`](crate::types::effects::TokenDef) into the `CardData`
+/// its `GameObject` reads.
 ///
 /// CR 111.4: "a token has the characteristics of the spell or ability that
 /// created it" — and no mana cost (CR 111.6 makes its mana value 0), which
@@ -1469,7 +1446,9 @@ fn regeneration_rider() -> Effect {
 /// resolution makes. They are separate objects with separate `ObjectId`s; what
 /// they share is their printed characteristics, which is exactly what
 /// `Arc<CardData>` means everywhere else in this engine.
-fn token_card_data(def: &crate::types::effects::TokenDef) -> std::sync::Arc<crate::objects::card_data::CardData> {
+fn token_card_data(
+    def: &crate::types::effects::TokenDef,
+) -> std::sync::Arc<crate::objects::card_data::CardData> {
     let mut builder = crate::objects::card_data::CardDataBuilder::new(&def.name)
         .power_toughness(def.power, def.toughness);
     for color in &def.colors {

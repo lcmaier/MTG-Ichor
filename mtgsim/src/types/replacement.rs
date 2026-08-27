@@ -408,3 +408,38 @@ impl ReplacementDef {
         self
     }
 }
+
+/// CR 701.19a's rider, verbatim.
+///
+/// > ... instead remove all damage marked on it and its controller taps it. If
+/// > it's an attacking or blocking creature, remove it from combat.
+///
+/// In that order, because the order is observable in the event log once
+/// triggers land.
+///
+/// **Shared by both halves of CR 701.19 on purpose.** 701.19a (a resolving
+/// spell or ability) and 701.19b (a static ability) differ in exactly one
+/// thing — `Uses::Once` versus `Uses::Static` — and the rule states the same
+/// replacement text for both. A card with static regeneration that wrote its
+/// own rider would be a second copy of that text, free to drift; a card that
+/// wrote *no* rider would be a bare prevention wearing regeneration's name,
+/// which is the mistake this function exists to make impossible.
+///
+/// `EffectRecipient::Target` names the shielded permanent: a rider resolves
+/// against a `ResolutionContext` whose single resolved target is the affected
+/// object.
+pub fn regeneration_rider() -> Effect {
+    use crate::types::effects::{EffectRecipient, PermanentFilter, Primitive, SelectionFilter,
+                                TargetCount};
+    let it = || {
+        EffectRecipient::Target(
+            SelectionFilter::Permanent(PermanentFilter::All),
+            TargetCount::Exactly(1),
+        )
+    };
+    Effect::Sequence(vec![
+        Effect::Atom(Primitive::RemoveAllDamage, it()),
+        Effect::Atom(Primitive::Tap, it()),
+        Effect::Atom(Primitive::RemoveFromCombat, it()),
+    ])
+}

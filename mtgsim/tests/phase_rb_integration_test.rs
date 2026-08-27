@@ -26,7 +26,9 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{
+    regeneration_rider, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -76,7 +78,7 @@ fn undying_probe(name: &str) -> Arc<CardData> {
 // Item 4 — `GameAction::Destroy` as the outer event
 // ---------------------------------------------------------------------------
 
-// COVERS: ATOM-701.8b-001
+// COVERS-PARTIAL: ATOM-701.8b-001
 #[test]
 fn test_destroy_is_an_outer_event_that_lowers_to_a_zone_change() {
     // CR 701.8a — "to destroy a permanent, move it from the battlefield to its
@@ -142,7 +144,7 @@ fn test_destroy_is_loud_off_the_battlefield() {
     assert!(zone_changes(&game).is_empty());
 }
 
-// COVERS: ATOM-614.17-001
+// COVERS-PARTIAL: ATOM-614.17-001
 #[test]
 fn test_indestructible_is_a_cant_ahead_of_the_pipeline_not_a_replacement() {
     // CR 614.17 — "some effects state that something can't happen. These
@@ -197,7 +199,7 @@ fn test_the_sba_sweep_does_not_spin_on_an_indestructible_creature() {
 // Item 3 — the pipeline, exercised through a printed static ability
 // ---------------------------------------------------------------------------
 
-// COVERS: ATOM-614.6-001
+// COVERS-PARTIAL: ATOM-614.6-001
 #[test]
 fn test_a_static_replacement_ability_prevents_the_event() {
     // CR 614.6 — "the modified event occurs instead of the original event", and
@@ -216,7 +218,7 @@ fn test_a_static_replacement_ability_prevents_the_event() {
     assert!(zone_changes(&game).is_empty());
 }
 
-// COVERS: ATOM-614.4-001
+// COVERS-PARTIAL: ATOM-614.4-001
 #[test]
 fn test_humility_strips_a_replacement_ability_and_the_creature_dies() {
     // Two rules at once, and they are the reason source 1 of §3.3 is a sweep of
@@ -337,7 +339,7 @@ fn counter_changes(game: &GameState) -> Vec<(ObjectId, CounterType, i32)> {
         .collect()
 }
 
-// COVERS: ATOM-122.1d-001
+// COVERS-PARTIAL: ATOM-122.1d-001
 #[test]
 fn test_a_stun_counter_replaces_the_untap_with_removing_a_counter() {
     // > 122.1d ... "If a permanent with a stun counter on it would become
@@ -499,7 +501,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     assert!(after[0].starts_with("CountersChanged"), "got {:?}", after[0]);
 }
 
-// COVERS: ATOM-122.1h-001
+// COVERS-PARTIAL: ATOM-122.1h-001
 #[test]
 fn test_a_finality_counter_exiles_instead_of_the_graveyard() {
     // > 122.1h ... "If this permanent would be put into a graveyard from the
@@ -522,6 +524,7 @@ fn test_a_finality_counter_exiles_instead_of_the_graveyard() {
     );
 }
 
+// COVERS: ATOM-122.1h-001
 #[test]
 fn test_a_finality_counter_catches_a_destruction_through_the_inner_zone_change() {
     // The two-event shape of `Destroy` earning its keep. A finality counter
@@ -544,7 +547,7 @@ fn test_a_finality_counter_catches_a_destruction_through_the_inner_zone_change()
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
 }
 
-// COVERS: ATOM-616.1-001
+// COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
     // CR 616.1 — "the affected object's controller ... chooses one to apply".
@@ -592,8 +595,8 @@ fn test_choosing_the_other_replacement_takes_the_other_branch() {
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile, "the counter was chosen");
 }
 
-// COVERS: ATOM-616.1f-001
-// COVERS: ATOM-616.2-001
+// COVERS-PARTIAL: ATOM-616.1f-001
+// COVERS-PARTIAL: ATOM-616.2-001
 #[test]
 fn test_the_loop_re_gathers_and_the_second_effect_applies_to_the_modified_event() {
     // CR 616.1f — "once the chosen effect has been applied, this process is
@@ -624,7 +627,7 @@ fn test_the_loop_re_gathers_and_the_second_effect_applies_to_the_modified_event(
     );
 }
 
-// COVERS: ATOM-614.5-001
+// COVERS-PARTIAL: ATOM-614.5-001
 #[test]
 fn test_a_replacement_effect_does_not_apply_to_its_own_output() {
     // CR 614.5 — "once a replacement effect has been applied to an event, it
@@ -852,7 +855,6 @@ fn test_simultaneous_choices_are_offered_in_apnap_order() {
     );
 }
 
-// COVERS-PARTIAL: ATOM-704.7-001
 #[test]
 fn test_batch_members_each_get_their_own_applied_set() {
     // §4.2, and Kalitas's printed ruling is what pins it: CR 614.5 is per
@@ -963,7 +965,7 @@ fn test_every_permanent_the_active_player_controls_untaps_as_one_event() {
     assert_eq!(batches.len(), 1, "one event, not three: CR 502.1 says simultaneously");
 }
 
-// COVERS-PARTIAL: ATOM-122.1d-001
+// COVERS: ATOM-122.1d-001
 #[test]
 fn test_a_stun_counter_survives_a_real_untap_step() {
     // The same rule as the direct-proposal test, reached through the turn-based
@@ -991,6 +993,12 @@ fn test_a_stun_counter_survives_a_real_untap_step() {
     assert!(game.battlefield[&stunned].tapped, "the stun counter ate the untap");
     assert_eq!(game.battlefield[&stunned].counter_count(CounterType::Stun), 0);
     assert!(!game.battlefield[&free].tapped, "its neighbour untapped normally");
+
+    // "Next untap step, creature will untap normally" — the atom's last clause,
+    // and the one that distinguishes a spent counter from a permanent lock.
+    pass_turn(&mut game);
+    pass_turn(&mut game);
+    assert!(!game.battlefield[&stunned].tapped);
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,7 +1030,14 @@ fn any_permanent() -> EffectRecipient {
 }
 
 /// A creature whose printed static ability regenerates it every time
-/// (CR 701.19b) — a Drudge Skeletons that needs no mana.
+/// (CR 701.19b) — Mossbridge Troll's shape, without the cost.
+///
+/// **It carries the same rider `Primitive::Regenerate` builds**, and that is
+/// not decoration: CR 701.19b states the same replacement text as 701.19a and
+/// the two differ in exactly one thing, `Uses::Static` versus `Uses::Once`. A
+/// fixture with a bare `Prevent` would have been a prevention effect wearing
+/// regeneration's name, and `test_static_regeneration_applies_every_time` would
+/// have passed while proving nothing about the rider.
 fn static_regenerator(name: &str) -> Arc<CardData> {
     replacement_creature(
         name,
@@ -1031,7 +1046,8 @@ fn static_regenerator(name: &str) -> Arc<CardData> {
             AffectedSet::SourceOnly,
             Rewrite::Prevent,
         )
-        .regeneration(),
+        .regeneration()
+        .with_then(regeneration_rider()),
     )
 }
 
@@ -1070,6 +1086,7 @@ fn test_a_regeneration_shield_replaces_a_destruction() {
         game.battlefield[&blocker].blocking.as_ref().map(|b| b.blocking.is_empty()).unwrap_or(true),
         "CR 506.4 — and its blocker stops blocking it"
     );
+    assert!(game.replacement_effects.is_empty(), "shield is consumed (one use per creation)");
 }
 
 #[test]
@@ -1134,7 +1151,9 @@ fn test_static_regeneration_applies_every_time() {
     let skeleton = put_on_battlefield(&mut game, static_regenerator("Drudge Probe"), 0);
     let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
 
-    for _ in 0..3 {
+    for round in 0..3 {
+        game.battlefield.get_mut(&skeleton).unwrap().damage_marked = 4;
+        game.battlefield.get_mut(&skeleton).unwrap().tapped = false;
         game.execute_action(
             GameAction::Destroy {
                 object: skeleton,
@@ -1143,9 +1162,15 @@ fn test_static_regeneration_applies_every_time() {
             &test_ctx(),
         )
         .unwrap();
-        assert!(game.battlefield.contains_key(&skeleton));
+        assert!(game.battlefield.contains_key(&skeleton), "round {round}");
+        assert_eq!(game.battlefield[&skeleton].damage_marked, 0, "round {round}");
+        assert!(game.battlefield[&skeleton].tapped, "round {round}");
     }
     assert!(zone_changes(&game).is_empty());
+    assert!(
+        game.replacement_effects.is_empty(),
+        "a static ability's regeneration is never consumed — it is not a shield"
+    );
 }
 
 // COVERS: ATOM-701.19c-001
@@ -1371,7 +1396,6 @@ fn test_kalitas_catches_a_creature_destroyed_by_lethal_damage() {
     assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
 }
 
-// COVERS: ATOM-704.7-001
 #[test]
 fn test_kalitas_simultaneous_deaths_each_exile_and_make_a_zombie() {
     // **Kalitas's own printed ruling, and §4.2's acid test.** When several
@@ -1502,7 +1526,7 @@ fn place_commander(game: &mut GameState, owner: PlayerId, zone: Zone) -> ObjectI
     id
 }
 
-// COVERS: ATOM-704.6c-001
+// COVERS: ATOM-903.9a-001
 #[test]
 fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
     // CR 704.6d / 903.9a — "if a commander is in a graveyard or in exile and
@@ -1530,6 +1554,7 @@ fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
     assert!(game.command.contains(&cmdr));
 }
 
+// COVERS-PARTIAL: ATOM-903.9a-001
 #[test]
 fn test_the_commander_sba_is_a_may_and_declining_leaves_it_in_the_graveyard() {
     let mut game = setup_two_player_game();
@@ -1612,6 +1637,7 @@ fn test_a_noncommander_in_the_graveyard_is_never_offered() {
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
 }
 
+// COVERS: ATOM-903.9b-001
 #[test]
 fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
     // CR 903.9b — "if a commander would be put into its owner's hand or library
@@ -1641,6 +1667,8 @@ fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
     );
 }
 
+// COVERS: ATOM-903.9b-002
+// COVERS-PARTIAL: ATOM-903.9b-001
 #[test]
 fn test_903_9b_covers_the_library_too_and_declining_lets_it_through() {
     let mut game = setup_two_player_game();
@@ -1690,7 +1718,7 @@ fn test_declining_903_9b_terminates_despite_the_614_5_exemption() {
     assert!(dp.is_empty(), "asked exactly once");
 }
 
-// COVERS: ATOM-614.5-001
+// COVERS-PARTIAL: ATOM-614.5-001
 #[test]
 fn test_declined_optional_is_not_reoffered() {
     // §10's named acid test, which "hangs rather than fails" — the same
@@ -1731,4 +1759,244 @@ fn test_903_9b_does_not_touch_a_commander_going_to_a_graveyard() {
         .unwrap();
 
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
+}
+
+// ---------------------------------------------------------------------------
+// Atom scenarios built in full
+//
+// Added in review, after reading the atoms these tests were claiming. Several
+// links had been written as `COVERS` for tests that exercise the *rule* without
+// building the atom's *scenario* — which is the failure `specdb suspicious`
+// exists to catch, and a false link reads as done where a blank reads as work
+// remaining. The links were corrected to `COVERS-PARTIAL`, and where the atom's
+// own scenario was cheap to build, it is built here.
+// ---------------------------------------------------------------------------
+
+/// A creature that shuffles itself into its owner's library instead of dying.
+///
+/// `Instead(ZoneChangeTo { Library })` — the second half of ATOM-616.1-001's
+/// pair, and deliberately *not* a `Prevent`: the atom's point is that whichever
+/// replacement is chosen, the other no longer applies **because the event is no
+/// longer a death**, and two effects that both leave the creature on the
+/// battlefield cannot show that.
+fn library_tucker(name: &str) -> Arc<CardData> {
+    replacement_creature(
+        name,
+        ReplacementDef::new(
+            EventPattern::ZoneChange {
+                from: Some(Zone::Battlefield),
+                to: Some(Zone::Graveyard),
+                cause: None,
+                object: None,
+            },
+            AffectedSet::SourceOnly,
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                to: Zone::Library,
+                cause: ZoneChangeCause::PutIntoLibrary,
+            }),
+        ),
+    )
+}
+
+/// The same creature, plus a finality counter, so two replacements want its
+/// death and they disagree about where it goes.
+fn dying_creature_with_two_replacements(game: &mut GameState) -> ObjectId {
+    let id = put_on_battlefield(game, library_tucker("Tucking Probe"), 0);
+    add_counters(game, id, CounterType::Finality, 1);
+    id
+}
+
+// COVERS: ATOM-616.1-001
+// COVERS: ATOM-616.1f-001
+#[test]
+fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
+    // CR 616.1's own shape: two replacements on one death, "exile instead" and
+    // "shuffle into library instead". The controller chooses; the loop then
+    // re-gathers against the *modified* event, and the loser no longer applies
+    // because the creature is no longer dying (CR 616.1f).
+    let mut game = setup_two_player_game();
+    let probe = dying_creature_with_two_replacements(&mut game);
+
+    let dp = ScriptedDecisionProvider::new();
+    // Index 1 is the finality counter: a permanent's own abilities are offered
+    // before its counters.
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![1],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
+    assert_eq!(
+        zone_changes(&game),
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        "one event: the shuffle never applied, because the creature stopped dying"
+    );
+    assert!(dp.is_empty(), "asked once — the loop did not re-offer");
+}
+
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_choosing_the_shuffle_leaves_the_exile_inapplicable() {
+    // The other branch, and the reason there are two tests: a choice test that
+    // only ever picks one index cannot tell a real prompt from a hard-coded
+    // first candidate.
+    let mut game = setup_two_player_game();
+    let probe = dying_creature_with_two_replacements(&mut game);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![0],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert_eq!(game.get_object(probe).unwrap().zone, Zone::Library);
+    assert_eq!(
+        game.battlefield.get(&probe).map(|e| e.counter_count(CounterType::Finality)),
+        None,
+        "and the finality counter was never spent — it simply stopped applying"
+    );
+}
+
+// COVERS: ATOM-614.4-001
+#[test]
+fn test_regeneration_after_the_destruction_has_resolved_is_too_late() {
+    // CR 614.4 — "a replacement effect ... must exist before the appropriate
+    // event occurs". The atom's own scenario: the creature is destroyed, and
+    // *then* its controller regenerates it. Replacement effects cannot go back
+    // in time, and there is no path in this engine by which they could — the
+    // pipeline runs at the moment of proposal and nowhere else.
+    //
+    // The shield is still created (CR 701.19c's distinction, from the other
+    // side: making one is never the problem), and it protects nothing.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
+        &test_ctx(),
+    )
+    .unwrap();
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+
+    regenerate(&mut game, killer, bear);
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard, "still dead");
+}
+
+// COVERS: ATOM-701.8b-001
+#[test]
+fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
+    // The atom's whole claim, including the half a cause comparison cannot
+    // make on its own: "regeneration shields would apply to A but not to B".
+    //
+    // CR 701.8b — the only ways a permanent can be destroyed are an effect
+    // using the word "destroy" and the CR 704.5g/h state-based actions. A
+    // sacrifice is not one of them, so a regeneration shield on a sacrificed
+    // creature watches an event that never comes.
+    let mut game = setup_two_player_game();
+    let destroyed = place_bare(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let sacrificed = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    regenerate(&mut game, source, destroyed);
+    regenerate(&mut game, source, sacrificed);
+
+    game.execute_action(
+        GameAction::Destroy { object: destroyed, source: DestructionSource::Effect(source) },
+        &test_ctx(),
+    )
+    .unwrap();
+    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert!(game.battlefield.contains_key(&destroyed), "the shield replaced the destruction");
+    assert_eq!(
+        game.get_object(sacrificed).unwrap().zone,
+        Zone::Graveyard,
+        "a sacrifice is not a destruction (CR 701.21), so nothing replaced it"
+    );
+    assert_eq!(
+        zone_changes(&game),
+        vec![(sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed)],
+    );
+    assert_eq!(
+        game.replacement_effects.len(),
+        1,
+        "and the sacrificed creature's shield is still unspent"
+    );
+}
+
+// COVERS: ATOM-903.9a-002
+#[test]
+fn test_a_commander_exiled_may_go_to_the_command_zone() {
+    // CR 704.6d covers exile as well as the graveyard — Swords to Plowshares on
+    // a commander. "This is a state-based action, not a replacement effect",
+    // which is why nothing was asked as the exile itself happened.
+    let mut game = setup_two_player_game();
+    let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
+
+    // Unscripted context: if 903.9b tried to apply to an exile, this panics.
+    game.change_zone(cmdr, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+        .unwrap();
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Exile);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![0],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+    assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
+}
+
+// COVERS: ATOM-614.7-001
+#[test]
+fn test_a_replacement_with_no_matching_event_is_a_no_op() {
+    // CR 614.7 — "a replacement effect ... doesn't apply if there's no event to
+    // replace." A creature whose ability watches for it *dying* is exiled
+    // directly by some other effect: there is no death, so nothing applies and
+    // the exile happens normally.
+    //
+    // The sharp part is that the outcome — the creature in exile — is the same
+    // one the replacement would have produced. So the assertion is on the
+    // event's `cause`, which is the only thing that distinguishes "the
+    // replacement fired" from "it never had anything to fire on".
+    let mut game = setup_two_player_game();
+    let probe = put_on_battlefield(&mut game, exile_on_death("Ashen Probe"), 0);
+
+    game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
+    assert_eq!(
+        zone_changes(&game),
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        "one event, and it is the one that was proposed"
+    );
+}
+
+/// "If this creature would die, exile it instead."
+fn exile_on_death(name: &str) -> Arc<CardData> {
+    replacement_creature(
+        name,
+        ReplacementDef::new(
+            EventPattern::ZoneChange {
+                from: Some(Zone::Battlefield),
+                to: Some(Zone::Graveyard),
+                cause: None,
+                object: None,
+            },
+            AffectedSet::SourceOnly,
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                to: Zone::Exile,
+                cause: ZoneChangeCause::Exiled,
+            }),
+        ),
+    )
 }
