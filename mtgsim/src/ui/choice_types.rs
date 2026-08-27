@@ -55,6 +55,24 @@ pub enum ChoiceKind {
     /// - Generic vs colored ordering with mixed mana producers
     ManaAbilityWindow { spell_or_ability_id: ObjectId, remaining_cost: ManaCost },
 
+    // --- Replacement effects (CR 616.1) ---
+    /// Two or more replacement or prevention effects want the same event and
+    /// the affected object's controller (or the affected player) must choose
+    /// one to apply.
+    ///
+    /// **Only asked with two or more candidates.** There is no choice to make
+    /// with one, and that rule is what keeps every existing scripted test green
+    /// now that every `execute_action` traverses the pipeline
+    /// (`replacement-architecture.md` §4.1).
+    ///
+    /// `affected_object` is `None` when the event is about the choosing player
+    /// rather than about an object.
+    ChooseReplacementEffect { affected_object: Option<ObjectId> },
+
+    /// A "you **may** ... instead" replacement effect is offering itself
+    /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.
+    ApplyOptionalReplacement { affected_object: Option<ObjectId>, source: ObjectId },
+
     // --- State-Based & Cleanup ---
     DiscardToHandSize,
     LegendRule { legend_name: String },

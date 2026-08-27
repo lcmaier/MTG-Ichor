@@ -585,6 +585,74 @@ pub fn ask_choose_discard(
     Some(hand[index[0]])
 }
 
+// ===========================================================================
+// Replacement effects (CR 616.1)
+// ===========================================================================
+
+/// Choose which of several applicable replacement or prevention effects to
+/// apply (CR 616.1).
+///
+/// **The caller must not call this with fewer than two candidates.** CR 616.1
+/// only makes a choice when "two or more ... are attempting to modify the way
+/// an event affects an object or player", and the engine-side consequence is
+/// larger than the rule: every existing `ScriptedDecisionProvider` test now
+/// reaches the pipeline, and the one-candidate short circuit is what keeps that
+/// at zero new prompts.
+///
+/// The options are the candidates' **source objects**, which is lossy when one
+/// permanent has two applicable replacement abilities — the index is what
+/// selects, and the source is what a UI has to render. A richer option would
+/// need `ChoiceOption` to carry rules text, and no card in the pool needs it
+/// yet.
+pub fn ask_choose_replacement(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    affected_object: Option<ObjectId>,
+    candidates: &[crate::engine::replacement::ReplacementInstance],
+) -> usize {
+    assert!(
+        candidates.len() >= 2,
+        "ask_choose_replacement: CR 616.1 makes a choice only among two or more          applicable effects; called with {}",
+        candidates.len(),
+    );
+    let options: Vec<ChoiceOption> = candidates
+        .iter()
+        .map(|c| ChoiceOption::Object(c.source))
+        .collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ChooseReplacementEffect { affected_object },
+    };
+    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
+    validate_pick_n(&index, options.len(), (1, 1), "choose_replacement");
+    index[0]
+}
+
+/// Ask whether to apply a "you **may** ... instead" replacement effect
+/// (CR 614.1a).
+///
+/// Declining is not free: CR 614.5 gives the effect one opportunity per event,
+/// and being offered it *is* the opportunity. The caller marks it applied
+/// either way and consumes a use only on acceptance.
+pub fn ask_apply_optional_replacement(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    affected_object: Option<ObjectId>,
+    candidate: &crate::engine::replacement::ReplacementInstance,
+) -> bool {
+    let options = vec![ChoiceOption::Object(candidate.source)];
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ApplyOptionalReplacement {
+            affected_object,
+            source: candidate.source,
+        },
+    };
+    let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
+    validate_pick_n(&picked, options.len(), (0, 1), "apply_optional_replacement");
+    !picked.is_empty()
+}
+
 /// Choose which legendary permanent to keep (rule 704.5j legend rule).
 pub fn ask_choose_legend_to_keep(
     dp: &dyn DecisionProvider,

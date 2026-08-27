@@ -54,6 +54,23 @@ pub struct RegistryScopeSummary {
     /// `codebase-state.md` Deferred Migrations item 13 has the numbers and the
     /// reason, so it does not get rebuilt on the same reasoning.
     pub any_control_changing: bool,
+
+    /// True iff some row grants an ability whose body is an
+    /// `Effect::Replacement` — i.e. some object on the battlefield may have a
+    /// replacement ability that it did not print.
+    ///
+    /// The other half of `engine::replacement::gather`'s fast-path gate.
+    /// `GameState::replacement_ability_sources` records printed replacement
+    /// abilities at ETB; a Layer 6 `GrantAbility` can put one on an object that
+    /// never printed it, and nothing at ETB could have known. Between the two
+    /// the gate is **sound**: an object can only *have* a static replacement
+    /// ability if it printed one or a registry row granted it one.
+    ///
+    /// Narrower than "any grant at all" on purpose. Granting keywords and
+    /// abilities is common — the gate would be permanently on, and the fast
+    /// path would buy nothing on exactly the boards that are most expensive to
+    /// walk.
+    pub any_granted_replacement: bool,
 }
 
 /// Owns all active continuous effects in the game.
@@ -93,6 +110,14 @@ impl ContinuousEffectRegistry {
                 e.modification,
                 crate::engine::layers::types::EffectModification::SetController(_)
             )
+        });
+        self.summary.any_granted_replacement = self.effects.iter().any(|e| {
+            match &e.modification {
+                crate::engine::layers::types::EffectModification::GrantAbility(def) => {
+                    matches!(def.effect, crate::types::effects::Effect::Replacement(_))
+                }
+                _ => false,
+            }
         });
 
         debug_assert!(self.is_sorted(), "registry order invariant violated after mutation");

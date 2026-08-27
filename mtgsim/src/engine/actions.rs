@@ -2,6 +2,7 @@ use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
 use crate::state::game_state::GameState;
+use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
@@ -124,11 +125,57 @@ pub enum GameAction {
         object: ObjectId,
     },
 
+    /// Put counters on a permanent (CR 122.1).
+    ///
+    /// A proposal rather than a direct write because CR 614.16's counter
+    /// doublers replace it — "If one or more counters would be put on a
+    /// permanent you control, twice that many are put on it instead" — and
+    /// because CR 122.1c/d's own replacement effects have to be able to *make*
+    /// one: a stun counter's effect is literally "instead remove a stun counter
+    /// from it", which is a proposed event and not bookkeeping.
+    AddCounters {
+        object: ObjectId,
+        counter: CounterType,
+        n: u32,
+    },
+
+    /// Take counters off a permanent (CR 122.1).
+    ///
+    /// The substituted event for CR 122.1c's shield counter and CR 122.1d's
+    /// stun counter, and the CR 615.5 rider for the shield's prevention half.
+    ///
+    /// `n` is a maximum: removing three counters from a permanent that has one
+    /// removes one, which is CR 701.2's "as much as it can" and what
+    /// `BattlefieldEntity::remove_counters` already reports.
+    RemoveCounters {
+        object: ObjectId,
+        counter: CounterType,
+        n: u32,
+    },
+
+    /// Destroy a permanent (CR 701.8).
+    ///
+    /// **The outer event.** Performing it proposes an inner
+    /// `ZoneChange { to: Graveyard }` whose cause is
+    /// [`DestructionSource::zone_change_cause`], so a destruction is two events
+    /// and a replacement can watch either. That is not an encoding convenience:
+    /// CR 701.8b makes "destroyed" a strictly narrower fact than "put into a
+    /// graveyard from the battlefield", and CR 122.1c's shield counter watches
+    /// the first while CR 122.1h's finality counter watches the second. One
+    /// event cannot answer both.
+    ///
+    /// Indestructible is **not** checked here and is not a replacement effect.
+    /// CR 701.8a makes it a "can't" (CR 614.17), which is checked ahead of the
+    /// pipeline and wins — see `engine::replacement::is_blocked`.
+    Destroy {
+        object: ObjectId,
+        source: DestructionSource,
+    },
+
     // === Phase 3+ actions — add variants here as primitives are implemented ===
     // Sacrifice { object: ObjectId },
     // Exile { object: ObjectId },
-    // CreateToken { def: TokenDef, controller: PlayerId, count: u32 },
-    // AddCounters { target: ObjectId, counter_type: CounterType, count: u32 },
+    // CreateTokens { defs: Vec<TokenDef>, controller: PlayerId },
     // etc.
 }
 
@@ -153,7 +200,7 @@ impl GameState {
         action: GameAction,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        self.execute_actions(vec![action], ctx)
+        self.execute_actions(vec![action], ctx).map(|_| ())
     }
 
     /// Execute a set of actions as **one event** (CR 704.3, 510.2, 502.1).
@@ -191,20 +238,140 @@ impl GameState {
     /// prompts when two effects want one event, so the order the batch is built
     /// in is part of a decision — build it from `battlefield_ids_ordered`, never
     /// from a raw `HashMap` walk.
+    /// Returns the events that were actually performed, in batch order.
+    ///
+    /// Not the proposals: a CR 614 replacement can modify an event or drop it
+    /// entirely, so the returned vector is what the game saw. The customer is
+    /// the pipeline itself — `Primitive::Regenerate` and the SBA sweep both
+    /// need to know whether the thing they proposed survived.
     pub fn execute_actions(
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
-    ) -> Result<(), String> {
-        // Phase RB: the CR 704.7 same-result dedupe, then `apply_replacements`
-        // per member, goes here — the batch is gathered before any of it is
-        // performed precisely so that both can see the whole set.
+    ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
-        let result = batch
-            .into_iter()
-            .try_for_each(|action| self.perform_action(action, ctx));
+        let result = self.execute_batch_inner(batch, ctx);
         self.events.close_batch(previous);
         result
+    }
+
+    /// The three phases of one batch. Split out so `close_batch` runs on every
+    /// exit path, including the error ones.
+    ///
+    /// **Deciding is separated from performing, and that is CR 704.3.** "The
+    /// game checks for any of the listed conditions ... then performs all
+    /// applicable state-based actions simultaneously as a single event" — so
+    /// every member's replacements are chosen against one board, the board as
+    /// it was before any of them happened. It is also what CR 614.4 wants for a
+    /// simultaneous event: the effect must exist before *the* event, and the
+    /// event is the whole batch.
+    fn execute_batch_inner(
+        &mut self,
+        batch: Vec<GameAction>,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        use crate::engine::replacement::{apply_replacements, Rider};
+
+        // --- Phase 1: decide (CR 616.1), in APNAP order of chooser ----------
+        //
+        // CR 616.1's last sentence: "if two or more players have to make these
+        // choices at the same time, choices are made in APNAP order (see rule
+        // 101.4)". A batch whose members affect different players produces
+        // different choosers, and this is the only place that can order them.
+        //
+        // CR 101.4d's restart — a nonactive player's choice forcing an earlier
+        // player to choose again — is unreachable in this shape rather than
+        // unimplemented: no event is performed during phase 1, so the only
+        // state a choice can change is `consume_use`, which strictly *removes*
+        // candidates. A later chooser can never widen an earlier player's
+        // options, so nothing they do can invalidate a choice already made.
+        let mut riders: Vec<Rider> = Vec::new();
+        let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
+        let inherited = std::collections::HashSet::new();
+        for index in self.apnap_batch_order(&batch) {
+            decided[index] = apply_replacements(
+                self,
+                batch[index].clone(),
+                ctx,
+                &inherited,
+                &mut riders,
+            )?;
+        }
+
+        // --- Phase 2: perform, in batch order -------------------------------
+        //
+        // Batch order rather than APNAP order: the choices were the thing
+        // CR 101.4 sequences, and the performed events are simultaneous. The
+        // order they are written in is still observable (a graveyard is
+        // ordered), and it is the caller's `battlefield_ids_ordered` sweep.
+        let mut performed = Vec::with_capacity(decided.len());
+        for action in decided.into_iter().flatten() {
+            self.perform_action(action.clone(), ctx)?;
+            performed.push(action);
+        }
+
+        // --- Phase 3: the CR 615.5 riders, in application order -------------
+        //
+        // "The rest of the effect takes place immediately afterward", and
+        // afterward means after the events happened — not mid-loop, where
+        // nothing has happened yet. Unconditional once queued (CR 615.12), so
+        // this runs even for a member whose event was dropped entirely.
+        for rider in riders {
+            self.resolve_rider(rider, ctx)?;
+        }
+
+        Ok(performed)
+    }
+
+    /// Indices into `batch`, ordered active-player-first by the CR 616.1
+    /// chooser for each member (CR 101.4's APNAP).
+    ///
+    /// Stable within a player, so a sweep that built its batch from
+    /// `battlefield_ids_ordered` keeps that order among its own members.
+    fn apnap_batch_order(&self, batch: &[GameAction]) -> Vec<usize> {
+        use crate::engine::replacement::{affected_of, chooser_for};
+
+        let n = self.players.len();
+        let mut order: Vec<usize> = (0..batch.len()).collect();
+        order.sort_by_key(|&i| {
+            let chooser = chooser_for(self, affected_of(&batch[i]));
+            // Distance from the active player in turn order. `None` — an object
+            // with neither controller nor owner — sorts last; the pipeline
+            // errors on it rather than guessing, and this keeps that error
+            // deterministic.
+            match chooser {
+                Some(p) => (p + n - self.active_player) % n,
+                None => n,
+            }
+        });
+        order
+    }
+
+    /// Resolve one CR 615.5 rider.
+    ///
+    /// Its `ResolutionContext` names the shielded object as the single resolved
+    /// target, so a `then` written with `EffectRecipient::Target` acts on the
+    /// permanent the replacement protected and one written with
+    /// `EffectRecipient::Controller` acts for that permanent's controller. The
+    /// actions it proposes re-enter the pipeline with a **fresh** applied set —
+    /// a rider's actions are new events the replacement caused, not modified
+    /// forms of the original (§3.2d containment).
+    fn resolve_rider(
+        &mut self,
+        rider: crate::engine::replacement::Rider,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+
+        let rctx = ResolutionContext {
+            source: rider.source,
+            controller: rider.controller,
+            targets: rider
+                .affected
+                .map(|id| vec![ResolvedTarget::Object(id)])
+                .unwrap_or_default(),
+        };
+        self.resolve_effect(&rider.effect, &rctx, ctx.dp)
     }
 
     /// Convenience wrapper for the most common zone change: caller knows the
@@ -430,6 +597,85 @@ impl GameState {
                 }
                 entry.tapped = true;
                 self.events.emit(GameEvent::Tapped { object_id: object });
+                Ok(())
+            }
+
+            GameAction::AddCounters { object, counter, n } => {
+                if n == 0 {
+                    return Ok(());
+                }
+                if !self.battlefield.contains_key(&object) {
+                    return Err(format!(
+                        "Cannot put counters on {}: not on the battlefield", object
+                    ));
+                }
+                self.add_counters(object, counter, n);
+                // A permanent that just gained a CR 122.1 replacement counter is
+                // a replacement source now. The hint set is what keeps
+                // `gather`'s fast path exact for static abilities; counters are
+                // scanned rather than cached, so nothing has to be recorded
+                // here — see `gather::any_replacement_counter`.
+                self.events.emit(GameEvent::CountersChanged {
+                    object_id: object,
+                    counter,
+                    added: n as i32,
+                });
+                Ok(())
+            }
+
+            GameAction::RemoveCounters { object, counter, n } => {
+                if n == 0 {
+                    return Ok(());
+                }
+                let Some(entry) = self.battlefield.get_mut(&object) else {
+                    return Err(format!(
+                        "Cannot remove counters from {}: not on the battlefield", object
+                    ));
+                };
+                // CR 701.2 — do as much as possible. `remove_counters` reports
+                // how many were actually there, and a removal of nothing is not
+                // an event: CR 603.2e's transition rule is the same shape the
+                // `Tap`/`Untap` arms follow.
+                let removed = entry.remove_counters(counter, n);
+                if removed == 0 {
+                    return Ok(());
+                }
+                self.events.emit(GameEvent::CountersChanged {
+                    object_id: object,
+                    counter,
+                    added: -(removed as i32),
+                });
+                Ok(())
+            }
+
+            // CR 701.8a — "to destroy a permanent, move it from the battlefield
+            // to its owner's graveyard". The **outer** event: this performer's
+            // whole job is to propose the inner zone change, which re-enters
+            // the pipeline with a fresh applied set because a zone change is a
+            // different kind of event from a destruction (§3.2d containment).
+            //
+            // That containment is what lets CR 122.1h's finality counter turn a
+            // destroyed creature's graveyard trip into an exile while CR 122.1c's
+            // shield counter, watching the destruction itself, has already
+            // declined to apply.
+            GameAction::Destroy { object, source } => {
+                if !self.battlefield.contains_key(&object) {
+                    // CR 701.8b — destroying something that is not on the
+                    // battlefield does nothing. The caller checks legality
+                    // (CR 608.2b partial resolution); this is the SBA sweep's
+                    // and `Primitive::Destroy`'s shared safety net for an
+                    // object a *replacement* moved out from under them.
+                    return Ok(());
+                }
+                self.execute_action(
+                    GameAction::ZoneChange {
+                        object,
+                        from: Zone::Battlefield,
+                        to: Zone::Graveyard,
+                        cause: source.zone_change_cause(),
+                    },
+                    _ctx,
+                )?;
                 Ok(())
             }
         }

@@ -193,7 +193,7 @@ impl GameState {
                 is_combat: true,
             })
             .collect();
-        self.execute_actions(batch, ctx)
+        self.execute_actions(batch, ctx).map(|_| ())
     }
 }
 

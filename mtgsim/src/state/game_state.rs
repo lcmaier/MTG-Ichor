@@ -227,6 +227,29 @@ pub struct GameState {
     /// can honestly be asked.
     pub replacement_effects: ReplacementRegistry,
 
+    /// Battlefield objects that **printed** a static ability whose body is an
+    /// `Effect::Replacement`.
+    ///
+    /// `engine::replacement::gather`'s fast path, and it is not an
+    /// optimization: reading effective abilities is a full
+    /// `compute_characteristics` walk, so an ungated sweep would run one per
+    /// permanent per proposed action — measured against the untap step alone
+    /// that is thousands of extra layer walks per `fuzz_games` game, on a board
+    /// where nothing has a replacement ability at all.
+    ///
+    /// **A set rather than a count, so it cannot drift.** Insert at ETB, remove
+    /// at `cleanup_zone_state`; both are idempotent, and a counter that drifted
+    /// low would read as a card that silently does nothing — the exact failure
+    /// this phase exists to remove.
+    ///
+    /// It over-approximates in one direction only. CR 305.7 and Humility can
+    /// take a printed replacement ability away without touching the set, which
+    /// costs a wasted walk and never a wrong answer; the opposite direction —
+    /// an ability *granted* by a Layer 6 row — is covered by
+    /// `RegistryScopeSummary::any_granted_replacement`, so between them the gate
+    /// is sound.
+    pub(crate) replacement_ability_sources: HashSet<ObjectId>,
+
     // --- Event log ---
     pub events: EventLog,
 
@@ -374,6 +397,7 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementRegistry::new(),
+            replacement_ability_sources: HashSet::new(),
             events: EventLog::new(),
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
@@ -621,7 +645,7 @@ impl GameState {
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::Duration;
+        use crate::types::effects::{Duration, Effect};
 
         let (abilities, card_name) = if let Some(obj) = self.objects.get(&id) {
             (obj.card_data.abilities.clone(), obj.card_data.name.clone())
@@ -632,6 +656,16 @@ impl GameState {
         for ability in &abilities {
             if ability.ability_type != AbilityType::Static {
                 continue;
+            }
+
+            // CR 614.1a — a replacement effect generates no continuous effect
+            // and so has no row to register. What it needs instead is for
+            // `engine::replacement::gather` to know this permanent is worth
+            // asking about; recording it here rather than in a separate ETB
+            // pass is deliberate, since this is already the one function that
+            // reads printed abilities at the moment a permanent enters.
+            if matches!(ability.effect, Effect::Replacement(_)) {
+                self.replacement_ability_sources.insert(id);
             }
 
             // CR 604.3a(3) — a characteristic-defining ability affects only the

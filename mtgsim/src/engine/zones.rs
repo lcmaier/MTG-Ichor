@@ -361,6 +361,9 @@ impl GameState {
             // permanent does. `Uses::Once` rows that were never spent are
             // swept here rather than accumulating.
             self.replacement_effects.remove_by_source(id);
+            // ... and it stops being a gather candidate. Idempotent, so a
+            // permanent that never had a replacement ability costs a no-op.
+            self.replacement_ability_sources.remove(&id);
 
             // Collect attachment info before mutating
             let (attached_to, attached_by) = {

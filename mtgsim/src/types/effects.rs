@@ -272,6 +272,26 @@ pub enum CounterType {
     Reach,
     Vigilance,
     Haste,
+
+    // --- Counters that create a replacement effect (rule 122.1c/d/h) ---
+    //
+    // These three are the reason Phase RB can ship a working CR 616.1 pipeline
+    // with **zero new card-text machinery**: nothing on any card says what they
+    // do, the rule does, and between them they exercise destroy replacement,
+    // damage prevention, untap replacement and zone-change replacement across
+    // 164 printed cards.
+    //
+    // `engine::replacement::gather` synthesizes their effects from the counter
+    // itself, quoting the rule verbatim.
+    /// CR 122.1c. Creates *two* effects: a replacement against destruction by
+    /// an effect, and a prevention effect against damage.
+    Shield,
+    /// CR 122.1d. "If a permanent with a stun counter on it would become
+    /// untapped, instead remove a stun counter from it."
+    Stun,
+    /// CR 122.1h. "If this permanent would be put into a graveyard from the
+    /// battlefield, exile it instead."
+    Finality,
     // Non-evergreen counter types added as relevant cards are implemented
 }
 
@@ -310,10 +330,18 @@ impl CounterType {
             CounterType::Reach => K::Reach,
             CounterType::Vigilance => K::Vigilance,
             CounterType::Haste => K::Haste,
+            // CR 122.1b names fifteen keywords; none of these is one. The
+            // three replacement counters are emphatically not keyword counters
+            // — an indestructible counter grants a keyword and a shield counter
+            // creates a replacement effect, and conflating them would give a
+            // shielded permanent permanent protection instead of one use.
             CounterType::PlusOnePlusOne
             | CounterType::MinusOneMinusOne
             | CounterType::Loyalty
-            | CounterType::Charge => return None,
+            | CounterType::Charge
+            | CounterType::Shield
+            | CounterType::Stun
+            | CounterType::Finality => return None,
         })
     }
 }
