@@ -549,6 +549,47 @@ impl GameState {
                 Ok(())
             }
 
+            // === Counters (CR 122) ===
+            //
+            // Both propose rather than writing `BattlefieldEntity.counters`.
+            // A counter mutation is a CR 614-observable event in its own right
+            // — CR 614.16's doublers replace it — and CR 122.1c/d's own
+            // replacement effects *produce* one, since "instead remove a stun
+            // counter from it" is a substituted event and not bookkeeping.
+
+            Primitive::AddCounters(counter_type, amount_expr) => {
+                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+                // One batch: CR 608.2f processes a spell's actions over several
+                // objects simultaneously, which is what lets a single CR 614.16
+                // doubler see all of them.
+                let batch = self
+                    .collect_battlefield_targets(ctx)
+                    .into_iter()
+                    .map(|object| GameAction::AddCounters {
+                        object,
+                        counter: *counter_type,
+                        n,
+                    })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            Primitive::RemoveCounters(counter_type, amount_expr) => {
+                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+                let batch = self
+                    .collect_battlefield_targets(ctx)
+                    .into_iter()
+                    .map(|object| GameAction::RemoveCounters {
+                        object,
+                        counter: *counter_type,
+                        n,
+                    })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
             Primitive::GainControl(duration) => {
@@ -589,8 +630,6 @@ impl GameState {
             | Primitive::Discard(_)
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
-            | Primitive::AddCounters(_, _)
-            | Primitive::RemoveCounters(_, _)
             | Primitive::CreateToken(_, _)
             | Primitive::Fight
             | Primitive::Tap => {

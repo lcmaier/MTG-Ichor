@@ -8,22 +8,23 @@
 
 use std::sync::Arc;
 
-use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeCause};
-use mtgsim::events::event::GameEvent;
+use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::test_support::{
-    place_bare, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
+    pass_turn, place_bare, put_on_battlefield, registered, setup_game, setup_two_player_game,
+    stock_libraries, test_ctx, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AffectedSet, Effect};
-use mtgsim::types::ids::{new_ability_id, ObjectId};
+use mtgsim::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter};
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::replacement::{
-    EventPattern, ReplacementDef, Rewrite,
-};
+use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -180,7 +181,7 @@ fn test_the_sba_sweep_does_not_spin_on_an_indestructible_creature() {
     );
     game.battlefield.get_mut(&myr).unwrap().damage_marked = 5;
 
-    let dp = mtgsim::ui::decision::ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     let performed = game.check_state_based_actions(&dp).unwrap();
 
     assert!(!performed, "nothing was performed, so 704.3 must not re-check");
@@ -277,4 +278,712 @@ fn test_leaving_the_battlefield_retires_the_gather_hint() {
 
     game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
     assert!(!game.replacement_ability_sources.contains(&probe));
+}
+
+// ---------------------------------------------------------------------------
+// Item 5 — consumer 1: counters (CR 122.1c/d/h). No card text; 164 cards.
+// ---------------------------------------------------------------------------
+
+/// A creature whose printed static ability prevents its trip to the graveyard.
+///
+/// A probe, not a card. Its only job is to be a *second* candidate alongside a
+/// finality counter so that CR 616.1's choice becomes reachable — which is the
+/// first `DecisionProvider` call this engine has ever made about a replacement
+/// effect.
+fn graveyard_probe(name: &str) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::ZoneChange {
+                    from: Some(Zone::Battlefield),
+                    to: Some(Zone::Graveyard),
+                    cause: None,
+                    object: None,
+                },
+                AffectedSet::SourceOnly,
+                Rewrite::Prevent,
+            ))),
+        })
+        .build()
+}
+
+/// Counters placed the way the engine places them, through the chokepoint.
+fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32) {
+    game.execute_action(GameAction::AddCounters { object: id, counter, n }, &test_ctx())
+        .unwrap();
+}
+
+/// The signed counter deltas in the log, as `(object, counter, added)`.
+fn counter_changes(game: &GameState) -> Vec<(ObjectId, CounterType, i32)> {
+    game.events
+        .events()
+        .filter_map(|e| match e {
+            GameEvent::CountersChanged { object_id, counter, added } => {
+                Some((*object_id, *counter, *added))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+// COVERS: ATOM-122.1d-001
+#[test]
+fn test_a_stun_counter_replaces_the_untap_with_removing_a_counter() {
+    // > 122.1d ... "If a permanent with a stun counter on it would become
+    // > untapped, instead remove a stun counter from it."
+    //
+    // The counter removal is the *substituted event*, which is why `Uses` has
+    // no `CounterBacked` variant: modelling it as a spent use would have
+    // written `BattlefieldEntity.counters` from inside the pipeline, invisible
+    // to CR 614.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.battlefield.get_mut(&bear).unwrap().tapped = true;
+    add_counters(&mut game, bear, CounterType::Stun, 2);
+
+    game.execute_action(GameAction::Untap { object: bear }, &test_ctx()).unwrap();
+
+    assert!(game.battlefield[&bear].tapped, "it did not untap");
+    assert_eq!(game.battlefield[&bear].counter_count(CounterType::Stun), 1);
+    assert!(
+        !game.events.events().any(|e| matches!(e, GameEvent::Untapped { .. })),
+        "CR 614.6 — a replaced event never happens, so nothing announced an untap"
+    );
+    assert_eq!(
+        counter_changes(&game),
+        vec![(bear, CounterType::Stun, 2), (bear, CounterType::Stun, -1)],
+    );
+}
+
+// COVERS-PARTIAL: ATOM-122.1d-001
+#[test]
+fn test_the_last_stun_counter_comes_off_and_the_next_untap_works() {
+    // "One **or more** counters create a single replacement effect", so two
+    // counters are two events' worth of protection, not two applications to one
+    // event — and once the last is gone the effect stops existing at gather
+    // time, which is where CR 614.4 wants the question asked.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.battlefield.get_mut(&bear).unwrap().tapped = true;
+    add_counters(&mut game, bear, CounterType::Stun, 1);
+
+    game.execute_action(GameAction::Untap { object: bear }, &test_ctx()).unwrap();
+    assert!(game.battlefield[&bear].tapped);
+    assert_eq!(game.battlefield[&bear].counter_count(CounterType::Stun), 0);
+
+    game.execute_action(GameAction::Untap { object: bear }, &test_ctx()).unwrap();
+    assert!(!game.battlefield[&bear].tapped, "no counter left to spend");
+}
+
+// COVERS: ATOM-122.1c-001
+#[test]
+fn test_a_shield_counter_replaces_destruction_by_an_effect() {
+    // > 122.1c ... "If this permanent would be destroyed as the result of an
+    // > effect, instead remove a shield counter from it"
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
+    add_counters(&mut game, bear, CounterType::Shield, 1);
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert!(game.battlefield.contains_key(&bear));
+    assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0);
+    assert!(zone_changes(&game).is_empty());
+}
+
+// COVERS-PARTIAL: ATOM-122.1c-001
+#[test]
+fn test_a_shield_counter_does_not_replace_a_state_based_destruction() {
+    // "**As the result of an effect**" is CR 701.8b way 1 only. A shield
+    // counter saves a creature from lethal damage through its *other* half —
+    // the prevention effect, which stops the damage before 704.5g can ask — so
+    // reading the clause loosely would have spent the counter twice on one
+    // creature.
+    //
+    // Damage is marked directly here rather than dealt, precisely to reach
+    // 704.5g with the prevention half bypassed.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    add_counters(&mut game, bear, CounterType::Shield, 1);
+    game.battlefield.get_mut(&bear).unwrap().damage_marked = 5;
+
+    let dp = ScriptedDecisionProvider::new();
+    game.check_state_based_actions(&dp).unwrap();
+
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+    assert_eq!(
+        game.battlefield.get(&bear).map(|e| e.counter_count(CounterType::Shield)),
+        None,
+        "and the counter was never spent"
+    );
+}
+
+// COVERS: ATOM-122.1c-002
+#[test]
+fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
+    // > 122.1c ... "If damage would be dealt to this permanent, prevent that
+    // > damage and remove a shield counter from it."
+    //
+    // `Prevent` plus a CR 615.5 rider, not an `Instead`: CR 615.13 lets
+    // triggers fire on damage *being prevented*, so the engine has to know a
+    // prevention happened rather than seeing a substituted event.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let bolt = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    add_counters(&mut game, bear, CounterType::Shield, 1);
+
+    game.execute_action(
+        GameAction::DealDamage {
+            source: bolt,
+            target: DamageTarget::Object(bear),
+            amount: 3,
+            is_combat: false,
+        },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert_eq!(game.battlefield[&bear].damage_marked, 0, "prevented");
+    assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0);
+    assert!(
+        !game.events.events().any(|e| matches!(e, GameEvent::DamageDealt { .. })),
+        "CR 614.6 — the damage event never happened"
+    );
+}
+
+#[test]
+fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
+    // §4.1a's timing contract, asserted on the *event log* rather than the end
+    // state, because the end state is identical either way. The rider is queued
+    // during the CR 616.1 loop and resolved after the surviving event — so its
+    // counter removal is the last thing in the log, not the first.
+    //
+    // The event here is prevented entirely, which is the sharper case: CR
+    // 615.12 makes a rider unconditional once queued, so it still runs.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let bolt = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    add_counters(&mut game, bear, CounterType::Shield, 1);
+    let before = game.events.len();
+
+    game.execute_action(
+        GameAction::DealDamage {
+            source: bolt,
+            target: DamageTarget::Object(bear),
+            amount: 3,
+            is_combat: false,
+        },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    let after: Vec<String> =
+        game.events.events().skip(before).map(|e| format!("{e:?}")).collect();
+    assert_eq!(after.len(), 1, "one event: the rider's counter removal, got {after:?}");
+    assert!(after[0].starts_with("CountersChanged"), "got {:?}", after[0]);
+}
+
+// COVERS: ATOM-122.1h-001
+#[test]
+fn test_a_finality_counter_exiles_instead_of_the_graveyard() {
+    // > 122.1h ... "If this permanent would be put into a graveyard from the
+    // > battlefield, exile it instead."
+    //
+    // Any cause, not just destruction — and the counter is *not* removed:
+    // 122.1h does not say to, and CR 122.2 ends its counters when it leaves.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    add_counters(&mut game, bear, CounterType::Finality, 1);
+
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
+    assert_eq!(
+        zone_changes(&game),
+        vec![(bear, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        "one event, the modified one — CR 614.6"
+    );
+}
+
+#[test]
+fn test_a_finality_counter_catches_a_destruction_through_the_inner_zone_change() {
+    // The two-event shape of `Destroy` earning its keep. A finality counter
+    // watches the graveyard trip, not the destruction, so it can only see a
+    // destroyed creature because `GameAction::Destroy`'s performer proposes the
+    // inner `ZoneChange` through the pipeline — with a *fresh* applied set,
+    // since a zone change is a different kind of event from a destruction
+    // (§3.2d containment).
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
+    add_counters(&mut game, bear, CounterType::Finality, 1);
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
+}
+
+// COVERS: ATOM-616.1-001
+#[test]
+fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
+    // CR 616.1 — "the affected object's controller ... chooses one to apply".
+    // A finality counter and a printed `Prevent` both want this creature's trip
+    // to the graveyard, so for the first time in this engine's life a
+    // `DecisionProvider` is asked which replacement to apply.
+    let mut game = setup_two_player_game();
+    let probe = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), 0);
+    add_counters(&mut game, probe, CounterType::Finality, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![0],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    // Index 0 is the printed ability: `gather` reads a permanent's abilities
+    // before its counters, and both come before the registry.
+    assert!(game.battlefield.contains_key(&probe), "the `Prevent` was chosen");
+    assert!(dp.is_empty(), "the prompt was consumed");
+}
+
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_choosing_the_other_replacement_takes_the_other_branch() {
+    // The same board, the other index. Two tests rather than one because a
+    // choice test that only ever picks index 0 cannot tell a real prompt from a
+    // hard-coded first candidate.
+    let mut game = setup_two_player_game();
+    let probe = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), 0);
+    add_counters(&mut game, probe, CounterType::Finality, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![1],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile, "the counter was chosen");
+}
+
+// COVERS: ATOM-616.1f-001
+// COVERS: ATOM-616.2-001
+#[test]
+fn test_the_loop_re_gathers_and_the_second_effect_applies_to_the_modified_event() {
+    // CR 616.1f — "once the chosen effect has been applied, this process is
+    // repeated ... until there are no more left to apply" — and CR 616.2, "a
+    // replacement effect can become applicable to an event as the result of
+    // another replacement effect that modifies the event".
+    //
+    // Both at once: an exile-watcher that could not have applied to the
+    // original graveyard-bound event becomes applicable only after the finality
+    // counter has rewritten the destination.
+    let mut game = setup_two_player_game();
+    let probe = put_on_battlefield(&mut game, exile_watcher("Exile Watcher"), 0);
+    add_counters(&mut game, probe, CounterType::Finality, 1);
+
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert!(
+        game.battlefield.contains_key(&probe),
+        "the finality counter redirected to exile, and only then did the \
+         exile-watcher have anything to prevent"
+    );
+    assert!(zone_changes(&game).is_empty());
+    assert_eq!(
+        game.battlefield[&probe].counter_count(CounterType::Finality),
+        1,
+        "122.1h removes no counter"
+    );
+}
+
+// COVERS: ATOM-614.5-001
+#[test]
+fn test_a_replacement_effect_does_not_apply_to_its_own_output() {
+    // CR 614.5 — "once a replacement effect has been applied to an event, it
+    // can't be applied again to the resulting events". A finality counter
+    // rewrites Battlefield→Graveyard into Battlefield→Exile; without the
+    // applied set the re-gather would find it applicable again only if its
+    // pattern still matched, so the sharper probe is an effect whose *output
+    // still matches its own pattern*.
+    let mut game = setup_two_player_game();
+    let probe = put_on_battlefield(&mut game, self_matching_probe("Ouroboros Probe"), 0);
+
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    // One application: Graveyard → Exile. A second would have sent it to
+    // Exile → Exile, which `perform_action` treats as a no-op, so the
+    // observable failure is the iteration cap rather than a wrong zone.
+    assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
+    assert_eq!(
+        zone_changes(&game),
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+    );
+}
+
+/// A creature that prevents its own trip to *exile*.
+///
+/// Only reachable as a second application: nothing sends this creature to exile
+/// on its own, so it can fire only after some other replacement has rewritten
+/// the destination — which is exactly CR 616.2.
+fn exile_watcher(name: &str) -> Arc<CardData> {
+    replacement_creature(
+        name,
+        ReplacementDef::new(
+            EventPattern::ZoneChange {
+                from: Some(Zone::Battlefield),
+                to: Some(Zone::Exile),
+                cause: None,
+                object: None,
+            },
+            AffectedSet::SourceOnly,
+            Rewrite::Prevent,
+        ),
+    )
+}
+
+/// A creature whose replacement rewrites any battlefield exit into an exile —
+/// so its **own output still matches its own pattern**.
+///
+/// The sharp probe for CR 614.5: an effect whose output no longer matches would
+/// terminate whether or not the applied set worked.
+fn self_matching_probe(name: &str) -> Arc<CardData> {
+    replacement_creature(
+        name,
+        ReplacementDef::new(
+            EventPattern::ZoneChange {
+                from: Some(Zone::Battlefield),
+                to: None,
+                cause: None,
+                object: None,
+            },
+            AffectedSet::SourceOnly,
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                to: Zone::Exile,
+                cause: ZoneChangeCause::Exiled,
+            }),
+        ),
+    )
+}
+
+/// A 2/2 whose only ability is one static replacement effect.
+fn replacement_creature(name: &str, def: ReplacementDef) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(def)),
+        })
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// CR 616.1 at four players
+// ---------------------------------------------------------------------------
+
+/// A `DecisionProvider` that records which player was asked, then delegates.
+///
+/// `ScriptedDecisionProvider` validates the *kind* of every decision but not
+/// its subject, and CR 616.1's whole content is *who* chooses. At two players
+/// "the affected object's controller" and "the player who isn't active" are the
+/// same answer, so the assertion only means something at four.
+struct RecordingProvider<'a> {
+    inner: &'a ScriptedDecisionProvider,
+    asked: &'a std::cell::RefCell<Vec<PlayerId>>,
+}
+
+impl DecisionProvider for RecordingProvider<'_> {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &mtgsim::ui::choice_types::ChoiceContext,
+        options: &[mtgsim::ui::choice_types::ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.asked.borrow_mut().push(player);
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &mtgsim::ui::choice_types::ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64 {
+        self.asked.borrow_mut().push(player);
+        self.inner.pick_number(game, player, context, min, max)
+    }
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &mtgsim::ui::choice_types::ChoiceContext,
+        total: u64,
+        buckets: &[mtgsim::ui::choice_types::ChoiceOption],
+        mins: &[u64],
+        maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.asked.borrow_mut().push(player);
+        self.inner.allocate(game, player, context, total, buckets, mins, maxs)
+    }
+    fn choose_ordering(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &mtgsim::ui::choice_types::ChoiceContext,
+        items: &[mtgsim::ui::choice_types::ChoiceOption],
+    ) -> Vec<usize> {
+        self.asked.borrow_mut().push(player);
+        self.inner.choose_ordering(game, player, context, items)
+    }
+}
+
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_the_chooser_is_the_affected_objects_controller_not_the_active_player() {
+    // CR 616.1 — "the affected object's controller (or its owner if it has no
+    // controller) or the affected player chooses". Not the controller of either
+    // *effect*, and not the active player.
+    //
+    // Four players, because APNAP with one nonactive player is the same answer
+    // as no APNAP at all (§10). Player 0 is active, the creature is player 2's,
+    // and the prompt has to reach player 2.
+    let mut game = setup_game(4);
+    game.active_player = 0;
+    let probe = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), 2);
+    add_counters(&mut game, probe, CounterType::Finality, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![1],
+    );
+    let asked = std::cell::RefCell::new(Vec::new());
+    let recording = RecordingProvider { inner: &dp, asked: &asked };
+    let ctx = ActionContext::new(&recording);
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert_eq!(*asked.borrow(), vec![2], "player 2 controls it; player 0 is active");
+    assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
+}
+
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_simultaneous_choices_are_offered_in_apnap_order() {
+    // CR 616.1's last sentence: "if two or more players have to make these
+    // choices at the same time, choices are made in APNAP order (see rule
+    // 101.4)". One batch, three creatures belonging to three different players,
+    // each with two applicable replacements — so three players must choose at
+    // once, and the order is active-player-first then turn order.
+    //
+    // The batch is built player-3-first on purpose: if the pipeline simply
+    // followed batch order the recorded sequence would be [3, 1, 2].
+    let mut game = setup_game(4);
+    game.active_player = 1;
+
+    let mut probes = Vec::new();
+    for owner in [3usize, 1, 2] {
+        let id = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), owner);
+        add_counters(&mut game, id, CounterType::Finality, 1);
+        probes.push(id);
+    }
+
+    let dp = ScriptedDecisionProvider::new();
+    for _ in 0..3 {
+        dp.expect_pick_n(
+            ChoiceKind::ChooseReplacementEffect { affected_object: None },
+            vec![1],
+        );
+    }
+    let asked = std::cell::RefCell::new(Vec::new());
+    let recording = RecordingProvider { inner: &dp, asked: &asked };
+    let ctx = ActionContext::new(&recording);
+
+    let batch: Vec<GameAction> = probes
+        .iter()
+        .map(|&object| GameAction::ZoneChange {
+            object,
+            from: Zone::Battlefield,
+            to: Zone::Graveyard,
+            cause: ZoneChangeCause::Sacrificed,
+        })
+        .collect();
+    game.execute_actions(batch, &ctx).unwrap();
+
+    assert_eq!(
+        *asked.borrow(),
+        vec![1, 2, 3],
+        "active player first, then turn order — not the order the batch was built in"
+    );
+}
+
+// COVERS-PARTIAL: ATOM-704.7-001
+#[test]
+fn test_batch_members_each_get_their_own_applied_set() {
+    // §4.2, and Kalitas's printed ruling is what pins it: CR 614.5 is per
+    // *event*, and batch members are separate events. **One** replacement
+    // effect, three simultaneous deaths, three applications.
+    //
+    // The shape matters. An effect keyed per-permanent (a counter) cannot tell
+    // a shared applied set from a per-event one, because each permanent's
+    // effect has its own instance id either way — a first draft of this test
+    // used counters and passed under a deliberately shared set. This one has a
+    // single source with an `AffectedSet::Filter`, so a shared set exiles the
+    // first creature and sends the other two to the graveyard.
+    let mut game = setup_two_player_game();
+    let _watcher = put_on_battlefield(&mut game, all_creatures_exile_watcher(), 0);
+    let ids: Vec<ObjectId> = (0..3)
+        .map(|_| place_bare(&mut game, vanilla_creature(2, 2, &[]), 0))
+        .collect();
+
+    let batch: Vec<GameAction> = ids
+        .iter()
+        .map(|&object| GameAction::ZoneChange {
+            object,
+            from: Zone::Battlefield,
+            to: Zone::Graveyard,
+            cause: ZoneChangeCause::Sacrificed,
+        })
+        .collect();
+    game.execute_actions(batch, &test_ctx()).unwrap();
+
+    for id in ids {
+        assert_eq!(
+            game.get_object(id).unwrap().zone,
+            Zone::Exile,
+            "one static replacement, applied once per death"
+        );
+    }
+}
+
+/// A creature with "if a creature would be put into a graveyard from the
+/// battlefield, exile it instead" — Kalitas's shape without Kalitas's filter.
+///
+/// One source, an `AffectedSet::Filter` over other objects: the only shape in
+/// which a batch-wide applied set is distinguishable from a per-event one.
+fn all_creatures_exile_watcher() -> Arc<CardData> {
+    replacement_creature(
+        "Exile Warden",
+        ReplacementDef::new(
+            EventPattern::ZoneChange {
+                from: Some(Zone::Battlefield),
+                to: Some(Zone::Graveyard),
+                cause: None,
+                object: None,
+            },
+            AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Creature) },
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                to: Zone::Exile,
+                cause: ZoneChangeCause::Exiled,
+            }),
+        ),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// The untap step (CR 502.1, 703.4c) — the turn-based action stun counters ride
+// ---------------------------------------------------------------------------
+
+// COVERS: ATOM-502.3-001
+// COVERS: ATOM-703.4c-001
+#[test]
+fn test_every_permanent_the_active_player_controls_untaps_as_one_event() {
+    // CR 502.3 / 703.4c — "the active player determines which permanents they
+    // control will untap. Then they untap them all simultaneously." Normally
+    // all of them, and *simultaneously* is not decorative: the untap step is
+    // one batch, so every `Untapped` event it emits carries one `BatchId`,
+    // which is what CR 603.2c's "whenever one or more permanents untap" will
+    // read.
+    //
+    // These two atoms were listed as ALREADY-IMPLEMENTED with no test since the
+    // corpus was written. RB is what makes them worth having one: each untap is
+    // now a replaceable proposal, so "all of them, at once" is a claim about
+    // the pipeline and not just about a loop.
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let mine: Vec<ObjectId> = (0..3)
+        .map(|_| place_bare(&mut game, vanilla_creature(2, 2, &[]), 0))
+        .collect();
+    let theirs = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+    for id in mine.iter().chain(std::iter::once(&theirs)) {
+        game.battlefield.get_mut(id).unwrap().tapped = true;
+    }
+
+    // Player 1's turn ends, player 0's begins — untap step runs for player 0.
+    game.active_player = 1;
+    pass_turn(&mut game);
+
+    for id in &mine {
+        assert!(!game.battlefield[id].tapped, "the active player's permanents untapped");
+    }
+    assert!(game.battlefield[&theirs].tapped, "CR 502.1 untaps only the active player's");
+
+    let batches: std::collections::HashSet<_> = game
+        .events
+        .records()
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::Untapped { .. }))
+        .map(|r| r.stamp.batch)
+        .collect();
+    assert_eq!(batches.len(), 1, "one event, not three: CR 502.1 says simultaneously");
+}
+
+// COVERS-PARTIAL: ATOM-122.1d-001
+#[test]
+fn test_a_stun_counter_survives_a_real_untap_step() {
+    // The same rule as the direct-proposal test, reached through the turn-based
+    // action instead. Worth its own test because the untap step is where
+    // CR 122.1d is actually met, and because routing that sweep through the
+    // pipeline is what made its *order* observable — the sweep builds its batch
+    // from `battlefield_ids_ordered` for exactly this reason.
+    //
+    // This does **not** cover ATOM-502.3-002. That atom's mechanism is a
+    // "doesn't untap during your untap step" *continuous effect* (Frost Titan,
+    // Winter Orb), which is a different thing from a CR 614 replacement: the
+    // permanent simply is not chosen to untap, and no event is replaced. It
+    // stays open.
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let stunned = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let free = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.battlefield.get_mut(&stunned).unwrap().tapped = true;
+    game.battlefield.get_mut(&free).unwrap().tapped = true;
+    add_counters(&mut game, stunned, CounterType::Stun, 1);
+
+    game.active_player = 1;
+    pass_turn(&mut game);
+
+    assert!(game.battlefield[&stunned].tapped, "the stun counter ate the untap");
+    assert_eq!(game.battlefield[&stunned].counter_count(CounterType::Stun), 0);
+    assert!(!game.battlefield[&free].tapped, "its neighbour untapped normally");
 }
