@@ -248,7 +248,11 @@ pub struct GameState {
     /// an ability *granted* by a Layer 6 row — is covered by
     /// `RegistryScopeSummary::any_granted_replacement`, so between them the gate
     /// is sound.
-    pub(crate) replacement_ability_sources: HashSet<ObjectId>,
+    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
+    /// inserts and `cleanup_zone_state` removes; a hand-written entry is a
+    /// wasted layer walk and a hand-written removal is a card that silently
+    /// stops working.
+    pub replacement_ability_sources: HashSet<ObjectId>,
 
     // --- Event log ---
     pub events: EventLog,

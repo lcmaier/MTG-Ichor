@@ -659,13 +659,17 @@ impl GameState {
             // shield counter, watching the destruction itself, has already
             // declined to apply.
             GameAction::Destroy { object, source } => {
+                // Loud, like `Tap`/`Untap`: destroying something that is not on
+                // the battlefield does nothing (CR 701.8b), and a caller that
+                // proposes it has not checked CR 608.2b's partial resolution.
+                // Both current callers do — `Primitive::Destroy` filters its
+                // targets and the SBA sweep only ever names permanents — so a
+                // lenient arm here would buy nothing except somewhere for a
+                // future bug to hide.
                 if !self.battlefield.contains_key(&object) {
-                    // CR 701.8b — destroying something that is not on the
-                    // battlefield does nothing. The caller checks legality
-                    // (CR 608.2b partial resolution); this is the SBA sweep's
-                    // and `Primitive::Destroy`'s shared safety net for an
-                    // object a *replacement* moved out from under them.
-                    return Ok(());
+                    return Err(format!(
+                        "Cannot destroy {}: not on the battlefield", object
+                    ));
                 }
                 self.execute_action(
                     GameAction::ZoneChange {

@@ -2,13 +2,12 @@ use std::collections::{BTreeMap, HashSet};
 
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
-    get_effective_controller, get_effective_name, get_effective_toughness, has_keyword,
+    get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
 };
-use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
-use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::ObjectId;
@@ -32,6 +31,11 @@ use crate::ui::decision::DecisionProvider;
 /// `CreatureDied`/`PlaneswalkerDied`/`LegendRuleSacrificed`/`AuraDied` event to
 /// emit after the batch. Those events are gone — a reader wants the zone change
 /// and its LKI frame — and the struct went with them.
+///
+/// **CR 704.5g does not come through here**; it uses [`sba_destroy`], because
+/// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
+/// not. That distinction is the whole of why regeneration and shield counters
+/// save a creature from lethal damage but not from zero toughness.
 fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameAction) {
     (
         id,
@@ -42,6 +46,17 @@ fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameActio
             cause,
         },
     )
+}
+
+/// CR 704.5g/704.5h — lethal damage and deathtouch damage, which CR 701.8b
+/// calls destruction.
+///
+/// The **outer** `Destroy` event rather than the inner zone change it lowers
+/// to, so that a CR 614.8 regeneration shield and a CR 122.1c shield counter
+/// have something to watch. Proposing the zone change directly would make a
+/// state-based death indistinguishable from every other trip to the graveyard.
+fn sba_destroy(id: ObjectId) -> (ObjectId, GameAction) {
+    (id, GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction })
 }
 
 impl GameState {
@@ -144,16 +159,22 @@ impl GameState {
             if effective_t <= 0 {
                 continue; // handled by 704.5f
             }
-            // Indestructible creatures are not destroyed by lethal damage (rule 702.12b)
-            if has_keyword(self, id, KeywordFlag::Indestructible) {
-                continue;
-            }
+            // **Indestructible is not checked here any more.** CR 704.5g's
+            // condition is lethal damage and says nothing about it; CR 701.8a
+            // is what stops the destruction, and CR 614.17 makes that a "can't"
+            // rather than a replacement effect. It is now asked once, in
+            // `engine::replacement::is_blocked`, for every destruction from
+            // either of CR 701.8b's routes — so `Primitive::Destroy` and this
+            // sweep can no longer disagree about it.
+            //
+            // Regeneration is likewise no longer a TODO here: a shield is a
+            // registered replacement effect watching `GameAction::Destroy`, and
+            // this proposal is that event.
             let entry = self.battlefield.get(&id).unwrap();
-            // TODO: check for regeneration
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
             if lethal {
-                deaths.push(sba_zone_change(id, ZoneChangeCause::DestroyedBySba));
+                deaths.push(sba_destroy(id));
             }
         }
 
@@ -277,8 +298,15 @@ impl GameState {
 
         if !deaths.is_empty() {
             let batch = deaths.into_iter().map(|(_, action)| action).collect();
-            self.execute_actions(batch, &actx)?;
-            any_performed = true;
+            // **The performed set, not the proposal.** CR 704.3 repeats the
+            // check only "if any state-based actions are performed", and a
+            // proposal is not a performance: an indestructible creature with
+            // lethal damage produces a `Destroy` that CR 614.17's "can't"
+            // drops, and a sweep that counted the proposal would re-check
+            // forever. This is the customer that earned `execute_actions` its
+            // return value back (§4.2).
+            let performed = self.execute_actions(batch, &actx)?;
+            any_performed |= !performed.is_empty();
         }
 
         // 704.5p — Equipment/Fortification attached to non-creature → unattach

@@ -1,4 +1,4 @@
-use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
@@ -248,25 +248,24 @@ impl GameState {
                 // both read. This was a loop of `execute_action` until
                 // 2026-08-26; §4.2 named this caller class ("any 'each
                 // player ...' effect") and RA-3 converted only two of the three.
+                // **Indestructible is no longer filtered here.** CR 701.8a
+                // makes it a "can't" (CR 614.17), not a replacement effect, so
+                // it belongs ahead of the pipeline rather than ahead of the
+                // proposal — `engine::replacement::is_blocked`. Filtering here
+                // was observationally right and structurally wrong: a "can't"
+                // that never becomes a proposal cannot be replaced by a
+                // CR 614.15 self-replacement (614.17c), and nothing downstream
+                // could tell "no such permanent" from "it can't be destroyed".
                 let mut batch = Vec::new();
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
-                            // CR 701.8a / 614.17: indestructible is a "can't",
-                            // checked ahead of the pipeline rather than being a
-                            // replacement. RB moves this into the performer of
-                            // `GameAction::Destroy`; until then it filters here.
-                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordFlag::Indestructible) {
-                                continue;
-                            }
-                            batch.push(GameAction::ZoneChange {
+                            batch.push(GameAction::Destroy {
                                 object: *id,
-                                from: crate::types::zones::Zone::Battlefield,
-                                to: crate::types::zones::Zone::Graveyard,
-                                cause: ZoneChangeCause::Destroyed,
+                                source: DestructionSource::Effect(ctx.source),
                             });
                         }
-                        // If not on battlefield, destroy does nothing (rule 701.7b)
+                        // If not on battlefield, destroy does nothing (rule 701.8b)
                     }
                 }
                 self.execute_actions(batch, &actx)?;
