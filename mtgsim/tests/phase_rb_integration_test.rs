@@ -14,11 +14,15 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuil
 use mtgsim::state::game_state::GameState;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::test_support::{
-    pass_turn, place_bare, put_on_battlefield, registered, setup_game, setup_two_player_game,
-    stock_libraries, test_ctx, vanilla_creature,
+    pass_turn, place_bare, put_on_battlefield, registered, set_attacking, set_blocked_by,
+    set_blocking, setup_game, setup_two_player_game, stock_libraries, test_ctx, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter};
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::types::effects::{
+    AffectedSet, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
+    SelectionFilter, TargetCount,
+};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
@@ -986,4 +990,265 @@ fn test_a_stun_counter_survives_a_real_untap_step() {
     assert!(game.battlefield[&stunned].tapped, "the stun counter ate the untap");
     assert_eq!(game.battlefield[&stunned].counter_count(CounterType::Stun), 0);
     assert!(!game.battlefield[&free].tapped, "its neighbour untapped normally");
+}
+
+// ---------------------------------------------------------------------------
+// Item 6 — consumer 2: regeneration (CR 701.19)
+// ---------------------------------------------------------------------------
+
+/// Resolve `Primitive::Regenerate` against one permanent, the way an activated
+/// ability's resolution would.
+fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
+    let dp = ScriptedDecisionProvider::new();
+    let rctx = ResolutionContext {
+        source,
+        controller: 0,
+        targets: vec![ResolvedTarget::Object(target)],
+    };
+    game.resolve_effect(
+        &Effect::Atom(Primitive::Regenerate, any_permanent()),
+        &rctx,
+        &dp,
+    )
+    .unwrap();
+}
+
+fn any_permanent() -> EffectRecipient {
+    EffectRecipient::Target(
+        SelectionFilter::Permanent(PermanentFilter::All),
+        TargetCount::Exactly(1),
+    )
+}
+
+/// A creature whose printed static ability regenerates it every time
+/// (CR 701.19b) — a Drudge Skeletons that needs no mana.
+fn static_regenerator(name: &str) -> Arc<CardData> {
+    replacement_creature(
+        name,
+        ReplacementDef::new(
+            EventPattern::Destroy { source: None },
+            AffectedSet::SourceOnly,
+            Rewrite::Prevent,
+        )
+        .regeneration(),
+    )
+}
+
+// COVERS: ATOM-701.19a-001
+// COVERS: ATOM-614.8-001
+// COVERS: ATOM-701.8c-001
+#[test]
+fn test_a_regeneration_shield_replaces_a_destruction() {
+    // CR 701.19a — "the next time [permanent] would be destroyed this turn,
+    // instead remove all damage marked on it and its controller taps it. If
+    // it's an attacking or blocking creature, remove it from combat."
+    //
+    // All four clauses, because the rider is the whole rule and a test that
+    // only checked survival would pass against a bare `Prevent`.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let blocker = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    set_attacking(&mut game, bear, 1);
+    set_blocked_by(&mut game, bear, vec![blocker]);
+    set_blocking(&mut game, blocker, vec![bear]);
+    game.battlefield.get_mut(&bear).unwrap().damage_marked = 2;
+
+    regenerate(&mut game, killer, bear);
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert!(game.battlefield.contains_key(&bear), "instead of being destroyed");
+    assert_eq!(game.battlefield[&bear].damage_marked, 0, "remove all damage marked on it");
+    assert!(game.battlefield[&bear].tapped, "its controller taps it");
+    assert!(game.battlefield[&bear].attacking.is_none(), "remove it from combat");
+    assert!(
+        game.battlefield[&blocker].blocking.as_ref().map(|b| b.blocking.is_empty()).unwrap_or(true),
+        "CR 506.4 — and its blocker stops blocking it"
+    );
+}
+
+#[test]
+fn test_regeneration_that_did_not_heal_would_die_on_the_next_check() {
+    // Why the rider's damage clause is load-bearing rather than flavour: the
+    // shield is `Uses::Once`, so a creature that survived with lethal damage
+    // still marked meets CR 704.5g on the very next state-based check with
+    // nothing left to spend.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    game.battlefield.get_mut(&bear).unwrap().damage_marked = 2;
+
+    regenerate(&mut game, killer, bear);
+    let dp = ScriptedDecisionProvider::new();
+    game.check_state_based_actions(&dp).unwrap();
+
+    assert!(game.battlefield.contains_key(&bear));
+    assert_eq!(game.battlefield[&bear].damage_marked, 0);
+
+    // Second check: nothing to destroy, because the damage is gone.
+    assert!(!game.check_state_based_actions(&dp).unwrap());
+    assert!(game.battlefield.contains_key(&bear));
+}
+
+// COVERS: ATOM-701.19a-002
+#[test]
+fn test_a_shield_protects_once_and_the_second_destruction_gets_through() {
+    // "The **next** time" — `Uses::Once`, consumed by removing the registry
+    // row, so the second destruction in the same turn finds nothing.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    regenerate(&mut game, killer, bear);
+    assert_eq!(game.replacement_effects.len(), 1);
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
+        &test_ctx(),
+    )
+    .unwrap();
+    assert!(game.battlefield.contains_key(&bear));
+    assert_eq!(game.replacement_effects.len(), 0, "the use was consumed");
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
+        &test_ctx(),
+    )
+    .unwrap();
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+}
+
+// COVERS: ATOM-701.19b-001
+#[test]
+fn test_static_regeneration_applies_every_time() {
+    // CR 701.19b — "if the effect of a *static ability* regenerates a
+    // permanent, it replaces destruction with an alternate effect **each
+    // time**". `Uses::Static`, so nothing is consumed and the second
+    // destruction is replaced too.
+    let mut game = setup_two_player_game();
+    let skeleton = put_on_battlefield(&mut game, static_regenerator("Drudge Probe"), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    for _ in 0..3 {
+        game.execute_action(
+            GameAction::Destroy {
+                object: skeleton,
+                source: DestructionSource::Effect(killer),
+            },
+            &test_ctx(),
+        )
+        .unwrap();
+        assert!(game.battlefield.contains_key(&skeleton));
+    }
+    assert!(zone_changes(&game).is_empty());
+}
+
+// COVERS: ATOM-701.19c-001
+#[test]
+fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
+    // CR 701.19c — "effects that say that a permanent can't be regenerated
+    // don't preclude such abilities from being activated or such spells from
+    // being cast; rather, they cause regeneration shields to **not be
+    // applied**."
+    //
+    // Both halves asserted, because only the second one distinguishes this
+    // reading from the naive one: the shield is still in the registry
+    // afterwards, unspent.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    regenerate(&mut game, killer, bear);
+    let dp = ScriptedDecisionProvider::new();
+    let rctx = ResolutionContext {
+        source: killer,
+        controller: 1,
+        targets: vec![ResolvedTarget::Object(bear)],
+    };
+    game.resolve_effect(
+        &Effect::Atom(Primitive::CantBeRegenerated, any_permanent()),
+        &rctx,
+        &dp,
+    )
+    .unwrap();
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+    assert_eq!(
+        game.replacement_effects.len(),
+        1,
+        "the shield was withheld, not spent — CR 701.19c blocks application, not creation"
+    );
+}
+
+#[test]
+fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
+    // The flag is narrow by construction: `is_regeneration` has exactly one
+    // reader, and a finality counter on the same creature is untouched by it.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    add_counters(&mut game, bear, CounterType::Finality, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let rctx = ResolutionContext {
+        source: killer,
+        controller: 1,
+        targets: vec![ResolvedTarget::Object(bear)],
+    };
+    game.resolve_effect(
+        &Effect::Atom(Primitive::CantBeRegenerated, any_permanent()),
+        &rctx,
+        &dp,
+    )
+    .unwrap();
+
+    game.execute_action(
+        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
+}
+
+#[test]
+fn test_an_unspent_shield_expires_at_end_of_turn() {
+    // "This turn" — `Duration::UntilEndOfTurn`, expiring through the same
+    // CR 514.2 cleanup hook the continuous-effect registry uses.
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+
+    regenerate(&mut game, killer, bear);
+    assert_eq!(game.replacement_effects.len(), 1);
+
+    pass_turn(&mut game);
+    assert_eq!(game.replacement_effects.len(), 0);
+}
+
+#[test]
+fn test_a_shield_dies_with_the_permanent_that_made_it() {
+    // `cleanup_zone_state` retires replacement rows by source, the way it
+    // retires continuous effects (CR 611.2a).
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let maker = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
+
+    regenerate(&mut game, maker, bear);
+    assert_eq!(game.replacement_effects.len(), 1);
+
+    game.change_zone(maker, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+    assert_eq!(game.replacement_effects.len(), 0);
 }

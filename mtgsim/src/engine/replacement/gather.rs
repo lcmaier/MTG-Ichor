@@ -212,6 +212,17 @@ fn push_if_applicable(
     action: &GameAction,
     affected: Affected,
 ) {
+    // CR 701.19c — "effects that say that a permanent can't be regenerated ...
+    // cause regeneration shields to **not be applied**". Withheld at the door,
+    // which is what makes the rule's distinction real: the shield still exists,
+    // is still not spent, and is still there for a later turn.
+    if instance.def.is_regeneration {
+        if let Affected::Object(id) = affected {
+            if game.cant_be_regenerated.contains(&id) {
+                return;
+            }
+        }
+    }
     if applies_to(game, &instance, action, affected) {
         out.push(instance);
     }

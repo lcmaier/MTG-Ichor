@@ -82,6 +82,19 @@ pub struct ReplacementDef {
     /// How many times it can fire.
     pub uses: Uses,
 
+    /// Is this a CR 701.19 regeneration shield?
+    ///
+    /// **One rule reads it, and it is a rules-level classification rather than
+    /// per-mechanic variety.** CR 701.19c: "effects that say that a permanent
+    /// can't be regenerated ... cause regeneration shields to not be applied" —
+    /// so the pipeline has to be able to recognise a regeneration shield in
+    /// order to withhold it, and nothing about the shield's pattern, rewrite or
+    /// rider distinguishes it from any other `Prevent`-with-a-rider.
+    ///
+    /// A second reader would be the smell. This is not the place to record what
+    /// a replacement effect *is about*; that is `pattern`.
+    pub is_regeneration: bool,
+
     /// CR 903.9b is an explicit exception to CR 614.5 and is **the only one in
     /// the rules**. Must not grow a second user without a CR cite.
     pub exempt_from_614_5: bool,
@@ -364,6 +377,7 @@ impl ReplacementDef {
             then: None,
             class: ReplacementClass::Other,
             uses: Uses::Static,
+            is_regeneration: false,
             exempt_from_614_5: false,
             optional: false,
         }
@@ -378,6 +392,13 @@ impl ReplacementDef {
     /// Builder: one application, then the effect is gone (CR 701.19a).
     pub fn once(mut self) -> Self {
         self.uses = Uses::Once;
+        self
+    }
+
+    /// Builder: mark this as a CR 701.19 regeneration shield, which CR 701.19c
+    /// can withhold.
+    pub fn regeneration(mut self) -> Self {
+        self.is_regeneration = true;
         self
     }
 

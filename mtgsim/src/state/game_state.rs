@@ -254,6 +254,20 @@ pub struct GameState {
     /// stops working.
     pub replacement_ability_sources: HashSet<ObjectId>,
 
+    /// Permanents that CR 701.19c has said can't be regenerated, this turn.
+    ///
+    /// > 701.19c ... Effects that say that a permanent can't be regenerated
+    /// > don't preclude such abilities from being activated or such spells from
+    /// > being cast; rather, they cause regeneration shields to not be applied.
+    ///
+    /// So this is read at *gather* time and withholds the shield, rather than
+    /// stopping anything from making one. Keyed on the permanent because the
+    /// rule is about the permanent — "**it** can't be regenerated" — and the
+    /// shield it withholds may not exist yet.
+    ///
+    /// Cleared at the CR 514.2 cleanup with everything else that lasts a turn.
+    pub(crate) cant_be_regenerated: HashSet<ObjectId>,
+
     // --- Event log ---
     pub events: EventLog,
 
@@ -402,6 +416,7 @@ impl GameState {
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementRegistry::new(),
             replacement_ability_sources: HashSet::new(),
+            cant_be_regenerated: HashSet::new(),
             events: EventLog::new(),
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
@@ -548,6 +563,59 @@ impl GameState {
         let timestamp = self.allocate_timestamp();
         if let Some(entry) = self.battlefield.get_mut(&id) {
             entry.add_counters(counter_type, n, timestamp);
+        }
+    }
+
+    /// Remove a permanent from combat (CR 506.4).
+    ///
+    /// > 506.4. A permanent is removed from combat if it leaves the
+    /// > battlefield, if its controller changes, if it phases out, or if an
+    /// > effect specifically says it's removed from combat. ... A creature
+    /// > that's removed from combat stops being an attacking, blocking,
+    /// > blocked, and/or unblocked creature.
+    ///
+    /// Both directions, which is the part a one-line `entry.attacking = None`
+    /// would get wrong: an attacker leaving combat also stops being *blocked
+    /// by* its blockers, and a blocker leaving stops appearing in the
+    /// attackers' `blocked_by` lists. CR 506.4b keeps the attacker blocked in
+    /// the sense that matters for damage — "an attacking creature that's been
+    /// blocked remains blocked even if all creatures blocking it are removed
+    /// from combat" — so `is_blocked` is deliberately left alone.
+    pub(crate) fn remove_from_combat(&mut self, id: ObjectId) {
+        let Some(entry) = self.battlefield.get(&id) else {
+            return;
+        };
+        let was_blocked_by = entry
+            .attacking
+            .as_ref()
+            .map(|a| a.blocked_by.clone())
+            .unwrap_or_default();
+        let was_blocking = entry
+            .blocking
+            .as_ref()
+            .map(|b| b.blocking.clone())
+            .unwrap_or_default();
+
+        if let Some(entry) = self.battlefield.get_mut(&id) {
+            entry.attacking = None;
+            entry.blocking = None;
+        }
+        // This creature was attacking: its blockers stop blocking it.
+        for blocker in was_blocked_by {
+            if let Some(b) = self.battlefield.get_mut(&blocker) {
+                if let Some(info) = b.blocking.as_mut() {
+                    info.blocking.retain(|&a| a != id);
+                }
+            }
+        }
+        // This creature was blocking: the attackers stop being blocked by it.
+        // CR 506.4b leaves them *blocked* — they simply have no blockers.
+        for attacker in was_blocking {
+            if let Some(a) = self.battlefield.get_mut(&attacker) {
+                if let Some(info) = a.attacking.as_mut() {
+                    info.blocked_by.retain(|&b| b != id);
+                }
+            }
         }
     }
 

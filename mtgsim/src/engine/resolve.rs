@@ -8,7 +8,11 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
 };
+use crate::oracle::characteristics::get_effective_controller;
+use crate::state::replacement_effects::RegisteredReplacement;
+use crate::types::effects::{PermanentFilter, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -549,6 +553,93 @@ impl GameState {
                 Ok(())
             }
 
+            // === Regeneration (CR 701.19) ===
+
+            // CR 701.19a — "if the effect of a resolving spell or ability
+            // regenerates a permanent, it creates a replacement effect that
+            // protects the permanent the next time it would be destroyed this
+            // turn."
+            //
+            // Every part of the shield's shape comes straight from the rule:
+            // `Uses::Once` is "the next time", `Duration::UntilEndOfTurn` is
+            // "this turn", `Prevent` is "instead", and the `then` rider is the
+            // sentence the rule spells out — which is why the engine builds it
+            // here rather than asking a card author to spell it out again.
+            Primitive::Regenerate => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    let controller = get_effective_controller(self, object)
+                        .unwrap_or(ctx.controller);
+                    let def = ReplacementDef::new(
+                        EventPattern::Destroy { source: None },
+                        AffectedSet::Fixed(vec![object]),
+                        Rewrite::Prevent,
+                    )
+                    .once()
+                    .regeneration()
+                    .with_then(regeneration_rider());
+                    self.replacement_effects.add(RegisteredReplacement {
+                        id: 0,
+                        source: ctx.source,
+                        controller,
+                        duration: Duration::UntilEndOfTurn,
+                        created_on_turn: self.turn_number,
+                        def,
+                    });
+                }
+                Ok(())
+            }
+
+            // CR 701.19c — blocks application, not creation. Recorded against
+            // the permanent rather than against any shield, because the rule is
+            // a property of the permanent ("*it* can't be regenerated") and the
+            // shield that will be withheld may not exist yet: "Destroy target
+            // creature. It can't be regenerated." resolves both halves before
+            // anyone can respond with a regeneration ability, but a shield made
+            // *earlier* in the turn is withheld too.
+            Primitive::CantBeRegenerated => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    self.cant_be_regenerated.insert(object);
+                }
+                Ok(())
+            }
+
+            // === Combat and damage housekeeping ===
+
+            Primitive::Tap => {
+                // One batch: CR 608.2f processes a spell's actions over several
+                // objects simultaneously.
+                let batch = self
+                    .collect_battlefield_targets(ctx)
+                    .into_iter()
+                    .map(|object| GameAction::Tap { object })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // CR 506.4. Writes `BattlefieldEntity` directly: no card replaces
+            // "is removed from combat" and no ability triggers on it, so there
+            // is no `GameAction` to propose through and inventing one would be
+            // vocabulary with no reader.
+            Primitive::RemoveFromCombat => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    self.remove_from_combat(object);
+                }
+                Ok(())
+            }
+
+            // The on-demand form of the CR 514.2 cleanup wipe, and a direct
+            // write for the same reason it is.
+            Primitive::RemoveAllDamage => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    if let Some(entry) = self.battlefield.get_mut(&object) {
+                        entry.damage_marked = 0;
+                        entry.damaged_by_deathtouch = false;
+                    }
+                }
+                Ok(())
+            }
+
             // === Counters (CR 122) ===
             //
             // Both propose rather than writing `BattlefieldEntity.counters`.
@@ -631,8 +722,7 @@ impl GameState {
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
             | Primitive::CreateToken(_, _)
-            | Primitive::Fight
-            | Primitive::Tap => {
+            | Primitive::Fight => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
         }
@@ -1305,4 +1395,27 @@ mod tests {
         let result = game.attach_aura_on_etb(creature_id, 0, &test_dp()).unwrap();
         assert!(!result);
     }
+}
+
+/// CR 701.19a's rider, verbatim.
+///
+/// > ... instead remove all damage marked on it and its controller taps it. If
+/// > it's an attacking or blocking creature, remove it from combat.
+///
+/// In that order, because the order is observable in the event log once
+/// triggers land. `EffectRecipient::Target` names the shielded permanent: a
+/// rider resolves against a `ResolutionContext` whose single resolved target is
+/// the affected object (`GameState::resolve_rider`).
+fn regeneration_rider() -> Effect {
+    let it = || {
+        EffectRecipient::Target(
+            SelectionFilter::Permanent(PermanentFilter::All),
+            TargetCount::Exactly(1),
+        )
+    };
+    Effect::Sequence(vec![
+        Effect::Atom(Primitive::RemoveAllDamage, it()),
+        Effect::Atom(Primitive::Tap, it()),
+        Effect::Atom(Primitive::RemoveFromCombat, it()),
+    ])
 }

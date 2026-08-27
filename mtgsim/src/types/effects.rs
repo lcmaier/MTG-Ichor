@@ -446,7 +446,48 @@ pub enum Primitive {
     /// Create N tokens (rule 701.7)
     CreateToken(TokenDef, AmountExpr),
 
+    // === Regeneration (rule 701.19) ===
+    /// Regenerate a permanent (CR 701.19a).
+    ///
+    /// A *keyword action*, not a shorthand: CR 701.19a spells out what it means
+    /// and the engine implements that text rather than a paraphrase — "the next
+    /// time [permanent] would be destroyed this turn, instead remove all damage
+    /// marked on it and its controller taps it. If it's an attacking or
+    /// blocking creature, remove it from combat."
+    ///
+    /// This is the one replacement effect Phase RB creates from a *resolution*,
+    /// which is why it is a primitive rather than an `Effect::Replacement`: it
+    /// knows both its CR 614.3 duration (this turn) and its affected set (the
+    /// targets), and a card-authored `ReplacementDef` can know neither.
+    Regenerate,
+
+    /// "It can't be regenerated" (CR 701.19c).
+    ///
+    /// **Blocks application, not creation.** "Effects that say that a permanent
+    /// can't be regenerated don't preclude such abilities from being activated
+    /// or such spells from being cast; rather, they cause regeneration shields
+    /// to not be applied." So a shield made afterward still exists, is still
+    /// spent by nothing, and simply does not apply to this permanent.
+    CantBeRegenerated,
+
     // === Combat ===
+    /// Remove a permanent from combat (CR 506.4).
+    ///
+    /// Half of CR 701.19a's regeneration rider. Not a zone change and not
+    /// CR 614-observable: no card replaces "is removed from combat", so it has
+    /// no `GameAction` and writes `BattlefieldEntity` directly, the way the
+    /// cleanup step's damage wipe does.
+    RemoveFromCombat,
+
+    /// Remove all damage marked on a permanent (CR 120.3, the CR 514.2 wipe's
+    /// on-demand form).
+    ///
+    /// The other half of CR 701.19a's rider, and the half that makes
+    /// regeneration mean anything: without it a regenerated creature meets
+    /// CR 704.5g again on the very next state-based check, spends nothing
+    /// (the shield is `Uses::Once` and already gone), and dies.
+    RemoveAllDamage,
+
     /// Two creatures fight (rule 701.14)
     Fight,
     /// Tap a permanent (rule 701.26)
