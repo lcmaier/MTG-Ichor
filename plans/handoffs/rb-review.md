@@ -249,6 +249,80 @@ same question is not asked twice.
 
 ---
 
+---
+
+## The plan — what happens in what order, and what blocks the merge
+
+**Read this before starting a session.** It exists so that a cold session knows
+whether its theme is on the branch or after it, and so nobody re-derives the
+ordering.
+
+### What the review actually found
+
+**No confirmed correctness defect.** 744 tests green, zero warnings, `fuzz_games`
+identical to the pre-RB baseline, and the three RA invariants still grep-provable.
+Of 36 numbered findings: **one cosmetic defect** (B6, a malformed error string)
+and **one untested path that might be one** (F2, Partner commanders). Everything
+else is naming, comment accuracy, process, or a design question about work that
+has not started.
+
+That distinction is the whole plan. **Legibility debt is recoverable; a wrong
+pipeline would not have been.** The reason it does not *feel* recoverable is
+specific and fixable: twelve new types landed at once with no map (see "the
+as-built map" below).
+
+### On the branch, before #62 merges
+
+Two sessions. Both are small, neither touches behaviour, and both are things it
+would be actively bad to ship into `main` as-is — this project's docs are
+load-bearing, so a wrong comment is a wrong doc.
+
+1. **Theme G — process.** First, because it changes how every later fix is
+   written: G2's comment rule is what themes C and E apply as they go. G3
+   (register Kalitas, split the fuzz pool in two) is a code change with a
+   baseline consequence and can move to its own PR if it grows.
+2. **Theme B — doc and comment accuracy.** Seven rows, all local, zero test
+   impact. B6 is the one line of code.
+
+Then **merge #62**.
+
+### After the merge, as follow-up PRs on `main`
+
+3. **Themes C + E — naming and hygiene.** One PR. Mechanical renames plus
+   `MAX_616_1F_ITERATIONS`'s home and `mod.rs`'s shape. Do it with theme G's
+   comment rule in hand, and it will shrink the file it touches.
+4. **Themes D + F — scaling and rules questions.** Mostly `defer` entries in
+   `codebase-state.md` rather than code. F2's test is the exception and is
+   worth pulling forward into step 3.
+
+### Theme A runs in parallel, and it has a deadline
+
+The "can't" model is a design document, not a fix session, and it does **not**
+block #62 or RC-1 through RC-3. It **does** block **RC-4**, which carries
+CR 614.17d ("can't" effects that modify how a permanent enters). So:
+
+> **A can start any time and must land before RC-4.**
+
+That is the only hard ordering constraint the review created.
+
+### The as-built map — the antidote to "I lost the mental model"
+
+Twelve types landed in one PR with no summary of what they are, which is a real
+cost of the size and not a personal failing. The fix is one short **as-built**
+section in `replacement-architecture.md` — the doc that is already the authority
+— giving each shipped type one line, marking which are **closed** (`Rewrite`,
+`ReplacementClass`, `Uses`) and which are **growing** (`EventPattern`,
+`GameActionTemplate`, `ZoneChangeCause`), and tracing one proposed action end to
+end from `execute_actions` to a performed `GameEvent`.
+
+It resolves C7 at the same time: `engine/replacement/mod.rs` currently carries
+that essay, and it should carry a pointer.
+
+**Write it as part of theme B**, since it is the same kind of work and the same
+kind of session.
+
+---
+
 ## Notes for whoever fixes these
 
 - **`git checkout --` on a file with uncommitted work loses it.** This bit
