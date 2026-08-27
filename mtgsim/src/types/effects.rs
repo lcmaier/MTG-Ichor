@@ -84,6 +84,19 @@ pub enum PermanentFilter {
     ByController(PlayerRef),
     /// Power less than or equal to N (for "creature with power N or less")
     PowerLE(i32),
+    /// CR 111.1 — the permanent is a token. "**Nontoken**" is `Not(Token)`.
+    ///
+    /// The first `PermanentFilter` leaf Phase RB added, and it earns its place
+    /// on breadth rather than on one card: "nontoken" is a printed quality on
+    /// hundreds of cards (Kalitas, Anointed Procession's mirror image, every
+    /// "nontoken creature you control" anthem), and it is not derivable from
+    /// any other leaf — `is_token` is a property of the *object*, not of its
+    /// characteristics, so no combination of type, colour or controller
+    /// reaches it.
+    ///
+    /// It is a leaf rather than a `Not`-only helper because `Not` already
+    /// composes; adding `Nontoken` as well would give one quality two spellings.
+    Token,
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     Not(Box<PermanentFilter>),
 }

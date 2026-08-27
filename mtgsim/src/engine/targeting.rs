@@ -250,6 +250,11 @@ impl GameState {
                     }
                 })
             }
+            // CR 111.1 / 707.2 — being a token is a property of the *object*,
+            // not of its characteristics, so it is read off `GameObject` rather
+            // than off the layer frame. A copy effect does not make a nontoken
+            // permanent a token (CR 707.2: copiable values do not include it).
+            PermanentFilter::Token => Ok(obj.is_token),
             PermanentFilter::PowerLE(max_power) => {
                 get_effective_power(self, id)
                     .map(|p| p <= *max_power)

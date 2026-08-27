@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
 use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
@@ -1251,4 +1252,225 @@ fn test_a_shield_dies_with_the_permanent_that_made_it() {
     game.change_zone(maker, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
         .unwrap();
     assert_eq!(game.replacement_effects.len(), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Item 7 — consumer 3: Kalitas, Traitor of Ghet
+// ---------------------------------------------------------------------------
+
+/// Every token on the battlefield, by name.
+fn tokens(game: &GameState) -> Vec<String> {
+    let mut names: Vec<String> = game
+        .battlefield
+        .keys()
+        .filter_map(|id| {
+            let obj = game.objects.get(id)?;
+            obj.is_token.then(|| obj.card_data.name.clone())
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn test_kalitas_exiles_an_opponents_dying_creature_and_makes_a_zombie() {
+    // "If a nontoken creature an opponent controls would die, instead exile
+    // that card and create a 2/2 black Zombie creature token."
+    //
+    // Both halves: the `Instead` retargets the destination, and the CR 615.5
+    // rider makes the token afterwards.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
+    assert_eq!(
+        zone_changes(&game),
+        vec![(victim, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+    );
+}
+
+#[test]
+fn test_kalitas_ignores_its_controllers_own_creatures() {
+    // "An opponent controls". `PlayerRef::Opponent` is a predicate — controlled
+    // by someone who isn't you — which is CR 102.2 at two players and CR 102.3's
+    // set in multiplayer, without the type having to lie.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let mine = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    game.change_zone(mine, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(mine).unwrap().zone, Zone::Graveyard);
+    assert!(tokens(&game).is_empty());
+}
+
+#[test]
+fn test_kalitas_ignores_tokens() {
+    // "A **nontoken** creature", and the leaf this card forced into
+    // `PermanentFilter`. CR 707.2 excludes tokenness from copiable values, so
+    // it is a property of the `GameObject` that no layer walk can reach — which
+    // is why no combination of the existing leaves could have expressed it.
+    //
+    // Also the one clause with a rules *reason* rather than a flavour one: a
+    // token that Kalitas exiled would cease to exist (CR 704.5d) and the
+    // exchange would make an unbounded loop with any token-death engine.
+    let mut game = setup_two_player_game();
+    let kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let opponent_token = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    game.objects.get_mut(&opponent_token).unwrap().is_token = true;
+
+    game.change_zone(opponent_token, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(opponent_token).unwrap().zone, Zone::Graveyard);
+    assert!(tokens(&game).iter().all(|n| n != "Zombie"), "no Zombie was made");
+    assert!(game.battlefield.contains_key(&kalitas));
+}
+
+#[test]
+fn test_kalitas_does_not_replace_its_own_death() {
+    // `AffectedSet::Filter` is CR 614.12's "a general subset of permanents", and
+    // the subset is the *opponent's* creatures. `SourceOnly` would have made
+    // Kalitas immortal, which a test asserting only "the victim was exiled"
+    // would never have noticed.
+    let mut game = setup_two_player_game();
+    let kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+
+    game.change_zone(kalitas, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(kalitas).unwrap().zone, Zone::Graveyard);
+    assert!(tokens(&game).is_empty());
+}
+
+#[test]
+fn test_kalitas_catches_a_creature_destroyed_by_lethal_damage() {
+    // "Dies" is CR 700.4 — a permanent put into a graveyard from the
+    // battlefield — not CR 701.8's "destroyed". Kalitas therefore has to see a
+    // CR 704.5g death, which reaches it only because `GameAction::Destroy`'s
+    // performer proposes the inner `ZoneChange` through the pipeline.
+    //
+    // A `cause` on Kalitas's pattern would narrow it to one route and every
+    // other kind of death would slip past; this test and the sacrifice test
+    // above are the pair that catches that.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+    game.battlefield.get_mut(&victim).unwrap().damage_marked = 2;
+
+    let dp = ScriptedDecisionProvider::new();
+    game.check_state_based_actions(&dp).unwrap();
+
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
+}
+
+// COVERS: ATOM-704.7-001
+#[test]
+fn test_kalitas_simultaneous_deaths_each_exile_and_make_a_zombie() {
+    // **Kalitas's own printed ruling, and §4.2's acid test.** When several
+    // opponent creatures die at the same time, every one of those cards is
+    // exiled and each makes a Zombie: one static replacement, applied once *per
+    // death*, because CR 614.5 is per event and batch members are separate
+    // events.
+    //
+    // Under a batch-wide applied set the first creature is exiled and the rest
+    // reach the graveyard — and no other Phase RB consumer can tell the two
+    // apart, because a counter-derived effect is keyed per permanent either way.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let victims: Vec<ObjectId> = (0..4)
+        .map(|_| {
+            let id = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+            game.battlefield.get_mut(&id).unwrap().damage_marked = 2;
+            id
+        })
+        .collect();
+
+    // The SBA sweep gathers all four against one board and performs them as one
+    // batch (CR 704.3), which is the only way the question comes up at all.
+    let dp = ScriptedDecisionProvider::new();
+    game.check_state_based_actions(&dp).unwrap();
+
+    for victim in &victims {
+        assert_eq!(
+            game.get_object(*victim).unwrap().zone,
+            Zone::Exile,
+            "every one of those cards is exiled"
+        );
+    }
+    assert_eq!(tokens(&game).len(), 4, "and each makes a Zombie");
+    assert!(
+        game.players[1].graveyard.is_empty(),
+        "nothing reached the graveyard"
+    );
+}
+
+#[test]
+fn test_the_kalitas_rider_runs_after_the_exile_it_rides_on() {
+    // §4.1a's timing contract on the card that motivated it: CR 615.5 puts the
+    // rest of the effect "immediately afterward", so the Zombie enters the
+    // battlefield *after* the creature it replaced has left it. Asserted on the
+    // event log, because the end state is identical either way — and the order
+    // is what a leaves-the-battlefield trigger will read.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let before = game.events.len();
+
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    let kinds: Vec<&'static str> = game
+        .events
+        .events()
+        .skip(before)
+        .map(|e| match e {
+            GameEvent::ZoneChange { .. } => "zone-change",
+            GameEvent::PermanentEnteredBattlefield { .. } => "token-entered",
+            _ => "other",
+        })
+        .collect();
+    assert_eq!(kinds, vec!["zone-change", "token-entered"]);
+}
+
+#[test]
+fn test_kalitas_and_a_finality_counter_are_one_choice_not_two_exiles() {
+    // Two replacement effects want one death and both send it to exile, so the
+    // *outcome* cannot tell them apart — which is exactly why this test asserts
+    // on the Zombie. CR 616.1 makes the affected creature's controller (the
+    // opponent!) choose one, and only Kalitas's makes a token.
+    //
+    // The chooser being the opponent is the sharp part: it is the controller of
+    // the *affected object*, not of either effect, so the player Kalitas is
+    // punishing is the one who decides whether it gets its Zombie.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+    add_counters(&mut game, victim, CounterType::Finality, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![1],
+    );
+    let asked = std::cell::RefCell::new(Vec::new());
+    let recording = RecordingProvider { inner: &dp, asked: &asked };
+    let ctx = ActionContext::new(&recording);
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert_eq!(*asked.borrow(), vec![1], "the affected creature's controller chooses");
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    assert!(
+        tokens(&game).is_empty(),
+        "index 1 is the finality counter — the battlefield sweep offers Kalitas \
+         first because Kalitas entered first"
+    );
 }

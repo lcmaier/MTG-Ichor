@@ -4,6 +4,8 @@ use crate::engine::layers::types::{
 };
 use crate::events::event::DamageTarget;
 use crate::objects::card_data::AbilityDef;
+use crate::objects::object::GameObject;
+use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
@@ -553,6 +555,44 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 701.7 — create a token.
+            //
+            // **Not a `GameAction`, and that is deliberate.** §3.1 schedules
+            // `CreateTokens { defs: Vec<TokenDef> }` for Phase RE, where the
+            // CR 614.16 doublers that replace it live (Doubling Season,
+            // Academy Manufactor, Chatterfang). Until one of those exists there
+            // is nothing to replace, and a token's *entering* is not a
+            // proposal either — CR 614.1c's ETB replacements are Phase RC's,
+            // and `place_on_battlefield` is still what a resolving permanent
+            // spell uses too.
+            //
+            // Kalitas's rider is the first customer, and it needs the tokens to
+            // exist, not to be replaceable.
+            Primitive::CreateToken(token_def, amount_expr) => {
+                let count = self.evaluate_amount(amount_expr, ctx)?;
+                let controller = self.resolve_player_for_self(recipient, ctx);
+                let data = token_card_data(token_def);
+                for _ in 0..count {
+                    // CR 111.2 — a token's owner is the player who controls the
+                    // effect that created it, and CR 111.1's `is_token` is what
+                    // makes CR 704.5d and `PermanentFilter::Token` able to see
+                    // it. Both are set before it reaches the battlefield,
+                    // because `register_static_effects` runs inside
+                    // `place_on_battlefield` and would otherwise register
+                    // against an object that does not yet know what it is.
+                    let mut obj = GameObject::new(data.clone(), controller, Zone::Battlefield);
+                    obj.is_token = true;
+                    let id = obj.id;
+                    self.add_object(obj);
+                    self.place_on_battlefield(id, controller);
+                    self.events.emit(crate::events::event::GameEvent::PermanentEnteredBattlefield {
+                        object_id: id,
+                        controller,
+                    });
+                }
+                Ok(())
+            }
+
             // === Regeneration (CR 701.19) ===
 
             // CR 701.19a — "if the effect of a resolving spell or ability
@@ -721,7 +761,6 @@ impl GameState {
             | Primitive::Discard(_)
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
-            | Primitive::CreateToken(_, _)
             | Primitive::Fight => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
@@ -1418,4 +1457,32 @@ fn regeneration_rider() -> Effect {
         Effect::Atom(Primitive::Tap, it()),
         Effect::Atom(Primitive::RemoveFromCombat, it()),
     ])
+}
+
+/// Lower a [`TokenDef`] into the `CardData` its `GameObject` reads.
+///
+/// CR 111.4: "a token has the characteristics of the spell or ability that
+/// created it" — and no mana cost (CR 111.6 makes its mana value 0), which
+/// falls out of `CardDataBuilder`'s default rather than being set.
+///
+/// One `Arc` per `CreateToken` resolution, shared by every token that
+/// resolution makes. They are separate objects with separate `ObjectId`s; what
+/// they share is their printed characteristics, which is exactly what
+/// `Arc<CardData>` means everywhere else in this engine.
+fn token_card_data(def: &crate::types::effects::TokenDef) -> std::sync::Arc<crate::objects::card_data::CardData> {
+    let mut builder = crate::objects::card_data::CardDataBuilder::new(&def.name)
+        .power_toughness(def.power, def.toughness);
+    for color in &def.colors {
+        builder = builder.color(*color);
+    }
+    for card_type in &def.types {
+        builder = builder.card_type(*card_type);
+    }
+    for subtype in &def.subtypes {
+        builder = builder.subtype(subtype.clone());
+    }
+    for keyword in &def.keywords {
+        builder = builder.keyword(*keyword);
+    }
+    builder.build()
 }
