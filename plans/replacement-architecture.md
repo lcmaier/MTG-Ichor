@@ -1137,14 +1137,14 @@ the clause with no devotion arithmetic in the way.
 evidence the look-ahead is unboundedly hairy. What they actually produced is a
 single sentence with a table behind it and a test:
 `test_god_entering_does_not_count_itself_for_devotion`. That is the shape to
-insist on for the rest of RC-B — an unintuitive ruling that reduces to a
+insist on for the rest of RC-4 — an unintuitive ruling that reduces to a
 mechanical rule is fine; one that does not is a signal to stop and re-read the
 CR before writing code.
 
 ### 5b. Three corrections from a judge-corpus pass (2026-08-26)
 
 Five card interactions were put to this design by the owner. Two confirm it, one
-moves the RC Part A/B seam, and two add rules it did not state.
+moves the RC seam (see §9's RC-1…RC-4 split), and two add rules it did not state.
 
 **The overlay is about one object, and the rest of the board is read as it
 actually is — second worked example.** Elvish Archdruid ("Other Elf creatures you
@@ -1188,10 +1188,10 @@ copy `Rewrite` is a *set* of the copiable values, not a modification of them
 (CR 707.2), so a second copy-on-enter replacement discards the first's result
 *and* its "except ..." clauses. §3.2b's algebra must not model copy as a
 composable modify, and §3.2c's 0/574 completeness claim was measured without
-copy-on-enter in scope — re-check it when Layer 1 lands and RC-B fills the
+copy-on-enter in scope — re-check it when Layer 1 lands and RC-4 fills the
 CR 616.1c bucket.
 
-### 5c. Dress Down moves the Part A/B seam
+### 5c. Dress Down moves the RC seam
 
 **The finding.** Dress Down ("Creatures lose all abilities") is on the
 battlefield; a Clone is cast. Clone's "You may have this creature enter as a copy
@@ -1204,7 +1204,7 @@ rather than a static, and its Gatherer ruling is explicit — a permanent it
 returns "will lose that ability before it can trigger… before it can apply…
 [including] Clone's ability that causes it to enter as a copy".
 
-**Why this is not just another RC-B card.** §5 split RC on the claim that Part A
+**Why this is not just another RC-4 card.** §5 split RC on the claim that its first half
 handles "ETB replacements whose applicability does not depend on the frame —
 `AffectedSet::SourceOnly`, unconditional… 'this land enters tapped'". That claim
 is false, and Dress Down is the proof: whether the entering land *has* its
@@ -1216,26 +1216,28 @@ questions into one:
 2. **Which replacements apply to this event?** §5's clauses, the question the
    overlay was designed for.
 
-Question 1 needs exactly the piece Part B was going to build: the membership gate
+Question 1 needs exactly the piece the overlay half was going to build: the membership gate
 at `compute.rs:622`, which returns `false` for any `AffectedSet::Filter` effect
 against an object not in `game.battlefield` — so today an entering Clone matches
 no filter, Dress Down included, and keeps its ability.
 
-**The seam moves, the split survives.** Part A takes the membership gate and the
-frame's ability list — enough to ask "what abilities would this object have on the
-battlefield", which is the whole of question 1. Part B keeps clause (1)'s pending
-`EnterMods`, the filter-based *applicability* of other permanents' replacements
-(Orb of Dreams), and the 614.13a/b exclusion sets. Part A is still the smaller,
-lower-risk half; it is just not overlay-free, and shipping it overlay-free would
-enter a Dress Downed Clone as a copy.
+**The seam moves, the split survives.** The membership gate and the frame's
+ability list — enough to ask "what abilities would this object have on the
+battlefield", which is the whole of question 1 — land in **RC-3**, ahead of the
+overlay. **RC-4** keeps clause (1)'s pending `EnterMods`, the filter-based
+*applicability* of other permanents' replacements (Orb of Dreams), and the
+614.13a/b exclusion sets. The earlier half is still the smaller, lower-risk one;
+it is just not overlay-free, and shipping it overlay-free would enter a Dress
+Downed Clone as a copy. Sizing RC after this finding is what turned two parts
+into four — see §9.
 
-**De-risking split.** RC Part A implements ETB replacements whose applicability
-does not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is
-"this land enters tapped" and "this enters with N +1/+1 counters", which is the
-overwhelming bulk of the 773 + 580, **plus the membership gate and the frame's
-ability list, per §5c**. RC Part B builds the rest of the overlay and turns on
+**De-risking split.** RC-2 implements ETB replacements whose applicability does
+not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is "this
+land enters tapped" and "this enters with N +1/+1 counters", which is the
+overwhelming bulk of the 773 + 580. RC-3 adds the membership gate and the frame's
+ability list per §5c. RC-4 builds the rest of the overlay and turns on
 filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
-614.13a/b exclusion sets. Same Part A/B shape as Phase LD.
+614.13a/b exclusion sets.
 
 ---
 
@@ -1261,7 +1263,8 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
 | `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
-| `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-B |
+| `engine/layers/compute.rs` | the `AffectedSet::Filter` membership gate admits entering objects (§5c) | RC-3 |
+| `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-4 |
 | `engine/turns.rs::advance_turn` | gains `dp`; consults pending skips (CR 614.10) | RA / RE |
 | `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA |
 | `engine/costs.rs:184` `Cost::PayLife` | routes through `execute_action(LoseLife)` — CR 119.4 makes paying life a life loss (Bloodletter doubles it). Same audit finding, same emit-without-propose shape | RA |
@@ -1709,7 +1712,7 @@ both. Moving them earlier means building the pipeline twice.
 
 **But there is a real hazard in leaving it, and it is cheap to fix.** Everything
 RB currently ships has a *trivial* predicate — shield/stun/finality counters are
-"this permanent", regeneration is `SourceOnly`, and RC Part A is `SourceOnly`
+"this permanent", regeneration is `SourceOnly`, and RC-2 is `SourceOnly`
 unconditional by design. So `EventPattern` would be **defined in RB under no
 pressure at all** and first stressed two phases later. That is the
 designed-against-the-easy-case failure, and this project has paid for it before:
@@ -2090,23 +2093,132 @@ timestamp on `GameObject` (Deferred Migrations item 9's, already owed).
 
 ### Phase RC — ETB replacements (the big unlock)
 
-- **Part A:** `GameAction::EnterBattlefield { mods: EnterMods }`;
-  `place_on_battlefield` becomes its performer; `AffectedSet::SourceOnly`
-  unconditional ETB replacements — enters tapped (CR 110.5b), enters with
-  counters (CR 122.6a), CR 614.12a choice-before-entry. ~1,350 cards.
-  **Plus the membership gate and the frame's ability list (§5c)** — without them
-  a Dress Downed Clone still copies, and an enters-tapped land still enters
-  tapped after losing the ability that says so.
-  **Ride along: delete the early stack pop** (`codebase-state.md` Deferred
-  Migrations 7). Part A rewrites `init_zone_state`, which is one of
-  `GameState::resolving`'s two readers; removing the pop deletes the other.
-  Audit the five production `stack.is_empty()` readers first — none is reachable
-  during a resolution today, but CR 608.2g's "unless an effect instructs" case
-  makes `cast.rs:576` reachable once RC-era cards arrive.
-- **Part B:** the §5 hypothetical overlay; CR 614.12 clauses (2) and (3);
-  CR 614.17d; CR 614.13/613a/b auxiliary zone changes and exclusion sets;
-  CR 616.1b/c classes (control-changing and copy-on-enter get their buckets even
-  though the copy system itself is Layer 1 work).
+**RC ships as four PRs.** The split is numbered `RC-1` … `RC-4`, matching RA's
+convention; the `Part A` / `Part B` framing §5 and §5c argued in is superseded,
+and where those sections say "Part A" they mean **RC-2 + RC-3**, where they say
+"Part B" they mean **RC-4**.
+
+#### Why four, and why sized before a line is written
+
+**RB was one PR and should have been three.** Measured after the fact: +5,475 /
+33 files, against RA-1's +362, RA-2's +919 and RA-3's +2,511 — 2.2× the largest
+implementation PR this project had merged, and 1.4× all of RA combined. The
+failure was not the decision to keep it whole; **it was that nobody sized it.**
+§9 gave RA a table with a *Measured size* column and counted call sites before
+splitting; it gave RB nine bullets and no measurement, so RB ran until it was
+done. This section is that count, done first.
+
+**One lesson from RB changes the seam, and it is not the obvious one.** The
+tempting split is "engine first, consumers after". RB proves that wrong twice
+over. Its item-3 commit was 1,306 lines with **zero integration tests**, because
+the consumers are what make a pipeline testable at all — and the loop's one real
+defect (a declined `exempt_from_614_5` optional re-offering forever) was
+reachable only from item 9, the *last* consumer. A carefully reviewed
+pipeline-only PR would have merged with a hang in it. **So every RC PR below
+carries at least one consumer that exercises what it builds**, and the plan
+accepts that a later PR may fix an earlier one.
+
+| PR | Shape | Measured size | Risk |
+|---|---|---|---|
+| **RC-1 — delete the early stack pop** | pure deletion, zero new behavior | **11** production sites across 7 files (`stack.is_empty()` × 5, `GameState::resolving` × 6); deletes one leniency branch | low |
+| **RC-2 — `EnterBattlefield` as an event** | the performer migration, plus enters-tapped as its first consumer | **10** production `place_on_battlefield` sites (4 `resolve.rs`, 1 `zones.rs`, 5 `game_state.rs`) + 4 in `test_support`; **7** `init_zone_state` / `init_etb_counters` sites; 4 new type-surface items | medium |
+| **RC-3 — the membership gate and the frame's ability list** | §5c's question 1 | **1** site — `compute.rs:623` — inside the hottest path in the engine | **high** |
+| **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **5** concrete-state reads to route through the accessor pair (`compute.rs:180, 242, 408, 623` + the `176/203/389` summary reads) | **highest** |
+
+#### RC-1 — delete the early stack pop
+
+`codebase-state.md` Deferred Migrations item 7, on its own and first. `RC` was
+going to carry it "along" with the performer migration; measured, it is its own
+PR and it is the RA-1 of this phase — the safest shape the project writes.
+
+Stop popping at the top of `resolve_top_of_stack`; keep taking the `StackEntry`
+(the body needs to own it); let `move_object`'s `remove_from_zone_collection(Stack)`
+do the removal it is already asked to do; remove the object from `stack`
+explicitly on the ability path, which has no zone change.
+
+**Why first rather than bundled.** It is a *deletion* that makes the tree
+simpler before the complicated thing lands, it removes a leniency branch that
+can currently mask a genuinely missing stack object, and it leaves
+`GameState::resolving` with one reader instead of two — so RC-2 rewrites
+`init_zone_state` against a smaller thing. The counter-argument, that
+`init_zone_state` then churns twice, is real and is the same trade RA-1 made in
+the other direction; here the churn is small because the pop touches
+`resolve_top_of_stack` and `remove_from_zone_collection`, not
+`init_zone_state`'s body.
+
+**Audit first, and this is the ticket's actual content:** five production sites
+read `stack.is_empty()` (`zones.rs`, `legality.rs`, `mana_helpers.rs`,
+`cast.rs`, `priority.rs`) and would newly see the resolving object. None is
+reachable during a resolution today, but CR 608.2g's "unless an effect
+instructs" case makes `cast.rs`'s reachable once RC-era cards arrive.
+
+**Exit:** whole suite green, zero warnings, `fuzz_games` identical on every line.
+No new events, no new behavior. If the fuzz numbers move, the deletion changed
+something it should not have.
+
+#### RC-2 — `EnterBattlefield` as an event
+
+`GameAction::EnterBattlefield { object, controller, mods }`; `place_on_battlefield`
+becomes its performer; `EventPattern::EnterBattlefield`, `Rewrite::EnterWith`,
+`EnterMods`.
+
+**Its consumer is enters-tapped (CR 110.5b), `AffectedSet::SourceOnly` only** —
+"this land enters tapped", which needs no frame at all. 773 cards say it, and it
+is the RB-item-4 of this phase: the smallest thing that proves the event works.
+Enters-with-counters (CR 122.6a, 580 cards) rides here too if `EnterMods` is
+already carrying counters, and `init_etb_counters` is the site it replaces.
+
+**Not in RC-2:** CR 614.12a's choice-before-entry. §9's original bullet grouped
+it with enters-tapped; it is a *frame* question the moment the choice depends on
+what the permanent would be, so it moves to RC-4.
+
+**Watch:** the test-side churn is where the surprise is. `put_on_battlefield`
+has **284** call sites and `place_bare` **73**. Neither should need to change —
+both are `test_support` helpers over `place_on_battlefield` — but that is the
+claim to verify in the first commit, not the last.
+
+#### RC-3 — the membership gate and the frame's ability list
+
+§5c's finding, and the reason this is a PR rather than a paragraph inside RC-2.
+`effect_applies_to`'s `game.battlefield.contains_key(&id)` gate at
+`compute.rs:623` returns `false` for any `AffectedSet::Filter` effect against an
+object that is not on the battlefield — so today an entering Clone matches no
+filter, **Dress Down included**, and keeps the ability that Dress Down should
+have taken away.
+
+**One line of code, and it is in the hottest path in the engine.** That is the
+whole reason it is separated: `compute_characteristics` is what every layer
+query runs, `layers-architecture.md` §12 measured the ungated CR 613.7a
+existence check at 5.2×–8.0×, and a gate that starts admitting non-battlefield
+objects changes what that walk does on every board. RC-3's deliverable is as much
+the `fuzz_games --games 200 --seed 12345` measurement as the behavior.
+
+**Its consumer is Dress Down + a Clone-shaped probe** — question 1 answered, and
+the enters-tapped land that loses its ability before it can use it.
+
+#### RC-4 — the overlay
+
+`compute_as_entering`, the read-side accessor pair through `compute.rs`'s five
+concrete-state reads, CR 614.12 clauses (1)–(3), CR 614.17d, CR 614.12a's
+choice-before-entry, CR 614.13/613a/b's auxiliary zone changes and exclusion
+sets, and the CR 616.1b/c buckets.
+
+**No `GameState` clone at either call site** (§11 item 5, decided): a clone
+duplicates `GameState.rng` against the determinism doctrine and produces a
+second live copy of every v4 `ObjectId`, which is *aliased* rather than
+distinguishable. Record the decision in `layers-architecture.md` §9/§15.2 when
+this lands.
+
+**Its consumers are §5a's and §5b's worked examples**, and they are already
+written as tests: `test_grist_entering_is_not_a_creature` first because it
+isolates clause (2) with no devotion arithmetic in the way, then
+`test_god_entering_does_not_count_itself_for_devotion`, then Elvish Archdruid
+entering under Master Biomancer with **2** counters and not 3, then two
+Biomancers entering as one batch giving each other nothing.
+
+**The rule this phase must not smooth over** (§5b): clause (2) puts the entering
+object's own anthem into *its own* frame, and that anthem reaches no other
+object's frame. One object is hypothetical; nothing else is.
 
 ### Phase RD — damage (CR 615, 609.7, 614.9)
 
@@ -2349,8 +2461,8 @@ rule number) — confirm the merge at labelling time.
    the accessor pair that §5's five audited sites want anyway.
 
    **Decision: read-side accessor pair, no clone at either call site.** Record it
-   in `layers-architecture.md` §9/§15.2 when RC-B lands, and measure the RC-B
-   overlay with `fuzz_games --games 200 --seed 12345` against the pre-RC-B
+   in `layers-architecture.md` §9/§15.2 when RC-4 lands, and measure the RC-4
+   overlay with `fuzz_games --games 200 --seed 12345` against the pre-RC-4
    baseline — a look-ahead that runs a few times per turn should not move the
    number, and if it does, the accessor indirection has leaked into the hot walk
    and that is the bug to find.
@@ -2373,7 +2485,7 @@ rule number) — confirm the merge at labelling time.
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.
-  CR 616.1c gets its ordering *bucket* in RC-B so the classification is complete,
+  CR 616.1c gets its ordering *bucket* in RC-4 so the classification is complete,
   but nothing produces a copy-on-enter replacement until Layer 1 lands.
 - **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (T20).
 - **CR 614.12b** — "combined costs of those effects to not be payable" across
@@ -2400,7 +2512,7 @@ Update as part of the work that changes them, not in a later pass:
 - `layers-architecture.md` §9 / §15.2 item 3 — the overlay decision, once made.
   **Untouched by RA**, correctly: RA-3's LKI frame is a `compute_characteristics`
   call taken *before* a mutation, not a hypothetical about a perturbed board, so
-  it needed neither the accessor pair nor a clone. The overlay is still RC-B's,
+  it needed neither the accessor pair nor a clone. The overlay is still RC-4's,
   and §11 item 5's decision still stands unrecorded there.
 - `cards-unlocked-ledger.md` — ✅ RB's entry is in. The ETB unlock is the largest
   single entry the ledger will take; add it with RC.

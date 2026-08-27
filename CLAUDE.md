@@ -262,7 +262,28 @@ its entirety, a facts phase.
 ## Git workflow
 
 One branch per unit of work → PR → merge to main. Merge commit or "Rebase and merge",
-never squash — the project leans on its per-commit record. `git log main..HEAD` lies
+never squash — the project leans on its per-commit record.
+
+**Size a phase before writing it, and split it in the doc, not in the moment.**
+The project's implementation PRs run 1,500–2,500 additions; the ones that went
+badly went past that. RB shipped at +5,475 across 33 files — 2.2× the largest
+before it — and the cause was not the decision to keep it whole but that nobody
+counted first. RA was split into three because someone counted call sites and
+wrote a *Measured size* column; RB got nine bullets and no measurement, so it
+ran until it was done. Sub-phases are numbered `RA-1`, `RC-2`, not lettered.
+
+Two rules learned from that:
+
+- **Every PR in a split carries at least one consumer of what it builds.** The
+  tempting seam is "engine first, consumers after", and it is wrong: RB's
+  pipeline commit was 1,306 lines with zero integration tests, because the
+  consumers are what make a pipeline testable — and its one real defect was
+  reachable only from the *last* consumer. Splitting relocates that risk rather
+  than removing it, so plan for a later PR fixing an earlier one.
+- **Review findings go to `plans/handoffs/<phase>-review.md`, not into a
+  session.** Capture everything before fixing anything, triage into fix / defer
+  / doc, then close one bucket per session starting cold from the file. A dozen
+  unrelated fixes carried in one context is where quality degrades. `git log main..HEAD` lies
 after a squash-merge (same content, new SHA); check content instead:
 `git diff --stat origin/main HEAD`.
 
