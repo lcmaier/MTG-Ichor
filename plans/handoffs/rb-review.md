@@ -91,14 +91,22 @@ enforcement points, not one, and the design gives them one shared type
 **What A did *not* answer, deliberately.** The 149 "can't … unless" clauses need
 `Effect::Conditional` (Phase 6), and CR 613.10 still has no home doc.
 
-**Three things the owner's review of the design changed** (2026-08-27, same
-day): CR 608.2c settles the "can't be regenerated" scope and makes it an
-*authoring* concern rather than an inferred one; §4.2's combat solver is now
-counted rather than deferred (**1,249 of 1,262** Tier-1a clauses are a
-per-creature predicate, and the solver exists for ~15 coupling cards plus ~150
-requirement cards, which is why RS-3 split into 3a/3b); and CR 601.3a turned out
-not to be a forward-looking search at all — Void Winnower's rulings make it
-over-approximate-at-the-gate plus a CR 601.2 rewind.
+**What the owner's review of the design changed** (2026-08-27, same day):
+CR 608.2c settles the "can't be regenerated" scope and makes it an *authoring*
+concern rather than an inferred one; §4.2's combat solver is counted rather
+than deferred (**1,249 of 1,262** Tier-1a clauses are a per-creature predicate)
+and its algorithm is now an O(n log n) count-threshold sweep with brute force
+demoted to the fallback, which is why RS-3 split into 3a/3b; CR 601.3a is not a
+forward-looking search at all — Void Winnower's rulings make it
+over-approximate-at-the-gate plus a CR 601.2 rewind; **§4.9 is new** — Sigarda's
+rulings and CR 608.2d make "do not prompt for a choice a restriction forbids" a
+rule rather than a UX nicety, and it lands in RS-1; and §9 finding 7's registry
+work is **composition, not a split**, with a stated abort condition.
+
+**One thing this design deliberately does not lean on:** `MAX_616_1F_ITERATIONS`
+as precedent for a bounded-search guard. **E1 below is still open** and that
+constant may genuinely be a test harness; §4.2 says so explicitly rather than
+citing a decision nobody has made.
 
 **The deadline is now specific.** "A must land before RC-4" resolves to **RS-1
 must land before RC-4** — the Tier-2 spine only, which is a *deleting* PR

@@ -585,41 +585,72 @@ for v1: it is a Commander staple and it applies to *many* creatures at once.
 **So 95% of Tier 1a is a predicate**, and the solver exists for ~15 printed
 cards plus the requirement population. That ratio is the design.
 
-#### The algorithm that follows from the measurement
+#### The algorithm — and brute force is the *fallback*, not the plan
+
+An earlier draft went straight to "enumerate subsets per connected component".
+That is a correct algorithm and it is the wrong headline, because the measured
+constraint shapes are much better behaved than general 0-1 search. **Every
+coupling constraint RS-3b carries is a threshold on the *number* of attackers**,
+not on which ones:
+
+| Card text | As a constraint on `t = |attackers|` |
+|---|---|
+| "This creature can't attack alone" (CR 506.5: alone = the only creature declared) | `x_i = 1 ⟹ t ≥ 2` |
+| "can't attack unless at least two other creatures attack" | `x_i = 1 ⟹ t ≥ 3` |
+| "No more than one creature can attack each combat" | `t ≤ 1` |
+| a per-creature restriction | `x_i = 0`, no coupling at all |
+
+Each is **monotone in `t`**, which collapses the search:
 
 1. **Filter by per-creature restrictions.** O(n). This is `legal_attackers` /
    `can_block` as they exist today, with the hardcoded flying and defender arms
    replaced by data.
-2. **If no requirement is live on the board and no coupling constraint is
-   present, stop.** The declaration is legal iff step 1 passes. This short
-   circuit is the common case and must be checked first, not last — the gate is
-   two set-emptiness tests.
-3. **Otherwise, build the coupling graph** over the declaring player's
-   creatures: an edge when a cross-creature restriction names both, and one
-   component containing everything a global cap constrains. Solve each
-   connected component independently and sum the obeyed-requirement counts —
-   sound because requirements are independent unless a restriction couples
-   them, which is exactly what the graph records.
-4. **Within a component, brute-force.** Enumerate subsets, discard the ones that
-   disobey a restriction, take the max obeyed count. Interchangeable creatures —
-   those with no requirement and no cross-creature restriction, present only as
-   *filler* to satisfy "can't attack alone" — collapse to a count rather than an
-   identity, which is what keeps "goad everything, and one creature can't attack
-   alone" from being exponential.
+2. **If no requirement is live and no coupling constraint is present, stop.**
+   Two set-emptiness tests, and it is the overwhelmingly common board.
+3. **Otherwise sweep `t` from 0 to n.** Sort creatures by their threshold once;
+   `eligible(t) = { i : threshold_i ≤ t }` then grows monotonically, so one
+   upward pass maintains `|eligible(t)|` and `|eligible(t) ∩ R|` incrementally.
+   A given `t` is feasible iff `|eligible(t)| ≥ t` and `t ≤ cap`, and the best
+   obeyed count at that `t` is `min(t, |eligible(t) ∩ R|)` — take as many
+   requirement-carrying eligible creatures as `t` allows, fill the rest with
+   anything. Answer: the max over feasible `t`.
 
-**The complexity, stated honestly.** Step 4 is `2^k` in the size of a component,
-where `k` counts only creatures that carry a requirement or a cross-creature
-restriction. Goad-everything gives a large `R` but an **empty** coupling graph,
-so every component is a singleton and the answer is O(n) — which is the case
-that would otherwise have been the disaster. A component is large only when
-several of the ~15 coupling cards are on one board at once.
+**That is O(n log n), exact, and involves no search.** `R` is the creatures
+whose requirement actually binds — "attacks **if able**" is vacuously obeyed by
+a creature that cannot attack, so a tapped or restricted goaded creature drops
+out of `R` before the sweep and never inflates it.
 
-**The guard, and it is a real one.** CR 508.1d is NP-hard in the general case;
-this design chooses a *bounded exact* algorithm over a heuristic, and takes a
-hard cap on component size with a loud error rather than a silent wrong answer.
-That is the same trade `MAX_616_1F_ITERATIONS` makes and it should be documented
-the same way — as an invariant that has been reasoned about, not "a test
-harness".
+**Why this is stated as a proposal, not a result.** The reduction is sound *for
+the constraint shapes RS-3b carries*, and that scoping is doing work: the
+falsifiers are already printed and already deferred. **Okk** — "can't attack
+unless a creature **with greater power** also attacks" — and **Scarred Puma** —
+"unless a **black or green** creature also attacks" — are thresholds on a
+*filtered* count, not the total, so they need one counter per distinct filter
+rather than one `t`. Both are "can't … unless" clauses, which §10 scopes out of
+every RS phase (they need `Effect::Conditional`), so they arrive with the
+generalisation rather than ahead of it. **When they do, the sweep becomes a
+sweep over a count *vector*** — `n^f` where `f` is the number of distinct
+filters mentioned, and `f` is 0 on almost every board.
+
+**So: brainstorm before RS-3b, not during.** This section is the seed, not the
+answer. Three things to settle in that session, written down now so it is not
+started cold: (a) does the count-threshold reduction survive multi-defender
+declarations — CR 506.5's "alone" is global, and goad's "attacks a player other
+than you if able" constrains a creature's *defender choice* rather than coupling
+creatures, but that wants checking against planeswalkers and battles; (b) is
+the filtered-count generalisation enough for the whole "unless" family, or does
+some card couple *identities*; (c) is there a cheaper certificate for the common
+"declaration is legal" direction than computing the max at all. An ILP framing
+is available if it helps the reasoning — every constraint above is linear in the
+`x_i` — but taking a solver dependency for boards of fifteen creatures would be
+absurd, and is not what the framing is for.
+
+**The guard, and it stays regardless of which algorithm wins.** CR 508.1d is
+NP-hard in the general case, so whatever ships takes a hard bound with a loud
+error rather than a silent wrong answer. **Deliberately not citing
+`MAX_616_1F_ITERATIONS` as precedent**: `rb-review.md` E1 is still open, that
+constant may genuinely turn out to be a test harness, and a design should not
+lean on a decision nobody has made yet.
 
 **Two things follow for the code.** First, `legal_attackers` /
 `legal_blockers` keep being an **over-approximation** — that is already this
@@ -861,6 +892,72 @@ function to call and would be re-implemented per card.
 which `resolve.rs` currently errors on. Recorded here so the dependency is not
 rediscovered; the predicate is what this design owes it, and Phase 6 owes the
 rest.
+
+---
+
+### 4.9 Never prompt for a choice a restriction forbids — and this is a rule
+
+**Raised in review as a possible UX optimisation. It is not optional, and it is
+not UX.** Sigarda's printed rulings settle it in two sentences:
+
+> "As a spell or ability an opponent controls resolves, if it would force you to
+> sacrifice a permanent, **you just don't. That part of the effect does
+> nothing.** If that spell or ability gives you the option to sacrifice a
+> permanent (as Desecration Demon does), **you can't take that option.**"
+
+> "If a spell or ability an opponent controls states that something happens
+> unless you sacrifice a permanent (as Mogis, God of Slaughter does), **you
+> can't choose to sacrifice a permanent.**"
+
+So under Sigarda a Diabolic Edict resolving against you must produce **no
+prompt at all**. Prompting and then blocking would be wrong three times over: it
+violates **CR 608.2d** ("the player can't choose an option that's illegal or
+impossible"), it tells every other player which creature you would have picked —
+information the real game never produces — and it makes an AI harness burn a
+decision on a branch that cannot happen.
+
+**The engine already has to do this, for a simpler reason.** CR 608.2d's own
+example is *"A spell's instruction reads, 'You may sacrifice a creature. If you
+don't, you lose 4 life.' A player who controls no creatures can't choose the
+sacrifice option."* The candidate filter that handles "no creatures" is the same
+one that has to handle "restricted", so this is a **second reason a candidate is
+unavailable**, not a second mechanism.
+
+**Where it goes, and why it is not middleware.** Into candidate enumeration —
+`enumerate_legal_selections` and the resolution-time selection path — as one
+`is_prohibited` call per candidate. `plans/atomic-tests/supplemental-docs/
+dp-middleware-and-candidate-enumeration.md`'s standing principle is
+**"exclude only options where it can *prove* illegality from static game state
+reads"**, and a restriction check is exactly a static read, so this sits inside
+the existing contract rather than extending it. Solving it in a
+`DecisionProvider` wrapper instead would be wrong on the merits: a middleware
+layer cannot fix a rules violation, and the engine needs the same answer for
+Tier 5 regardless (§4.8).
+
+**Three outcomes, and CR 101.3 picks between them:**
+
+| Candidates after the filter | What happens |
+|---|---|
+| some remain | prompt over the survivors, as today |
+| none remain, instruction is mandatory | CR 101.3 — the instruction is impossible and is ignored. No prompt |
+| none remain, instruction is optional or "unless" | the option is not offered at all (Sigarda's second ruling) |
+
+**Plaguecrafter is the card that proves the two halves are one mechanism.**
+"Each player sacrifices a creature or planeswalker of their choice. **Each
+player who can't** discards a card." Its ruling: *"each player in the same order
+**who couldn't sacrifice a permanent** chooses a card in hand"*. The filter that
+suppresses the prompt and the Tier-5 query that routes to the discard are the
+same `is_prohibited` call — which is the strongest argument in this document
+for §3.5's single predicate, and the reason §4.8 calls Tier 5 the query side
+rather than a sixth tier.
+
+**Scoping.** RS-1 owns the filter for Tier-2 restrictions, because it is the
+phase that makes Sigarda expressible and the phase where a prompt could first
+become wrong. The *consumers* — Plaguecrafter's "if they can't" branch — still
+wait on `Effect::Conditional`, so RS-1 ships the suppression and not the
+fallback. That split is safe in one direction only: suppressing a prompt with no
+fallback is a resolved effect that does nothing, which is CR 101.3's own answer;
+prompting with a fallback would be the wrong order.
 
 ---
 
@@ -1107,8 +1204,8 @@ builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
-| **RS-0 — the shared duration registry** | Lift the ten methods `ContinuousEffectRegistry` and `ReplacementRegistry` already duplicate into one type; migrate both. No new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today across **259** + **~90** lines | low — pure refactor with two existing test suites as the check. §9 finding 7 |
-| **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site |
+| **RS-0 — the shared duration registry** | A `DurationRegistry<T>` that both existing registries *own* and delegate to — composition, not a split (§9 finding 7). Migrate both; no new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today | low — pure refactor, two existing test suites as the check, and a stated abort condition if `effects_in_layer`'s cache will not compose |
+| **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`; **§4.9's candidate filter**. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in, Sigarda stops producing a prompt | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site |
 | **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`cast.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `cast.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
 | **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,249 of 1,262** Tier-1a clauses — the 1,200 per-creature plus the 49 per-attacker blocker counts | medium — large surface, but every check is local |
 | **RS-3b — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
@@ -1281,9 +1378,7 @@ Four things to act on rather than read past:
    and neither `layers-architecture.md` nor this file owns it. Whichever phase
    builds `PlayerRef`-scoped continuous effects should claim it.
 
-7. **RS-1 makes this the third duration registry, and that is the moment to
-   abstract the shared half.** Not the whole registry — the *expiry* half, which
-   is a rules concern rather than a storage one.
+7. **RS-1 makes this the third duration registry — compose, do not split.**
 
    **Measured.** `ContinuousEffectRegistry` (`state/continuous_effects.rs`) and
    `ReplacementRegistry` (`state/replacement_effects.rs`) already share ten
@@ -1294,25 +1389,48 @@ Four things to act on rather than read past:
    `created_on_turn` guard, same "suppress unused until multi-turn durations
    arrive" note. A fourth is coming with delayed triggers (CR 603.7).
 
-   **Why this clears the two-customers guard.** The project's rule is "don't
-   refactor speculatively", and this is not speculation: three concrete
-   customers, identical semantics, and the semantics are **CR 514.2 and
-   CR 613.7**, not an implementation detail. The failure mode duplication has
-   here is specific — a duration bug fixed in one registry and not the other two
-   is invisible, because each has its own tests and each passes.
+   **The readability objection is correct, and it rules out the shape an
+   earlier draft proposed.** That draft said "abstract the *expiry half*",
+   which reads as free functions over `&mut Vec<Row<T>>` called from three
+   registries — and that genuinely is worse than the duplication: to understand
+   `ReplacementRegistry` you would open two files, and neither would contain the
+   whole type. **A half-extracted abstraction is the bad outcome**, not a
+   compromise between two good ones.
 
-   **What to abstract, and what not to.** A `DurationRegistry<T>` (or a shared
-   `expiry` module over `&mut Vec<Row<T>>`) carrying `id` allocation, `source`,
-   `controller`, `duration`, `created_on_turn`, and the three expiry hooks.
-   **Not** the query side: `effects_in_layer`'s layer-indexed cache,
-   `summary()`'s scope gate, and `Uses::Once`'s row removal are each specific to
-   one customer and are where the registries genuinely differ.
+   **Compose instead.** One `DurationRegistry<T>` owning the `Vec`, the id
+   counter and the ten shared methods; each registry *has* one and delegates:
 
-   **When.** Its own small PR, immediately before RS-1, migrating the two
+   ```rust
+   pub struct ReplacementRegistry {
+       rows: DurationRegistry<ReplacementDef>,   // add/remove/expiry live here
+   }
+   // and its own surface stays here: Uses::Once removal, gather-order iteration
+   ```
+
+   Now each type is readable in one place: the generic answers "how do rows
+   live and die", the wrapper answers "what is this registry *for*". That is
+   the ordinary Rust shape and it is what `EffectId` / `ReplacementRowId`
+   already imply by being separate newtypes over the same idea.
+
+   **The case for doing nothing is real and worth stating.** Three copies of
+   ~15 lines is not much, "don't refactor speculatively" is a stated
+   convention, and a generic invented for three customers can still be the
+   wrong generic. What tips it is not the line count — it is that the
+   duplicated logic is **CR 514.2 and CR 613.7**, a rules concern, and its
+   failure mode is a duration bug fixed in one registry and not the other two,
+   invisible because each has its own passing tests.
+
+   **The abort condition, and it is a real one.** If composition cannot be done
+   without the wrapper leaking the generic's internals — `effects_in_layer`'s
+   layer-indexed cache is the one that might, since it indexes the same `Vec`
+   the generic owns — **stop and keep three registries**, with one shared test
+   module asserting identical expiry behaviour across all of them. That is a
+   worse abstraction and a better codebase than a generic everyone has to fight.
+
+   **When.** Its own small PR (**RS-0**), before RS-1, migrating the two
    existing registries first so RS-1 is a *user* of the abstraction rather than
-   the thing that invents it. That ordering is what keeps it from becoming a
-   generic nobody else fits — the same reason `replacement-architecture.md`
-   insists every PR in a split carries a consumer.
+   the thing that invents it. Two existing test suites are the check and no
+   behaviour moves.
 
 8. **`Restriction` needs a `Requirement` sibling and RS-3 cannot ship without
    it** (§4.2). CR 508.1d's maximisation is defined over both, so a restriction
