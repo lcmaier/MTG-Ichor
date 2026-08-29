@@ -187,15 +187,34 @@ grow.
 
 ---
 
-## G. Process — how the codebase and its docs are written
+## G. Process — how the codebase and its docs are written — ✅ **CLOSED 2026-08-29**
 
 **Do this theme first.** It changes how every other fix gets written.
 
+All three proposals were adopted as written. The reasoning that left `CLAUDE.md`
+landed in a new doc, **`plans/engineering-practices.md`**, which is now the
+authority for process rules and has a row in `CLAUDE.md`'s authority table.
+
 | # | Area | Finding | Verdict |
 |---|---|---|---|
-| G1 | `CLAUDE.md` | **Over 300 lines, twice now.** "Never prompt a `DecisionProvider` with fewer than two candidates" does not need a paragraph in the top-level instruction file. The file needs a *budget with a mechanism*, not another reminder to keep it short — see the proposal below. | `fix` |
-| G2 | everywhere | **Too many comments.** Comment density across RB is far above the surrounding code. Needs a stated rule, not a vibe — see the proposal below. | `fix` |
-| G3 | `phase_rb_cards.rs:79` | **Kalitas should probably be registered, and the stated reason for not registering it is wrong.** The fuzz pool exists to stress effect interactions and find panics; "it would move the baseline" is an argument for *separating the pools*, not for keeping cards out. Proposal: a frozen **performance pool** (today's 55 cards, for A/B-ing engine changes) and a growing **stress pool** (everything, for panics and interaction coverage). `fuzz_games` takes a flag. | `fix` |
+| G1 | `CLAUDE.md` | **Over 300 lines, twice now.** "Never prompt a `DecisionProvider` with fewer than two candidates" does not need a paragraph in the top-level instruction file. The file needs a *budget with a mechanism*, not another reminder to keep it short — see the proposal below. | ✅ `fix` — 312 → 195 lines, no section added or dropped. `plans/check_claude_md.py` enforces the 200-line cap (exit 1, per-section table, `--budget N` to raise it deliberately) and is named in the `Commands` block. Rules in `engineering-practices.md` §1 |
+| G2 | everywhere | **Too many comments.** Comment density across RB is far above the surrounding code. Needs a stated rule, not a vibe — see the proposal below. | ✅ `fix` — stated in `engineering-practices.md` §2, with a one-bullet statement under `CLAUDE.md`'s Conventions. **Deliberately not applied retroactively:** themes C and E bring the existing density down file by file, as those files are touched anyway |
+| G3 | `phase_rb_cards.rs:79` | **Kalitas should probably be registered, and the stated reason for not registering it is wrong.** The fuzz pool exists to stress effect interactions and find panics; "it would move the baseline" is an argument for *separating the pools*, not for keeping cards out. Proposal: a frozen **performance pool** (today's 55 cards, for A/B-ing engine changes) and a growing **stress pool** (everything, for panics and interaction coverage). `fuzz_games` takes a flag. | ✅ `fix` — Kalitas registered; `PERFORMANCE_POOL` (frozen 55) and `default_registry` (everything); `fuzz_games --pool performance\|stress`, default `performance`, pool named in the header and the results block. Both baselines recorded in `engineering-practices.md` §3 |
+
+**What the split bought immediately.** Kalitas now runs under
+`card_pool_lowering_test` (the check that a static ability lowers at all, which
+an unregistered card escapes) and under `cli_play`. 50 stress games at seed
+12345: zero panics, zero errors, 202 Zombie tokens, and creature deaths down
+5.6 → 5.2 because opponents' creatures are exiled instead. The performance
+column is byte-identical to the RB baseline, which is the acceptance test for
+the split.
+
+**One decision the proposal left open, made here: `performance` is the
+default.** Every baseline recorded in `plans/` was measured on it, and the
+review's own re-run gate (`fuzz_games --games 50 --seed 12345`) is a regression
+check, so the bare command has to keep reproducing the recorded numbers.
+`--pool stress` is the deliberate "play everything" mode, and `CLAUDE.md`'s
+`Commands` block names it so it does not rot.
 
 ### G1 proposal — a budget with a mechanism
 
@@ -302,12 +321,13 @@ Two sessions. Both are small, neither touches behaviour, and both are things it
 would be actively bad to ship into `main` as-is — this project's docs are
 load-bearing, so a wrong comment is a wrong doc.
 
-1. **Theme G — process.** First, because it changes how every later fix is
-   written: G2's comment rule is what themes C and E apply as they go. G3
-   (register Kalitas, split the fuzz pool in two) is a code change with a
-   baseline consequence and can move to its own PR if it grows.
+1. ~~**Theme G — process.**~~ ✅ **done 2026-08-29.** G1's budget script, G2's
+   comment rule and G3's pool split all landed, plus
+   `plans/engineering-practices.md` as their home. It stayed one session and did
+   not need its own PR. Gates re-run: 746 tests (744 + the two new registry
+   tests), zero warnings, performance-pool fuzz byte-identical to the baseline.
 2. **Theme B — doc and comment accuracy.** Seven rows, all local, zero test
-   impact. B6 is the one line of code.
+   impact. B6 is the one line of code. **Next session.**
 
 Then **merge #62**.
 
