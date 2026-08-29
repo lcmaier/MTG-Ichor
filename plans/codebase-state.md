@@ -509,6 +509,33 @@ built, and none of it blocks RC-1 through RC-3.
     them; `Menace` and `Intimidate` are `T21b`'s. All four are Tier 1a/1d in
     `cant-effects-architecture.md` §2.3 and land in RS-2 / RS-3.
 
+16. **Two ETB-time scans read *printed* abilities, and a Layer 1 copy defeats
+    both (found 2026-08-29, writing `copy-effects-architecture.md` §4.7).**
+    `place_on_battlefield` runs exactly two ability scans, and both take
+    `card_data.abilities`:
+
+    - `register_static_effects` (`state/game_state.rs:737`), whose doc says it
+      "Reads printed abilities on purpose" — correctly, to avoid circularity
+      inside `place_on_battlefield`. Consequence: **a copy of a permanent with a
+      static continuous ability registers no row for it.** A Clone of Glorious
+      Anthem would pump nothing.
+    - the `replacement_ability_sources` insert (`game_state.rs:760`), which is
+      `rb-review.md` I9: a copied replacement ability is invisible to `gather`'s
+      fast-path gate (`gather.rs:143`) and silently never applies.
+
+    Neither is reachable today — nothing produces a Layer 1 effect — and both are
+    CV-1's to fix (a third `RegistryScopeSummary` flag for the second; static
+    re-registration off the captured ability list for the first). Recorded here
+    because the general rule outlives the instance and Phase 6 will meet it
+    next: **a fast-path gate must be derived from the same place its sweep
+    reads.** `gather` reads the *effective* ability list; the gate reads two
+    *sources* of ability. Layer 1 and Layer 3 are the two routes to that list
+    that do not exist yet, and each needs a leg on every such gate. Triggered-
+    ability registration (critical-path item 6) will want the same scan.
+
+    `game_state.rs:249`'s "between them the gate is sound" should be scoped to
+    "sound until Layer 1 or Layer 3 exist" whenever that file is next touched.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
@@ -529,28 +556,72 @@ lands in nobody's doc. Meanwhile **the corpus knew**: `ATOM-614.17a/b/c/d`,
 > **The detector:** a CR section with many uncovered atoms that **no
 > architecture doc mentions**, or whose atoms are tagged to a phase the plan
 > does not schedule. Run it as `owed --all` grouped by rule prefix, cross-checked
-> against which of `layers-`/`replacement-`/`cant-effects-architecture.md`
-> mentions that section.
+> against which of `layers-`/`replacement-`/`cant-effects-`/`copy-effects-architecture.md`
+> mentions that section. **Two refinements from the 2026-08-29 run:** `owed --all`
+> is not enough on its own — 26 of the copy cluster's atoms carry ticket `D5` and
+> the rest are tagged `Phase 9`, so the grouping has to be by *rule prefix*, never
+> by ticket. And a headline Scryfall count is a hypothesis: check what it
+> includes before it becomes a scoping argument.
 
 **Run against the tree today it finds one more, and it is the same shape.**
 
-| | "Can't" effects | **Copy effects (CR 707 + 712 + Layer 1)** |
+| | "Can't" effects | **Copy effects (CR 707 + 712 + 708 + 729 + Layer 1)** |
 |---|---|---|
-| Spread across | 9 CR subrules | CR 707 (copying), 712 (DFC/meld), 613.2 (Layer 1), 706 |
-| Owning doc | none, until 2026-08-27 | **none** |
-| Corpus atoms, uncovered | ~21 | **66** (30 in CR 707, 36 in CR 712) |
+| Spread across | 9 CR subrules | CR 707 (copying), 712 (DFC/meld), 708 (face-down), 729 (merging), 613.2 (Layer 1) |
+| Owning doc | none, until 2026-08-27 | none, until **2026-08-29** — `plans/copy-effects-architecture.md` |
+| Corpus atoms, uncovered | ~21 | **101**, all uncovered (707: 30, 712: 36, 729: 19, 708: 10, 613.2: 3, 710: 3) |
 | Corpus's own phase tag | Phase 6 / 5-Pre | **CR 707: 23 atoms tagged "Phase 6"** — i.e. the corpus files copy effects *with replacement effects*, and RC–RE does not schedule them |
 | A shipped enum already waiting for it | `ReplacementClass::SelfReplacement` | **`ReplacementClass::CopyOnEnter` and `BackFaceUp`** — two of RB's five buckets, with no producer |
-| On `CLAUDE.md`'s critical path | no (now item 5b) | **no** — the file contains one instance of the word "copy", and Layer 1 appears nowhere in items 1–7 |
-| Card population | 1,857 printed + keywords | **2,890 double-faced cards**, 418 "copy of", 67 Clone-shaped "as a copy", 7 meld |
+| On `CLAUDE.md`'s critical path | no (now item 5b) | no — **now item 5c**, phases CV-1–CV-5 |
+| Card population | 1,857 printed + keywords | **517 double-faced** (396 transform + 100 modal + 21 meld), 752 cards printing "copy", 304 face-down producers, 34 mutate |
+
+**Three cells of the original table were wrong, and they are corrected above.**
+Recorded rather than silently edited, because the detector's *method* is the
+thing this section is arguing for and its failure modes are worth knowing.
+
+1. **"706"** is Rolling a Die in `tmnt.txt`. The intended section is **708,
+   Face-Down Spells and Permanents** — CR 613.2b's Layer 1b, 10 uncovered atoms.
+2. **"2,890 double-faced cards"** is `is:dfc`, and **2,243 of those are
+   `layout:art_series`** — art cards with a signature on the back, not playable
+   Magic and with no copiable values to model. With `double_faced_token` (80) and
+   `reversible_card` (71) also removed, the rules-relevant population is **517**.
+   The conclusion survives; the scoping argument does not survive a 5.6×
+   overstatement, which is the difference between "schedule it" and "schedule it
+   first". `copy-census.py --decompose` prints the breakdown.
+3. **CR 729, Merging with Permanents, was missing** and CR 613.2a names it in the
+   same breath as CR 707: layer 1a is "copy effects (see rule 707) *and changes
+   … determined by merging an object with a permanent (see rule 729)*". 19
+   uncovered atoms; 34 mutate cards; scoped out of v1 by the new doc, but it is
+   part of the cluster.
+
+**A headline Scryfall count is a hypothesis, not a measurement.** That is the
+one lesson to carry to the next detector run: `is:dfc` answers a question about
+card *faces*, not about rules the engine must implement, and nothing in the
+number says so.
 
 `Layer1Copy` is documented in `engine/layers/types.rs` as "still a stub: the
 variant exists, nothing produces an effect in it", and CR 616.1c's bucket ships
 in `ReplacementClass` for the same reason CR 614.15's does. **This is not a
-finding that anything is broken** — it is a finding that a system with 2,890
-cards behind it has no doc and no critical-path slot, exactly as "can't" did on
-2026-08-26. It should get a design doc before RC-4 tries to produce a
-`CopyOnEnter`, and the doc should say whether Layer 1 or CR 707 owns the seam.
+finding that anything is broken** — it is a finding that a system with ~1,300
+cards behind it had no doc and no critical-path slot, exactly as "can't" did on
+2026-08-26.
+
+**✅ Closed 2026-08-29 by `plans/copy-effects-architecture.md`** (`CLAUDE.md`
+item 5c). The seam question is answered by CR 613.2c rather than chosen: copiable
+values are the *output* of layer 1, so CR 707 owns the payload and Layer 1a owns
+its application, and the payload is a snapshot (CR 707.2b/2c) stored in one
+`EffectModification::CopyFrom` row. Three consequences worth carrying here:
+
+- **RC-4 cannot produce a `CopyOnEnter`** and should not try — it keeps CR
+  616.1b (Layer 2 is shipped) and gives 616.1c up to phase CV-2. That makes RC-4
+  smaller, not later, and it is why the doc landed before RC-4 rather than after.
+- **Copy work is *not* blocked on critical-path item 7**, provided a copy row
+  stores values rather than an `ObjectId`. A reference-carrying row would be
+  dependent under CR 613.8a(b) *and* would break `layers-architecture.md` §5.2's
+  strictly-descending termination argument, since two permanents copying each
+  other is a legal board.
+- **`register_static_effects` has the same hole `gather`'s gate has** (item 16
+  below), found while writing the doc.
 
 **Why late discovery has been cheap so far, and what would make it expensive.**
 Both misses are **features** on this file's own fact/feature triage, not facts.
@@ -769,7 +840,9 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 10. **The `Layer` enum is missing a sublayer split — doc/code drift.** (The CDA half of this item is ✅ done, 2026-08-22; see below.)
 
-    **Layer 1a / 1b.** CR 613.2 splits layer 1 into face-down effects (1a) and copy effects (1b), and `layers-architecture.md` §7 specifies both variants and says Phase LA ships them. The enum has a single `Layer1Copy`. Order matters: a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2). Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
+    **Layer 1a / 1b — and this entry had the two backwards until 2026-08-29.** `tmnt.txt` says **613.2a Layer 1a: Copiable effects** (copy effects, CR 707, and merging, CR 729) and **613.2b Layer 1b: Face-down**, i.e. copy *then* face-down. The enum has a single `Layer1Copy`. Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
+
+    The inversion is still live in **`layers-architecture.md` §7** and **`compute.rs:27`**, and all three sites shared one wrong derivation: *"a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2)"* is a **correct conclusion from a wrong premise**. The 2/2 does not come from face-down applying first; it is CR 708.2's own "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly. Where it bites is exactly one integer: `copy-effects-architecture.md` §4.6 captures copiable values at the end of layer 1, and a reader who believes 1b is copy takes the ceiling one sublayer too early — a bug that appears only on boards with a face-down creature being copied.
 
     **~~Keywords are abilities, and we model some of them as markers.~~ ✅ resolved (2026-08-23, Layer 6 phase).** The old entry framed this as "`Primitive::GrantKeyword(Equip)` would set a flag and grant no ability", which understated it. CR 702 has 189 keyword abilities and they do not want one representation. The axis is **does the engine branch on the keyword, or execute it**, crossed with whether it takes a parameter: ① branch/no-param is a flag (flying, trample, vigilance); ② branch/param is a set of *values* (protection from [quality], [type]walk); ③ execute/no-param is a plain `AbilityDef` (storm, prowess, **devoid** — already modelled this way in `phase_le_cards`); ④ execute/param is an `AbilityDef` with args (equip [cost], ward [cost], cycling [cost]).
 
