@@ -478,18 +478,27 @@ built, and none of it blocks RC-1 through RC-3.
     consumer (Before Layers item 3). Four corpus atoms still carry the `L15`
     ticket: `ATOM-601.3-001`, `ATOM-613.10-001`, `ATOM-613.11-001/002`.
 
-14. **`turns.rs:138` hardcodes a duration CR 611.2a does not give it.** The
-    CR 514.2 cleanup clears `GameState::cant_be_regenerated` under a comment
-    asserting that "can't be regenerated" is a this-turn fact, with no rule
-    cited. CR 611.2a: a continuous effect from a resolution with **no stated
-    duration lasts until the end of the game**, and "Destroy all creatures. They
-    can't be regenerated." states none. Reachable: Wrath of God destroys a
-    creature carrying a CR 122.1c shield counter, the shield replaces the
-    destruction, the creature survives *still flagged*, and on a later turn the
-    engine lets it regenerate where the CR does not. Narrow, and it is a wrong
-    answer produced by a hardcoded duration that a `Duration` field cannot
-    produce. **Open question for the owner** before RS-1 encodes either answer
-    (`cant-effects-architecture.md` §9 finding 1) — the model is neutral.
+14. **`turns.rs:138` hardcodes a duration CR 608.2c does not give it — the
+    clear is too *broad*.** The CR 514.2 cleanup clears
+    `GameState::cant_be_regenerated` under a comment asserting that "can't be
+    regenerated" is a this-turn fact, with no rule cited. The governing rule is
+    **CR 608.2c**, which names this exact card text as an example of later text
+    modifying the meaning of earlier text: "Destroy target creature. It can't be
+    regenerated" is one instruction, so the restriction is scoped to *that
+    destruction* and is not a continuous effect at all. (CR 611.2's "until end
+    of game" was an earlier misreading of this and is wrong — 611.2 never
+    engages.) Reachable divergence: Wrath of God destroys a creature carrying a
+    CR 122.1c shield counter, the shield replaces the destruction, the creature
+    survives, and the engine withholds every regeneration shield from it until
+    cleanup where the CR allows one immediately. Fixed by a resolution-scoped
+    `Duration` variant, which does not exist yet — `Duration` today has no way
+    to say "for the event this resolution is about to perform".
+
+    **The general rule is the part worth keeping** (`cant-effects-architecture.md`
+    §9 finding 1): CR 608.2c instructs the reader to "apply the rules of English
+    to the text", so a restriction's scope **cannot be derived by the engine**
+    and must be authored per card. Two cards with identical restriction text can
+    have different scopes because of the sentence before them.
 
 15. **Four `KeywordFlag` variants are constructible and enforced nowhere.**
     `Hexproof`, `Shroud`, `Menace` and `Intimidate`. The only `KeywordFlag::`

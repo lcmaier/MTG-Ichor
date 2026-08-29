@@ -123,12 +123,13 @@ BUCKETS = [
     ("1d", "can't be targeted (115.6)",
      r"can't be the target|can't be targeted|can't choose an? .{0,30}as this spell's target"),
     ("1e", "can't pay a cost (614.17b)",
-     r"can't pay|can't be paid|can't spend|mana can't be spent|can't sacrifice (those|a |any)"
-     r"|can't cause (you|their controller|them) to (sacrifice|discard|search)"),
+     r"can't pay|can't be paid|can't spend|mana can't be spent|can't sacrifice (those|a |any)"),
     # --- Tier 2: CR 614.17 proper -- an engine-proposed event can't happen ---
     ("2", "can't be destroyed (701.8a)", r"can't be destroyed"),
     ("2", "can't enter the battlefield (614.17d)", r"can't enter"),
     ("2", "can't be countered / copied (701.5)", r"can't be countered|can't be copied"),
+    ("2", "source-scoped event block (Sigarda)",
+     r"can't cause (you|their controller|them|its controller) to (sacrifice|discard|search)"),
     ("2", "can't change zones",
      r"can't be sacrificed|can't be exiled|can't leave|can't be returned|can't be put into"
      r"|can't be shuffled|can't be milled|can't be discarded|can't move|can't be beamed"),

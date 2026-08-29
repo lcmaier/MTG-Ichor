@@ -75,8 +75,8 @@ for CR 101.2 / 614.17 / 613.11. The evidence is
 classified by enforcement point). Nothing was coded; the four rows below are
 closed as *designed*, not as *fixed*.
 
-**The headline.** RB's `is_blocked` is correct and is **11% of the problem** —
-231 of 2,034 clauses. The other 89% never reach `execute_action`, because the
+**The headline.** RB's `is_blocked` is correct and is **12% of the problem** —
+236 of 2,034 clauses. The other 88% never reach `execute_action`, because the
 player is never offered the choice that would propose the event. There are six
 enforcement points, not one, and the design gives them one shared type
 (`RestrictionDef`) discovered by one sweep and read by one predicate.
@@ -86,11 +86,19 @@ enforcement points, not one, and the design gives them one shared type
 | A1 | design | **"Can't" effects are not scoped.** Motivating cards, deliberately spread across engine layers: **Aggressive Mining** / **Abyssal Persecutor** (stop a *state-based action* or a special action), **Conduit of Worlds** (a conditional restriction on *casting*), **Grafdigger's Cage** (categorical *zone-movement* prevention), **Rakdos, Lord of Riots** (a self-imposed casting restriction), **Yasharn, Implacable Earth** (prevents a *category of cost* from being paid). A `is_blocked(action)` predicate over `GameAction` reaches none of the casting, cost or special-action cases. | ✅ `cant-effects-architecture.md` §2 (measured), §3 (modelled), §6.1 (each motivating card placed) |
 | A2 | `pipeline.rs:53` | `is_blocked`'s match will grow one arm per "can't" if the current shape is kept. Today one arm; the card pool says 1,888. | ✅ §6.2 — the arm becomes **data** (`Restriction::Event { pattern: EventPattern, .. }`), so it stops growing. Also supersedes the archive plan's `L15` enum, which was a variant per card |
 | A3 | `resolve.rs:638` | `Primitive::CantBeRegenerated` — is there a primitive per "can't" stopper in the card base? | ✅ §6.3 — **no**: one `Primitive::Restrict(RestrictionDef, Duration)`, the exact analogue of `Primitive::Regenerate`. 563 of 2,034 clauses need it; the other 1,471 are discovered and need no primitive at all |
-| A4 | `game_state.rs:269` | An entire `HashSet<ObjectId>` on `GameState` for one rule (`cant_be_regenerated`). Sound today; a bad precedent if every "can't" gets its own field. | ✅ §6.4 — replaced by a `RestrictionRegistry` shaped like `ReplacementRegistry`. **Closes a real gap:** `turns.rs:138`'s cleanup clear hardcodes a duration CR 611.2a does not give it (see that doc's §9 finding 1 — one open question for the owner) |
+| A4 | `game_state.rs:269` | An entire `HashSet<ObjectId>` on `GameState` for one rule (`cant_be_regenerated`). Sound today; a bad precedent if every "can't" gets its own field. | ✅ §6.4 — replaced by a shared duration registry (§9 finding 7 — the third such registry, so the expiry half gets lifted first as **RS-0**). **Closes a real gap:** `turns.rs:138`'s cleanup clear is too *broad*; CR 608.2c scopes "It can't be regenerated" to that one destruction |
 
 **What A did *not* answer, deliberately.** The 149 "can't … unless" clauses need
-`Effect::Conditional` (Phase 6); CR 613.10 has no home doc; and finding 1's
-duration question is put to the owner rather than decided.
+`Effect::Conditional` (Phase 6), and CR 613.10 still has no home doc.
+
+**Three things the owner's review of the design changed** (2026-08-27, same
+day): CR 608.2c settles the "can't be regenerated" scope and makes it an
+*authoring* concern rather than an inferred one; §4.2's combat solver is now
+counted rather than deferred (**1,249 of 1,262** Tier-1a clauses are a
+per-creature predicate, and the solver exists for ~15 coupling cards plus ~150
+requirement cards, which is why RS-3 split into 3a/3b); and CR 601.3a turned out
+not to be a forward-looking search at all — Void Winnower's rulings make it
+over-approximate-at-the-gate plus a CR 601.2 rewind.
 
 **The deadline is now specific.** "A must land before RC-4" resolves to **RS-1
 must land before RC-4** — the Tier-2 spine only, which is a *deleting* PR

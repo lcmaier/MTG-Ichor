@@ -262,10 +262,12 @@ half and the census cannot see them**, because those cards never print the word.
 
 | Ticket | Cards Unlocked | Example Cards | Status |
 |---|---|---|---|
-| RS-1 | **Tier 2 — event-time "can't" (CR 614.17).** 231 clauses / 215 cards printed, plus **indestructible** (524 cards with or granting it) moving off its hardcoded arm onto the model | Solemnity, Melira; Platinum Emperion + Teferi's Protection ("your life total can't change"); Abyssal Persecutor + Platinum Angel (needs RE's `PlayerLoses`); Grafdigger's Cage's ETB half; Skullcrack | 📋 designed 2026-08-27; **RC-4 is blocked on this** |
+| RS-0 | **No cards.** Lifts the ten methods `ContinuousEffectRegistry` and `ReplacementRegistry` already duplicate into one shared duration registry, so RS-1 uses it rather than inventing a third | — | 📋 designed 2026-08-27 (§9 finding 7) |
+| RS-1 | **Tier 2 — event-time "can't" (CR 614.17).** 236 clauses / 220 cards printed, plus **indestructible** (524 cards with or granting it) moving off its hardcoded arm onto the model | Solemnity, Melira; Platinum Emperion + Teferi's Protection ("your life total can't change"); Abyssal Persecutor + Platinum Angel (needs RE's `PlayerLoses`); Grafdigger's Cage's ETB half; Skullcrack | 📋 designed 2026-08-27; **RC-4 is blocked on this** |
 | RS-2 | **Tiers 1b/1c/1d — casting, activating, targeting.** 206 clauses / ~200 cards, plus **hexproof (336), shroud (35), protection (197)** — the whole `T22` ticket | Slippery Bogle, Troll Ascetic, Progenitus; Grafdigger's Cage's cast half, Drannith Magistrate, Rule of Law, Aggressive Mining, Conduit of Worlds, Rakdos Lord of Riots; Pithing Needle, Cursed Totem, Stony Silence | 📋 designed 2026-08-27 |
-| RS-3 | **Tier 1a — combat declaration, with the CR 508.1d/509.1c requirements solver** (`T21b` + `T21d`). 1,262 clauses / 1,195 cards — **62% of the corpus** — plus **menace (405), landwalk (122), the fear/intimidate/shadow/skulk/horsemanship family (147)**, and Defender re-expressed as data | Goblin War Drums, Bog Wraith, Soltari Trooper; the 445 turn-scoped "target creature can't block this turn" effects; Alpha Authority | 📋 designed 2026-08-27; **wants CR 613.8 first** (evasion is cumulative) |
-| RS-4 | **Tier 1e — cost payment (CR 614.17b).** 21 printed clauses; the rest is *derived* from RS-1 through a 10-arm projection over the closed `Cost` enum | Yasharn Implacable Earth, Angel of Jubilation, Karn's Sylex — and Platinum Emperion's cost half, which the card never states | 📋 designed 2026-08-27 |
+| RS-3a | **Tier 1a — combat, the predicate half** (`T21b`). **1,249 of 1,262** Tier-1a clauses: 1,200 per-creature restrictions plus 49 per-attacker blocker counts — plus **menace (405), landwalk (122), the fear/intimidate/shadow/skulk/horsemanship family (147)**, protection's blocking half, and Defender re-expressed as data | Goblin War Drums, Bog Wraith, Soltari Trooper; the 445 turn-scoped "target creature can't block this turn" effects; Alpha Authority | 📋 designed 2026-08-27; does **not** need CR 613.8 |
+| RS-3b | **Tier 1a — the CR 508.1d/509.1c solver** (`T21d`). The remaining **13** cross-creature clauses, **2** global-cap cards, and the ~**150** *requirement* cards ("attacks each combat if able", goad) that CR 508.1d makes inseparable from them | Silent Arbiter, Dueling Grounds, Bonded Construct, Orcish Conscripts; goad (83 cards) and every Commander deck that runs it | 📋 designed 2026-08-27; **wants CR 613.8 first** (evasion is cumulative) |
+| RS-4 | **Tier 1e — cost payment (CR 614.17b).** 16 printed clauses; the rest is *derived* from RS-1 through a 10-arm projection over the closed `Cost` enum | Yasharn Implacable Earth, Angel of Jubilation, Karn's Sylex — and Platinum Emperion's cost half, which the card never states | 📋 designed 2026-08-27 |
 
 **What this does not unlock.** Tier 3's other half — "damage can't be
 prevented" (32 clauses: Skullcrack, Banefire, Stomp) — needs Phase RD's
@@ -274,9 +276,9 @@ gain [ability]" (the Archetype cycle, 6 cards) is the **layer system's** by
 CR 101.2a and is not in any RS phase. And the 149 "can't … unless" clauses
 — 138 of them combat — need `Effect::Conditional`, which is Phase 6.
 
-**Read the keyword column carefully.** RS-2 and RS-3 unlock more cards than
+**Read the keyword column carefully.** RS-2 and RS-3a unlock more cards than
 their clause counts suggest and RS-1 unlocks fewer: indestructible is one
-keyword and 524 cards, while Tier 2's 231 printed clauses are spread across a
+keyword and 524 cards, while Tier 2's 236 printed clauses are spread across a
 dozen mechanics that mostly need other phases anyway (`PlayerLoses` is RE's,
 `EnterBattlefield` is RC's).
 

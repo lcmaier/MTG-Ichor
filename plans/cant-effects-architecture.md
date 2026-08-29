@@ -29,22 +29,25 @@ one the archive plan already walked into: an enum with `CantCastSpells`,
 `CantGainLife`, `CantAttack`, `CantActivateAbilities` as *sibling variants*,
 which is a variant per card dressed as a design (§6.2).
 
-**Two. There are exactly two growth axes and both are enumerations the engine
-already owns.** A "can't" can attach to precisely two things: an **event** the
-engine proposes, and a **choice** a player makes. The first is `GameAction`, so
-`Restriction::Event` reuses `EventPattern` verbatim and costs *zero* new
-vocabulary. The second is `ChoiceKind` (`ui/choice_types.rs`), which is what
-`DecisionProvider` already enumerates. Adding an arm to `Restriction` is
-therefore a claim that the engine has a decision site neither list names — the
-same shape of claim as `EventPattern`'s "one arm per `GameAction` variant", and
-checkable the same way.
+**Two. There are exactly three growth axes, all bounded by enumerations the
+engine already owns, and one of them is closed.** A "can't" can attach to an
+**event** the engine proposes (bounded by `GameAction`, so `Restriction::Event`
+reuses `EventPattern` and costs almost no new vocabulary), a **choice** a player
+makes (bounded by `ChoiceKind`, which is what `DecisionProvider` already
+enumerates), or the **application of an effect** (CR 701.19c / 615.12 — one
+site, two permitted subjects, and therefore closed at one arm). Adding an arm is
+a claim that the engine has a site none of the three names — the same shape of
+claim as `EventPattern`'s "one arm per `GameAction` variant", and checkable the
+same way. An earlier draft claimed two axes and tried to argue the third away;
+§3.3 states it plainly instead.
 
 **Three. The claim was measured, not asserted.** Every one of the 1,857 cards
 was pulled and each of its 2,034 "can't" clauses classified by *where the engine
 would have to enforce it* (`plans/references/cant-census.py`). The answer is
 §2.1's table: six enforcement points, of which **Phase RB built one**. The
-residual after classification is 4 clauses, and they are printed in §2.5 rather
-than rounded away.
+residual after classification is 4 clauses and they are printed in §2.5 rather
+than rounded away; §2.6 records the one family the first pass classified wrong,
+because a census's failure mode is a bucket nobody re-read.
 
 **Four. Performance has one designated lever and a measurement gate — and this
 is hotter than the replacement pipeline.** `apply_replacements` sits on
@@ -89,8 +92,8 @@ Three things about it are *right* and this design keeps all three:
 ### What it cannot grow into
 
 `is_blocked` answers exactly one question — *may this proposed `GameAction`
-happen?* — and §2.1 measures that at **231 of 2,034 clauses, 11%**. The other
-89% never reach `execute_action` at all, because the player is never offered the
+happen?* — and §2.1 measures that at **236 of 2,034 clauses, 12%**. The other
+88% never reach `execute_action` at all, because the player is never offered the
 choice that would propose the event. A creature that "can't attack" is not an
 attack proposal that gets rejected; it is a creature `legal_attackers` must not
 return.
@@ -113,12 +116,17 @@ Three ordering facts, only one of which the review named:
    enters). It cannot ask that question without a restriction to ask it *of*.
    This is the review's stated deadline and §7 sizes exactly how much of the
    model RC-4 actually needs — which is less than the whole thing.
-2. **Three tickets have been waiting on this model without naming it.** `T21b`
-   (evasion framework), `T21d` (the 508.1d/509.1c requirements solver) and `T22`
-   (hexproof/shroud/protection targeting) are all Tier-1 restrictions, all
-   pre-date the layer phases, and all sit unstarted in
-   `cards-unlocked-ledger.md`. `targeting.rs:39` still carries the comment
-   *"T22 will add hexproof/shroud/protection checks"*.
+2. **A block of unstarted work has had no home in the critical path.**
+   `cards-unlocked-ledger.md` still carries rows for `T21b` (evasion framework),
+   `T21d` (the 508.1d/509.1c requirements solver) and `T22` (hexproof / shroud /
+   protection targeting), all with empty status. Those ids are *dictionary
+   entries* — `CLAUDE.md`'s authority table says `plans/archive/` is superseded
+   and must not be acted on, so the archive plan's sequencing for them is dead
+   and "waiting in a queue" would be the wrong picture. What is alive is the
+   **work**, and until this document it appeared nowhere in `CLAUDE.md`'s
+   critical path: items 1–7 have no entry for combat restrictions or targeting
+   legality. Adding item 5b is what gives it one. The evidence that it is real
+   does not depend on the archive plan at all — see point 3.
 3. **`KeywordFlag` already ships four unenforced restrictions.** `Hexproof`,
    `Shroud`, `Menace` and `Intimidate` are constructible and grantable — and
    two of them are printed by `ui/display.rs` — but **no code reads any of them
@@ -144,8 +152,8 @@ printed alongside. Neither is a work estimate; §2.4 is.
 | **1b** | Beginning to cast a spell / playing a land | 601.3, 116.2a | **120** | 115 | ❌ |
 | **1c** | Activating an ability | 602.5 | **35** | 35 | ❌ |
 | **1d** | Choosing targets | 115.6 | **51** | 51 | ❌ (`targeting.rs` TODO) |
-| **1e** | Paying a cost | 614.17b, 118 | **21** | 21 | ❌ |
-| **2** | An engine-proposed event | **614.17** | **231** | 215 | ✅ **Phase RB** |
+| **1e** | Paying a cost | 614.17b, 118 | **16** | 16 | ❌ |
+| **2** | An engine-proposed event | **614.17** | **236** | 220 | ✅ **Phase RB** |
 | **3** | Applying a replacement effect | 701.19c, 615.12 | **187** | 182 | Half (701.19c only) |
 | **4** | Having an ability at all | 113.11 | 6 | 6 | Layer system's (§5.4) |
 | **5** | *A query, not a restriction* | 101.3 | 74 | 74 | ❌ (§4.8) |
@@ -223,17 +231,42 @@ The clause counts are not the work. Sorted by what each clause actually needs:
 
 ### 2.5 The residual
 
-Four clauses that no bucket caught, printed rather than rounded away:
+Three clauses that no bucket caught and that are about the game, printed rather
+than rounded away. **None is a sixth mechanism** — each is an existing tier with
+an unusual subject, which is the only claim this section makes:
 
 | Card | Clause | Where it belongs |
 |---|---|---|
 | Artificial Evolution | "The new creature type can't be Wall." | CR 612 text-changing, a constraint on a *choice made during resolution* |
 | Chef's Kiss | "The new targets can't be you or a permanent you control." | CR 115.7 retargeting; Tier 1d with a different subject |
-| Melira, the Living Cure | "…you can't get additional poison counters this turn." | Tier 2, but reached through a replacement's `then` |
-| Sovereign's Realm | "Your starting deck can't have basic land cards…" | deck construction (CR 100), out of scope |
+| Melira, the Living Cure | "…you can't get additional poison counters this turn." | Tier 2, reached through a replacement's `then` |
 
-None of them is a sixth mechanism. Three are existing tiers with an unusual
-subject and one is not a game rule.
+The census also prints a fourth, **Sovereign's Realm** — "Your starting deck
+can't have basic land cards" — which is a **Conspiracy**. Conspiracies start the
+game face up in the command zone and modify deck construction (CR 113.6n,
+CR 905), and the engine has no pregame procedure to modify. It is out of scope
+here, out of scope for v1, and named once so a later reader does not spend a
+lookup on it.
+
+### 2.6 One clause family the census got wrong on the first pass
+
+Recorded because a classification error is the failure mode a census has, and
+finding one is evidence the buckets were read rather than trusted.
+
+**Sigarda, Host of Herons** — "Spells and abilities your opponents control can't
+cause you to sacrifice permanents" — was bucketed into Tier 1e (costs) by a
+regex that saw "sacrifice". It is not a cost restriction: you never pay costs
+for an opponent's spell. Diabolic Edict resolving against you is an *effect*,
+and Sigarda blocks the resulting `ZoneChange { cause: Sacrificed }` **scoped by
+what caused it**. It is Tier 2 with a source filter, and it is the family's
+motivating card — Tajuru Preserver, Tamiyo Collector of Tales and The Master,
+Multiplied are the same shape. Five clauses, moved 2026-08-27; Tier 1e fell from
+21 to 16 and Tier 2 rose from 231 to 236.
+
+**What it costs the model:** a source filter on `Restriction::Event`. The
+provenance is already threaded — `ActionContext` carries the resolution — so
+this is a field, not a mechanism. It is the one thing §3.3's `Event` arm needs
+beyond `EventPattern` + `AffectedSet`.
 
 ---
 
@@ -290,11 +323,14 @@ would have to become a struct at that point across every reader.
 ```rust
 pub enum Restriction {
     // ---- Axis 1: an event the engine proposes (CR 614.17) ----------------
-    /// **Zero new vocabulary.** `EventPattern` and `AffectedSet` are the
+    /// **Almost zero new vocabulary.** `EventPattern` and `AffectedSet` are the
     /// replacement pipeline's, reused verbatim: "this permanent can't be
     /// destroyed" is the same predicate over the same proposal as "if this
-    /// permanent would be destroyed, instead …", minus the instead.
-    Event { pattern: EventPattern, affected: AffectedSet },
+    /// permanent would be destroyed, instead …", minus the instead. The one
+    /// addition is `by`, CR 101.2 scoped by what *caused* the event — Sigarda
+    /// and the four cards §2.6 names. Provenance is already threaded through
+    /// `ActionContext`, so it is a field rather than a mechanism.
+    Event { pattern: EventPattern, affected: AffectedSet, by: Option<SourceFilter> },
 
     // ---- Axis 2: a choice a player makes (one arm per `ChoiceKind`) ------
     /// CR 508.1c. `ChoiceKind::DeclareAttackers`.
@@ -323,32 +359,50 @@ pub enum Restriction {
     /// CR 614.17b and CR 118. The cost-payment choice kinds.
     PayCost { player: PlayerRef, cost: CostFilter, purpose: Option<CostPurpose> },
 
-    // ---- Axis 3? No. ----------------------------------------------------
-    /// CR 701.19c and 615.12 — withholds a *replacement effect* rather than
-    /// blocking an event or a choice. Not a third axis: the enforcement point
-    /// is `gather`, which is neither a proposal nor a player choice, and it is
-    /// the only one. Two customers, both named by the CR.
+    // ---- Axis 3: applying an effect (CR 701.19c, 615.12) -----------------
+    /// Withholds a *replacement or prevention effect* rather than blocking an
+    /// event or a choice. This **is** a third axis and an earlier draft of this
+    /// document tried to argue it was not — the argument did not survive being
+    /// written down, so it is stated plainly instead.
+    ///
+    /// It is a third axis because CR 101.2's "it" can be the application of an
+    /// effect rather than an event: CR 701.19c says a regeneration shield is
+    /// "not applied", and the destruction it would have replaced still
+    /// happens. No `EventPattern` can say that.
+    ///
+    /// **The axis is closed at one arm, and that is what makes it safe.**
+    /// Axes 1 and 2 are open because `GameAction` and `ChoiceKind` grow; this
+    /// one cannot, because there is exactly one place in the engine where an
+    /// effect is applied to an event (`gather`'s `push_if_applicable`) and the
+    /// CR names exactly two things that may be withheld there — regeneration
+    /// shields (701.19c) and prevention effects (615.12). A second arm here
+    /// would be a claim that the engine applies effects somewhere else.
     ApplyReplacement { kind: ReplacementKindFilter, to: AffectedSet },
 }
 ```
 
 **The growth contract, meant to be enforced in review.** `Restriction` grows on
-two axes and no other:
+three axes and no other, and each axis is an enumeration the engine already
+owns:
+
+| Axis | What a "can't" attaches to | The enumeration that bounds it | Open? |
+|---|---|---|---|
+| 1 | an event the engine proposes | `GameAction` variants, via `EventPattern` | grows with the engine |
+| 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
+| 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
 
 - **`Event` never grows.** New replaceable event kinds arrive as `GameAction`
   variants and reach this arm through `EventPattern` for free. A change that
   adds an event-shaped arm here is the smell.
-- **Every other arm names one `ChoiceKind`.** Adding one is a claim that the
+- **Every axis-2 arm names one `ChoiceKind`.** Adding one is a claim that the
   engine offers a player a decision that `ui/choice_types.rs` does not
-  enumerate. That is a real thing to check and usually the answer is that the
+  enumerate. That is a real thing to check, and usually the answer is that the
   missing item is a `ChoiceKind`.
+- **Axis 3 is closed** for the reason its own doc comment gives: one application
+  site, two things the CR permits withholding.
 - **Per-card variety goes in the filters**, which are `PermanentFilter`,
   `CardFilter` and `PlayerRef` — vocabulary that already exists and that §2.4
   measured as sufficient for 60 of 62 observed shapes.
-
-`ApplyReplacement` is the one arm that is neither, and it is called out as such
-rather than smuggled in. Its enforcement point is `gather.rs`'s
-`push_if_applicable`, which is where CR 701.19c already lives.
 
 **Matched exhaustively; not `#[non_exhaustive]`.** Adding an arm is a normal
 diff that fails to compile at every reader, which is the property
@@ -499,17 +553,82 @@ shows why they cannot be evaluated per creature:
 > attack. It's illegal to attack with the other creature, attack with both, or
 > **attack with neither**.
 
-So legality is a property of the *set*, and the rule is "maximise obeyed
-requirements without disobeying any restriction". That is the `T21d` ticket, it
-is a constraint solver, and it is the largest single piece of work this document
-scopes.
+So legality is a property of the *set*, and the rule is:
 
-**Two things follow.** First, `legal_attackers` / `legal_blockers` keep being an
-**over-approximation** — that is already this codebase's documented contract
-(`legality.rs:1`, "false positives are harmless, false negatives are bugs") and
-it is the right one, because the set-level check belongs in `validate_attackers`
-where the CR puts it. Second, **restrictions and requirements ship together or
-not at all**, because 508.1d's answer depends on both.
+> A declaration is legal iff it disobeys no restriction **and** the number of
+> requirements it obeys equals the maximum obtainable over all
+> restriction-legal declarations.
+
+That is a maximisation subject to constraints, it is the `T21d` ticket, and it
+is the largest single piece of work this document scopes. What follows is the
+part an earlier draft left as "it is a constraint solver" and stopped — which is
+the over-deferral this project has been bitten by, so it gets counted instead.
+
+#### The decomposition, measured
+
+The 1,262 Tier-1a clauses are not 1,262 constraints. Counted 2026-08-27:
+
+| Shape | Clauses | Couples creatures? |
+|---|---:|---|
+| Per-creature restriction ("this creature can't block", "can't be blocked by artifact creatures") | **1,200** | no — a predicate on one creature |
+| Per-attacker blocker count ("can't be blocked by more than one", menace's "except by two or more") | **49** | no — local to one attacker's block assignment |
+| Cross-creature restriction ("can't attack alone", "can't attack unless at least two other creatures attack") | **13** | **yes** |
+| Global cap ("no more than one creature can attack each combat") | **2 cards** — Silent Arbiter, Dueling Grounds | **yes**, over everything |
+
+And the requirements side, counted on Scryfall the same day: "attacks each
+combat if able" **88**, "attacks this turn if able" **18**, "blocks this turn if
+able" **14**, "blocks each combat if able" **6**, lure's "must be blocked if
+able" **20** — plus **goad** (83 cards), whose reminder text *is* "attacks each
+combat if able". Call it ~150 cards, and note that goad is the one that matters
+for v1: it is a Commander staple and it applies to *many* creatures at once.
+
+**So 95% of Tier 1a is a predicate**, and the solver exists for ~15 printed
+cards plus the requirement population. That ratio is the design.
+
+#### The algorithm that follows from the measurement
+
+1. **Filter by per-creature restrictions.** O(n). This is `legal_attackers` /
+   `can_block` as they exist today, with the hardcoded flying and defender arms
+   replaced by data.
+2. **If no requirement is live on the board and no coupling constraint is
+   present, stop.** The declaration is legal iff step 1 passes. This short
+   circuit is the common case and must be checked first, not last — the gate is
+   two set-emptiness tests.
+3. **Otherwise, build the coupling graph** over the declaring player's
+   creatures: an edge when a cross-creature restriction names both, and one
+   component containing everything a global cap constrains. Solve each
+   connected component independently and sum the obeyed-requirement counts —
+   sound because requirements are independent unless a restriction couples
+   them, which is exactly what the graph records.
+4. **Within a component, brute-force.** Enumerate subsets, discard the ones that
+   disobey a restriction, take the max obeyed count. Interchangeable creatures —
+   those with no requirement and no cross-creature restriction, present only as
+   *filler* to satisfy "can't attack alone" — collapse to a count rather than an
+   identity, which is what keeps "goad everything, and one creature can't attack
+   alone" from being exponential.
+
+**The complexity, stated honestly.** Step 4 is `2^k` in the size of a component,
+where `k` counts only creatures that carry a requirement or a cross-creature
+restriction. Goad-everything gives a large `R` but an **empty** coupling graph,
+so every component is a singleton and the answer is O(n) — which is the case
+that would otherwise have been the disaster. A component is large only when
+several of the ~15 coupling cards are on one board at once.
+
+**The guard, and it is a real one.** CR 508.1d is NP-hard in the general case;
+this design chooses a *bounded exact* algorithm over a heuristic, and takes a
+hard cap on component size with a loud error rather than a silent wrong answer.
+That is the same trade `MAX_616_1F_ITERATIONS` makes and it should be documented
+the same way — as an invariant that has been reasoned about, not "a test
+harness".
+
+**Two things follow for the code.** First, `legal_attackers` /
+`legal_blockers` keep being an **over-approximation** — that is already this
+codebase's documented contract (`legality.rs:1`, "false positives are harmless,
+false negatives are bugs"), and it is the right one, because the set-level check
+belongs in `validate_attackers` where the CR puts it. Second, **restrictions and
+requirements ship together or not at all**, because 508.1d's answer depends on
+both — so `Restriction` gets a sibling `Requirement` type in RS-3, discovered by
+the same sweep, and neither is useful alone.
 
 **Consumers.** Menace and the 77 counting clauses; the fear/intimidate/shadow/
 skulk/horsemanship family (147 cards) as `except_by` filters; landwalk (122);
@@ -544,12 +663,35 @@ characteristics are.
 > values." That player's opponent may begin to cast Rolling Thunder, {X}{R}{R},
 > because the chosen value of X may cause the spell's mana value to become odd.
 
-So the Tier-1b check is **not** a predicate over the spell as it stands — it is a
-predicate over *some reachable proposal* of that spell. That makes it an
-existential over the announcement choices, and it is the one place in this
-design where the check has to look forward. It is the same *shape* as CR
-614.12's look-ahead frame (§5.3) but a much cheaper instance: the perturbation is
-the announcement choices, not the battlefield.
+Read alone that looks like an existential search over an unbounded domain
+(X ∈ ℕ), and an earlier draft of this document said so and called it "cheaper
+than the CR 614.12 look-ahead frame" **with no evidence**. That was wrong twice
+over: the cost was asserted, and the shape was misread.
+
+**Void Winnower's printed rulings settle it.** *"For spells with {X} in their
+mana costs, use the value chosen for X to determine if the spell's mana value is
+even or not. For example, your opponent could cast Endless One (with mana cost
+{X}) with X equal to 5, but not with X equal to 6."* So the prohibition is
+evaluated **against the finished announcement**, not searched for in advance.
+601.3a is a *permission to begin*, and 601.2's own rewind — "if a player is
+unable to comply … the casting of the spell is illegal; the game returns to the
+moment before" — is what rejects the bad choice.
+
+So the implementation is **over-approximate at the gate, exact after
+announcement**, which is this codebase's existing documented contract for
+`candidate_priority_actions` and not a novel shape at all:
+
+- `candidate_priority_actions` offers the cast if *any* announcement could
+  satisfy the prohibition — and a coarse "this restriction names a quality some
+  choice can change → offer it" is a legal over-approximation, because false
+  positives are already harmless there;
+- the real check runs at the end of CR 601.2, against the announced spell, and
+  an illegal cast rewinds through the machinery `cast.rs::rollback_cast_to_hand`
+  already implements.
+
+No search, no frame, no forward-looking evaluation. The only genuinely new thing
+is that a *rewind can now be caused by a restriction*, where today it is only
+caused by unpayable costs.
 
 **Consumers.** Grafdigger's Cage and Drannith Magistrate (a `from: Some(Zone)`
 constraint); Rule of Law and Deafening Silence (a per-turn count, which is
@@ -601,7 +743,7 @@ unconditional. One field, both keywords.
 **Rule.** CR 614.17b: "If an event can't happen, a player can't choose to pay a
 cost that includes that event."
 
-**This is the tier that is mostly not a card.** 21 clauses print it; the rest is
+**This is the tier that is mostly not a card.** 16 clauses print it; the rest is
 *derived* from Tier 2, and the printed rulings say so in as many words:
 
 - Platinum Emperion: "If a cost would include causing you to gain life … that
@@ -628,12 +770,53 @@ onto an existing `GameAction` or onto nothing:
 So CR 614.17b is a ten-arm match over a closed enum, and it is exact rather than
 approximate. That is the whole cost of the derived path.
 
-**Authored consumers.** Yasharn and Angel of Jubilation ("Players can't pay life
-or sacrifice nonland permanents **to cast spells or activate abilities**" — the
-`purpose` field, and Yasharn's ruling insists on it: "Other things may still
-cause players to pay life or sacrifice creatures, such as a resolving spell or
-ability"); Karn's Sylex; the ten "this mana can't be spent to…" cards, which are
-CR 106.6b and belong with the mana system rather than here.
+#### Does Yasharn need a field, or just a well-placed check?
+
+Mostly the latter, and an earlier draft of this section muddled it by calling
+the field `purpose` — a word vague enough to hide the question.
+
+Yasharn reads "Players can't pay life or sacrifice nonland permanents **to cast
+spells or activate abilities**". **Every cost payment in the CR is part of
+casting a spell or activating an ability** (CR 601.2f–h and CR 602.1b–f; costs
+do not exist outside those, and additional and alternative costs are paid inside
+them). So the trailing clause is not narrowing anything the check could
+otherwise see — it is *distinguishing costs from effects*, which is what
+Yasharn's ruling spells out: "Other things may still cause players to pay life
+or sacrifice creatures, such as a resolving spell or ability." **Put the check
+at the cost-payment step and the clause is satisfied by where the check is.**
+No field.
+
+One card breaks that and it is worth a field rather than a special case.
+**Karn's Sylex**: "Players can't pay life to cast spells **or to activate
+abilities that aren't mana abilities**." The mana-ability exclusion is real
+(CR 605.1a), and its ruling turns on it. So the arm carries a small set of
+payment *sites*, not a `purpose`:
+
+```rust
+PayCost { player: PlayerRef, cost: CostFilter, sites: PaymentSites }
+// PaymentSites: CAST | ACTIVATE_MANA | ACTIVATE_NONMANA, defaulting to all
+```
+
+Three flags, and the call site already knows which one it is — `engine/mana.rs`
+distinguishes a mana ability today.
+
+**One consequence to wire, not to model.** Both Yasharn's and Karn's Sylex's
+rulings say the same thing: "that spell or ability **can't be cast or
+activated**". So a Tier-1e prohibition does not merely fail the payment — it
+propagates up to CR 601.3 and makes the whole cast illegal, which is the same
+rewind path §4.3 needs. Tiers 1b and 1e share an exit.
+
+**And one floor that is not a restriction at all.** "Players may always pay 0
+life, even if an effect says they can't pay life" (Karn's Sylex's ruling,
+CR 118.5 — paying {0} is an acknowledgement, not a resource transfer). A
+`Cost::PayLife(0)` must never consult this tier.
+
+**Authored consumers.** Yasharn, Angel of Jubilation, Karn's Sylex. The ten
+"this mana can't be spent to…" cards are **not** here: they are CR 106.6b, a
+property of mana in the pool, and belong with the mana system and ticket `T12d`.
+**Sigarda and its family are not here either** — §2.6 moved them to Tier 2,
+because they restrict an *effect* that causes a sacrifice, and you never pay
+costs for an opponent's spell.
 
 ### 4.7 Tier 3 — withholding a replacement effect
 
@@ -828,24 +1011,36 @@ supersedes it and `codebase-state.md` records that.
 **No — one primitive, and it is the exact analogue of `Primitive::Regenerate`.**
 
 ```rust
-/// Create a restriction from a resolution (CR 611.2a).
+/// Create a restriction from a resolution.
 ///
 /// The atom's `EffectRecipient` supplies the subject, exactly as it does for
 /// every other primitive — which is what lets "Destroy target creature. It
 /// can't be regenerated." name its target without a new `AffectedSet` variant.
+///
+/// **`Duration` is authored, never inferred** — CR 608.2c (§9 finding 1).
 Restrict(Box<RestrictionDef>, Duration),
 ```
 
-`Primitive::CantBeRegenerated` folds into it as
-`Restrict(ApplyReplacement { kind: Regeneration, .. }, ..)`. So does Skullcrack,
-which is *three* `Restrict` atoms in a `Sequence` and zero engine changes — the
-§0 commitment, demonstrated on the hardest printed case in the corpus.
+Three cards, three durations, one primitive — which is the test of whether the
+`Duration` argument earns its place:
+
+| Card | Restriction | `Duration` |
+|---|---|---|
+| Wrath of God | "They can't be regenerated" | scoped to *this resolution's* destruction (CR 608.2c) — **a variant that does not exist yet** |
+| Skullcrack | "Players can't gain life this turn" | `UntilEndOfTurn` |
+| Solemnity | "Counters can't be put on …" | not a resolution at all — a static ability, discovered, no primitive |
+
+`Primitive::CantBeRegenerated` folds into the first row. Skullcrack is *three*
+`Restrict` atoms in a `Sequence` — two restrictions and a damage atom, across
+two tiers — with zero engine changes, which is the §0 commitment demonstrated on
+the hardest printed case in the corpus.
 
 **Why a primitive rather than an `Effect::Restriction` node.** The same reason
 `Effect::Replacement` errors today: a restriction created by a resolution needs
-a CR 611.2a duration, and there is nowhere honest to read it from unless the
-authoring surface carries it. A primitive has a place to put it; an effect node
-would have to grow one anyway.
+a duration, and there is nowhere honest to read it from unless the authoring
+surface carries it. CR 608.2c makes that structural rather than convenient — the
+rule tells the *reader* to determine scope from English, so no node that lacks a
+duration field could ever be filled in correctly by the engine.
 
 **And most restrictions need no primitive at all.** 563 of the 2,034 clauses
 carry an explicit duration and are therefore resolution-created; the other
@@ -865,16 +1060,41 @@ go away.
 
 **And that closes a real gap, which is the argument for doing it rather than
 leaving A4 as a note.** `turns.rs:138` clears the set at cleanup, i.e. treats
-"It can't be regenerated" as until-end-of-turn. CR 611.2a says a continuous
-effect from a resolution "lasts as long as stated by the spell or ability
-creating it. **If no duration is stated, it lasts until the end of the game.**"
-Wrath of God states none. The divergence is reachable: Wrath of God destroys a
-creature carrying a CR 122.1c shield counter, the shield replaces the
-destruction, the creature survives *still flagged*, and on a later turn the
-engine lets it regenerate where the CR does not. Narrow, but it is a wrong
-answer produced by a hardcoded duration, and a `Duration` field cannot produce
-it. See §9 finding 1 — the CR text is unambiguous and no printed ruling
-contradicts it, but this design does not get to decide the rule by itself.
+"It can't be regenerated" as until-end-of-turn, under a comment asserting it is
+"a this-turn fact" with no rule cited. The rule that governs it is **CR 608.2c**,
+and it names this exact card text:
+
+> 608.2c … In some cases, later text on the card may modify the meaning of
+> earlier text (for example, **"Destroy target creature. It can't be
+> regenerated"** …) Don't just apply effects step by step without thinking in
+> these cases — read the whole text and apply the rules of English to the text.
+
+So "It can't be regenerated" is **not a continuous effect at all**. It modifies
+the meaning of the destruction instruction it follows: *destroy it in a way
+regeneration cannot save it*. It is a one-shot effect scoped to that
+destruction, CR 611.2 never engages, and CR 611.2a's "until end of game" is a
+red herring — an earlier draft of this document reached for it and was wrong.
+
+**RB is still wrong, in the opposite direction and by a smaller margin.** Same
+scenario: Wrath of God destroys a creature carrying a CR 122.1c shield counter,
+the shield replaces the destruction, the creature survives. Under 608.2c it is
+not flagged at all afterwards and may be regenerated **immediately, the same
+turn**. RB withholds every shield from it until cleanup. Narrow, but reachable,
+and produced by exactly the hardcoded duration this section removes.
+
+**The scope RS-1 needs, and it is a new one.** `Duration` today is
+`{UntilEndOfTurn, UntilYourNextTurn, WhileSourceOnBattlefield, WhileEnchanted,
+WhileEquipped, Indefinite}` — nothing says "for the event this resolution is
+about to perform". `Primitive::Restrict` gets that as its first customer.
+`Primitive::Regenerate`'s twin, which *is* CR 701.19a's genuinely turn-scoped
+shield, keeps `UntilEndOfTurn`; the two sit next to each other in `resolve.rs`
+with different durations for a reason the CR gives.
+
+**The design consequence is bigger than the fix, and §9 finding 1 states it:**
+CR 608.2c tells the reader to "apply the rules of English to the text". No
+engine can derive that. Scope has to be **authored**, per card, which is the
+strongest argument in this document for `Duration` being a field on
+`Primitive::Restrict` rather than something the primitive infers.
 
 ---
 
@@ -887,26 +1107,76 @@ builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
+| **RS-0 — the shared duration registry** | Lift the ten methods `ContinuousEffectRegistry` and `ReplacementRegistry` already duplicate into one type; migrate both. No new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today across **259** + **~90** lines | low — pure refactor with two existing test suites as the check. §9 finding 7 |
 | **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site |
-| **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`cast.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `cast.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and CR 601.3a's existential is genuinely novel |
-| **RS-3 — combat** | `Attack`, `Block`, `BeBlocked`, and the CR 508.1d / 509.1c requirements solver (`T21b` + `T21d`). Consumers: menace, the evasion family, landwalk, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`); the solver is new code, not a migration | **highest** — a constraint solver, and 62% of the corpus rides on it |
-| **RS-4 — costs** | `PayCost`, the CR 614.17b derivation, the `Cost → GameAction` projection. Consumers: Yasharn, Platinum Emperion | **10**-arm projection over a closed enum; **2** payment sites (`costs.rs`, the `ChooseAdditionalCosts` path) | low, and it is last because 614.17b's derived half needs Tier 2 *and* the authored half is 21 clauses |
+| **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`cast.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `cast.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
+| **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,249 of 1,262** Tier-1a clauses — the 1,200 per-creature plus the 49 per-attacker blocker counts | medium — large surface, but every check is local |
+| **RS-3b — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
+| **RS-4 — costs** | `PayCost`, the CR 614.17b derivation, the `Cost → GameAction` projection. Consumers: Yasharn, Platinum Emperion | **10**-arm projection over a closed enum; **2** payment sites (`costs.rs`, the `ChooseAdditionalCosts` path) | low, and it is last because 614.17b's derived half needs Tier 2 *and* the authored half is 16 clauses |
 
 **Ordering, and the one hard constraint.**
 
 > **RS-1 must land before RC-4** (§5.3). Nothing else in this document blocks
 > anything in `replacement-architecture.md`.
 
-RS-1 is small, deletes more than it adds, and can go in parallel with RC-1
-through RC-3. RS-2 and RS-4 are independent of the RC/RD/RE line entirely.
-**RS-3 should not start before the CR 613.8 dependency cluster** (`CLAUDE.md`
-critical-path item 7): evasion is cumulative (CR 509.1b) and a combat solver
-reading effective characteristics under timestamp-only ordering will produce
-answers that change when 613.8 lands.
+RS-0 is a pure refactor and lands before RS-1 so that RS-1 *uses* the
+abstraction rather than inventing it. RS-1 is small, deletes more than it adds,
+and can go in parallel with RC-1 through RC-3. RS-2 and RS-4 are independent of
+the RC/RD/RE line entirely.
+
+**RS-3b should not start before the CR 613.8 dependency cluster** (`CLAUDE.md`
+critical-path item 7): evasion is cumulative (CR 509.1b), so a solver reading
+effective characteristics under timestamp-only ordering will produce answers
+that change when 613.8 lands. **RS-3a does not have that problem** — a
+per-creature predicate reads the same frame every other combat check already
+reads today — which is the second reason to split RS-3 in two rather than the
+first. The split lets 1,249 of 1,262 clauses land without waiting on item 7.
 
 **What each PR must not do.** RS-1 must not touch a choice site; RS-2 must not
-touch combat; RS-3 must not carry the "unless" clauses (§2.4). Each of those is
-the seam where this would otherwise become one 5,000-line PR again.
+touch combat; RS-3a must not attempt CR 508.1d; and no RS phase carries the
+"unless" clauses (§2.4). Each of those is the seam where this would otherwise
+become one 5,000-line PR again.
+
+### 7.1 The interleaved order, end to end
+
+**`CLAUDE.md` → "Critical path to v1" is the authority; this is a reading of
+it**, written because two phase families now run beside each other and the
+useful question is "what do I do next", not "what does each doc own".
+
+**Hold two things in your head, not eleven.**
+
+> **Track R** turns events into things cards can modify (RC → RD → RE).
+> **Track S** turns rules into things cards can forbid (RS-0 → RS-4).
+> They meet **once**: RS-1 before RC-4. Everything else is free ordering.
+
+| # | Do this | Why here |
+|---|---|---|
+| 1 | Finish #62 — themes G, then B | `rb-review.md`'s plan; both are on the branch already |
+| 2 | **RS-0** — the shared duration registry | Pure refactor, two existing suites as the check. Cheapest thing on the list and it makes 3 and 6 smaller |
+| 3 | **RS-1** — the Tier-2 spine | Net-deleting. **This is the join**: RC-4 cannot start without it |
+| 4 | **RC-1** — delete the early stack pop | Independent of everything; the safest shape the project writes |
+| 5 | **RC-2** — `EnterBattlefield` as an event | 773 enters-tapped cards, and the first thing that makes Track R visible in a game |
+| 6 | Themes C + E — naming and hygiene | After the merge, with theme G's comment rule in hand |
+| 7 | **RC-3** — the membership gate | One line, hottest path; its deliverable is the measurement |
+| 8 | **RC-4** — the overlay | The join is satisfied by 3. CR 614.17d asks a question RS-1 gave it |
+| 9 | **RS-2** — casting, activating, targeting | Unlocks hexproof/shroud/protection. Independent of Track R entirely; can slot anywhere from 4 onward |
+| 10 | **Cost modification** — its own small phase | `replacement-architecture.md` §9 asks for it; commander tax runs through it; RS-4 wants it nearby |
+| 11 | **RS-4** — costs (CR 614.17b) | Needs RS-1 for the derived half and reads better after 10 |
+| 12 | **RS-3a** — combat, the predicate half | 1,249 of 1,262 Tier-1a clauses. Does **not** need item 7 |
+| 13 | **CR 613.8** — the dependency cluster | `CLAUDE.md` item 7, hard back-stop before Phase 8 breadth |
+| 14 | **RS-3b** — combat, the solver half | After 13, because evasion is cumulative |
+| 15 | **RD**, then **RE** | Damage/prevention, then the remaining event kinds. RD gives Tier 3's other half something to withhold |
+| 16 | **CR 603** — triggers | `CLAUDE.md` item 6; consumes the performed-event stream both tracks feed |
+
+**Three sanity checks on that order.** Track R's first four steps are already
+sized in `replacement-architecture.md` §9 and unchanged by this document. The
+only reordering this document caused is item 3 moving ahead of item 8. And
+items 9–12 are genuinely free — if a card you want to play needs hexproof more
+than it needs ETB replacements, do 9 first and nothing breaks.
+
+**What is deliberately not on this list.** The 149 "unless" clauses, CR 613.10,
+CR 113.11's Tier 4, and the Conspiracy in §2.5. Each has a home elsewhere or no
+home yet, and each is named in §9 or §10 so it is findable rather than lost.
 
 ---
 
@@ -925,7 +1195,7 @@ The corpus already has the spine, and almost none of it is covered. From
 | `ATOM-701.19c-001` | 701.19c | 3 | ✅ covered (RB) |
 | `ATOM-615.12-001/002` | 615.12 | 3 | uncovered — Phase RD |
 | `ATOM-601.3-001` | 601.3 | 1b | uncovered, ticketed **L15** |
-| `ATOM-601.3a-001` | 601.3a | 1b | uncovered — the Void Winnower existential |
+| `ATOM-601.3a-001` | 601.3a | 1b | uncovered — Void Winnower: begin the cast, then reject the announced X (§4.3) |
 | `ATOM-508.1c-001`, `ATOM-508.1c-002` | 508.1c | 1a | `-001` marked `ALREADY-IMPL`, **zero coverage**; `-002` is the "can't attack alone" pair |
 | `ATOM-509.1b-001/002/003` | 509.1b | 1a | `-002` ticketed `T21b` (cumulative evasion); `-001`/`-003` marked `ALREADY-IMPL`, zero coverage |
 | `ATOM-613.10-001`, `ATOM-613.11-001/002` | 613.10/613.11 | — | uncovered, ticketed **L15** |
@@ -955,21 +1225,42 @@ Four things to act on rather than read past:
 
 ## 9. Findings and open questions
 
-1. **`Duration` of an unstated "can't be regenerated" — needs a decision.**
-   CR 611.2a: no stated duration → until end of game. `turns.rs:138` clears at
-   cleanup, under a comment that asserts the opposite as fact — *"CR 701.19c's
-   'can't be regenerated' is a this-turn fact and expires with everything else
-   that is"* — with no rule cited for the "this-turn" half. §6.4 has the
-   reachable divergence. The CR text is unambiguous and no printed ruling was
-   found that contradicts it, but "Wrath of God flags a surviving creature for
-   the rest of the game" is surprising enough that the owner should confirm
-   before RS-1 encodes it. **The model is neutral either way** — it is one
-   `Duration` value — which is the argument for making it a field regardless of
-   the answer.
-2. **CR 601.3a's existential is the only forward-looking check in the design**
-   (§4.3). It is cheap (announcement choices, not the battlefield) but it is a
-   genuinely different shape from every other enforcement point, and RS-2 should
-   be reviewed with that in mind rather than treating Tier 1b as a filter.
+1. **CR 608.2c means an engine cannot derive a restriction's scope — it has to
+   be authored.** ✅ *Answered by the owner 2026-08-27; this replaces an earlier
+   draft that reached for CR 611.2a and got it wrong.*
+
+   "Destroy target creature. It can't be regenerated" is named **in CR 608.2c
+   itself** as an example of later text modifying the meaning of earlier text.
+   It is part of the destruction instruction — a one-shot effect scoped to that
+   event — not a continuous effect, so CR 611.2 never engages. §6.4 has the
+   consequence: `turns.rs:138`'s cleanup clear is too *broad*, not too narrow,
+   and the fix is a resolution-scoped `Duration` variant that does not exist
+   yet.
+
+   **The general lesson is the one worth keeping.** CR 608.2c's instruction is
+   literally *"apply the rules of English to the text"*. That is the CR handing
+   scope determination to a human reader, and it is unusual — most of the rules
+   this engine implements are mechanical. Two rules follow, and they should
+   outlive this finding:
+
+   - **Never infer a restriction's duration from its shape.** Two cards with
+     identical restriction text can have different scopes because of the
+     sentence before them. `Primitive::Restrict` takes a `Duration` as an
+     argument for the same reason `Primitive::ModifyPowerToughness` does.
+   - **Where the CR delegates to English, the card file is the only honest
+     place to record the reading.** Add a rule cite in the card's comment when
+     the reading is not obvious, so the next person does not re-derive it —
+     this finding took a CR search and an owner correction to settle.
+
+   The rest of §9 numbering is unchanged so citations to findings 2–6 still
+   resolve.
+2. **CR 601.3a is not a forward-looking check** (§4.3), and an earlier draft
+   claimed it was and priced it against the CR 614.12 frame with no evidence.
+   Void Winnower's rulings show it is over-approximate at the gate and exact
+   after announcement, which is `candidate_priority_actions`' existing
+   contract. The one new thing is that a **restriction can now cause a CR 601.2
+   rewind**, where today only an unpayable cost can. RS-2 should be reviewed for
+   that, not for a search.
 3. **`ReplacementDef::is_regeneration` gains its second reader** (§4.7). Its own
    doc says a second reader "would be the smell". It is the right reader, but
    Phase RD should widen it to a `ReplacementKind` rather than adding a parallel
@@ -989,6 +1280,46 @@ Four things to act on rather than read past:
    adjacent to this work — "an effect might give a player protection from red" —
    and neither `layers-architecture.md` nor this file owns it. Whichever phase
    builds `PlayerRef`-scoped continuous effects should claim it.
+
+7. **RS-1 makes this the third duration registry, and that is the moment to
+   abstract the shared half.** Not the whole registry — the *expiry* half, which
+   is a rules concern rather than a storage one.
+
+   **Measured.** `ContinuousEffectRegistry` (`state/continuous_effects.rs`) and
+   `ReplacementRegistry` (`state/replacement_effects.rs`) already share ten
+   methods: `new`, `add`, `remove`, `remove_by_source`, `iter`, `is_empty`,
+   `len`, `retain_effects`, `remove_expired_at_cleanup` and
+   `remove_expired_at_turn_start`. The last two are **character-for-character
+   identical logic** — same `Duration` match, same `active_player` /
+   `created_on_turn` guard, same "suppress unused until multi-turn durations
+   arrive" note. A fourth is coming with delayed triggers (CR 603.7).
+
+   **Why this clears the two-customers guard.** The project's rule is "don't
+   refactor speculatively", and this is not speculation: three concrete
+   customers, identical semantics, and the semantics are **CR 514.2 and
+   CR 613.7**, not an implementation detail. The failure mode duplication has
+   here is specific — a duration bug fixed in one registry and not the other two
+   is invisible, because each has its own tests and each passes.
+
+   **What to abstract, and what not to.** A `DurationRegistry<T>` (or a shared
+   `expiry` module over `&mut Vec<Row<T>>`) carrying `id` allocation, `source`,
+   `controller`, `duration`, `created_on_turn`, and the three expiry hooks.
+   **Not** the query side: `effects_in_layer`'s layer-indexed cache,
+   `summary()`'s scope gate, and `Uses::Once`'s row removal are each specific to
+   one customer and are where the registries genuinely differ.
+
+   **When.** Its own small PR, immediately before RS-1, migrating the two
+   existing registries first so RS-1 is a *user* of the abstraction rather than
+   the thing that invents it. That ordering is what keeps it from becoming a
+   generic nobody else fits — the same reason `replacement-architecture.md`
+   insists every PR in a split carries a consumer.
+
+8. **`Restriction` needs a `Requirement` sibling and RS-3 cannot ship without
+   it** (§4.2). CR 508.1d's maximisation is defined over both, so a restriction
+   solver that cannot see "attacks each combat if able" produces wrong answers
+   rather than incomplete ones. ~150 printed cards, goad the important one for
+   Commander. Named here because it is the one place this document's scope has
+   to grow beyond its title.
 
 ---
 
