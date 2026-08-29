@@ -21,6 +21,7 @@ python plans/specdb.py stats             # rules coverage by phase
 | `plans/codebase-state.md` | Current state; wins over every other doc. Hand-maintained — update it as part of the work that changes it. Its **Deferred Migrations** section is the one to guard: debt owed by forward-looking scaffolding, invisible to tests until the dependent system lands. Add a line for every new stub or TODO at commit time |
 | `plans/layers-architecture.md` | The layer system: type shapes, module layout, sublayer enumeration, dependency algorithm |
 | `plans/replacement-architecture.md` | Replacement + prevention (CR 614–616): event vocabulary, CR 616.1 pipeline, ETB look-ahead frame, RA–RE sequencing |
+| `plans/cant-effects-architecture.md` | "Can't" effects (CR 101.2, 614.17, 613.11): the six enforcement points, `RestrictionDef`, RS-1–RS-4 sequencing. Supersedes ticket L15 |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
@@ -204,6 +205,9 @@ shell: every line must match except the timing lines (`Total time`, `Time/game`,
    (phases RA–RE). **RA (the event spine) and RB (the CR 616.1 pipeline, with
    counters, regeneration and Commander's 903.9 pair) landed 2026-08-25/26. RC —
    ETB replacements — is next, and is the ~1,350-card unlock.**
+5b. "Can't" effects (CR 101.2/614.17/613.11) — `plans/cant-effects-architecture.md`,
+   phases RS-1–RS-4. Runs beside 5, not after it. **RS-1 must land before RC-4**;
+   RS-3 (combat) wants item 7 first.
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes
    LKI formalization and conditional static abilities with it
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass +

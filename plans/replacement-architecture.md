@@ -943,6 +943,12 @@ Per `CLAUDE.md`: write it N-player-shaped or pay to retrofit it.
 
 ### 4.4 What is *not* a replacement effect
 
+> **Owned elsewhere as of 2026-08-27.** `plans/cant-effects-architecture.md` is
+> the authority for "can't" effects: CR 614.17 is one of six enforcement points
+> it measures, and the two bullets below are the only ones that touch this
+> pipeline. Everything else a "can't" does happens before `execute_action` is
+> ever reached.
+
 CR 614.17: **"can't" effects follow similar rules but are not replacement
 effects.** They are checked before the pipeline and they win (CR 101.2). Two
 consequences for this design:
@@ -2202,6 +2208,13 @@ the enters-tapped land that loses its ability before it can use it.
 concrete-state reads, CR 614.12 clauses (1)–(3), CR 614.17d, CR 614.12a's
 choice-before-entry, CR 614.13/613a/b's auxiliary zone changes and exclusion
 sets, and the CR 616.1b/c buckets.
+
+**Blocked on RS-1** (`cant-effects-architecture.md` §7): CR 614.17d needs a
+restriction to ask, and RS-1 is the Tier-2 spine that provides one. RS-1 is
+small and net-deleting, it does not depend on RC-1–RC-3, and it is the *only*
+part of the "can't" model RC-4 needs — §5.3 there works the whole printed
+population of "can't enter the battlefield" (five cards) and finds that four of
+them read the card in its source zone rather than the look-ahead frame.
 
 **No `GameState` clone at either call site** (§11 item 5, decided): a clone
 duplicates `GameState.rng` against the determinism doctrine and produces a
