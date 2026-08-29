@@ -853,8 +853,9 @@ than on size. That is the number to quote, not 2,890.
 
 Sized before writing and split in the doc, per `engineering-practices.md` §4.
 Every PR carries at least one consumer of what it builds. Sub-phases are
-numbered **CV-1 … CV-5** ("copiable values"; `CP`/`LC` were avoided as
-collisions with "critical path" and `layers-architecture.md`'s Phase LC).
+numbered **CV-1 … CV-5** ("copiable values"). `CP` and `LC` were both taken —
+`cards-unlocked-ledger.md`'s Running Totals uses `CP-A`…`CP-D` for checkpoints,
+and `layers-architecture.md` §13 uses Phase `LC`.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
