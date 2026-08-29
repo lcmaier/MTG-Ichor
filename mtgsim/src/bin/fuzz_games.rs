@@ -4,6 +4,13 @@
 //        cargo run --bin fuzz_games -- --games 10 --dump-events events.log
 //        cargo run --bin fuzz_games -- --seed 12345 --games 1 --verbose
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
+//        cargo run --bin fuzz_games -- --pool stress                (every card)
+//
+// `--pool` picks the card pool. `performance` is the frozen 55 every recorded
+// baseline was measured on and is the default, because an A/B against a pool
+// that moved is not an A/B; `stress` is every registered card, which is what
+// hunts panics and exercises effect interactions. See
+// `plans/engineering-practices.md` § "Two card pools".
 //
 // `--seed N` is a full reproducibility contract: the same seed replays the same
 // games, turn for turn, in any process. Each game's three RNG streams — decks,
@@ -73,6 +80,34 @@ struct Args {
     seed: Option<u64>,
     /// Worker threads. Defaults to the machine's parallelism; 1 is serial.
     threads: usize,
+    /// Which card pool to play.
+    pool: CardPool,
+}
+
+/// The two pools, and the reason there are two.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CardPool {
+    /// The frozen 55. Comparable across phases; the default.
+    Performance,
+    /// Every registered card. Grows, so its numbers are only comparable to
+    /// another run of the same tree.
+    Stress,
+}
+
+impl CardPool {
+    fn name(self) -> &'static str {
+        match self {
+            CardPool::Performance => "performance",
+            CardPool::Stress => "stress",
+        }
+    }
+
+    fn registry(self) -> CardRegistry {
+        match self {
+            CardPool::Performance => CardRegistry::performance_pool(),
+            CardPool::Stress => CardRegistry::default_registry(),
+        }
+    }
 }
 
 fn parse_args() -> Args {
@@ -86,6 +121,7 @@ fn parse_args() -> Args {
         threads: std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(1),
+        pool: CardPool::Performance,
     };
 
     let mut i = 1;
@@ -122,6 +158,19 @@ fn parse_args() -> Args {
                 i += 1;
                 if i < args.len() {
                     result.threads = args[i].parse().unwrap_or(1).max(1);
+                }
+            }
+            "--pool" | "-p" => {
+                i += 1;
+                if i < args.len() {
+                    result.pool = match args[i].as_str() {
+                        "performance" => CardPool::Performance,
+                        "stress" => CardPool::Stress,
+                        other => {
+                            eprintln!("Unknown pool {other:?} — want performance or stress");
+                            std::process::exit(2);
+                        }
+                    };
                 }
             }
             _ => {
@@ -607,9 +656,12 @@ fn main() {
     if args.threads > 1 {
         println!("Threads: {}", args.threads);
     }
-    println!();
 
-    let registry = CardRegistry::default_registry();
+    // Named in the header and again in the results, because the stats below
+    // mean nothing without it — the two pools are not comparable to each other.
+    let registry = args.pool.registry();
+    println!("Card pool: {} ({} cards)", args.pool.name(), registry.card_names().len());
+    println!();
     let start = Instant::now();
 
     let mut completed = 0u64;
@@ -709,6 +761,7 @@ fn main() {
     println!();
     println!("=== Results ===");
     println!("Master seed:     {}", master_seed);
+    println!("Card pool:       {}", args.pool.name());
     println!("Games run:       {}", args.games);
     println!("Completed:       {}", completed);
     println!("Errors:          {}", errors);

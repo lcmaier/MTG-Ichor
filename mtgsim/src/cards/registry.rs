@@ -16,6 +16,72 @@ use super::phase_ld_cards;
 use super::phase_le_cards;
 use super::phase_lf_cards;
 use super::phase_lg_cards;
+use super::phase_rb_cards;
+
+/// The 55 cards every recorded `fuzz_games` baseline was measured on, frozen.
+///
+/// A pool that grows makes two runs incomparable, and A/B-ing an engine change
+/// is the one thing the harness cannot do without a fixed one. Adding a card
+/// here invalidates every baseline in `plans/` and is a deliberate act;
+/// registering a card is not. `plans/engineering-practices.md` § "Two card
+/// pools".
+const PERFORMANCE_POOL: [&str; 55] = [
+    "Plains",
+    "Island",
+    "Swamp",
+    "Mountain",
+    "Forest",
+    "Lightning Bolt",
+    "Ancestral Recall",
+    "Counterspell",
+    "Burst of Energy",
+    "Volcanic Upheaval",
+    "Giant Growth",
+    "Grizzly Bears",
+    "Hill Giant",
+    "Savannah Lions",
+    "Earth Elemental",
+    "Serra Angel",
+    "Thornweald Archer",
+    "Raging Cougar",
+    "Wall of Stone",
+    "Elvish Archers",
+    "Ridgetop Raptor",
+    "War Mammoth",
+    "Knight of Meadowgrain",
+    "Rhox War Monk",
+    "Giant Spider",
+    "Vampire Nighthawk",
+    "Isamaru, Hound of Konda",
+    "Night's Whisper",
+    "Doom Blade",
+    "Angel's Mercy",
+    "Dark Ritual",
+    "Glorious Anthem",
+    "Cerulean Wisps",
+    "Crimson Wisps",
+    "Moonlace",
+    "Blood Moon",
+    "March of the Machines",
+    "Tarmogoyf",
+    "Culling Drone",
+    "Humility",
+    "Citanul Hierophants",
+    "Act of Treason",
+    "Sol Ring",
+    "Darksteel Myr",
+    "Merfolk Thaumaturgist",
+    "Tundra",
+    "Underground Sea",
+    "Badlands",
+    "Taiga",
+    "Savannah",
+    "Scrubland",
+    "Volcanic Island",
+    "Bayou",
+    "Plateau",
+    "Tropical Island",
+];
 
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
@@ -24,6 +90,10 @@ use super::phase_lg_cards;
 /// 2. Registering it here with `register()`
 ///
 /// This keeps card definitions purely data-driven — no engine code needed.
+///
+/// Two pools are built from these definitions — `default_registry` (everything)
+/// and `performance_pool` (frozen). `plans/engineering-practices.md` §
+/// "Two card pools" says which to reach for.
 pub struct CardRegistry {
     cards: HashMap<String, fn() -> Arc<CardData>>,
 }
@@ -58,7 +128,8 @@ impl CardRegistry {
         names
     }
 
-    /// Build the default registry with all known cards
+    /// Every card the crate can build. `fuzz_games --pool stress` plays this
+    /// one, and it grows with each phase.
     pub fn default_registry() -> Self {
         let mut registry = CardRegistry::new();
 
@@ -152,6 +223,26 @@ impl CardRegistry {
         registry.register("Plateau", dual_lands::plateau);
         registry.register("Tropical Island", dual_lands::tropical_island);
 
+        // Phase RB — the first replacement effect with printed card text.
+        registry.register("Kalitas, Traitor of Ghet", phase_rb_cards::kalitas_traitor_of_ghet);
+
+        registry
+    }
+
+    /// The frozen subset every recorded `fuzz_games` baseline was measured on.
+    ///
+    /// Panics if a name in `PERFORMANCE_POOL` is no longer registered. That is
+    /// the point: a rename that silently shrank the pool would leave two runs
+    /// incomparable without saying so.
+    pub fn performance_pool() -> Self {
+        let all = Self::default_registry();
+        let mut registry = CardRegistry::new();
+        for name in PERFORMANCE_POOL {
+            let factory = all.cards.get(name).unwrap_or_else(|| {
+                panic!("performance pool names {name:?}, which is no longer registered")
+            });
+            registry.register(name, *factory);
+        }
         registry
     }
 }
@@ -182,5 +273,24 @@ mod tests {
     fn test_registry_unknown_card() {
         let registry = CardRegistry::default_registry();
         assert!(registry.create("Black Lotus").is_err());
+    }
+
+    #[test]
+    fn test_performance_pool_is_the_frozen_55() {
+        // `performance_pool` panics on a name it cannot find, so building it is
+        // the check that the frozen list still resolves.
+        let pool = CardRegistry::performance_pool();
+        assert_eq!(pool.card_names().len(), 55);
+    }
+
+    #[test]
+    fn test_stress_pool_is_a_superset_of_the_performance_pool() {
+        // The two pools share definitions rather than duplicating them, so the
+        // only way to fail this is to unregister a card the frozen list names.
+        let all = CardRegistry::default_registry();
+        for name in CardRegistry::performance_pool().card_names() {
+            assert!(all.create(name).is_ok(), "{name:?} left the full registry");
+        }
+        assert!(all.card_names().len() > 55, "nothing has been added since RB");
     }
 }

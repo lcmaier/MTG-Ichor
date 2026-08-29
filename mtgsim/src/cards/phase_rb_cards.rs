@@ -76,12 +76,13 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// excludes tokenness from copiable values, so it is a property of the
 /// `GameObject` that no layer walk can reach and no frame can carry.
 ///
-/// # Not registered in `cards/registry.rs`
+/// # In the stress pool, not the frozen one
 ///
-/// Registering a card puts it in the `fuzz_games` pool and moves the baseline,
-/// which is a separate decision from writing it. Kalitas would move it a long
-/// way — every opponent creature death becomes an exile plus a token, and the
-/// pool has no token support to speak of.
+/// Registered, so `fuzz_games --pool stress` plays it; absent from
+/// `PERFORMANCE_POOL`, so it does not move the recorded A/B baseline. Keeping
+/// it out of the registry entirely would have kept it out of both pools *and*
+/// out of `card_pool_lowering_test`, which is the check that its replacement
+/// ability lowers at all.
 pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
     CardDataBuilder::new("Kalitas, Traitor of Ghet")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 2))

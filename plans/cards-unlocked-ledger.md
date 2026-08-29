@@ -227,17 +227,21 @@ mutation a proposal without changing what any of them do.
 |---|---|---|---|
 | RB item 5 | **Every card that puts a shield, stun or finality counter on a permanent — **164** printed cards, verified on Scryfall 2026-08-26 (92 + 31 + 41). No card text at all: CR 122.1c/d/h state the effects and `engine::replacement::gather` synthesizes them from the counter | Stun (92): Unstoppable Slasher, Mjölnir, Storm Hammer. Shield (31): Titan of Industry, Elspeth Resplendent. Finality (41): Meathook Massacre II, Scavenger's Talent | 🧪 2026-08-26 — the *mechanic* is covered end to end; **no card registered**, because each of these needs a primitive that puts the counter on |
 | RB item 6 | **Regeneration** — CR 701.19a shields from a resolving ability, CR 701.19b static regeneration, CR 701.19c "can't be regenerated" | Drudge Skeletons, Mossbridge Troll, Wall of Bone; the "it can't be regenerated" clause on hundreds of removal spells | 🧪 2026-08-26 — `Primitive::Regenerate` and `Primitive::CantBeRegenerated` exist; no card registered |
-| RB item 7 | **Kalitas, Traitor of Ghet** and the two-sided-filter shape it stands for | Kalitas | 🃏 2026-08-26 (`cards/phase_rb_cards.rs`) — **written, deliberately not registered**; see the note below |
+| RB item 7 | **Kalitas, Traitor of Ghet** and the two-sided-filter shape it stands for | Kalitas | 🃏 2026-08-26 (`cards/phase_rb_cards.rs`); registered 2026-08-29 into the stress pool — see the note below |
 | RB items 8–9 | **Commander zone redirection**, both halves: CR 704.6d (graveyard/exile, a state-based action) and CR 903.9b (hand/library, a replacement) | Every commander in every Commander deck | 🧪 2026-08-26 — reachable only once something sets `GameObject.is_commander`, which is CR 903.7's setup hook and still missing |
 | RB — vocabulary | Four stubbed primitives implemented as a side effect: `Tap`, `AddCounters`, `RemoveCounters`, `CreateToken` | **Raise the Alarm is now buildable** — the Notes below flagged it as blocked on `Primitive::CreateToken` | |
 
-**Why Kalitas is written and not registered.** Registering a card puts it in the
-`fuzz_games` pool permanently and moves the baseline; that is a separate
-decision from writing one. Kalitas would move it a long way — every opponent
-creature death becomes an exile plus a token, on a pool with no other token
-support — and the fuzz-pool audit's rule applies in reverse here: add a card to
-buy *coverage*, and Kalitas's coverage is already bought by 20 integration
-tests.
+**Kalitas is registered, and the pool it moves is not the one that matters.**
+It was held out of the registry at first on the grounds that registering a card
+moves the `fuzz_games` baseline. That was an argument for splitting the pool,
+not for keeping the card out: an unregistered card is invisible to `fuzz_games`,
+to `card_pool_lowering_test` and to `cli_play` at once. Since 2026-08-29 there
+are two pools — the frozen `PERFORMANCE_POOL` that every recorded baseline was
+measured on, and the growing stress pool that `--pool stress` plays. Kalitas is
+in the second only, so it moves nothing recorded and is still exercised: 50
+stress games at seed 12345 produce 202 Zombie tokens and no panics.
+**Register every card you write** (`plans/engineering-practices.md` §3);
+`PERFORMANCE_POOL` is what protects the baseline.
 
 **What RB did not unlock, despite appearances.** CR 615's prevention machinery
 is Phase RD, not this one. RB has `Rewrite::Prevent` and CR 122.1c's prevention

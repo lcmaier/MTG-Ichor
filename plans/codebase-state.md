@@ -609,6 +609,19 @@ unkillable 0/1 blocker does.
 blocker before reaching for a card. If the blocker is a stubbed primitive or a
 missing subsystem, adding a card buys errors rather than coverage.
 
+**Superseded in part 2026-08-29 (RB review, theme G3): there are now two pools.**
+The audit above was run against one pool that had to be both the panic hunter and
+the A/B baseline, which is why Kalitas was written and left out of the registry —
+"it would move the baseline". That is an argument for splitting, not for keeping
+cards out. `cards/registry.rs` now builds `default_registry()` (every registered
+card, `fuzz_games --pool stress`) and `performance_pool()` (the frozen
+`PERFORMANCE_POOL`, the default, and what every baseline in this file was measured
+on). The paragraph above stays exactly true of the performance pool. Kalitas is
+registered into the stress pool only; 50 stress games at seed 12345 give P0 30 /
+P1 20, turns 26.8, spells 19.5, lands 17.2, combat 10.7, creatures died 5.2,
+damage events 25.0, total damage 54.2, life changes 17.7, zero panics and 202
+Zombie tokens. Rules and both baselines: `plans/engineering-practices.md` §3.
+
 ### Phasing (CR 702.26) — sized 2026-08-26, not started
 
 Recorded because it reads as a large unknown and is not one. **CR 110.5 settles
