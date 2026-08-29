@@ -12,6 +12,10 @@
 //!
 //! Riders ([`Rider`]) are queued here and resolved by the caller **after** the
 //! surviving event is performed (CR 615.5, §4.1a).
+//!
+//! For the whole shipped type surface on one page, and one action traced from
+//! `execute_actions` to a performed `GameEvent`, see
+//! `plans/replacement-architecture.md` §2a.
 
 mod gather;
 mod pipeline;

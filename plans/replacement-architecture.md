@@ -195,6 +195,91 @@ Three invariants fall out, and each is load-bearing:
 
 ---
 
+## 2a. As built — every type Phase RB shipped, in one page
+
+**Why this exists.** Twelve types landed in one PR with no summary of what they
+are, and the review that followed recorded "I lost the mental model" as a real
+cost of the size rather than a personal failing. This section is the map. The
+sections below are the argument for each shape; this one is only what shipped
+and where it lives.
+
+**Read the Growth column as a contract.** *Closed* means a new arm is a claim
+that the CR permits an operation the list omits, and should arrive with the rule
+number that says so. *Grows* means adding an arm is a normal diff — but on the
+stated axis only. Everything is matched exhaustively and nothing is
+`#[non_exhaustive]`, so adding an arm fails to compile at every reader, which is
+the enforcement.
+
+### The shipped types
+
+| Type | Where | What it is | Growth |
+|---|---|---|---|
+| `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
+| `ActionContext` | `engine/actions.rs` | `{ dp, resolution }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt | grows only if a new ambient input appears |
+| `ZoneChangeCause` | `types/zones.rs` | Why an object moved. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per distinct reason a mover can name |
+| `DestructionSource` | `types/zones.rs` | Which of CR 701.8b's two routes destroyed it; lowers to a `ZoneChangeCause` | closed by CR 701.8b (effect, lethal damage, deathtouch) |
+| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data: `pattern` + `affected` + `rewrite` + `then` + `class` + `uses` + `exempt_from_614_5` + `is_regeneration` | grows by *field*, rarely; per-mechanic variety goes in `then` |
+| `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
+| `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over `DestructionSource` | tracks `DestructionSource` |
+| `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
+| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` and `RemoveCountersFromAffected`, two customers each | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
+| `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
+| `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
+| `ReplacementInstanceId` | `engine/replacement/mod.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
+| `GameRuleReplacement` | `engine/replacement/mod.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
+| `ReplacementInstance` | `engine/replacement/mod.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
+| `CounterEffectKind` | `engine/replacement/gather.rs` | Which of CR 122.1c's *two* effects a shield counter is. Two effects, one counter, two CR 614.5 identities | grows with CR 122.1's replacement-shaped counters |
+| `Affected` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Not `AffectedSet` | closed by what an event can be about |
+| `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed (CR 615.5/615.12) | — |
+| `ReplacementRowId` / `RegisteredReplacement` / `ReplacementRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
+
+### One action, end to end
+
+The path every mutation takes, with the file that owns each step:
+
+```
+caller
+  │  builds a GameAction — the proposal, never authoritative
+  ▼
+GameState::execute_action / execute_actions            engine/actions.rs
+  │  a batch opens one BatchId; a nested call joins it (CR 120.3f)
+  │
+  ├─ phase 1: DECIDE, in APNAP order of chooser (CR 616.1 + 101.4)
+  │    └─ apply_replacements(action)                   replacement/pipeline.rs
+  │         ├─ is_blocked?  → CR 614.17 "can't" wins, event dropped (101.2)
+  │         ├─ gather()     → §3.3's sources           replacement/gather.rs
+  │         │    static abilities off the EFFECTIVE ability list, never a
+  │         │    registry — which is what lets Humility strip one for free
+  │         ├─ filter to the applied-set-eligible (CR 614.5)
+  │         ├─ forced_bucket() → CR 616.1a–e's highest non-empty class
+  │         ├─ 0 candidates → done.  1 → apply it, never prompt.
+  │         │  2+ → DecisionProvider::choose (CR 616.1, the only prompt)
+  │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
+  │         ├─ push `then` onto riders (CR 615.5) — unconditional (615.12)
+  │         └─ loop (CR 616.1f) with the applied set carried
+  │
+  ├─ phase 2: PERFORM, in batch order
+  │    └─ perform_action(decided)                      engine/actions.rs
+  │         the ONLY writer, and the only emitter of the matching GameEvent —
+  │         it alone knows the cause and can take the CR 603.10a LKI frame
+  │
+  └─ phase 3: RIDERS, after the event (CR 615.5), fresh applied set
+       └─ resolve_rider()                              engine/actions.rs
+```
+
+Three properties of that picture are load-bearing and easy to break:
+
+1. **The decide/perform split is CR 704.3**, not an optimization. A batch
+   decides every member against *one* board before anything is written.
+2. **`gather` is the only place effect existence is decided**, and it asks the
+   effective ability list. `GameState::replacement_ability_sources` gates the
+   sweep and is a *hint* — a new gather source that is not added to the gate is
+   silently dead on every board the gate skips.
+3. **Riders run after, never mid-loop.** During the loop nothing has happened
+   yet, so a rider run inside it runs before the event it rides on.
+
+---
+
 ## 3. Type surface
 
 ### 3.1 `GameAction` — the replaceable-event vocabulary
@@ -242,7 +327,7 @@ pub enum ZoneChangeCause {
     Cast,            // hand (or elsewhere) → stack
     Resolved,        // 608.2n (instant/sorcery → graveyard), 608.3a/c (permanent spell → battlefield)
     Countered,       // 701.6
-    Fizzled,         // 608.2b — countered by game rules
+    Fizzled,         // 608.2b — every target illegal; does not resolve
 
     // --- turn structure and special actions ---
     Drawn,           // 121.5 makes this trigger-visibly distinct from "put into hand"
@@ -953,7 +1038,7 @@ CR 614.17: **"can't" effects follow similar rules but are not replacement
 effects.** They are checked before the pipeline and they win (CR 101.2). Two
 consequences for this design:
 
-- Indestructible (CR 701.8a) is a "can't", not a replacement. The check that
+- Indestructible (CR 702.12b) is a "can't", not a replacement. The check that
   lives in `Primitive::Destroy` today moves into the `Destroy` action's
   performer, ahead of the pipeline — not into a `ReplacementDef`.
 - **CR 614.17c** — an event that can't happen is replaceable *only* by a
@@ -1972,7 +2057,7 @@ and the CR 601.2a announcement above.
 3. `apply_replacements` — the §4.1 loop, including 616.1a–f, 614.5, 616.1g
    recursion, 614.17c's blocked-event path, and APNAP.
 4. `GameAction::Destroy`; `Primitive::Destroy` lowers to it; indestructible
-   moves to the "can't" check (CR 701.8a/614.17).
+   moves to the "can't" check (CR 702.12b/614.17).
 5. **Consumer 1 — counters.** `CounterType::{Shield, Stun, Finality}` and their
    CR 122.1c/d/h effects. No card text; 164 cards.
 6. **Consumer 2 — regeneration.** CR 701.19a shield (`Uses::Once`), 701.19b

@@ -229,7 +229,7 @@ impl GameState {
                 continue; // handled by 704.5f
             }
             // **Indestructible is not checked here any more.** CR 704.5g's
-            // condition is lethal damage and says nothing about it; CR 701.8a
+            // condition is lethal damage and says nothing about it; CR 702.12b
             // is what stops the destruction, and CR 614.17 makes that a "can't"
             // rather than a replacement effect. It is now asked once, in
             // `engine::replacement::is_blocked`, for every destruction from

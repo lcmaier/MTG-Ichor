@@ -158,14 +158,15 @@ pub enum GameAction {
     /// **The outer event.** Performing it proposes an inner
     /// `ZoneChange { to: Graveyard }` whose cause is
     /// [`DestructionSource::zone_change_cause`], so a destruction is two events
-    /// and a replacement can watch either. That is not an encoding convenience:
-    /// CR 701.8b makes "destroyed" a strictly narrower fact than "put into a
-    /// graveyard from the battlefield", and CR 122.1c's shield counter watches
-    /// the first while CR 122.1h's finality counter watches the second. One
-    /// event cannot answer both.
+    /// and a replacement can watch either. The CR draws that line itself: CR
+    /// 122.1c's shield counter replaces "would be destroyed", CR 122.1h's
+    /// finality counter replaces "would be put into a graveyard from the
+    /// battlefield". The two overlap rather than nest — CR 701.8b keeps a
+    /// sacrifice out of the first, and a destruction whose graveyard move is
+    /// itself replaced never reaches the second. One event cannot answer both.
     ///
     /// Indestructible is **not** checked here and is not a replacement effect.
-    /// CR 701.8a makes it a "can't" (CR 614.17), which is checked ahead of the
+    /// CR 702.12b makes it a "can't" (CR 614.17), which is checked ahead of the
     /// pipeline and wins — see `engine::replacement::is_blocked`.
     Destroy {
         object: ObjectId,
@@ -279,12 +280,12 @@ impl GameState {
         // 101.4)". A batch whose members affect different players produces
         // different choosers, and this is the only place that can order them.
         //
-        // CR 101.4d's restart — a nonactive player's choice forcing an earlier
-        // player to choose again — is unreachable in this shape rather than
-        // unimplemented: no event is performed during phase 1, so the only
-        // state a choice can change is `consume_use`, which strictly *removes*
-        // candidates. A later chooser can never widen an earlier player's
-        // options, so nothing they do can invalidate a choice already made.
+        // CR 101.4d's restart — a nonactive player's choice forcing an
+        // earlier player to choose again — is not implemented. It has not come
+        // up for a narrower reason than "unreachable": nothing in phase 1 can
+        // *create* a replacement effect, and each member's 616.1f loop runs to
+        // completion before the next begins. That is a simplification, not a
+        // proof; interleaving the members is deferred (rb-review F6).
         let mut riders: Vec<Rider> = Vec::new();
         let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
         let inherited = std::collections::HashSet::new();

@@ -81,7 +81,12 @@ impl GameState {
             // through `Primitive::Regenerate`, which knows both its duration
             // (this turn) and its affected set (the targets).
             Effect::Replacement(_) => Err(
-                "a replacement effect created by a resolution needs a CR 614.3                  duration, which `Effect::Replacement` does not carry (Phase RD).                  A static ability's replacement effect does not resolve at all —                  put it on an `AbilityType::Static` ability and                  `engine::replacement::gather` will find it. For CR 701.19a's                  regeneration shield, use `Primitive::Regenerate`."
+                "a replacement effect created by a resolution needs a CR 614.3 \
+                 duration, which `Effect::Replacement` does not carry (Phase RD). \
+                 A static ability's replacement effect does not resolve at all — \
+                 put it on an `AbilityType::Static` ability and \
+                 `engine::replacement::gather` will find it. For CR 701.19a's \
+                 regeneration shield, use `Primitive::Regenerate`."
                     .to_string(),
             ),
 
@@ -253,7 +258,7 @@ impl GameState {
                 // both read. This was a loop of `execute_action` until
                 // 2026-08-26; §4.2 named this caller class ("any 'each
                 // player ...' effect") and RA-3 converted only two of the three.
-                // **Indestructible is no longer filtered here.** CR 701.8a
+                // **Indestructible is no longer filtered here.** CR 702.12b
                 // makes it a "can't" (CR 614.17), not a replacement effect, so
                 // it belongs ahead of the pipeline rather than ahead of the
                 // proposal — `engine::replacement::is_blocked`. Filtering here

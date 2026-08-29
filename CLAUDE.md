@@ -108,9 +108,11 @@ rules, each of which has already cost something. → `replacement-architecture.m
 - **Riders resolve after the performed event, never mid-loop (CR 615.5)**, are unconditional
   once queued (CR 615.12), and re-enter with a fresh applied-set.
 
-**Growth contracts, enforced in review.** `EventPattern` and `Rewrite` are closed — a new arm
-needs the CR rule permitting it, and per-mechanic variety goes in `ReplacementDef.then`. **An
-arm the pipeline cannot apply is worse than a missing one.** → §3.2a, §3.2b.
+**Growth contracts, enforced in review.** `EventPattern` grows on one axis — an arm per
+`GameAction` variant; `Rewrite` is a closed algebra, so a new arm needs the CR rule permitting
+it; per-mechanic variety goes in `ReplacementDef.then`. **An arm the pipeline cannot apply is
+worse than a missing one**, which is why both ship narrower than §3.2 designed them.
+→ §2a (as built), §3.2a, §3.2b.
 
 ## Determinism at the decision boundary
 

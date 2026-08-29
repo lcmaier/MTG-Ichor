@@ -112,7 +112,9 @@ pub enum ZoneChangeCause {
     Resolved,
     /// 701.6.
     Countered,
-    /// 608.2b — countered by game rules, all targets illegal.
+    /// 608.2b — every target illegal, so the spell or ability "doesn't
+    /// resolve" and is removed from the stack. The current CR does not call
+    /// this a countering; CR 701.6's `Countered` is a different action.
     Fizzled,
 
     // --- Commander (CR 903) ---

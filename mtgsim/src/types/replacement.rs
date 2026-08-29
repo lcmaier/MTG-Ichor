@@ -330,30 +330,12 @@ pub enum ReplacementClass {
 
 /// How many times a replacement effect can fire.
 ///
-/// # Why there is no `CounterBacked`
-///
-/// `replacement-architecture.md` §3.2 specified a fourth variant,
-/// `CounterBacked(CounterType)`, whose doc read "applying removes one counter;
-/// the effect exists while at least one remains". The CR does not support it,
-/// and shipping it would have moved a counter mutation off the chokepoint.
-///
-/// CR 122.1c and 122.1d state their effects verbatim, and in both the counter
-/// removal is *the substituted event or the rider*, never bookkeeping:
-///
-/// > 122.1d ... That effect is "If a permanent with a stun counter on it would
-/// > become untapped, **instead remove a stun counter from it**."
-///
-/// So stun is `Instead(RemoveCountersFromAffected { Stun, 1 })` and shield's
-/// prevention half is `Prevent` + a `then` that removes one — both of which
-/// propose through `execute_action` like every other mutation. A
-/// `CounterBacked` use would have written `BattlefieldEntity.counters`
-/// directly from inside `consume_use`, which is precisely the invisible-to-CR-614
-/// write the chokepoint invariant exists to prevent. Existence is asked at
-/// gather time instead ("does this permanent have at least one such counter"),
-/// which is where CR 614.4 wants it asked.
-///
-/// CR 615.7's `Shield(u64)` — "prevent the next N damage", where each point
-/// prevented decrements — is real and lands with Phase RD's prevention amounts.
+/// **There is no `CounterBacked`.** CR 122.1c/d make the counter removal the
+/// substituted event or the CR 615.5 rider, never bookkeeping, so a use that
+/// removed one would write `BattlefieldEntity.counters` from inside
+/// `consume_use` — off the chokepoint. Existence is asked at gather time, which
+/// is where CR 614.4 wants it asked. CR 615.7's `Shield(u64)` is real and lands
+/// with Phase RD. → `replacement-architecture.md` §3.2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Uses {
     /// CR 614.1a static abilities, 615.10, 701.19b — every time, forever.

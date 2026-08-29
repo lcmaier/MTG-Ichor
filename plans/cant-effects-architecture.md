@@ -182,7 +182,7 @@ separately on Scryfall the same day:
 | Fear / Intimidate / Shadow / Skulk / Horsemanship | 702.36a etc. | 147 | can't be blocked except by … |
 | Hexproof | 702.11b | 96 (336 incl. grants) | can't be targeted by opponents |
 | Shroud | 702.18a | 35 | can't be targeted at all |
-| Indestructible | 701.8a | 115 (524 incl. grants) | can't be destroyed |
+| Indestructible | 702.12b | 115 (524 incl. grants) | can't be destroyed |
 
 Two consequences. **Keyword-derived restrictions are a first-class discovery
 source** (§3.4 source 3), the way CR 122.1c's counters are for the replacement

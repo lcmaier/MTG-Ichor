@@ -42,7 +42,7 @@ pub(crate) struct Rider {
 /// aren't replacement effects, but follow similar rules."
 ///
 /// Checked *before* the pipeline and winning over it (CR 101.2). Today there is
-/// exactly one: CR 701.8a's indestructible, which moved here from
+/// exactly one: CR 702.12b's indestructible, which moved here from
 /// `Primitive::Destroy` when `GameAction::Destroy` landed — a "can't" is not a
 /// `ReplacementDef` and modelling it as one would have put it in the CR 616.1
 /// choice list, where a player could decline it.

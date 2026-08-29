@@ -148,7 +148,7 @@ fn test_destroy_is_loud_off_the_battlefield() {
 #[test]
 fn test_indestructible_is_a_cant_ahead_of_the_pipeline_not_a_replacement() {
     // CR 614.17 — "some effects state that something can't happen. These
-    // effects aren't replacement effects, but follow similar rules." CR 701.8a
+    // effects aren't replacement effects, but follow similar rules." CR 702.12b
     // makes indestructible one of them, so the destruction is *proposed* and
     // then blocked, rather than being filtered before it exists.
     //

@@ -115,18 +115,26 @@ removed). RS-2/RS-3/RS-4 block nothing in the RC/RD/RE line.
 
 ---
 
-## B. Doc and comment accuracy — the code is right, something written is wrong
+## B. Doc and comment accuracy — the code is right, something written is wrong — ✅ **CLOSED 2026-08-29**
 
 Cheapest theme. No tests move, no re-measurement.
 
 | # | Area | Finding | Verdict |
 |---|---|---|---|
-| B1 | `actions.rs:162` | **"CR 701.8b makes 'destroyed' a strictly narrower fact than 'put into a graveyard from the battlefield'" is wrong.** Destroy is an *action*, not a description of a result: under Rest in Peace a destroyed creature never reaches a graveyard, and Karmic Justice still triggers. The two are overlapping, not nested. **The code is right** — `Destroy` being the outer event with `ZoneChange` inside it is exactly what makes the Rest in Peace case expressible — but the comment argues for it from a false premise. | `doc` |
-| B2 | `gather.rs:228` | **Factually wrong: "the shield is still not spent, and is still there for a later turn."** CR 701.19a shields last *this turn* — `Duration::UntilEndOfTurn`, which the code sets correctly. Same sentence appears in the CR 701.19c test's comment. | `doc` |
-| B3 | `actions.rs:282` | **The CR 101.4d justification is overstated.** The comment claims a restart is "unreachable in this shape" because `consume_use` only removes candidates. The real reason it has not come up is narrower: nothing in phase 1 can *create* a replacement effect, and each batch member's 616.1f loop runs to completion before the next begins — which is a simplification, not a proof. See F6 for the deferred part. | `doc` |
-| B4 | `zones.rs:115` | `Fizzled`'s doc says "countered by game rules". Current CR 608.2b does not use that phrase — the spell "doesn't resolve" and is removed from the stack. Fizzling is not countering. | `doc` |
-| B5 | `types/replacement.rs:333` | The "Why there is no `CounterBacked`" history is design archaeology and belongs in `replacement-architecture.md` §3.2, where it already is. The code needs the rule, not the story. | `doc` |
-| B6 | `resolve.rs:83` | **Malformed string literal.** The `Effect::Replacement` error message is one long line with runs of ~18 literal spaces — a line-continuation that did not survive how the file was written. Cosmetic, but it is what a user sees. | `fix` |
+| B1 | `actions.rs:162` | **"CR 701.8b makes 'destroyed' a strictly narrower fact than 'put into a graveyard from the battlefield'" is wrong.** Destroy is an *action*, not a description of a result: under Rest in Peace a destroyed creature never reaches a graveyard, and Karmic Justice still triggers. The two are overlapping, not nested. **The code is right** — `Destroy` being the outer event with `ZoneChange` inside it is exactly what makes the Rest in Peace case expressible — but the comment argues for it from a false premise. | ✅ `doc` — rewritten to argue from **CR 122.1c vs 122.1h**, which is the CR drawing the same line itself (shield replaces "would be destroyed", finality replaces "would be put into a graveyard from the battlefield"). Overlap stated, nesting dropped. Deliberately *not* sourced on Rest in Peace: whether a destroyed-then-exiled permanent counts as destroyed is a live question the rulings do not settle, and the finality counter makes the point from a mechanic RB already ships |
+| B2 | `gather.rs:228` | **Factually wrong: "the shield is still not spent, and is still there for a later turn."** CR 701.19a shields last *this turn* — `Duration::UntilEndOfTurn`, which the code sets correctly. Same sentence appears in the CR 701.19c test's comment. | ✅ `doc` — now "there for a later destruction **this turn**", with `Duration::UntilEndOfTurn` named. **The second half of the finding was wrong:** the CR 701.19c test's comment says "still in the registry afterwards, unspent" and never claims a later turn. Nothing to fix there |
+| B3 | `actions.rs:282` | **The CR 101.4d justification is overstated.** The comment claims a restart is "unreachable in this shape" because `consume_use` only removes candidates. The real reason it has not come up is narrower: nothing in phase 1 can *create* a replacement effect, and each batch member's 616.1f loop runs to completion before the next begins — which is a simplification, not a proof. See F6 for the deferred part. | ✅ `doc` — downgraded from "unreachable" to "not implemented, and here is the narrower reason it has not come up", pointing at F6 |
+| B4 | `zones.rs:115` | `Fizzled`'s doc says "countered by game rules". Current CR 608.2b does not use that phrase — the spell "doesn't resolve" and is removed from the stack. Fizzling is not countering. | ✅ `doc` — CR 608.2b's own wording, and the same stale phrase fixed in `replacement-architecture.md`'s `ZoneChangeCause` listing |
+| B5 | `types/replacement.rs:333` | The "Why there is no `CounterBacked`" history is design archaeology and belongs in `replacement-architecture.md` §3.2, where it already is. The code needs the rule, not the story. | ✅ `doc` — 24 lines down to 7, ending in a pointer. Verified the full history is at `replacement-architecture.md`:338 before cutting |
+| B6 | `resolve.rs:83` | **Malformed string literal.** The `Effect::Replacement` error message is one long line with runs of ~18 literal spaces — a line-continuation that did not survive how the file was written. Cosmetic, but it is what a user sees. | ✅ `fix` — real `\` continuations |
+| **B7** | 6 `.rs` + 3 `.md` sites | **Found while fixing B1: indestructible is cited as CR 701.8a throughout, and CR 701.8a is "to destroy a permanent, move it from the battlefield to its owner's graveyard".** The rule that makes indestructible a "can't" is **CR 702.12b**. Nine sites said 701.8a where they meant 702.12b — `actions.rs`, `pipeline.rs`, `resolve.rs`, `sba.rs`, `artifacts.rs`, `phase_rb_integration_test.rs`, `cant-effects-architecture.md`'s census table, `replacement-architecture.md` ×2. The three sites that cite 701.8a *for the destroy action* are correct and were left alone | ✅ `doc` — all nine corrected |
+| **B8** | `CLAUDE.md` | **Found while writing §2a: "a sixth arm" is wrong for `Rewrite`, which ships two** (`Prevent`, `Instead`). §3.2b designed five; the growth contract was written against the design, not the code | ✅ `doc` — "a new arm", plus a pointer to §2a |
+
+**The as-built map is in** — `replacement-architecture.md` §2a. Every shipped
+type on one page with a Growth column, plus one action traced from
+`execute_actions` to a performed `GameEvent`. `engine/replacement/mod.rs`'s
+module doc now points at it; **C7's code move (types out of `mod.rs`) is still
+open** and stays in theme C.
 
 ---
 
@@ -326,10 +334,13 @@ load-bearing, so a wrong comment is a wrong doc.
    `plans/engineering-practices.md` as their home. It stayed one session and did
    not need its own PR. Gates re-run: 746 tests (744 + the two new registry
    tests), zero warnings, performance-pool fuzz byte-identical to the baseline.
-2. **Theme B — doc and comment accuracy.** Seven rows, all local, zero test
-   impact. B6 is the one line of code. **Next session.**
+2. ~~**Theme B — doc and comment accuracy.**~~ ✅ **done 2026-08-29.** Six rows
+   closed, two new ones found and closed (B7's nine wrong rule cites, B8), one
+   half of a finding refuted (B2's second sentence). The as-built map landed as
+   `replacement-architecture.md` §2a. 746 tests, zero warnings, no behaviour
+   touched.
 
-Then **merge #62**.
+Then **merge #62** — both blocking themes are closed.
 
 ### After the merge, as follow-up PRs on `main`
 
