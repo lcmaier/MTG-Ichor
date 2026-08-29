@@ -509,6 +509,66 @@ built, and none of it blocks RC-1 through RC-3.
     them; `Menace` and `Intimidate` are `T21b`'s. All four are Tier 1a/1d in
     `cant-effects-architecture.md` §2.3 and land in RS-2 / RS-3.
 
+### Was the critical path complete? — audited 2026-08-27
+
+Asked by the owner after the "can't" model turned out to be a whole subsystem
+nobody had scheduled. The useful form of the question is not "are we confident"
+but **"what shape of thing did we miss, and does anything else have that
+shape?"** Both halves are answerable.
+
+**The signature of the miss, in three parts.** "Can't" effects have no CR
+section of their own — they are CR 101.2, 613.11, 614.17, 508.1c, 509.1b,
+601.3, 602.5, 115.6 and 701.19c, one or two subrules each. The planning docs
+mirror CR *sections* (`layers-architecture.md` = 613, `replacement-architecture.md`
+= 614–616), so a mechanic spread across nine of them has no natural home and
+lands in nobody's doc. Meanwhile **the corpus knew**: `ATOM-614.17a/b/c/d`,
+`ATOM-601.3-001`, `ATOM-509.1b-002` all existed. What failed was the *query* —
+`specdb owed` filters to `ticket LIKE 'NEW%'`, and those atoms carry `L15` and
+`T21b`, so they sat in `owed --all`'s 550 and never in the default 38.
+
+> **The detector:** a CR section with many uncovered atoms that **no
+> architecture doc mentions**, or whose atoms are tagged to a phase the plan
+> does not schedule. Run it as `owed --all` grouped by rule prefix, cross-checked
+> against which of `layers-`/`replacement-`/`cant-effects-architecture.md`
+> mentions that section.
+
+**Run against the tree today it finds one more, and it is the same shape.**
+
+| | "Can't" effects | **Copy effects (CR 707 + 712 + Layer 1)** |
+|---|---|---|
+| Spread across | 9 CR subrules | CR 707 (copying), 712 (DFC/meld), 613.2 (Layer 1), 706 |
+| Owning doc | none, until 2026-08-27 | **none** |
+| Corpus atoms, uncovered | ~21 | **66** (30 in CR 707, 36 in CR 712) |
+| Corpus's own phase tag | Phase 6 / 5-Pre | **CR 707: 23 atoms tagged "Phase 6"** — i.e. the corpus files copy effects *with replacement effects*, and RC–RE does not schedule them |
+| A shipped enum already waiting for it | `ReplacementClass::SelfReplacement` | **`ReplacementClass::CopyOnEnter` and `BackFaceUp`** — two of RB's five buckets, with no producer |
+| On `CLAUDE.md`'s critical path | no (now item 5b) | **no** — the file contains one instance of the word "copy", and Layer 1 appears nowhere in items 1–7 |
+| Card population | 1,857 printed + keywords | **2,890 double-faced cards**, 418 "copy of", 67 Clone-shaped "as a copy", 7 meld |
+
+`Layer1Copy` is documented in `engine/layers/types.rs` as "still a stub: the
+variant exists, nothing produces an effect in it", and CR 616.1c's bucket ships
+in `ReplacementClass` for the same reason CR 614.15's does. **This is not a
+finding that anything is broken** — it is a finding that a system with 2,890
+cards behind it has no doc and no critical-path slot, exactly as "can't" did on
+2026-08-26. It should get a design doc before RC-4 tries to produce a
+`CopyOnEnter`, and the doc should say whether Layer 1 or CR 707 owns the seam.
+
+**Why late discovery has been cheap so far, and what would make it expensive.**
+Both misses are **features** on this file's own fact/feature triage, not facts.
+Nothing had to be unbuilt: RB's `is_blocked` was correct-but-narrow and the
+restriction model extends it. The expensive kind is a missing *fact*, and the
+evidence that those have had deliberate attention is Sigarda — "spells and
+abilities your opponents control can't cause you to sacrifice permanents" needs
+to know **who caused an event**, and it costs one `Option<SourceFilter>` field
+only because Phase RA threaded provenance through `ActionContext` first. Had it
+not, that one card would have been a re-thread through every system built since.
+**Keep auditing for facts; let features be found late.**
+
+**What this does not claim.** The corpus is ~1,760 atoms and the critical path is
+seven items; the plan will always be coarser than the rules, and a third
+`can't`-shaped gap is likely rather than unlikely. The claim is narrower and
+checkable: the detector above is cheap, it has found two, and running it at the
+start of each phase is a better instrument than confidence.
+
 ### Fuzz-pool coverage — audited 2026-08-26
 
 **The pool is thin exactly where the engine is thin, and card selection cannot

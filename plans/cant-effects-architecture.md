@@ -1275,6 +1275,16 @@ than it needs ETB replacements, do 9 first and nothing breaks.
 CR 113.11's Tier 4, and the Conspiracy in §2.5. Each has a home elsewhere or no
 home yet, and each is named in §9 or §10 so it is findable rather than lost.
 
+**And one thing that is missing from it because nobody has scheduled it.**
+`codebase-state.md` → "Was the critical path complete?" ran this document's own
+discovery backwards as a detector and found the next gap with the same shape:
+**copy effects** (CR 707 + 712 + Layer 1) have 66 uncovered atoms, no owning
+doc, no critical-path slot, 2,890 double-faced cards behind them — and *two*
+shipped `ReplacementClass` buckets (`CopyOnEnter`, `BackFaceUp`) already waiting
+for a producer. It is not on the list above because scheduling it is not this
+document's call; it is named here so that whoever writes step 8 (RC-4) does not
+discover it while trying to produce a `CopyOnEnter`.
+
 ---
 
 ## 8. Testing — the atoms this owes
