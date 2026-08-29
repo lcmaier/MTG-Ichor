@@ -288,6 +288,30 @@ def classify(s):
     return "?", "unclassified"
 
 
+# Which `AffectedSet` a Tier B / Tier C clause needs. The split decides whether
+# a copy phase is blocked on `codebase-state.md` Deferred Migrations item 10
+# (CR 400.7): a copy row whose source IS its subject is torn down by
+# `cleanup_zone_state`'s existing `remove_by_source`; a filter-scoped one is not.
+FILTER_SCOPED = re.compile(
+    r"each other (creature|permanent|artifact|land|token)|each (creature|permanent)\b"
+    r"|all (creatures|permanents|artifacts)|creatures you control|(they|those creatures) "
+    r"(enter|become)|target \w+ becomes a copy|other \w+ you control become")
+
+
+def show_scope(cl):
+    """Tier B and C, split by whether the copy's subject is its own source."""
+    print("AFFECTEDSET SPLIT -- Tiers B and C, source-scoped vs filter-scoped")
+    print("  (filter-scoped rows are the ones that need CR 400.7 / item 10)\n")
+    for tier in ("B", "C"):
+        rows = [(n, s) for n, s in cl if classify(s)[0] == tier]
+        filt = [(n, s) for n, s in rows if FILTER_SCOPED.search(s.lower())]
+        print("  Tier %s: %d clauses -- %d source-scoped, %d filter-scoped"
+              % (tier, len(rows), len(rows) - len(filt), len(filt)))
+        for n, s in filt:
+            print("      filter: %s: %s" % (n, s[:110]))
+        print()
+
+
 def show_atoms():
     if not os.path.exists(SPECDB):
         print("  spec.sqlite not built -- run `python plans/specdb.py build`")
@@ -320,6 +344,8 @@ def main():
     ap.add_argument("--atoms", action="store_true", help="only the spec-corpus inventory")
     ap.add_argument("--decompose", action="store_true",
                     help="only the derived counts the doc cites")
+    ap.add_argument("--scope", action="store_true",
+                    help="only the Tier B/C AffectedSet split")
     args = ap.parse_args()
 
     # The label audit runs first and always -- a wrong rule number in a label
@@ -346,6 +372,9 @@ def main():
 
     cards = fetch()
     cl = list(clauses(cards))
+    if args.scope:
+        show_scope(cl)
+        return
 
     by_bucket, bucket_cards = Counter(), defaultdict(set)
     by_tier, tier_cards = Counter(), defaultdict(set)
@@ -380,6 +409,7 @@ def main():
         cmdr = count(q.replace("-is:funny", "f:commander"))
         print("  %-40s %-8s %7d %10d" % (label, cr, count(q), cmdr))
     print()
+    show_scope(cl)
     show_atoms()
 
     if args.residual:
