@@ -68,6 +68,38 @@ pub(crate) fn is_blocked(game: &GameState, action: &GameAction) -> bool {
     }
 }
 
+/// CR 614.7a / 120.8 / 119.10 — the proposals that describe an event which
+/// never happens, so there is nothing for a replacement effect to replace.
+///
+/// > 120.8. If a source would deal 0 damage, it does not deal damage at all.
+/// > ... replacement effects that would increase the damage dealt by that
+/// > source, or would have that source deal that damage to a different object
+/// > or player, have no event to replace, so they have no effect.
+///
+/// **The proposal side is where this rule lives, not the performer.**
+/// `EventPattern::DealDamage` carries no amount constraint, so a 0-damage
+/// proposal that reaches the loop is one a shield counter's prevention half
+/// applies to — spending a counter (CR 615.5's rider) on an event CR 614.7a
+/// says never happened. Combat cannot produce one, because CR 510.1a filters
+/// 0-power attackers out of the assignment, but `Primitive::DealDamage` does no
+/// such filtering: any X=0 or computed-0 damage effect proposes it.
+///
+/// Re-asked every iteration, like `is_blocked`: CR 616.1f rewrites the event
+/// between iterations, and a prevention that reduces damage to 0 arrives here
+/// by that road.
+///
+/// Life *gain* is here on CR 119.10's own words — "if a player gains 0 life, no
+/// life gain event would occur, and these effects won't apply". Life *loss* and
+/// counter changes of 0 have no such rule, so their no-op guards stay in
+/// `perform_action`, where they are local conveniences rather than CR 614.7a.
+fn never_happens(action: &GameAction) -> bool {
+    match action {
+        GameAction::DealDamage { amount, .. } => *amount == 0,
+        GameAction::GainLife { amount, .. } => *amount == 0,
+        _ => false,
+    }
+}
+
 /// The CR 616.1 loop: decide what event actually happens.
 ///
 /// Returns `None` when the event does not happen at all (CR 614.6). Queued
@@ -117,6 +149,13 @@ pub(crate) fn apply_replacements(
     // proposal and riders are queued rather than run (§4.1a), so nothing
     // touches the board between iterations.
     loop {
+        // CR 614.7a: an event that never happens has no replacement to make,
+        // and any rider it queued would be spent on nothing. Ahead of even the
+        // "can't" check, because there is no event here to forbid.
+        if never_happens(&event) {
+            return Ok(None);
+        }
+
         // CR 614.17: a "can't" is checked ahead of the pipeline and wins.
         // CR 614.17c narrows what may still apply rather than ending the loop,
         // because a self-replacement that changes the event's type would lift

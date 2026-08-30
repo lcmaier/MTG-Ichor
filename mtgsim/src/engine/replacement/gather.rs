@@ -32,7 +32,7 @@ use crate::types::effects::{
 };
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
-    EventPattern, GameActionTemplate, ReplacementClass, ReplacementDef, Rewrite,
+    EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
 use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -479,14 +479,12 @@ fn remove_one_counter(counter: CounterType) -> Effect {
 pub(crate) fn forced_bucket(candidates: Vec<ReplacementInstance>) -> Vec<ReplacementInstance> {
     // `ReplacementClass` derives `Ord` in CR order, so the minimum present
     // class is 616.1's highest-priority non-empty one and 616.1e's `Other` is
-    // the fallthrough by construction.
+    // the fallthrough by construction. `top` came out of the candidates, so the
+    // filter below always keeps at least the one that produced it — there is no
+    // non-empty-bucket check to make.
     let Some(top) = candidates.iter().map(|c| c.def.class).min() else {
         return candidates;
     };
-    debug_assert!(
-        top == ReplacementClass::Other || candidates.iter().any(|c| c.def.class == top),
-        "forced_bucket picked a class nothing is in"
-    );
     candidates.into_iter().filter(|c| c.def.class == top).collect()
 }
 
@@ -526,11 +524,13 @@ fn commander_zone_replacement(
     if !obj.is_commander {
         return None;
     }
-    // "Its owner's hand or library" — a commander headed for someone else's
-    // hand is not this rule's business.
-    if obj.owner != owner_of_destination(game, *object) {
-        return None;
-    }
+    // **"Its owner's hand or library" is CR 400.3, so there is no check to
+    // make here and never will be.** "If an object would go to any library,
+    // graveyard, or hand other than its owner's, it goes to its owner's
+    // corresponding zone" — a hand or library destination *is* the owner's, by
+    // rule, which is also why `add_to_zone_collection` files by `obj.owner`.
+    // `GameAction::ZoneChange` carries no destination player accordingly, so a
+    // guard written here could only compare `obj.owner` with itself.
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange {
             from: None,
@@ -555,15 +555,4 @@ fn commander_zone_replacement(
         controller: obj.owner,
         def,
     })
-}
-
-/// Whose hand or library a zone change is headed for.
-///
-/// `add_to_zone_collection` puts a card into its **owner's** hand or library
-/// unconditionally, so the destination's player is the owner and 903.9b's
-/// "its owner's" clause is satisfied by construction. Written out anyway,
-/// because the day an effect puts a card into a *different* player's library
-/// this becomes the check that stops 903.9b firing on it.
-fn owner_of_destination(game: &GameState, object: ObjectId) -> PlayerId {
-    game.objects.get(&object).map(|o| o.owner).unwrap_or(0)
 }
