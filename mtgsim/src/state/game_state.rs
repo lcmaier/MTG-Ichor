@@ -8,7 +8,7 @@ use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
-use crate::state::replacement_effects::ReplacementRegistry;
+use crate::state::replacement_effects::ReplacementEffectRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -225,7 +225,7 @@ pub struct GameState {
     /// what makes Humility strip a replacement ability for free and what puts
     /// CR 614.4's "must exist before the event" question at the only moment it
     /// can honestly be asked.
-    pub replacement_effects: ReplacementRegistry,
+    pub replacement_effects: ReplacementEffectRegistry,
 
     /// Battlefield objects that **printed** a static ability whose body is an
     /// `Effect::Replacement`.
@@ -438,7 +438,7 @@ impl GameState {
             player_lost: vec![false; num_players],
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
-            replacement_effects: ReplacementRegistry::new(),
+            replacement_effects: ReplacementEffectRegistry::new(),
             replacement_ability_sources: HashSet::new(),
             cant_be_regenerated: HashSet::new(),
             next_zone_change_epoch: 1,

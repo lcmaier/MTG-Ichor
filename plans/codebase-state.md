@@ -545,7 +545,7 @@ built, and none of it blocks RC-1 through RC-3.
     battlefield, citing CR 611.2a for the opposite of what it says: every row in
     that registry was made by a *resolution*, and 611.2a gives those the
     duration the spell or ability stated. The call is gone. What goes with it:
-    `RegisteredReplacement.duration` can hold `WhileSourceOnBattlefield`,
+    `RegisteredReplacementEffect.duration` can hold `WhileSourceOnBattlefield`,
     `WhileEnchanted` and `WhileEquipped`, and no hook removes any of them —
     `remove_expired_at_cleanup` handles `UntilEndOfTurn` and
     `remove_expired_at_turn_start` handles `UntilYourNextTurn`. Unreachable

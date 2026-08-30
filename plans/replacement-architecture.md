@@ -225,13 +225,13 @@ the enforcement.
 | `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
 | `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
-| `ReplacementInstanceId` | `engine/replacement/mod.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
-| `GameRuleReplacement` | `engine/replacement/mod.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
-| `ReplacementInstance` | `engine/replacement/mod.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
+| `ReplacementInstanceId` | `engine/replacement/instance.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
+| `GameRuleReplacement` | `engine/replacement/instance.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
+| `ReplacementInstance` | `engine/replacement/instance.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
 | `CounterEffectKind` | `engine/replacement/gather.rs` | Which of CR 122.1c's *two* effects a shield counter is. Two effects, one counter, two CR 614.5 identities | grows with CR 122.1's replacement-shaped counters |
-| `Affected` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Not `AffectedSet` | closed by what an event can be about |
-| `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed (CR 615.5/615.12) | — |
-| `ReplacementRowId` / `RegisteredReplacement` / `ReplacementRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
+| `EventSubject` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Named for the event because `AffectedSet` already answers the other question, which objects an *effect* applies to | closed by what an event can be about |
+| `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed. CR 615.5 when a *prevention* effect queued it; CR 614.1a/614.6 otherwise — the rest of an "instead" is part of the modified event | — |
+| `ReplacementEffectId` / `RegisteredReplacementEffect` / `ReplacementEffectRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
 
 ### One action, end to end
 
@@ -257,7 +257,7 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         ├─ if `optional`: ask_apply_optional_replacement (CR 614.1a) —
   │         │  a second, independent prompt, and one candidate is enough
   │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
-  │         ├─ push `then` onto riders (CR 615.5) — unconditional (615.12)
+  │         ├─ push `then` onto riders (615.5 / 614.1a) — unconditional (615.12)
   │         └─ loop (CR 616.1f) with the applied set carried
   │
   ├─ phase 2: PERFORM, in batch order
@@ -265,7 +265,7 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         the ONLY writer, and the only emitter of the matching GameEvent —
   │         it alone knows the cause and can take the CR 603.10a LKI frame
   │
-  └─ phase 3: RIDERS, after the event (CR 615.5), fresh applied set
+  └─ phase 3: RIDERS, after the event (615.5 / 614.1a), fresh applied set
        └─ resolve_rider()                              engine/actions.rs
 ```
 
@@ -732,7 +732,7 @@ machinery**: three counter types, 164 printed cards, and they exercise untap
 replacement, destroy replacement, damage prevention, and zone-change replacement
 between them.
 
-### 3.4 `ReplacementRegistry`
+### 3.4 `ReplacementEffectRegistry`
 
 Sources 3 and 4 need storage. Model it on `ContinuousEffectRegistry`
 (`state/continuous_effects.rs`) — same duration-expiry hooks, same
@@ -776,7 +776,7 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
 
     loop:                                                # CR 616.1f
         cands = gather(game, ev)                         # 3.3, five sources
-                  .filter(applies_to(ev))                # EventPattern + AffectedSet
+                  .filter(applies_to(ev))                # watches() && affects()
                   .filter(|c| c.exempt_from_614_5        # CR 903.9b
                               || !applied.contains(c.instance))   # CR 614.5
                   .filter(|c| !declined.contains(c.instance))     # see below
@@ -2057,7 +2057,7 @@ and the CR 601.2a announcement above.
    `ReplacementClass`, `Uses`; `Effect::Replacement` (and its `then: Option<Effect>`
    half, which reuses `resolve_effect`);
    `register_static_effects` skips replacement bodies.
-2. `ReplacementRegistry` with duration expiry.
+2. `ReplacementEffectRegistry` with duration expiry.
 3. `apply_replacements` — the §4.1 loop, including 616.1a–f, 614.5, 616.1g
    recursion, 614.17c's blocked-event path, and APNAP.
 4. `GameAction::Destroy`; `Primitive::Destroy` lowers to it; indestructible

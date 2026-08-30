@@ -13,13 +13,22 @@ use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_replacement;
 
 use super::gather::forced_bucket;
-use super::{affected_of, chooser_for, gather, Affected, ReplacementInstance, ReplacementInstanceId};
+use super::{subject_of, chooser_for, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
 
-/// A queued CR 615.5 "rest of the effect".
+/// The "and also" half of an applied replacement, queued for after the event.
 ///
-/// > 615.5. ... the prevention takes place at the time the original event would
-/// > have happened, and the rest of the effect takes place immediately
-/// > afterward.
+/// **Two rules, depending on which kind of effect queued it**, and only one of
+/// them is CR 615.5:
+///
+/// > 615.5. Some *prevention* effects also include an additional effect ... The
+/// > prevention takes place at the time the original event would have happened;
+/// > the rest of the effect takes place immediately afterward.
+///
+/// A rider on a plain replacement has no such rule and needs none. CR 614.1a's
+/// "instead" plus the effect's own text make the additional action part of what
+/// happens instead — Kalitas exiles the creature *and* makes a Zombie — and CR
+/// 614.6 says "a modified event occurs instead". Performing the substituted
+/// event and then the rest is that modified event, in order.
 ///
 /// Queued when its replacement is *applied* and resolved by the caller after
 /// the surviving event is performed — never mid-loop. During the loop nothing
@@ -31,10 +40,10 @@ pub(crate) struct Rider {
     /// `ResolutionContext::source`.
     pub source: ObjectId,
     pub controller: PlayerId,
-    /// The shielded object, if the event was about one. Becomes the rider's
-    /// single resolved target, so `EffectRecipient::Target` in a `then` names
-    /// the permanent the replacement protected.
-    pub affected: Option<ObjectId>,
+    /// The event's subject, when it had one. Becomes the rider's single
+    /// resolved target, so `EffectRecipient::Target` in a `then` names the
+    /// permanent the replacement was about.
+    pub subject: Option<ObjectId>,
     pub effect: Effect,
 }
 
@@ -118,7 +127,7 @@ pub(crate) fn apply_replacements(
         // CR 614.4 — gathered against live state at the moment of proposal.
         // There is no "go back in time" path because there is no other place
         // to ask.
-        let candidates: Vec<ReplacementInstance> = gather(game, &event, ctx, blocked)
+        let applicable: Vec<ReplacementInstance> = gather(game, &event, ctx, blocked)
             .into_iter()
             // CR 614.5, with CR 903.9b as the rules' only stated exception.
             .filter(|c| c.def.exempt_from_614_5 || !applied.contains(&c.id))
@@ -126,17 +135,17 @@ pub(crate) fn apply_replacements(
             .filter(|c| !declined.contains(&c.id))
             .collect();
 
-        if candidates.is_empty() {
+        if applicable.is_empty() {
             return Ok(if blocked { None } else { Some(event) });
         }
 
         // CR 616.1a–e.
-        let bucket = forced_bucket(candidates);
+        let bucket = forced_bucket(applicable);
 
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player.
-        let affected = affected_of(&event);
-        let chooser = chooser_for(game, affected);
+        let subject = subject_of(&event);
+        let chooser = chooser_for(game, subject);
 
         // **Never prompt with fewer than two candidates.** CR-correct (there is
         // no choice to make with one), and it is what keeps every existing
@@ -156,14 +165,14 @@ pub(crate) fn apply_replacements(
                 return Err(format!(
                     "CR 616.1 needs a chooser for {:?} and the affected object has \
                      neither a controller nor an owner",
-                    affected
+                    subject
                 ));
             };
             let index = ask_choose_replacement(
                 ctx.dp,
                 game,
                 chooser,
-                affected_object(affected),
+                subject_object(subject),
                 &bucket,
             );
             bucket.into_iter().nth(index).expect("index validated by ask_*")
@@ -177,13 +186,13 @@ pub(crate) fn apply_replacements(
         // event.
         if chosen.def.optional {
             let chooser = chooser.ok_or_else(|| {
-                format!("optional replacement on {:?} has no player to ask", affected)
+                format!("optional replacement on {:?} has no player to ask", subject)
             })?;
             if !ask_apply_optional_replacement(
                 ctx.dp,
                 game,
                 chooser,
-                affected_object(affected),
+                subject_object(subject),
                 &chosen,
             ) {
                 // Marking it applied is CR 614.5's "one opportunity" — being
@@ -205,12 +214,12 @@ pub(crate) fn apply_replacements(
             riders.push(Rider {
                 source: chosen.source,
                 controller: chosen.controller,
-                affected: affected_object(affected),
+                subject: subject_object(subject),
                 effect: then,
             });
         }
 
-        match apply_rewrite(&chosen, &event, affected)? {
+        match apply_rewrite(&chosen, &event, subject)? {
             // CR 614.6 — the event does not happen. Queued riders still run.
             None => return Ok(None),
             // CR 616.1f — re-gather against the modified event, which is how
@@ -230,10 +239,10 @@ pub(crate) fn apply_replacements(
     ))
 }
 
-fn affected_object(affected: Affected) -> Option<ObjectId> {
-    match affected {
-        Affected::Object(id) => Some(id),
-        Affected::Player(_) => None,
+fn subject_object(subject: EventSubject) -> Option<ObjectId> {
+    match subject {
+        EventSubject::Object(id) => Some(id),
+        EventSubject::Player(_) => None,
     }
 }
 
@@ -272,7 +281,7 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
 fn apply_rewrite(
     chosen: &ReplacementInstance,
     event: &GameAction,
-    affected: Affected,
+    subject: EventSubject,
 ) -> Result<Option<GameAction>, String> {
     match &chosen.def.rewrite {
         // CR 614.6 / 615.6.
@@ -290,7 +299,7 @@ fn apply_rewrite(
             })),
 
             (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
-                match affected_object(affected) {
+                match subject_object(subject) {
                     Some(object) => Ok(Some(GameAction::RemoveCounters {
                         object,
                         counter: *counter,

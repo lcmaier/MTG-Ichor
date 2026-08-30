@@ -11,7 +11,7 @@ use crate::types::effects::{
     AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
 };
 use crate::oracle::characteristics::get_effective_controller;
-use crate::state::replacement_effects::RegisteredReplacement;
+use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
@@ -621,7 +621,7 @@ impl GameState {
                     .once()
                     .regeneration()
                     .with_then(crate::types::replacement::regeneration_rider());
-                    self.replacement_effects.add(RegisteredReplacement {
+                    self.replacement_effects.add(RegisteredReplacementEffect {
                         id: 0,
                         source: ctx.source,
                         controller,
