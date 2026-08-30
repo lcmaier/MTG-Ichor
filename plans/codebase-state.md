@@ -572,7 +572,7 @@ lands in nobody's doc. Meanwhile **the corpus knew**: `ATOM-614.17a/b/c/d`,
 | Corpus atoms, uncovered | ~21 | **101**, all uncovered (707: 30, 712: 36, 729: 19, 708: 10, 613.2: 3, 710: 3) |
 | Corpus's own phase tag | Phase 6 / 5-Pre | **CR 707: 23 atoms tagged "Phase 6"** — i.e. the corpus files copy effects *with replacement effects*, and RC–RE does not schedule them |
 | A shipped enum already waiting for it | `ReplacementClass::SelfReplacement` | **`ReplacementClass::CopyOnEnter` and `BackFaceUp`** — two of RB's five buckets, with no producer |
-| On `CLAUDE.md`'s critical path | no (now item 5b) | no — **now item 5c**, phases CV-1–CV-5 |
+| On `CLAUDE.md`'s critical path | no (now item 5b) | no — **now item 5c**, phases CV-1–CV-7 |
 | Card population | 1,857 printed + keywords | **517 double-faced** (396 transform + 100 modal + 21 meld), 752 cards printing "copy", 304 face-down producers, 34 mutate |
 
 **Three cells of the original table were wrong, and they are corrected above.**
@@ -591,8 +591,10 @@ thing this section is arguing for and its failure modes are worth knowing.
 3. **CR 729, Merging with Permanents, was missing** and CR 613.2a names it in the
    same breath as CR 707: layer 1a is "copy effects (see rule 707) *and changes
    … determined by merging an object with a permanent (see rule 729)*". 19
-   uncovered atoms; 34 mutate cards; scoped out of v1 by the new doc, but it is
-   part of the cluster.
+   uncovered atoms; 34 mutate cards. **In v1 and scheduled** — phase CV-7, with a
+   back-stop before Phase 8 card breadth, because a multi-component permanent is
+   a *fact*: every phase built meanwhile writes code against the
+   single-component assumption.
 
 **A headline Scryfall count is a hypothesis, not a measurement.** That is the
 one lesson to carry to the next detector run: `is:dfc` answers a question about

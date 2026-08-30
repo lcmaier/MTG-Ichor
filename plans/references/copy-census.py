@@ -288,27 +288,50 @@ def classify(s):
     return "?", "unclassified"
 
 
-# Which `AffectedSet` a Tier B / Tier C clause needs. The split decides whether
-# a copy phase is blocked on `codebase-state.md` Deferred Migrations item 10
-# (CR 400.7): a copy row whose source IS its subject is torn down by
-# `cleanup_zone_state`'s existing `remove_by_source`; a filter-scoped one is not.
-FILTER_SCOPED = re.compile(
-    r"each other (creature|permanent|artifact|land|token)|each (creature|permanent)\b"
-    r"|all (creatures|permanents|artifacts)|creatures you control|(they|those creatures) "
-    r"(enter|become)|target \w+ becomes a copy|other \w+ you control become")
+# What a Tier B / Tier C copy row costs to tear down (CR 400.7). The split that
+# matters is NOT self-vs-filter -- CR 611.2c locks a *resolution* effect's
+# affected set when it begins, so almost every Tier C row is `AffectedSet::Fixed`
+# however the card is worded. What decides the teardown story is DURATION:
+#
+#   turn-bounded -> `remove_expired_at_cleanup` clears it; the CR 400.7 exposure
+#                   window is the rest of the turn, which is exactly a pump
+#                   spell's and is already shipped.
+#   indefinite   -> the row never expires, and `cleanup_zone_state`'s
+#                   `remove_by_source` cannot help because a resolution row's
+#                   source is the stack object (`stack.rs:112`), not the
+#                   permanent. The row outlives its subject without bound.
+#
+# See `copy-effects-architecture.md` §5.3.
+DURATION_BOUNDED = re.compile(
+    r"until end of turn|until your next turn|this turn|until the next end step"
+    r"|for as long as|until .{0,30}(leaves|is turned face down)")
+
+# Does the clause name a class of other objects rather than one subject? Kept
+# only to show how few there are -- under CR 611.2c a resolution effect over a
+# class still lowers to `Fixed`, so this does not decide the phase.
+CLASS_SCOPED = re.compile(
+    r"each other (creature|permanent|artifact|land|token)|each (creature|permanent)"
+    r"|all (creatures|permanents|artifacts)|creatures you control"
+    r"|(they|those creatures) (enter|become)|each nonland permanent"
+    r"|other \w+ you control become|shards you control")
 
 
 def show_scope(cl):
-    """Tier B and C, split by whether the copy's subject is its own source."""
-    print("AFFECTEDSET SPLIT -- Tiers B and C, source-scoped vs filter-scoped")
-    print("  (filter-scoped rows are the ones that need CR 400.7 / item 10)\n")
+    """Tiers B and C by duration -- the split that decides the CV-1/CV-1b line."""
+    print("TEARDOWN SPLIT -- Tiers B and C by duration (CR 400.7, §5.3)")
+    print("  turn-bounded = same exposure as a pump spell, already shipped")
+    print("  indefinite   = the row outlives its subject without bound")
+    print()
     for tier in ("B", "C"):
         rows = [(n, s) for n, s in cl if classify(s)[0] == tier]
-        filt = [(n, s) for n, s in rows if FILTER_SCOPED.search(s.lower())]
-        print("  Tier %s: %d clauses -- %d source-scoped, %d filter-scoped"
-              % (tier, len(rows), len(rows) - len(filt), len(filt)))
-        for n, s in filt:
-            print("      filter: %s: %s" % (n, s[:110]))
+        indef = [(n, s) for n, s in rows if not DURATION_BOUNDED.search(s.lower())]
+        cls = [(n, s) for n, s in rows if CLASS_SCOPED.search(s.lower())]
+        print("  Tier %s: %d clauses -- %d turn-bounded, %d indefinite"
+              % (tier, len(rows), len(rows) - len(indef), len(indef)))
+        print("           %d name a class of objects (still `Fixed` from a "
+              "resolution, per CR 611.2c)" % len(cls))
+        for n, s in indef:
+            print("      indefinite: %s: %s" % (n, s[:96]))
         print()
 
 
