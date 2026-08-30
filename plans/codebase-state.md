@@ -231,7 +231,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 - **New event vocabulary**: `GameAction::Destroy { source: DestructionSource }` (the outer event; its performer proposes the inner `ZoneChange`), `AddCounters`, `RemoveCounters`. `CounterType::{Shield, Stun, Finality}`; `GameEvent::CountersChanged`.
 - **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked`, not filtered at the two call sites that each held their own copy of it.
 - **Three consumers**: counters (CR 122.1c/d/h, no card text, 164 cards), regeneration (CR 701.19a/b/c, `Primitive::Regenerate` + the rider CR 701.19a spells out), and Kalitas, Traitor of Ghet — the only RB card, chosen for difficulty.
-- **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement.
+- **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement. Since 2026-08-30 (`rb-review.md` H4) 704.6d's accepted moves join the SBA batch instead of being performed one at a time as they are offered — 704.3's "single event" is all of 704, not just 704.5, and each offer being its own event let a later owner decide against a board an earlier owner's move had changed.
 - Eight primitives: four stubs given implementations (`Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`) and four new (`Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`).
 
 **Five findings where the plan and the tree disagreed, all recorded in `replacement-architecture.md` §9:** `Uses::CounterBacked` does not survive the CR text; CR 122.1c's replacement half is restricted to destruction *by an effect*; `EventPattern` ships six arms and `Rewrite` two, because an arm the pipeline cannot apply is a card that silently does nothing; `AffectedSet` and `ZoneChangeCause` had to move into `types/` to keep the crate's layering; and §4.1's loop **hangs** on a declined `exempt_from_614_5` optional without a second set.
@@ -243,7 +243,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 - **CR 614.15 self-replacement has a bucket and no producer.** `ResolutionContext` still has three fields (§11 item 3). Consequence worth knowing: CR 614.17c's blocked-event path always drops the event, because the only class that could survive it has nothing in it.
 - **§3.3 source 2 — static abilities functioning in other zones — is still unsized.** §11 item 4 asked RB to count the cards and it did not. The *shape* question is now answerable, though: `gather`'s sweep is written, so it is a zone parameter on one loop plus a timestamp on `GameObject` (item 9's, already owed), not a separate registry.
 - **CR 704.7's same-result collapse** is still per-object inside the SBA sweep and does not reach player loss; it needs `GameAction::PlayerLoses` (item 6, RE).
-- **`specdb owed` is unchanged at 38** and cannot be the gate for RB, because RB is part of Phase 6 and Phase 6 also covers triggered abilities — adding it to `SHIPPED_PHASES` would arm a gate against work that has not started. The honest measure is the CR 614/615/616/122.1/701.8/701.19 slice of Phase 6: **14 atoms fully covered, 3 partial, 49 uncovered**, and all but a handful of the 49 are RC's (614.12/13, 616.1b/c), RD's (615.\*, 614.9, 614.7a) or RE's (614.10/11/16, 704.7). The RB-shaped remainder is ATOM-614.17a-001, ATOM-614.17b-001, ATOM-614.17c-001, ATOM-616.1a-001 and the four `BOUNDARY-DEF-614.1*` markers.
+- **`specdb owed` is unchanged at 38** and cannot be the gate for RB, because RB is part of Phase 6 and Phase 6 also covers triggered abilities — adding it to `SHIPPED_PHASES` would arm a gate against work that has not started. The honest measure is the CR 614/615/616/122.1/701.8/701.19 slice of Phase 6: **14 atoms fully covered, 3 partial, 49 uncovered**, and all but a handful of the 49 are RC's (614.12/13, 616.1b/c), RD's (615.\*, 614.9) or RE's (614.10/11/16, 704.7). **614.7a left that list on 2026-08-30**: it was parked as RD's because it reads like prevention, but it is a proposal-side rule about an event that never happens, and moving the check off `perform_action` (`rb-review.md` H1) made ATOM-614.7a-001 partially covered. The RB-shaped remainder is ATOM-614.17a-001, ATOM-614.17b-001, ATOM-614.17c-001, ATOM-616.1a-001 and the four `BOUNDARY-DEF-614.1*` markers.
 
 ---
 
@@ -604,6 +604,25 @@ built, and none of it blocks RC-1 through RC-3.
     "doesn't" are outside its 2,034 clauses — including **248 cards printing
     "doesn't untap during ..."**. `cant-effects-architecture.md` §2.2 is where
     that belongs.
+
+### Found by the theme H pass (2026-08-30)
+
+21. **CR 903.9b's "its owner's hand or library" needs no check, and the one it
+    had was a tautology (found 2026-08-30, closing `rb-review.md` H3).**
+    `commander_zone_replacement` guarded on
+    `obj.owner != owner_of_destination(game, object)`, and that helper ignored
+    the action and returned `game.objects[object].owner` — the same field, so
+    the comparison was always false. Its comment promised it would "become the
+    check that stops 903.9b firing" once an effect put a card into a different
+    player's library. **It cannot, and no such effect can exist:** CR 400.3 —
+    "if an object would go to any library, graveyard, or hand other than its
+    owner's, it goes to its owner's corresponding zone". A hand or library
+    destination *is* the owner's, by rule, which is also why
+    `add_to_zone_collection` files by `obj.owner` and why
+    `GameAction::ZoneChange` carries no destination player. Guard and helper are
+    deleted and the CR 400.3 argument is in the function — **recorded here so
+    nobody re-adds the guard**, which is the same job H2's inverted test does.
+    Nothing owed.
 
 ### Was the critical path complete? — audited 2026-08-27
 

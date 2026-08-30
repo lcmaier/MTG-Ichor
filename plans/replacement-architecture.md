@@ -246,6 +246,7 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │
   ├─ phase 1: DECIDE, in APNAP order of chooser (CR 616.1 + 101.4)
   │    └─ apply_replacements(action)                   replacement/pipeline.rs
+  │         ├─ never_happens? → CR 614.7a/120.8/119.10, no event to replace
   │         ├─ is_blocked?  → CR 614.17 "can't" wins, event dropped (101.2)
   │         ├─ gather()     → §3.3's sources           replacement/gather.rs
   │         │    static abilities off the EFFECTIVE ability list, never a
@@ -825,9 +826,17 @@ Six things this encodes, each with its rule:
   lineage, so both tokens choose freely — 616.1g's own example); CR 121.2a's
   "draw N" is fixed before any individual draw exists (same lineage, so a draw
   replacement that already fired does not fire again).
-- **CR 614.6/614.7** — `None` drops the event, and an event that was never
-  proposed never reaches this function (CR 614.7a's zero damage is already
-  short-circuited in `perform_action`).
+- **CR 614.6/614.7** — `None` drops the event, and CR 614.7a's zero damage
+  never reaches a candidate: `never_happens` is asked at the top of every
+  iteration, ahead of even the "can't" check, because there is no event there to
+  forbid. It is re-asked per iteration rather than once, since CR 616.1f can
+  rewrite an event into one. **This check used to live in `perform_action`,
+  which runs after this function** — so a 0-damage proposal traversed the whole
+  loop, and `EventPattern::DealDamage` carries no amount constraint, so a shield
+  counter's prevention half applied to it and its CR 615.5 rider spent a counter
+  on an event 120.8 says never happened (`rb-review.md` H1). Life gain is here
+  on CR 119.10's own words; life loss and 0-count counter changes have no such
+  rule and keep their no-op guards in `perform_action`.
 
 **Declining an optional replacement marks it applied but does not consume a
 use.** Both halves are load-bearing. Marking it applied is CR 614.5's "one
