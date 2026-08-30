@@ -661,10 +661,13 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 506.4. Writes `BattlefieldEntity` directly: no card replaces
-            // "is removed from combat" and no ability triggers on it, so there
-            // is no `GameAction` to propose through and inventing one would be
-            // vocabulary with no reader.
+            // CR 506.4. Writes `BattlefieldEntity` directly, because 506.4
+            // defines a *consequence* rather than an event: seven listed causes
+            // remove a permanent from combat, six of which the engine already
+            // proposes (a zone change, a control change, a type change, CR
+            // 701.19's regeneration). An effect that wanted to stop it would
+            // have to attach to a cause, so there is nothing here for a
+            // `GameAction` to carry. → `replacement-architecture.md` §8a.
             Primitive::RemoveFromCombat => {
                 for object in self.collect_battlefield_targets(ctx) {
                     self.remove_from_combat(object);
@@ -672,8 +675,14 @@ impl GameState {
                 Ok(())
             }
 
-            // The on-demand form of the CR 514.2 cleanup wipe, and a direct
-            // write for the same reason it is.
+            // A direct write because nothing replaces *this* removal — the one
+            // printed card that removes all damage, Pyramids, uses it as a
+            // replacement's substituted event, never as the replaced one.
+            //
+            // **Not by analogy to the CR 514.2 cleanup wipe**, which is a
+            // different site with a different answer: seven cards restrict
+            // *that* one and it owes an enforcement point
+            // (`codebase-state.md`, Before Replacement item 20).
             Primitive::RemoveAllDamage => {
                 for object in self.collect_battlefield_targets(ctx) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {

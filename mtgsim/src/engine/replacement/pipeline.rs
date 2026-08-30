@@ -70,14 +70,26 @@ pub(crate) fn is_blocked(game: &GameState, action: &GameAction) -> bool {
 
 /// The maximum number of CR 616.1f iterations one event may go through.
 ///
-/// Not a rules concept and not a loop guard for CR 731 (which is out of scope):
-/// it is a **test harness**, because the two acid tests that pin §3.2d's
-/// lineage rule fail by *hanging* rather than by producing a wrong answer.
-/// CR 614.5's applied set is what actually guarantees termination — every
-/// iteration either applies an effect, which permanently adds to that set, or
-/// declines an optional one, which also adds to it. So the true bound is the
-/// number of applicable effects, and reaching this cap means the applied set is
-/// not doing its job.
+/// **A bug backstop, and it stays in engine code.** Not a rules concept and not
+/// a loop guard for CR 731 (out of scope): it is what turns an unterminated
+/// loop into a diagnosable error instead of a hung game. Both halves matter —
+/// the two acid tests that pin §3.2d's lineage rule fail by *hanging* rather
+/// than by producing a wrong answer, and so would a real game.
+///
+/// CR 614.5's applied set is the termination argument for every effect the
+/// rule governs: each iteration either applies an effect, which permanently
+/// adds to that set, or declines an optional one, which also adds to it, so the
+/// bound is the number of applicable effects. **The rules carve out one
+/// exception to exactly that**, and it is the reason this is not a
+/// `debug_assert!`: `exempt_from_614_5` effects are never added to the set (CR
+/// 903.9b), so an exempt effect is bounded by its own rewrite ceasing to match
+/// and by nothing else. 903.9b is also `optional`, which puts it back under the
+/// `declined` set — but the next exempt effect need not be, and it must not be
+/// able to hang a game while somebody works out which.
+///
+/// Reaching the cap therefore means an effect is being re-offered after its one
+/// opportunity, which is a bug in the pipeline or in a `ReplacementDef`, and
+/// the error says so.
 const MAX_616_1F_ITERATIONS: usize = 256;
 
 /// The CR 616.1 loop: decide what event actually happens.

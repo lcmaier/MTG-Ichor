@@ -648,10 +648,12 @@ absurd, and is not what the framing is for.
 
 **The guard, and it stays regardless of which algorithm wins.** CR 508.1d is
 NP-hard in the general case, so whatever ships takes a hard bound with a loud
-error rather than a silent wrong answer. **Deliberately not citing
-`MAX_616_1F_ITERATIONS` as precedent**: `rb-review.md` E1 is still open, that
-constant may genuinely turn out to be a test harness, and a design should not
-lean on a decision nobody has made yet.
+error rather than a silent wrong answer. `MAX_616_1F_ITERATIONS` **is** the
+precedent — `rb-review.md` E1 closed 2026-08-30 with the answer that it is a
+bug backstop in engine code, not a test harness — but note what makes it one:
+that loop has a termination argument (CR 614.5's applied set) and the cap
+catches its one carve-out. A combat solver has no such argument, so its bound
+is doing more work and the error it raises is the whole safety net.
 
 **Two things follow for the code.** First, `legal_attackers` /
 `legal_blockers` keep being an **over-approximation** — that is already this

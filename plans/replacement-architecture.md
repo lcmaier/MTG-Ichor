@@ -1516,6 +1516,65 @@ replacement and already covered; mill (2), paying life (1 — Ashiok, and it is
 CR 614.13c's own example) and untap (2, plus 92 stun-counter cards) fold into
 existing variants.
 
+### Two deliberate non-events, re-checked (2026-08-30, `rb-review.md` E4)
+
+The section above asks what the vocabulary is *missing*. The mirror question is
+what it deliberately leaves out: `Primitive::RemoveFromCombat` and
+`Primitive::RemoveAllDamage` both write `BattlefieldEntity` directly, and both
+justified it as "no card replaces this". An absence of cards is not a reason —
+this design's premise is that any event the engine performs should be
+replaceable — so the two were re-checked against Scryfall on 2026-08-30. **They
+have different answers.**
+
+**Removal from combat: sound, and for a better reason than the card count.**
+CR 506.4 does not define an event. It defines a *consequence*, with seven
+causes: leaving the battlefield, a controller change, phasing out, an effect
+that specifically removes it, an attacked planeswalker or battle that stops
+being one, and an attacking or blocking creature that regenerates, stops being
+a creature, or becomes a battle. **Six of the seven are already events the
+engine proposes** — a `ZoneChange`, a Layer 2 control change, a type change out
+of the layer walk, CR 701.19's regeneration — and the seventh *is*
+`Primitive::RemoveFromCombat`. A "creatures you control can't be removed from
+combat" card would therefore attach to each cause, exactly as
+`cant-effects-architecture.md` §3 has it, and not to one substitutable event. It
+would also have no way to reach the six. The card pool agrees and is unanimous:
+25 cards print "from combat" (`o:"from combat"`) and **all 25 cause removal**;
+`o:"removed from combat"` as a phrase returns zero, so nothing replaces it,
+forbids it, or triggers on it.
+
+**Damage removal: the on-demand half is sound; the half the comment leaned on
+was not.** The primitive itself is fine — the only printed card that removes all
+damage is **Pyramids** ("The next time target land would be destroyed this turn,
+remove all damage marked on it instead"), and it uses the removal as a
+replacement's *substituted event*, never as something replaced. But the comment
+justified the write as "the on-demand form of the CR 514.2 cleanup wipe, and a
+direct write for the same reason it is", and **the cleanup wipe is restricted by
+seven printed cards**: Ancient Adamantoise, Case of the Market Melee, Melt
+Through, Patient Zero, Switchgrass Grazer, Uthgardt Fury and Victory of the
+Pyrohammer all say damage isn't removed during cleanup steps
+(`o:/damage isn.t removed/ -is:funny`).
+
+Those cards are not replacement effects and they do not want a `GameAction`.
+CR 514.2's removal is a turn-based action that "doesn't use the stack", and the
+restrictions are per-permanent and filtered ("from creatures your opponents
+control"), so what they need is an enforcement point *at the wipe* —
+`cant-effects-architecture.md`'s sixth shape, not this pipeline's. Recorded as
+`codebase-state.md`, Before Replacement item 20.
+
+**What would reopen either: a trigger, not a replacement.** A direct write is
+invisible to CR 603's detector for the same reason it is invisible to CR 614's
+pipeline, and the event stream is what Phase 6 matches against. Today
+`o:/whenever.*removed from combat/` returns zero, so the tripwire is a card that
+watches one of these, not a card that replaces one.
+
+**One thing the check turned up that belongs to the census, not here.**
+`cant-census.py` queries `o:"can't" -is:funny`, which is its stated scope — but
+both families above phrase the restriction as "isn't"/"doesn't", so neither
+appears in the 2,034 clauses, and one of them is not small: **248 cards print
+"doesn't untap during ..."** (`o:/doesn.t untap during/ -is:funny`).
+`cant-effects-architecture.md` §2.2, "What the census cannot see", is where that
+belongs; it currently lists only the keyword-borne restrictions.
+
 ### What the residual actually is: CR 701 keyword actions
 
 The §3.2c classification left 11 clauses unbucketed, and reading them gives the
