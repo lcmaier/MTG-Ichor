@@ -624,6 +624,94 @@ built, and none of it blocks RC-1 through RC-3.
     nobody re-adds the guard**, which is the same job H2's inverted test does.
     Nothing owed.
 
+### Found by the theme D+F+H pass (2026-08-30)
+
+22. **`gather`'s counter fast path is a full battlefield scan, and it stays one
+    until CR 704.5q joins the chokepoint (`rb-review.md` D2).**
+    `any_replacement_counter` walks every `BattlefieldEntity` on **every
+    proposed action**, checking three counter kinds. Cheap at 15 permanents and
+    it has never shown up in a profile, but it is the one part of the fast path
+    that is not O(1). The review's correction is right and was recorded in the
+    code: the old comment defended the scan by saying a cache would drift,
+    which is true of a *count* and false of a **set** maintained the way
+    `replacement_ability_sources` is. **What actually blocks the set is that
+    counters have three mutation sites, not two** —
+    `GameState::add_counters`, `perform_action`'s `RemoveCounters` arm, and CR
+    704.5q's +1/+1 / -1/-1 annihilation, which writes `BattlefieldEntity`
+    directly (item 6). A set maintained at a chokepoint that does not exist is
+    exactly the drift, and it reads as a card silently doing nothing.
+    **Sized:** a `HashSet<ObjectId>` beside `replacement_ability_sources`,
+    inserted in `add_counters` and re-checked on removal — about 15 lines, and
+    it becomes *sound* the day item 6 routes 704.5q through `execute_actions`.
+    **Measure first** (`fuzz_games --games 200 --seed 12345` against the
+    13.04 ms/game RB baseline); do not pay for it before the pool grows.
+
+23. **Counters cannot exist on an object that is not on the battlefield, and
+    three separate rules want them to (`rb-review.md` F1).** The map lives on
+    `BattlefieldEntity` and `perform_action`'s `AddCounters` arm errors for
+    anything else. CR 122.1a and 122.1b are both written for "a card in a zone
+    other than the battlefield"; **71 suspend cards** (CR 702.62) put time
+    counters on a card in exile; and CR 122.2's exception — "counters remain on
+    this as it moves to any zone other than a player's hand or library" — is
+    printed on two cards, Skullbriar, the Walking Grave and Me, the Immortal.
+    **Sized:** move `counters: HashMap<CounterType, CounterStack>` from
+    `BattlefieldEntity` to `GameObject`. 12 direct `.counters` sites outside
+    `src/cards`, plus the `add_counters` / `remove_counters` / `counter_count`
+    accessors — contained. The part that needs thought is
+    `CounterStack.timestamp`: CR 613.7c timestamps a counter as it is put on,
+    and a timestamp only means something where the layer system reads it, so
+    the off-battlefield case needs an answer rather than a copy of the
+    on-battlefield one. Skullbriar then costs a predicate at `move_object`'s
+    clear point. **Trigger:** the first suspend card, or the first CR 122.1b
+    keyword counter on a card outside the battlefield. Not Skullbriar alone —
+    two cards do not earn the move. → `replacement-architecture.md` §11 item 10.
+
+24. **`ReplacementDef.then` is rich enough; the `Effect` tree is not
+    (`rb-review.md` F4).** A rider like "you may put a +1/+1 counter on each of
+    them. If you don't, draw a card" needs `Effect::Optional`, which is
+    unimplemented, plus a conditional on that optional's *outcome*, for which
+    there is no vocabulary at all. **Recorded here so it is not mistaken for a
+    replacement-vocabulary gap:** `then` is an `Effect`, which is §3.2's whole
+    point — per-mechanic variety goes in the existing tree — so nothing in
+    `types/replacement.rs` changes when this lands. The demand is not
+    replacement-shaped either: **1,249 cards print "if you do" and 165 print
+    "if you don't"**, against 35 that print both "if you do" and "instead"
+    (Scryfall 2026-08-30). Owed by the `Effect` tree, on behalf of the whole
+    card pool, and `replacement-architecture.md` §11 item 11 records the
+    matching authoring rule — an "if you do" written as a bare unconditional
+    `then` is a card bug, not a modelling choice.
+
+25. **Phase 1 runs each batch member's CR 616.1f loop to completion, so
+    CR 101.4d's restart cannot happen (`rb-review.md` F6).**
+    `execute_batch_inner` decides members in APNAP order, one whole loop at a
+    time. CR 101.4d's case — a later player's choice forcing an earlier player
+    to choose again — needs the members *interleaved*, one 616.1 choice each in
+    turn. Not the same as the Notion-Thief-vs-Notion-Thief case, which **is**
+    handled: `chooser_for` is recomputed every iteration, so a rewrite that
+    changes who chooses is picked up. **Sized:** turning phase 1 inside out —
+    a per-member loop state machine driven by an outer APNAP round-robin,
+    which is a rewrite of `apply_replacements`'s signature rather than a patch
+    to it. Unreachable until two members of one batch can affect each other's
+    choosers, which needs a `Retarget` rewrite (Phase RD) at minimum. Revisit
+    with RD, not before.
+
+26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
+    should (`rb-review.md` H7).** If a batch carries two members naming one
+    object — two `ZoneChange`s, or a `Destroy` and a `ZoneChange` — the first
+    perform moves it and the second returns `Err` ("proposed Battlefield→X,
+    which is in Graveyard"), which fails the whole batch where CR 608.2b's
+    do-as-much-as-possible says to skip that member. Unreachable today: the SBA
+    sweep dedupes per object, combat and untap batches are per-object unique,
+    and no registered spell proposes one object twice. It becomes reachable
+    with the first multi-clause spell ("Destroy target creature. Destroy target
+    creature.") or the first replacement that redirects member 1 into member
+    2's precondition. **Sized:** a `still_legal(&GameAction) -> bool` predicate,
+    one arm per `GameAction` variant (10 today), asked in phase 2's loop before
+    each perform, skipping rather than erroring. It is the *caller's* job by
+    `CLAUDE.md`'s own rule — performers are loud, callers check legality — and
+    the batch is the caller. What it must not become is a `match` on error
+    strings, which would make a real bug indistinguishable from a stale member.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
