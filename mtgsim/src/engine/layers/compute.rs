@@ -100,7 +100,7 @@ pub(super) fn compute_to_ceiling(
         types: card.types.clone(),
         subtypes: card.subtypes.clone(),
         supertypes: card.supertypes.clone(),
-        keywords: card.keywords.clone(),
+        keyword_flags: card.keyword_flags.clone(),
         abilities: card.abilities.clone(),
         power: card.power,
         toughness: card.toughness,
@@ -356,7 +356,7 @@ fn drain_keyword_counters_before(
         if timestamp >= limit {
             return;
         }
-        chars.keywords.insert(keyword);
+        chars.keyword_flags.insert(keyword);
         pending.pop();
     }
 }
@@ -862,11 +862,11 @@ pub(super) fn apply_modification(
         EffectModification::RemoveAllColors => { chars.colors.clear(); }
 
         // Layer 6
-        EffectModification::GrantKeywordFlag(kw) => { chars.keywords.insert(*kw); }
+        EffectModification::GrantKeywordFlag(kw) => { chars.keyword_flags.insert(*kw); }
         // CR 113.10b — "effects that remove an ability remove all instances of
         // it". For a keyword flag that is structural: a `HashSet` never held
         // more than one.
-        EffectModification::RemoveKeywordFlag(kw) => { chars.keywords.remove(kw); }
+        EffectModification::RemoveKeywordFlag(kw) => { chars.keyword_flags.remove(kw); }
         EffectModification::GrantAbility(def) => {
             // CR 604.3a(2) — an ability that reached an object by being granted
             // is never a characteristic-defining ability, however its text
@@ -891,7 +891,7 @@ pub(super) fn apply_modification(
             chars.abilities.retain(|a| a.id != *ability_id);
         }
         EffectModification::LoseAllAbilities => {
-            chars.keywords.clear();
+            chars.keyword_flags.clear();
             chars.abilities.clear();
         }
 
@@ -1077,9 +1077,9 @@ mod tests {
         game.place_on_battlefield(id, 0);
 
         let chars = compute_characteristics(&game, id).unwrap();
-        assert!(chars.keywords.contains(&KeywordFlag::Flying));
-        assert!(chars.keywords.contains(&KeywordFlag::Vigilance));
-        assert!(!chars.keywords.contains(&KeywordFlag::Trample));
+        assert!(chars.keyword_flags.contains(&KeywordFlag::Flying));
+        assert!(chars.keyword_flags.contains(&KeywordFlag::Vigilance));
+        assert!(!chars.keyword_flags.contains(&KeywordFlag::Trample));
     }
 
     // COVERS-PARTIAL: ATOM-613.4c-001
@@ -1133,7 +1133,7 @@ mod tests {
         game.continuous_effects.add(effect);
 
         let chars = compute_characteristics(&game, id).unwrap();
-        assert!(chars.keywords.contains(&KeywordFlag::Flying));
+        assert!(chars.keyword_flags.contains(&KeywordFlag::Flying));
     }
 
     #[test]

@@ -257,7 +257,7 @@ pub struct EffectiveCharacteristics {
     pub types: HashSet<CardType>,
     pub subtypes: HashSet<Subtype>,
     pub supertypes: HashSet<Supertype>,
-    pub keywords: HashSet<KeywordFlag>,
+    pub keyword_flags: HashSet<KeywordFlag>,
     pub abilities: Vec<AbilityDef>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,

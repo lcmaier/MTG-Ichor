@@ -1476,7 +1476,7 @@ fn token_card_data(
     for subtype in &def.subtypes {
         builder = builder.subtype(subtype.clone());
     }
-    for keyword in &def.keywords {
+    for keyword in &def.keyword_flags {
         builder = builder.keyword(*keyword);
     }
     builder.build()

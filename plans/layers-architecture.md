@@ -947,8 +947,8 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
    - Synthesize counter-derived 7c effects from `BattlefieldEntity.counters`.
    - Zone-scope fast-path for hidden zones (§5.1).
 5. Rewire existing `oracle/characteristics.rs` wrappers to call `compute_characteristics`.
-6. **Direct-`card_data` read audit** (deferred-migration item): grep for `obj.card_data.{keywords,colors,types,subtypes,power,toughness,name}` outside `oracle/characteristics.rs` and `engine/cast.rs` (cast-zone legality is pre-stack). Migrate each direct read to a wrapper call OR document why the direct read is correct. Expected output: a list commit + migration edits.
-7. Modify `AbilityDef` to carry a `Keyword(KeywordAbility)` variant; `CardData.keywords` is retained as a write-time convenience but readers go through `EffectiveCharacteristics.abilities`. Add `is_characteristic_defining: bool` and `origin: AbilityOrigin` fields to `AbilityDef` (defaults: false, `PrintedRulesText`). No non-default producers yet.
+6. **Direct-`card_data` read audit** (deferred-migration item): grep for `obj.card_data.{keyword_flags,colors,types,subtypes,power,toughness,name}` outside `oracle/characteristics.rs` and `engine/cast.rs` (cast-zone legality is pre-stack). Migrate each direct read to a wrapper call OR document why the direct read is correct. Expected output: a list commit + migration edits.
+7. Modify `AbilityDef` to carry a `Keyword(KeywordAbility)` variant; `CardData.keyword_flags` is retained as a write-time convenience but readers go through `EffectiveCharacteristics.abilities`. Add `is_characteristic_defining: bool` and `origin: AbilityOrigin` fields to `AbilityDef` (defaults: false, `PrintedRulesText`). No non-default producers yet.
 8. Stub `ExpirationPredicate` AST (§15.1) with a minimal leaf set. No evaluator yet — just the types so `Duration::WhileCondition` compiles.
 
 **Exit criteria:**

@@ -34,7 +34,7 @@ python plans/check_claude_md.py           # this file's 200-line budget — must
 
 ## The layer-system invariant
 
-**Never read `card_data.{types,subtypes,supertypes,colors,keywords,abilities}` for an object
+**Never read `card_data.{types,subtypes,supertypes,colors,keyword_flags,abilities}` for an object
 on the battlefield or the stack** — route through `oracle/characteristics.rs`. Violated at 21
 sites with silently wrong behavior, so assume a new query needs a wrapper.
 
