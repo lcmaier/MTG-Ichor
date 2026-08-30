@@ -58,8 +58,9 @@ deliverable, because the failure mode is a card that silently does nothing.
 **What this does *not* claim.** CR 712 (double-faced cards) is a second card
 model, not a copy mechanism, and §4.5 scopes it as such rather than pretending
 Layer 1 absorbs it. CR 729 (merging) and CR 708 (face-down) are named, sized and
-**deliberately left out of every phase below** — with the one shape constraint
-they impose on the type recorded in §3.2 so the door stays open. And CR 707.10's
+given phases of their own (**CV-6**, **CV-7**) rather than a type surface here
+— with the one shape constraint they impose recorded in §3.2 so the door stays
+open. And CR 707.10's
 spell copies touch no layer at all; putting them in a "copy phase" because they
 share a word would be the same error the tier table exists to prevent.
 
@@ -169,26 +170,35 @@ They overlap by construction and are never summed. Neither is a work estimate �
 
 ### 2.1 The mechanism table
 
-| Tier | Mechanism the engine must build | CR | Clauses | Cards | Built? |
+**Cards is the unit that matters here; clauses are shown for provenance only.**
+The clause count is how the classifier partitions the corpus — that is what
+produced the six mechanisms — but it is a poor size estimate for copying, and
+that is a real difference from `cant-census.py`. A "can't" card can carry several
+*independent* restrictions needing different enforcement points, so clauses are
+the work. A copy card carries one mechanism and then a rider sentence about it
+("You may choose new targets for the copy"), so **clauses count sentences, not
+work**. Tier D is the extreme case: 542 clauses over 306 cards, because 186 of
+those clauses are one shared CR 707.10c prompt.
+
+| Tier | Mechanism the engine must build | CR | Cards | Clauses | Built? |
 |---|---|---|---:|---:|---|
-| **A** | Token copy — `CreateToken` carrying copiable values | 707.1, 111.1 | **318** | 306 | ❌ |
+| **A** | Token copy — `CreateToken` carrying copiable values | 707.1, 111.1 | **306** | 318 | ❌ |
 | **B** | Enters as a copy — a CR 616.1c replacement | 707.5, 616.1c | **69** | 69 | ❌ (bucket ships, no producer) |
 | **C** | Becomes a copy — a Layer 1a continuous effect | 707.4, 707.2c | **81** | 81 | ❌ (`Layer1Copy` is a stub) |
-| **D** | Spell / ability copy — a stack object, **no layer** | 707.10 | **542** | 306 | ❌ |
-| **E** | Cast a copy — create in the zone, then cast | 707.12–14 | **73** | 47 | ❌ |
+| **D** | Spell / ability copy — a stack object, **no layer** | 707.10 | **306** | 542 | ❌ |
+| **E** | Cast a copy — create in the zone, then cast | 707.12–14 | **47** | 73 | ❌ |
 | **F** | *Copy as subject* — the rules read a copy, nothing is produced | 707.1, 707.11 | 8 | 8 | n/a |
 | ? | unclassified | — | 2 | 2 | printed in §2.6 |
 
-Tier D is the largest bucket and the **only one that needs no layer system at
-all** — a copy of a spell is a new object on the stack (CR 707.10), and CR
-707.10's own hard parts are the retargeting rules (186 of its 542 clauses are
-CR 707.10c/d/e "choose new targets for the copy") rather than characteristics.
-That inversion — biggest population, least coupling — is why §7 can ship it
-independently of everything else.
+Tiers A and D are the largest, and **D needs no layer system at all** — a copy
+of a spell is a new object on the stack (CR 707.10), and its hard parts are the
+retargeting rules rather than characteristics. That inversion — biggest
+population, least coupling — is why §7 can ship it independently of everything
+else.
 
-Tier C is 7% of the clauses and is the one that needs Layer 1, a timestamp and
-a duration. **Size and difficulty run in opposite directions here**, which the
-tier table is specifically shaped to make visible.
+Tier C is 81 cards and is the one that needs Layer 1, a timestamp and a
+duration. **Size and difficulty run in opposite directions here**, which is the
+one thing this table is shaped to make visible.
 
 ### 2.2 The population table — what the word search cannot see
 
@@ -430,7 +440,7 @@ implemented, and the answer is **the capture, and nowhere else**:
   `BattlefieldEntity` state rather than registered (§4.6).
 - **CR 729 merging** *is* a Layer 1a copiable effect by CR 729.2a and would use
   `CopyFrom` — but it needs a permanent represented by several components, which
-  is a `BattlefieldEntity` change, not a copy change. Out of scope (§6, §10).
+  is a `BattlefieldEntity` change, not a copy change. That is **CV-7** (§6).
 - **`GameObject.is_copy`** is a *provenance* flag, not a mechanism. It should be
   set by producers 3 and 4 (a token copy, a spell copy) and stay false for 1 and
   2, whose objects are ordinary permanents with a row on them. It has no reader
@@ -448,7 +458,9 @@ that modifies how the permanent enters, and CR 707.5 is explicit that "It
 doesn't enter the battlefield, and then become a copy."
 
 The pipeline shape is already built: it is a `ReplacementDef` with
-`class: ReplacementClass::CopyOnEnter`, `pattern: EventPattern::EnterBattlefield`
+`class: ReplacementClass::CopyOnEnter` (**a name CR 707.5 contradicts — rename
+it to `CopyAsEnters` while it still has no producer**, §9 item 9),
+`pattern: EventPattern::EnterBattlefield`
 (RC-2's), `optional: true`, and a `Rewrite::Instead` producing an
 `EnterBattlefield` whose `EnterMods` carries the captured values. `forced_bucket`
 already orders 616.1c ahead of 616.1e. **The choice of what to copy is CR
@@ -555,8 +567,8 @@ The seams with this document, both narrow:
 
 ### 4.6 CR 708 — face-down, and Layer 1b
 
-**304 producers, out of scope for every phase below, named so the type leaves
-room for it.** CR 708.2 makes the face-down characteristics *be* the copiable
+**304 producers; CV-6, and undesigned here beyond the one constraint it puts on
+the capture.** CR 708.2 makes the face-down characteristics *be* the copiable
 values, so it is inside layer 1 by definition, and CR 613.2b puts it in sublayer
 1b — after 1a.
 
@@ -683,51 +695,33 @@ eventually read a *copied* ability list. RC-4's frame reads
 free at the frame and costs only the row existing first — i.e. CV-2 orders after
 RC-4, never before.
 
-### 5.2 The CR 613.8 join — refuted, and conditionally
+### 5.2 The CR 613.8 join — refuted
 
 **The claim to test:** Layer 1 copies generate dependency-ordering-sensitive
 boards, so copy implementation queues behind critical-path item 7 the way RS-3b
 does.
 
-**First, a correction of method.** The instruction was to check against CR
-613.8's own examples. **CR 613.8 in `tmnt.txt` has no examples** — 613.8a, b and
-c are three sentences and the example block older printings carried is gone. So
-this reasons from 613.8a's three criteria directly, and names the cards.
+**Refuted, and the reason is one rule.** CR 707.2b: "Once an object has been
+copied, changing the copiable values of the original object won't cause the copy
+to change." A copy is a snapshot. CR 613.8a(b) asks whether applying one effect
+would change what another one does — and nothing can change what a snapshot
+already holds. Copy rows are independent of each other, and of everything else
+in layer 1a. **Item 7 is not a prerequisite for any CV phase.**
 
-> **613.8a** An effect is said to "depend on" another if (a) it's applied in the
-> same layer (and, if applicable, sublayer) as the other effect; (b) applying
-> the other would change the text or the existence of the first effect, what it
-> applies to, or what it does to any of the things it applies to; and (c)
-> neither effect is from a characteristic-defining ability or both are.
+Two footnotes, and neither changes the answer:
 
-**Criterion (a)** confines the question to layer 1a — a copy row can only depend
-on another 1a effect, and 1b (face-down) is a different sublayer.
-**Criterion (c)** is satisfied: a copy effect is never a CDA.
-**Criterion (b) is the whole question**, and the answer depends entirely on §1.3.
-
-- **If a copy row stored `CopyOf(ObjectId)`**: applying another copy effect to
-  that object would change what the first row does to the thing it applies to.
-  That is 613.8a(b) exactly. **Dependent**, item 7 becomes a hard prerequisite,
-  and Clone-copying-a-Clone is the everyday board that needs it.
-- **If a copy row stores `CopyFrom(Box<CopiableValues>)`**: applying any other
-  effect changes nothing about the row — not its text, not its existence, not
-  its subject, not its result. **Independent, always.** The dependency is
-  severed by CR 707.2b/2c, which is the rules-level statement of the same fact.
-
-**Verdict: refuted, conditionally.** Copy work does not queue behind item 7,
-*provided §1.3 holds*. That is not luck; it is why §1.3 is stated as a rule with
-its consequences attached rather than as an implementation note.
-
-**The stronger form of the same argument**, which matters more than the
-scheduling: a reference-carrying row is not merely dependent, it is **unsound
-against `layers-architecture.md` §5.2**. That section's termination argument is
-"computing an object at ceiling C only ever requests ceilings < C". A copy row
-applied at layer index 0 needs the copied object's frame at ceiling 1 — the end
-of layer 1 — which is not a strict descent. Two permanents copying each other is
-a legal board; CR 613.8b handles the loop by falling back to timestamp order,
-and the frame cache has no such fallback because it was proved not to need one.
-**Capturing at creation time keeps that proof true**, and the recursion never
-happens because it happens once, outside the walk.
+- **CR 613.8 in `tmnt.txt` carries no examples** — 613.8a–c are three sentences
+  and the example block older printings had is gone. So the paragraph above is
+  read off 613.8a's criteria rather than off a worked case. Criterion (a) would
+  confine the question to layer 1a anyway, and (c) is satisfied because a copy
+  effect is never a CDA.
+- **The snapshot is also what keeps `layers-architecture.md` §5.2's termination
+  argument true.** That proof is "computing an object at ceiling C only ever
+  requests ceilings < C". Resolving a copy *during* the walk would ask for the
+  copied object's ceiling-1 frame from inside layer index 0 — not a strict
+  descent, and two permanents copying each other is a legal board. Capturing
+  once, outside the walk, means the recursion never happens. This is the engine
+  half of §1.3 and the only part of it that is not just restating the CR.
 
 **What this does not claim.** CV-5 (faces) and any future CR 729 work are *not*
 covered by this argument, because a merged permanent's characteristics come from
@@ -817,35 +811,67 @@ this pass ships no `.rs` changes, and §7 of that document is its own authority.
 
 ---
 
-## 6. v1 scope, with counts
+## 6. v1 scope — everything, in an order
 
 v1 is **4-player Commander through a GUI, and highly parallel AI games over the
-CLI** (owner, 2026-08-24). Counts from §2, Commander-legal where it changes the
-answer.
+CLI** (owner, 2026-08-24), and the longer-range target is **every card but the
+genuinely obscure** (owner, 2026-08-30). An earlier draft of this section
+scoped meld, mutate, face-down and flip cards *out* of v1 on population size and
+effort. **That was wrong twice over and is withdrawn.**
 
-**In scope for v1:**
+**Why it was wrong on the merits.** Deferring these does not defer their cost,
+it *raises* it, and this project already has the vocabulary for why. Meld and
+mutate both need a permanent represented by **several components** (CR 729.2,
+712.4), and "is this one object or several?" is a **fact**, not a feature —
+`codebase-state.md`'s own triage. Facts are unrecoverable if not captured when
+they exist, and adding one late means re-threading every system built in
+between. `BattlefieldEntity` is single-component today and every phase on the
+critical path writes more code against that assumption. **The cheapest moment to
+decide whether a permanent can be several objects is before Phase 8 card
+breadth, not after** — the same back-stop CR 613.8 has.
 
-| Population | Cards | Why |
-|---|---:|---|
-| Tier D/E — spell and ability copies | 306 + 47 | The largest bucket, no layer coupling, and Commander's most-played interaction class after removal. 76 cards say "copy target spell" alone |
-| Tier A — token copies | 306 | 256 Commander-legal for "token that's a copy". Cheapest mechanism in the document |
-| Tier B — enters as a copy | 69 | Clone and every Clone-shaped legend. Small, and it is the one that gives `CopyOnEnter` a producer |
-| Tier C — becomes a copy | 81 | 65 Commander-legal for the printed phrase. The mechanism the other three lean on |
-| **CR 712 transform + modal** | **496** | 486 Commander-legal, and **120 can be a commander**. Not a tail population by any reading; a Commander engine that cannot represent a DFC commander is not a Commander engine |
+**Why it was wrong on the population.** 21 meld cards is not 21 cards' worth of
+demand: Brisela, Voice of Nightmares is a played Commander card, and the meld
+pairs are the kind of card people build decks around rather than the kind they
+cut. Mutate is 34 cards and a whole mechanic with an identity. Neither is
+Camouflage or Panglacial Wurm, which is the standard this project actually
+holds — "most obscure", not "smallest bucket".
 
-**Scoped out of v1, with the count that justifies it:**
+**So nothing here is out of v1.** What is left is an *order*, and the ordering
+argument is about coupling, not worth:
 
-| Population | Cards | Why out |
-|---|---:|---|
-| **Meld** (CR 712.4) | **21** | Needs a permanent represented by two cards, CR 729.3b's exile timestamp ordering, and its own SBA. 21 cards, of which 7 are meld results, for a whole subsystem |
-| **Mutate / merging** (CR 729) | **34** | Same multi-component permanent as meld, plus CR 729.3d's "applying one replacement applies it to all components" — which reaches into the RB pipeline. 19 uncovered atoms, and it is Layer 1a, so it is genuinely part of this cluster and genuinely not worth 34 cards yet |
-| **Face-down** (CR 708) | **304 producers** | *Not* a small population, and it is scoped out on effort rather than breadth: morph is a casting mechanism (CR 708.4) needing alternative costs, a turn-face-up special action, and Layer 1b. Its own phase, after v1's copy work, and §3.2/§4.6 keep the door open |
-| **Flip cards** (CR 710) | 25 | 19 Commander-legal, legacy layout, no new mechanism once faces exist |
-| Garth One-Eye (707.13), Magar (707.14) | 2 | Named in the CR individually, which is the CR's own signal |
+| Population | Cards | Phase | Why here in the order |
+|---|---:|---|---|
+| Tier D/E — spell and cast copies | 306 + 47 | **CV-4** | Zero coupling to layers, registry or pipeline. Can land first or last; nothing waits on it |
+| Tier C — becomes a copy | 81 | **CV-1** | The spine every other CV phase carries |
+| Tier B — enters as a copy | 69 | **CV-2** | Needs RC-2's `EnterBattlefield` event |
+| Tier A — token copies | 306 | **CV-3** | Needs CV-1's capture; nothing needs it |
+| CR 712 transform + modal DFC | 496 | **CV-5** | A second card model. 486 Commander-legal and **120 can be a commander** |
+| **Face-down** (CR 708) | **304 producers** | **CV-6** | Layer 1b, and CR 707.2 makes copiable values depend on face-down status — so it is coupled to CV-1's capture ceiling and to nothing else. Its bulk is a *casting* mechanism (CR 708.4: alternative costs, a turn-face-up special action), which is why it is its own phase rather than a rider on CV-1 |
+| **Merging** (CR 729) + **meld** (CR 712.4) | 34 + 21 | **CV-7** | The multi-component `BattlefieldEntity`. Last in this track because it is the largest structural change, **and it is the one with a back-stop**: before Phase 8 card breadth, for the fact reason above |
+| **Flip cards** (CR 710) | 25 | **CV-5** | Rides along once faces exist; CR 729.2h already couples them to merging |
+| Garth One-Eye (707.13), Magar (707.14) | 2 | **CV-4** | Cheap once the capture exists; the CR names each individually |
 
-**The honest summary:** the copy spine plus DFCs is **~1,300 cards** and the
-excluded set is **~380**, of which 304 are face-down and deferred on cost rather
-than on size. That is the number to quote, not 2,890.
+**There is no single total, and an earlier draft's "~1,300 cards" was a sum of
+sets that overlap** — which §2's own header forbids. The two honest headline
+numbers, and the measured overlap between them:
+
+- **752 cards print a copy clause** (the mechanism table).
+- **901 cards carry a face or state that is a copiable-values question** and
+  mostly print no copy clause at all: 517 double-faced (§2.3's correction, not
+  2,890) + 304 face-down producers + 55 merging/meld + 25 flip.
+- **They overlap by 25 cards** — the transform/modal/meld cards that also print
+  the word, printed by `copy-census.py`'s table-overlap line rather than assumed
+  negligible. So the union is **1,628**, and that is the only figure in this
+  document that is a sum of anything.
+
+**One thing this section deliberately does not do: design CV-5 through CV-7.**
+Their rows above are populations, ordering and the coupling argument — not a
+type surface. DFC is a second card model and merging is a `BattlefieldEntity`
+change; each earns its own design pass **when it is next**, on the evidence
+available then. Committing a shape for them now would be designing three phases
+ahead of the first line of code, which is the failure this document is already
+close enough to. → §9 item 10.
 
 ---
 
@@ -853,7 +879,7 @@ than on size. That is the number to quote, not 2,890.
 
 Sized before writing and split in the doc, per `engineering-practices.md` §4.
 Every PR carries at least one consumer of what it builds. Sub-phases are
-numbered **CV-1 … CV-5** ("copiable values"). `CP` and `LC` were both taken —
+numbered **CV-1 … CV-7** ("copiable values"). `CP` and `LC` were both taken —
 `cards-unlocked-ledger.md`'s Running Totals uses `CP-A`…`CP-D` for checkpoints,
 and `layers-architecture.md` §13 uses Phase `LC`.
 
@@ -865,6 +891,8 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | **CV-3 — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `token_card_data` (`resolve.rs:1450`); **1** `Primitive::CreateToken` arm | low — no row, no layer, no duration |
 | **CV-4 — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. Defers CR 707.10b ability copies (**39** clauses) to critical-path item 6 | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
 | **CV-5 — faces (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. **Consumer: one transform creature and one modal DFC land** | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
+| **CV-6 — face-down (CR 708)** | Layer 1b, `BattlefieldEntity.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `cast.rs`'s alternative-cost sites before anyone commits a number |
+| **CV-7 — merging + meld (CR 729, 712.4)** | A multi-component `BattlefieldEntity`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
 
 **The spine, named.** **CV-1 is this track's RS-1**: small, one arm, and it is
 what every other phase is a consumer of. Unlike RS-1 it does not delete anything
@@ -874,17 +902,22 @@ the hot path rather than spread across call sites.
 
 **Ordering, and the hard constraints.**
 
-> **CV-1 before CV-2, CV-3 and CV-5.** All three carry `CopiableValues`.
+> **CV-1 before CV-2, CV-3, CV-5 and CV-6.** All four carry `CopiableValues`.
 > **RC-2 before CV-2**, which needs `EnterBattlefield` to be an event at all.
 > **`codebase-state.md` item 10 before CV-1b**, and nothing else in this
 > document is blocked on it.
 > **CV-4 is free** — it touches no layer, no registry and no replacement, and
 > can land at any point from today onward.
+> **CV-7 before Phase 8 card breadth**, because a multi-component
+> `BattlefieldEntity` is a fact and every phase in between writes code against
+> the single-component assumption (§6).
 
 **What each PR must not do.** CV-1 must not touch the ETB path; CV-2 must not
 touch tokens; CV-3 must not register a row; CV-4 must not touch the layer
-system; and no CV phase attempts CR 708, CR 729 or meld. Each is the seam where
-this becomes one 5,000-line PR again.
+system; CV-5 must not attempt meld; and **CV-1 through CV-5 must not touch CR
+708 or CR 729** — those are CV-6's and CV-7's, and reaching for either early is
+how CV-1 becomes a `BattlefieldEntity` rewrite. Each is the seam where this
+becomes one 5,000-line PR again.
 
 ### 7.1 Where this sits in the interleaved order
 
@@ -894,7 +927,7 @@ adds a track. Its own summary framing extends cleanly:
 
 > **Track R** turns events into things cards can modify (RC → RD → RE).
 > **Track S** turns rules into things cards can forbid (RS-0 → RS-4).
-> **Track V** turns objects into things cards can become (CV-1 → CV-5).
+> **Track V** turns objects into things cards can become (CV-1 → CV-7).
 > Track V meets Track R **twice**: RC-2 before CV-2, and RC-4 keeps 616.1b while
 > giving 616.1c up to CV-2.
 
@@ -905,12 +938,14 @@ adds a track. Its own summary framing extends cleanly:
 | **CV-1 → CV-2 → CV-3**, after RC-2 and RC-4 | The spine, then its consumers |
 | **CV-5** after CV-1, before Phase 8 card breadth | 496 cards, 120 of them potential commanders |
 | **CV-1b** after item 10 | §5.3 |
+| **CV-6**, **CV-7** after CV-5; CV-7 before Phase 8 card breadth | §6 — CV-7's multi-component permanent is a *fact*, and the back-stop is the same one item 7 has |
 
-**And the thing this document does not schedule**, on the same terms
-`cant-effects-architecture.md` §7.1 used to name copy effects: CR 708's 304
-face-down producers and CR 729's merging are real, sized, and belong to nobody.
-They are named in §6 and §10 so the next detector run finds them already
-counted, rather than as a third discovery.
+**Everything this document names now has an owner**, which was not true of the
+earlier draft: CR 708 and CR 729 were "real, sized, and belong to nobody", which
+is exactly the condition the detector exists to find. They are CV-6 and CV-7.
+What is deliberately *not* here is their design (§6's closing note) — an owner
+and an ordering is what a plan owes them; a type surface is what the phase
+itself owes, on the evidence available then.
 
 ---
 
@@ -936,20 +971,22 @@ else in Phase 9, and neither tag names a phase this project schedules:
 |---|---|---:|
 | `D5`, `D5 (copy system)`, `D5 + Phase 7/9` | **CV-1 … CV-4** | 26 |
 | `NEW — DFC *` (712) | **CV-5** | 34 |
-| `NEW — Meld *` (712) | **out of scope** (§6) | ~7 |
-| `NEW — Face-down *` (708) | **out of scope**, its own phase | 10 |
-| `NEW — Merged permanent *` (729) | **out of scope** (§6) | 19 |
+| `NEW — Meld *` (712) | **CV-7** | ~7 |
+| `NEW — Face-down *` (708) | **CV-6** | 10 |
+| `NEW — Merged permanent *` (729) | **CV-7** | 19 |
 | `NEW — Layer 1 sublayer / copiable values` (613.2) | **CV-1**, and §5.4 | 3 |
 
 Four things to act on rather than read past:
 
-1. **None of these atoms is in `specdb owed`'s default 38.** `owed` filters
+1. **None of these atoms is in `specdb owed`'s default 38, and that is now a
+   pattern worth fixing rather than working around.** `owed` filters
    `ticket LIKE 'NEW%'`, and the 707 atoms carry `D5` — so 26 of the most
-   load-bearing atoms in this cluster sit only in `owed --all`'s 551. The 712 /
-   708 / 729 atoms *do* say `NEW` but are tagged `Phase 9`, so they are
-   correctly deferred rather than owed. **`owed` alone does not show the size of
-   this work**; a session sizing a CV phase should run `owed --all` and grep, or
-   `copy-census.py --atoms`.
+   load-bearing atoms in this cluster sit only in `owed --all`'s 551. The same
+   filter hid the "can't" cluster behind `L15` and `T21b`. **Two for two on the
+   large gaps**, which is §9 item 11's subject and a one-line fix in a file this
+   pass does not touch. Until then: `owed --all` and grep, or
+   `copy-census.py --atoms`. The 712 / 708 / 729 atoms *do* say `NEW` but are
+   tagged `Phase 9`, so those are correctly deferred rather than hidden.
 2. **The corpus files CR 707 under Phase 6**, i.e. with triggered abilities and
    replacement effects. That is defensible — CR 616.1c is a replacement — but it
    is why the critical path never saw it, and re-tagging is *not* proposed here:
@@ -1021,32 +1058,81 @@ Four things to act on rather than read past:
    39 clauses, deferred to critical-path item 6, and named here so the triggers
    phase does not discover it.
 
-8. **The census's Tier D is 542 clauses over 306 cards and that ratio is the
-   finding.** 1.8 clauses per card, against ~1.0 everywhere else, because a
-   spell-copy card prints the effect and its retarget rider as separate
-   sentences. **Card count, not clause count, is the work estimate for Tier D**
-   — the rider is one shared prompt, not 186 implementations. Recorded because
-   the opposite reading would size CV-4 at three times its real cost.
+8. **The clause is the wrong unit for copying, and `cant-census.py`'s success
+   with it does not transfer.** A "can't" card can carry several *independent*
+   restrictions needing different enforcement points, so a clause is a unit of
+   work. A copy card carries one mechanism plus rider sentences about it, so a
+   clause is a unit of *sentence*. §2.1 now leads with cards and keeps clauses
+   only as provenance for how the six mechanisms were partitioned — which is the
+   one job the clause classifier genuinely did. **The census remains worth its
+   cost for the partition and for the population table; its headline number
+   should not have been a clause count.** Recorded rather than quietly fixed,
+   because the next census in this project will face the same choice and the
+   deciding question is "can one card need this mechanism twice, independently?"
 
-9. **CR 729.3d reaches into the RB pipeline and would be a genuine surprise
-   later.** "If multiple replacement effects could be applied to the event of a
-   merged permanent leaving the battlefield … applying one of those replacement
-   effects to the object applies it to all components" — that is a CR 614.5
-   applied-set question about an object that is several objects, and it is a
-   sibling of `rb-review.md` H9's per-member-vs-per-affected-object question.
-   Out of scope, and named so that whoever answers H9 for Phase RD knows a
-   second customer exists.
+9. **`ReplacementClass::CopyOnEnter` is named backwards and now is the cheapest
+   moment to rename it.** It reads as "enters, then copies", which is the exact
+   reading **CR 707.5 goes out of its way to disclaim**: "It doesn't enter the
+   battlefield, and then become a copy of that permanent." The CR's own phrasing
+   is *as it enters*, so **`CopyAsEnters`** (or `CopyAsItEnters`) says what the
+   bucket is. Not renamed here — this pass ships no `.rs` changes — but the
+   argument for doing it soon is that the variant has **no producer, no test and
+   no card**: it costs one `match` arm today and grows a consumer in CV-2.
+   Sibling: 616.1d's `BackFaceUp` is fine, because "enters with its back face up"
+   is the CR's own wording.
+
+10. **This document should not design CV-5, CV-6 or CV-7, and §6 deliberately
+    does not.** They have populations, an owner and an ordering; they do not have
+    a type surface, and giving them one now would be designing three phases
+    ahead of the first line of code. **The honest risk this document carries is
+    not that it is wrong — it is that it is the third design pass in a row with
+    no implementation between them.** RB merged 2026-08-26; since then the tree
+    has gained two architecture docs and no engine code. Nothing on the critical
+    path is *blocked* on more design: RC-1 is a pure deletion sized at 11 sites,
+    RS-0 is a pure refactor, RS-1 is net-deleting, and none of the three needs
+    this file. **The recommendation, stated where a later reader will find it:
+    build the next thing, and let CV-5–CV-7 be designed when they are next.**
+
+11. **`specdb owed`'s default filter has now failed to surface both of the two
+    large gaps anyone has gone looking for**, and that is a pattern rather than
+    bad luck. `owed` filters `ticket LIKE 'NEW%'`, which is a filter on *how an
+    atom was annotated*, standing in for a question about *what the plan
+    schedules*. The "can't" cluster escaped it (tickets `L15`, `T21b`); the copy
+    cluster escapes it (ticket `D5`). Both were found by `owed --all` plus a
+    grep, which is the query `owed` should have been.
+
+    **This is not an argument against the spec database.** The corpus is
+    authored from a close CR read and is the reason both gaps were *findable* at
+    all; `orphans` and `suspicious` catch real annotation errors and cost
+    nothing; and `stats` answers the coverage question it was built for. The
+    defect is one default in one subcommand.
+
+    **The fix is small and belongs in its own PR** (out of scope here: this pass
+    touches `plans/references/` only). Either drop the ticket filter and let
+    `owed` group by rule prefix, or keep the filter and make `owed` print the
+    `--all` count beside the filtered one, so a reader can never see "38" without
+    also seeing "551". The second is a one-line change and would have surfaced
+    both clusters.
+
+12. **CR 729.3d reaches into the RB pipeline, and CV-7 is where it lands.**
+    "If multiple replacement effects could be applied to the event of a merged
+    permanent leaving the battlefield … applying one of those replacement effects
+    to the object applies it to all components" — that is a CR 614.5 applied-set
+    question about an object that is several objects, and it is a sibling of
+    `rb-review.md` H9's per-member-vs-per-affected-object question. Named so that
+    whoever answers H9 for Phase RD knows a second customer exists, and so CV-7
+    does not discover it.
 
 ---
 
 ## 10. Explicitly out of scope
 
-- **CR 708, face-down** — 304 producers, Layer 1b, its own phase. §4.6 records
-  the one constraint it puts on `CopiableValues` and the one integer (§5.4) that
-  must be right before it lands.
-- **CR 729, merging, and CR 712.4, meld** — 34 + 21 cards, a multi-component
-  `BattlefieldEntity`, and CR 729.3d's pipeline interaction (§9 item 9).
-- **CR 710, flip cards** — 25 cards, no new mechanism once CV-5's faces exist.
+**Out of scope for this document is not out of scope for v1** — §6 withdrew that
+framing. CR 708 (CV-6), CR 729 + meld (CV-7) and CR 710 are *scheduled and
+undesigned*: they have an owner, an ordering and a population here, and they get
+their type surfaces from their own passes. What follows is out of scope
+outright.
+
 - **CR 613.8 itself** — critical-path item 7, and §5.2 argues this track does
   not need it.
 - **Text-changing effects (Layer 3)** — deferred indefinitely at 25 cards
@@ -1077,7 +1163,10 @@ changes and does not edit documents it is not correcting:
   pointer here from §6's provenance table for CR 707.9d (§3.4).
 - `mtgsim/src/engine/layers/compute.rs:27` — the same inversion, in the comment
   that `LAYER_ORDER` carries.
-- `mtgsim/src/types/replacement.rs:316` — `CopyOnEnter`'s phase cite (§9 item 2).
+- `mtgsim/src/types/replacement.rs:316,324` — `CopyOnEnter`'s phase cite (§9
+  item 2) and the rename to `CopyAsEnters` (§9 item 9), which is cheapest while
+  the variant still has no producer.
+- `plans/specdb.py` — `owed`'s default ticket filter (§9 item 11). Its own PR.
 - `mtgsim/src/state/game_state.rs:249` — scope the "between them the gate is
   sound" claim, per `rb-review.md` I9, to "sound until Layer 1 or Layer 3 exist".
 - `plans/replacement-architecture.md` §9 — RC-4's bucket list, per §5.1.

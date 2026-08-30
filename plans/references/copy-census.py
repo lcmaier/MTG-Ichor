@@ -312,6 +312,24 @@ def show_scope(cl):
         print()
 
 
+def show_overlap(cards):
+    """How far the two tables overlap, so nobody sums them.
+
+    The mechanism table counts cards printing a copy clause; the population
+    table counts cards whose *layout* or keyword makes them a copiable-values
+    question. A card can be in both, so the two are never added -- this prints
+    the intersection rather than leaving a reader to guess it is negligible.
+    """
+    dfc = {"transform", "modal_dfc", "meld"}
+    both = [c["name"] for c in cards if c.get("layout") in dfc]
+    print("TABLE OVERLAP -- cards in the mechanism table that are also DFCs")
+    print("  cards printing a copy clause:        %5d" % len(cards))
+    print("  ... of which layout is transform/modal/meld: %d" % len(both))
+    print("  So the two tables overlap by %d cards and must not be summed."
+          % len(both))
+    print()
+
+
 def show_atoms():
     if not os.path.exists(SPECDB):
         print("  spec.sqlite not built -- run `python plans/specdb.py build`")
@@ -409,6 +427,7 @@ def main():
         cmdr = count(q.replace("-is:funny", "f:commander"))
         print("  %-40s %-8s %7d %10d" % (label, cr, count(q), cmdr))
     print()
+    show_overlap(cards)
     show_scope(cl)
     show_atoms()
 

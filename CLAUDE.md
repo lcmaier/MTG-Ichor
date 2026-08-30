@@ -23,7 +23,7 @@ python plans/check_claude_md.py           # this file's 200-line budget — must
 | `plans/layers-architecture.md` | The layer system: type shapes, module layout, sublayer enumeration, dependency algorithm |
 | `plans/replacement-architecture.md` | Replacement + prevention (CR 614–616): event vocabulary, CR 616.1 pipeline, ETB look-ahead frame, RA–RE sequencing |
 | `plans/cant-effects-architecture.md` | "Can't" effects (CR 101.2, 614.17, 613.11): the six enforcement points, `RestrictionDef`, RS-1–RS-4 sequencing. Supersedes ticket L15 |
-| `plans/copy-effects-architecture.md` | Copy effects (CR 707, 712, 708, 729) and Layer 1: `CopiableValues`, the four producers, CV-1–CV-5 sequencing. Supersedes ticket D5 |
+| `plans/copy-effects-architecture.md` | Copy effects (CR 707, 712, 708, 729) and Layer 1: `CopiableValues`, the four producers, CV-1–CV-7 sequencing. Supersedes ticket D5 |
 | `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
@@ -139,7 +139,7 @@ line for line but the timing lines. → `codebase-state.md`.
    — is next, and is the ~1,350-card unlock**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 must land before RC-4**; RS-3 (combat) wants item 7 first
-5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-5, beside 5 and 5b. **A copy
+5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **A copy
    row stores values, never a reference** — which is what keeps it off item 7. CV-2 needs RC-2
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes LKI
    formalization and conditional static abilities with it

@@ -602,9 +602,10 @@ number says so.
 `Layer1Copy` is documented in `engine/layers/types.rs` as "still a stub: the
 variant exists, nothing produces an effect in it", and CR 616.1c's bucket ships
 in `ReplacementClass` for the same reason CR 614.15's does. **This is not a
-finding that anything is broken** — it is a finding that a system with ~1,300
-cards behind it had no doc and no critical-path slot, exactly as "can't" did on
-2026-08-26.
+finding that anything is broken** — it is a finding that a system with **1,628
+cards** behind it had no doc and no critical-path slot, exactly as "can't" did
+on 2026-08-26. (752 printing a copy clause, 901 carrying a face or state that is
+one, overlapping by 25 — measured, not summed by hand.)
 
 **✅ Closed 2026-08-29 by `plans/copy-effects-architecture.md`** (`CLAUDE.md`
 item 5c). The seam question is answered by CR 613.2c rather than chosen: copiable

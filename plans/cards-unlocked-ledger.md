@@ -288,7 +288,7 @@ dozen mechanics that mostly need other phases anyway (`PlayerLoses` is RE's,
 
 ---
 
-## Part 5: Copy Effects (Phases CV-1–CV-5)
+## Part 5: Copy Effects (Phases CV-1–CV-7)
 
 Ticket ids are the `CV` sub-phases of `plans/copy-effects-architecture.md` §7.
 Counts are from `plans/references/copy-census.py` (2026-08-29). **Two different
@@ -305,19 +305,24 @@ print the word and which the clause census structurally cannot see.
 | CV-4 | **Tiers D+E — spell and cast copies (CR 707.10/707.12).** 542 + 73 clauses over **306 + 47 cards**, and **it touches no layer, no registry and no replacement**. 186 of those clauses are CR 707.10c's retarget prompt alone — one shared prompt, not 186 implementations | Fork, Twincast, Reverberate, Dualcaster Mage; Zada Hedron Grinder and Ink-Treader Nephilim (707.10d); Isochron Scepter and Panoptic Mirror (707.12) | 📋 designed 2026-08-29; **free to land at any point** |
 | CV-5 | **CR 712 faces — transform + modal DFC.** **496 cards** (396 nonmodal + 100 modal), 486 Commander-legal, and **120 of them can *be* a commander**. Gives `ReplacementClass::BackFaceUp` its 616.1d producer | Delver of Secrets, Huntmaster of the Fells, Withengar Unbound; the modal DFC lands (Agadeem's Awakening, Turntimber Symbiosis); Brutal Cathar as a DFC commander | 📋 designed 2026-08-29; **highest risk — a second card model** |
 
-**What this does not unlock, with the count that justifies it** (§6):
-**meld** (21 cards) and **mutate / CR 729 merging** (34) need a permanent
-represented by several components, and CR 729.3d reaches back into the RB
-pipeline. **Face-down** (CR 708) is **304 producers** and is scoped out on
-*effort*, not breadth — morph is a casting mechanism needing alternative costs,
-a turn-face-up special action and Layer 1b, so it is its own phase. **Flip
-cards** (CR 710) are 25, and need nothing new once CV-5's faces exist.
+| CV-6 | **Face-down (CR 708).** **304 producers** — Layer 1b plus the CR 708.4 cast-face-down path and the turn-face-up special action. Coupled to CV-1 only through the capture ceiling (CR 707.2 makes copiable values depend on face-down status) | Willbender, Brine Elemental, Den Protector; the manifest and disguise/cloak families | 📋 scheduled 2026-08-30, **undesigned** — no type surface yet |
+| CV-7 | **Merging (CR 729) + meld (CR 712.4).** 34 + 21 cards, and the multi-component `BattlefieldEntity` every other phase writes code against the absence of | Brisela Voice of Nightmares (Bruna + Gisela); Illuna Apex of Wishes and Nethroi Apex of Death (mutate); Urza Lord Protector, which melds | 📋 scheduled 2026-08-30, **undesigned**; **back-stop: before Phase 8 card breadth** |
 
-**Read the two unit columns carefully.** Tier D has 1.8 clauses per card against
-~1.0 everywhere else, because a spell-copy card prints the effect and its
-retarget rider as separate sentences — so **card count, not clause count, sizes
-CV-4**. In the other direction, CV-5's 496 cards print no copy clause at all and
-would be invisible to a census of the word.
+**Nothing in this cluster is out of v1** (§6, revised 2026-08-30 — an earlier
+draft scoped meld, mutate, face-down and flip cards out on population and
+effort, and that is withdrawn). Two reasons, and the first is the project's own
+doctrine: "is this permanent one object or several?" is a **fact**, not a
+feature, so deferring CV-7 does not defer its cost — every phase in between
+writes more code against the single-component assumption. And 21 meld cards is
+not 21 cards of demand when one of them is Brisela. **Flip cards** (CR 710, 25
+cards) ride along in CV-5 once faces exist.
+
+**Cards is the sizing unit; the clause counts are provenance.** A copy card
+carries one mechanism plus rider sentences about it — unlike a "can't" card,
+which can carry several independent restrictions — so clauses count sentences,
+not work. CV-4 is the extreme: 542 clauses over 306 cards, because 186 of those
+are one shared CR 707.10c prompt. And in the other direction, CV-5's 496 cards
+print no copy clause at all, which is why §2.2's population table exists.
 
 ---
 
