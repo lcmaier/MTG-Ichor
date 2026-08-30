@@ -59,20 +59,36 @@ fn sba_destroy(id: ObjectId) -> (ObjectId, GameAction) {
     (id, GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction })
 }
 
-/// Every object in the game, in a deterministic order.
+/// The objects that changed zones at or after `since`, in the order they moved.
 ///
 /// `GameState.objects` is a `HashMap` and CR 704.6d reaches a decision per
-/// commander, so its iteration order is part of that decision. Sorted by the
-/// zone-change epoch, which is monotone and unique per move — the same
-/// reasoning as `battlefield_ids_ordered`'s timestamp, applied to a collection
-/// that has no battlefield entity to read one from.
-fn ordered_objects(
+/// commander, so its iteration order is part of that decision. The zone-change
+/// epoch is monotone and unique per move — the same reasoning as
+/// `battlefield_ids_ordered`'s timestamp, applied to a collection that has no
+/// battlefield entity to read one from — so it is a total order on its own.
+///
+/// **The `since` filter is inside this function because it is what makes that
+/// true.** Every pregame object carries epoch 0, so a sort over *all* objects
+/// has as many ties as the game has cards, and the only key available to break
+/// them is `ObjectId` — a v4 UUID, whose order differs per process, which is
+/// the one key the determinism rule names. `last_sba_check_epoch` starts at 1,
+/// so the filter discards every epoch-0 object and no tie survives it.
+fn moved_since(
     game: &GameState,
+    since: u64,
 ) -> Vec<(ObjectId, &crate::objects::object::GameObject)> {
-    let mut all: Vec<(ObjectId, &crate::objects::object::GameObject)> =
-        game.objects.iter().map(|(id, obj)| (*id, obj)).collect();
-    all.sort_by_key(|(id, obj)| (obj.zone_change_epoch, *id));
-    all
+    let mut moved: Vec<(ObjectId, &crate::objects::object::GameObject)> = game
+        .objects
+        .iter()
+        .filter(|(_, obj)| obj.zone_change_epoch >= since)
+        .map(|(id, obj)| (*id, obj))
+        .collect();
+    moved.sort_by_key(|(_, obj)| obj.zone_change_epoch);
+    debug_assert!(
+        moved.windows(2).all(|w| w[0].1.zone_change_epoch != w[1].1.zone_change_epoch),
+        "two objects share a zone-change epoch, so this order is not total"
+    );
+    moved
 }
 
 impl GameState {
@@ -160,36 +176,47 @@ impl GameState {
         // was never blocked on the pipeline and `check_state_based_actions`
         // already had the `DecisionProvider` it needs.
         //
-        // Gathered here with the other conditions, and performed with them, so
-        // CR 704.3's one-event rule holds. The zone-change epoch is what makes
-        // "since the last time" answerable at all; `since` was read at the top
-        // of this function, before anything moved.
-        {
-            let mut to_offer: Vec<(ObjectId, PlayerId)> = Vec::new();
-            for (id, obj) in ordered_objects(self) {
+        // Offered here and **performed below with the deaths**, in the one
+        // batch CR 704.3 calls a single event. Performing each acceptance where
+        // it is offered makes every offer its own event, so a later owner's
+        // decision is taken against a board an earlier owner's move has already
+        // changed — the decide/perform interleaving the 704.3 block below
+        // exists to forbid, and 704.3 covers all of 704, not just 704.5.
+        //
+        // The zone-change epoch is what makes "since the last time" answerable
+        // at all; `since` was read at the top of this function, before anything
+        // moved.
+        let commander_moves: Vec<(ObjectId, GameAction)> = {
+            let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
+            for (id, obj) in moved_since(self, since) {
                 if !obj.is_commander {
                     continue;
                 }
                 if !matches!(obj.zone, Zone::Graveyard | Zone::Exile) {
                     continue;
                 }
-                if obj.zone_change_epoch < since {
-                    continue;
-                }
-                to_offer.push((id, obj.owner));
+                to_offer.push((id, obj.owner, obj.zone));
             }
-            for (id, owner) in to_offer {
+            // CR 101.4 — two owners offered in one check are choosing at the
+            // same time, so the active player is asked first. Stable, so one
+            // player's two commanders keep `moved_since`'s order between them.
+            to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
+            let mut accepted: Vec<(ObjectId, GameAction)> = Vec::new();
+            for (id, owner, from) in to_offer {
                 if ask_commander_to_command_zone(decisions, self, owner, id) {
-                    self.change_zone(
+                    accepted.push((
                         id,
-                        Zone::Command,
-                        ZoneChangeCause::CommanderZoneSba,
-                        &actx,
-                    )?;
-                    any_performed = true;
+                        GameAction::ZoneChange {
+                            object: id,
+                            from,
+                            to: Zone::Command,
+                            cause: ZoneChangeCause::CommanderZoneSba,
+                        },
+                    ));
                 }
             }
-        }
+            accepted
+        };
 
         // --- CR 704.3: one check, one event -------------------------------
         //
@@ -205,7 +232,7 @@ impl GameState {
         //
         // Ordered sweeps throughout: the batch order is the order a CR 616.1
         // prompt would be offered in, and the graveyard is an ordered zone.
-        let mut deaths: Vec<(ObjectId, GameAction)> = Vec::new();
+        let mut batch: Vec<(ObjectId, GameAction)> = Vec::new();
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         for id in self.battlefield_ids_ordered() {
@@ -213,7 +240,7 @@ impl GameState {
                 continue;
             }
             if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                deaths.push(sba_zone_change(id, ZoneChangeCause::ZeroToughness));
+                batch.push(sba_zone_change(id, ZoneChangeCause::ZeroToughness));
             }
         }
 
@@ -243,7 +270,7 @@ impl GameState {
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
             if lethal {
-                deaths.push(sba_destroy(id));
+                batch.push(sba_destroy(id));
             }
         }
 
@@ -253,7 +280,7 @@ impl GameState {
                 continue;
             }
             if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                deaths.push(sba_zone_change(id, ZoneChangeCause::ZeroLoyalty));
+                batch.push(sba_zone_change(id, ZoneChangeCause::ZeroLoyalty));
             }
         }
 
@@ -290,22 +317,28 @@ impl GameState {
             // two Isamarus, one of them dead to lethal damage, is genuinely asked
             // which to keep. The old sequential sweep skipped that prompt by
             // having already removed the dead one.
+            // CR 101.4 again: one check can put two players in a legend
+            // conflict at once. `BTreeMap` order is controller *index* order,
+            // which is only APNAP while player 0 is the active player. Stable,
+            // so one player's several conflicts stay in the map's name order.
+            let mut conflicts: Vec<_> =
+                legend_groups.iter().filter(|(_, ids)| ids.len() > 1).collect();
+            conflicts.sort_by_key(|((controller, _), _)| self.apnap_index(*controller));
+
             let mut chosen: Vec<ObjectId> = Vec::new();
-            for ((controller, name), ids) in &legend_groups {
-                if ids.len() > 1 {
-                    // The group key, not a re-read: the key is what put these
-                    // permanents together, so asking anyone else would prompt a
-                    // player who does not control them.
-                    let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
-                    for &id in ids {
-                        if id != keep {
-                            chosen.push(id);
-                        }
+            for ((controller, name), ids) in conflicts {
+                // The group key, not a re-read: the key is what put these
+                // permanents together, so asking anyone else would prompt a
+                // player who does not control them.
+                let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
+                for &id in ids {
+                    if id != keep {
+                        chosen.push(id);
                     }
                 }
             }
             for id in chosen {
-                deaths.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
+                batch.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
             }
         }
 
@@ -351,8 +384,12 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            deaths.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
+            batch.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
         }
+
+        // CR 704.6d's accepted moves, last because 704.6 is last in CR order
+        // among the conditions this check gathers.
+        batch.extend(commander_moves);
 
         // --- Perform the gathered zone changes as one event (CR 704.3) ------
         //
@@ -363,10 +400,10 @@ impl GameState {
         // — a creature that is both a duplicate legend and dead to lethal damage
         // was destroyed (704.5g), not put away by the legend rule.
         let mut seen: HashSet<ObjectId> = HashSet::new();
-        deaths.retain(|(object, _)| seen.insert(*object));
+        batch.retain(|(object, _)| seen.insert(*object));
 
-        if !deaths.is_empty() {
-            let batch = deaths.into_iter().map(|(_, action)| action).collect();
+        if !batch.is_empty() {
+            let actions = batch.into_iter().map(|(_, action)| action).collect();
             // **The performed set, not the proposal.** CR 704.3 repeats the
             // check only "if any state-based actions are performed", and a
             // proposal is not a performance: an indestructible creature with
@@ -374,7 +411,7 @@ impl GameState {
             // drops, and a sweep that counted the proposal would re-check
             // forever. This is the customer that earned `execute_actions` its
             // return value back (§4.2).
-            let performed = self.execute_actions(batch, &actx)?;
+            let performed = self.execute_actions(actions, &actx)?;
             any_performed |= !performed.is_empty();
         }
 
@@ -934,6 +971,62 @@ mod tests {
             + game.battlefield.contains_key(&id2) as usize;
         assert_eq!(on_bf, 1);
         assert_eq!(game.players[0].graveyard.len(), 1);
+    }
+
+    #[test]
+    fn test_legend_groups_are_prompted_in_apnap_order() {
+        // CR 101.4 — two players in a legend conflict in the same check are
+        // choosing at the same time, so the active player chooses first. The
+        // groups live in a `BTreeMap` keyed on `(controller, name)`, which is
+        // controller *index* order: identical to APNAP only while player 0 is
+        // active, which is why this test makes player 1 active.
+        //
+        // `ScriptedDecisionProvider` matches on the `ChoiceKind` variant and
+        // not its payload, so the queue *is* the ask order. Keeping index 0 on
+        // the first prompt and index 1 on the second makes the survivors say
+        // who was asked first.
+        let mut game = GameState::new(2, 20);
+
+        let place = |game: &mut GameState, name: &str, controller: usize| {
+            let data = CardDataBuilder::new(name)
+                .card_type(CardType::Creature)
+                .supertype(Supertype::Legendary)
+                .power_toughness(2, 2)
+                .build();
+            let obj = GameObject::new(data, controller, Zone::Battlefield);
+            let id = obj.id;
+            game.add_object(obj);
+            game.place_on_battlefield(id, controller);
+            id
+        };
+
+        let p0_first = place(&mut game, "Isamaru, Hound of Konda", 0);
+        let p0_second = place(&mut game, "Isamaru, Hound of Konda", 0);
+        let p1_first = place(&mut game, "Thalia, Guardian of Thraben", 1);
+        let p1_second = place(&mut game, "Thalia, Guardian of Thraben", 1);
+        game.begin_turn(2, 1);
+
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(
+            ChoiceKind::LegendRule { legend_name: String::new() },
+            vec![0],
+        );
+        dp.expect_pick_n(
+            ChoiceKind::LegendRule { legend_name: String::new() },
+            vec![1],
+        );
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        assert!(
+            game.battlefield.contains_key(&p1_first),
+            "the active player was asked first and kept index 0"
+        );
+        assert!(!game.battlefield.contains_key(&p1_second));
+        assert!(
+            game.battlefield.contains_key(&p0_second),
+            "the nonactive player was asked second and kept index 1"
+        );
+        assert!(!game.battlefield.contains_key(&p0_first));
     }
 
     #[test]

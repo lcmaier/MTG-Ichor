@@ -470,6 +470,50 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
     );
 }
 
+// COVERS-PARTIAL: ATOM-614.7a-001
+#[test]
+fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
+    // > 614.7a If a source would deal 0 damage, it does not deal damage at all.
+    // > Replacement effects that would increase the damage dealt by that
+    // > source, or would have that source deal that damage to a different
+    // > object or player, have no event to replace, so they have no effect.
+    //
+    // The atom's board is an additive replacement ("plus 1"), which needs a
+    // `GameActionTemplate` arm that does not exist yet; the shield counter
+    // makes the same point with a sharper assertion, because applying to a
+    // non-event would *cost* something visible. `EventPattern::DealDamage`
+    // carries no amount constraint, so the only thing standing between a 0 and
+    // a spent counter is where CR 614.7a is checked.
+    let mut game = setup_two_player_game();
+    let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let bolt = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    add_counters(&mut game, bear, CounterType::Shield, 1);
+    let before = game.events.len();
+
+    game.execute_action(
+        GameAction::DealDamage {
+            source: bolt,
+            target: DamageTarget::Object(bear),
+            amount: 0,
+            is_combat: false,
+        },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        game.battlefield[&bear].counter_count(CounterType::Shield),
+        1,
+        "no event to replace, so the CR 615.5 rider was never queued"
+    );
+    assert_eq!(game.battlefield[&bear].damage_marked, 0);
+    assert_eq!(
+        game.events.len(),
+        before,
+        "CR 120.8 — 0 damage is not dealt at all, so nothing is announced"
+    );
+}
+
 #[test]
 fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     // §4.1a's timing contract, asserted on the *event log* rather than the end
@@ -1624,6 +1668,130 @@ fn test_a_commander_killed_by_a_state_based_action_is_still_offered() {
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
+}
+
+#[test]
+fn test_two_commanders_offered_in_one_check_move_as_one_event() {
+    // CR 704.3 — "performs all applicable state-based actions **simultaneously
+    // as a single event**", and 704.6d is a state-based action like the deaths
+    // beside it. So the offers are made during the check and the accepted moves
+    // join the same batch: a second owner is never asked against a board a
+    // first owner's move has already changed.
+    //
+    // Asserted on the batch id rather than the end state, because the end state
+    // is identical either way — which is what made this latent.
+    let mut game = setup_two_player_game();
+    let first = place_commander(&mut game, 0, Zone::Battlefield);
+    let second = place_commander(&mut game, 1, Zone::Battlefield);
+    game.change_zone(first, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.change_zone(second, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    let before = game.events.len();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: first },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: second },
+        vec![0],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+
+    assert_eq!(game.get_object(first).unwrap().zone, Zone::Command);
+    assert_eq!(game.get_object(second).unwrap().zone, Zone::Command);
+
+    let batches: Vec<_> = game
+        .events
+        .records()
+        .iter()
+        .skip(before)
+        .filter(|r| matches!(r.event, GameEvent::ZoneChange { to: Zone::Command, .. }))
+        .map(|r| r.batch())
+        .collect();
+    assert_eq!(batches.len(), 2, "both moves happened");
+    assert!(batches[0].is_some());
+    assert_eq!(batches[0], batches[1], "CR 704.3 — one check, one event");
+}
+
+#[test]
+fn test_one_owner_may_accept_while_another_declines() {
+    // **One batch is not one decision.** CR 704.6d is a "may" per commander, so
+    // batching the accepted moves into CR 704.3's single event must not couple
+    // the offers: each owner is asked separately during the check, and only the
+    // acceptances reach the batch. The mixed case is the one that shows it —
+    // both-accept and both-decline are each consistent with a coupled
+    // implementation.
+    let mut game = setup_two_player_game();
+    let accepted = place_commander(&mut game, 0, Zone::Battlefield);
+    let declined = place_commander(&mut game, 1, Zone::Battlefield);
+    game.change_zone(accepted, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.change_zone(declined, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: accepted },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: declined },
+        vec![],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+
+    assert_eq!(game.get_object(accepted).unwrap().zone, Zone::Command);
+    assert_eq!(game.get_object(declined).unwrap().zone, Zone::Graveyard);
+    assert!(dp.is_empty(), "each owner was asked exactly once");
+}
+
+#[test]
+fn test_the_offers_are_made_in_apnap_order_not_move_order() {
+    // CR 101.4 — "if multiple players would make choices ... at the same time,
+    // the active player makes any choices required, then the next player in
+    // turn order does the same". Two commanders offered in one check is exactly
+    // that, and `moved_since` orders by *move*, which is a different question.
+    //
+    // The two orders are only distinguishable when the active player is not
+    // player 0 **and** the other player's commander moved first, so the test
+    // builds precisely that: player 1 is active, player 0's commander died
+    // first. `ScriptedDecisionProvider` matches on the `ChoiceKind` variant
+    // rather than its payload, so the queue is the ask order — accept the
+    // first offer and decline the second, and which commander moved says who
+    // was asked first.
+    let mut game = setup_two_player_game();
+    let moved_first = place_commander(&mut game, 0, Zone::Battlefield);
+    let active_players = place_commander(&mut game, 1, Zone::Battlefield);
+    game.change_zone(moved_first, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.change_zone(active_players, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.begin_turn(2, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: active_players },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: moved_first },
+        vec![],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+
+    assert_eq!(
+        game.get_object(active_players).unwrap().zone,
+        Zone::Command,
+        "the active player is asked first and accepted"
+    );
+    assert_eq!(
+        game.get_object(moved_first).unwrap().zone,
+        Zone::Graveyard,
+        "the nonactive player is asked second and declined, even though          their commander moved first"
+    );
 }
 
 #[test]

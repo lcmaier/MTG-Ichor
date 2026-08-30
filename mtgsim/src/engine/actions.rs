@@ -336,12 +336,11 @@ impl GameState {
         let mut order: Vec<usize> = (0..batch.len()).collect();
         order.sort_by_key(|&i| {
             let chooser = chooser_for(self, subject_of(&batch[i]));
-            // Distance from the active player in turn order. `None` — an object
-            // with neither controller nor owner — sorts last; the pipeline
-            // errors on it rather than guessing, and this keeps that error
-            // deterministic.
+            // `None` — an object with neither controller nor owner — sorts
+            // last; the pipeline errors on it rather than guessing, and this
+            // keeps that error deterministic.
             match chooser {
-                Some(p) => (p + n - self.active_player) % n,
+                Some(p) => self.apnap_index(p),
                 None => n,
             }
         });
@@ -418,11 +417,11 @@ impl GameState {
     ) -> Result<(), String> {
         match action {
             GameAction::DealDamage { source, target, amount, is_combat } => {
-                if amount == 0 {
-                    // Rule 614.7a: 0 damage is not dealt at all.
-                    return Ok(());
-                }
-
+                // No 0-amount guard here: CR 614.7a says a 0-damage event never
+                // happens, which makes it the *proposal's* problem — a 0 that
+                // reaches the CR 616.1 loop is one a prevention effect applies
+                // to. `replacement::never_happens` owns the rule, ahead of the
+                // pipeline, and this function's only caller runs it.
                 match &target {
                     DamageTarget::Object(id) => {
                         if let Some(entry) = self.battlefield.get_mut(id) {
@@ -491,9 +490,8 @@ impl GameState {
             }
 
             GameAction::GainLife { player, amount, source } => {
-                if amount == 0 {
-                    return Ok(());
-                }
+                // Same as `DealDamage` above: CR 119.10 makes a 0-life gain a
+                // non-event, so `replacement::never_happens` drops it upstream.
                 let old_life = self.get_player(player)?.life_total;
                 let p = self.get_player_mut(player)?;
                 p.life_total += amount as i64;
@@ -510,6 +508,9 @@ impl GameState {
             }
 
             GameAction::LoseLife { player, amount } => {
+                // Stays here, unlike `GainLife`'s: CR 119.10 is written about
+                // life *gain* only, and no rule makes a 0 life loss a
+                // non-event. A local no-op guard, not CR 614.7a.
                 if amount == 0 {
                     return Ok(());
                 }
