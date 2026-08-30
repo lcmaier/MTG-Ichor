@@ -218,11 +218,11 @@ the enforcement.
 | `ActionContext` | `engine/actions.rs` | `{ dp, resolution }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt | grows only if a new ambient input appears |
 | `ZoneChangeCause` | `types/zones.rs` | Why an object moved. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per distinct reason a mover can name |
 | `DestructionSource` | `types/zones.rs` | Which of CR 701.8b's two routes destroyed it; lowers to a `ZoneChangeCause` | closed by CR 701.8b (effect, lethal damage, deathtouch) |
-| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data: `pattern` + `affected` + `rewrite` + `then` + `class` + `uses` + `exempt_from_614_5` + `is_regeneration` | grows by *field*, rarely; per-mechanic variety goes in `then` |
+| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over `DestructionSource` | tracks `DestructionSource` |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
-| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` and `RemoveCountersFromAffected`, two customers each | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
+| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
 | `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
 | `ReplacementInstanceId` | `engine/replacement/mod.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
@@ -252,8 +252,10 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         │    registry — which is what lets Humility strip one for free
   │         ├─ filter to the applied-set-eligible (CR 614.5)
   │         ├─ forced_bucket() → CR 616.1a–e's highest non-empty class
-  │         ├─ 0 candidates → done.  1 → apply it, never prompt.
-  │         │  2+ → DecisionProvider::choose (CR 616.1, the only prompt)
+  │         ├─ 0 candidates → done.  1 → apply it, no CR 616.1 prompt.
+  │         │  2+ → DecisionProvider::choose (CR 616.1's ordering prompt)
+  │         ├─ if `optional`: ask_apply_optional_replacement (CR 614.1a) —
+  │         │  a second, independent prompt, and one candidate is enough
   │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
   │         ├─ push `then` onto riders (CR 615.5) — unconditional (615.12)
   │         └─ loop (CR 616.1f) with the applied set carried
@@ -270,7 +272,9 @@ GameState::execute_action / execute_actions            engine/actions.rs
 Three properties of that picture are load-bearing and easy to break:
 
 1. **The decide/perform split is CR 704.3**, not an optimization. A batch
-   decides every member against *one* board before anything is written.
+   decides every member against *one* board. One write is deliberately inside
+   deciding: `consume_use` removes a spent `Uses::Once` row, because the next
+   member must not be offered a shield the previous one already spent.
 2. **`gather` is the only place effect existence is decided**, and it asks the
    effective ability list. `GameState::replacement_ability_sources` gates the
    sweep and is a *hint* — a new gather source that is not added to the gate is
@@ -2093,7 +2097,7 @@ next phase reads.
   what gives `GameAction::Destroy`'s `source` field a customer on day one, as
   `DestructionSource { Effect(id), StateBasedAction }`.
 
-- **`EventPattern` ships five arms, not one per `GameAction` variant.**
+- **`EventPattern` ships six arms, not one per `GameAction` variant.**
   `DrawCard`/`GainLife`/`LoseLife` affect a *player* and `AffectedSet` names
   only objects, so an arm for one would have no scoping mechanism and would be
   a card that silently does nothing. §9 schedules draw and life replacement for

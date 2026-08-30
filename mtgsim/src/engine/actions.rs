@@ -379,11 +379,14 @@ impl GameState {
     /// destination but doesn't want to hand-roll the `from` lookup.
     ///
     /// This is the intended public path for zone changes. Routes through
-    /// `execute_action(GameAction::ZoneChange)` so the future replacement
-    /// pipeline (CR 614) will see every movement. Internal helpers like
-    /// `draw_card` and `play_land` still call `move_object` directly — they
-    /// live inside `engine/zones.rs` and go through the same chokepoint
-    /// transitively via `execute_action`'s ZoneChange arm.
+    /// `execute_action(GameAction::ZoneChange)` so the replacement pipeline
+    /// (CR 614) sees every movement. `draw_card` and `play_land` route through
+    /// here too, which is why the one-emitter invariant holds and why a draw
+    /// from an empty library reaches the pipeline at all (CR 121.6a). Two
+    /// production callers sit below the chokepoint and no more:
+    /// `perform_action`'s own `ZoneChange` arm, and `rollback_cast_to_hand` —
+    /// the permanent `// CAST-ROLLBACK:` exemption, because a CR 601.2 rewind
+    /// is not an event.
     pub fn change_zone(
         &mut self,
         object: ObjectId,
@@ -437,9 +440,9 @@ impl GameState {
                 apply_deathtouch_flag(self, source, &target);
                 apply_lifelink(self, source, amount, _ctx)?;
 
-                // Rule 903.10a — if a commander deals combat damage to a
+                // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
-                // The 21-damage loss check happens in SBA 704.5u / 903.10a.
+                // The 21-damage loss check is the SBA at CR 704.6c.
                 if is_combat {
                     if let DamageTarget::Player(pid) = &target {
                         let is_cmdr = self.objects.get(&source)
@@ -476,9 +479,10 @@ impl GameState {
             }
 
             GameAction::DrawCard { player } => {
-                // Delegate to the existing draw_card method which handles
-                // empty-library flagging and zone transitions.
-                // draw_card already emits ZoneChange events via move_object.
+                // Delegate to `draw_card`, which handles empty-library flagging
+                // (CR 121.6a) and proposes the library→hand move through
+                // `change_zone` — so the move is a nested batch member, not a
+                // second emitter.
                 self.draw_card(player, _ctx)?;
                 Ok(())
             }
@@ -1019,7 +1023,7 @@ mod tests {
         assert_eq!(lifelink_gains[1], Some(creature_b));
     }
 
-    // --- Commander damage tracking (rule 903.11a) ---
+    // --- Commander damage tracking (CR 903.10a) ---
 
     fn setup_game_with_commander() -> (GameState, ObjectId) {
         let mut game = GameState::new(2, 40);
@@ -1075,7 +1079,7 @@ mod tests {
 
     #[test]
     fn test_commander_noncombat_damage_not_tracked() {
-        // Rule 903.11a applies only to combat damage.
+        // CR 903.10a applies only to combat damage.
         let (mut game, cmdr) = setup_game_with_commander();
 
         game.execute_action(GameAction::DealDamage {

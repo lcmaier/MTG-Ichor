@@ -246,8 +246,14 @@ pub struct GameState {
     /// take a printed replacement ability away without touching the set, which
     /// costs a wasted walk and never a wrong answer; the opposite direction —
     /// an ability *granted* by a Layer 6 row — is covered by
-    /// `RegistryScopeSummary::any_granted_replacement`, so between them the gate
-    /// is sound.
+    /// `RegistryScopeSummary::any_granted_replacement`.
+    ///
+    /// **Between them the gate is sound only until Layer 1 or Layer 3 exists.**
+    /// A copy or a text-change puts a replacement ability on the *effective*
+    /// list through neither half, and `gather` would skip the board entirely —
+    /// a card that silently does nothing. `copy-effects-architecture.md` §4.7
+    /// owns the third leg, and CV-1 must land it with the first copy effect.
+    ///
     /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
     /// inserts and `cleanup_zone_state` removes; a hand-written entry is a
     /// wasted layer walk and a hand-written removal is a card that silently

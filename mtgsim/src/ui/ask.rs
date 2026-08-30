@@ -636,7 +636,8 @@ pub fn ask_choose_replacement(
 ) -> usize {
     assert!(
         candidates.len() >= 2,
-        "ask_choose_replacement: CR 616.1 makes a choice only among two or more          applicable effects; called with {}",
+        "ask_choose_replacement: CR 616.1 makes a choice only among two or more \
+         applicable effects; called with {}",
         candidates.len(),
     );
     let options: Vec<ChoiceOption> = candidates

@@ -22,9 +22,11 @@
 //!   or a field on one — a replacement effect can only watch for an event the
 //!   engine actually proposes.
 //! - [`Rewrite`] is a **closed algebra**. CR 614 and 615 enumerate what a
-//!   replacement effect may do to an event and the list is short; a sixth arm
+//!   replacement effect may do to an event and the list is short; a new arm
 //!   is a claim that those rules permit an operation the list omits, and it
-//!   should arrive with the rule number that says so.
+//!   should arrive with the rule number that says so. It ships **two** —
+//!   `Prevent` and `Instead` — not §3.2's five: an arm the pipeline cannot
+//!   apply is worse than a missing one.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
@@ -127,9 +129,13 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # Why five arms and not eight
+/// # Why six arms and not nine
 ///
-/// `GameAction` has three variants with no arm here: `DrawCard`, `GainLife`
+/// `GameAction` ships ten variants and this enum six. `CounterChange` covers
+/// `AddCounters` and `RemoveCounters` through its `adding` field — the one
+/// place the projection is not 1:1, and that arm's own doc says so.
+///
+/// The three with no arm at all are `DrawCard`, `GainLife`
 /// and `LoseLife`. Each affects a **player**, and `AffectedSet` names only
 /// objects — so an arm for one of them would have no scoping mechanism, would
 /// match every player's draw, and would then be rejected by an `affected` check
@@ -289,9 +295,9 @@ pub enum Rewrite {
 pub enum GameActionTemplate {
     /// Send the event's object somewhere else instead, keeping its `from`.
     ///
-    /// Two customers in RB: CR 122.1h's finality counter ("If this permanent
-    /// would be put into a graveyard from the battlefield, exile it instead")
-    /// and CR 903.9b's commander redirection.
+    /// Three customers in RB: CR 122.1h's finality counter ("If this permanent
+    /// would be put into a graveyard from the battlefield, exile it instead"),
+    /// CR 903.9b's commander redirection, and Kalitas, Traitor of Ghet's exile.
     ZoneChangeTo { to: Zone, cause: ZoneChangeCause },
 
     /// Remove counters from the *affected* object instead.

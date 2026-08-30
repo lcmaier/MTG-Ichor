@@ -102,9 +102,18 @@ impl ReplacementRegistry {
 
     /// Remove every row created by a given source object.
     ///
-    /// Called from `cleanup_zone_state` when a permanent leaves the
-    /// battlefield, for the same reason `ContinuousEffectRegistry` is
-    /// (CR 611.2a).
+    /// **No production caller, and battlefield-leave is not one.** The mirror
+    /// call in `cleanup_zone_state` is right for `ContinuousEffectRegistry` —
+    /// CR 611.3b, a *static ability's* effect lasts only while its source is on
+    /// the battlefield — and wrong here: every row in this registry was made by
+    /// a resolution, and CR 611.2a gives those the duration the spell or
+    /// ability stated. A regeneration shield does not die with the permanent
+    /// whose ability made it; it expires at the CR 514.2 cleanup with the rest
+    /// of the turn.
+    ///
+    /// It earns a caller the day a row carries a source-scoped duration
+    /// (CR 611.2b's "for as long as ..."), which is a `retain_effects` keyed on
+    /// duration *and* source, not on source alone.
     pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<RegisteredReplacement> {
         self.retain_effects(|e| e.source != source)
     }

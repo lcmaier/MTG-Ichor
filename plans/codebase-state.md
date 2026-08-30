@@ -7,7 +7,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~31,900 lines of Rust across 83 `.rs` source files (~41,800 with the integration tests). 744 tests, 0 warnings, fuzz harness runs 250-game batches.
+- **Code size:** ~31,900 lines of Rust across 83 `.rs` source files (~41,800 with the integration tests). 746 tests, 0 warnings, fuzz harness runs 250-game batches.
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
@@ -203,10 +203,10 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 903.8 | **Commander tax (+{2} per prior cast from command zone)** | ❌ no cast counter, no cost modification |
 | 903.9a | **Commander in graveyard or exile → command zone** | ✅ 2026-08-26 (Phase RB item 8). A *state-based action* (**CR 704.6d**), not a replacement effect — the 2026-08-24 correction, now in code. "Since the last time state-based actions were checked" is answered by `GameObject.zone_change_epoch`, with the window read at the **top** of the check: a commander CR 704.5g kills moves *during* a check, so an end-of-check boundary would never offer it | `engine/sba.rs` |
 | 903.9b | **Commander to hand or library → command zone instead** | ✅ 2026-08-26 (Phase RB item 9). Synthesized per event as a *game rule*, not card text, and the rules' only `exempt_from_614_5` effect. Its chooser needs no special case: CR 616.1's "or its owner if it has no controller" already answers for a card in a graveyard, library or hand. **It is also what exposed the hang in §4.1's loop** — exempt *and* optional means a decline is re-offered forever unless declines are tracked separately | `engine/replacement/gather.rs` |
-| 903.10 | **Commander damage loss (≥21 combat damage from one commander)** | ✅ SBA (T16); `commander_damage_taken: HashMap<ObjectId, u32>` on `PlayerState` (T02) | `state/player.rs`, `engine/sba.rs` |
-| 903.11 | Attacking with commander + accumulating commander damage | ✅ (2026-04-18) `GameObject.is_commander` flag + `execute_action(DealDamage)` accumulates per-source `commander_damage_taken` when `is_combat && target == Player && source.is_commander`. 5 unit tests cover basic accumulation, 21-damage threshold, non-combat exclusion, non-commander exclusion, and per-source isolation. Still requires a Commander-format setup hook to actually flip the flag at deck construction — no gameplay wiring yet sets `is_commander = true` outside tests. |
-| 903.12 | Partner | ❌ (`EnchantmentType::Background` exists as a data-type, no mechanics) |
-| 903.13 | Friends Forever / Choose a Background / Doctor's companion | ❌ |
+| 903.10a / 704.6c | **Commander damage loss (≥21 combat damage from one commander)** | ✅ SBA (T16); `commander_damage_taken: HashMap<ObjectId, u32>` on `PlayerState` (T02). The loss itself is the state-based action at **CR 704.6c**; 903.10a is the Commander-variant rule it implements | `state/player.rs`, `engine/sba.rs` |
+| 903.10a | Attacking with commander + accumulating commander damage | ✅ (2026-04-18) `GameObject.is_commander` flag + `execute_action(DealDamage)` accumulates per-source `commander_damage_taken` when `is_combat && target == Player && source.is_commander`. 5 unit tests cover basic accumulation, 21-damage threshold, non-combat exclusion, non-commander exclusion, and per-source isolation. Still requires a Commander-format setup hook to actually flip the flag at deck construction — no gameplay wiring yet sets `is_commander = true` outside tests. |
+| 903.11 | Cards from outside the game (wishes) | ❌ Phase 9 — `atomic-tests/sessions/session-10.md` defers it, with the Companion cross-ref |
+| 702.124 | Partner, incl. partner with, choose a Background, Doctor's companion | ❌ (`EnchantmentType::Background` exists as a data-type, no mechanics). CR 702.124a collects all five partner abilities under one keyword — they were 903.12/903.13 in an older CR |
 
 **Other variants in CR 9 (Brawl, Planechase, Archenemy, Vanguard, etc.) — ❌ not started.**
 
@@ -232,9 +232,9 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 - **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked`, not filtered at the two call sites that each held their own copy of it.
 - **Three consumers**: counters (CR 122.1c/d/h, no card text, 164 cards), regeneration (CR 701.19a/b/c, `Primitive::Regenerate` + the rider CR 701.19a spells out), and Kalitas, Traitor of Ghet — the only RB card, chosen for difficulty.
 - **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement.
-- Six stubbed primitives implemented: `Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`, plus new `Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`.
+- Eight primitives: four stubs given implementations (`Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`) and four new (`Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`).
 
-**Five findings where the plan and the tree disagreed, all recorded in `replacement-architecture.md` §9:** `Uses::CounterBacked` does not survive the CR text; CR 122.1c's replacement half is restricted to destruction *by an effect*; `EventPattern` ships five arms and `Rewrite` two, because an arm the pipeline cannot apply is a card that silently does nothing; `AffectedSet` and `ZoneChangeCause` had to move into `types/` to keep the crate's layering; and §4.1's loop **hangs** on a declined `exempt_from_614_5` optional without a second set.
+**Five findings where the plan and the tree disagreed, all recorded in `replacement-architecture.md` §9:** `Uses::CounterBacked` does not survive the CR text; CR 122.1c's replacement half is restricted to destruction *by an effect*; `EventPattern` ships six arms and `Rewrite` two, because an arm the pipeline cannot apply is a card that silently does nothing; `AffectedSet` and `ZoneChangeCause` had to move into `types/` to keep the crate's layering; and §4.1's loop **hangs** on a declined `exempt_from_614_5` optional without a second set.
 
 **The blast-radius watch held.** §11 item 7 predicted that every existing test would start traversing the pipeline; **zero new `DecisionProvider` prompts** appeared, §4.1's two-candidate rule was never relaxed, and `fuzz_games --games 50 --seed 12345` is identical to the pre-RB baseline on every line. Perf: 13.01 → 13.04 ms/game at `--games 200`, medians of three interleaved runs in one worktree.
 
@@ -533,8 +533,28 @@ built, and none of it blocks RC-1 through RC-3.
     that do not exist yet, and each needs a leg on every such gate. Triggered-
     ability registration (critical-path item 6) will want the same scan.
 
-    `game_state.rs:249`'s "between them the gate is sound" should be scoped to
-    "sound until Layer 1 or Layer 3 exist" whenever that file is next touched.
+    `game_state.rs:249`'s "between them the gate is sound" is now scoped to
+    "sound only until Layer 1 or Layer 3 exists", with the §4.7 pointer
+    (2026-08-30, `rb-review.md` I9).
+
+### Found by the #62 pre-merge pass (2026-08-30)
+
+17. **Nothing expires a registry row with a source-scoped duration (found
+    2026-08-30, closing `rb-review.md` H2).** `cleanup_zone_state` used to call
+    `replacement_effects.remove_by_source` when a permanent left the
+    battlefield, citing CR 611.2a for the opposite of what it says: every row in
+    that registry was made by a *resolution*, and 611.2a gives those the
+    duration the spell or ability stated. The call is gone. What goes with it:
+    `RegisteredReplacement.duration` can hold `WhileSourceOnBattlefield`,
+    `WhileEnchanted` and `WhileEquipped`, and no hook removes any of them —
+    `remove_expired_at_cleanup` handles `UntilEndOfTurn` and
+    `remove_expired_at_turn_start` handles `UntilYourNextTurn`. Unreachable
+    today: `Primitive::Regenerate` is the only producer and it makes
+    `UntilEndOfTurn` rows. **Sized:** one `retain_effects` closure keyed on
+    duration *and* source, called from `cleanup_zone_state` — the right cite is
+    CR 611.2b ("for as long as . . ."), not 611.2a. Owed by the first
+    resolution-created replacement whose text is "for as long as [this
+    permanent] is on the battlefield".
 
 ### Was the critical path complete? — audited 2026-08-27
 

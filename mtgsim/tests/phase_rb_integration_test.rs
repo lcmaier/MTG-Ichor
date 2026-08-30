@@ -1264,9 +1264,10 @@ fn test_an_unspent_shield_expires_at_end_of_turn() {
 }
 
 #[test]
-fn test_a_shield_dies_with_the_permanent_that_made_it() {
-    // `cleanup_zone_state` retires replacement rows by source, the way it
-    // retires continuous effects (CR 611.2a).
+fn test_a_shield_outlives_the_permanent_that_made_it() {
+    // CR 611.2a: a shield lasts as long as the ability that made it *stated*
+    // (CR 701.19a, this turn), not as long as its source is on the battlefield —
+    // that is CR 611.3b, and no row in this registry is a static ability's.
     let mut game = setup_two_player_game();
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     let maker = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
@@ -1276,7 +1277,7 @@ fn test_a_shield_dies_with_the_permanent_that_made_it() {
 
     game.change_zone(maker, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
         .unwrap();
-    assert_eq!(game.replacement_effects.len(), 0);
+    assert_eq!(game.replacement_effects.len(), 1);
 }
 
 // ---------------------------------------------------------------------------

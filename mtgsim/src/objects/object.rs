@@ -31,9 +31,9 @@ pub struct GameObject {
     /// True if this object has been designated as a commander (CR 903.7).
     ///
     /// Set at deck construction by the Commander format setup. Used by combat
-    /// damage resolution (rule 903.11) to accumulate `commander_damage_taken`
+    /// damage resolution (CR 903.10a) to accumulate `commander_damage_taken`
     /// on the damaged player, and implicitly by the 21-damage loss SBA
-    /// (704.5u / 903.10a).
+    /// (CR 704.6c).
     ///
     /// Most objects are never commanders, so this defaults to false.
     pub is_commander: bool,
