@@ -417,6 +417,23 @@ a read-only query with nowhere to store anything, so a random id would differ on
 and ids are activation handles (`ManaSource.ability_id` → `activate_mana_ability`). Deriving
 keeps intrinsics globally unique like any other ability, just reproducible instead of random.
 
+**Why this is a one-off and not a pattern to copy:** the CR 305.6/305.7 mana ability is the
+only ability in the engine that is *synthesized* rather than *stored*. Printed abilities get
+an id from `CardDataBuilder`; Layer 6 `GrantAbility` carries a `Box<AbilityDef>` in its
+registry row, and Layer 1 copies and Layer 3 text changes hand a stored def over whole — all
+four have somewhere to put an id, so all four are stable across calls by construction. Only
+this one is conjured inside a pure function. That is the whole of the asymmetry, and it is
+worth stating because the id-based round trip it feeds is the engine's *general* activation
+pattern, not a carveout: `priority.rs` re-derives an index with `.position(|a| a.id == ...)`
+for every activated ability. A synthesized ability needs a stable id to be activatable at all.
+
+The redundancy is real but harmless: identity is `(ObjectId, AbilityId)` everywhere — see
+`EffectOrigin::StaticAbility`, `ReplacementInstanceId::StaticAbility`, `EffectGroup` — so
+`(object, v5(object, land_type))` names the object twice. A structured `AbilityId` with an
+`Intrinsic(LandType)` variant would say it once and put the provenance in the type. It buys
+no behavior, and `AbilityId` is a crate-wide `Uuid` alias, so it is not worth doing on its
+own; if the alias is ever opened up for another reason, fold this in then.
+
 **Why this is not an architecture concern:** the type surface above is expressive enough — `SetSubtypes` carries what the effect says (the target subtypes). The CR 305.7 special-case is application-time logic, local to Layer 4's `apply()`, and documented where it lives.
 
 ### 3.6 `Duration`
