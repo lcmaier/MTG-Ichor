@@ -662,12 +662,13 @@ impl GameState {
             }
 
             // CR 506.4. Writes `BattlefieldEntity` directly, because 506.4
-            // defines a *consequence* rather than an event: seven causes remove
-            // a permanent from combat and six of them follow from something
-            // else (a zone change, a control change, a type change, phasing,
-            // CR 701.19's regeneration). This arm is the seventh. An effect
-            // that wanted to stop removal would have to attach to each cause,
-            // so there is nothing here for a `GameAction` to carry.
+            // defines a *consequence* with seven causes, and this arm is one of
+            // them — the other six follow from a zone change, a control change,
+            // a type change, phasing or CR 701.19's regeneration. **The CR does
+            // not forbid "can't be removed from combat"**; what it does is put
+            // that card's enforcement in six other places as well, which makes
+            // it a `RestrictionDef` consulted by each cause
+            // (`cant-effects-architecture.md`) and not a replaceable event here.
             // → `replacement-architecture.md` §8a.
             Primitive::RemoveFromCombat => {
                 for object in self.collect_battlefield_targets(ctx) {

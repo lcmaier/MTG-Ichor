@@ -32,9 +32,11 @@ file and none needs any conversation.
    they need a fuzz A/B, and they share no mental model with a naming pass.
    H5/H6 are one-liners, H1/H4 are small. Note the H rows' line numbers predate
    the C renames and have drifted a few lines in `gather.rs`.
-6. Then **themes D + F, plus H7–H9 and J3–J5** (defer entries and design
+6. Then **themes D + F, plus H7–H9, J3–J5 and M1** (defer entries and design
    questions; F2's test rides along; J1/J2 are two `cant-census.py` regex
-   fixes and can ride either session).
+   fixes and can ride either session; **M1 is a 94-site mechanical rename and
+   wants its own commit**, so it can ride any session but not be folded into
+   one).
 7. Then stop reviewing and **build**: RS-0, per `cant-effects-architecture.md`
    §7.1's queue. That list is the ordering authority from here on.
 
@@ -226,17 +228,24 @@ grow.
 
 ## E. Engine hygiene — ✅ **CLOSED 2026-08-30** (`69a805e`)
 
-**Four rows, and E4's answer was not the expected one.** E1 is a decision (the
-cap is a backstop, it stays in engine code, and the doc says why); E2 and E3 are
-`codebase-state.md` items 18 and 19; E4 asked whether "no card replaces this" is
-safe futureproofing and got **two different answers** — sound for removal from
-combat, false for the analogy the damage comment leaned on. The measured half is
-in `replacement-architecture.md` §8a and item 20; it is the one row in this
-theme that moved a claim about the world rather than a claim about the code.
+**Four rows, and two of them moved twice.** E1 first got a decision (the cap is
+a backstop, not a harness) and then — on the owner's reading of that answer, that
+the *doc* was long because the *design* was weak — got the design fix instead:
+`check_exempt_terminates`. E2 and E3 are `codebase-state.md` items 18 and 19.
+E4 asked whether "no card replaces this" is safe futureproofing and got **two
+different answers** — sound for removal from combat, false for the analogy the
+damage comment leaned on — plus, on the same review, the missing half of the
+argument: *what it costs to be wrong*, which is what makes the deferral sound
+rather than lucky. §8a carries both.
+
+**The lesson worth keeping from E1.** A long defensive comment is evidence about
+the code under it. The first answer was accurate and the reviewer was still
+right to reject it, because "bounded by nothing else" is a fact about the design,
+not about the prose.
 
 | # | Area | Finding | Verdict |
 |---|---|---|---|
-| E1 | `pipeline.rs:72` | `MAX_616_1F_ITERATIONS` is documented as "a test harness" and lives in engine code. Either it is a real invariant (then say so without calling it a harness) or it belongs behind `#[cfg(test)]` / a debug assertion. | `fix` ✅ — a **bug backstop**, said without the word "harness". Stays an `Err` in engine code, not a `debug_assert!`: `exempt_from_614_5` effects are outside CR 614.5's applied set, which is the loop's termination argument, so the carve-out is bounded by nothing else. Unblocks `cant-effects-architecture.md` §4.2's citation |
+| E1 | `pipeline.rs:72` | `MAX_616_1F_ITERATIONS` is documented as "a test harness" and lives in engine code. Either it is a real invariant (then say so without calling it a harness) or it belongs behind `#[cfg(test)]` / a debug assertion. | `fix` ✅ — a **bug backstop**, said without the word "harness" — and then, on owner review of that answer, **made to do much less work**. The first pass documented the hole honestly (an `exempt_from_614_5` effect is outside CR 614.5's applied set and so bounded by nothing); the second closed it. `check_exempt_terminates` holds every exemption to the property 903.9b actually has — its rewrite takes the event out of its own pattern — so an exempt effect can only re-apply after some *other* effect spends an applied-set slot putting it back. The cap now covers only two-exempt ping-pong, which the rules do not have. Unblocks `cant-effects-architecture.md` §4.2's citation, with the caveat that a solver has no such argument to fall back on |
 | E2 | `game_state.rs:589` | `remove_from_combat` (CR 506.4) is combat code that arrived in a replacement-effects PR. It is genuinely needed by CR 701.19a's rider, but it is the kind of thing a split would have kept out. | `defer` ✅ — `codebase-state.md` item 18. Recorded so the combat phase *uses* it: it handles CR 506.4 in both directions, and the one-line `entry.attacking = None` version is the one that looks right and is not |
 | E3 | `object.rs:44` | `zone_change_epoch` + two `GameState` counters for one consumer (CR 704.6d). Justified as a *fact* rather than a feature, and `codebase-state.md` item 10 wants the same field for CR 400.7 — but with one live use it is worth re-confirming the plumbing earns its place. | `defer` ✅ — `codebase-state.md` item 19. A re-confirm when item 10's CR 400.7 lands, not debt: recording an unrecoverable fact is right, and if 400.7 does not use the field the question becomes live |
 | E4 | `resolve.rs:659` | **`RemoveFromCombat` / `RemoveAllDamage` write `BattlefieldEntity` directly, justified as "no card replaces this".** Is that safe futureproofing? A card saying "creatures you control can't be removed from combat" is plausible, and the design's own premise is that any game event should be replaceable. | `design` ✅ — **combat: sound.** CR 506.4 is a *consequence* of seven causes, six already proposed, so a "can't" attaches to a cause; all 25 printed "from combat" cards cause removal and nothing watches it. **Damage: the analogy was false.** Seven cards restrict the CR 514.2 cleanup wipe the comment cited as precedent — item 20, one filter once RS-1's sweep exists. The tripwire for both is a *trigger*, not a replacement |
@@ -584,6 +593,22 @@ implies — none moves any RS phase's sizing by more than a rounding error.
 | J3 | `cant-effects-architecture.md:142` | **"Every number below is `cant-census.py`" overclaims — §2.4's and §4.2's derived numbers have no script behind them.** The 62 distinct tails, 77 counting clauses, 1,200/49/13 decomposition, the 35%/28%/11% duration shares and the 149/138 conditional counts are all dated hand counts. Two loose threads a reader cannot resolve from the page: §2.4 says 77 counting clauses where §4.2's table has 49 per-attacker counts (where are the other 28?), and the "2 cards" global-cap row only sums to 1,262 if those cards' clauses live inside the 13. Either extend the script to print the decomposition or mark those numbers as hand counts with their method, and reconcile 77/49/13. | `doc` |
 | J4 | `cant-effects-architecture.md` §2.1 | The doc's tier table faithfully mirrors the script — which means it inherits J2's ±2. When J2's script fix lands, re-run and update the table (236 → 234, 1,262 → 1,264) in the same commit, or the doc and its evidence disagree by exactly the amount that looks like drift. | `doc` |
 | J5 | `cant-census.py:54` | **The census's query is `o:"can't" -is:funny`, so restrictions phrased "isn't" or "doesn't" are outside all 2,034 clauses** — and that is a *scope*, correctly stated by the script, not a regex bug. It is worth stating in the doc because one such family is not small: **248 cards print "doesn't untap during …"** (`o:/doesn.t untap during/ -is:funny`, 2026-08-30), and 7 print "damage isn't removed …" (`codebase-state.md` item 20). §2.2 "What the census cannot see" already exists for exactly this and currently lists only the keyword-borne restrictions; these are the phrasing-borne ones. Found while answering E4, which is why it is here rather than in E. | `doc` |
+
+## M. Owner review of the C+E branch (2026-08-30)
+
+Five points raised on `replacement/rb-naming` before merge. **Four closed on
+the branch** and are recorded where they belong: E1's answer was rejected for
+the right reason and replaced with `check_exempt_terminates` (see theme E);
+`replacement-architecture.md` §8a lost an overreach about CR 506.4 and gained
+the "what does it cost to be wrong" pricing it was missing; the vestigial
+`impl Default for ReplacementEffectRegistry` is deleted. **One is new and
+stays open.**
+
+| # | Area | Finding | Verdict |
+|---|---|---|---|
+| M1 | `card_data.rs:31`, `layers/types.rs:260` | **The field `keywords` reads as "this object's keywords" and is really "the presence-only ones".** `KeywordFlag`'s own doc is exemplary — CR 702's 189 keyword abilities split by a four-quadrant table, and this enum is quadrant ① — but the *field* drops the qualifier the *type* carries, on both `CardData` and `EffectiveCharacteristics`. A card with ward or cycling has those in `abilities`, so `card.keywords` is **not** the card's keyword list, and `CLAUDE.md`'s layer invariant lists `keywords` beside `abilities` as though they partitioned. Nothing is wrong today — every reader passes a `KeywordFlag`, so the type enforces the intent — which is exactly why this is legibility debt rather than a bug. Note the *other* half of the word is already clean: CR 701's keyword **actions** have their own type in `types/keyword_actions.rs`, so the ambiguity is inside CR 702 only. **Sized:** rename the field to `keyword_flags` to match its type — 94 sites across 33 files, every one compiler-enforced, no behaviour. Do it in its own commit, not folded into anything. | `fix` (naming) |
+
+---
 
 ## The merge question, re-answered
 

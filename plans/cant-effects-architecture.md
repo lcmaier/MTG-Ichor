@@ -650,10 +650,15 @@ absurd, and is not what the framing is for.
 NP-hard in the general case, so whatever ships takes a hard bound with a loud
 error rather than a silent wrong answer. `MAX_616_1F_ITERATIONS` **is** the
 precedent — `rb-review.md` E1 closed 2026-08-30 with the answer that it is a
-bug backstop in engine code, not a test harness — but note what makes it one:
-that loop has a termination argument (CR 614.5's applied set) and the cap
-catches its one carve-out. A combat solver has no such argument, so its bound
-is doing more work and the error it raises is the whole safety net.
+bug backstop in engine code, not a test harness — but note how little work it
+does there, because that is the shape to copy. The CR 616.1f loop has a real
+termination argument (CR 614.5's applied set), and its one carve-out is caught
+by a *check at the site*, `check_exempt_terminates`, rather than by the cap; the
+cap covers only a case the rules do not currently have. **A combat solver has no
+termination argument to fall back on**, so its bound is the whole safety net and
+its error text is the only diagnosis anyone will get. Budget accordingly: the
+lesson from E1 is that a bound you actually rely on is a design smell worth one
+more attempt at an argument.
 
 **Two things follow for the code.** First, `legal_attackers` /
 `legal_blockers` keep being an **over-approximation** — that is already this

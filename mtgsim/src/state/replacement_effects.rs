@@ -71,12 +71,6 @@ pub struct ReplacementEffectRegistry {
     next_id: ReplacementEffectId,
 }
 
-impl Default for ReplacementEffectRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ReplacementEffectRegistry {
     pub fn new() -> Self {
         ReplacementEffectRegistry { effects: Vec::new(), next_id: 1 }

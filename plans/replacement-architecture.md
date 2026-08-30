@@ -258,7 +258,9 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         │  a second, independent prompt, and one candidate is enough
   │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
   │         ├─ push `then` onto riders (615.5 / 614.1a) — unconditional (615.12)
-  │         └─ loop (CR 616.1f) with the applied set carried
+  │         ├─ exempt effect? check its rewrite left its own pattern —
+         │  the termination argument CR 614.5's set does not supply
+         └─ loop (CR 616.1f) with the applied set carried
   │
   ├─ phase 2: PERFORM, in batch order
   │    └─ perform_action(decided)                      engine/actions.rs
@@ -1535,13 +1537,21 @@ a creature, or becomes a battle. **Six of the seven follow from something else
 the engine already models** — a proposed `ZoneChange`, a Layer 2 control
 change, a type change out of the layer walk, CR 701.19's regeneration (phasing
 is CR 702.26 and not built) — and the seventh *is*
-`Primitive::RemoveFromCombat`. A "creatures you control can't be removed from
-combat" card would therefore attach to each cause, exactly as
-`cant-effects-architecture.md` §3 has it, and not to one substitutable event. It
-would also have no way to reach the six. The card pool agrees and is unanimous:
-25 cards print "from combat" (`o:"from combat"`) and **all 25 cause removal**;
-`o:"removed from combat"` as a phrase returns zero, so nothing replaces it,
-forbids it, or triggers on it.
+`Primitive::RemoveFromCombat`.
+
+**Nothing in the CR forbids "creatures you control can't be removed from
+combat", and this section does not claim otherwise.** What CR 506.4's shape
+decides is *where such a card would be enforced*: at six other places as well as
+this one, which makes it a `RestrictionDef` consulted by each cause
+(`cant-effects-architecture.md` §3, the sixth enforcement point) rather than a
+`ReplacementDef` over an event this arm proposes. Giving this arm a `GameAction`
+would buy that card nothing — it would still be unenforceable at the six. It is
+also worth noticing *why* the card has never been printed: on the
+leaves-the-battlefield cause it would have to mean something for a permanent
+that is no longer there, which is the kind of rules problem WotC avoids by
+construction. The card pool is unanimous today: 25 cards print "from combat"
+(`o:"from combat"`) and **all 25 cause removal**; `o:"removed from combat"` as a
+phrase returns zero, so nothing replaces it, forbids it, or triggers on it.
 
 **Damage removal: the on-demand half is sound; the half the comment leaned on
 was not.** The primitive itself is fine — the only printed card that removes all
@@ -1567,6 +1577,34 @@ invisible to CR 603's detector for the same reason it is invisible to CR 614's
 pipeline, and the event stream is what Phase 6 matches against. Today
 `o:/whenever.*removed from combat/` returns zero, so the tripwire is a card that
 watches one of these, not a card that replaces one.
+
+**And what it costs to be wrong, which is the part that makes "no card does
+this" an acceptable reason at all.** Take the shape that would stress it hardest
+— a hypothetical *"if you would remove damage marked on enchanted creature,
+create that many 1/1 Goblins instead"*, a replacement whose output depends on
+the replaced event's magnitude. Priced against this tree:
+
+| | Edit | Enforced by |
+|---|---|---|
+| 1 | `GameAction::RemoveDamage { object }` | — |
+| 2 | a `perform_action` arm, taking the two-line write out of `resolve.rs` | §8a's one-arm-per-variant test |
+| 3 | an arm in `subject_of` | the compiler — the match is exhaustive |
+| 4 | `EventPattern::RemoveDamage` | §3.2a; `pattern_matches` is exhaustive |
+| 5 | `Primitive::RemoveAllDamage` becomes an `execute_actions` batch over `battlefield_ids_ordered` — routing a sweep makes its order observable | review |
+| 6 | the CR 514.2 cleanup wipe routes the same way, which is what 514.2's "simultaneously" wanted anyway | review |
+
+Five of the six are mechanical and four are caught by a compiler or a test. The
+**one genuinely new thing** is "that many": an amount read off the event being
+replaced is `Rewrite`'s `Amount` arm, which §3.2b deliberately did not ship and
+which **RD already owes** for damage multiplication — so even the expensive half
+is on the schedule rather than a surprise.
+
+That is the asymmetry worth stating plainly. "No card does this" is a sound
+reason to leave a mutation outside the vocabulary **because the cost of guessing
+wrong is a bounded, compiler-enforced diff**, not because the guess is certain.
+Where a wrong guess would instead force a redesign — the applied set's identity
+(H9), the copy row storing values rather than a reference — the same argument
+would not be available, and those are decided ahead of the cards on purpose.
 
 **One thing the check turned up that belongs to the census, not here.**
 `cant-census.py` queries `o:"can't" -is:funny`, which is its stated scope — but

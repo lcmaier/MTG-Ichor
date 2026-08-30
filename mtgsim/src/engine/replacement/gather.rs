@@ -247,7 +247,11 @@ fn push_if_applicable(
 /// Two halves of one CR 614.1 question, not two unrelated checks: an effect
 /// applies when it *watches* this kind of event **and** *affects* the object
 /// the event is about.
-fn applies_to(
+///
+/// `pub(super)` for one caller beyond the sweep: the CR 616.1f loop re-asks it
+/// of an effect it has just applied, which is how an exempt effect's
+/// termination is checked rather than assumed.
+pub(super) fn applies_to(
     game: &GameState,
     instance: &ReplacementInstance,
     action: &GameAction,

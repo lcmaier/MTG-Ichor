@@ -12,7 +12,7 @@ use crate::types::replacement::{GameActionTemplate, Rewrite, Uses};
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_replacement;
 
-use super::gather::forced_bucket;
+use super::gather::{applies_to, forced_bucket};
 use super::{subject_of, chooser_for, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
 
 /// The "and also" half of an applied replacement, queued for after the event.
@@ -68,28 +68,17 @@ pub(crate) fn is_blocked(game: &GameState, action: &GameAction) -> bool {
     }
 }
 
-/// The maximum number of CR 616.1f iterations one event may go through.
+/// Defence in depth for the CR 616.1f loop. **Not the termination argument** —
+/// `check_exempt_terminates` is, together with CR 614.5's applied set.
 ///
-/// **A bug backstop, and it stays in engine code.** Not a rules concept and not
-/// a loop guard for CR 731 (out of scope): it is what turns an unterminated
-/// loop into a diagnosable error instead of a hung game. Both halves matter —
-/// the two acid tests that pin §3.2d's lineage rule fail by *hanging* rather
-/// than by producing a wrong answer, and so would a real game.
-///
-/// CR 614.5's applied set is the termination argument for every effect the
-/// rule governs: each iteration either applies an effect, which permanently
-/// adds to that set, or declines an optional one, which also adds to it, so the
-/// bound is the number of applicable effects. **The rules carve out one
-/// exception to exactly that**, and it is the reason this is not a
-/// `debug_assert!`: `exempt_from_614_5` effects are never added to the set (CR
-/// 903.9b), so an exempt effect is bounded by its own rewrite ceasing to match
-/// and by nothing else. 903.9b is also `optional`, which puts it back under the
-/// `declined` set — but the next exempt effect need not be, and it must not be
-/// able to hang a game while somebody works out which.
-///
-/// Reaching the cap therefore means an effect is being re-offered after its one
-/// opportunity, which is a bug in the pipeline or in a `ReplacementDef`, and
-/// the error says so.
+/// Every effect the applied set governs gets one iteration, so the bound is the
+/// number of applicable effects. An `exempt_from_614_5` effect (CR 903.9b) is
+/// outside that set and is bounded instead by its rewrite falsifying its own
+/// pattern, which is checked rather than assumed. The two together bound the
+/// loop while at most one exempt effect can apply to one event — true today,
+/// and CR 903.9b is the rules' only exemption. **A second one would need this
+/// cap**, because two exempt effects can rewrite each other's events forever
+/// and neither check would notice.
 const MAX_616_1F_ITERATIONS: usize = 256;
 
 /// The CR 616.1 loop: decide what event actually happens.
@@ -237,18 +226,67 @@ pub(crate) fn apply_replacements(
             // CR 616.1f — re-gather against the modified event, which is how
             // CR 616.2's "a replacement effect can become applicable as the
             // result of another" works without any special case.
-            Some(next) => event = next,
+            Some(next) => {
+                check_exempt_terminates(game, &chosen, &next)?;
+                event = next;
+            }
         }
     }
 
     Err(format!(
-        "CR 616.1f did not converge in {} iterations on {:?}. The CR 614.5 applied \
-         set is what terminates this loop — every iteration either applies an \
-         effect or declines an optional one, and both insert into it — so \
-         reaching this cap means an effect is being re-offered after it has \
-         already had its one opportunity.",
+        "CR 616.1f did not converge in {} iterations on {:?}. Two things bound \
+         this loop and both have been passed: CR 614.5's applied set, which every \
+         non-exempt effect enters after its one opportunity, and \
+         `check_exempt_terminates`, which holds each exempt effect to a rewrite \
+         that leaves its own pattern. Reaching this cap means either an effect is \
+         being re-offered after its one opportunity, or two exempt effects are \
+         rewriting each other's events — CR 903.9b is meant to be the only \
+         exemption.",
         MAX_616_1F_ITERATIONS, event
     ))
+}
+
+/// The termination argument for the one effect CR 614.5 does not govern.
+///
+/// CR 903.9b is exempt from CR 614.5 and therefore never enters the applied
+/// set, so nothing stops the loop re-offering it — *except* that its rewrite
+/// takes the event out of its own pattern: it watches a move to hand or
+/// library and rewrites the destination to the command zone. That is what makes
+/// "may apply more than once to the same event" bounded rather than infinite,
+/// and it is a property of the `ReplacementDef`, so it is **checked here rather
+/// than assumed**.
+///
+/// With that held, an exempt effect can only re-apply after some *other* effect
+/// puts the event back in its pattern — and every other effect is governed by
+/// CR 614.5, so each re-entry costs an applied-set slot. The loop is bounded.
+///
+/// Failing this is a card- or rules-authoring error, not a rules corner, and it
+/// is reported at the iteration that causes it rather than 256 iterations later
+/// with nothing to point at.
+fn check_exempt_terminates(
+    game: &GameState,
+    chosen: &ReplacementInstance,
+    next: &GameAction,
+) -> Result<(), String> {
+    if !chosen.def.exempt_from_614_5 {
+        return Ok(());
+    }
+    // A spent one-shot cannot be re-gathered whatever its rewrite does
+    // (`consume_use` removed the row), so it is bounded already.
+    if matches!(chosen.def.uses, Uses::Once) {
+        return Ok(());
+    }
+    if applies_to(game, chosen, next, subject_of(next)) {
+        return Err(format!(
+            "replacement {:?} is exempt from CR 614.5 and still applies to its \
+             own output {:?}, so the CR 616.1f loop cannot terminate. An \
+             exemption is bounded only by the rewrite taking the event out of \
+             the effect's own pattern; this one's `EventPattern` and `Rewrite` \
+             describe the same event.",
+            chosen.id, next
+        ));
+    }
+    Ok(())
 }
 
 fn subject_object(subject: EventSubject) -> Option<ObjectId> {
