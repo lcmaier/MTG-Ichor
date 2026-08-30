@@ -1717,6 +1717,38 @@ fn test_two_commanders_offered_in_one_check_move_as_one_event() {
 }
 
 #[test]
+fn test_one_owner_may_accept_while_another_declines() {
+    // **One batch is not one decision.** CR 704.6d is a "may" per commander, so
+    // batching the accepted moves into CR 704.3's single event must not couple
+    // the offers: each owner is asked separately during the check, and only the
+    // acceptances reach the batch. The mixed case is the one that shows it —
+    // both-accept and both-decline are each consistent with a coupled
+    // implementation.
+    let mut game = setup_two_player_game();
+    let accepted = place_commander(&mut game, 0, Zone::Battlefield);
+    let declined = place_commander(&mut game, 1, Zone::Battlefield);
+    game.change_zone(accepted, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.change_zone(declined, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: accepted },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: declined },
+        vec![],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+
+    assert_eq!(game.get_object(accepted).unwrap().zone, Zone::Command);
+    assert_eq!(game.get_object(declined).unwrap().zone, Zone::Graveyard);
+    assert!(dp.is_empty(), "each owner was asked exactly once");
+}
+
+#[test]
 fn test_a_noncommander_in_the_graveyard_is_never_offered() {
     let mut game = setup_two_player_game();
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
