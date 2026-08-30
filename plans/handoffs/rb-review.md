@@ -3,6 +3,29 @@
 **Delete this file when the last row is closed.** Per `CLAUDE.md`'s authority
 table, a handoff is where to resume half-finished work and does not outlive it.
 
+## Start here — the session queue as of 2026-08-30
+
+Everything below this block is the *record*; this block is the *plan*. A cold
+session takes the top undone line, reads only what that line names, closes it,
+re-runs the gates once, and checks the line off. No session needs the whole
+file and none needs any conversation.
+
+1. ~~Commit this file's second audit onto `replacement/rb-pipeline`~~ ✅ 2026-08-30.
+2. ~~Fix PR #64's findings and merge it into `replacement/rb-pipeline`~~
+   ✅ 2026-08-30 — V1–V6 closed in `b64508f`, merged in `f142a74`.
+3. **The #62 pre-merge session**: theme H row **H2** (one dead call, one test,
+   two comments — production behavior cannot move) and theme I rows **I1–I8**
+   (doc/comment accuracy; I9's one-comment scoping may ride along). Cold
+   context: the "Second audit" section below, those rows only. Gates, then
+   **merge #62 to main**.
+4. Post-merge, on `main`: **themes C + E, plus H1, H3–H6** (naming, hygiene,
+   and the latent code fixes — these move behavior, so fuzz before/after).
+   Then **themes D + F, plus H7–H9 and J3/J4** (defer entries and design
+   questions; F2's test rides along; J1/J2 are two `cant-census.py` regex
+   fixes and can ride either session).
+5. Then stop reviewing and **build**: RS-0, per `cant-effects-architecture.md`
+   §7.1's queue. That list is the ordering authority from here on.
+
 ## Why this file exists
 
 PR #62 is +5,475 / 33 files. A review of it produced ~40 findings, and the
@@ -340,7 +363,9 @@ load-bearing, so a wrong comment is a wrong doc.
    `replacement-architecture.md` §2a. 746 tests, zero warnings, no behaviour
    touched.
 
-Then **merge #62** — both blocking themes are closed.
+Then **merge #62** — both blocking themes are closed. *(Superseded 2026-08-30:
+the second audit below added pre-merge rows. The live plan is "Start here" at
+the top of this file.)*
 
 ### After the merge, as follow-up PRs on `main`
 
@@ -400,3 +425,139 @@ kind of session.
 - **The integration tests and doc changes in #62 were not reviewed**, on the
   expectation that this ledger will move some of them. Re-review them after
   themes B, C and G land.
+
+---
+
+# Second audit (2026-08-29) — the surfaces the first review did not open
+
+Scope: the 2,002-line integration test file, the doc changes
+(`replacement-architecture.md` §2a, `codebase-state.md`,
+`engineering-practices.md`, the `CLAUDE.md` trim), the "can't" design doc
+against its census script, the three post-review commits, and a fresh
+correctness pass over the pipeline aimed at the paths with the least test
+pressure. Themes C, D, E and F were left alone per instructions; nothing found
+here suggests any of them is triaged wrong. Rows continue the lettering at H.
+
+## What re-verified clean — recorded so nobody re-audits it
+
+- **All gates pass on this tree.** 746 tests (not 744 — see I7), zero warnings,
+  `check_claude_md` 197/200, `specdb orphans` clean, `suspicious` one
+  pre-existing heuristic false-positive (ATOM-611.2a-001's link predates RB and
+  the atom matches the test). Both fuzz baselines reproduce **byte-identically**
+  against `engineering-practices.md` §3: performance P0 28/P1 22, spells 20.8,
+  deaths 5.6; stress P0 30/P1 20, spells 19.5, deaths 5.2.
+- **`PERFORMANCE_POOL` is the pre-split registry, exactly** — the 55 names match
+  `56d2072^`'s `register()` calls one for one, and `performance_pool()` panics
+  on a missing name. What the freeze does *not* cover: the pools share factory
+  functions, so an edit to a card's definition moves the frozen pool's behavior
+  silently — membership is guarded by code, behavior only by the fuzz re-run
+  gate. That is the design, but say it when citing the freeze.
+- **The census's headline number reproduces.** `cant-census.py` prints Tier 2 =
+  236 of 2,034 exactly as §2.1 records, tiers sum to the clause total, and the
+  §2.6 Sigarda reclassification is real in the buckets. The 1,249/1,262 claim is
+  a dated *hand count* recorded in §4.2's decomposition table (1,200 + 49), not
+  a script output — see J3.
+- **RS-1's deleting-PR shape is accurate against this tree.** All three call
+  sites exist (`pipeline.rs:53`, `gather.rs:229`, `resolve.rs:643` — the doc
+  says 638, five lines of drift), plus `game_state.rs:269`'s field, its init,
+  and `turns.rs:138`'s clear. Q3's answer is: no contradiction between the
+  "can't" design and what RB shipped.
+- **The `CLAUDE.md` trim dropped no invariant.** Every deleted rule survives
+  either compressed in place or in the doc its pointer names (PRE-LAYER's file
+  list now lives in `codebase-state.md` and the source tags themselves); the
+  deleted text was war stories and examples, which is what the comment rule
+  says to cut. `engineering-practices.md`'s two baselines both reproduce.
+- **The integration test file is the strongest part of the PR, not the
+  weakest.** Both branches of every choice are tested, absence is asserted by
+  unscripted-provider panic, timing is asserted on the event log where end
+  states tie, and the "atom scenarios built in full" section builds
+  ATOM-616.1-001's printed scenario exactly. One test pins wrong behavior (H2);
+  none is vacuous.
+- **Kalitas's Oracle text matches the card file verbatim** (Scryfall,
+  2026-08-29), and the shield-counter rulings confirm the engine's CR 122.1c
+  reading on every point except the two H9 raises.
+
+## H. Pipeline and SBA correctness — second pass
+
+The first review found no correctness defect. This pass found one reachable
+family and one test-pinned wrong behavior, both currently latent — nothing in
+the registered card pool can trigger either, which is why 746 tests and two
+byte-identical fuzz baselines coexist with them.
+
+| # | Area | Finding | Verdict |
+|---|---|---|---|
+| H1 | `actions.rs:415`, `resolve.rs:132` | **The 0-damage check sits on the wrong side of the pipeline.** `perform_action`'s `DealDamage` arm returns early on `amount == 0`, correctly citing CR 614.7a — but that arm runs *after* `apply_replacements`, so a 0-damage proposal traverses the pipeline first. `EventPattern::DealDamage` has no amount constraint, so a shield counter's prevention half applies to it, and its rider removes a shield counter for an event CR 614.7a/120.8 says "never happens" and "replacement effects … have no event to replace". Combat can't produce it (CR 510.1a filter at `resolution.rs:55`), but `Primitive::DealDamage` does no filtering, so any X=0 or computed-0 damage effect triggers it the day one is registered alongside a shield-counter producer. Same shape, lower stakes: `GainLife`/`LoseLife`/`AddCounters` 0-amounts also traverse (no patterns match them today). The proposal side, not the perform side, is where CR 614.7a lives. | `fix` |
+| H2 | `zones.rs:369`, `replacement_effects.rs:108`, `phase_rb_integration_test.rs:1266` | **`replacement_effects.remove_by_source` at battlefield-leave implements a rule that does not exist, cites CR 611.2a for the opposite of what it says, and a test pins it.** The registry holds *only* resolution-created rows (its own module doc says so), and CR 611.2a says exactly those "last as long as stated" — a shield does not die with the permanent whose ability made it (611.3b is the static-ability rule, and no registry row is one). Production never reaches the call: `ResolutionContext.source` for anything on the stack is the stack object (a spell, or `activate_ability`'s ephemeral object), which is never on the battlefield — so the code is dead except from tests that hand-build a battlefield `ResolutionContext`, which is what `test_a_shield_dies_with_the_permanent_that_made_it` does, asserting the CR-wrong outcome under a comment citing 611.2a. Delete the test and the call (unspent shields already expire via `remove_expired_at_cleanup`), or re-scope the call to a future `WhileSourceOnBattlefield` duration with the right cite. Note the *adjacent, pre-existing* miscite it was copied from: `cleanup_zone_state`'s continuous-effects line also cites 611.2a where it means 611.3b. | `fix` |
+| H3 | `gather.rs:518,554` | **`commander_zone_replacement`'s owner guard is a tautology.** `owner_of_destination` ignores the proposed action entirely and returns `game.objects[object].owner` — so the check is `obj.owner != obj.owner`, always false. The comment claims that "the day an effect puts a card into a *different* player's library this becomes the check that stops 903.9b firing" — it cannot: `ZoneChange` carries no destination player, and this function has no input from which to learn one. Correct today only because `add_to_zone_collection` files by owner unconditionally; the guard is dead code documented as live insurance. Make it honest: delete the guard and state the by-construction argument, or give `ZoneChange` the field the day it needs one. | `fix` |
+| H4 | `sba.rs:152–190` | **The CR 704.6d moves are performed one `change_zone` at a time, mid-check, outside the batch.** The deaths in the same function are gathered and performed as one `execute_actions` batch under a comment citing CR 704.3's "simultaneously as a single event"; the commander offers are asked *and performed* one by one during the gathering phase, so each is its own batch and a later owner's decision is made against a board an earlier move already changed — the exact decide/perform interleaving the file's own doctrine forbids. Mechanical fix: collect the accepted moves, then one `execute_actions` batch alongside (or with) the deaths. Pairs naturally with F2's partner-commander test. | `fix` |
+| H5 | `gather.rs:473` | **`forced_bucket`'s `debug_assert` is a tautology.** `top` is `min()` over the candidates' classes, so `candidates.iter().any(\|c\| c.def.class == top)` holds by construction and the assert can never fire (the `Other` short-circuit doubly so). Delete it or assert something real (e.g. the returned bucket is non-empty). | `fix` |
+| H6 | `sba.rs:69` | **`ordered_objects` sorts on `(zone_change_epoch, ObjectId)` — the tiebreak is the key `CLAUDE.md`'s determinism section bans** ("never `ObjectId` (v4 UUIDs); same rule for any collection reaching a choice"). Latent, not live: every object passing the 704.6d filter has moved at least once and epochs are unique per move, so ties exist only among never-moved objects that the filter then discards. But the function's contract says "every object in the game, in a deterministic order", which is false as stated, and the first future consumer that reads epoch-0 objects inherits a per-process order. Filter before sorting, or drop the tiebreak and assert uniqueness among survivors. | `fix` |
+| H7 | `actions.rs:302–312` | **Phase 2 performs do not re-check member legality, and two members about the same object error loudly instead of skipping.** If a batch carries two `ZoneChange`/`Destroy` members naming one object, the first perform moves it and the second errors ("proposed Battlefield→X, which is in Graveyard") — a game-killing `Err` where CR 608.2b's partial resolution says do-as-much-as-possible. Unreachable today: the SBA sweep dedupes per object, combat/untap batches are per-object unique, and no registered spell proposes the same object twice. Becomes reachable with the first multi-clause spell ("Destroy target creature. Destroy target creature.") or any replacement that redirects member 1 into member 2's precondition. Related to F6's interleaving question but distinct: this is perform-phase staleness, not choice-phase restarts. | `defer` |
+| H8 | `pipeline.rs:108,193` | **Declining CR 903.9b is recorded as final for the whole event, but the rule's 614.5 exemption contemplates re-application after the event changes.** `declined` is keyed on the same instance id regardless of destination, so an owner who declines the command zone for a hand-bound event is never re-asked if a later replacement redirects the event to the library — where 903.9b becomes newly applicable and "may apply more than once to the same event". No second hand/library-redirecting effect exists and nothing sets `is_commander` in real games (K7), so this is unreachable; it is also genuinely unclear in the rules whether a *decline* exhausts the exemption. Research question, not a bug: settle it when RD/RE gives the event a second redirector. | `design` |
+| H9 | `pipeline.rs:94`, §4.2 | **CR 614.5's identity may need to be per `(event, affected object)`, not per batch member — the shield counter's two-source ruling is the first crack in §4.2's per-member doctrine.** Simultaneous combat damage is one event (CR 510.4); CR 122.1c makes any number of shield counters "a single prevention effect"; the printed ruling removes **one** counter when multiple sources damage the creature at once. The engine models each source's damage as a separate batch member with a fresh applied set, so a creature blocking two attackers with two shield counters loses **two** — each member's prevention applies, each queues a rider. (With one counter the outcome is accidentally right: both prevented, the second rider removes zero and is a no-op.) Kalitas's per-death ruling and this ruling are both real, and they reconcile exactly if the applied set is keyed per affected object within the batch: Kalitas's deaths are different objects → N applications ✓; two damages to one creature are one object → one application ✓. Unreachable today (no shield-counter producer, and it needs a multi-blocked creature), but **RD must settle this before building CR 615.7's shield allocation on the per-member shape** — 615.7's "one shield, several simultaneous sources, controller chooses" is the same modeling question asked officially. | `design` |
+
+## I. Doc and comment accuracy, second pass — what B could not have seen
+
+B closed against the code that existed then; these are in the surfaces B did
+not open (§2a, the trim's neighbors, the unreviewed commits) plus two rule
+numbers from an older CR that B7's sweep did not cover. Same character as B:
+the code is right, something written about it is wrong.
+
+| # | Area | Finding | Verdict |
+|---|---|---|---|
+| I1 | `replacement-architecture.md:221` | **§2a's `ReplacementDef` row lists eight fields; the struct has nine — `optional` is missing.** The absent one is load-bearing (it is the field the decline-tracking rule exists for). The as-built map's whole warrant is field-for-field fidelity. | `doc` |
+| I2 | `replacement-architecture.md:225`, `types/replacement.rs:292` | **`GameActionTemplate::ZoneChangeTo` has three RB customers, not two** — the finality counter, CR 903.9b, *and Kalitas's exile rewrite*. Both the §2a table ("two customers each") and the type's own doc ("Two customers in RB: … finality … and 903.9b") undercount; Kalitas landed after the doc sentence and nobody re-counted. `RemoveCountersFromAffected`'s two is right. | `doc` |
+| I3 | `replacement-architecture.md:255` | **§2a's trace says "1 → apply it, never prompt" and calls CR 616.1 "the only prompt" — both false for the optional path.** A single optional candidate *does* prompt (`ask_apply_optional_replacement`; CR 903.9b is exactly a one-candidate prompt, and two tests script it). The never-prompt rule governs the CR 616.1 *ordering* choice only. While editing: property 1's "before anything is written" overstates phase 1 — `consume_use` deliberately writes during deciding (a spent shield must be gone for the next member; the code documents this), so say "against one board" and name the exception. | `doc` |
+| I4 | `types/replacement.rs:25` | **B8 stopped one file short: the module doc still says "a sixth arm"** 200 lines before the five-arm table that makes the phrase parseable, over an enum that ships two. B8's own reasoning ("the growth contract was written against the design, not the code") applies verbatim; `CLAUDE.md` got "a new arm", this doc should too. | `doc` |
+| I5 | `actions.rs:384,481` | **Two comments still describe the pre-RA emitter topology.** "Internal helpers like `draw_card` and `play_land` still call `move_object` directly" and "draw_card already emits ZoneChange events via move_object" — both false: `draw_card` routes through `change_zone` → `execute_action`, which is why the one-emitter invariant holds and why the empty-library draw correctly reaches the pipeline (CR 121.6a). As written they contradict the invariant three paragraphs above them. | `doc` |
+| I6 | `actions.rs:442,1022,1078`, `codebase-state.md` §903 | **Commander-damage rule numbers are from an older CR — B7's disease, different rules.** In `tmnt.txt`: the 21-damage loss SBA is **CR 704.6c** (704.5u is space sculptor) and the commander-damage rule is **CR 903.10/903.10a** (903.11a is "bring a card from outside the game"). Three sites in `actions.rs` and `codebase-state.md`'s "903.11 — Attacking with commander + accumulating commander damage" row label are stale. Pre-date RB, but the PR's B7 sweep established the standard and these sit in files it touched. | `doc` |
+| I7 | `codebase-state.md:10,235,246` | **Three stale counts in the top-authority doc, all moved by this branch's own later commits.** "744 tests" — the tree runs **746** (G3 added two registry tests and the TL;DR was not re-touched). "Six stubbed primitives implemented: [four names], plus new [four names]" — four stubs got implementations and four primitives are new; no reading yields six. "`specdb owed` is unchanged at 38" — it prints **37** on this tree (the post-review COVERS corrections moved it after the sentence was written). | `doc` |
+| I8 | `ui/ask.rs:639` | **B6's malformed-literal disease has a second RB instance**: `ask_choose_replacement`'s assert message carries a run of ~10 literal spaces from a line-continuation that never happened ("two or more          applicable effects"). Same fix as B6 (real `\` continuations). Noting in passing: `cast.rs:298` has the same defect and predates the PR. | `fix` |
+| I9 | `game_state.rs:249` | **"Between them the gate is sound" needs its expiry date.** True today: printed abilities are recorded at ETB and Layer-6 grants are summarized. But a **Layer 1 copy** of a permanent with a printed replacement ability (or a Layer 3 text-change granting one) changes the *effective* ability list through neither half — the copy's replacement would be silently dead, which is this project's named worst failure mode. `codebase-state.md`'s own 2026-08-27 audit already demands a copy-effects design doc before RC-4 produces a `CopyOnEnter`; that doc must inherit this gate obligation explicitly, and the soundness comment should scope its claim ("sound until Layer 1/Layer 3 exist") so the copy phase cannot miss it. | `doc` |
+
+## J. The census and the "can't" doc — Q2's answer in rows
+
+The verdict first: **the numbers the design leans on hold.** 236/2,034
+reproduces exactly; 1,249/1,262 is internally consistent as §4.2's hand-counted
+1,200 + 49. The rows are the places where the apparatus is weaker than the doc
+implies — none moves any RS phase's sizing by more than a rounding error.
+
+| # | Area | Finding | Verdict |
+|---|---|---|---|
+| J1 | `cant-census.py:145` | **"can't search (701.19)" cites the regeneration rule.** Search is **CR 701.23** in `tmnt.txt`; 701.19 is Regenerate — the same number the engine cites correctly a hundred times, so the collision is maximally confusing. Label only; the count is fine. | `fix` |
+| J2 | `cant-census.py:150` | **"can't be attacked" is bucketed under *attachment* (Tier 2) and is a combat restriction (Tier 1a).** Two clauses hit it — Island Sanctuary and The Aetherspark, verified against the cache — both restrictions on attack declaration. True Tier 2 is 234, Tier 1a 1,264; nothing resizes, but the classifier has a provable mis-bucket and RS-1's spine count inherits it. Nearby, lower: "can't become suspected/night/monarch" (3 clauses) land under "transform / turn face up / phase", which is the right tier with the wrong label. | `fix` |
+| J3 | `cant-effects-architecture.md:142` | **"Every number below is `cant-census.py`" overclaims — §2.4's and §4.2's derived numbers have no script behind them.** The 62 distinct tails, 77 counting clauses, 1,200/49/13 decomposition, the 35%/28%/11% duration shares and the 149/138 conditional counts are all dated hand counts. Two loose threads a reader cannot resolve from the page: §2.4 says 77 counting clauses where §4.2's table has 49 per-attacker counts (where are the other 28?), and the "2 cards" global-cap row only sums to 1,262 if those cards' clauses live inside the 13. Either extend the script to print the decomposition or mark those numbers as hand counts with their method, and reconcile 77/49/13. | `doc` |
+| J4 | `cant-effects-architecture.md` §2.1 | The doc's tier table faithfully mirrors the script — which means it inherits J2's ±2. When J2's script fix lands, re-run and update the table (236 → 234, 1,262 → 1,264) in the same commit, or the doc and its evidence disagree by exactly the amount that looks like drift. | `doc` |
+
+## The merge question, re-answered
+
+**The first review's headline survives contact with the unexamined surfaces,
+with one asterisk.** There is still no correctness defect reachable from the
+registered card pool — H1, H2 and H9 are all latent, which the byte-identical
+fuzz baselines corroborate. The test file is not the liability the closing note
+feared; it is the best-tested part of the PR, and it caught nothing because
+there was nothing reachable to catch.
+
+The asterisk is **H2**: the branch ships a test that *enforces* a rules
+violation. That is worse than an untested path — the next session that touches
+the registry will keep the wrong behavior green. It is also a five-minute
+close: delete one call, one test, and fix two comments; production behavior
+cannot move (the call is dead there), so the fuzz gate is a formality.
+
+**Recommended before merge, one short session:** H2, plus the authority-doc
+rows I1–I4, I6, I7 (all `doc`, all in `plans/` or one comment block — the same
+class theme B blocked the merge for) and I8 (one string). H1 and H4–H6 are real
+but latent code changes; they re-run gates and belong in the post-merge C+E
+session, where H5/H6 are one-liners and H1/H4 are small. H7–H9 and J are
+`defer`/`design`/script work and block nothing.
+
+**What this audit changes on the critical path: nothing re-orders, two
+obligations attach.** RC and its ~1,350-card unlock are unaffected; RS-1's
+shape is verified accurate; the census stands. The attachments: (1) **RD's
+design must open with H9** — CR 615.7's shield allocation sits exactly on the
+per-member-vs-per-affected-object applied-set question, and building it on the
+unexamined per-member shape risks a redesign; H1 also wants closing before RD's
+`Amount` rewrites multiply damage numbers through more paths. (2) **The
+copy-effects design doc `codebase-state.md` already demands must own the gather
+gate's third leg** (I9), or Layer 1's first copied replacement ability is
+silently dead. Both are notes to designs already scheduled, not new phases.
