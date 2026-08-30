@@ -45,6 +45,12 @@ use super::{ReplacementInstance, ReplacementInstanceId};
 /// > permanent.
 ///
 /// Stun (122.1d) and finality (122.1h) create only the replacement.
+///
+/// **Why the split does not defeat the purpose of one counter:** it is what
+/// gives the two halves two CR 614.5 identities, so removing a shield counter
+/// to a destruction does not also spend the prevention against damage. The
+/// argument is at [`ReplacementInstanceId::Counter`], which is where the key
+/// that carries this variant is defined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CounterEffectKind {
     Replacement,
@@ -340,17 +346,35 @@ fn watches(
 // ---------------------------------------------------------------------------
 
 /// The three counter kinds that generate a replacement effect.
+///
+/// **Three is the whole of CR 122.1, audited rather than assumed** (`rb-review.md`
+/// D3). Of that rule's nine kinds only 122.1c (shield), 122.1d (stun) and
+/// 122.1h (finality) create a replacement effect: 122.1a is Layer 7c, 122.1e/f/g
+/// are SBA inputs, 122.1i is a trigger, and 122.1b's fifteen keyword counters
+/// grant a keyword. **None of those fifteen is CR 614-shaped**, and the two that
+/// come closest are the two the rules deliberately put elsewhere — indestructible
+/// is a "can't" (CR 702.12b, so `is_blocked` rather than a `ReplacementDef`) and
+/// lifelink is a further result of the damage event (CR 120.3f), not a
+/// replacement of it. The rest are evasion, targeting, blocking,
+/// combat-damage-step, damage-assignment or turn-based rules; vigilance's
+/// "attacking doesn't cause it to tap" (702.20b) modifies the CR 508.1f
+/// turn-based action and proposes no event to replace.
 const REPLACEMENT_COUNTERS: [CounterType; 3] =
     [CounterType::Shield, CounterType::Stun, CounterType::Finality];
 
 /// Is any permanent carrying a counter that generates a replacement effect?
 ///
-/// Part of `gather`'s fast path, and deliberately *computed* rather than
-/// cached: a cached count would have to be maintained at every site that
-/// touches `BattlefieldEntity::counters`, and a drifting count reads as a card
-/// that silently does nothing — which is the exact failure this phase exists to
-/// remove. The scan is a `HashMap` walk over the battlefield that skips
-/// immediately on the empty-counters case, which is almost every permanent.
+/// Part of `gather`'s fast path, and *computed* rather than cached — but not for
+/// the reason the first draft of this comment gave. A cached **set**, maintained
+/// the way `replacement_ability_sources` is, would not drift; a cached *count*
+/// would. What makes the set unsound today is that counters have more than two
+/// chokepoints: `GameState::add_counters` and `perform_action`'s `RemoveCounters`
+/// arm are two, and CR 704.5q's +1/+1 / -1/-1 annihilation is a third that writes
+/// `BattlefieldEntity` directly (`sba.rs`, `codebase-state.md` Deferred Migrations
+/// item 6). A set maintained at a chokepoint that does not exist is exactly the
+/// drift, and it reads as a card that silently does nothing. The scan is a
+/// `HashMap` walk over the battlefield that skips immediately on the
+/// empty-counters case, which is almost every permanent.
 fn any_replacement_counter(game: &GameState) -> bool {
     game.battlefield.values().any(|entry| {
         !entry.counters.is_empty()
