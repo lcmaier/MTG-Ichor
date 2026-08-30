@@ -1749,6 +1749,52 @@ fn test_one_owner_may_accept_while_another_declines() {
 }
 
 #[test]
+fn test_the_offers_are_made_in_apnap_order_not_move_order() {
+    // CR 101.4 — "if multiple players would make choices ... at the same time,
+    // the active player makes any choices required, then the next player in
+    // turn order does the same". Two commanders offered in one check is exactly
+    // that, and `moved_since` orders by *move*, which is a different question.
+    //
+    // The two orders are only distinguishable when the active player is not
+    // player 0 **and** the other player's commander moved first, so the test
+    // builds precisely that: player 1 is active, player 0's commander died
+    // first. `ScriptedDecisionProvider` matches on the `ChoiceKind` variant
+    // rather than its payload, so the queue is the ask order — accept the
+    // first offer and decline the second, and which commander moved says who
+    // was asked first.
+    let mut game = setup_two_player_game();
+    let moved_first = place_commander(&mut game, 0, Zone::Battlefield);
+    let active_players = place_commander(&mut game, 1, Zone::Battlefield);
+    game.change_zone(moved_first, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.change_zone(active_players, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.begin_turn(2, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: active_players },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: moved_first },
+        vec![],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+
+    assert_eq!(
+        game.get_object(active_players).unwrap().zone,
+        Zone::Command,
+        "the active player is asked first and accepted"
+    );
+    assert_eq!(
+        game.get_object(moved_first).unwrap().zone,
+        Zone::Graveyard,
+        "the nonactive player is asked second and declined, even though          their commander moved first"
+    );
+}
+
+#[test]
 fn test_a_noncommander_in_the_graveyard_is_never_offered() {
     let mut game = setup_two_player_game();
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);

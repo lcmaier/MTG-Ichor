@@ -336,12 +336,11 @@ impl GameState {
         let mut order: Vec<usize> = (0..batch.len()).collect();
         order.sort_by_key(|&i| {
             let chooser = chooser_for(self, subject_of(&batch[i]));
-            // Distance from the active player in turn order. `None` — an object
-            // with neither controller nor owner — sorts last; the pipeline
-            // errors on it rather than guessing, and this keeps that error
-            // deterministic.
+            // `None` — an object with neither controller nor owner — sorts
+            // last; the pipeline errors on it rather than guessing, and this
+            // keeps that error deterministic.
             match chooser {
-                Some(p) => (p + n - self.active_player) % n,
+                Some(p) => self.apnap_index(p),
                 None => n,
             }
         });

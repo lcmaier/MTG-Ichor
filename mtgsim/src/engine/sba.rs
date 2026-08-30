@@ -197,6 +197,10 @@ impl GameState {
                 }
                 to_offer.push((id, obj.owner, obj.zone));
             }
+            // CR 101.4 — two owners offered in one check are choosing at the
+            // same time, so the active player is asked first. Stable, so one
+            // player's two commanders keep `moved_since`'s order between them.
+            to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
             let mut accepted: Vec<(ObjectId, GameAction)> = Vec::new();
             for (id, owner, from) in to_offer {
                 if ask_commander_to_command_zone(decisions, self, owner, id) {
@@ -313,17 +317,23 @@ impl GameState {
             // two Isamarus, one of them dead to lethal damage, is genuinely asked
             // which to keep. The old sequential sweep skipped that prompt by
             // having already removed the dead one.
+            // CR 101.4 again: one check can put two players in a legend
+            // conflict at once. `BTreeMap` order is controller *index* order,
+            // which is only APNAP while player 0 is the active player. Stable,
+            // so one player's several conflicts stay in the map's name order.
+            let mut conflicts: Vec<_> =
+                legend_groups.iter().filter(|(_, ids)| ids.len() > 1).collect();
+            conflicts.sort_by_key(|((controller, _), _)| self.apnap_index(*controller));
+
             let mut chosen: Vec<ObjectId> = Vec::new();
-            for ((controller, name), ids) in &legend_groups {
-                if ids.len() > 1 {
-                    // The group key, not a re-read: the key is what put these
-                    // permanents together, so asking anyone else would prompt a
-                    // player who does not control them.
-                    let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
-                    for &id in ids {
-                        if id != keep {
-                            chosen.push(id);
-                        }
+            for ((controller, name), ids) in conflicts {
+                // The group key, not a re-read: the key is what put these
+                // permanents together, so asking anyone else would prompt a
+                // player who does not control them.
+                let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, ids);
+                for &id in ids {
+                    if id != keep {
+                        chosen.push(id);
                     }
                 }
             }
@@ -961,6 +971,62 @@ mod tests {
             + game.battlefield.contains_key(&id2) as usize;
         assert_eq!(on_bf, 1);
         assert_eq!(game.players[0].graveyard.len(), 1);
+    }
+
+    #[test]
+    fn test_legend_groups_are_prompted_in_apnap_order() {
+        // CR 101.4 — two players in a legend conflict in the same check are
+        // choosing at the same time, so the active player chooses first. The
+        // groups live in a `BTreeMap` keyed on `(controller, name)`, which is
+        // controller *index* order: identical to APNAP only while player 0 is
+        // active, which is why this test makes player 1 active.
+        //
+        // `ScriptedDecisionProvider` matches on the `ChoiceKind` variant and
+        // not its payload, so the queue *is* the ask order. Keeping index 0 on
+        // the first prompt and index 1 on the second makes the survivors say
+        // who was asked first.
+        let mut game = GameState::new(2, 20);
+
+        let place = |game: &mut GameState, name: &str, controller: usize| {
+            let data = CardDataBuilder::new(name)
+                .card_type(CardType::Creature)
+                .supertype(Supertype::Legendary)
+                .power_toughness(2, 2)
+                .build();
+            let obj = GameObject::new(data, controller, Zone::Battlefield);
+            let id = obj.id;
+            game.add_object(obj);
+            game.place_on_battlefield(id, controller);
+            id
+        };
+
+        let p0_first = place(&mut game, "Isamaru, Hound of Konda", 0);
+        let p0_second = place(&mut game, "Isamaru, Hound of Konda", 0);
+        let p1_first = place(&mut game, "Thalia, Guardian of Thraben", 1);
+        let p1_second = place(&mut game, "Thalia, Guardian of Thraben", 1);
+        game.begin_turn(2, 1);
+
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(
+            ChoiceKind::LegendRule { legend_name: String::new() },
+            vec![0],
+        );
+        dp.expect_pick_n(
+            ChoiceKind::LegendRule { legend_name: String::new() },
+            vec![1],
+        );
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        assert!(
+            game.battlefield.contains_key(&p1_first),
+            "the active player was asked first and kept index 0"
+        );
+        assert!(!game.battlefield.contains_key(&p1_second));
+        assert!(
+            game.battlefield.contains_key(&p0_second),
+            "the nonactive player was asked second and kept index 1"
+        );
+        assert!(!game.battlefield.contains_key(&p0_first));
     }
 
     #[test]

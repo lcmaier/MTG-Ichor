@@ -467,6 +467,25 @@ impl GameState {
         self.last_turn_began[player] = turn;
     }
 
+    /// Where `player` sits in **APNAP order**: 0 for the active player, then
+    /// each other player in turn order.
+    ///
+    /// > 101.4. If multiple players would make choices and/or take actions at
+    /// > the same time, the active player (referred to as AP) makes any choices
+    /// > required, then the next player in turn order (referred to as NAP) does
+    /// > the same, and so on.
+    ///
+    /// **A sort key rather than an iterator**, because every caller already has
+    /// its own collection to order and they share only the question "who goes
+    /// first" — a batch's CR 616.1 choices, CR 704.6d's command-zone offers,
+    /// CR 704.5j's legend groups. Sort *stably* on it and each caller keeps its
+    /// own order within one player, which is what leaves a sweep built from
+    /// `battlefield_ids_ordered` in board order among that player's permanents.
+    pub fn apnap_index(&self, player: PlayerId) -> usize {
+        let n = self.players.len();
+        (player + n - self.active_player) % n
+    }
+
     /// The turn on which `player`'s most recent turn began, or `None` if they
     /// have not had one yet.
     pub fn most_recent_turn_began(&self, player: PlayerId) -> Option<u32> {
