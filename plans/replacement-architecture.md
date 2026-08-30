@@ -1531,9 +1531,10 @@ CR 506.4 does not define an event. It defines a *consequence*, with seven
 causes: leaving the battlefield, a controller change, phasing out, an effect
 that specifically removes it, an attacked planeswalker or battle that stops
 being one, and an attacking or blocking creature that regenerates, stops being
-a creature, or becomes a battle. **Six of the seven are already events the
-engine proposes** — a `ZoneChange`, a Layer 2 control change, a type change out
-of the layer walk, CR 701.19's regeneration — and the seventh *is*
+a creature, or becomes a battle. **Six of the seven follow from something else
+the engine already models** — a proposed `ZoneChange`, a Layer 2 control
+change, a type change out of the layer walk, CR 701.19's regeneration (phasing
+is CR 702.26 and not built) — and the seventh *is*
 `Primitive::RemoveFromCombat`. A "creatures you control can't be removed from
 combat" card would therefore attach to each cause, exactly as
 `cant-effects-architecture.md` §3 has it, and not to one substitutable event. It

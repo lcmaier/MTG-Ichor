@@ -662,12 +662,13 @@ impl GameState {
             }
 
             // CR 506.4. Writes `BattlefieldEntity` directly, because 506.4
-            // defines a *consequence* rather than an event: seven listed causes
-            // remove a permanent from combat, six of which the engine already
-            // proposes (a zone change, a control change, a type change, CR
-            // 701.19's regeneration). An effect that wanted to stop it would
-            // have to attach to a cause, so there is nothing here for a
-            // `GameAction` to carry. → `replacement-architecture.md` §8a.
+            // defines a *consequence* rather than an event: seven causes remove
+            // a permanent from combat and six of them follow from something
+            // else (a zone change, a control change, a type change, phasing,
+            // CR 701.19's regeneration). This arm is the seventh. An effect
+            // that wanted to stop removal would have to attach to each cause,
+            // so there is nothing here for a `GameAction` to carry.
+            // → `replacement-architecture.md` §8a.
             Primitive::RemoveFromCombat => {
                 for object in self.collect_battlefield_targets(ctx) {
                     self.remove_from_combat(object);
