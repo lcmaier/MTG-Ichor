@@ -1,4 +1,5 @@
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeCause;
@@ -168,7 +169,22 @@ pub enum GameEvent {
     PlayerLost { player_id: PlayerId, reason: LossReason },
 
     // --- Counters ---
+    /// Counters were put on or taken off a permanent (CR 122.1).
+    ///
+    /// One event for both directions rather than two, because `added` is a
+    /// signed count and a reader that cares about the direction reads its sign.
+    /// It is emitted only on an actual change: `RemoveCounters` reports how
+    /// many were really there (CR 701.2's "as much as it can"), and removing
+    /// none announces nothing — the same transition rule CR 603.2e gives
+    /// tapping.
+    CountersChanged { object_id: ObjectId, counter: CounterType, added: i32 },
+
     /// +1/+1 and -1/-1 counters annihilated each other on a permanent (rule 704.5q).
+    ///
+    /// Distinct from [`Self::CountersChanged`] because CR 704.5q is a
+    /// state-based action that removes both kinds at once and still writes
+    /// `BattlefieldEntity` directly — it has no `GameAction` to propose through
+    /// (`codebase-state.md` Deferred Migrations item 6).
     CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
 
     // --- Attachment SBAs ---

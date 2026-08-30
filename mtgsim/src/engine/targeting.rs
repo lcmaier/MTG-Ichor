@@ -205,10 +205,15 @@ impl GameState {
     /// control" has to mean the same thing to SBA 704.5n that it would mean to
     /// a static ability.
     ///
+    /// Third caller as of Phase RB: `AffectedSet::Filter` on a `ReplacementDef`
+    /// asks it too, which is what makes Kalitas's "a nontoken creature an
+    /// opponent controls" the same predicate a targeting restriction would
+    /// use.
+    ///
     /// `you` resolves `PlayerRef::You`; `Owner` is the *selected* permanent's
     /// owner, since a selection filter describes the selection rather than the
     /// source.
-    fn permanent_matches_filter(
+    pub(crate) fn permanent_matches_filter(
         &self,
         id: ObjectId,
         filter: &PermanentFilter,
@@ -245,6 +250,11 @@ impl GameState {
                     }
                 })
             }
+            // CR 111.1 / 707.2 — being a token is a property of the *object*,
+            // not of its characteristics, so it is read off `GameObject` rather
+            // than off the layer frame. A copy effect does not make a nontoken
+            // permanent a token (CR 707.2: copiable values do not include it).
+            PermanentFilter::Token => Ok(obj.is_token),
             PermanentFilter::PowerLE(max_power) => {
                 get_effective_power(self, id)
                     .map(|p| p <= *max_power)

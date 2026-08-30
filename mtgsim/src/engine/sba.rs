@@ -2,18 +2,17 @@ use std::collections::{BTreeMap, HashSet};
 
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
-    get_effective_controller, get_effective_name, get_effective_toughness, has_keyword,
+    get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
 };
-use crate::types::keywords::KeywordFlag;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
-use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
-use crate::ui::ask::ask_choose_legend_to_keep;
+use crate::ui::ask::{ask_choose_legend_to_keep, ask_commander_to_command_zone};
 use crate::ui::decision::DecisionProvider;
 
 /// State-Based Actions (rule 704)
@@ -32,6 +31,11 @@ use crate::ui::decision::DecisionProvider;
 /// `CreatureDied`/`PlaneswalkerDied`/`LegendRuleSacrificed`/`AuraDied` event to
 /// emit after the batch. Those events are gone — a reader wants the zone change
 /// and its LKI frame — and the struct went with them.
+///
+/// **CR 704.5g does not come through here**; it uses [`sba_destroy`], because
+/// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
+/// not. That distinction is the whole of why regeneration and shield counters
+/// save a creature from lethal damage but not from zero toughness.
 fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameAction) {
     (
         id,
@@ -44,6 +48,33 @@ fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameActio
     )
 }
 
+/// CR 704.5g/704.5h — lethal damage and deathtouch damage, which CR 701.8b
+/// calls destruction.
+///
+/// The **outer** `Destroy` event rather than the inner zone change it lowers
+/// to, so that a CR 614.8 regeneration shield and a CR 122.1c shield counter
+/// have something to watch. Proposing the zone change directly would make a
+/// state-based death indistinguishable from every other trip to the graveyard.
+fn sba_destroy(id: ObjectId) -> (ObjectId, GameAction) {
+    (id, GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction })
+}
+
+/// Every object in the game, in a deterministic order.
+///
+/// `GameState.objects` is a `HashMap` and CR 704.6d reaches a decision per
+/// commander, so its iteration order is part of that decision. Sorted by the
+/// zone-change epoch, which is monotone and unique per move — the same
+/// reasoning as `battlefield_ids_ordered`'s timestamp, applied to a collection
+/// that has no battlefield entity to read one from.
+fn ordered_objects(
+    game: &GameState,
+) -> Vec<(ObjectId, &crate::objects::object::GameObject)> {
+    let mut all: Vec<(ObjectId, &crate::objects::object::GameObject)> =
+        game.objects.iter().map(|(id, obj)| (*id, obj)).collect();
+    all.sort_by_key(|(id, obj)| (obj.zone_change_epoch, *id));
+    all
+}
+
 impl GameState {
     /// Check and perform all state-based actions.
     /// Returns true if any SBA was performed (caller should re-check).
@@ -54,6 +85,17 @@ impl GameState {
         // CR 704 sweeps are turn-based, not part of any resolution.
         let actx = ActionContext::new(decisions);
         let mut any_performed = false;
+
+        // CR 704.6d's window — "since the last time state-based actions were
+        // checked" — closed and reopened here, at the *top* of the check.
+        //
+        // Not at the bottom, and that is the whole subtlety: a commander that
+        // CR 704.5g puts into a graveyard moves *during* a check, so a
+        // boundary written at the end of that check would place the move before
+        // the boundary it is supposed to be after, and the commander would
+        // never be offered its command zone at all.
+        let since = self.last_sba_check_epoch;
+        self.last_sba_check_epoch = self.next_zone_change_epoch;
 
         // 704.5a — Player with 0 or less life loses the game
         for i in 0..self.players.len() {
@@ -107,6 +149,48 @@ impl GameState {
             }
         }
 
+        // 704.6d / 903.9a — a commander in a graveyard or in exile that was put
+        // there since the last time state-based actions were checked: its owner
+        // **may** put it into the command zone.
+        //
+        // **A state-based action, not a replacement effect**, and that is a
+        // correction rather than a convenience: `codebase-state.md` had CR 903.9
+        // recorded as one replacement until 2026-08-24. Current Oracle splits
+        // it, and only 903.9b (hand or library) is a replacement — so this half
+        // was never blocked on the pipeline and `check_state_based_actions`
+        // already had the `DecisionProvider` it needs.
+        //
+        // Gathered here with the other conditions, and performed with them, so
+        // CR 704.3's one-event rule holds. The zone-change epoch is what makes
+        // "since the last time" answerable at all; `since` was read at the top
+        // of this function, before anything moved.
+        {
+            let mut to_offer: Vec<(ObjectId, PlayerId)> = Vec::new();
+            for (id, obj) in ordered_objects(self) {
+                if !obj.is_commander {
+                    continue;
+                }
+                if !matches!(obj.zone, Zone::Graveyard | Zone::Exile) {
+                    continue;
+                }
+                if obj.zone_change_epoch < since {
+                    continue;
+                }
+                to_offer.push((id, obj.owner));
+            }
+            for (id, owner) in to_offer {
+                if ask_commander_to_command_zone(decisions, self, owner, id) {
+                    self.change_zone(
+                        id,
+                        Zone::Command,
+                        ZoneChangeCause::CommanderZoneSba,
+                        &actx,
+                    )?;
+                    any_performed = true;
+                }
+            }
+        }
+
         // --- CR 704.3: one check, one event -------------------------------
         //
         // "The game checks for any of the listed conditions for state-based
@@ -144,16 +228,22 @@ impl GameState {
             if effective_t <= 0 {
                 continue; // handled by 704.5f
             }
-            // Indestructible creatures are not destroyed by lethal damage (rule 702.12b)
-            if has_keyword(self, id, KeywordFlag::Indestructible) {
-                continue;
-            }
+            // **Indestructible is not checked here any more.** CR 704.5g's
+            // condition is lethal damage and says nothing about it; CR 702.12b
+            // is what stops the destruction, and CR 614.17 makes that a "can't"
+            // rather than a replacement effect. It is now asked once, in
+            // `engine::replacement::is_blocked`, for every destruction from
+            // either of CR 701.8b's routes — so `Primitive::Destroy` and this
+            // sweep can no longer disagree about it.
+            //
+            // Regeneration is likewise no longer a TODO here: a shield is a
+            // registered replacement effect watching `GameAction::Destroy`, and
+            // this proposal is that event.
             let entry = self.battlefield.get(&id).unwrap();
-            // TODO: check for regeneration
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
             if lethal {
-                deaths.push(sba_zone_change(id, ZoneChangeCause::DestroyedBySba));
+                deaths.push(sba_destroy(id));
             }
         }
 
@@ -277,8 +367,15 @@ impl GameState {
 
         if !deaths.is_empty() {
             let batch = deaths.into_iter().map(|(_, action)| action).collect();
-            self.execute_actions(batch, &actx)?;
-            any_performed = true;
+            // **The performed set, not the proposal.** CR 704.3 repeats the
+            // check only "if any state-based actions are performed", and a
+            // proposal is not a performance: an indestructible creature with
+            // lethal damage produces a `Destroy` that CR 614.17's "can't"
+            // drops, and a sweep that counted the proposal would re-check
+            // forever. This is the customer that earned `execute_actions` its
+            // return value back (§4.2).
+            let performed = self.execute_actions(batch, &actx)?;
+            any_performed |= !performed.is_empty();
         }
 
         // 704.5p — Equipment/Fortification attached to non-creature → unattach

@@ -148,8 +148,13 @@ You play Player 0 against a random-decision bot.
 cd mtgsim && cargo run --bin fuzz_games -- --games 500 --seed 42 --threads 8
 ```
 
-Flags: `--games N`, `--max-turns N`, `--seed N`, `--threads N`, `--verbose`,
-`--dump-events <path>`.
+Flags: `--games N`, `--max-turns N`, `--seed N`, `--threads N`, `--pool
+performance|stress`, `--verbose`, `--dump-events <path>`.
+
+Two card pools. `performance` is the frozen 55 every recorded baseline was measured on
+and is the default, because an A/B against a pool that moved is not an A/B; `stress` is
+every registered card, which is what hunts panics and exercises effect interactions.
+The harness prints which one it played.
 
 A given `--seed` reproduces a run exactly. Three runs at one seed must agree on every line
 except the two wall-clock lines; a differing turn count or outcome means process state
@@ -268,6 +273,7 @@ Authority order — when two docs disagree, the higher one wins.
 | [`plans/atomic-tests/sessions/`](plans/atomic-tests/sessions/) | The spec corpus — atomic tests from a close read of the CR. Authored, never generated |
 | [`MTG-Rules/versions/`](MTG-Rules/versions/) | The CR itself; `tmnt.txt` is the baseline the engine targets |
 | [`plans/cards-unlocked-ledger.md`](plans/cards-unlocked-ledger.md) | Which cards each ticket unlocks |
+| [`plans/engineering-practices.md`](plans/engineering-practices.md) | Process: `CLAUDE.md`'s line budget, the comment rule, the two card pools, phase sizing, the specdb gate |
 | [`design_doc.md`](design_doc.md) | The original design. **Historical**, except its §636–664 algorithm, adopted verbatim by `layers-architecture.md` |
 | `plans/archive/` | Superseded. Do not act on it |
 

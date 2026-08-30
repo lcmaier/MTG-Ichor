@@ -8,7 +8,7 @@
 >
 > **Purpose:** Catch cross-ticket integration bugs early via rolling card implementation + integration tests, rather than deferring all integration testing to L20/L21.
 >
-> **Status key:** ✅ = ticket done, 🃏 = card implemented & registered, 🧪 = integration test written
+> **Status key:** ✅ = ticket done, 🃏 = card implemented & registered, 🧪 = integration test written, 📋 = designed in a `plans/` doc, nothing built
 
 ---
 
@@ -209,6 +209,122 @@ Recommended integration tests:
 
 ---
 
+---
+
+## Part 3: Replacement Effects (Phases RA–RE)
+
+Ticket ids here are the RA/RB/... sub-phases of `plans/replacement-architecture.md`
+§9, not the `L##`/`T##` vocabulary above.
+
+### Phase RA — the event spine — ✅ 2026-08-25
+
+**Unlocks no cards by itself**, and that is the point: RA made every observable
+mutation a proposal without changing what any of them do.
+
+### Phase RB — the CR 616.1 pipeline — ✅ 2026-08-26
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| RB item 5 | **Every card that puts a shield, stun or finality counter on a permanent — **164** printed cards, verified on Scryfall 2026-08-26 (92 + 31 + 41). No card text at all: CR 122.1c/d/h state the effects and `engine::replacement::gather` synthesizes them from the counter | Stun (92): Unstoppable Slasher, Mjölnir, Storm Hammer. Shield (31): Titan of Industry, Elspeth Resplendent. Finality (41): Meathook Massacre II, Scavenger's Talent | 🧪 2026-08-26 — the *mechanic* is covered end to end; **no card registered**, because each of these needs a primitive that puts the counter on |
+| RB item 6 | **Regeneration** — CR 701.19a shields from a resolving ability, CR 701.19b static regeneration, CR 701.19c "can't be regenerated" | Drudge Skeletons, Mossbridge Troll, Wall of Bone; the "it can't be regenerated" clause on hundreds of removal spells | 🧪 2026-08-26 — `Primitive::Regenerate` and `Primitive::CantBeRegenerated` exist; no card registered |
+| RB item 7 | **Kalitas, Traitor of Ghet** and the two-sided-filter shape it stands for | Kalitas | 🃏 2026-08-26 (`cards/phase_rb_cards.rs`); registered 2026-08-29 into the stress pool — see the note below |
+| RB items 8–9 | **Commander zone redirection**, both halves: CR 704.6d (graveyard/exile, a state-based action) and CR 903.9b (hand/library, a replacement) | Every commander in every Commander deck | 🧪 2026-08-26 — reachable only once something sets `GameObject.is_commander`, which is CR 903.7's setup hook and still missing |
+| RB — vocabulary | Four stubbed primitives implemented as a side effect: `Tap`, `AddCounters`, `RemoveCounters`, `CreateToken` | **Raise the Alarm is now buildable** — the Notes below flagged it as blocked on `Primitive::CreateToken` | |
+
+**Kalitas is registered, and the pool it moves is not the one that matters.**
+It was held out of the registry at first on the grounds that registering a card
+moves the `fuzz_games` baseline. That was an argument for splitting the pool,
+not for keeping the card out: an unregistered card is invisible to `fuzz_games`,
+to `card_pool_lowering_test` and to `cli_play` at once. Since 2026-08-29 there
+are two pools — the frozen `PERFORMANCE_POOL` that every recorded baseline was
+measured on, and the growing stress pool that `--pool stress` plays. Kalitas is
+in the second only, so it moves nothing recorded and is still exercised: 50
+stress games at seed 12345 produce 202 Zombie tokens and no panics.
+**Register every card you write** (`plans/engineering-practices.md` §3);
+`PERFORMANCE_POOL` is what protects the baseline.
+
+**What RB did not unlock, despite appearances.** CR 615's prevention machinery
+is Phase RD, not this one. RB has `Rewrite::Prevent` and CR 122.1c's prevention
+half; it has no damage shields, no prevention amounts, and no redirection — so
+Fog, Healing Salve, Circle of Protection and the whole "prevent the next N
+damage" family stay blocked.
+
+### Phase RC — ETB replacements
+
+**The largest single entry this ledger will take (~1,350 cards).** Add it with
+RC.
+
+---
+
+## Part 4: "Can't" Effects (Phases RS-1–RS-4)
+
+Ticket ids are the `RS` sub-phases of `plans/cant-effects-architecture.md` §7.
+Counts are clause counts from `plans/references/cant-census.py` (2026-08-27,
+`o:"can't" -is:funny`: 1,857 cards / 2,034 clauses) plus the keyword
+populations §2.2 measures separately — **the keyword numbers are the larger
+half and the census cannot see them**, because those cards never print the word.
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| RS-0 | **No cards.** Lifts the ten methods `ContinuousEffectRegistry` and `ReplacementRegistry` already duplicate into one shared duration registry, so RS-1 uses it rather than inventing a third | — | 📋 designed 2026-08-27 (§9 finding 7) |
+| RS-1 | **Tier 2 — event-time "can't" (CR 614.17).** 236 clauses / 220 cards printed, plus **indestructible** (524 cards with or granting it) moving off its hardcoded arm onto the model | Solemnity, Melira; Platinum Emperion + Teferi's Protection ("your life total can't change"); Abyssal Persecutor + Platinum Angel (needs RE's `PlayerLoses`); Grafdigger's Cage's ETB half; Skullcrack | 📋 designed 2026-08-27; **RC-4 is blocked on this** |
+| RS-2 | **Tiers 1b/1c/1d — casting, activating, targeting.** 206 clauses / ~200 cards, plus **hexproof (336), shroud (35), protection (197)** — the whole `T22` ticket | Slippery Bogle, Troll Ascetic, Progenitus; Grafdigger's Cage's cast half, Drannith Magistrate, Rule of Law, Aggressive Mining, Conduit of Worlds, Rakdos Lord of Riots; Pithing Needle, Cursed Totem, Stony Silence | 📋 designed 2026-08-27 |
+| RS-3a | **Tier 1a — combat, the predicate half** (`T21b`). **1,249 of 1,262** Tier-1a clauses: 1,200 per-creature restrictions plus 49 per-attacker blocker counts — plus **menace (405), landwalk (122), the fear/intimidate/shadow/skulk/horsemanship family (147)**, protection's blocking half, and Defender re-expressed as data | Goblin War Drums, Bog Wraith, Soltari Trooper; the 445 turn-scoped "target creature can't block this turn" effects; Alpha Authority | 📋 designed 2026-08-27; does **not** need CR 613.8 |
+| RS-3b | **Tier 1a — the CR 508.1d/509.1c solver** (`T21d`). The remaining **13** cross-creature clauses, **2** global-cap cards, and the ~**150** *requirement* cards ("attacks each combat if able", goad) that CR 508.1d makes inseparable from them | Silent Arbiter, Dueling Grounds, Bonded Construct, Orcish Conscripts; goad (83 cards) and every Commander deck that runs it | 📋 designed 2026-08-27; **wants CR 613.8 first** (evasion is cumulative) |
+| RS-4 | **Tier 1e — cost payment (CR 614.17b).** 16 printed clauses; the rest is *derived* from RS-1 through a 10-arm projection over the closed `Cost` enum | Yasharn Implacable Earth, Angel of Jubilation, Karn's Sylex — and Platinum Emperion's cost half, which the card never states | 📋 designed 2026-08-27 |
+
+**What this does not unlock.** Tier 3's other half — "damage can't be
+prevented" (32 clauses: Skullcrack, Banefire, Stomp) — needs Phase RD's
+prevention machinery to have something to withhold. CR 113.11's "can't have or
+gain [ability]" (the Archetype cycle, 6 cards) is the **layer system's** by
+CR 101.2a and is not in any RS phase. And the 149 "can't … unless" clauses
+— 138 of them combat — need `Effect::Conditional`, which is Phase 6.
+
+**Read the keyword column carefully.** RS-2 and RS-3a unlock more cards than
+their clause counts suggest and RS-1 unlocks fewer: indestructible is one
+keyword and 524 cards, while Tier 2's 236 printed clauses are spread across a
+dozen mechanics that mostly need other phases anyway (`PlayerLoses` is RE's,
+`EnterBattlefield` is RC's).
+
+---
+
+## Part 5: Copy Effects (Phases CV-1–CV-7)
+
+Ticket ids are the `CV` sub-phases of `plans/copy-effects-architecture.md` §7.
+Counts are from `plans/references/copy-census.py` (2026-08-29). **Two different
+units, never summed:** the copy *clauses* (1,093 over 752 cards printing
+"copy"/"copies"/"copied") and the face/state *card* populations, which never
+print the word and which the clause census structurally cannot see.
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| CV-1 | **Tier C — "becomes a copy" (CR 707.4), turn-bounded.** **56 of 81 clauses**. Also the spine every later CV phase carries: `CopiableValues`, `EffectModification::CopyFrom`, `Primitive::Copy`, and the two ETB-scan legs (`codebase-state.md` item 16) | **Cytoshape** (instant, `AffectedSet::Fixed` by CR 611.2c, until end of turn); Mirrorweave and Nanogene Conversion, which are also `Fixed` once resolved; a Clone-of-an-Anthem probe, the only way to see the `register_static_effects` hole | 📋 designed 2026-08-29, boundary corrected 2026-08-30 |
+| CV-1b | **The indefinite-duration copies.** **25 of 81** Tier C clauses, printed by name by `copy-census.py --scope`. A row that never expires is reachable by neither expiry nor `remove_by_source`, so it outlives its subject without bound | **Dimir Doppelganger**, Lazav the Multifarious, Likeness Looter (activated, self-scoped, capture from a graveyard *card*); True Polymorph, Metamorphic Alteration | 📋 designed 2026-08-29; **blocked on `codebase-state.md` item 10 (CR 400.7)** — and unlike a pump spell's, this exposure is unbounded |
+| CV-2 | **Tier B — "enters as a copy" (CR 707.5/616.1c).** 69 clauses / 69 cards, and it gives `ReplacementClass::CopyOnEnter` the producer RB shipped the bucket for. Carries CR 707.9a–d's exceptions: **139 of the 331** printed "as a copy" cards say "except" | Clone, Phantasmal Image, Sakashima of a Thousand Faces, Spark Double, Evil Twin; every Clone-shaped legend a Commander deck runs | 📋 designed 2026-08-29; **needs RC-2**, and takes CR 616.1c off RC-4 |
+| CV-3 | **Tier A — token copies (CR 707.1/111.1).** 318 clauses / **306 cards**, the largest layer-touching bucket and the cheapest mechanism in the document — no row, no layer, no duration | Kiki-Jiki Mirror Breaker, Helm of the Host, Splinter Twin, Esika's Chariot; the 266 cards printing "token that's a copy", 256 of them Commander-legal | 📋 designed 2026-08-29 |
+| CV-4 | **Tiers D+E — spell and cast copies (CR 707.10/707.12).** 542 + 73 clauses over **306 + 47 cards**, and **it touches no layer, no registry and no replacement**. 186 of those clauses are CR 707.10c's retarget prompt alone — one shared prompt, not 186 implementations | Fork, Twincast, Reverberate, Dualcaster Mage; Zada Hedron Grinder and Ink-Treader Nephilim (707.10d); Isochron Scepter and Panoptic Mirror (707.12) | 📋 designed 2026-08-29; **free to land at any point** |
+| CV-5 | **CR 712 faces — transform + modal DFC.** **496 cards** (396 nonmodal + 100 modal), 486 Commander-legal, and **120 of them can *be* a commander**. Gives `ReplacementClass::BackFaceUp` its 616.1d producer | Delver of Secrets, Huntmaster of the Fells, Withengar Unbound; the modal DFC lands (Agadeem's Awakening, Turntimber Symbiosis); Brutal Cathar as a DFC commander | 📋 designed 2026-08-29; **highest risk — a second card model** |
+| CV-6 | **Face-down (CR 708).** **304 producers** — Layer 1b plus the CR 708.4 cast-face-down path and the turn-face-up special action. Coupled to CV-1 only through the capture ceiling (CR 707.2 makes copiable values depend on face-down status) | Willbender, Brine Elemental, Den Protector; the manifest and disguise/cloak families | 📋 scheduled 2026-08-30, **undesigned** — no type surface yet |
+| CV-7 | **Merging (CR 729) + meld (CR 712.4).** 34 + 21 cards, and the multi-component `BattlefieldEntity` every other phase writes code against the absence of | Brisela Voice of Nightmares (Bruna + Gisela); Illuna Apex of Wishes and Nethroi Apex of Death (mutate); Urza Lord Protector, which melds | 📋 scheduled 2026-08-30, **undesigned**; **back-stop: before Phase 8 card breadth** |
+
+**Nothing in this cluster is out of v1** (§6, revised 2026-08-30 — an earlier
+draft scoped meld, mutate, face-down and flip cards out on population and
+effort, and that is withdrawn). Two reasons, and the first is the project's own
+doctrine: "is this permanent one object or several?" is a **fact**, not a
+feature, so deferring CV-7 does not defer its cost — every phase in between
+writes more code against the single-component assumption. And 21 meld cards is
+not 21 cards of demand when one of them is Brisela. **Flip cards** (CR 710, 25
+cards) ride along in CV-5 once faces exist.
+
+**Cards is the sizing unit; the clause counts are provenance.** A copy card
+carries one mechanism plus rider sentences about it — unlike a "can't" card,
+which can carry several independent restrictions — so clauses count sentences,
+not work. CV-4 is the extreme: 542 clauses over 306 cards, because 186 of those
+are one shared CR 707.10c prompt. And in the other direction, CV-5's 496 cards
+print no copy clause at all, which is why §2.2's population table exists.
+
+---
+
 ## Card Registry Expansion Tracker
 
 Cards currently in registry (24): 5 basic lands, 5 spells (alpha.rs), 4 vanilla creatures, 11 keyword creatures.
@@ -339,6 +455,6 @@ Priority is based on: (1) exercises the most tickets, (2) catches the most integ
 ## Notes
 
 - **Test planeswalker:** No real PW is simple enough for early testing. Create a test-only `TestPlaneswalker` card: {2}{U}{U}, 4 loyalty, +1: draw a card, -3: counter target spell. Register as "Test Planeswalker" in the registry. This avoids needing the full PW activation pipeline (which requires Phase 6 for loyalty ability activation as a special action) — for now, just test ETB loyalty counters + combat damage → loyalty removal → 0 loyalty SBA.
-- **Raise the Alarm requires token creation primitive.** If `Primitive::CreateToken` isn't implemented yet, defer this card until it is. The token cease-to-exist SBA (T13) can be unit-tested without a real token-creating card.
+- ~~**Raise the Alarm requires token creation primitive.**~~ — discharged 2026-08-26. `Primitive::CreateToken` landed with Phase RB item 7 (Kalitas's rider needed it). Note what it is *not*: token creation is not yet a `GameAction`, so CR 614.16's doublers have nothing to replace — that is Phase RE. A token's *entering* is not a proposal either; that is Phase RC.
 - **Aura casting requires T15b.** Holy Strength needs the full Aura attachment-on-resolve path from T15b, not just the SBA from T15.
 - **Cards stay in the registry permanently.** Once added, they become part of the fuzz pool and regression suite. Choose cards that are simple enough to not break the random player but complex enough to exercise the new systems.

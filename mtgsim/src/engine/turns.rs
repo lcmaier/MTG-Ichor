@@ -100,6 +100,13 @@ impl GameState {
                     self.active_player,
                     self.turn_number,
                 );
+                // CR 611.2b applies to replacement effects with a duration the
+                // same way — a regeneration shield or "prevent all damage this
+                // turn" ends when its duration does. Same hook, same instant.
+                self.replacement_effects.remove_expired_at_turn_start(
+                    self.active_player,
+                    self.turn_number,
+                );
                 self.process_untap_step(ctx)?;
             }
             StepType::Draw => {
@@ -126,9 +133,20 @@ impl GameState {
                     entry.damage_marked = 0;
                     entry.damaged_by_deathtouch = false;
                 }
+                // CR 701.19c's "can't be regenerated" is a this-turn fact and
+                // expires with everything else that is.
+                self.cant_be_regenerated.clear();
 
                 // Rule 514.2: End "until end of turn" continuous effects
                 self.continuous_effects.remove_expired_at_cleanup(
+                    self.active_player,
+                    self.turn_number,
+                );
+                // ... and the replacement effects with the same duration. This
+                // is what makes CR 701.19a's "the next time [permanent] would be
+                // destroyed **this turn**" end at end of turn rather than
+                // lingering as an unused shield forever.
+                self.replacement_effects.remove_expired_at_cleanup(
                     self.active_player,
                     self.turn_number,
                 );

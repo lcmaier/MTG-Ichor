@@ -4,3 +4,4 @@ pub mod game;
 pub mod player;
 pub mod battlefield;
 pub mod continuous_effects;
+pub mod replacement_effects;

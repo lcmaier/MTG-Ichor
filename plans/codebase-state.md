@@ -7,17 +7,18 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~28,800 lines of Rust across 77 `.rs` files. 678 tests, 0 warnings, fuzz harness runs 250-game batches.
+- **Code size:** ~31,900 lines of Rust across 83 `.rs` source files (~41,800 with the integration tests). 746 tests, 0 warnings, fuzz harness runs 250-game batches.
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
-- **Not started:** **replacement effects (CR 614–616)** beyond the event spine — Phase RA landed 2026-08-25 and RB is the pipeline itself; **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
+- **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
+- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **Still ahead: RC (ETB replacements, ~1,350 cards), RD (damage and prevention, CR 615), RE (the remaining event kinds).**
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keywords, abilities, P/T, controller), a `ContinuousEffect` registry with duration-based expiry (`state/continuous_effects.rs`, 304 lines), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
   - **Still stubbed:** Layer 3 (text) and Layer 1 (copy) are enum variants only. Nothing produces an effect in either.
   - **Dependency algorithm (CR 613.8) not implemented.** Ordering is timestamp-only, which is sufficient for the layers landed so far in isolation but will not survive Layer 6 + Layer 4 interaction (Humility/Opalescence).
   - **CR 305.7 / 305.6 — ✅ done (Phase LD Part B).** Blood Moon strips a nonbasic land's printed abilities and grants the intrinsic `{T}: Add {R}`; Urborg adds a basic land type and its mana ability without stripping. Lives in `engine/layers/land_types.rs`. `AbilityOrigin` was evaluated at Part B kickoff and **not built** — layer ordering makes it unnecessary; see `layers-architecture.md` §15.2 item 4.
-- **Commander (CR 903) — in scope, skeleton only:** command zone ✅ as a `Zone` variant + `GameState.command` field; commander damage loss SBA ✅; commander damage **increment on combat damage now wired** (2026-04-18) via `GameObject.is_commander` flag + per-source accumulation in `execute_action(DealDamage)`. Still missing: commander tax, 903.9b hand/library redirection (depends on CR 614), 903.9a graveyard/exile redirection (an SBA, CR 704.6d — *not* blocked on CR 614), `GameConfig::commander()`, commander designation/setup hook.
-- **Biggest single block of work remaining before the engine can run real Magic:** the CR 613.8 dependency algorithm + triggered abilities + replacement effects. These are tangled — CR 613.1c says abilities themselves can be layer-modified, replacement effects depend on effective characteristics, triggers often fire on events that must be observed post-replacement. **Commander specifically depends on replacement effects (903.9b hand/library redirection) and multiplayer (800 priority)** — though 903.9a, the graveyard/exile half, is an SBA (CR 704.6d) and needs neither.
+- **Commander (CR 903) — in scope, skeleton only:** command zone ✅ as a `Zone` variant + `GameState.command` field; commander damage loss SBA ✅; commander damage **increment on combat damage now wired** (2026-04-18) via `GameObject.is_commander` flag + per-source accumulation in `execute_action(DealDamage)`. **903.9a (CR 704.6d) and 903.9b both landed with Phase RB, 2026-08-26.** Still missing: commander tax, `GameConfig::commander()`, and a commander designation/setup hook — nothing outside tests sets `is_commander = true`, so neither 903.9 half is reachable in a real game yet.
+- **Biggest single block of work remaining before the engine can run real Magic:** the CR 613.8 dependency algorithm + triggered abilities + replacement effects. These are tangled — CR 613.1c says abilities themselves can be layer-modified, replacement effects depend on effective characteristics, triggers often fire on events that must be observed post-replacement. **Commander's zone-redirection dependency is discharged** — both halves of 903.9 shipped with Phase RB — so what Commander still needs is cost modification (tax) and multiplayer (800 priority).
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for prerequisite cleanups owed by forward-looking scaffolding. Each target system (Replacement, Layers, Triggers, Commander) has a short list of pending migrations that don't surface as test failures until that system lands.
 - **Layers has a formalized architecture doc:** `plans/layers-architecture.md` (2026-04-18). Authoritative for type shapes, module layout, sublayer enumeration, dependency algorithm, and Phase LA→LD work sequencing. A subsequent session should execute from that doc.
 
@@ -144,7 +145,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 6 (abilities), Layer 2 (control), Layer 3 (text), Layer 1 (copy); the CR 613.8 dependency algorithm (timestamp ordering only). CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,compute,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | ⚠️ No behavior yet, but the event spine is done. **Phase RA complete 2026-08-25** (RA-1/RA-2/RA-3): every observable mutation is proposed as a `GameAction` through `execute_action`/`execute_actions` and recorded once, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` (CR 704.3/510.2/502.1 simultaneity) and the resolution that proposed it. `execute_action` is still a pass-through — `apply_replacements` goes in at `engine/actions.rs`'s marked line, and there is no `ReplacementDef` yet. **Next: Phase RB, from `plans/replacement-architecture.md` §9.** |
+| **614–616** | **Replacement + prevention + interaction** | 🟡 **The pipeline is live. Phases RA (2026-08-25) and RB (2026-08-26) complete.** RA made every observable mutation a `GameAction` proposal carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution. RB put `apply_replacements` between proposal and mutation: CR 616.1a–g, 614.4/5/6/17, 616.2, CR 615.5 riders, CR 101.4 APNAP. Consumers: CR 122.1c/d/h counters, CR 701.19 regeneration, Kalitas, CR 903.9b. **Not yet:** CR 614.15 self-replacement (bucket, no producer), CR 614.10/11/16 (RE), CR 614.12/13 ETB (RC), **all of CR 615's prevention detail (RD)** — RB has `Rewrite::Prevent` and CR 122.1c's prevention half, not shields or amounts. See `plans/replacement-architecture.md` §9. |
 
 ### CR 7 — Additional Rules
 
@@ -198,14 +199,14 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 903.3 | **Starting life = 40** | ❌ no `GameConfig::commander()` constructor; `game_config.rs` header comment promises one via a future `Format` trait |
 | 903.5a | **Mulligan (London, same as standard)** | ⚠️ mulligan itself is stubbed (`state/game.rs:88-90`) regardless of format |
 | 903.5b | Deck construction (100 cards singleton + color identity) | 🟡 `DeckLimits { min_deck_size: 99, max_copies: 1 }` fields exist but no commander-config factory wires them; **color identity enforcement not implemented** |
-| 903.7 | **Commander designation + command zone start** | 🟡 `GameObject.is_commander: bool` flag exists (2026-04-18); no deck-construction / setup hook yet flips it, and no "commander starts in command zone" routing |
+| 903.7 | **Commander designation + command zone start** | 🟡 `GameObject.is_commander: bool` flag exists (2026-04-18); no deck-construction / setup hook yet flips it, and no "commander starts in command zone" routing. **This is now the gate on 903.9** — both halves of the zone redirection work and neither is reachable in a real game, because nothing outside tests sets the flag |
 | 903.8 | **Commander tax (+{2} per prior cast from command zone)** | ❌ no cast counter, no cost modification |
-| 903.9a | **Commander in graveyard or exile → command zone** | ❌ — but **not blocked on CR 614**. Corrected 2026-08-24: this half is a *state-based action* (**CR 704.6d**), not a replacement effect. `check_state_based_actions` already takes a `&dyn DecisionProvider`, which is all the rule's "its owner may" needs. Buildable today | `engine/sba.rs` |
-| 903.9b | **Commander to hand or library → command zone instead** | ❌ requires the replacement effect pipeline (CR 614), a stub hook at `engine/actions.rs:86-89`. Carries the rules' only explicit exception to CR 614.5 ("may apply more than once to the same event") | `plans/replacement-architecture.md` § Phase RB |
-| 903.10 | **Commander damage loss (≥21 combat damage from one commander)** | ✅ SBA (T16); `commander_damage_taken: HashMap<ObjectId, u32>` on `PlayerState` (T02) | `state/player.rs`, `engine/sba.rs` |
-| 903.11 | Attacking with commander + accumulating commander damage | ✅ (2026-04-18) `GameObject.is_commander` flag + `execute_action(DealDamage)` accumulates per-source `commander_damage_taken` when `is_combat && target == Player && source.is_commander`. 5 unit tests cover basic accumulation, 21-damage threshold, non-combat exclusion, non-commander exclusion, and per-source isolation. Still requires a Commander-format setup hook to actually flip the flag at deck construction — no gameplay wiring yet sets `is_commander = true` outside tests. |
-| 903.12 | Partner | ❌ (`EnchantmentType::Background` exists as a data-type, no mechanics) |
-| 903.13 | Friends Forever / Choose a Background / Doctor's companion | ❌ |
+| 903.9a | **Commander in graveyard or exile → command zone** | ✅ 2026-08-26 (Phase RB item 8). A *state-based action* (**CR 704.6d**), not a replacement effect — the 2026-08-24 correction, now in code. "Since the last time state-based actions were checked" is answered by `GameObject.zone_change_epoch`, with the window read at the **top** of the check: a commander CR 704.5g kills moves *during* a check, so an end-of-check boundary would never offer it | `engine/sba.rs` |
+| 903.9b | **Commander to hand or library → command zone instead** | ✅ 2026-08-26 (Phase RB item 9). Synthesized per event as a *game rule*, not card text, and the rules' only `exempt_from_614_5` effect. Its chooser needs no special case: CR 616.1's "or its owner if it has no controller" already answers for a card in a graveyard, library or hand. **It is also what exposed the hang in §4.1's loop** — exempt *and* optional means a decline is re-offered forever unless declines are tracked separately | `engine/replacement/gather.rs` |
+| 903.10a / 704.6c | **Commander damage loss (≥21 combat damage from one commander)** | ✅ SBA (T16); `commander_damage_taken: HashMap<ObjectId, u32>` on `PlayerState` (T02). The loss itself is the state-based action at **CR 704.6c**; 903.10a is the Commander-variant rule it implements | `state/player.rs`, `engine/sba.rs` |
+| 903.10a | Attacking with commander + accumulating commander damage | ✅ (2026-04-18) `GameObject.is_commander` flag + `execute_action(DealDamage)` accumulates per-source `commander_damage_taken` when `is_combat && target == Player && source.is_commander`. 5 unit tests cover basic accumulation, 21-damage threshold, non-combat exclusion, non-commander exclusion, and per-source isolation. Still requires a Commander-format setup hook to actually flip the flag at deck construction — no gameplay wiring yet sets `is_commander = true` outside tests. |
+| 903.11 | Cards from outside the game (wishes) | ❌ Phase 9 — `atomic-tests/sessions/session-10.md` defers it, with the Companion cross-ref |
+| 702.124 | Partner, incl. partner with, choose a Background, Doctor's companion | ❌ (`EnchantmentType::Background` exists as a data-type, no mechanics). CR 702.124a collects all five partner abilities under one keyword — they were 903.12/903.13 in an older CR |
 
 **Other variants in CR 9 (Brawl, Planechase, Archenemy, Vanguard, etc.) — ❌ not started.**
 
@@ -223,7 +224,30 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **RA ships as three PRs (sized 2026-08-25, `replacement-architecture.md` §9).** RA-1 = the `ActionContext` sweep + `ZoneChangeCause`; RA-2 = the six routing tickets; RA-3 = batch form, LKI/cause/batch-id payloads, the three bypass closures, and the death-event demotion. Ticket numbers below are stable and cited by §9.
 
-**Status 2026-08-25: RA-1 ✅ (PR #58 + two follow-up commits), RA-2 ✅, RA-3 ✅. Phase RA is complete; RB is next.** What landed:
+**Status 2026-08-26: Phase RB ✅ — the CR 616.1 pipeline is live and three consumers use it.** All nine of `replacement-architecture.md` §9's RB items shipped. What landed:
+
+- **`apply_replacements`** — §4.1's loop, inside `execute_actions` upstream of `perform_action`. CR 616.1a–f, CR 614.5's applied set keyed on effect *instance*, CR 616.2's re-gather, CR 614.6's dropped event, CR 614.17/17c's blocked path, §4.1a's rider timing. `ActionContext.dp` has its first reader.
+- **`execute_actions` is three phases, and the split is CR 704.3**: decide for every batch member against one board, then perform, then run riders. That is where §4.3's CR 101.4 APNAP ordering lives — choices in APNAP order of chooser, performance in batch order, riders last (CR 615.5). It returns `Result<Vec<GameAction>, String>` again, and the SBA sweep is the customer that earned it back.
+- **New event vocabulary**: `GameAction::Destroy { source: DestructionSource }` (the outer event; its performer proposes the inner `ZoneChange`), `AddCounters`, `RemoveCounters`. `CounterType::{Shield, Stun, Finality}`; `GameEvent::CountersChanged`.
+- **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked`, not filtered at the two call sites that each held their own copy of it.
+- **Three consumers**: counters (CR 122.1c/d/h, no card text, 164 cards), regeneration (CR 701.19a/b/c, `Primitive::Regenerate` + the rider CR 701.19a spells out), and Kalitas, Traitor of Ghet — the only RB card, chosen for difficulty.
+- **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement.
+- Eight primitives: four stubs given implementations (`Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`) and four new (`Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`).
+
+**Five findings where the plan and the tree disagreed, all recorded in `replacement-architecture.md` §9:** `Uses::CounterBacked` does not survive the CR text; CR 122.1c's replacement half is restricted to destruction *by an effect*; `EventPattern` ships six arms and `Rewrite` two, because an arm the pipeline cannot apply is a card that silently does nothing; `AffectedSet` and `ZoneChangeCause` had to move into `types/` to keep the crate's layering; and §4.1's loop **hangs** on a declined `exempt_from_614_5` optional without a second set.
+
+**The blast-radius watch held.** §11 item 7 predicted that every existing test would start traversing the pipeline; **zero new `DecisionProvider` prompts** appeared, §4.1's two-candidate rule was never relaxed, and `fuzz_games --games 50 --seed 12345` is identical to the pre-RB baseline on every line. Perf: 13.01 → 13.04 ms/game at `--games 200`, medians of three interleaved runs in one worktree.
+
+**Still owed by the replacement track**, and none of it blocks RC:
+
+- **CR 614.15 self-replacement has a bucket and no producer.** `ResolutionContext` still has three fields (§11 item 3). Consequence worth knowing: CR 614.17c's blocked-event path always drops the event, because the only class that could survive it has nothing in it.
+- **§3.3 source 2 — static abilities functioning in other zones — is still unsized.** §11 item 4 asked RB to count the cards and it did not. The *shape* question is now answerable, though: `gather`'s sweep is written, so it is a zone parameter on one loop plus a timestamp on `GameObject` (item 9's, already owed), not a separate registry.
+- **CR 704.7's same-result collapse** is still per-object inside the SBA sweep and does not reach player loss; it needs `GameAction::PlayerLoses` (item 6, RE).
+- **`specdb owed` is unchanged at 38** and cannot be the gate for RB, because RB is part of Phase 6 and Phase 6 also covers triggered abilities — adding it to `SHIPPED_PHASES` would arm a gate against work that has not started. The honest measure is the CR 614/615/616/122.1/701.8/701.19 slice of Phase 6: **14 atoms fully covered, 3 partial, 49 uncovered**, and all but a handful of the 49 are RC's (614.12/13, 616.1b/c), RD's (615.\*, 614.9, 614.7a) or RE's (614.10/11/16, 704.7). The RB-shaped remainder is ATOM-614.17a-001, ATOM-614.17b-001, ATOM-614.17c-001, ATOM-616.1a-001 and the four `BOUNDARY-DEF-614.1*` markers.
+
+---
+
+**Status 2026-08-25: RA-1 ✅ (PR #58 + two follow-up commits), RA-2 ✅, RA-3 ✅. Phase RA is complete.** What landed:
 
 - `ActionContext { dp, resolution }` threaded through every mutation chokepoint. `dp` is still unread — RB is where `apply_replacements` consults it. `resolution` is read: RA-3 stamps it onto every emitted event.
 - `ZoneChangeCause` on `GameAction::ZoneChange`, **11** production movers labelled. Not 10, and not 9: §11's derivation counted `change_zone` callers and missed both `resolve.rs`'s direct `execute_action(ZoneChange)` for `Primitive::Destroy` **and** `play_land`, which wrote straight to `move_object` (see the RA-3 findings below).
@@ -234,7 +258,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 - The untap sweep moved to `battlefield_ids_ordered` — routing it made its order observable.
 - **`execute_actions`, the batch form (CR 704.3 / 510.2 / 502.1).** `execute_action` is `execute_actions(vec![action])`; the batch opens a `BatchId` that every event it emits carries, and a *nested* call joins the enclosing batch rather than opening its own (CR 120.3f makes lifelink's gain a *result of* the damage, and CR 120.4c/d process the results and then let the one damage event occur). Three callers batch: combat damage, the untap step, and the SBA sweep.
 - **The SBA sweep is one event.** It used to gather 704.5f's victims, move them, and only then ask 704.5g's question. Now every condition is read against one game state and the moves are performed as a single batch, deduped per object — CR 704.7's same-result collapse, with the first condition in CR order naming the cause. `StateBasedActionPerformed` collapsed with it: one emission per check, where it had been one per action and none at all for the two creature-death sweeps.
-- **`perform_action`'s `ZoneChange` arm is the only production emitter of `GameEvent::ZoneChange`.** `move_object` performs and says nothing. That is not tidiness: the arm is the only place that knows the `cause`, and the only place that can capture the CR 603.10a LKI frame *before* the object stops being a permanent. The frame is a `compute_characteristics` call taken ahead of the mutation — no overlay and no `GameState` clone; the entering-object hypothetical that needs one is RC-B's problem.
+- **`perform_action`'s `ZoneChange` arm is the only production emitter of `GameEvent::ZoneChange`.** `move_object` performs and says nothing. That is not tidiness: the arm is the only place that knows the `cause`, and the only place that can capture the CR 603.10a LKI frame *before* the object stops being a permanent. The frame is a `compute_characteristics` call taken ahead of the mutation — no overlay and no `GameState` clone; the entering-object hypothetical that needs one is RC-4's problem.
 - **The three `// REPLACEMENT-BYPASS:` sites are closed** (item 2 below). `GameState::resolving` names the popped-but-not-yet-anywhere state instead of routing around it, which lets `remove_from_zone_collection(Stack)` treat a missing entry as expected for exactly that object and lets `init_zone_state` read CR 110.2b's controller. `init_zone_state_with_controller` is gone.
 - **The type-specific death events are deleted, not demoted** (revised 2026-08-26 in review — a doc-comment policy was weak enforcement for something the type system can enforce). `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed`, `AuraDied`, `SpellResolved` and `PermanentLeftBattlefield` are all gone. `ui/display.rs` builds its line from the `ZoneChange`'s `cause` and `lki`; `fuzz_games` counts deaths the same way. Three reasons, and the third is measured: they partition one event by type and permanent types are not a partition (a Gideon is both); they name a subset without naming its boundary, which ATOM-603.6c-001 needs; and **the redundancy was hiding a bug** — `CreatureDied` was emitted only by the SBA sweep, so a creature killed by a spell never counted, and `fuzz_games` undercounted at 5.3 where the zone changes say **6.2**. That is the one fuzz number RA-3 moves, and it moves because it was wrong.
 - **RA-2's exit criterion holds and is grep-provable:** the only production writes to `life_total` or `entry.tapped` are `perform_action`'s own arms. RA-3 adds the same for `GameEvent::ZoneChange` emission.
@@ -277,11 +301,11 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
 5. **CR 601.2a announces a move that CR 601.2 may un-happen (recorded 2026-08-25, RA-3).** `cast_spell` proposes the hand→stack move at CR 601.2a — correctly, since the object really is on the stack while costs are paid — but the `ZoneChange` is emitted *then*, before it is knowable whether the cast rewinds. A rewind leaves the forward event in the log, so a replay sees a move CR 601.2 says never happened. RA-3 fixed the other half (the rollback itself is silent, which is what `// CAST-ROLLBACK:` had always claimed and never delivered); this half needs the announcement deferred to CR 601.2i without deferring the move, which is a two-phase cast rather than a payload change. **Sized:** one function, `cast_spell`, plus wherever the deferred event is flushed. `tests/phase_ra_integration_test.rs::test_a_failed_cast_announces_nothing` documents the gap where it lives. Not blocking RB — no replacement effect applies to a rewind — but it is a wrong entry in a log the trigger matcher will read, so it should land before Phase 6.
 
-6. **Four state-based actions still mutate outside the chokepoint, because no `GameAction` names them (recorded 2026-08-25, RA-3; extended 2026-08-26).** CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `BattlefieldEntity` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6). Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it.
+6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `BattlefieldEntity` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6). Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it.
 
 7. **The early stack pop has no surviving justification (audited 2026-08-26, in review of RA-3).** `resolve_top_of_stack` removes the object from the `stack` `Vec` before resolving, documented as keeping an in-flight Counterspell from seeing the resolving object. Nothing can see it: CR 608.2g forbids casting a spell or activating an ability during a resolution, so no effect can *acquire* it as a target mid-resolution, and a spell cannot choose itself at CR 601.2c because `enumerate_legal_selections` (`oracle/legality.rs`) and `has_any_legal_choice` (`engine/targeting.rs`) already exclude it by `exclude_id`. The CR meanwhile keeps a resolving spell **on** the stack (CR 608.2; 608.2n/608.3a move it at the end), so the pop is an engine artifact the rules do not have.
 
-    **Slotted for RC Part A**, which rewrites `init_zone_state` — `resolving`'s other reader — anyway; `replacement-architecture.md` §9 and the RC section both carry it now. **Sized:** stop popping at the top of `resolve_top_of_stack`; keep taking the `StackEntry` (the body needs to own it); let `move_object`'s `remove_from_zone_collection(Stack)` do the removal it is already asked to do; remove the object from `stack` explicitly on the ability path, which has no zone change. That deletes the leniency branch in `remove_from_zone_collection` — a special case that can currently mask a genuinely missing stack object — and leaves `GameState::resolving` with one reader instead of two (CR 110.2b's controller, which is real either way). Audit first: five production sites read `stack.is_empty()` (`zones.rs:169`, `legality.rs:52`, `mana_helpers.rs:345`, `cast.rs:576`, `priority.rs:176`) and would newly see the resolving object; none is reachable during a resolution today, but CR 608.2g's "unless an effect instructs" case would make `cast.rs:576` reachable. Not blocking RB.
+    **Slotted for RC-1, on its own and first** (`replacement-architecture.md` §9, re-sized 2026-08-26). It was going to ride along with the performer migration; measured, it is 11 production sites across 7 files and is its own PR — a pure deletion that makes the tree simpler before the complicated thing lands, and that leaves `GameState::resolving` with one reader instead of two. **Sized:** stop popping at the top of `resolve_top_of_stack`; keep taking the `StackEntry` (the body needs to own it); let `move_object`'s `remove_from_zone_collection(Stack)` do the removal it is already asked to do; remove the object from `stack` explicitly on the ability path, which has no zone change. That deletes the leniency branch in `remove_from_zone_collection` — a special case that can currently mask a genuinely missing stack object — and leaves `GameState::resolving` with one reader instead of two (CR 110.2b's controller, which is real either way). Audit first: five production sites read `stack.is_empty()` (`zones.rs:169`, `legality.rs:52`, `mana_helpers.rs:345`, `cast.rs:576`, `priority.rs:176`) and would newly see the resolving object; none is reachable during a resolution today, but CR 608.2g's "unless an effect instructs" case would make `cast.rs:576` reachable. Not blocking RB.
 
 8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger.
 
@@ -361,7 +385,7 @@ here. None is blocking RB.
    was, in its entirety, a facts phase; that is what "the event spine" meant.
 
 10. **CR 400.7 is unimplemented: an object keeps its identity across zones (found
-    2026-08-26).** `move_object` preserves the `ObjectId`, and
+    2026-08-26; the *field* landed with RB, the rule did not).** `GameObject.zone_change_epoch` now exists — stamped by `move_object`, read by CR 704.6d — so the tick this item wanted is recorded and does not need re-threading later. What is still missing is the rule itself and, more importantly, its exception list. `move_object` preserves the `ObjectId`, and
     `cleanup_zone_state` removes only effects *sourced by* the leaving object,
     never effects *targeting* it. So a `Duration::UntilEndOfTurn` pump on a
     creature that dies and returns the same turn still applies to it, against
@@ -432,6 +456,213 @@ here. None is blocking RB.
     the type level. Unreachable until Layer 1 (copy) and Station land; recorded so
     neither phase quietly removes it.
 
+### Found by the "can't" design pass (2026-08-27)
+
+Three facts recorded by `plans/cant-effects-architecture.md`, which is now the
+authority for CR 101.2 / 614.17 / 613.11. The design is written; none of it is
+built, and none of it blocks RC-1 through RC-3.
+
+13. **Ticket `L15` is superseded and was never built.** `plans/archive/
+    implementation-plan-final.md`'s "Post-layer pass" specified a
+    `PlayerActionRestriction` enum with `CantCastSpells(PlayerId)`,
+    `CantGainLife(PlayerId)`, `CantAttack(PlayerId)`,
+    `CantActivateAbilities(PlayerId, Option<String>)` and
+    `CantDrawExtraCards(PlayerId)` as sibling variants. Grep confirms none of it
+    exists in `src/`. It is a variant per card wearing a rule's name —
+    `CantGainLife` and `CantDrawExtraCards` are the same restriction with
+    different `EventPattern`s — and `cant-effects-architecture.md` §6.2 replaces
+    it. **What L15 owned that the restriction model does not:** `lands_per_turn`
+    is still a raw field (`state/player.rs:23`, read directly by
+    `PlayerState::can_play_land`) and is a *computed player-scoped value*, not a
+    restriction. It belongs with the cost-modification phase, the other CR 613.11
+    consumer (Before Layers item 3). Four corpus atoms still carry the `L15`
+    ticket: `ATOM-601.3-001`, `ATOM-613.10-001`, `ATOM-613.11-001/002`.
+
+14. **`turns.rs:138` hardcodes a duration CR 608.2c does not give it — the
+    clear is too *broad*.** The CR 514.2 cleanup clears
+    `GameState::cant_be_regenerated` under a comment asserting that "can't be
+    regenerated" is a this-turn fact, with no rule cited. The governing rule is
+    **CR 608.2c**, which names this exact card text as an example of later text
+    modifying the meaning of earlier text: "Destroy target creature. It can't be
+    regenerated" is one instruction, so the restriction is scoped to *that
+    destruction* and is not a continuous effect at all. (CR 611.2's "until end
+    of game" was an earlier misreading of this and is wrong — 611.2 never
+    engages.) Reachable divergence: Wrath of God destroys a creature carrying a
+    CR 122.1c shield counter, the shield replaces the destruction, the creature
+    survives, and the engine withholds every regeneration shield from it until
+    cleanup where the CR allows one immediately. Fixed by a resolution-scoped
+    `Duration` variant, which does not exist yet — `Duration` today has no way
+    to say "for the event this resolution is about to perform".
+
+    **The general rule is the part worth keeping** (`cant-effects-architecture.md`
+    §9 finding 1): CR 608.2c instructs the reader to "apply the rules of English
+    to the text", so a restriction's scope **cannot be derived by the engine**
+    and must be authored per card. Two cards with identical restriction text can
+    have different scopes because of the sentence before them.
+
+15. **Four `KeywordFlag` variants are constructible and enforced nowhere.**
+    `Hexproof`, `Shroud`, `Menace` and `Intimidate`. The only `KeywordFlag::`
+    references to them in `src/` outside the enum definition are `ui/display.rs`
+    (two of the four) and `layers/land_types.rs`'s hexproof insertion. A card
+    carrying one can be registered today and will quietly do nothing.
+    `engine/targeting.rs:39` still carries the `T22` TODO that would fix two of
+    them; `Menace` and `Intimidate` are `T21b`'s. All four are Tier 1a/1d in
+    `cant-effects-architecture.md` §2.3 and land in RS-2 / RS-3.
+
+16. **Two ETB-time scans read *printed* abilities, and a Layer 1 copy defeats
+    both (found 2026-08-29, writing `copy-effects-architecture.md` §4.7).**
+    `place_on_battlefield` runs exactly two ability scans, and both take
+    `card_data.abilities`:
+
+    - `register_static_effects` (`state/game_state.rs:737`), whose doc says it
+      "Reads printed abilities on purpose" — correctly, to avoid circularity
+      inside `place_on_battlefield`. Consequence: **a copy of a permanent with a
+      static continuous ability registers no row for it.** A Clone of Glorious
+      Anthem would pump nothing.
+    - the `replacement_ability_sources` insert (`game_state.rs:760`), which is
+      `rb-review.md` I9: a copied replacement ability is invisible to `gather`'s
+      fast-path gate (`gather.rs:143`) and silently never applies.
+
+    Neither is reachable today — nothing produces a Layer 1 effect — and both are
+    CV-1's to fix (a third `RegistryScopeSummary` flag for the second; static
+    re-registration off the captured ability list for the first). Recorded here
+    because the general rule outlives the instance and Phase 6 will meet it
+    next: **a fast-path gate must be derived from the same place its sweep
+    reads.** `gather` reads the *effective* ability list; the gate reads two
+    *sources* of ability. Layer 1 and Layer 3 are the two routes to that list
+    that do not exist yet, and each needs a leg on every such gate. Triggered-
+    ability registration (critical-path item 6) will want the same scan.
+
+    `game_state.rs:249`'s "between them the gate is sound" is now scoped to
+    "sound only until Layer 1 or Layer 3 exists", with the §4.7 pointer
+    (2026-08-30, `rb-review.md` I9).
+
+### Found by the #62 pre-merge pass (2026-08-30)
+
+17. **Nothing expires a registry row with a source-scoped duration (found
+    2026-08-30, closing `rb-review.md` H2).** `cleanup_zone_state` used to call
+    `replacement_effects.remove_by_source` when a permanent left the
+    battlefield, citing CR 611.2a for the opposite of what it says: every row in
+    that registry was made by a *resolution*, and 611.2a gives those the
+    duration the spell or ability stated. The call is gone. What goes with it:
+    `RegisteredReplacement.duration` can hold `WhileSourceOnBattlefield`,
+    `WhileEnchanted` and `WhileEquipped`, and no hook removes any of them —
+    `remove_expired_at_cleanup` handles `UntilEndOfTurn` and
+    `remove_expired_at_turn_start` handles `UntilYourNextTurn`. Unreachable
+    today: `Primitive::Regenerate` is the only producer and it makes
+    `UntilEndOfTurn` rows. **Sized:** one `retain_effects` closure keyed on
+    duration *and* source, called from `cleanup_zone_state` — the right cite is
+    CR 611.2b ("for as long as . . ."), not 611.2a. Owed by the first
+    resolution-created replacement whose text is "for as long as [this
+    permanent] is on the battlefield".
+
+### Was the critical path complete? — audited 2026-08-27
+
+Asked by the owner after the "can't" model turned out to be a whole subsystem
+nobody had scheduled. The useful form of the question is not "are we confident"
+but **"what shape of thing did we miss, and does anything else have that
+shape?"** Both halves are answerable.
+
+**The signature of the miss, in three parts.** "Can't" effects have no CR
+section of their own — they are CR 101.2, 613.11, 614.17, 508.1c, 509.1b,
+601.3, 602.5, 115.6 and 701.19c, one or two subrules each. The planning docs
+mirror CR *sections* (`layers-architecture.md` = 613, `replacement-architecture.md`
+= 614–616), so a mechanic spread across nine of them has no natural home and
+lands in nobody's doc. Meanwhile **the corpus knew**: `ATOM-614.17a/b/c/d`,
+`ATOM-601.3-001`, `ATOM-509.1b-002` all existed. What failed was the *query* —
+`specdb owed` filters to `ticket LIKE 'NEW%'`, and those atoms carry `L15` and
+`T21b`, so they sat in `owed --all`'s 550 and never in the default 38.
+
+> **The detector:** a CR section with many uncovered atoms that **no
+> architecture doc mentions**, or whose atoms are tagged to a phase the plan
+> does not schedule. Run it as `owed --all` grouped by rule prefix, cross-checked
+> against which of `layers-`/`replacement-`/`cant-effects-`/`copy-effects-architecture.md`
+> mentions that section. **Two refinements from the 2026-08-29 run:** `owed --all`
+> is not enough on its own — 26 of the copy cluster's atoms carry ticket `D5` and
+> the rest are tagged `Phase 9`, so the grouping has to be by *rule prefix*, never
+> by ticket. And a headline Scryfall count is a hypothesis: check what it
+> includes before it becomes a scoping argument.
+
+**Run against the tree today it finds one more, and it is the same shape.**
+
+| | "Can't" effects | **Copy effects (CR 707 + 712 + 708 + 729 + Layer 1)** |
+|---|---|---|
+| Spread across | 9 CR subrules | CR 707 (copying), 712 (DFC/meld), 708 (face-down), 729 (merging), 613.2 (Layer 1) |
+| Owning doc | none, until 2026-08-27 | none, until **2026-08-29** — `plans/copy-effects-architecture.md` |
+| Corpus atoms, uncovered | ~21 | **101**, all uncovered (707: 30, 712: 36, 729: 19, 708: 10, 613.2: 3, 710: 3) |
+| Corpus's own phase tag | Phase 6 / 5-Pre | **CR 707: 23 atoms tagged "Phase 6"** — i.e. the corpus files copy effects *with replacement effects*, and RC–RE does not schedule them |
+| A shipped enum already waiting for it | `ReplacementClass::SelfReplacement` | **`ReplacementClass::CopyOnEnter` and `BackFaceUp`** — two of RB's five buckets, with no producer |
+| On `CLAUDE.md`'s critical path | no (now item 5b) | no — **now item 5c**, phases CV-1–CV-7 |
+| Card population | 1,857 printed + keywords | **517 double-faced** (396 transform + 100 modal + 21 meld), 752 cards printing "copy", 304 face-down producers, 34 mutate |
+
+**Three cells of the original table were wrong, and they are corrected above.**
+Recorded rather than silently edited, because the detector's *method* is the
+thing this section is arguing for and its failure modes are worth knowing.
+
+1. **"706"** is Rolling a Die in `tmnt.txt`. The intended section is **708,
+   Face-Down Spells and Permanents** — CR 613.2b's Layer 1b, 10 uncovered atoms.
+2. **"2,890 double-faced cards"** is `is:dfc`, and **2,243 of those are
+   `layout:art_series`** — art cards with a signature on the back, not playable
+   Magic and with no copiable values to model. With `double_faced_token` (80) and
+   `reversible_card` (71) also removed, the rules-relevant population is **517**.
+   The conclusion survives; the scoping argument does not survive a 5.6×
+   overstatement, which is the difference between "schedule it" and "schedule it
+   first". `copy-census.py --decompose` prints the breakdown.
+3. **CR 729, Merging with Permanents, was missing** and CR 613.2a names it in the
+   same breath as CR 707: layer 1a is "copy effects (see rule 707) *and changes
+   … determined by merging an object with a permanent (see rule 729)*". 19
+   uncovered atoms; 34 mutate cards. **In v1 and scheduled** — phase CV-7, with a
+   back-stop before Phase 8 card breadth, because a multi-component permanent is
+   a *fact*: every phase built meanwhile writes code against the
+   single-component assumption.
+
+**A headline Scryfall count is a hypothesis, not a measurement.** That is the
+one lesson to carry to the next detector run: `is:dfc` answers a question about
+card *faces*, not about rules the engine must implement, and nothing in the
+number says so.
+
+`Layer1Copy` is documented in `engine/layers/types.rs` as "still a stub: the
+variant exists, nothing produces an effect in it", and CR 616.1c's bucket ships
+in `ReplacementClass` for the same reason CR 614.15's does. **This is not a
+finding that anything is broken** — it is a finding that a system with **1,628
+cards** behind it had no doc and no critical-path slot, exactly as "can't" did
+on 2026-08-26. (752 printing a copy clause, 901 carrying a face or state that is
+one, overlapping by 25 — measured, not summed by hand.)
+
+**✅ Closed 2026-08-29 by `plans/copy-effects-architecture.md`** (`CLAUDE.md`
+item 5c). The seam question is answered by CR 613.2c rather than chosen: copiable
+values are the *output* of layer 1, so CR 707 owns the payload and Layer 1a owns
+its application, and the payload is a snapshot (CR 707.2b/2c) stored in one
+`EffectModification::CopyFrom` row. Three consequences worth carrying here:
+
+- **RC-4 cannot produce a `CopyOnEnter`** and should not try — it keeps CR
+  616.1b (Layer 2 is shipped) and gives 616.1c up to phase CV-2. That makes RC-4
+  smaller, not later, and it is why the doc landed before RC-4 rather than after.
+- **Copy work is *not* blocked on critical-path item 7**, provided a copy row
+  stores values rather than an `ObjectId`. A reference-carrying row would be
+  dependent under CR 613.8a(b) *and* would break `layers-architecture.md` §5.2's
+  strictly-descending termination argument, since two permanents copying each
+  other is a legal board.
+- **`register_static_effects` has the same hole `gather`'s gate has** (item 16
+  below), found while writing the doc.
+
+**Why late discovery has been cheap so far, and what would make it expensive.**
+Both misses are **features** on this file's own fact/feature triage, not facts.
+Nothing had to be unbuilt: RB's `is_blocked` was correct-but-narrow and the
+restriction model extends it. The expensive kind is a missing *fact*, and the
+evidence that those have had deliberate attention is Sigarda — "spells and
+abilities your opponents control can't cause you to sacrifice permanents" needs
+to know **who caused an event**, and it costs one `Option<SourceFilter>` field
+only because Phase RA threaded provenance through `ActionContext` first. Had it
+not, that one card would have been a re-thread through every system built since.
+**Keep auditing for facts; let features be found late.**
+
+**What this does not claim.** The corpus is ~1,760 atoms and the critical path is
+seven items; the plan will always be coarser than the rules, and a third
+`can't`-shaped gap is likely rather than unlikely. The claim is narrower and
+checkable: the detector above is cheap, it has found two, and running it at the
+start of each phase is a better instrument than confidence.
+
 ### Fuzz-pool coverage — audited 2026-08-26
 
 **The pool is thin exactly where the engine is thin, and card selection cannot
@@ -471,6 +702,19 @@ unkillable 0/1 blocker does.
 **The rule this establishes:** when a mechanic has no fuzz coverage, name the
 blocker before reaching for a card. If the blocker is a stubbed primitive or a
 missing subsystem, adding a card buys errors rather than coverage.
+
+**Superseded in part 2026-08-29 (RB review, theme G3): there are now two pools.**
+The audit above was run against one pool that had to be both the panic hunter and
+the A/B baseline, which is why Kalitas was written and left out of the registry —
+"it would move the baseline". That is an argument for splitting, not for keeping
+cards out. `cards/registry.rs` now builds `default_registry()` (every registered
+card, `fuzz_games --pool stress`) and `performance_pool()` (the frozen
+`PERFORMANCE_POOL`, the default, and what every baseline in this file was measured
+on). The paragraph above stays exactly true of the performance pool. Kalitas is
+registered into the stress pool only; 50 stress games at seed 12345 give P0 30 /
+P1 20, turns 26.8, spells 19.5, lands 17.2, combat 10.7, creatures died 5.2,
+damage events 25.0, total damage 54.2, life changes 17.7, zero panics and 202
+Zombie tokens. Rules and both baselines: `plans/engineering-practices.md` §3.
 
 ### Phasing (CR 702.26) — sized 2026-08-26, not started
 
@@ -619,7 +863,9 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 10. **The `Layer` enum is missing a sublayer split — doc/code drift.** (The CDA half of this item is ✅ done, 2026-08-22; see below.)
 
-    **Layer 1a / 1b.** CR 613.2 splits layer 1 into face-down effects (1a) and copy effects (1b), and `layers-architecture.md` §7 specifies both variants and says Phase LA ships them. The enum has a single `Layer1Copy`. Order matters: a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2). Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
+    **Layer 1a / 1b — and this entry had the two backwards until 2026-08-29.** `tmnt.txt` says **613.2a Layer 1a: Copiable effects** (copy effects, CR 707, and merging, CR 729) and **613.2b Layer 1b: Face-down**, i.e. copy *then* face-down. The enum has a single `Layer1Copy`. Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
+
+    The inversion is still live in **`layers-architecture.md` §7** and **`compute.rs:27`**, and all three sites shared one wrong derivation: *"a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2)"* is a **correct conclusion from a wrong premise**. The 2/2 does not come from face-down applying first; it is CR 708.2's own "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly. Where it bites is exactly one integer: `copy-effects-architecture.md` §4.6 captures copiable values at the end of layer 1, and a reader who believes 1b is copy takes the ceiling one sublayer too early — a bug that appears only on boards with a face-down creature being copied.
 
     **~~Keywords are abilities, and we model some of them as markers.~~ ✅ resolved (2026-08-23, Layer 6 phase).** The old entry framed this as "`Primitive::GrantKeyword(Equip)` would set a flag and grant no ability", which understated it. CR 702 has 189 keyword abilities and they do not want one representation. The axis is **does the engine branch on the keyword, or execute it**, crossed with whether it takes a parameter: ① branch/no-param is a flag (flying, trample, vigilance); ② branch/param is a set of *values* (protection from [quality], [type]walk); ③ execute/no-param is a plain `AbilityDef` (storm, prowess, **devoid** — already modelled this way in `phase_le_cards`); ④ execute/param is an `AbilityDef` with args (equip [cost], ward [cost], cycling [cost]).
 

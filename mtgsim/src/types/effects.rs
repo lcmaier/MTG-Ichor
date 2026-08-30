@@ -1,5 +1,5 @@
 use super::colors::Color;
-use super::ids::PlayerId;
+use super::ids::{ObjectId, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
 
@@ -84,8 +84,44 @@ pub enum PermanentFilter {
     ByController(PlayerRef),
     /// Power less than or equal to N (for "creature with power N or less")
     PowerLE(i32),
+    /// CR 111.1 — the permanent is a token. "**Nontoken**" is `Not(Token)`.
+    ///
+    /// The first `PermanentFilter` leaf Phase RB added, and it earns its place
+    /// on breadth rather than on one card: "nontoken" is a printed quality on
+    /// hundreds of cards (Kalitas, Anointed Procession's mirror image, every
+    /// "nontoken creature you control" anthem), and it is not derivable from
+    /// any other leaf — `is_token` is a property of the *object*, not of its
+    /// characteristics, so no combination of type, colour or controller
+    /// reaches it.
+    ///
+    /// It is a leaf rather than a `Not`-only helper because `Not` already
+    /// composes; adding `Nontoken` as well would give one quality two spellings.
+    Token,
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     Not(Box<PermanentFilter>),
+}
+
+/// Selects which objects a continuous effect applies to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AffectedSet {
+    /// The source permanent itself ("this creature has flying").
+    SourceOnly,
+    /// A data-driven filter ("creatures you control").
+    ///
+    /// **The filter is stored unresolved.** `PermanentFilter::ByController`
+    /// carries a `PlayerRef`, and `compute::effect_applies_to` resolves it
+    /// during the layer walk against the source's *effective* controller.
+    ///
+    /// This used to carry a `controller: Option<PlayerId>` that
+    /// `register_static_effects` filled in at ETB. CR 109.5 says the opposite —
+    /// "for a static ability, [you] is the **current** controller of the object
+    /// it's on" — so a snapshot taken when the source entered is wrong the
+    /// moment control of the source changes, and Glorious Anthem kept buffing
+    /// the team of whoever controlled it at ETB.
+    Filter { filter: PermanentFilter },
+    /// A fixed set captured at effect creation time.
+    /// Pump spells use this — the target is locked at resolution.
+    Fixed(Vec<ObjectId>),
 }
 
 /// Filter for matching cards (extensible)
@@ -249,6 +285,26 @@ pub enum CounterType {
     Reach,
     Vigilance,
     Haste,
+
+    // --- Counters that create a replacement effect (rule 122.1c/d/h) ---
+    //
+    // These three are the reason Phase RB can ship a working CR 616.1 pipeline
+    // with **zero new card-text machinery**: nothing on any card says what they
+    // do, the rule does, and between them they exercise destroy replacement,
+    // damage prevention, untap replacement and zone-change replacement across
+    // 164 printed cards.
+    //
+    // `engine::replacement::gather` synthesizes their effects from the counter
+    // itself, quoting the rule verbatim.
+    /// CR 122.1c. Creates *two* effects: a replacement against destruction by
+    /// an effect, and a prevention effect against damage.
+    Shield,
+    /// CR 122.1d. "If a permanent with a stun counter on it would become
+    /// untapped, instead remove a stun counter from it."
+    Stun,
+    /// CR 122.1h. "If this permanent would be put into a graveyard from the
+    /// battlefield, exile it instead."
+    Finality,
     // Non-evergreen counter types added as relevant cards are implemented
 }
 
@@ -287,10 +343,18 @@ impl CounterType {
             CounterType::Reach => K::Reach,
             CounterType::Vigilance => K::Vigilance,
             CounterType::Haste => K::Haste,
+            // CR 122.1b names fifteen keywords; none of these is one. The
+            // three replacement counters are emphatically not keyword counters
+            // — an indestructible counter grants a keyword and a shield counter
+            // creates a replacement effect, and conflating them would give a
+            // shielded permanent permanent protection instead of one use.
             CounterType::PlusOnePlusOne
             | CounterType::MinusOneMinusOne
             | CounterType::Loyalty
-            | CounterType::Charge => return None,
+            | CounterType::Charge
+            | CounterType::Shield
+            | CounterType::Stun
+            | CounterType::Finality => return None,
         })
     }
 }
@@ -395,7 +459,48 @@ pub enum Primitive {
     /// Create N tokens (rule 701.7)
     CreateToken(TokenDef, AmountExpr),
 
+    // === Regeneration (rule 701.19) ===
+    /// Regenerate a permanent (CR 701.19a).
+    ///
+    /// A *keyword action*, not a shorthand: CR 701.19a spells out what it means
+    /// and the engine implements that text rather than a paraphrase — "the next
+    /// time [permanent] would be destroyed this turn, instead remove all damage
+    /// marked on it and its controller taps it. If it's an attacking or
+    /// blocking creature, remove it from combat."
+    ///
+    /// This is the one replacement effect Phase RB creates from a *resolution*,
+    /// which is why it is a primitive rather than an `Effect::Replacement`: it
+    /// knows both its CR 614.3 duration (this turn) and its affected set (the
+    /// targets), and a card-authored `ReplacementDef` can know neither.
+    Regenerate,
+
+    /// "It can't be regenerated" (CR 701.19c).
+    ///
+    /// **Blocks application, not creation.** "Effects that say that a permanent
+    /// can't be regenerated don't preclude such abilities from being activated
+    /// or such spells from being cast; rather, they cause regeneration shields
+    /// to not be applied." So a shield made afterward still exists, is still
+    /// spent by nothing, and simply does not apply to this permanent.
+    CantBeRegenerated,
+
     // === Combat ===
+    /// Remove a permanent from combat (CR 506.4).
+    ///
+    /// Half of CR 701.19a's regeneration rider. Not a zone change and not
+    /// CR 614-observable: no card replaces "is removed from combat", so it has
+    /// no `GameAction` and writes `BattlefieldEntity` directly, the way the
+    /// cleanup step's damage wipe does.
+    RemoveFromCombat,
+
+    /// Remove all damage marked on a permanent (CR 120.3, the CR 514.2 wipe's
+    /// on-demand form).
+    ///
+    /// The other half of CR 701.19a's rider, and the half that makes
+    /// regeneration mean anything: without it a regenerated creature meets
+    /// CR 704.5g again on the very next state-based check, spends nothing
+    /// (the shield is `Uses::Once` and already gone), and dies.
+    RemoveAllDamage,
+
     /// Two creatures fight (rule 701.14)
     Fight,
     /// Tap a permanent (rule 701.26)
@@ -505,9 +610,29 @@ pub enum Effect {
     /// "Do this N times"
     Repeat(AmountExpr, Box<Effect>),
 
+    /// CR 614/615 — this ability generates a replacement or prevention effect.
+    ///
+    /// On a **static** ability it produces no layer rows: `register_static_effects`
+    /// skips it, and `engine::replacement::gather` discovers it by reading the
+    /// source's *effective* ability list at the instant an event is proposed.
+    /// That is not a shortcut — it is what makes Humility and Blood Moon strip a
+    /// replacement ability for free, and it is CR 614.4's "must exist before the
+    /// event" asked at the one moment that matters.
+    ///
+    /// A **resolving** spell or ability does not create one through this
+    /// variant: CR 614.3 gives such an effect a duration ("prevent all damage
+    /// that would be dealt this turn") and this carries none, so
+    /// `resolve_effect` rejects it by name. CR 701.19a's regeneration shield,
+    /// the one resolution-created replacement Phase RB has, is a keyword action
+    /// and comes through `Primitive::Regenerate`, which knows both its duration
+    /// and its affected set. Phase RD is where the durational form lands.
+    ///
+    /// Boxed because `ReplacementDef` carries an `Effect` of its own (the
+    /// CR 615.5 rider), so the recursion is real.
+    Replacement(Box<crate::types::replacement::ReplacementDef>),
+
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),
-    // ApplyReplacement(ReplacementEffectDef),
     // ApplyPrevention(PreventionEffectDef),
     // CreateDelayedTrigger(TriggerCondition, Box<Effect>, Duration),
     // Custom(CardId),  // escape hatch

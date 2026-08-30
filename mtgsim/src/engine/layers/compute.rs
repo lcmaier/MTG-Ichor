@@ -631,7 +631,7 @@ fn effect_applies_to(
                 you: None,
                 owner: None,
             };
-            permanent_matches_filter(filter, chars, &mut players)
+            permanent_matches_filter(filter, id, chars, &mut players)
         }
     }
 }
@@ -643,8 +643,14 @@ fn effect_applies_to(
 /// hid: `ByController` used to return `true` unconditionally and defer to a
 /// field on `AffectedSet::Filter`, so the two halves of one question lived in
 /// two places and only one of them was re-asked during the walk.
+///
+/// `id` is the object `chars` describes. Almost every leaf answers from the
+/// frame alone — that is what "post-layers" means — but CR 707.2 excludes
+/// tokenness from copiable values, so `PermanentFilter::Token` is a property of
+/// the `GameObject` that no layer can reach and no frame can carry.
 fn permanent_matches_filter(
     filter: &crate::types::effects::PermanentFilter,
+    id: ObjectId,
     chars: &EffectiveCharacteristics,
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
@@ -670,14 +676,21 @@ fn permanent_matches_filter(
             PlayerRef::Owner => chars.controller == players.owner(),
             PlayerRef::Player(pid) => chars.controller == *pid,
         },
+        // Read off the object, not the frame: CR 707.2 excludes tokenness from
+        // copiable values, so no layer can change the answer and there is
+        // nothing on `chars` to consult. `players.game` is the same board the
+        // frame was computed against.
+        PermanentFilter::Token => {
+            players.game.objects.get(&id).map(|obj| obj.is_token).unwrap_or(false)
+        }
         PermanentFilter::PowerLE(n) => {
             chars.power.map(|p| p <= *n).unwrap_or(false)
         }
         PermanentFilter::And(a, b) => {
-            permanent_matches_filter(a, chars, players)
-                && permanent_matches_filter(b, chars, players)
+            permanent_matches_filter(a, id, chars, players)
+                && permanent_matches_filter(b, id, chars, players)
         }
-        PermanentFilter::Not(inner) => !permanent_matches_filter(inner, chars, players),
+        PermanentFilter::Not(inner) => !permanent_matches_filter(inner, id, chars, players),
     }
 }
 

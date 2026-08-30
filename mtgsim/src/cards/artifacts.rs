@@ -65,7 +65,7 @@ pub fn sol_ring() -> Arc<CardData> {
 /// Three things it exercises at once, which is why this card and not another:
 ///
 /// - **RB item 4 moves that check.** Indestructible stops being a filter inside
-///   `Destroy` and becomes a CR 701.8a/614.17 "can't", checked ahead of the
+///   `Destroy` and becomes a CR 702.12b/614.17 "can't", checked ahead of the
 ///   replacement pipeline. Fuzz coverage before the move is worth more than after.
 /// - **Humility strips it** (all creatures lose all abilities), so the pool now
 ///   contains a Layer 6 effect that changes an SBA outcome — a live

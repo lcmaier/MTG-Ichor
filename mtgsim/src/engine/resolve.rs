@@ -1,14 +1,19 @@
-use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::DamageTarget;
 use crate::objects::card_data::AbilityDef;
+use crate::objects::object::GameObject;
+use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
 };
+use crate::oracle::characteristics::get_effective_controller;
+use crate::state::replacement_effects::RegisteredReplacement;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -61,6 +66,29 @@ impl GameState {
                 }
                 Ok(())
             }
+
+            // CR 614.1a. A replacement effect written as a *static* ability
+            // never reaches here — `engine::replacement::gather` reads it off
+            // the source's effective ability list, which is what lets Humility
+            // strip it. This arm is the other half: a replacement effect
+            // created by a *resolution*, which CR 614.3 gives a duration
+            // ("prevent all damage that would be dealt this turn").
+            //
+            // Loud rather than silently registering an endless one, because the
+            // duration is the missing piece and there is nowhere honest to read
+            // it from. CR 701.19a's regeneration shield — the one resolution-
+            // created replacement Phase RB has — is a keyword action and comes
+            // through `Primitive::Regenerate`, which knows both its duration
+            // (this turn) and its affected set (the targets).
+            Effect::Replacement(_) => Err(
+                "a replacement effect created by a resolution needs a CR 614.3 \
+                 duration, which `Effect::Replacement` does not carry (Phase RD). \
+                 A static ability's replacement effect does not resolve at all — \
+                 put it on an `AbilityType::Static` ability and \
+                 `engine::replacement::gather` will find it. For CR 701.19a's \
+                 regeneration shield, use `Primitive::Regenerate`."
+                    .to_string(),
+            ),
 
             Effect::Conditional(_condition, _inner) => {
                 // Phase 6: evaluate condition, then resolve inner if true
@@ -230,25 +258,24 @@ impl GameState {
                 // both read. This was a loop of `execute_action` until
                 // 2026-08-26; §4.2 named this caller class ("any 'each
                 // player ...' effect") and RA-3 converted only two of the three.
+                // **Indestructible is no longer filtered here.** CR 702.12b
+                // makes it a "can't" (CR 614.17), not a replacement effect, so
+                // it belongs ahead of the pipeline rather than ahead of the
+                // proposal — `engine::replacement::is_blocked`. Filtering here
+                // was observationally right and structurally wrong: a "can't"
+                // that never becomes a proposal cannot be replaced by a
+                // CR 614.15 self-replacement (614.17c), and nothing downstream
+                // could tell "no such permanent" from "it can't be destroyed".
                 let mut batch = Vec::new();
                 for target in &ctx.targets {
                     if let ResolvedTarget::Object(id) = target {
                         if self.battlefield.contains_key(id) {
-                            // CR 701.8a / 614.17: indestructible is a "can't",
-                            // checked ahead of the pipeline rather than being a
-                            // replacement. RB moves this into the performer of
-                            // `GameAction::Destroy`; until then it filters here.
-                            if crate::oracle::characteristics::has_keyword(self, *id, crate::types::keywords::KeywordFlag::Indestructible) {
-                                continue;
-                            }
-                            batch.push(GameAction::ZoneChange {
+                            batch.push(GameAction::Destroy {
                                 object: *id,
-                                from: crate::types::zones::Zone::Battlefield,
-                                to: crate::types::zones::Zone::Graveyard,
-                                cause: ZoneChangeCause::Destroyed,
+                                source: DestructionSource::Effect(ctx.source),
                             });
                         }
-                        // If not on battlefield, destroy does nothing (rule 701.7b)
+                        // If not on battlefield, destroy does nothing (rule 701.8b)
                     }
                 }
                 self.execute_actions(batch, &actx)?;
@@ -532,6 +559,172 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 701.7 — create a token.
+            //
+            // **Not a `GameAction`, and that is deliberate.** §3.1 schedules
+            // `CreateTokens { defs: Vec<TokenDef> }` for Phase RE, where the
+            // CR 614.16 doublers that replace it live (Doubling Season,
+            // Academy Manufactor, Chatterfang). Until one of those exists there
+            // is nothing to replace, and a token's *entering* is not a
+            // proposal either — CR 614.1c's ETB replacements are Phase RC's,
+            // and `place_on_battlefield` is still what a resolving permanent
+            // spell uses too.
+            //
+            // Kalitas's rider is the first customer, and it needs the tokens to
+            // exist, not to be replaceable.
+            Primitive::CreateToken(token_def, amount_expr) => {
+                let count = self.evaluate_amount(amount_expr, ctx)?;
+                let controller = self.resolve_player_for_self(recipient, ctx);
+                let data = token_card_data(token_def);
+                for _ in 0..count {
+                    // CR 111.2 — a token's owner is the player who controls the
+                    // effect that created it, and CR 111.1's `is_token` is what
+                    // makes CR 704.5d and `PermanentFilter::Token` able to see
+                    // it. Both are set before it reaches the battlefield,
+                    // because `register_static_effects` runs inside
+                    // `place_on_battlefield` and would otherwise register
+                    // against an object that does not yet know what it is.
+                    let mut obj = GameObject::new(data.clone(), controller, Zone::Battlefield);
+                    obj.is_token = true;
+                    let id = obj.id;
+                    self.add_object(obj);
+                    self.place_on_battlefield(id, controller);
+                    self.events.emit(crate::events::event::GameEvent::PermanentEnteredBattlefield {
+                        object_id: id,
+                        controller,
+                    });
+                }
+                Ok(())
+            }
+
+            // === Regeneration (CR 701.19) ===
+
+            // CR 701.19a — "if the effect of a resolving spell or ability
+            // regenerates a permanent, it creates a replacement effect that
+            // protects the permanent the next time it would be destroyed this
+            // turn."
+            //
+            // Every part of the shield's shape comes straight from the rule:
+            // `Uses::Once` is "the next time", `Duration::UntilEndOfTurn` is
+            // "this turn", `Prevent` is "instead", and the `then` rider is the
+            // sentence the rule spells out — which is why the engine builds it
+            // here rather than asking a card author to spell it out again.
+            Primitive::Regenerate => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    let controller = get_effective_controller(self, object)
+                        .unwrap_or(ctx.controller);
+                    let def = ReplacementDef::new(
+                        EventPattern::Destroy { source: None },
+                        AffectedSet::Fixed(vec![object]),
+                        Rewrite::Prevent,
+                    )
+                    .once()
+                    .regeneration()
+                    .with_then(crate::types::replacement::regeneration_rider());
+                    self.replacement_effects.add(RegisteredReplacement {
+                        id: 0,
+                        source: ctx.source,
+                        controller,
+                        duration: Duration::UntilEndOfTurn,
+                        created_on_turn: self.turn_number,
+                        def,
+                    });
+                }
+                Ok(())
+            }
+
+            // CR 701.19c — blocks application, not creation. Recorded against
+            // the permanent rather than against any shield, because the rule is
+            // a property of the permanent ("*it* can't be regenerated") and the
+            // shield that will be withheld may not exist yet: "Destroy target
+            // creature. It can't be regenerated." resolves both halves before
+            // anyone can respond with a regeneration ability, but a shield made
+            // *earlier* in the turn is withheld too.
+            Primitive::CantBeRegenerated => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    self.cant_be_regenerated.insert(object);
+                }
+                Ok(())
+            }
+
+            // === Combat and damage housekeeping ===
+
+            Primitive::Tap => {
+                // One batch: CR 608.2f processes a spell's actions over several
+                // objects simultaneously.
+                let batch = self
+                    .collect_battlefield_targets(ctx)
+                    .into_iter()
+                    .map(|object| GameAction::Tap { object })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // CR 506.4. Writes `BattlefieldEntity` directly: no card replaces
+            // "is removed from combat" and no ability triggers on it, so there
+            // is no `GameAction` to propose through and inventing one would be
+            // vocabulary with no reader.
+            Primitive::RemoveFromCombat => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    self.remove_from_combat(object);
+                }
+                Ok(())
+            }
+
+            // The on-demand form of the CR 514.2 cleanup wipe, and a direct
+            // write for the same reason it is.
+            Primitive::RemoveAllDamage => {
+                for object in self.collect_battlefield_targets(ctx) {
+                    if let Some(entry) = self.battlefield.get_mut(&object) {
+                        entry.damage_marked = 0;
+                        entry.damaged_by_deathtouch = false;
+                    }
+                }
+                Ok(())
+            }
+
+            // === Counters (CR 122) ===
+            //
+            // Both propose rather than writing `BattlefieldEntity.counters`.
+            // A counter mutation is a CR 614-observable event in its own right
+            // — CR 614.16's doublers replace it — and CR 122.1c/d's own
+            // replacement effects *produce* one, since "instead remove a stun
+            // counter from it" is a substituted event and not bookkeeping.
+
+            Primitive::AddCounters(counter_type, amount_expr) => {
+                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+                // One batch: CR 608.2f processes a spell's actions over several
+                // objects simultaneously, which is what lets a single CR 614.16
+                // doubler see all of them.
+                let batch = self
+                    .collect_battlefield_targets(ctx)
+                    .into_iter()
+                    .map(|object| GameAction::AddCounters {
+                        object,
+                        counter: *counter_type,
+                        n,
+                    })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            Primitive::RemoveCounters(counter_type, amount_expr) => {
+                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+                let batch = self
+                    .collect_battlefield_targets(ctx)
+                    .into_iter()
+                    .map(|object| GameAction::RemoveCounters {
+                        object,
+                        counter: *counter_type,
+                        n,
+                    })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
             Primitive::GainControl(duration) => {
@@ -572,11 +765,7 @@ impl GameState {
             | Primitive::Discard(_)
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
-            | Primitive::AddCounters(_, _)
-            | Primitive::RemoveCounters(_, _)
-            | Primitive::CreateToken(_, _)
-            | Primitive::Fight
-            | Primitive::Tap => {
+            | Primitive::Fight => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
             }
         }
@@ -1249,4 +1438,35 @@ mod tests {
         let result = game.attach_aura_on_etb(creature_id, 0, &test_dp()).unwrap();
         assert!(!result);
     }
+}
+
+/// Lower a [`TokenDef`](crate::types::effects::TokenDef) into the `CardData`
+/// its `GameObject` reads.
+///
+/// CR 111.4: "a token has the characteristics of the spell or ability that
+/// created it" — and no mana cost (CR 111.6 makes its mana value 0), which
+/// falls out of `CardDataBuilder`'s default rather than being set.
+///
+/// One `Arc` per `CreateToken` resolution, shared by every token that
+/// resolution makes. They are separate objects with separate `ObjectId`s; what
+/// they share is their printed characteristics, which is exactly what
+/// `Arc<CardData>` means everywhere else in this engine.
+fn token_card_data(
+    def: &crate::types::effects::TokenDef,
+) -> std::sync::Arc<crate::objects::card_data::CardData> {
+    let mut builder = crate::objects::card_data::CardDataBuilder::new(&def.name)
+        .power_toughness(def.power, def.toughness);
+    for color in &def.colors {
+        builder = builder.color(*color);
+    }
+    for card_type in &def.types {
+        builder = builder.card_type(*card_type);
+    }
+    for subtype in &def.subtypes {
+        builder = builder.subtype(subtype.clone());
+    }
+    for keyword in &def.keywords {
+        builder = builder.keyword(*keyword);
+    }
+    builder.build()
 }

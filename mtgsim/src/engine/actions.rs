@@ -2,9 +2,19 @@ use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
 use crate::state::game_state::GameState;
+use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
+
+/// Re-exported for every existing reader of `engine::actions::ZoneChangeCause`.
+///
+/// The definition moved to `types::zones` in Phase RB, alongside `Zone`, which
+/// is the vocabulary it qualifies. The mover is `EventPattern::ZoneChange`:
+/// a replacement effect watching "would be put into a graveyard from the
+/// battlefield" has to name the cause, `EventPattern` lives in `types`, and
+/// `src/types/` has no `crate::engine` edge to spend.
+pub use crate::types::zones::{DestructionSource, ZoneChangeCause};
 
 /// Who is asking for a mutation, and what resolution it belongs to.
 ///
@@ -53,109 +63,6 @@ impl<'a> ActionContext<'a> {
             controller: r.controller,
         })
     }
-}
-
-/// Why the engine is moving an object between zones.
-///
-/// This is the semantic carrier that makes CR 701.8b answerable: `(from, to)`
-/// cannot distinguish a sacrifice from a destruction from an SBA, and 1,287
-/// printed cards trigger on "dies" while 278 want "sacrifices" specifically.
-///
-/// **Derived from call sites, not researched from the card pool.** It records
-/// what the engine was doing, so the input set is finite and readable off the
-/// tree (`replacement-architecture.md` §11). No printed card asks for a cause
-/// finer than a call site can name: "destroyed by" appears on 1 card in all of
-/// Magic, "was sacrificed" on 3, "if it was destroyed" on 0.
-///
-/// Three rules, all learned the hard way elsewhere in this tree:
-///
-/// - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
-///   `perform_action` cannot recover that from `(from, to)`.
-/// - **Nothing may branch on it outside the replacement pipeline and the
-///   trigger matcher.** A third reader is a third place for it to drift.
-/// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
-///   This is the whole of what makes the enum cheap to extend later. Widening
-///   is only expensive when an existing site was labelled with a coarse variant
-///   that should have been finer, and re-triaging it is guesswork that fails
-///   silently — which requires a catchall to lump into. A genuinely new mutation
-///   arrives with its own new call site, so it adds a variant and touches
-///   nothing existing. A site with no honest reason to give is a site whose
-///   reason nobody has worked out, which is the bug — see
-///   `cast.rs::rollback_cast_to_hand` for what that looks like when it happens.
-///
-/// Several variants have no call site yet because their `Primitive` is still
-/// `NotImplemented` (`resolve.rs`). They are listed anyway: the enum is the
-/// statement of the vocabulary, and nothing matches on it exhaustively until
-/// Phase RB.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ZoneChangeCause {
-    // --- effects (CR 701), one per object-moving `Primitive` ---
-    /// 701.8b way 1 — an effect using the word "destroy".
-    Destroyed,
-    /// 701.21 — NOT destruction. The distinction 278 cards care about.
-    Sacrificed,
-    /// 701.13.
-    Exiled,
-    /// 701.9 — includes the CR 514.1 cleanup discard.
-    Discarded,
-    /// 701.17.
-    Milled,
-    /// "return to hand" / "return to the battlefield" — an object going *back*
-    /// somewhere. Not the same as [`Self::PutIntoHand`]; see there.
-    Returned,
-    /// A card put into a hand from somewhere it was never in — the CR 121.5
-    /// non-draw, and specifically **not** a draw: Nadu, Winged Wisdom ("reveal
-    /// the top card of your library … otherwise, put it into your hand"),
-    /// impulse-style "look at the top N and put one in your hand".
-    ///
-    /// 857 cards move library→hand without the word "draw" (493 say "put it
-    /// into your hand"), so this is a class, not a corner.
-    ///
-    /// **Kept separate from `Returned` on naming honesty, not on card demand.**
-    /// The merge criterion in §11 asks whether a printed card distinguishes two
-    /// reasons *as a cause*, and by that test these would collapse — nothing
-    /// asks "was it returned or put". They stay apart because `Returned` means
-    /// an object going back where it was, a Nadu card was never in hand, and a
-    /// site labelled with a variant whose name does not describe it is exactly
-    /// the coarse-label failure the no-catchall ban exists to prevent. The cost
-    /// of the extra variant is zero while nothing matches exhaustively.
-    ///
-    /// Note this carries no draw/non-draw meaning by itself — `GameEvent::CardDrawn`
-    /// is what CR 121.5 turns on. This is the *reason for the move*.
-    PutIntoHand,
-    /// Top, bottom, or shuffled in. *Position* is a field, not a cause.
-    PutIntoLibrary,
-
-    // --- state-based actions (CR 704.5) ---
-    /// 704.5g lethal damage + 704.5h deathtouch. One variant, because CR 701.8b
-    /// calls both "destroyed" and no card distinguishes them as a *cause*.
-    DestroyedBySba,
-    /// 704.5f — NOT destruction, so regeneration and indestructible do not help.
-    ZeroToughness,
-    /// 704.5i.
-    ZeroLoyalty,
-    /// 704.5j.
-    LegendRule,
-    /// 704.5m. (704.5n only unattaches an Equipment; it moves nothing.)
-    AuraSba,
-
-    // --- the stack ---
-    /// Hand (or elsewhere) → stack.
-    Cast,
-    /// A stack object finished resolving: CR 608.2n for an instant or sorcery
-    /// (to its owner's graveyard), CR 608.3a/c for a permanent spell (onto the
-    /// battlefield, attached if it is an Aura).
-    Resolved,
-    /// 701.6.
-    Countered,
-    /// 608.2b — countered by game rules, all targets illegal.
-    Fizzled,
-
-    // --- turn structure and special actions ---
-    /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
-    Drawn,
-    /// 305.1 / 505.6b.
-    PlayedAsLand,
 }
 
 /// A game action that is *about to happen*.
@@ -218,11 +125,58 @@ pub enum GameAction {
         object: ObjectId,
     },
 
+    /// Put counters on a permanent (CR 122.1).
+    ///
+    /// A proposal rather than a direct write because CR 614.16's counter
+    /// doublers replace it — "If one or more counters would be put on a
+    /// permanent you control, twice that many are put on it instead" — and
+    /// because CR 122.1c/d's own replacement effects have to be able to *make*
+    /// one: a stun counter's effect is literally "instead remove a stun counter
+    /// from it", which is a proposed event and not bookkeeping.
+    AddCounters {
+        object: ObjectId,
+        counter: CounterType,
+        n: u32,
+    },
+
+    /// Take counters off a permanent (CR 122.1).
+    ///
+    /// The substituted event for CR 122.1c's shield counter and CR 122.1d's
+    /// stun counter, and the CR 615.5 rider for the shield's prevention half.
+    ///
+    /// `n` is a maximum: removing three counters from a permanent that has one
+    /// removes one, which is CR 701.2's "as much as it can" and what
+    /// `BattlefieldEntity::remove_counters` already reports.
+    RemoveCounters {
+        object: ObjectId,
+        counter: CounterType,
+        n: u32,
+    },
+
+    /// Destroy a permanent (CR 701.8).
+    ///
+    /// **The outer event.** Performing it proposes an inner
+    /// `ZoneChange { to: Graveyard }` whose cause is
+    /// [`DestructionSource::zone_change_cause`], so a destruction is two events
+    /// and a replacement can watch either. The CR draws that line itself: CR
+    /// 122.1c's shield counter replaces "would be destroyed", CR 122.1h's
+    /// finality counter replaces "would be put into a graveyard from the
+    /// battlefield". The two overlap rather than nest — CR 701.8b keeps a
+    /// sacrifice out of the first, and a destruction whose graveyard move is
+    /// itself replaced never reaches the second. One event cannot answer both.
+    ///
+    /// Indestructible is **not** checked here and is not a replacement effect.
+    /// CR 702.12b makes it a "can't" (CR 614.17), which is checked ahead of the
+    /// pipeline and wins — see `engine::replacement::is_blocked`.
+    Destroy {
+        object: ObjectId,
+        source: DestructionSource,
+    },
+
     // === Phase 3+ actions — add variants here as primitives are implemented ===
     // Sacrifice { object: ObjectId },
     // Exile { object: ObjectId },
-    // CreateToken { def: TokenDef, controller: PlayerId, count: u32 },
-    // AddCounters { target: ObjectId, counter_type: CounterType, count: u32 },
+    // CreateTokens { defs: Vec<TokenDef>, controller: PlayerId },
     // etc.
 }
 
@@ -247,7 +201,7 @@ impl GameState {
         action: GameAction,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        self.execute_actions(vec![action], ctx)
+        self.execute_actions(vec![action], ctx).map(|_| ())
     }
 
     /// Execute a set of actions as **one event** (CR 704.3, 510.2, 502.1).
@@ -285,31 +239,154 @@ impl GameState {
     /// prompts when two effects want one event, so the order the batch is built
     /// in is part of a decision — build it from `battlefield_ids_ordered`, never
     /// from a raw `HashMap` walk.
+    /// Returns the events that were actually performed, in batch order.
+    ///
+    /// Not the proposals: a CR 614 replacement can modify an event or drop it
+    /// entirely, so the returned vector is what the game saw. The customer is
+    /// the pipeline itself — `Primitive::Regenerate` and the SBA sweep both
+    /// need to know whether the thing they proposed survived.
     pub fn execute_actions(
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
-    ) -> Result<(), String> {
-        // Phase RB: the CR 704.7 same-result dedupe, then `apply_replacements`
-        // per member, goes here — the batch is gathered before any of it is
-        // performed precisely so that both can see the whole set.
+    ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
-        let result = batch
-            .into_iter()
-            .try_for_each(|action| self.perform_action(action, ctx));
+        let result = self.execute_batch_inner(batch, ctx);
         self.events.close_batch(previous);
         result
+    }
+
+    /// The three phases of one batch. Split out so `close_batch` runs on every
+    /// exit path, including the error ones.
+    ///
+    /// **Deciding is separated from performing, and that is CR 704.3.** "The
+    /// game checks for any of the listed conditions ... then performs all
+    /// applicable state-based actions simultaneously as a single event" — so
+    /// every member's replacements are chosen against one board, the board as
+    /// it was before any of them happened. It is also what CR 614.4 wants for a
+    /// simultaneous event: the effect must exist before *the* event, and the
+    /// event is the whole batch.
+    fn execute_batch_inner(
+        &mut self,
+        batch: Vec<GameAction>,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        use crate::engine::replacement::{apply_replacements, Rider};
+
+        // --- Phase 1: decide (CR 616.1), in APNAP order of chooser ----------
+        //
+        // CR 616.1's last sentence: "if two or more players have to make these
+        // choices at the same time, choices are made in APNAP order (see rule
+        // 101.4)". A batch whose members affect different players produces
+        // different choosers, and this is the only place that can order them.
+        //
+        // CR 101.4d's restart — a nonactive player's choice forcing an
+        // earlier player to choose again — is not implemented. It has not come
+        // up for a narrower reason than "unreachable": nothing in phase 1 can
+        // *create* a replacement effect, and each member's 616.1f loop runs to
+        // completion before the next begins. That is a simplification, not a
+        // proof; interleaving the members is deferred (rb-review F6).
+        let mut riders: Vec<Rider> = Vec::new();
+        let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
+        let inherited = std::collections::HashSet::new();
+        for index in self.apnap_batch_order(&batch) {
+            decided[index] = apply_replacements(
+                self,
+                batch[index].clone(),
+                ctx,
+                &inherited,
+                &mut riders,
+            )?;
+        }
+
+        // --- Phase 2: perform, in batch order -------------------------------
+        //
+        // Batch order rather than APNAP order: the choices were the thing
+        // CR 101.4 sequences, and the performed events are simultaneous. The
+        // order they are written in is still observable (a graveyard is
+        // ordered), and it is the caller's `battlefield_ids_ordered` sweep.
+        let mut performed = Vec::with_capacity(decided.len());
+        for action in decided.into_iter().flatten() {
+            self.perform_action(action.clone(), ctx)?;
+            performed.push(action);
+        }
+
+        // --- Phase 3: the CR 615.5 riders, in application order -------------
+        //
+        // "The rest of the effect takes place immediately afterward", and
+        // afterward means after the events happened — not mid-loop, where
+        // nothing has happened yet. Unconditional once queued (CR 615.12), so
+        // this runs even for a member whose event was dropped entirely.
+        for rider in riders {
+            self.resolve_rider(rider, ctx)?;
+        }
+
+        Ok(performed)
+    }
+
+    /// Indices into `batch`, ordered active-player-first by the CR 616.1
+    /// chooser for each member (CR 101.4's APNAP).
+    ///
+    /// Stable within a player, so a sweep that built its batch from
+    /// `battlefield_ids_ordered` keeps that order among its own members.
+    fn apnap_batch_order(&self, batch: &[GameAction]) -> Vec<usize> {
+        use crate::engine::replacement::{affected_of, chooser_for};
+
+        let n = self.players.len();
+        let mut order: Vec<usize> = (0..batch.len()).collect();
+        order.sort_by_key(|&i| {
+            let chooser = chooser_for(self, affected_of(&batch[i]));
+            // Distance from the active player in turn order. `None` — an object
+            // with neither controller nor owner — sorts last; the pipeline
+            // errors on it rather than guessing, and this keeps that error
+            // deterministic.
+            match chooser {
+                Some(p) => (p + n - self.active_player) % n,
+                None => n,
+            }
+        });
+        order
+    }
+
+    /// Resolve one CR 615.5 rider.
+    ///
+    /// Its `ResolutionContext` names the shielded object as the single resolved
+    /// target, so a `then` written with `EffectRecipient::Target` acts on the
+    /// permanent the replacement protected and one written with
+    /// `EffectRecipient::Controller` acts for that permanent's controller. The
+    /// actions it proposes re-enter the pipeline with a **fresh** applied set —
+    /// a rider's actions are new events the replacement caused, not modified
+    /// forms of the original (§3.2d containment).
+    fn resolve_rider(
+        &mut self,
+        rider: crate::engine::replacement::Rider,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+
+        let rctx = ResolutionContext {
+            source: rider.source,
+            controller: rider.controller,
+            targets: rider
+                .affected
+                .map(|id| vec![ResolvedTarget::Object(id)])
+                .unwrap_or_default(),
+        };
+        self.resolve_effect(&rider.effect, &rctx, ctx.dp)
     }
 
     /// Convenience wrapper for the most common zone change: caller knows the
     /// destination but doesn't want to hand-roll the `from` lookup.
     ///
     /// This is the intended public path for zone changes. Routes through
-    /// `execute_action(GameAction::ZoneChange)` so the future replacement
-    /// pipeline (CR 614) will see every movement. Internal helpers like
-    /// `draw_card` and `play_land` still call `move_object` directly — they
-    /// live inside `engine/zones.rs` and go through the same chokepoint
-    /// transitively via `execute_action`'s ZoneChange arm.
+    /// `execute_action(GameAction::ZoneChange)` so the replacement pipeline
+    /// (CR 614) sees every movement. `draw_card` and `play_land` route through
+    /// here too, which is why the one-emitter invariant holds and why a draw
+    /// from an empty library reaches the pipeline at all (CR 121.6a). Two
+    /// production callers sit below the chokepoint and no more:
+    /// `perform_action`'s own `ZoneChange` arm, and `rollback_cast_to_hand` —
+    /// the permanent `// CAST-ROLLBACK:` exemption, because a CR 601.2 rewind
+    /// is not an event.
     pub fn change_zone(
         &mut self,
         object: ObjectId,
@@ -363,9 +440,9 @@ impl GameState {
                 apply_deathtouch_flag(self, source, &target);
                 apply_lifelink(self, source, amount, _ctx)?;
 
-                // Rule 903.10a — if a commander deals combat damage to a
+                // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
-                // The 21-damage loss check happens in SBA 704.5u / 903.10a.
+                // The 21-damage loss check is the SBA at CR 704.6c.
                 if is_combat {
                     if let DamageTarget::Player(pid) = &target {
                         let is_cmdr = self.objects.get(&source)
@@ -402,9 +479,10 @@ impl GameState {
             }
 
             GameAction::DrawCard { player } => {
-                // Delegate to the existing draw_card method which handles
-                // empty-library flagging and zone transitions.
-                // draw_card already emits ZoneChange events via move_object.
+                // Delegate to `draw_card`, which handles empty-library flagging
+                // (CR 121.6a) and proposes the library→hand move through
+                // `change_zone` — so the move is a nested batch member, not a
+                // second emitter.
                 self.draw_card(player, _ctx)?;
                 Ok(())
             }
@@ -524,6 +602,89 @@ impl GameState {
                 }
                 entry.tapped = true;
                 self.events.emit(GameEvent::Tapped { object_id: object });
+                Ok(())
+            }
+
+            GameAction::AddCounters { object, counter, n } => {
+                if n == 0 {
+                    return Ok(());
+                }
+                if !self.battlefield.contains_key(&object) {
+                    return Err(format!(
+                        "Cannot put counters on {}: not on the battlefield", object
+                    ));
+                }
+                self.add_counters(object, counter, n);
+                // A permanent that just gained a CR 122.1 replacement counter is
+                // a replacement source now. The hint set is what keeps
+                // `gather`'s fast path exact for static abilities; counters are
+                // scanned rather than cached, so nothing has to be recorded
+                // here — see `gather::any_replacement_counter`.
+                self.events.emit(GameEvent::CountersChanged {
+                    object_id: object,
+                    counter,
+                    added: n as i32,
+                });
+                Ok(())
+            }
+
+            GameAction::RemoveCounters { object, counter, n } => {
+                if n == 0 {
+                    return Ok(());
+                }
+                let Some(entry) = self.battlefield.get_mut(&object) else {
+                    return Err(format!(
+                        "Cannot remove counters from {}: not on the battlefield", object
+                    ));
+                };
+                // CR 701.2 — do as much as possible. `remove_counters` reports
+                // how many were actually there, and a removal of nothing is not
+                // an event: CR 603.2e's transition rule is the same shape the
+                // `Tap`/`Untap` arms follow.
+                let removed = entry.remove_counters(counter, n);
+                if removed == 0 {
+                    return Ok(());
+                }
+                self.events.emit(GameEvent::CountersChanged {
+                    object_id: object,
+                    counter,
+                    added: -(removed as i32),
+                });
+                Ok(())
+            }
+
+            // CR 701.8a — "to destroy a permanent, move it from the battlefield
+            // to its owner's graveyard". The **outer** event: this performer's
+            // whole job is to propose the inner zone change, which re-enters
+            // the pipeline with a fresh applied set because a zone change is a
+            // different kind of event from a destruction (§3.2d containment).
+            //
+            // That containment is what lets CR 122.1h's finality counter turn a
+            // destroyed creature's graveyard trip into an exile while CR 122.1c's
+            // shield counter, watching the destruction itself, has already
+            // declined to apply.
+            GameAction::Destroy { object, source } => {
+                // Loud, like `Tap`/`Untap`: destroying something that is not on
+                // the battlefield does nothing (CR 701.8b), and a caller that
+                // proposes it has not checked CR 608.2b's partial resolution.
+                // Both current callers do — `Primitive::Destroy` filters its
+                // targets and the SBA sweep only ever names permanents — so a
+                // lenient arm here would buy nothing except somewhere for a
+                // future bug to hide.
+                if !self.battlefield.contains_key(&object) {
+                    return Err(format!(
+                        "Cannot destroy {}: not on the battlefield", object
+                    ));
+                }
+                self.execute_action(
+                    GameAction::ZoneChange {
+                        object,
+                        from: Zone::Battlefield,
+                        to: Zone::Graveyard,
+                        cause: source.zone_change_cause(),
+                    },
+                    _ctx,
+                )?;
                 Ok(())
             }
         }
@@ -862,7 +1023,7 @@ mod tests {
         assert_eq!(lifelink_gains[1], Some(creature_b));
     }
 
-    // --- Commander damage tracking (rule 903.11a) ---
+    // --- Commander damage tracking (CR 903.10a) ---
 
     fn setup_game_with_commander() -> (GameState, ObjectId) {
         let mut game = GameState::new(2, 40);
@@ -918,7 +1079,7 @@ mod tests {
 
     #[test]
     fn test_commander_noncombat_damage_not_tracked() {
-        // Rule 903.11a applies only to combat damage.
+        // CR 903.10a applies only to combat damage.
         let (mut game, cmdr) = setup_game_with_commander();
 
         game.execute_action(GameAction::DealDamage {

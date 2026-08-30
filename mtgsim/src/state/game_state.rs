@@ -8,6 +8,7 @@ use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
+use crate::state::replacement_effects::ReplacementRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -212,6 +213,85 @@ pub struct GameState {
     // --- Continuous effects registry (CR 613) ---
     pub continuous_effects: ContinuousEffectRegistry,
 
+    // --- Replacement effects registry (CR 614/615) ---
+    /// Replacement and prevention effects created by *resolutions* — CR 614.3's
+    /// "prevent all damage that would be dealt this turn", CR 615.7's shields,
+    /// CR 701.19a's regeneration.
+    ///
+    /// **Only two of the five sources in `replacement-architecture.md` §3.3
+    /// live here.** The other three — static abilities of permanents, static
+    /// abilities functioning in other zones, and counters — are discovered by
+    /// sweeping the battlefield at the instant an event is proposed, which is
+    /// what makes Humility strip a replacement ability for free and what puts
+    /// CR 614.4's "must exist before the event" question at the only moment it
+    /// can honestly be asked.
+    pub replacement_effects: ReplacementRegistry,
+
+    /// Battlefield objects that **printed** a static ability whose body is an
+    /// `Effect::Replacement`.
+    ///
+    /// `engine::replacement::gather`'s fast path, and it is not an
+    /// optimization: reading effective abilities is a full
+    /// `compute_characteristics` walk, so an ungated sweep would run one per
+    /// permanent per proposed action — measured against the untap step alone
+    /// that is thousands of extra layer walks per `fuzz_games` game, on a board
+    /// where nothing has a replacement ability at all.
+    ///
+    /// **A set rather than a count, so it cannot drift.** Insert at ETB, remove
+    /// at `cleanup_zone_state`; both are idempotent, and a counter that drifted
+    /// low would read as a card that silently does nothing — the exact failure
+    /// this phase exists to remove.
+    ///
+    /// It over-approximates in one direction only. CR 305.7 and Humility can
+    /// take a printed replacement ability away without touching the set, which
+    /// costs a wasted walk and never a wrong answer; the opposite direction —
+    /// an ability *granted* by a Layer 6 row — is covered by
+    /// `RegistryScopeSummary::any_granted_replacement`.
+    ///
+    /// **Between them the gate is sound only until Layer 1 or Layer 3 exists.**
+    /// A copy or a text-change puts a replacement ability on the *effective*
+    /// list through neither half, and `gather` would skip the board entirely —
+    /// a card that silently does nothing. `copy-effects-architecture.md` §4.7
+    /// owns the third leg, and CV-1 must land it with the first copy effect.
+    ///
+    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
+    /// inserts and `cleanup_zone_state` removes; a hand-written entry is a
+    /// wasted layer walk and a hand-written removal is a card that silently
+    /// stops working.
+    pub replacement_ability_sources: HashSet<ObjectId>,
+
+    /// Permanents that CR 701.19c has said can't be regenerated, this turn.
+    ///
+    /// > 701.19c ... Effects that say that a permanent can't be regenerated
+    /// > don't preclude such abilities from being activated or such spells from
+    /// > being cast; rather, they cause regeneration shields to not be applied.
+    ///
+    /// So this is read at *gather* time and withholds the shield, rather than
+    /// stopping anything from making one. Keyed on the permanent because the
+    /// rule is about the permanent — "**it** can't be regenerated" — and the
+    /// shield it withholds may not exist yet.
+    ///
+    /// Cleared at the CR 514.2 cleanup with everything else that lasts a turn.
+    pub(crate) cant_be_regenerated: HashSet<ObjectId>,
+
+    /// The next tick to stamp onto a moving object's
+    /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
+    ///
+    /// Starts at 1 so that a pregame object's `0` is strictly earlier than any
+    /// move. Allocated by `move_object`, which is the engine's one performer of
+    /// zone changes.
+    pub(crate) next_zone_change_epoch: u64,
+
+    /// The tick as of the **start of the previous** state-based-action check.
+    ///
+    /// CR 704.6d's window is "since the last time state-based actions were
+    /// checked", and the boundary has to be read at the *start* of a check
+    /// rather than at its end. A commander that CR 704.5g puts into a graveyard
+    /// does so during a check, so an end-of-check boundary would place the move
+    /// before the boundary it is supposed to be after, and the commander would
+    /// never be offered its command zone at all.
+    pub(crate) last_sba_check_epoch: u64,
+
     // --- Event log ---
     pub events: EventLog,
 
@@ -358,6 +438,11 @@ impl GameState {
             player_lost: vec![false; num_players],
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
+            replacement_effects: ReplacementRegistry::new(),
+            replacement_ability_sources: HashSet::new(),
+            cant_be_regenerated: HashSet::new(),
+            next_zone_change_epoch: 1,
+            last_sba_check_epoch: 1,
             events: EventLog::new(),
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
@@ -507,6 +592,59 @@ impl GameState {
         }
     }
 
+    /// Remove a permanent from combat (CR 506.4).
+    ///
+    /// > 506.4. A permanent is removed from combat if it leaves the
+    /// > battlefield, if its controller changes, if it phases out, or if an
+    /// > effect specifically says it's removed from combat. ... A creature
+    /// > that's removed from combat stops being an attacking, blocking,
+    /// > blocked, and/or unblocked creature.
+    ///
+    /// Both directions, which is the part a one-line `entry.attacking = None`
+    /// would get wrong: an attacker leaving combat also stops being *blocked
+    /// by* its blockers, and a blocker leaving stops appearing in the
+    /// attackers' `blocked_by` lists. CR 506.4b keeps the attacker blocked in
+    /// the sense that matters for damage — "an attacking creature that's been
+    /// blocked remains blocked even if all creatures blocking it are removed
+    /// from combat" — so `is_blocked` is deliberately left alone.
+    pub(crate) fn remove_from_combat(&mut self, id: ObjectId) {
+        let Some(entry) = self.battlefield.get(&id) else {
+            return;
+        };
+        let was_blocked_by = entry
+            .attacking
+            .as_ref()
+            .map(|a| a.blocked_by.clone())
+            .unwrap_or_default();
+        let was_blocking = entry
+            .blocking
+            .as_ref()
+            .map(|b| b.blocking.clone())
+            .unwrap_or_default();
+
+        if let Some(entry) = self.battlefield.get_mut(&id) {
+            entry.attacking = None;
+            entry.blocking = None;
+        }
+        // This creature was attacking: its blockers stop blocking it.
+        for blocker in was_blocked_by {
+            if let Some(b) = self.battlefield.get_mut(&blocker) {
+                if let Some(info) = b.blocking.as_mut() {
+                    info.blocking.retain(|&a| a != id);
+                }
+            }
+        }
+        // This creature was blocking: the attackers stop being blocked by it.
+        // CR 506.4b leaves them *blocked* — they simply have no blockers.
+        for attacker in was_blocking {
+            if let Some(a) = self.battlefield.get_mut(&attacker) {
+                if let Some(info) = a.attacking.as_mut() {
+                    info.blocked_by.retain(|&b| b != id);
+                }
+            }
+        }
+    }
+
     /// The timestamp a continuous effect generated by `ability` on `id` gets
     /// (CR 613.7a).
     ///
@@ -605,7 +743,7 @@ impl GameState {
     fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
-        use crate::types::effects::Duration;
+        use crate::types::effects::{Duration, Effect};
 
         let (abilities, card_name) = if let Some(obj) = self.objects.get(&id) {
             (obj.card_data.abilities.clone(), obj.card_data.name.clone())
@@ -616,6 +754,16 @@ impl GameState {
         for ability in &abilities {
             if ability.ability_type != AbilityType::Static {
                 continue;
+            }
+
+            // CR 614.1a — a replacement effect generates no continuous effect
+            // and so has no row to register. What it needs instead is for
+            // `engine::replacement::gather` to know this permanent is worth
+            // asking about; recording it here rather than in a separate ETB
+            // pass is deliberate, since this is already the one function that
+            // reads printed abilities at the moment a permanent enters.
+            if matches!(ability.effect, Effect::Replacement(_)) {
+                self.replacement_ability_sources.insert(id);
             }
 
             // CR 604.3a(3) — a characteristic-defining ability affects only the
@@ -715,6 +863,15 @@ impl GameState {
 
         match &ability.effect {
             Effect::Atom(p, r) => vec![(p, r)],
+
+            // CR 614.1a — a static ability that generates a replacement effect
+            // produces no continuous effect and therefore no layer rows. It is
+            // not an authoring error and it is not silently dropped: the effect
+            // is discovered by `engine::replacement::gather`, which reads this
+            // object's *effective* ability list at the instant an event is
+            // proposed. Registering it here as well would be the CDA mistake in
+            // a second costume — one ability applying through two channels.
+            Effect::Replacement(_) => Vec::new(),
 
             Effect::Sequence(effects) => {
                 let mut atoms = Vec::with_capacity(effects.len());

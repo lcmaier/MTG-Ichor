@@ -485,6 +485,16 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         PlayerLost { player_id, reason } => {
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }
+        CountersChanged { object_id, counter, added } => {
+            let verb = if *added >= 0 { "put on" } else { "removed from" };
+            format!(
+                "CountersChanged: {} {:?} counter(s) {} {}",
+                added.abs(),
+                counter,
+                verb,
+                obj_name(game, *object_id)
+            )
+        }
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
         }
