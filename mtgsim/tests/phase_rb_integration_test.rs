@@ -1778,6 +1778,65 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
     );
 }
 
+/// An exempt row that watches `to` and rewrites to `becomes`.
+fn exempt_row(
+    victim: mtgsim::types::ids::ObjectId,
+    turn: u32,
+    to: Zone,
+    becomes: Zone,
+) -> RegisteredReplacementEffect {
+    let mut def = ReplacementDef::new(
+        EventPattern::ZoneChange { from: None, to: Some(to), cause: None, object: None },
+        AffectedSet::Fixed(vec![victim]),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+            to: becomes,
+            cause: ZoneChangeCause::Sacrificed,
+        }),
+    );
+    def.exempt_from_614_5 = true;
+    RegisteredReplacementEffect {
+        id: 0,
+        source: victim,
+        controller: 0,
+        duration: Duration::UntilEndOfTurn,
+        created_on_turn: turn,
+        def,
+    }
+}
+
+#[test]
+fn test_two_exemptions_rewriting_each_others_events_is_caught_at_once() {
+    // The second half of the exemption's termination argument, and the half
+    // that no *single* effect can be checked for.
+    //
+    // Each row here is individually well-behaved: the graveyard one's rewrite
+    // leaves its own pattern, and so does the exile one's. Together they are a
+    // perpetual motion machine — graveyard → exile → graveyard — and because
+    // both are exempt from CR 614.5 neither ever enters the applied set, so the
+    // loop spends nothing per lap.
+    //
+    // CR 903.9b is meant to be the rules' only exemption, which is exactly why
+    // the loop may assume at most one applies to one event. This asserts the
+    // assumption is enforced rather than hoped for.
+    let mut game = setup_two_player_game();
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let turn = game.turn_number;
+    game.replacement_effects.add(exempt_row(victim, turn, Zone::Graveyard, Zone::Exile));
+    game.replacement_effects.add(exempt_row(victim, turn, Zone::Exile, Zone::Graveyard));
+
+    let ctx = test_ctx();
+    let err = game
+        .change_zone(victim, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+        .expect_err("two exemptions rewriting each other cannot converge");
+
+    // Mutation check: an unbounded loop hangs and a capped one also returns
+    // `Err`, so the assertion has to be on *which* error.
+    assert!(
+        err.contains("two effects exempt from CR 614.5 applied to one event"),
+        "wrong error, so the second exemption was not noticed: {err}"
+    );
+}
+
 // COVERS-PARTIAL: ATOM-614.5-001
 #[test]
 fn test_declined_optional_is_not_reoffered() {

@@ -228,10 +228,12 @@ grow.
 
 ## E. Engine hygiene — ✅ **CLOSED 2026-08-30** (`69a805e`)
 
-**Four rows, and two of them moved twice.** E1 first got a decision (the cap is
-a backstop, not a harness) and then — on the owner's reading of that answer, that
-the *doc* was long because the *design* was weak — got the design fix instead:
-`check_exempt_terminates`. E2 and E3 are `codebase-state.md` items 18 and 19.
+**Four rows, and E1 took three passes to land.** It got a decision first (the
+cap is a backstop, not a harness), then — on the owner's reading of that answer,
+that the *doc* was long because the *design* was weak — a check for the property
+CR 903.9b actually has, and then, on the same objection repeated, the deletion
+the argument had earned all along. E2 and E3 are `codebase-state.md` items 18
+and 19.
 E4 asked whether "no card replaces this" is safe futureproofing and got **two
 different answers** — sound for removal from combat, false for the analogy the
 damage comment leaned on — plus, on the same review, the missing half of the
@@ -241,11 +243,13 @@ rather than lucky. §8a carries both.
 **The lesson worth keeping from E1.** A long defensive comment is evidence about
 the code under it. The first answer was accurate and the reviewer was still
 right to reject it, because "bounded by nothing else" is a fact about the design,
-not about the prose.
+not about the prose — and the second answer was better and *still* left a
+number in the tree, which the same objection removed. The finished shape is one
+check per way the argument can fail, each with its own error, and no budget.
 
 | # | Area | Finding | Verdict |
 |---|---|---|---|
-| E1 | `pipeline.rs:72` | `MAX_616_1F_ITERATIONS` is documented as "a test harness" and lives in engine code. Either it is a real invariant (then say so without calling it a harness) or it belongs behind `#[cfg(test)]` / a debug assertion. | `fix` ✅ — a **bug backstop**, said without the word "harness" — and then, on owner review of that answer, **made to do much less work**. The first pass documented the hole honestly (an `exempt_from_614_5` effect is outside CR 614.5's applied set and so bounded by nothing); the second closed it. `check_exempt_terminates` holds every exemption to the property 903.9b actually has — its rewrite takes the event out of its own pattern — so an exempt effect can only re-apply after some *other* effect spends an applied-set slot putting it back. The cap now covers only two-exempt ping-pong, which the rules do not have. Unblocks `cant-effects-architecture.md` §4.2's citation, with the caveat that a solver has no such argument to fall back on |
+| E1 | `pipeline.rs:72` | `MAX_616_1F_ITERATIONS` is documented as "a test harness" and lives in engine code. Either it is a real invariant (then say so without calling it a harness) or it belongs behind `#[cfg(test)]` / a debug assertion. | `fix` ✅ — **the constant is deleted and the loop is uncapped.** Three answers, each rejected for the right reason. (1) "It is a bug backstop, not a test harness" — true, and the length of the comment defending it was the tell that the design under it was weak. (2) `check_exempt_terminates` enforcing the property CR 903.9b actually has (its rewrite leaves its own pattern), which left the cap covering two-exempt ping-pong. (3) That case is a check too — at most one exemption applies to one event — so every leg of the argument is now enforced where it can fail and the budget has nothing left to do. `MAX_616_1F_ITERATIONS` is gone; `apply_replacements` is a plain `loop`. Two tests pin the two failure modes, both shown failing against the capped tree. `cant-effects-architecture.md` §4.2 no longer cites it as precedent — it cites how it died |
 | E2 | `game_state.rs:589` | `remove_from_combat` (CR 506.4) is combat code that arrived in a replacement-effects PR. It is genuinely needed by CR 701.19a's rider, but it is the kind of thing a split would have kept out. | `defer` ✅ — `codebase-state.md` item 18. Recorded so the combat phase *uses* it: it handles CR 506.4 in both directions, and the one-line `entry.attacking = None` version is the one that looks right and is not |
 | E3 | `object.rs:44` | `zone_change_epoch` + two `GameState` counters for one consumer (CR 704.6d). Justified as a *fact* rather than a feature, and `codebase-state.md` item 10 wants the same field for CR 400.7 — but with one live use it is worth re-confirming the plumbing earns its place. | `defer` ✅ — `codebase-state.md` item 19. A re-confirm when item 10's CR 400.7 lands, not debt: recording an unrecoverable fact is right, and if 400.7 does not use the field the question becomes live |
 | E4 | `resolve.rs:659` | **`RemoveFromCombat` / `RemoveAllDamage` write `BattlefieldEntity` directly, justified as "no card replaces this".** Is that safe futureproofing? A card saying "creatures you control can't be removed from combat" is plausible, and the design's own premise is that any game event should be replaceable. | `design` ✅ — **combat: sound.** CR 506.4 is a *consequence* of seven causes, six already proposed, so a "can't" attaches to a cause; all 25 printed "from combat" cards cause removal and nothing watches it. **Damage: the analogy was false.** Seven cards restrict the CR 514.2 cleanup wipe the comment cited as precedent — item 20, one filter once RS-1's sweep exists. The tripwire for both is a *trigger*, not a replacement |

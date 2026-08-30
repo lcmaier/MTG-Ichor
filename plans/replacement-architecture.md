@@ -258,8 +258,8 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         │  a second, independent prompt, and one candidate is enough
   │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
   │         ├─ push `then` onto riders (615.5 / 614.1a) — unconditional (615.12)
-  │         ├─ exempt effect? check its rewrite left its own pattern —
-         │  the termination argument CR 614.5's set does not supply
+  │         ├─ exempt from CR 614.5? check_exempt_terminates — the argument
+         │  the applied set does not supply. **The loop has no cap**
          └─ loop (CR 616.1f) with the applied set carried
   │
   ├─ phase 2: PERFORM, in batch order

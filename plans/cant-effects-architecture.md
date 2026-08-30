@@ -648,17 +648,25 @@ absurd, and is not what the framing is for.
 
 **The guard, and it stays regardless of which algorithm wins.** CR 508.1d is
 NP-hard in the general case, so whatever ships takes a hard bound with a loud
-error rather than a silent wrong answer. `MAX_616_1F_ITERATIONS` **is** the
-precedent — `rb-review.md` E1 closed 2026-08-30 with the answer that it is a
-bug backstop in engine code, not a test harness — but note how little work it
-does there, because that is the shape to copy. The CR 616.1f loop has a real
-termination argument (CR 614.5's applied set), and its one carve-out is caught
-by a *check at the site*, `check_exempt_terminates`, rather than by the cap; the
-cap covers only a case the rules do not currently have. **A combat solver has no
-termination argument to fall back on**, so its bound is the whole safety net and
-its error text is the only diagnosis anyone will get. Budget accordingly: the
-lesson from E1 is that a bound you actually rely on is a design smell worth one
-more attempt at an argument.
+error rather than a silent wrong answer. **`MAX_616_1F_ITERATIONS` is not the
+precedent, because it no longer exists** — and how it died is the thing worth
+copying. `rb-review.md` E1 first ruled it a legitimate bug backstop rather than
+a test harness; on review of that answer, the length of the comment defending it
+was read as evidence about the design under it, and the cap came out. What
+replaced it was not a better number but **the missing half of an argument**:
+CR 616.1f terminates because CR 614.5's applied set spends a slot per effect,
+and the one class CR 614.5 exempts is bounded by two properties of the
+`ReplacementDef` that `check_exempt_terminates` now enforces instead of
+assuming. Three checks, each naming its own failure, and no budget.
+
+**A combat solver cannot do that**, and the difference is the point. CR 508.1d
+is NP-hard; there is no property of the board that bounds the search the way
+CR 614.5 bounds the loop. So its cap is load-bearing in a way this one turned
+out not to be, and it should be *designed* as the safety net — its error text is
+the only diagnosis anyone will get — rather than borrowed from a sibling that
+got to delete its own. The transferable lesson from E1 is the diagnostic one: a
+bound you actually rely on deserves one more attempt at an argument first, and
+if the argument exists, enforce each leg where it can fail.
 
 **Two things follow for the code.** First, `legal_attackers` /
 `legal_blockers` keep being an **over-approximation** — that is already this

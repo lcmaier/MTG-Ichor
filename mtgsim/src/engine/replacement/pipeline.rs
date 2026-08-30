@@ -68,19 +68,6 @@ pub(crate) fn is_blocked(game: &GameState, action: &GameAction) -> bool {
     }
 }
 
-/// Defence in depth for the CR 616.1f loop. **Not the termination argument** —
-/// `check_exempt_terminates` is, together with CR 614.5's applied set.
-///
-/// Every effect the applied set governs gets one iteration, so the bound is the
-/// number of applicable effects. An `exempt_from_614_5` effect (CR 903.9b) is
-/// outside that set and is bounded instead by its rewrite falsifying its own
-/// pattern, which is checked rather than assumed. The two together bound the
-/// loop while at most one exempt effect can apply to one event — true today,
-/// and CR 903.9b is the rules' only exemption. **A second one would need this
-/// cap**, because two exempt effects can rewrite each other's events forever
-/// and neither check would notice.
-const MAX_616_1F_ITERATIONS: usize = 256;
-
 /// The CR 616.1 loop: decide what event actually happens.
 ///
 /// Returns `None` when the event does not happen at all (CR 614.6). Queued
@@ -116,9 +103,20 @@ pub(crate) fn apply_replacements(
     // *applying* more than once, and 903.9b's exception is to that. Declining
     // is a final answer about this event, and no rule exempts anything from it.
     let mut declined: HashSet<ReplacementInstanceId> = HashSet::new();
+    // Which exempt effect has applied, if any — see `check_exempt_terminates`,
+    // which owns the whole termination argument for the effects CR 614.5 does
+    // not govern.
+    let mut exempt_applied: Option<ReplacementInstanceId> = None;
     let mut event = action;
 
-    for _ in 0..MAX_616_1F_ITERATIONS {
+    // Unbounded on purpose. **Every iteration consumes something finite**, and
+    // the three things that guarantee it are each enforced in code rather than
+    // asserted here: CR 614.5's `applied` set, the `declined` set, and
+    // `check_exempt_terminates` for the one class CR 614.5 exempts. A candidate
+    // pool cannot grow mid-loop either — `apply_rewrite` only rewrites the
+    // proposal and riders are queued rather than run (§4.1a), so nothing
+    // touches the board between iterations.
+    loop {
         // CR 614.17: a "can't" is checked ahead of the pipeline and wins.
         // CR 614.17c narrows what may still apply rather than ending the loop,
         // because a self-replacement that changes the event's type would lift
@@ -227,55 +225,76 @@ pub(crate) fn apply_replacements(
             // CR 616.2's "a replacement effect can become applicable as the
             // result of another" works without any special case.
             Some(next) => {
-                check_exempt_terminates(game, &chosen, &next)?;
+                check_exempt_terminates(game, &chosen, &next, &mut exempt_applied)?;
                 event = next;
             }
         }
     }
-
-    Err(format!(
-        "CR 616.1f did not converge in {} iterations on {:?}. Two things bound \
-         this loop and both have been passed: CR 614.5's applied set, which every \
-         non-exempt effect enters after its one opportunity, and \
-         `check_exempt_terminates`, which holds each exempt effect to a rewrite \
-         that leaves its own pattern. Reaching this cap means either an effect is \
-         being re-offered after its one opportunity, or two exempt effects are \
-         rewriting each other's events — CR 903.9b is meant to be the only \
-         exemption.",
-        MAX_616_1F_ITERATIONS, event
-    ))
 }
 
-/// The termination argument for the one effect CR 614.5 does not govern.
+/// The termination argument for the one class of effect CR 614.5 does not
+/// govern — the whole of it, in one place.
 ///
-/// CR 903.9b is exempt from CR 614.5 and therefore never enters the applied
-/// set, so nothing stops the loop re-offering it — *except* that its rewrite
-/// takes the event out of its own pattern: it watches a move to hand or
-/// library and rewrites the destination to the command zone. That is what makes
-/// "may apply more than once to the same event" bounded rather than infinite,
-/// and it is a property of the `ReplacementDef`, so it is **checked here rather
-/// than assumed**.
+/// CR 614.5 is what makes the CR 616.1f loop finite: one opportunity per effect,
+/// finitely many effects. CR 903.9b is the rules' only exemption from it, so an
+/// exempt effect never enters the `applied` set and nothing there stops the loop
+/// re-offering it forever.
 ///
-/// With that held, an exempt effect can only re-apply after some *other* effect
-/// puts the event back in its pattern — and every other effect is governed by
-/// CR 614.5, so each re-entry costs an applied-set slot. The loop is bounded.
+/// **The rules are safe doing that because of two facts, and this checks both**
+/// — they are properties of the `ReplacementDef`, and a `ReplacementDef` is data
+/// a card file writes, so the engine cannot assume what the CR can.
 ///
-/// Failing this is a card- or rules-authoring error, not a rules corner, and it
-/// is reported at the iteration that causes it rather than 256 iterations later
+/// 1. **An exemption's rewrite takes the event out of its own pattern.** 903.9b
+///    watches a move to hand or library and produces a move to the command zone,
+///    which is neither, so it cannot feed itself. It comes back only if some
+///    *other* effect pushes the event toward hand or library again — and every
+///    other effect is under CR 614.5, so each re-entry costs an applied-set
+///    slot. That is what makes "may apply more than once to the same event"
+///    bounded rather than infinite.
+/// 2. **At most one exemption applies to one event.** Two exempt effects can
+///    each satisfy (1) alone and still rewrite each other's events forever,
+///    consuming nothing. 903.9b is the only exemption in the rules, so this
+///    costs nothing today; a second one must arrive with a CR cite *and* a
+///    fresh termination argument, which is what the error says.
+///
+/// Together with the `applied` and `declined` sets, this is why the loop needs
+/// no iteration cap: every iteration spends a finite resource, and a failure is
+/// reported at the application that causes it rather than N iterations later
 /// with nothing to point at.
 fn check_exempt_terminates(
     game: &GameState,
     chosen: &ReplacementInstance,
     next: &GameAction,
+    exempt_applied: &mut Option<ReplacementInstanceId>,
 ) -> Result<(), String> {
     if !chosen.def.exempt_from_614_5 {
         return Ok(());
     }
     // A spent one-shot cannot be re-gathered whatever its rewrite does
-    // (`consume_use` removed the row), so it is bounded already.
+    // (`consume_use` removed the row), so it bounds itself and takes part in
+    // neither check — including not claiming the single-exemption slot, which
+    // it could not use again anyway.
     if matches!(chosen.def.uses, Uses::Once) {
         return Ok(());
     }
+
+    // Fact 2.
+    match *exempt_applied {
+        Some(first) if first != chosen.id => {
+            return Err(format!(
+                "two effects exempt from CR 614.5 applied to one event, {:?} \
+                 and {:?}. Each may be individually well-behaved and the two \
+                 can still rewrite each other's events forever, spending no \
+                 applied-set slot — so the CR 616.1f loop has no termination \
+                 argument left. CR 903.9b is meant to be the rules' only \
+                 exemption; a second needs a CR cite and a fresh argument.",
+                first, chosen.id
+            ));
+        }
+        _ => *exempt_applied = Some(chosen.id),
+    }
+
+    // Fact 1.
     if applies_to(game, chosen, next, subject_of(next)) {
         return Err(format!(
             "replacement {:?} is exempt from CR 614.5 and still applies to its \
