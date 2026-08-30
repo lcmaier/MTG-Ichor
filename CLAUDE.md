@@ -23,6 +23,7 @@ python plans/check_claude_md.py           # this file's 200-line budget — must
 | `plans/layers-architecture.md` | The layer system: type shapes, module layout, sublayer enumeration, dependency algorithm |
 | `plans/replacement-architecture.md` | Replacement + prevention (CR 614–616): event vocabulary, CR 616.1 pipeline, ETB look-ahead frame, RA–RE sequencing |
 | `plans/cant-effects-architecture.md` | "Can't" effects (CR 101.2, 614.17, 613.11): the six enforcement points, `RestrictionDef`, RS-1–RS-4 sequencing. Supersedes ticket L15 |
+| `plans/copy-effects-architecture.md` | Copy effects (CR 707, 712, 708, 729) and Layer 1: `CopiableValues`, the four producers, CV-1–CV-7 sequencing. Supersedes ticket D5 |
 | `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
@@ -98,9 +99,9 @@ rules, each of which has already cost something. → `replacement-architecture.m
   it is a design error, not a test fix.
 - **A "can't" is not a replacement effect (CR 614.17).** Checked ahead of the pipeline, and it
   wins (CR 101.2) — `engine::replacement::is_blocked`, never a `ReplacementDef`.
-- **A static replacement ability is discovered off the *effective* ability list, never from a
-  registry.** `replacement_ability_sources` is a *hint* that gates the sweep, so **add a gather
-  source and you must add it to the gate**, or the source is silently dead.
+- **A static replacement ability is discovered off the *effective* ability list, never a
+  registry.** `replacement_ability_sources` gates the sweep and is sound only until Layer 1/3
+  exist: **a new gather source, or a new route to that list, needs a gate leg** or it is dead.
 - **Declining an optional is tracked separately from CR 614.5's applied set.** CR 903.9b is
   exempt *and* optional, so a decline recorded in the applied set is a hang.
 - **Deciding is separated from performing (CR 704.3).** A batch decides every member against
@@ -111,8 +112,7 @@ rules, each of which has already cost something. → `replacement-architecture.m
 **Growth contracts, enforced in review.** `EventPattern` grows on one axis — an arm per
 `GameAction` variant; `Rewrite` is a closed algebra, so a new arm needs the CR rule permitting
 it; per-mechanic variety goes in `ReplacementDef.then`. **An arm the pipeline cannot apply is
-worse than a missing one**, which is why both ship narrower than §3.2 designed them.
-→ §2a (as built), §3.2a, §3.2b.
+worse than a missing one**, so both ship narrower than §3.2. → §2a (as built), §3.2a, §3.2b.
 
 ## Determinism at the decision boundary
 
@@ -139,6 +139,8 @@ line for line but the timing lines. → `codebase-state.md`.
    — is next, and is the ~1,350-card unlock**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 must land before RC-4**; RS-3 (combat) wants item 7 first
+5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **A copy
+   row stores values, never a reference** — which is what keeps it off item 7. CV-2 needs RC-2
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes LKI
    formalization and conditional static abilities with it
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass + cross-call

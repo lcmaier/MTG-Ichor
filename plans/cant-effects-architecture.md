@@ -1275,15 +1275,17 @@ than it needs ETB replacements, do 9 first and nothing breaks.
 CR 113.11's Tier 4, and the Conspiracy in §2.5. Each has a home elsewhere or no
 home yet, and each is named in §9 or §10 so it is findable rather than lost.
 
-**And one thing that is missing from it because nobody has scheduled it.**
+**And one thing that was missing from it — now scheduled.**
 `codebase-state.md` → "Was the critical path complete?" ran this document's own
 discovery backwards as a detector and found the next gap with the same shape:
-**copy effects** (CR 707 + 712 + Layer 1) have 66 uncovered atoms, no owning
-doc, no critical-path slot, 2,890 double-faced cards behind them — and *two*
-shipped `ReplacementClass` buckets (`CopyOnEnter`, `BackFaceUp`) already waiting
-for a producer. It is not on the list above because scheduling it is not this
-document's call; it is named here so that whoever writes step 8 (RC-4) does not
-discover it while trying to produce a `CopyOnEnter`.
+**copy effects** (CR 707 + 712 + 708 + 729 + Layer 1). As of 2026-08-30 they have
+an owning doc (`plans/copy-effects-architecture.md`), `CLAUDE.md` critical-path
+item **5c**, and phases CV-1–CV-7. Two corrections that document made to the
+detector's table are worth carrying: the atom count is **101**, not 66, and the
+rules-relevant double-faced population is **517**, not 2,890 (`is:dfc` is mostly
+art-series cards). **Step 8 above changes**: RC-4 does *not* fill the CR 616.1c
+bucket — it cannot produce a `CopyOnEnter` without the copy spine, so it keeps
+616.1b and 616.1c moves to CV-2. Nothing else in this document's ordering moves.
 
 ---
 

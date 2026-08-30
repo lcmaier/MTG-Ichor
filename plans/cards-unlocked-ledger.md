@@ -288,6 +288,43 @@ dozen mechanics that mostly need other phases anyway (`PlayerLoses` is RE's,
 
 ---
 
+## Part 5: Copy Effects (Phases CV-1–CV-7)
+
+Ticket ids are the `CV` sub-phases of `plans/copy-effects-architecture.md` §7.
+Counts are from `plans/references/copy-census.py` (2026-08-29). **Two different
+units, never summed:** the copy *clauses* (1,093 over 752 cards printing
+"copy"/"copies"/"copied") and the face/state *card* populations, which never
+print the word and which the clause census structurally cannot see.
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| CV-1 | **Tier C — "becomes a copy" (CR 707.4), turn-bounded.** **56 of 81 clauses**. Also the spine every later CV phase carries: `CopiableValues`, `EffectModification::CopyFrom`, `Primitive::Copy`, and the two ETB-scan legs (`codebase-state.md` item 16) | **Cytoshape** (instant, `AffectedSet::Fixed` by CR 611.2c, until end of turn); Mirrorweave and Nanogene Conversion, which are also `Fixed` once resolved; a Clone-of-an-Anthem probe, the only way to see the `register_static_effects` hole | 📋 designed 2026-08-29, boundary corrected 2026-08-30 |
+| CV-1b | **The indefinite-duration copies.** **25 of 81** Tier C clauses, printed by name by `copy-census.py --scope`. A row that never expires is reachable by neither expiry nor `remove_by_source`, so it outlives its subject without bound | **Dimir Doppelganger**, Lazav the Multifarious, Likeness Looter (activated, self-scoped, capture from a graveyard *card*); True Polymorph, Metamorphic Alteration | 📋 designed 2026-08-29; **blocked on `codebase-state.md` item 10 (CR 400.7)** — and unlike a pump spell's, this exposure is unbounded |
+| CV-2 | **Tier B — "enters as a copy" (CR 707.5/616.1c).** 69 clauses / 69 cards, and it gives `ReplacementClass::CopyOnEnter` the producer RB shipped the bucket for. Carries CR 707.9a–d's exceptions: **139 of the 331** printed "as a copy" cards say "except" | Clone, Phantasmal Image, Sakashima of a Thousand Faces, Spark Double, Evil Twin; every Clone-shaped legend a Commander deck runs | 📋 designed 2026-08-29; **needs RC-2**, and takes CR 616.1c off RC-4 |
+| CV-3 | **Tier A — token copies (CR 707.1/111.1).** 318 clauses / **306 cards**, the largest layer-touching bucket and the cheapest mechanism in the document — no row, no layer, no duration | Kiki-Jiki Mirror Breaker, Helm of the Host, Splinter Twin, Esika's Chariot; the 266 cards printing "token that's a copy", 256 of them Commander-legal | 📋 designed 2026-08-29 |
+| CV-4 | **Tiers D+E — spell and cast copies (CR 707.10/707.12).** 542 + 73 clauses over **306 + 47 cards**, and **it touches no layer, no registry and no replacement**. 186 of those clauses are CR 707.10c's retarget prompt alone — one shared prompt, not 186 implementations | Fork, Twincast, Reverberate, Dualcaster Mage; Zada Hedron Grinder and Ink-Treader Nephilim (707.10d); Isochron Scepter and Panoptic Mirror (707.12) | 📋 designed 2026-08-29; **free to land at any point** |
+| CV-5 | **CR 712 faces — transform + modal DFC.** **496 cards** (396 nonmodal + 100 modal), 486 Commander-legal, and **120 of them can *be* a commander**. Gives `ReplacementClass::BackFaceUp` its 616.1d producer | Delver of Secrets, Huntmaster of the Fells, Withengar Unbound; the modal DFC lands (Agadeem's Awakening, Turntimber Symbiosis); Brutal Cathar as a DFC commander | 📋 designed 2026-08-29; **highest risk — a second card model** |
+| CV-6 | **Face-down (CR 708).** **304 producers** — Layer 1b plus the CR 708.4 cast-face-down path and the turn-face-up special action. Coupled to CV-1 only through the capture ceiling (CR 707.2 makes copiable values depend on face-down status) | Willbender, Brine Elemental, Den Protector; the manifest and disguise/cloak families | 📋 scheduled 2026-08-30, **undesigned** — no type surface yet |
+| CV-7 | **Merging (CR 729) + meld (CR 712.4).** 34 + 21 cards, and the multi-component `BattlefieldEntity` every other phase writes code against the absence of | Brisela Voice of Nightmares (Bruna + Gisela); Illuna Apex of Wishes and Nethroi Apex of Death (mutate); Urza Lord Protector, which melds | 📋 scheduled 2026-08-30, **undesigned**; **back-stop: before Phase 8 card breadth** |
+
+**Nothing in this cluster is out of v1** (§6, revised 2026-08-30 — an earlier
+draft scoped meld, mutate, face-down and flip cards out on population and
+effort, and that is withdrawn). Two reasons, and the first is the project's own
+doctrine: "is this permanent one object or several?" is a **fact**, not a
+feature, so deferring CV-7 does not defer its cost — every phase in between
+writes more code against the single-component assumption. And 21 meld cards is
+not 21 cards of demand when one of them is Brisela. **Flip cards** (CR 710, 25
+cards) ride along in CV-5 once faces exist.
+
+**Cards is the sizing unit; the clause counts are provenance.** A copy card
+carries one mechanism plus rider sentences about it — unlike a "can't" card,
+which can carry several independent restrictions — so clauses count sentences,
+not work. CV-4 is the extreme: 542 clauses over 306 cards, because 186 of those
+are one shared CR 707.10c prompt. And in the other direction, CV-5's 496 cards
+print no copy clause at all, which is why §2.2's population table exists.
+
+---
+
 ## Card Registry Expansion Tracker
 
 Cards currently in registry (24): 5 basic lands, 5 spells (alpha.rs), 4 vanilla creatures, 11 keyword creatures.
