@@ -1749,6 +1749,61 @@ fn test_one_owner_may_accept_while_another_declines() {
 }
 
 #[test]
+fn test_partner_commanders_of_one_owner_are_two_separate_offers() {
+    // **Partner commanders dying to one board wipe** (`rb-review.md` F2), and
+    // the case the sibling above cannot reach: there, two offers went to two
+    // *players*, so one prompt each is the only shape that even typechecks.
+    // CR 704.6d is a "may" per **commander** — "if a commander is in a
+    // graveyard or in exile ... its owner may put it into the command zone" —
+    // so one owner with two eligible commanders is asked twice, not once about
+    // a pair. That settles the open UX question the same way the rule does:
+    // two independent choices stay two prompts, and a combined "which of these
+    // do you want back" would couple them.
+    //
+    // Mixed accept/decline is again what discriminates, and `dp.is_empty()` is
+    // the assertion that catches a combined prompt — one ask would leave the
+    // second expectation in the queue.
+    let mut game = setup_two_player_game();
+    let kept = place_commander(&mut game, 0, Zone::Battlefield);
+    let left_behind = place_commander(&mut game, 0, Zone::Battlefield);
+    game.change_zone(kept, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.change_zone(left_behind, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    let before = game.events.len();
+
+    // One owner, so CR 101.4's APNAP sort is a no-op between these two and the
+    // stable sort leaves them in `moved_since`'s move order — `kept` died
+    // first, so `kept` is asked first.
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: kept },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::CommanderToCommandZoneSba { commander: left_behind },
+        vec![],
+    );
+    assert!(game.check_state_based_actions(&dp).unwrap());
+
+    assert_eq!(game.get_object(kept).unwrap().zone, Zone::Command);
+    assert_eq!(game.get_object(left_behind).unwrap().zone, Zone::Graveyard);
+    assert!(dp.is_empty(), "one owner, two commanders, two offers");
+
+    // And the one acceptance still travels as a member of CR 704.3's batch
+    // rather than as its own event.
+    let moves: Vec<_> = game
+        .events
+        .records()
+        .iter()
+        .skip(before)
+        .filter(|r| matches!(r.event, GameEvent::ZoneChange { to: Zone::Command, .. }))
+        .collect();
+    assert_eq!(moves.len(), 1, "only the accepted commander moved");
+    assert!(moves[0].batch().is_some());
+}
+
+#[test]
 fn test_the_offers_are_made_in_apnap_order_not_move_order() {
     // CR 101.4 — "if multiple players would make choices ... at the same time,
     // the active player makes any choices required, then the next player in
@@ -1790,7 +1845,8 @@ fn test_the_offers_are_made_in_apnap_order_not_move_order() {
     assert_eq!(
         game.get_object(moved_first).unwrap().zone,
         Zone::Graveyard,
-        "the nonactive player is asked second and declined, even though          their commander moved first"
+        "the nonactive player is asked second and declined, even though \
+         their commander moved first"
     );
 }
 
