@@ -163,7 +163,7 @@ pub(crate) fn apply_set_subtypes(
     // CR 305.7 — lose abilities from rules text, old land types, and copiable
     // effects. See the module docs for why this is an unconditional clear.
     chars.abilities.clear();
-    chars.keywords.clear();
+    chars.keyword_flags.clear();
 
     // ... and gain the appropriate mana ability for each new basic land type.
     for land_type in new_basics {
@@ -221,7 +221,7 @@ mod tests {
             types,
             subtypes,
             supertypes: HashSet::new(),
-            keywords: HashSet::new(),
+            keyword_flags: HashSet::new(),
             abilities: vec![AbilityDef {
                 is_characteristic_defining: false,
                 id: crate::types::ids::new_ability_id(),
@@ -388,12 +388,12 @@ mod tests {
     fn set_subtypes_strips_printed_keywords() {
         let id = new_object_id();
         let mut chars = land_frame(&[LandType::Island]);
-        chars.keywords.insert(crate::types::keywords::KeywordFlag::Hexproof);
+        chars.keyword_flags.insert(crate::types::keywords::KeywordFlag::Hexproof);
 
         apply_set_subtypes(&mut chars, &subtype_set(&[LandType::Mountain]), id);
 
         assert!(
-            chars.keywords.is_empty(),
+            chars.keyword_flags.is_empty(),
             "keywords are abilities (CR 702) and 305.7 strips them too"
         );
     }

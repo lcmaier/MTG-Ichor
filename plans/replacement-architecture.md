@@ -2527,8 +2527,8 @@ review, 2026-08-24). Only one needs an answer before code starts:
 |---|---|---|
 | 1 | CR 903.9 is half an SBA | **Answered.** A finding, not a question — `codebase-state.md` corrected |
 | 2 | `AffectedSet` reuse | **Answered.** A constraint to preserve, not a question |
-| 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RB, as planned.** RB gave `SelfReplacement` its CR 616.1a bucket and no producer; `ResolutionContext` still has three fields. The field lands with the first card that needs it |
-| 4 | Replacement effects outside the battlefield | **Still open — RB wrote the sweep but did not size it.** Now that `gather` exists the shape question is answerable: a zone parameter on one loop plus a timestamp on `GameObject`. The card count is still owed |
+| 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RB, as planned.** RB gave `SelfReplacement` its CR 616.1a bucket and no producer; `ResolutionContext` still has three fields. The field lands with the first card that needs it — and item 12 answers *who sets the class* |
+| 4 | Replacement effects outside the battlefield | **Answered 2026-08-30 — item 9.** Sized at ~390 cards, and the blocker is not the sweep: it is CR 113.6, which the engine has nowhere and the layer system needs for the same cards |
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
 | 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
 | 7 | `ScriptedDecisionProvider` blast radius | **Answered, and the watch held (RB, 2026-08-26).** Every test now traverses the pipeline and zero new prompts appeared. The rule was never relaxed |
@@ -2688,6 +2688,218 @@ rule number) — confirm the merge at labelling time.
    — no DP call with fewer than two candidates — is what keeps that at zero
    prompts on today's card pool. If a phase finds itself relaxing that rule to
    make something work, it has found a design error, not a test problem.
+
+### Answered on the review's second pass (2026-08-30)
+
+`rb-review.md` themes D, F and H asked eight modelling questions rather than
+reporting defects. Their answers live here because they are decisions about
+shape, and a decision recorded in a findings ledger dies with the ledger.
+
+8. **`apply_rewrite` does not grow per `(template, event)` pair, and the shape
+   that would fix it is worse** (`rb-review.md` D1). The match is
+   `template` × *{events that template can be built from}*, and every template
+   so far reads at most one event kind: `ZoneChangeTo` reads `ZoneChange`'s
+   `object` and `from`; `RemoveCountersFromAffected` reads nothing from the
+   event at all — it takes the *subject* — so it matches `_`. Growth is
+   therefore **one arm per template plus one error arm per template that
+   constrains its input**, which is linear in `GameActionTemplate`.
+
+   The symmetric alternative — make `GameActionTemplate` a projection of
+   `GameAction` with `Option` fields meaning "inherit from the event", the way
+   `EventPattern` is — is the wrong trade. A template's whole job is to say
+   what it takes from the event, and templates cross event kinds: CR 122.1c
+   turns a `Destroy` into a `RemoveCounters`. A uniform inheritance rule cannot
+   express that, so the per-field rules come back as data instead of as code,
+   and the error the current shape can give — "its `EventPattern` and its
+   `Rewrite` describe different events" — becomes unreachable.
+
+   **The tripwire is a template that must be built from more than one event
+   kind, differently.** At that point move construction onto the template
+   (`fn apply(&self, event, subject) -> Result<GameAction>`); that is
+   mechanical and carries no rules content. Nothing before then. §3.2c's
+   census is the evidence for the bound: 561 cards and 574 "would … instead"
+   clauses put the pressure entirely on the `GameAction` vocabulary.
+
+9. **§3.3 source 2 — static abilities functioning in other zones — is sized,
+   and it should not be inside this phase** (D5, closing K3).
+
+   **The count, Scryfall 2026-08-30: ~390 cards.** Six keyword families carry
+   almost all of it — flashback 210 and buyback 39, rebound 35, aftermath 27,
+   jump-start 13 (all CR-defined replacements functioning **on the stack**),
+   madness 61 (functioning **in hand**) — plus five cards whose "would be put
+   into a graveyard from anywhere, … shuffle it into its owner's library
+   instead" functions in *every* zone: Blightsteel Colossus, Darksteel
+   Colossus, Legacy Weapon, Nexus of Fate, Progenitus. Deliberately **not**
+   counted: the 34 "…exile it instead" hits on the same query are disturb
+   double-faced backs, and CR 712.8a gives a DFC only its front face's
+   characteristics outside the battlefield and the stack, so they are ordinary
+   battlefield sources.
+
+   **The phase should close without it, and the count is not why.** The sweep
+   is the easy half — one loop over a zone list instead of
+   `battlefield_ids_ordered`. What source 2 actually needs is **CR 113.6**, the
+   fourteen-subrule answer to "which of an object's abilities function in which
+   zone", and the engine has that nowhere. A graveyard sweep that does not ask
+   113.6 gathers Wonder's flying grant and Bridge from Below's trigger
+   alongside the one replacement it wanted.
+
+   **And it is not this phase's to build**, because the layer system needs the
+   identical facility for the identical cards: `codebase-state.md`'s layers
+   section already records that timestamps must move off `BattlefieldEntity`
+   onto `GameObject` precisely because Wonder — a *continuous* effect
+   functioning from a graveyard, CR 113.6b — has no timestamp to read. Two
+   systems, one missing facility, and building half of it inside RA–RE would
+   put CR 113.6 in `engine/replacement/`.
+
+   **Sized, then:** (a) CR 113.6's zone-function predicate, shared with layers
+   and eventually triggers (CR 113.6k); (b) an object timestamp off the
+   battlefield, which the layer system owes anyway; (c) a **gate leg per zone**
+   — `replacement_ability_sources` is populated at ETB, so a hand, graveyard or
+   stack source is invisible to `gather`'s fast path, which is `CLAUDE.md`'s own
+   "a new gather source needs a gate leg" rule; (d) the sweep. Schedule it with
+   (b), after RE, not inside it.
+
+10. **Skullbriar is the wrong reason to change the counter model, and there is
+    a right one** (F1). Two cards want CR 122.2's exception — Skullbriar, the
+    Walking Grave and Me, the Immortal (`o:/counters remain on/ -is:funny`,
+    2026-08-30) — which is a thin case for touching counters. But the
+    *capability* they need is counters on an object that is not on the
+    battlefield, and that has a real constituency: **71 suspend cards** put
+    time counters on a card in exile, and CR 122.1a and 122.1b are written for
+    "a card in a zone other than the battlefield" in their own words. The
+    engine can express none of it — `counters` lives on `BattlefieldEntity`,
+    and `perform_action`'s `AddCounters` arm errors for anything else.
+
+    **So: do not honour Skullbriar on its own.** The change is one move, the
+    `counters` map from `BattlefieldEntity` to `GameObject`, and it is contained
+    — 12 direct `.counters` sites outside `src/cards`, plus the
+    `add_counters` / `remove_counters` / `counter_count` accessors. The one part
+    needing thought is `CounterStack.timestamp`: CR 613.7c timestamps a counter
+    as it is put on, and that only means something where layers read it.
+
+    Once the map is on the object, Skullbriar costs a predicate at
+    `move_object`'s clear point — CR 122.2's "counters cease to exist" becomes
+    "unless the object's effective abilities say otherwise". **Trigger:** the
+    first suspend card or the first CR 122.1b keyword counter off the
+    battlefield. `codebase-state.md` Deferred Migrations.
+
+11. **"Unconditional once queued" is right, and RB cited the wrong rule for
+    half of it** (F3). Three separate things were tangled:
+
+    **The motivating card is out of scope.** Academy Rector's "you may exile
+    it. If you do, search…" is a *triggered ability*; card-text "A, then B"
+    resolves inside the effect (CR 608.2c) and never enters the pipeline as a
+    rider at all — §4.1a's "the other 'then'".
+
+    **The objection survives its example.** CR 615.12 is prevention-only, and
+    the code cited it for every rider. The correct citation for an `Instead`
+    rider is CR 614.1a + 614.6: the "and also" is part of what happens instead,
+    so it happens when the substitution does. Same conclusion, different
+    argument — and the case that separates them is an `Instead` queueing a
+    rider and a *later* replacement in the same 616.1f loop then preventing the
+    surviving event. Under 615.12 the rider still runs; under 614.6 the rules
+    say nothing, and "the modified event never happened" is at least arguable.
+
+    **Unreachable today, and checkably so.** RB's only `Prevent` producers are
+    CR 122.1c's shield damage half and CR 701.19a's regeneration, which watch
+    `DealDamage` and `Destroy`; RB's only `Instead`-with-a-rider is Kalitas,
+    whose output is a `ZoneChange` to exile that nothing watches. No RB batch
+    can build the case.
+
+    **And "if you do" is not a rider.** It is a conditional inside an effect,
+    and `then` is an `Effect`, so it lands as `Effect::Conditional` (Phase 6)
+    with no replacement vocabulary at all — which is exactly what §3.2's
+    "per-mechanic variety goes in `then`" was supposed to buy. Authoring an "if
+    you do" as a bare unconditional `then` is a card-authoring error and should
+    be called one. **RD owns the decision**, with item 15, because RD is where
+    `Prevent` gets producers.
+
+12. **CR 614.15's `SelfReplacement` class is *derived*, never authored** (F5),
+    and this codebase has already settled the general form of the question.
+
+    614.15 says a self-replacement effect "is an effect of a resolving spell or
+    ability that replace[s] part or all of that spell or ability's own
+    effect(s)". That is **pure provenance**: the identical sentence printed as a
+    static ability on a permanent is not a self-replacement, and no text a card
+    can print makes an effect self-replacing on its own.
+
+    The precedent is CDAs. `AbilityDef.is_characteristic_defining` asserts only
+    what the ability's *text* satisfies, while CR 604.3a(2)'s provenance is
+    owned by whoever writes the ability onto an object — `CLAUDE.md` states it,
+    and a Layer 6 `GrantAbility` must clear the flag. CR 614.15 is the same
+    split with **no text half at all**, so the flag has nothing to assert.
+
+    **What that means when item 3's producer lands:** `gather` stamps
+    `class = ReplacementClass::SelfReplacement` on every instance it builds
+    from `ActionContext::resolution`, and a card file never writes it. Assert
+    the other direction too — no authored `ReplacementDef` carries the class —
+    which is the analogue of the Layer 6 grant clearing the CDA flag. Note the
+    nuance 614.15 adds and the derivation survives: "the text can be a separate
+    ability, particularly when preceded by an ability word", so the class
+    cannot be derived from *which ability the text sits in*; it is derived from
+    the effect arriving through the resolution.
+
+13. **`ZoneChangeCause::Returned` keeps both returns, and the reason is
+    structural** (F7). §11's merge criterion asks whether a printed card
+    distinguishes two reasons *as a cause*. It does not apply here: the two
+    "returns" differ by **destination**, and destination is a field on the
+    event. The enum exists for what `(from, to)` cannot recover — a sacrifice
+    and a destruction share `(Battlefield, Graveyard)` — and return-to-hand and
+    return-to-battlefield share nothing.
+
+    Checked against the pool anyway: every card printing "is returned to" names
+    its destination (5 cards, Scryfall 2026-08-30 — Azorius Aethermage,
+    Justice Vance Astrovik, Puppet Master, Stormfront Riders, Warped Devotion;
+    all of them "hand"). Nothing watches a return without a zone, so the
+    trigger matcher always has both halves.
+
+    **The tripwire runs the other way.** If a card ever needs "returned to the
+    battlefield" as distinct from "put onto the battlefield" at the *same*
+    `(from, to)`, that is a missing variant on the *put* side — not a split of
+    `Returned`.
+
+14. **Open — does declining CR 903.9b exhaust its CR 614.5 exemption?** (H8.)
+    `declined` is keyed on the instance id, so a decline is final for the whole
+    event however the destination changes; an owner who declines the command
+    zone for a hand-bound event is never re-asked if a later replacement
+    redirects it to the library. The rule says 903.9b "may apply more than once
+    to the same event" and does not say whether *being offered and refusing* is
+    one of those times.
+
+    Unreachable (K7, and no second hand/library redirector exists), so this is
+    a research note, not a bug. **The one thing an answer must not do** is
+    exempt `declined` the way `applied` is exempted: that is the termination
+    argument §4.1 documents, and removing it is a hang. If the rules answer
+    turns out to be "re-ask on a changed destination", the key becomes
+    `(instance, destination)` — still finite, because destinations are.
+
+15. **RD's design must open with this: CR 614.5's identity may be per
+    `(event, affected object)`, not per batch member** (H9).
+
+    §4.2 keys the applied set per batch member. Two printed rulings pull in
+    opposite directions against that, and both are real. Kalitas's says a
+    board wipe killing N of an opponent's creatures makes N Zombies — different
+    objects, N applications, which the per-member shape gets right. CR 122.1c's
+    says that when several sources damage one shielded creature at once, **one**
+    shield counter is removed — but CR 510.4 makes simultaneous combat damage
+    one event, and the engine models each source as its own batch member with a
+    fresh applied set, so a creature blocking two attackers with two shield
+    counters loses two. (With one counter the answer is accidentally right: both
+    damages are prevented and the second rider removes nothing.)
+
+    **Keying per `(event, affected object)` within a batch reconciles them
+    exactly** — Kalitas's deaths are different objects, the two damages are one
+    object.
+
+    **Why it cannot wait for a card.** CR 615.7 is "one prevention shield,
+    several simultaneous sources, the shield's controller chooses how much to
+    apply to each" — the same modelling question asked officially — and building
+    615.7's allocation on the per-member shape gives each member its own shield
+    with nothing to allocate across. What the change costs is small and is about
+    *ownership*: `apply_replacements` already takes the applied set as a
+    parameter, so `execute_batch_inner` would key one map by affected object
+    instead of handing each member a fresh clone. §3.2d's `inherited` lineage
+    rule is untouched — it is about decomposition, not simultaneity.
 
 ---
 

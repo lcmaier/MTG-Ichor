@@ -16,7 +16,7 @@ use crate::types::keywords::KeywordFlag;
 /// Routes through the layer system — accounts for granted/removed keywords.
 pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool {
     compute_characteristics(game, id)
-        .map(|chars| chars.keywords.contains(&keyword))
+        .map(|chars| chars.keyword_flags.contains(&keyword))
         .unwrap_or(false)
 }
 
@@ -115,7 +115,7 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
         Some(began) => chars.control_since_turn >= began,
         None => chars.control_since_turn > 0,
     };
-    sick && !chars.keywords.contains(&KeywordFlag::Haste)
+    sick && !chars.keyword_flags.contains(&KeywordFlag::Haste)
 }
 
 /// Get the effective colors of a game object after applying Layer 5 effects.

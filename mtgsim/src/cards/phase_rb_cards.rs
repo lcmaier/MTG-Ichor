@@ -151,7 +151,7 @@ fn zombie_token() -> TokenDef {
         subtypes: vec![Subtype::Creature(CreatureType::Zombie)],
         power: 2,
         toughness: 2,
-        keywords: Vec::new(),
+        keyword_flags: Vec::new(),
     }
 }
 

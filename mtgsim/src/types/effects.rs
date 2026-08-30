@@ -262,7 +262,7 @@ pub struct TokenDef {
     pub subtypes: Vec<crate::types::card_types::Subtype>,
     pub power: i32,
     pub toughness: i32,
-    pub keywords: Vec<KeywordFlag>,
+    pub keyword_flags: Vec<KeywordFlag>,
 }
 
 /// Counter types that can be placed on permanents/players

@@ -562,7 +562,7 @@ impl GameState {
         // PRE-LAYER ZONE: printed types and keywords, for the same reason -- this
         // decides whether a card in hand may be cast now.
         let is_instant = obj.card_data.types.contains(&CardType::Instant);
-        let has_flash = obj.card_data.keywords.contains(&KeywordFlag::Flash);
+        let has_flash = obj.card_data.keyword_flags.contains(&KeywordFlag::Flash);
 
         if !is_instant && !has_flash {
             // Sorcery-speed timing

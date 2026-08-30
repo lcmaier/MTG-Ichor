@@ -189,8 +189,8 @@ mod tests {
         assert_eq!(card.name, "Serra Angel");
         assert_eq!(card.power, Some(4));
         assert_eq!(card.toughness, Some(4));
-        assert!(card.keywords.contains(&KeywordFlag::Flying));
-        assert!(card.keywords.contains(&KeywordFlag::Vigilance));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Flying));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Vigilance));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 5);
     }
 
@@ -200,8 +200,8 @@ mod tests {
         assert_eq!(card.name, "Thornweald Archer");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(1));
-        assert!(card.keywords.contains(&KeywordFlag::Reach));
-        assert!(card.keywords.contains(&KeywordFlag::Deathtouch));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Reach));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Deathtouch));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 2);
     }
 
@@ -211,7 +211,7 @@ mod tests {
         assert_eq!(card.name, "Raging Cougar");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(2));
-        assert!(card.keywords.contains(&KeywordFlag::Haste));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Haste));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(card.name, "Wall of Stone");
         assert_eq!(card.power, Some(0));
         assert_eq!(card.toughness, Some(8));
-        assert!(card.keywords.contains(&KeywordFlag::Defender));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Defender));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(card.name, "Elvish Archers");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(1));
-        assert!(card.keywords.contains(&KeywordFlag::FirstStrike));
+        assert!(card.keyword_flags.contains(&KeywordFlag::FirstStrike));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 2);
     }
 
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(card.name, "Ridgetop Raptor");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(1));
-        assert!(card.keywords.contains(&KeywordFlag::DoubleStrike));
+        assert!(card.keyword_flags.contains(&KeywordFlag::DoubleStrike));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 4);
     }
 
@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(card.name, "War Mammoth");
         assert_eq!(card.power, Some(3));
         assert_eq!(card.toughness, Some(3));
-        assert!(card.keywords.contains(&KeywordFlag::Trample));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Trample));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 4);
     }
 
@@ -261,8 +261,8 @@ mod tests {
         assert_eq!(card.name, "Knight of Meadowgrain");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(2));
-        assert!(card.keywords.contains(&KeywordFlag::FirstStrike));
-        assert!(card.keywords.contains(&KeywordFlag::Lifelink));
+        assert!(card.keyword_flags.contains(&KeywordFlag::FirstStrike));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Lifelink));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 2);
     }
 
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(card.name, "Rhox War Monk");
         assert_eq!(card.power, Some(3));
         assert_eq!(card.toughness, Some(4));
-        assert!(card.keywords.contains(&KeywordFlag::Lifelink));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Lifelink));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 
@@ -282,7 +282,7 @@ mod tests {
         assert_eq!(card.name, "Giant Spider");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(4));
-        assert!(card.keywords.contains(&KeywordFlag::Reach));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Reach));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 4);
     }
 
@@ -292,9 +292,9 @@ mod tests {
         assert_eq!(card.name, "Vampire Nighthawk");
         assert_eq!(card.power, Some(2));
         assert_eq!(card.toughness, Some(3));
-        assert!(card.keywords.contains(&KeywordFlag::Flying));
-        assert!(card.keywords.contains(&KeywordFlag::Lifelink));
-        assert!(card.keywords.contains(&KeywordFlag::Deathtouch));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Flying));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Lifelink));
+        assert!(card.keyword_flags.contains(&KeywordFlag::Deathtouch));
         assert_eq!(card.mana_cost.as_ref().unwrap().mana_value(), 3);
     }
 }

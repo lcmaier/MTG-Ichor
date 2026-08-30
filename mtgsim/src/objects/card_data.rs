@@ -28,7 +28,7 @@ pub struct CardData {
     pub loyalty: Option<i32>,
     pub defense: Option<i32>,
     pub abilities: Vec<AbilityDef>,
-    pub keywords: HashSet<KeywordFlag>,
+    pub keyword_flags: HashSet<KeywordFlag>,
     /// Color indicator (rule 204) — used for cards with no mana cost that have
     /// an intrinsic color (e.g., back faces of DFCs, Ancestral Vision suspend).
     /// None means no color indicator; color is derived from mana cost instead.
@@ -139,7 +139,7 @@ impl CardDataBuilder {
                 loyalty: None,
                 defense: None,
                 abilities: Vec::new(),
-                keywords: HashSet::new(),
+                keyword_flags: HashSet::new(),
                 color_indicator: None,
                 enchant_filter: None,
                 alternative_costs: Vec::new(),
@@ -195,7 +195,7 @@ impl CardDataBuilder {
     }
 
     pub fn keyword(mut self, keyword: KeywordFlag) -> Self {
-        self.data.keywords.insert(keyword);
+        self.data.keyword_flags.insert(keyword);
         self
     }
 
