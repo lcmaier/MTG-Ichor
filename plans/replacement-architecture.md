@@ -225,13 +225,13 @@ the enforcement.
 | `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
 | `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
-| `ReplacementInstanceId` | `engine/replacement/mod.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
-| `GameRuleReplacement` | `engine/replacement/mod.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
-| `ReplacementInstance` | `engine/replacement/mod.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
+| `ReplacementInstanceId` | `engine/replacement/instance.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
+| `GameRuleReplacement` | `engine/replacement/instance.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
+| `ReplacementInstance` | `engine/replacement/instance.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
 | `CounterEffectKind` | `engine/replacement/gather.rs` | Which of CR 122.1c's *two* effects a shield counter is. Two effects, one counter, two CR 614.5 identities | grows with CR 122.1's replacement-shaped counters |
-| `Affected` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Not `AffectedSet` | closed by what an event can be about |
-| `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed (CR 615.5/615.12) | — |
-| `ReplacementRowId` / `RegisteredReplacement` / `ReplacementRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
+| `EventSubject` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Named for the event because `AffectedSet` already answers the other question, which objects an *effect* applies to | closed by what an event can be about |
+| `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed. CR 615.5 when a *prevention* effect queued it; CR 614.1a/614.6 otherwise — the rest of an "instead" is part of the modified event | — |
+| `ReplacementEffectId` / `RegisteredReplacementEffect` / `ReplacementEffectRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
 
 ### One action, end to end
 
@@ -257,15 +257,17 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         ├─ if `optional`: ask_apply_optional_replacement (CR 614.1a) —
   │         │  a second, independent prompt, and one candidate is enough
   │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
-  │         ├─ push `then` onto riders (CR 615.5) — unconditional (615.12)
-  │         └─ loop (CR 616.1f) with the applied set carried
+  │         ├─ push `then` onto riders (615.5 / 614.1a) — unconditional (615.12)
+  │         ├─ exempt from CR 614.5? check_exempt_terminates — the argument
+         │  the applied set does not supply. **The loop has no cap**
+         └─ loop (CR 616.1f) with the applied set carried
   │
   ├─ phase 2: PERFORM, in batch order
   │    └─ perform_action(decided)                      engine/actions.rs
   │         the ONLY writer, and the only emitter of the matching GameEvent —
   │         it alone knows the cause and can take the CR 603.10a LKI frame
   │
-  └─ phase 3: RIDERS, after the event (CR 615.5), fresh applied set
+  └─ phase 3: RIDERS, after the event (615.5 / 614.1a), fresh applied set
        └─ resolve_rider()                              engine/actions.rs
 ```
 
@@ -732,7 +734,7 @@ machinery**: three counter types, 164 printed cards, and they exercise untap
 replacement, destroy replacement, damage prevention, and zone-change replacement
 between them.
 
-### 3.4 `ReplacementRegistry`
+### 3.4 `ReplacementEffectRegistry`
 
 Sources 3 and 4 need storage. Model it on `ContinuousEffectRegistry`
 (`state/continuous_effects.rs`) — same duration-expiry hooks, same
@@ -776,7 +778,7 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
 
     loop:                                                # CR 616.1f
         cands = gather(game, ev)                         # 3.3, five sources
-                  .filter(applies_to(ev))                # EventPattern + AffectedSet
+                  .filter(applies_to(ev))                # watches() && affects()
                   .filter(|c| c.exempt_from_614_5        # CR 903.9b
                               || !applied.contains(c.instance))   # CR 614.5
                   .filter(|c| !declined.contains(c.instance))     # see below
@@ -1516,6 +1518,102 @@ replacement and already covered; mill (2), paying life (1 — Ashiok, and it is
 CR 614.13c's own example) and untap (2, plus 92 stun-counter cards) fold into
 existing variants.
 
+### Two deliberate non-events, re-checked (2026-08-30, `rb-review.md` E4)
+
+The section above asks what the vocabulary is *missing*. The mirror question is
+what it deliberately leaves out: `Primitive::RemoveFromCombat` and
+`Primitive::RemoveAllDamage` both write `BattlefieldEntity` directly, and both
+justified it as "no card replaces this". An absence of cards is not a reason —
+this design's premise is that any event the engine performs should be
+replaceable — so the two were re-checked against Scryfall on 2026-08-30. **They
+have different answers.**
+
+**Removal from combat: sound, and for a better reason than the card count.**
+CR 506.4 does not define an event. It defines a *consequence*, with seven
+causes: leaving the battlefield, a controller change, phasing out, an effect
+that specifically removes it, an attacked planeswalker or battle that stops
+being one, and an attacking or blocking creature that regenerates, stops being
+a creature, or becomes a battle. **Six of the seven follow from something else
+the engine already models** — a proposed `ZoneChange`, a Layer 2 control
+change, a type change out of the layer walk, CR 701.19's regeneration (phasing
+is CR 702.26 and not built) — and the seventh *is*
+`Primitive::RemoveFromCombat`.
+
+**Nothing in the CR forbids "creatures you control can't be removed from
+combat", and this section does not claim otherwise.** What CR 506.4's shape
+decides is *where such a card would be enforced*: at six other places as well as
+this one, which makes it a `RestrictionDef` consulted by each cause
+(`cant-effects-architecture.md` §3, the sixth enforcement point) rather than a
+`ReplacementDef` over an event this arm proposes. Giving this arm a `GameAction`
+would buy that card nothing — it would still be unenforceable at the six. It is
+also worth noticing *why* the card has never been printed: on the
+leaves-the-battlefield cause it would have to mean something for a permanent
+that is no longer there, which is the kind of rules problem WotC avoids by
+construction. The card pool is unanimous today: 25 cards print "from combat"
+(`o:"from combat"`) and **all 25 cause removal**; `o:"removed from combat"` as a
+phrase returns zero, so nothing replaces it, forbids it, or triggers on it.
+
+**Damage removal: the on-demand half is sound; the half the comment leaned on
+was not.** The primitive itself is fine — the only printed card that removes all
+damage is **Pyramids** ("The next time target land would be destroyed this turn,
+remove all damage marked on it instead"), and it uses the removal as a
+replacement's *substituted event*, never as something replaced. But the comment
+justified the write as "the on-demand form of the CR 514.2 cleanup wipe, and a
+direct write for the same reason it is", and **the cleanup wipe is restricted by
+seven printed cards**: Ancient Adamantoise, Case of the Market Melee, Melt
+Through, Patient Zero, Switchgrass Grazer, Uthgardt Fury and Victory of the
+Pyrohammer all say damage isn't removed during cleanup steps
+(`o:/damage isn.t removed/ -is:funny`).
+
+Those cards are not replacement effects and they do not want a `GameAction`.
+CR 514.2's removal is a turn-based action that "doesn't use the stack", and the
+restrictions are per-permanent and filtered ("from creatures your opponents
+control"), so what they need is an enforcement point *at the wipe* —
+`cant-effects-architecture.md`'s sixth shape, not this pipeline's. Recorded as
+`codebase-state.md`, Before Replacement item 20.
+
+**What would reopen either: a trigger, not a replacement.** A direct write is
+invisible to CR 603's detector for the same reason it is invisible to CR 614's
+pipeline, and the event stream is what Phase 6 matches against. Today
+`o:/whenever.*removed from combat/` returns zero, so the tripwire is a card that
+watches one of these, not a card that replaces one.
+
+**And what it costs to be wrong, which is the part that makes "no card does
+this" an acceptable reason at all.** Take the shape that would stress it hardest
+— a hypothetical *"if you would remove damage marked on enchanted creature,
+create that many 1/1 Goblins instead"*, a replacement whose output depends on
+the replaced event's magnitude. Priced against this tree:
+
+| | Edit | Enforced by |
+|---|---|---|
+| 1 | `GameAction::RemoveDamage { object }` | — |
+| 2 | a `perform_action` arm, taking the two-line write out of `resolve.rs` | §8a's one-arm-per-variant test |
+| 3 | an arm in `subject_of` | the compiler — the match is exhaustive |
+| 4 | `EventPattern::RemoveDamage` | §3.2a; `pattern_matches` is exhaustive |
+| 5 | `Primitive::RemoveAllDamage` becomes an `execute_actions` batch over `battlefield_ids_ordered` — routing a sweep makes its order observable | review |
+| 6 | the CR 514.2 cleanup wipe routes the same way, which is what 514.2's "simultaneously" wanted anyway | review |
+
+Five of the six are mechanical and four are caught by a compiler or a test. The
+**one genuinely new thing** is "that many": an amount read off the event being
+replaced is `Rewrite`'s `Amount` arm, which §3.2b deliberately did not ship and
+which **RD already owes** for damage multiplication — so even the expensive half
+is on the schedule rather than a surprise.
+
+That is the asymmetry worth stating plainly. "No card does this" is a sound
+reason to leave a mutation outside the vocabulary **because the cost of guessing
+wrong is a bounded, compiler-enforced diff**, not because the guess is certain.
+Where a wrong guess would instead force a redesign — the applied set's identity
+(H9), the copy row storing values rather than a reference — the same argument
+would not be available, and those are decided ahead of the cards on purpose.
+
+**One thing the check turned up that belongs to the census, not here.**
+`cant-census.py` queries `o:"can't" -is:funny`, which is its stated scope — but
+both families above phrase the restriction as "isn't"/"doesn't", so neither
+appears in the 2,034 clauses, and one of them is not small: **248 cards print
+"doesn't untap during ..."** (`o:/doesn.t untap during/ -is:funny`).
+`cant-effects-architecture.md` §2.2, "What the census cannot see", is where that
+belongs; it currently lists only the keyword-borne restrictions.
+
 ### What the residual actually is: CR 701 keyword actions
 
 The §3.2c classification left 11 clauses unbucketed, and reading them gives the
@@ -2057,7 +2155,7 @@ and the CR 601.2a announcement above.
    `ReplacementClass`, `Uses`; `Effect::Replacement` (and its `then: Option<Effect>`
    half, which reuses `resolve_effect`);
    `register_static_effects` skips replacement bodies.
-2. `ReplacementRegistry` with duration expiry.
+2. `ReplacementEffectRegistry` with duration expiry.
 3. `apply_replacements` — the §4.1 loop, including 616.1a–f, 614.5, 616.1g
    recursion, 614.17c's blocked-event path, and APNAP.
 4. `GameAction::Destroy`; `Primitive::Destroy` lowers to it; indestructible

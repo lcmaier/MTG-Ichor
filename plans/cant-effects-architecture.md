@@ -531,9 +531,10 @@ therefore inherits for free); Fear of Sleep Paralysis ("stun counters can't be
 removed", which is a `RemoveCounters` block that collides deliberately with
 CR 122.1d's replacement).
 
-**Cost.** The smallest of the six. `EventPattern` already exists,
-`pattern_matches` already exists, `shield_contains` already exists, and the
-sweep is `gather`'s with the `Rewrite` half deleted.
+**Cost.** The smallest of the six. `EventPattern` already exists, and so do
+`gather`'s two halves of "does this apply" — `watches` and `affects` (named
+`pattern_matches` / `shield_contains` when this was written; renamed closing
+`rb-review.md` C6). The sweep is `gather`'s with the `Rewrite` half deleted.
 
 ### 4.2 Tier 1a — combat, and why it is a solver
 
@@ -647,10 +648,25 @@ absurd, and is not what the framing is for.
 
 **The guard, and it stays regardless of which algorithm wins.** CR 508.1d is
 NP-hard in the general case, so whatever ships takes a hard bound with a loud
-error rather than a silent wrong answer. **Deliberately not citing
-`MAX_616_1F_ITERATIONS` as precedent**: `rb-review.md` E1 is still open, that
-constant may genuinely turn out to be a test harness, and a design should not
-lean on a decision nobody has made yet.
+error rather than a silent wrong answer. **`MAX_616_1F_ITERATIONS` is not the
+precedent, because it no longer exists** — and how it died is the thing worth
+copying. `rb-review.md` E1 first ruled it a legitimate bug backstop rather than
+a test harness; on review of that answer, the length of the comment defending it
+was read as evidence about the design under it, and the cap came out. What
+replaced it was not a better number but **the missing half of an argument**:
+CR 616.1f terminates because CR 614.5's applied set spends a slot per effect,
+and the one class CR 614.5 exempts is bounded by two properties of the
+`ReplacementDef` that `check_exempt_terminates` now enforces instead of
+assuming. Three checks, each naming its own failure, and no budget.
+
+**A combat solver cannot do that**, and the difference is the point. CR 508.1d
+is NP-hard; there is no property of the board that bounds the search the way
+CR 614.5 bounds the loop. So its cap is load-bearing in a way this one turned
+out not to be, and it should be *designed* as the safety net — its error text is
+the only diagnosis anyone will get — rather than borrowed from a sibling that
+got to delete its own. The transferable lesson from E1 is the diagnostic one: a
+bound you actually rely on deserves one more attempt at an argument first, and
+if the argument exists, enforce each leg where it can fail.
 
 **Two things follow for the code.** First, `legal_attackers` /
 `legal_blockers` keep being an **over-approximation** — that is already this
@@ -1149,7 +1165,7 @@ premise is that a card is data.
 ### 6.4 A4 — a `HashSet<ObjectId>` on `GameState` for one rule
 
 **Replaced by a `RestrictionRegistry`**, structurally the same as
-`state/replacement_effects.rs`'s `ReplacementRegistry`: rows with a `source`, a
+`state/replacement_effects.rs`'s `ReplacementEffectRegistry`: rows with a `source`, a
 `controller`, a `Duration`, a `created_on_turn`, and the same three expiry hooks
 (`remove_by_source`, `remove_expired_at_cleanup`, `remove_expired_at_turn_start`).
 `GameState::cant_be_regenerated` and `turns.rs:138`'s hand-rolled `.clear()` both
@@ -1392,9 +1408,9 @@ Four things to act on rather than read past:
 
 7. **RS-1 makes this the third duration registry — compose, do not split.**
 
-   **Measured.** `ContinuousEffectRegistry` (`state/continuous_effects.rs`) and
-   `ReplacementRegistry` (`state/replacement_effects.rs`) already share ten
-   methods: `new`, `add`, `remove`, `remove_by_source`, `iter`, `is_empty`,
+   **Measured.** `ContinuousEffectRegistry` (`state/continuous_effects.rs`)
+   and `ReplacementEffectRegistry` (`state/replacement_effects.rs`) already
+   share ten methods: `new`, `add`, `remove`, `remove_by_source`, `iter`, `is_empty`,
    `len`, `retain_effects`, `remove_expired_at_cleanup` and
    `remove_expired_at_turn_start`. The last two are **character-for-character
    identical logic** — same `Duration` match, same `active_player` /
@@ -1404,16 +1420,16 @@ Four things to act on rather than read past:
    **The readability objection is correct, and it rules out the shape an
    earlier draft proposed.** That draft said "abstract the *expiry half*",
    which reads as free functions over `&mut Vec<Row<T>>` called from three
-   registries — and that genuinely is worse than the duplication: to understand
-   `ReplacementRegistry` you would open two files, and neither would contain the
-   whole type. **A half-extracted abstraction is the bad outcome**, not a
+   registries — and that genuinely is worse than the duplication: to
+   understand `ReplacementEffectRegistry` you would open two files, and neither
+   would contain the whole type. **A half-extracted abstraction is the bad outcome**, not a
    compromise between two good ones.
 
    **Compose instead.** One `DurationRegistry<T>` owning the `Vec`, the id
    counter and the ten shared methods; each registry *has* one and delegates:
 
    ```rust
-   pub struct ReplacementRegistry {
+   pub struct ReplacementEffectRegistry {
        rows: DurationRegistry<ReplacementDef>,   // add/remove/expiry live here
    }
    // and its own surface stays here: Uses::Once removal, gather-order iteration
@@ -1421,7 +1437,7 @@ Four things to act on rather than read past:
 
    Now each type is readable in one place: the generic answers "how do rows
    live and die", the wrapper answers "what is this registry *for*". That is
-   the ordinary Rust shape and it is what `EffectId` / `ReplacementRowId`
+   the ordinary Rust shape and it is what `EffectId` / `ReplacementEffectId`
    already imply by being separate newtypes over the same idea.
 
    **The case for doing nothing is real and worth stating.** Three copies of

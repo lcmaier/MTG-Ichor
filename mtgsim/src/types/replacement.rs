@@ -36,15 +36,21 @@ use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
 ///
-/// CR 614.1: replacement effects "act like shields around whatever they're
-/// affecting". [`Self::affected`] is that shield's boundary and
-/// [`Self::pattern`] is what it watches for.
+/// CR 614.1: replacement effects "watch for a particular event that would
+/// happen" around "whatever they're affecting". [`Self::pattern`] is what it
+/// watches for and [`Self::affected`] is what it is affecting.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReplacementDef {
     /// Which proposed events this watches (CR 614.1, 615.1).
     pub pattern: EventPattern,
 
-    /// Which objects it shields.
+    /// Which objects it applies to.
+    ///
+    /// Not "which objects it shields": CR 614.1's shield is a metaphor for
+    /// every replacement effect, but in *this* codebase "shield" is taken —
+    /// CR 701.19a's regeneration shield and CR 122.1c's shield counter — and
+    /// Kalitas protects nothing it applies to. Same name as
+    /// `ContinuousEffect::affected` because it is the same question.
     ///
     /// Reuses the layer system's `AffectedSet`, and the reuse is load-bearing:
     /// `SourceOnly` vs. `Filter` is exactly CR 614.12's "affects only that
@@ -74,8 +80,9 @@ pub struct ReplacementDef {
     /// new events the replacement *caused*, not modified forms of the original.
     ///
     /// It resolves against a `ResolutionContext` whose single target is the
-    /// affected object, so `EffectRecipient::Target`/`Choose` name the shielded
-    /// permanent and `EffectRecipient::Controller` names its controller.
+    /// event's subject, so `EffectRecipient::Target`/`Choose` name the
+    /// permanent the event was about and `EffectRecipient::Controller` names
+    /// its controller.
     pub then: Option<Effect>,
 
     /// CR 616.1a–d — which forced-choice bucket this falls in.
@@ -150,7 +157,7 @@ pub struct ReplacementDef {
 /// every reader fails to compile rather than defaulting.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPattern {
-    /// CR 614.2 / 615.1. The affected thing is the damage *target*.
+    /// CR 614.2 / 615.1. The event's subject is the damage *target*.
     ///
     /// Fieldless: CR 122.1c's shield counter is RB's only customer and it
     /// watches "damage would be dealt to **this** permanent", which `affected`
@@ -169,7 +176,7 @@ pub enum EventPattern {
         cause: Option<ZoneChangeCause>,
         /// A constraint on the moving object beyond what `affected` says.
         ///
-        /// `affected` scopes *which* objects the effect shields; this scopes
+        /// `affected` scopes *which* objects the effect applies to; this scopes
         /// the event. They coincide for every RB card, and the field exists
         /// because CR 903.9b's "if a **commander** would be put into its
         /// owner's hand or library" is a property of the object being moved
@@ -177,7 +184,7 @@ pub enum EventPattern {
         object: Option<PermanentFilter>,
     },
 
-    /// CR 122.1d. The affected thing is the permanent being untapped.
+    /// CR 122.1d. The event's subject is the permanent being untapped.
     Untap,
 
     /// CR 603.2e's counterpart. No printed customer in RB; the arm exists
@@ -414,8 +421,8 @@ impl ReplacementDef {
 /// which is the mistake this function exists to make impossible.
 ///
 /// `EffectRecipient::Target` names the shielded permanent: a rider resolves
-/// against a `ResolutionContext` whose single resolved target is the affected
-/// object.
+/// against a `ResolutionContext` whose single resolved target is the event's
+/// subject.
 pub fn regeneration_rider() -> Effect {
     use crate::types::effects::{EffectRecipient, PermanentFilter, Primitive, SelectionFilter,
                                 TargetCount};

@@ -12,14 +12,23 @@ use crate::types::replacement::{GameActionTemplate, Rewrite, Uses};
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_replacement;
 
-use super::gather::forced_bucket;
-use super::{affected_of, chooser_for, gather, Affected, ReplacementInstance, ReplacementInstanceId};
+use super::gather::{applies_to, forced_bucket};
+use super::{subject_of, chooser_for, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
 
-/// A queued CR 615.5 "rest of the effect".
+/// The "and also" half of an applied replacement, queued for after the event.
 ///
-/// > 615.5. ... the prevention takes place at the time the original event would
-/// > have happened, and the rest of the effect takes place immediately
-/// > afterward.
+/// **Two rules, depending on which kind of effect queued it**, and only one of
+/// them is CR 615.5:
+///
+/// > 615.5. Some *prevention* effects also include an additional effect ... The
+/// > prevention takes place at the time the original event would have happened;
+/// > the rest of the effect takes place immediately afterward.
+///
+/// A rider on a plain replacement has no such rule and needs none. CR 614.1a's
+/// "instead" plus the effect's own text make the additional action part of what
+/// happens instead — Kalitas exiles the creature *and* makes a Zombie — and CR
+/// 614.6 says "a modified event occurs instead". Performing the substituted
+/// event and then the rest is that modified event, in order.
 ///
 /// Queued when its replacement is *applied* and resolved by the caller after
 /// the surviving event is performed — never mid-loop. During the loop nothing
@@ -31,10 +40,10 @@ pub(crate) struct Rider {
     /// `ResolutionContext::source`.
     pub source: ObjectId,
     pub controller: PlayerId,
-    /// The shielded object, if the event was about one. Becomes the rider's
-    /// single resolved target, so `EffectRecipient::Target` in a `then` names
-    /// the permanent the replacement protected.
-    pub affected: Option<ObjectId>,
+    /// The event's subject, when it had one. Becomes the rider's single
+    /// resolved target, so `EffectRecipient::Target` in a `then` names the
+    /// permanent the replacement was about.
+    pub subject: Option<ObjectId>,
     pub effect: Effect,
 }
 
@@ -58,18 +67,6 @@ pub(crate) fn is_blocked(game: &GameState, action: &GameAction) -> bool {
         _ => false,
     }
 }
-
-/// The maximum number of CR 616.1f iterations one event may go through.
-///
-/// Not a rules concept and not a loop guard for CR 731 (which is out of scope):
-/// it is a **test harness**, because the two acid tests that pin §3.2d's
-/// lineage rule fail by *hanging* rather than by producing a wrong answer.
-/// CR 614.5's applied set is what actually guarantees termination — every
-/// iteration either applies an effect, which permanently adds to that set, or
-/// declines an optional one, which also adds to it. So the true bound is the
-/// number of applicable effects, and reaching this cap means the applied set is
-/// not doing its job.
-const MAX_616_1F_ITERATIONS: usize = 256;
 
 /// The CR 616.1 loop: decide what event actually happens.
 ///
@@ -106,9 +103,20 @@ pub(crate) fn apply_replacements(
     // *applying* more than once, and 903.9b's exception is to that. Declining
     // is a final answer about this event, and no rule exempts anything from it.
     let mut declined: HashSet<ReplacementInstanceId> = HashSet::new();
+    // Which exempt effect has applied, if any — see `check_exempt_terminates`,
+    // which owns the whole termination argument for the effects CR 614.5 does
+    // not govern.
+    let mut exempt_applied: Option<ReplacementInstanceId> = None;
     let mut event = action;
 
-    for _ in 0..MAX_616_1F_ITERATIONS {
+    // Unbounded on purpose. **Every iteration consumes something finite**, and
+    // the three things that guarantee it are each enforced in code rather than
+    // asserted here: CR 614.5's `applied` set, the `declined` set, and
+    // `check_exempt_terminates` for the one class CR 614.5 exempts. A candidate
+    // pool cannot grow mid-loop either — `apply_rewrite` only rewrites the
+    // proposal and riders are queued rather than run (§4.1a), so nothing
+    // touches the board between iterations.
+    loop {
         // CR 614.17: a "can't" is checked ahead of the pipeline and wins.
         // CR 614.17c narrows what may still apply rather than ending the loop,
         // because a self-replacement that changes the event's type would lift
@@ -118,7 +126,7 @@ pub(crate) fn apply_replacements(
         // CR 614.4 — gathered against live state at the moment of proposal.
         // There is no "go back in time" path because there is no other place
         // to ask.
-        let candidates: Vec<ReplacementInstance> = gather(game, &event, ctx, blocked)
+        let applicable: Vec<ReplacementInstance> = gather(game, &event, ctx, blocked)
             .into_iter()
             // CR 614.5, with CR 903.9b as the rules' only stated exception.
             .filter(|c| c.def.exempt_from_614_5 || !applied.contains(&c.id))
@@ -126,17 +134,17 @@ pub(crate) fn apply_replacements(
             .filter(|c| !declined.contains(&c.id))
             .collect();
 
-        if candidates.is_empty() {
+        if applicable.is_empty() {
             return Ok(if blocked { None } else { Some(event) });
         }
 
         // CR 616.1a–e.
-        let bucket = forced_bucket(candidates);
+        let bucket = forced_bucket(applicable);
 
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player.
-        let affected = affected_of(&event);
-        let chooser = chooser_for(game, affected);
+        let subject = subject_of(&event);
+        let chooser = chooser_for(game, subject);
 
         // **Never prompt with fewer than two candidates.** CR-correct (there is
         // no choice to make with one), and it is what keeps every existing
@@ -156,14 +164,14 @@ pub(crate) fn apply_replacements(
                 return Err(format!(
                     "CR 616.1 needs a chooser for {:?} and the affected object has \
                      neither a controller nor an owner",
-                    affected
+                    subject
                 ));
             };
             let index = ask_choose_replacement(
                 ctx.dp,
                 game,
                 chooser,
-                affected_object(affected),
+                subject_object(subject),
                 &bucket,
             );
             bucket.into_iter().nth(index).expect("index validated by ask_*")
@@ -177,13 +185,13 @@ pub(crate) fn apply_replacements(
         // event.
         if chosen.def.optional {
             let chooser = chooser.ok_or_else(|| {
-                format!("optional replacement on {:?} has no player to ask", affected)
+                format!("optional replacement on {:?} has no player to ask", subject)
             })?;
             if !ask_apply_optional_replacement(
                 ctx.dp,
                 game,
                 chooser,
-                affected_object(affected),
+                subject_object(subject),
                 &chosen,
             ) {
                 // Marking it applied is CR 614.5's "one opportunity" — being
@@ -205,35 +213,105 @@ pub(crate) fn apply_replacements(
             riders.push(Rider {
                 source: chosen.source,
                 controller: chosen.controller,
-                affected: affected_object(affected),
+                subject: subject_object(subject),
                 effect: then,
             });
         }
 
-        match apply_rewrite(&chosen, &event, affected)? {
+        match apply_rewrite(&chosen, &event, subject)? {
             // CR 614.6 — the event does not happen. Queued riders still run.
             None => return Ok(None),
             // CR 616.1f — re-gather against the modified event, which is how
             // CR 616.2's "a replacement effect can become applicable as the
             // result of another" works without any special case.
-            Some(next) => event = next,
+            Some(next) => {
+                check_exempt_terminates(game, &chosen, &next, &mut exempt_applied)?;
+                event = next;
+            }
         }
     }
-
-    Err(format!(
-        "CR 616.1f did not converge in {} iterations on {:?}. The CR 614.5 applied \
-         set is what terminates this loop — every iteration either applies an \
-         effect or declines an optional one, and both insert into it — so \
-         reaching this cap means an effect is being re-offered after it has \
-         already had its one opportunity.",
-        MAX_616_1F_ITERATIONS, event
-    ))
 }
 
-fn affected_object(affected: Affected) -> Option<ObjectId> {
-    match affected {
-        Affected::Object(id) => Some(id),
-        Affected::Player(_) => None,
+/// The termination argument for the one class of effect CR 614.5 does not
+/// govern — the whole of it, in one place.
+///
+/// CR 614.5 is what makes the CR 616.1f loop finite: one opportunity per effect,
+/// finitely many effects. CR 903.9b is the rules' only exemption from it, so an
+/// exempt effect never enters the `applied` set and nothing there stops the loop
+/// re-offering it forever.
+///
+/// **The rules are safe doing that because of two facts, and this checks both**
+/// — they are properties of the `ReplacementDef`, and a `ReplacementDef` is data
+/// a card file writes, so the engine cannot assume what the CR can.
+///
+/// 1. **An exemption's rewrite takes the event out of its own pattern.** 903.9b
+///    watches a move to hand or library and produces a move to the command zone,
+///    which is neither, so it cannot feed itself. It comes back only if some
+///    *other* effect pushes the event toward hand or library again — and every
+///    other effect is under CR 614.5, so each re-entry costs an applied-set
+///    slot. That is what makes "may apply more than once to the same event"
+///    bounded rather than infinite.
+/// 2. **At most one exemption applies to one event.** Two exempt effects can
+///    each satisfy (1) alone and still rewrite each other's events forever,
+///    consuming nothing. 903.9b is the only exemption in the rules, so this
+///    costs nothing today; a second one must arrive with a CR cite *and* a
+///    fresh termination argument, which is what the error says.
+///
+/// Together with the `applied` and `declined` sets, this is why the loop needs
+/// no iteration cap: every iteration spends a finite resource, and a failure is
+/// reported at the application that causes it rather than N iterations later
+/// with nothing to point at.
+fn check_exempt_terminates(
+    game: &GameState,
+    chosen: &ReplacementInstance,
+    next: &GameAction,
+    exempt_applied: &mut Option<ReplacementInstanceId>,
+) -> Result<(), String> {
+    if !chosen.def.exempt_from_614_5 {
+        return Ok(());
+    }
+    // A spent one-shot cannot be re-gathered whatever its rewrite does
+    // (`consume_use` removed the row), so it bounds itself and takes part in
+    // neither check — including not claiming the single-exemption slot, which
+    // it could not use again anyway.
+    if matches!(chosen.def.uses, Uses::Once) {
+        return Ok(());
+    }
+
+    // Fact 2.
+    match *exempt_applied {
+        Some(first) if first != chosen.id => {
+            return Err(format!(
+                "two effects exempt from CR 614.5 applied to one event, {:?} \
+                 and {:?}. Each may be individually well-behaved and the two \
+                 can still rewrite each other's events forever, spending no \
+                 applied-set slot — so the CR 616.1f loop has no termination \
+                 argument left. CR 903.9b is meant to be the rules' only \
+                 exemption; a second needs a CR cite and a fresh argument.",
+                first, chosen.id
+            ));
+        }
+        _ => *exempt_applied = Some(chosen.id),
+    }
+
+    // Fact 1.
+    if applies_to(game, chosen, next, subject_of(next)) {
+        return Err(format!(
+            "replacement {:?} is exempt from CR 614.5 and still applies to its \
+             own output {:?}, so the CR 616.1f loop cannot terminate. An \
+             exemption is bounded only by the rewrite taking the event out of \
+             the effect's own pattern; this one's `EventPattern` and `Rewrite` \
+             describe the same event.",
+            chosen.id, next
+        ));
+    }
+    Ok(())
+}
+
+fn subject_object(subject: EventSubject) -> Option<ObjectId> {
+    match subject {
+        EventSubject::Object(id) => Some(id),
+        EventSubject::Player(_) => None,
     }
 }
 
@@ -272,7 +350,7 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
 fn apply_rewrite(
     chosen: &ReplacementInstance,
     event: &GameAction,
-    affected: Affected,
+    subject: EventSubject,
 ) -> Result<Option<GameAction>, String> {
     match &chosen.def.rewrite {
         // CR 614.6 / 615.6.
@@ -290,7 +368,7 @@ fn apply_rewrite(
             })),
 
             (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
-                match affected_object(affected) {
+                match subject_object(subject) {
                     Some(object) => Ok(Some(GameAction::RemoveCounters {
                         object,
                         counter: *counter,

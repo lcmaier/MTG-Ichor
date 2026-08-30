@@ -13,6 +13,7 @@ use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, Zone
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
+use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::test_support::{
     pass_turn, place_bare, put_on_battlefield, registered, set_attacking, set_blocked_by,
@@ -21,7 +22,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::types::effects::{
-    AffectedSet, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
+    AffectedSet, CounterType, Duration, Effect, EffectRecipient, PermanentFilter, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -1717,6 +1718,123 @@ fn test_declining_903_9b_terminates_despite_the_614_5_exemption() {
     assert!(result.is_ok(), "the loop converged: {result:?}");
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Hand);
     assert!(dp.is_empty(), "asked exactly once");
+}
+
+#[test]
+fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
+    // The other half of the exemption's termination argument, and the half that
+    // is a *property of the `ReplacementDef`* rather than of the loop.
+    //
+    // CR 614.5's applied set bounds every effect the rule governs. CR 903.9b is
+    // exempt, so nothing stops the loop re-offering it — except that its rewrite
+    // takes the event out of its own pattern (hand or library in, command zone
+    // out). `check_exempt_terminates` holds every exemption to that instead of
+    // assuming it.
+    //
+    // Here is one that does not: an exempt row watching Battlefield→Graveyard
+    // and rewriting to Battlefield→Graveyard. Without the check it spins to the
+    // iteration cap and reports a generic non-convergence 256 iterations after
+    // the cause; with it, the first application names the offending effect.
+    let mut game = setup_two_player_game();
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    let mut def = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            from: Some(Zone::Battlefield),
+            to: Some(Zone::Graveyard),
+            cause: None,
+            object: None,
+        },
+        AffectedSet::Fixed(vec![victim]),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+            to: Zone::Graveyard,
+            cause: ZoneChangeCause::Sacrificed,
+        }),
+    );
+    def.exempt_from_614_5 = true;
+    game.replacement_effects.add(RegisteredReplacementEffect {
+        id: 0,
+        source: victim,
+        controller: 0,
+        duration: Duration::UntilEndOfTurn,
+        created_on_turn: game.turn_number,
+        def,
+    });
+
+    let ctx = test_ctx();
+    let err = game
+        .change_zone(victim, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+        .expect_err("a self-reapplying exemption cannot converge");
+
+    // Mutation check: the generic cap message would also be an `Err`, so the
+    // assertion has to be on *which* error and on it naming the culprit.
+    assert!(
+        err.contains("exempt from CR 614.5 and still applies to its own output"),
+        "wrong error, so the cap caught it rather than the check: {err}"
+    );
+    assert!(
+        !err.contains("did not converge"),
+        "reached the iteration cap instead of failing at the first application: {err}"
+    );
+}
+
+/// An exempt row that watches `to` and rewrites to `becomes`.
+fn exempt_row(
+    victim: mtgsim::types::ids::ObjectId,
+    turn: u32,
+    to: Zone,
+    becomes: Zone,
+) -> RegisteredReplacementEffect {
+    let mut def = ReplacementDef::new(
+        EventPattern::ZoneChange { from: None, to: Some(to), cause: None, object: None },
+        AffectedSet::Fixed(vec![victim]),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+            to: becomes,
+            cause: ZoneChangeCause::Sacrificed,
+        }),
+    );
+    def.exempt_from_614_5 = true;
+    RegisteredReplacementEffect {
+        id: 0,
+        source: victim,
+        controller: 0,
+        duration: Duration::UntilEndOfTurn,
+        created_on_turn: turn,
+        def,
+    }
+}
+
+#[test]
+fn test_two_exemptions_rewriting_each_others_events_is_caught_at_once() {
+    // The second half of the exemption's termination argument, and the half
+    // that no *single* effect can be checked for.
+    //
+    // Each row here is individually well-behaved: the graveyard one's rewrite
+    // leaves its own pattern, and so does the exile one's. Together they are a
+    // perpetual motion machine — graveyard → exile → graveyard — and because
+    // both are exempt from CR 614.5 neither ever enters the applied set, so the
+    // loop spends nothing per lap.
+    //
+    // CR 903.9b is meant to be the rules' only exemption, which is exactly why
+    // the loop may assume at most one applies to one event. This asserts the
+    // assumption is enforced rather than hoped for.
+    let mut game = setup_two_player_game();
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let turn = game.turn_number;
+    game.replacement_effects.add(exempt_row(victim, turn, Zone::Graveyard, Zone::Exile));
+    game.replacement_effects.add(exempt_row(victim, turn, Zone::Exile, Zone::Graveyard));
+
+    let ctx = test_ctx();
+    let err = game
+        .change_zone(victim, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+        .expect_err("two exemptions rewriting each other cannot converge");
+
+    // Mutation check: an unbounded loop hangs and a capped one also returns
+    // `Err`, so the assertion has to be on *which* error.
+    assert!(
+        err.contains("two effects exempt from CR 614.5 applied to one event"),
+        "wrong error, so the second exemption was not noticed: {err}"
+    );
 }
 
 // COVERS-PARTIAL: ATOM-614.5-001

@@ -311,7 +311,7 @@ impl GameState {
             performed.push(action);
         }
 
-        // --- Phase 3: the CR 615.5 riders, in application order -------------
+        // --- Phase 3: the queued riders, in application order ----------------
         //
         // "The rest of the effect takes place immediately afterward", and
         // afterward means after the events happened — not mid-loop, where
@@ -330,12 +330,12 @@ impl GameState {
     /// Stable within a player, so a sweep that built its batch from
     /// `battlefield_ids_ordered` keeps that order among its own members.
     fn apnap_batch_order(&self, batch: &[GameAction]) -> Vec<usize> {
-        use crate::engine::replacement::{affected_of, chooser_for};
+        use crate::engine::replacement::{subject_of, chooser_for};
 
         let n = self.players.len();
         let mut order: Vec<usize> = (0..batch.len()).collect();
         order.sort_by_key(|&i| {
-            let chooser = chooser_for(self, affected_of(&batch[i]));
+            let chooser = chooser_for(self, subject_of(&batch[i]));
             // Distance from the active player in turn order. `None` — an object
             // with neither controller nor owner — sorts last; the pipeline
             // errors on it rather than guessing, and this keeps that error
@@ -348,11 +348,14 @@ impl GameState {
         order
     }
 
-    /// Resolve one CR 615.5 rider.
+    /// Resolve one queued rider — see [`Rider`](crate::engine::replacement::Rider)
+    /// for which rule gives it this timing, which depends on whether a
+    /// prevention effect queued it (CR 615.5) or a plain replacement did
+    /// (CR 614.1a/614.6).
     ///
-    /// Its `ResolutionContext` names the shielded object as the single resolved
+    /// Its `ResolutionContext` names the event's subject as the single resolved
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
-    /// permanent the replacement protected and one written with
+    /// permanent the replacement was about and one written with
     /// `EffectRecipient::Controller` acts for that permanent's controller. The
     /// actions it proposes re-enter the pipeline with a **fresh** applied set —
     /// a rider's actions are new events the replacement caused, not modified
@@ -368,7 +371,7 @@ impl GameState {
             source: rider.source,
             controller: rider.controller,
             targets: rider
-                .affected
+                .subject
                 .map(|id| vec![ResolvedTarget::Object(id)])
                 .unwrap_or_default(),
         };

@@ -53,28 +53,32 @@ pub enum CounterEffectKind {
 
 /// What a proposed event is *about* — CR 614.1's "whatever they're affecting"
 /// and CR 616.1's "the affected object ... or the affected player".
+///
+/// Named for the *event*, not for the effect, because `AffectedSet` already
+/// answers the other question — which objects an effect applies to — and the
+/// two are asked one line apart in [`applies_to`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Affected {
+pub(crate) enum EventSubject {
     Object(ObjectId),
     Player(PlayerId),
 }
 
-/// The affected object or player of a proposed action.
-pub(crate) fn affected_of(action: &GameAction) -> Affected {
+/// The object or player a proposed action is about.
+pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
     match action {
         GameAction::DealDamage { target, .. } => match target {
-            DamageTarget::Object(id) => Affected::Object(*id),
-            DamageTarget::Player(pid) => Affected::Player(*pid),
+            DamageTarget::Object(id) => EventSubject::Object(*id),
+            DamageTarget::Player(pid) => EventSubject::Player(*pid),
         },
-        GameAction::DrawCard { player } => Affected::Player(*player),
-        GameAction::GainLife { player, .. } => Affected::Player(*player),
-        GameAction::LoseLife { player, .. } => Affected::Player(*player),
-        GameAction::ZoneChange { object, .. } => Affected::Object(*object),
-        GameAction::Untap { object } => Affected::Object(*object),
-        GameAction::Tap { object } => Affected::Object(*object),
-        GameAction::Destroy { object, .. } => Affected::Object(*object),
-        GameAction::AddCounters { object, .. } => Affected::Object(*object),
-        GameAction::RemoveCounters { object, .. } => Affected::Object(*object),
+        GameAction::DrawCard { player } => EventSubject::Player(*player),
+        GameAction::GainLife { player, .. } => EventSubject::Player(*player),
+        GameAction::LoseLife { player, .. } => EventSubject::Player(*player),
+        GameAction::ZoneChange { object, .. } => EventSubject::Object(*object),
+        GameAction::Untap { object } => EventSubject::Object(*object),
+        GameAction::Tap { object } => EventSubject::Object(*object),
+        GameAction::Destroy { object, .. } => EventSubject::Object(*object),
+        GameAction::AddCounters { object, .. } => EventSubject::Object(*object),
+        GameAction::RemoveCounters { object, .. } => EventSubject::Object(*object),
     }
 }
 
@@ -83,10 +87,10 @@ pub(crate) fn affected_of(action: &GameAction) -> Affected {
 ///
 /// A lookup, and therefore already N-player-safe — no `bool`, no "the other
 /// player".
-pub(crate) fn chooser_for(game: &GameState, affected: Affected) -> Option<PlayerId> {
-    match affected {
-        Affected::Player(pid) => Some(pid),
-        Affected::Object(id) => get_effective_controller(game, id)
+pub(crate) fn chooser_for(game: &GameState, subject: EventSubject) -> Option<PlayerId> {
+    match subject {
+        EventSubject::Player(pid) => Some(pid),
+        EventSubject::Object(id) => get_effective_controller(game, id)
             .or_else(|| game.objects.get(&id).map(|obj| obj.owner)),
     }
 }
@@ -127,7 +131,7 @@ pub(crate) fn gather(
     // one, which the registry summary reports. Both over-approximate (CR 305.7
     // and Humility can strip a printed ability without touching the set), and
     // over-approximating costs a walk, never an answer.
-    let affected = affected_of(action);
+    let subject = subject_of(action);
     let mut candidates = Vec::new();
 
     // --- Game rules that behave as replacement effects (CR 903.9b) ---------
@@ -137,7 +141,7 @@ pub(crate) fn gather(
     // `HashMap` lookup and is exact: 903.9b only ever applies to the object the
     // event is already about.
     if let Some(instance) = commander_zone_replacement(game, action) {
-        push_if_applicable(game, &mut candidates, instance, action, affected);
+        push_if_applicable(game, &mut candidates, instance, action, subject);
     }
 
     let has_static_source = !game.replacement_ability_sources.is_empty()
@@ -172,7 +176,7 @@ pub(crate) fn gather(
                         def: (**def).clone(),
                     },
                     action,
-                    affected,
+                    subject,
                 );
             }
         }
@@ -191,7 +195,7 @@ pub(crate) fn gather(
                     def,
                 },
                 action,
-                affected,
+                subject,
             );
         }
     }
@@ -208,7 +212,7 @@ pub(crate) fn gather(
                 def: row.def.clone(),
             },
             action,
-            affected,
+            subject,
         );
     }
 
@@ -220,50 +224,59 @@ fn push_if_applicable(
     out: &mut Vec<ReplacementInstance>,
     instance: ReplacementInstance,
     action: &GameAction,
-    affected: Affected,
+    subject: EventSubject,
 ) {
     // CR 701.19c — "can't be regenerated" causes shields "to not be applied",
     // so this withholds one at the door rather than spending it. It stays in
     // the registry, and CR 701.19a scopes it to this turn
     // (`Duration::UntilEndOfTurn`), so it is there for a later destruction.
     if instance.def.is_regeneration {
-        if let Affected::Object(id) = affected {
+        if let EventSubject::Object(id) = subject {
             if game.cant_be_regenerated.contains(&id) {
                 return;
             }
         }
     }
-    if applies_to(game, &instance, action, affected) {
+    if applies_to(game, &instance, action, subject) {
         out.push(instance);
     }
 }
 
-/// Does this effect apply to this event — CR 614.1's pattern *and* shield?
-fn applies_to(
+/// Does this effect apply to this event?
+///
+/// Two halves of one CR 614.1 question, not two unrelated checks: an effect
+/// applies when it *watches* this kind of event **and** *affects* the object
+/// the event is about.
+///
+/// `pub(super)` for one caller beyond the sweep: the CR 616.1f loop re-asks it
+/// of an effect it has just applied, which is how an exempt effect's
+/// termination is checked rather than assumed.
+pub(super) fn applies_to(
     game: &GameState,
     instance: &ReplacementInstance,
     action: &GameAction,
-    affected: Affected,
+    subject: EventSubject,
 ) -> bool {
-    pattern_matches(game, &instance.def, action, instance.controller)
-        && shield_contains(game, instance, affected)
+    watches(game, &instance.def, action, instance.controller)
+        && affects(game, instance, subject)
 }
 
-/// CR 614.1's "shields around whatever they're affecting".
-fn shield_contains(
+/// Is the event's subject inside this effect's `AffectedSet` — CR 614.1's
+/// "whatever they're affecting"?
+fn affects(
     game: &GameState,
     instance: &ReplacementInstance,
-    affected: Affected,
+    subject: EventSubject,
 ) -> bool {
-    let id = match affected {
-        Affected::Object(id) => id,
-        // No `AffectedSet` variant names a player, so a player-affecting event
-        // falls outside every shield the type can express. That is not a
-        // silently wrong answer, it is the reason `EventPattern` has no
-        // `DrawCard`/`GainLife`/`LoseLife` arm: a replacement effect that
-        // shields a *player* needs a player-scoping mechanism, and it lands in
-        // Phase RE with the cards that want it.
-        Affected::Player(_) => return false,
+    let id = match subject {
+        EventSubject::Object(id) => id,
+        // No `AffectedSet` variant names a player, so an event about a player
+        // falls outside every set the type can express. That is not a silently
+        // wrong answer, it is the reason `EventPattern` has no
+        // `DrawCard`/`GainLife`/`LoseLife` arm: an effect that applies to a
+        // *player* needs a player-scoping mechanism, and it lands in Phase RE
+        // with the cards that want it.
+        EventSubject::Player(_) => return false,
     };
     match &instance.def.affected {
         AffectedSet::SourceOnly => instance.source == id,
@@ -274,8 +287,8 @@ fn shield_contains(
     }
 }
 
-/// Does the proposed event match the pattern?
-fn pattern_matches(
+/// Does this effect watch for the proposed event's kind (CR 614.1)?
+fn watches(
     game: &GameState,
     def: &ReplacementDef,
     action: &GameAction,

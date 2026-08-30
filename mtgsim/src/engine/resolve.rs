@@ -11,7 +11,7 @@ use crate::types::effects::{
     AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
 };
 use crate::oracle::characteristics::get_effective_controller;
-use crate::state::replacement_effects::RegisteredReplacement;
+use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
@@ -621,7 +621,7 @@ impl GameState {
                     .once()
                     .regeneration()
                     .with_then(crate::types::replacement::regeneration_rider());
-                    self.replacement_effects.add(RegisteredReplacement {
+                    self.replacement_effects.add(RegisteredReplacementEffect {
                         id: 0,
                         source: ctx.source,
                         controller,
@@ -661,10 +661,15 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 506.4. Writes `BattlefieldEntity` directly: no card replaces
-            // "is removed from combat" and no ability triggers on it, so there
-            // is no `GameAction` to propose through and inventing one would be
-            // vocabulary with no reader.
+            // CR 506.4. Writes `BattlefieldEntity` directly, because 506.4
+            // defines a *consequence* with seven causes, and this arm is one of
+            // them — the other six follow from a zone change, a control change,
+            // a type change, phasing or CR 701.19's regeneration. **The CR does
+            // not forbid "can't be removed from combat"**; what it does is put
+            // that card's enforcement in six other places as well, which makes
+            // it a `RestrictionDef` consulted by each cause
+            // (`cant-effects-architecture.md`) and not a replaceable event here.
+            // → `replacement-architecture.md` §8a.
             Primitive::RemoveFromCombat => {
                 for object in self.collect_battlefield_targets(ctx) {
                     self.remove_from_combat(object);
@@ -672,8 +677,14 @@ impl GameState {
                 Ok(())
             }
 
-            // The on-demand form of the CR 514.2 cleanup wipe, and a direct
-            // write for the same reason it is.
+            // A direct write because nothing replaces *this* removal — the one
+            // printed card that removes all damage, Pyramids, uses it as a
+            // replacement's substituted event, never as the replaced one.
+            //
+            // **Not by analogy to the CR 514.2 cleanup wipe**, which is a
+            // different site with a different answer: seven cards restrict
+            // *that* one and it owes an enforcement point
+            // (`codebase-state.md`, Before Replacement item 20).
             Primitive::RemoveAllDamage => {
                 for object in self.collect_battlefield_targets(ctx) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {

@@ -41,14 +41,14 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::ReplacementDef;
 
 /// Unique identifier for a registered replacement effect.
-pub type ReplacementRowId = u64;
+pub type ReplacementEffectId = u64;
 
 /// One replacement effect created by a resolving spell or ability.
 #[derive(Debug, Clone)]
-pub struct RegisteredReplacement {
+pub struct RegisteredReplacementEffect {
     /// Unique id for this instance. Part of the CR 614.5 applied-set key, so it
-    /// must never be reused — [`ReplacementRegistry::add`] only ever counts up.
-    pub id: ReplacementRowId,
+    /// must never be reused — [`ReplacementEffectRegistry::add`] only ever counts up.
+    pub id: ReplacementEffectId,
     /// The object whose spell or ability created this.
     pub source: ObjectId,
     /// The player who controlled that spell or ability. Resolves `PlayerRef::You`
@@ -66,24 +66,18 @@ pub struct RegisteredReplacement {
 
 /// Owns every replacement effect a resolution has created.
 #[derive(Debug, Clone)]
-pub struct ReplacementRegistry {
-    effects: Vec<RegisteredReplacement>,
-    next_id: ReplacementRowId,
+pub struct ReplacementEffectRegistry {
+    effects: Vec<RegisteredReplacementEffect>,
+    next_id: ReplacementEffectId,
 }
 
-impl Default for ReplacementRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ReplacementRegistry {
+impl ReplacementEffectRegistry {
     pub fn new() -> Self {
-        ReplacementRegistry { effects: Vec::new(), next_id: 1 }
+        ReplacementEffectRegistry { effects: Vec::new(), next_id: 1 }
     }
 
     /// Register a replacement effect. Returns its unique id.
-    pub fn add(&mut self, mut row: RegisteredReplacement) -> ReplacementRowId {
+    pub fn add(&mut self, mut row: RegisteredReplacementEffect) -> ReplacementEffectId {
         let id = self.next_id;
         self.next_id += 1;
         row.id = id;
@@ -95,7 +89,7 @@ impl ReplacementRegistry {
     ///
     /// This is how `Uses::Once` is consumed (CR 701.19a — one shield, one
     /// destruction replaced).
-    pub fn remove(&mut self, id: ReplacementRowId) -> Option<RegisteredReplacement> {
+    pub fn remove(&mut self, id: ReplacementEffectId) -> Option<RegisteredReplacementEffect> {
         let pos = self.effects.iter().position(|e| e.id == id)?;
         Some(self.effects.remove(pos))
     }
@@ -114,12 +108,12 @@ impl ReplacementRegistry {
     /// It earns a caller the day a row carries a source-scoped duration
     /// (CR 611.2b's "for as long as ..."), which is a `retain_effects` keyed on
     /// duration *and* source, not on source alone.
-    pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<RegisteredReplacement> {
+    pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<RegisteredReplacementEffect> {
         self.retain_effects(|e| e.source != source)
     }
 
     /// Every registered row, in registration order.
-    pub fn iter(&self) -> impl Iterator<Item = &RegisteredReplacement> {
+    pub fn iter(&self) -> impl Iterator<Item = &RegisteredReplacementEffect> {
         self.effects.iter()
     }
 
@@ -136,7 +130,7 @@ impl ReplacementRegistry {
         &mut self,
         active_player: PlayerId,
         current_turn: u32,
-    ) -> Vec<RegisteredReplacement> {
+    ) -> Vec<RegisteredReplacementEffect> {
         // Suppress unused-variable warnings until multi-turn durations arrive,
         // matching `ContinuousEffectRegistry`'s twin.
         let _ = (active_player, current_turn);
@@ -148,7 +142,7 @@ impl ReplacementRegistry {
         &mut self,
         active_player: PlayerId,
         current_turn: u32,
-    ) -> Vec<RegisteredReplacement> {
+    ) -> Vec<RegisteredReplacementEffect> {
         self.retain_effects(|e| {
             !matches!(e.duration, Duration::UntilYourNextTurn)
                 || e.controller != active_player
@@ -164,8 +158,8 @@ impl ReplacementRegistry {
     /// is offered in.
     fn retain_effects(
         &mut self,
-        keep: impl Fn(&RegisteredReplacement) -> bool,
-    ) -> Vec<RegisteredReplacement> {
+        keep: impl Fn(&RegisteredReplacementEffect) -> bool,
+    ) -> Vec<RegisteredReplacementEffect> {
         let mut removed = Vec::new();
         let mut kept = Vec::with_capacity(self.effects.len());
         for effect in self.effects.drain(..) {
@@ -187,8 +181,8 @@ mod tests {
     use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
     use uuid::Uuid;
 
-    fn row(source: ObjectId, duration: Duration) -> RegisteredReplacement {
-        RegisteredReplacement {
+    fn row(source: ObjectId, duration: Duration) -> RegisteredReplacementEffect {
+        RegisteredReplacementEffect {
             id: 0,
             source,
             controller: 0,
@@ -206,7 +200,7 @@ mod tests {
     fn test_ids_are_never_reused() {
         // The id is part of the CR 614.5 applied-set key: a reused one would
         // let a fresh effect inherit an earlier one's "already applied" mark.
-        let mut reg = ReplacementRegistry::new();
+        let mut reg = ReplacementEffectRegistry::new();
         let src = Uuid::new_v4();
         let a = reg.add(row(src, Duration::UntilEndOfTurn));
         reg.remove(a);
@@ -216,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_remove_by_source() {
-        let mut reg = ReplacementRegistry::new();
+        let mut reg = ReplacementEffectRegistry::new();
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
         reg.add(row(a, Duration::UntilEndOfTurn));
@@ -232,7 +226,7 @@ mod tests {
     fn test_registration_order_survives_removal() {
         // Order is decision order: a `DecisionProvider` picks a CR 616.1
         // candidate by index.
-        let mut reg = ReplacementRegistry::new();
+        let mut reg = ReplacementEffectRegistry::new();
         let sources: Vec<ObjectId> = (0..4).map(|_| Uuid::new_v4()).collect();
         for s in &sources {
             reg.add(row(*s, Duration::UntilEndOfTurn));
@@ -244,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_until_end_of_turn_expires_at_cleanup() {
-        let mut reg = ReplacementRegistry::new();
+        let mut reg = ReplacementEffectRegistry::new();
         let src = Uuid::new_v4();
         reg.add(row(src, Duration::UntilEndOfTurn));
         reg.add(row(src, Duration::WhileSourceOnBattlefield));
@@ -256,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_until_your_next_turn_does_not_expire_on_the_turn_it_was_made() {
-        let mut reg = ReplacementRegistry::new();
+        let mut reg = ReplacementEffectRegistry::new();
         let src = Uuid::new_v4();
         reg.add(row(src, Duration::UntilYourNextTurn));
 

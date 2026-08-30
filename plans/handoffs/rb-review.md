@@ -18,13 +18,26 @@ file and none needs any conversation.
    reproduce: **I7's third claim**. `specdb owed` prints **38** on this tree,
    before and after this session's changes and after a `specdb build`, so
    `codebase-state.md`'s "unchanged at 38" is right and was left alone.
-   **Next: merge #62 to main.**
-4. Post-merge, on `main`: **themes C + E, plus H1, H3–H6** (naming, hygiene,
-   and the latent code fixes — these move behavior, so fuzz before/after).
-   Then **themes D + F, plus H7–H9 and J3/J4** (defer entries and design
+   **#62 merged to `main` as `78d344c`.**
+4. ~~Post-merge, on `main`: **themes C + E**~~ ✅ 2026-08-30, branch
+   `replacement/rb-naming` (`cd83889`, `69a805e`). All eleven rows closed; no
+   behaviour moved and both fuzz baselines are byte-identical. Two things came
+   out of it that were not in the ledger: E4's answer found **seven cards that
+   restrict the CR 514.2 cleanup damage wipe**, which has no enforcement point
+   (`codebase-state.md` item 20), and the census cannot see restrictions
+   phrased "isn't"/"doesn't" — 248 cards print "doesn't untap during …" — which
+   is theme J's, logged as **J5**.
+5. **H1, H3–H6** — the latent code fixes. Bundled with C+E on this queue's
+   earlier draft and deliberately not taken with it: they move behaviour, so
+   they need a fuzz A/B, and they share no mental model with a naming pass.
+   H5/H6 are one-liners, H1/H4 are small. Note the H rows' line numbers predate
+   the C renames and have drifted a few lines in `gather.rs`.
+6. Then **themes D + F, plus H7–H9, J3–J5 and M1** (defer entries and design
    questions; F2's test rides along; J1/J2 are two `cant-census.py` regex
-   fixes and can ride either session).
-5. Then stop reviewing and **build**: RS-0, per `cant-effects-architecture.md`
+   fixes and can ride either session; **M1 is a 94-site mechanical rename and
+   wants its own commit**, so it can ride any session but not be folded into
+   one).
+7. Then stop reviewing and **build**: RS-0, per `cant-effects-architecture.md`
    §7.1's queue. That list is the ordering authority from here on.
 
 ## Why this file exists
@@ -64,6 +77,9 @@ produced them.
 everything else gets written), then B and E (cheap, mechanical, no design
 input), then C, then D and F. **A is not a fix session at all** — it is a design
 pass that should probably become its own document before any of it is coded.
+*(Superseded: A, B, C, E, G and I are closed; the live plan is "Start here" at
+the top of this file. E was not "cheap, mechanical, no design input" — E4 was a
+card-pool measurement, which is the one shape this ordering mis-predicted.)*
 
 **The RB baseline:** P0 28 (56.0%) / P1 22 (44.0%), spells 20.8, lands 17.9,
 combat 11.4, creatures died 5.6, damage events 24.4, total damage 53.6, life
@@ -157,25 +173,41 @@ Cheapest theme. No tests move, no re-measurement.
 **The as-built map is in** — `replacement-architecture.md` §2a. Every shipped
 type on one page with a Growth column, plus one action traced from
 `execute_actions` to a performed `GameEvent`. `engine/replacement/mod.rs`'s
-module doc now points at it; **C7's code move (types out of `mod.rs`) is still
-open** and stays in theme C.
+module doc now points at it; C7's code move (types out of `mod.rs`) followed
+on 2026-08-30 — `engine/replacement/instance.rs`.
 
 ---
 
-## C. Naming and semantics
+## C. Naming and semantics — ✅ **CLOSED 2026-08-30** (`cd83889`)
 
 Rows here share one cause: RB introduced a lot of vocabulary quickly and some of
 it collides with vocabulary that already existed.
 
+**All seven closed in one commit, no behaviour.** The theme resolved into one
+sentence the code now reads as: an *event* has a **subject**, an *effect*
+**watches** a pattern and **affects** a set. Two rows landed differently from
+what the ledger proposed, both recorded here rather than silently:
+
+- **C2 kept `ReplacementDef.affected`.** The row read as "rename and/or fix the
+  doc"; the name is the same question `ContinuousEffect.affected` asks, and
+  renaming one of that pair would have re-created C1's collision on a different
+  axis. The doc is what was wrong, and it is fixed: CR 614.1's shield is a
+  metaphor for *every* replacement effect, but in this codebase "shield" is
+  taken by CR 701.19a and CR 122.1c, which is the actual defect.
+- **C6 used `affects`, not `scope_contains`.** The row said "something like
+  `scope_contains` / `watches`"; `affects` is the CR's own word and the one
+  `AffectedSet` is already named for, so `applies_to` = `watches(…) &&
+  affects(…)` needs no third vocabulary.
+
 | # | Area | Finding | Verdict |
 |---|---|---|---|
-| C1 | `gather.rs:57` | **`Affected` and `AffectedSet` are two different ideas one letter apart.** `Affected` is *what a proposed event is about*; `AffectedSet` is *the boundary of an effect's shield*. Reading them side by side implies a relationship that does not exist. Rename one. | `fix` |
-| C2 | `types/replacement.rs:45` | Reusing `AffectedSet` for `ReplacementDef.affected` reads as too narrow for how broad the name is — the doc calls it "which objects it shields", which is regeneration/shield-counter language applied to every replacement effect. Kalitas does not shield anything. | `fix` (naming/doc) |
-| C3 | `replacement_effects.rs:44` | `ReplacementRowId` / `RegisteredReplacement` / `ReplacementRegistry` read as "replacing a row in some other registry". Tack on `Effect`: `ReplacementEffectId`, `RegisteredReplacementEffect`. | `fix` |
-| C4 | `actions.rs:350` | `resolve_rider` is documented as "one CR 615.5 rider", but 615.5 is about *prevention* effects only. Kalitas's token is a rider on a plain replacement. Find the right citation (CR 614.1a's "instead" clause plus the effect's own text) or drop the rule number. | `doc` |
-| C5 | `pipeline.rs:134` | `candidates` is used for two different things a line apart — the gathered-and-filtered list, and then `bucket` after `forced_bucket`. Name the first `applicable` and the second `bucket`, or fold the filter into `gather`. | `fix` |
-| C6 | `gather.rs:246` | **`applies_to` checks "does the pattern match" AND "is the affected object inside the shield", and the second half is named `shield_contains` on effects that shield nothing.** The function is correct — an effect applies only if it watches this *kind* of event *and* this event is about something in its scope — but the naming makes it read as two unrelated checks. Rename to something like `scope_contains` / `watches`. | `fix` |
-| C7 | `replacement/mod.rs:1` | Every other `mod.rs` in this project is a re-exporter. This one carries type definitions and a module-level essay. Move `ReplacementInstance` / `ReplacementInstanceId` into a file. | `fix` |
+| C1 | `gather.rs:57` | **`Affected` and `AffectedSet` are two different ideas one letter apart.** `Affected` is *what a proposed event is about*; `AffectedSet` is *the boundary of an effect's shield*. Reading them side by side implies a relationship that does not exist. Rename one. | `fix` ✅ — `Affected` → `EventSubject`, `affected_of` → `subject_of`, `Rider.affected` → `Rider.subject` |
+| C2 | `types/replacement.rs:45` | Reusing `AffectedSet` for `ReplacementDef.affected` reads as too narrow for how broad the name is — the doc calls it "which objects it shields", which is regeneration/shield-counter language applied to every replacement effect. Kalitas does not shield anything. | `fix` ✅ — the doc, not the name; see the note above |
+| C3 | `replacement_effects.rs:44` | `ReplacementRowId` / `RegisteredReplacement` / `ReplacementRegistry` read as "replacing a row in some other registry". Tack on `Effect`: `ReplacementEffectId`, `RegisteredReplacementEffect`. | `fix` ✅ — `ReplacementEffectId` / `RegisteredReplacementEffect` / `ReplacementEffectRegistry`, the last now parallel to `ContinuousEffectRegistry` |
+| C4 | `actions.rs:350` | `resolve_rider` is documented as "one CR 615.5 rider", but 615.5 is about *prevention* effects only. Kalitas's token is a rider on a plain replacement. Find the right citation (CR 614.1a's "instead" clause plus the effect's own text) or drop the rule number. | `doc` ✅ — CR 614.1a + 614.6 for a rider on a plain replacement; 615.5 kept where the shield counter's *prevention* half queues one |
+| C5 | `pipeline.rs:134` | `candidates` is used for two different things a line apart — the gathered-and-filtered list, and then `bucket` after `forced_bucket`. Name the first `applicable` and the second `bucket`, or fold the filter into `gather`. | `fix` ✅ — `applicable`, then `bucket` |
+| C6 | `gather.rs:246` | **`applies_to` checks "does the pattern match" AND "is the affected object inside the shield", and the second half is named `shield_contains` on effects that shield nothing.** The function is correct — an effect applies only if it watches this *kind* of event *and* this event is about something in its scope — but the naming makes it read as two unrelated checks. Rename to something like `scope_contains` / `watches`. | `fix` ✅ — `watches` / `affects`; see the note above |
+| C7 | `replacement/mod.rs:1` | Every other `mod.rs` in this project is a re-exporter. This one carries type definitions and a module-level essay. Move `ReplacementInstance` / `ReplacementInstanceId` into a file. | `fix` ✅ — `engine/replacement/instance.rs`; `mod.rs` is a re-exporter pointing at §2a |
 
 ---
 
@@ -194,14 +226,33 @@ grow.
 
 ---
 
-## E. Engine hygiene
+## E. Engine hygiene — ✅ **CLOSED 2026-08-30** (`69a805e`)
+
+**Four rows, and E1 took three passes to land.** It got a decision first (the
+cap is a backstop, not a harness), then — on the owner's reading of that answer,
+that the *doc* was long because the *design* was weak — a check for the property
+CR 903.9b actually has, and then, on the same objection repeated, the deletion
+the argument had earned all along. E2 and E3 are `codebase-state.md` items 18
+and 19.
+E4 asked whether "no card replaces this" is safe futureproofing and got **two
+different answers** — sound for removal from combat, false for the analogy the
+damage comment leaned on — plus, on the same review, the missing half of the
+argument: *what it costs to be wrong*, which is what makes the deferral sound
+rather than lucky. §8a carries both.
+
+**The lesson worth keeping from E1.** A long defensive comment is evidence about
+the code under it. The first answer was accurate and the reviewer was still
+right to reject it, because "bounded by nothing else" is a fact about the design,
+not about the prose — and the second answer was better and *still* left a
+number in the tree, which the same objection removed. The finished shape is one
+check per way the argument can fail, each with its own error, and no budget.
 
 | # | Area | Finding | Verdict |
 |---|---|---|---|
-| E1 | `pipeline.rs:72` | `MAX_616_1F_ITERATIONS` is documented as "a test harness" and lives in engine code. Either it is a real invariant (then say so without calling it a harness) or it belongs behind `#[cfg(test)]` / a debug assertion. | `fix` |
-| E2 | `game_state.rs:589` | `remove_from_combat` (CR 506.4) is combat code that arrived in a replacement-effects PR. It is genuinely needed by CR 701.19a's rider, but it is the kind of thing a split would have kept out. | `defer` (note only) |
-| E3 | `object.rs:44` | `zone_change_epoch` + two `GameState` counters for one consumer (CR 704.6d). Justified as a *fact* rather than a feature, and `codebase-state.md` item 10 wants the same field for CR 400.7 — but with one live use it is worth re-confirming the plumbing earns its place. | `defer` |
-| E4 | `resolve.rs:659` | **`RemoveFromCombat` / `RemoveAllDamage` write `BattlefieldEntity` directly, justified as "no card replaces this".** Is that safe futureproofing? A card saying "creatures you control can't be removed from combat" is plausible, and the design's own premise is that any game event should be replaceable. | `design` |
+| E1 | `pipeline.rs:72` | `MAX_616_1F_ITERATIONS` is documented as "a test harness" and lives in engine code. Either it is a real invariant (then say so without calling it a harness) or it belongs behind `#[cfg(test)]` / a debug assertion. | `fix` ✅ — **the constant is deleted and the loop is uncapped.** Three answers, each rejected for the right reason. (1) "It is a bug backstop, not a test harness" — true, and the length of the comment defending it was the tell that the design under it was weak. (2) `check_exempt_terminates` enforcing the property CR 903.9b actually has (its rewrite leaves its own pattern), which left the cap covering two-exempt ping-pong. (3) That case is a check too — at most one exemption applies to one event — so every leg of the argument is now enforced where it can fail and the budget has nothing left to do. `MAX_616_1F_ITERATIONS` is gone; `apply_replacements` is a plain `loop`. Two tests pin the two failure modes, both shown failing against the capped tree. `cant-effects-architecture.md` §4.2 no longer cites it as precedent — it cites how it died |
+| E2 | `game_state.rs:589` | `remove_from_combat` (CR 506.4) is combat code that arrived in a replacement-effects PR. It is genuinely needed by CR 701.19a's rider, but it is the kind of thing a split would have kept out. | `defer` ✅ — `codebase-state.md` item 18. Recorded so the combat phase *uses* it: it handles CR 506.4 in both directions, and the one-line `entry.attacking = None` version is the one that looks right and is not |
+| E3 | `object.rs:44` | `zone_change_epoch` + two `GameState` counters for one consumer (CR 704.6d). Justified as a *fact* rather than a feature, and `codebase-state.md` item 10 wants the same field for CR 400.7 — but with one live use it is worth re-confirming the plumbing earns its place. | `defer` ✅ — `codebase-state.md` item 19. A re-confirm when item 10's CR 400.7 lands, not debt: recording an unrecoverable fact is right, and if 400.7 does not use the field the question becomes live |
+| E4 | `resolve.rs:659` | **`RemoveFromCombat` / `RemoveAllDamage` write `BattlefieldEntity` directly, justified as "no card replaces this".** Is that safe futureproofing? A card saying "creatures you control can't be removed from combat" is plausible, and the design's own premise is that any game event should be replaceable. | `design` ✅ — **combat: sound.** CR 506.4 is a *consequence* of seven causes, six already proposed, so a "can't" attaches to a cause; all 25 printed "from combat" cards cause removal and nothing watches it. **Damage: the analogy was false.** Seven cards restrict the CR 514.2 cleanup wipe the comment cited as precedent — item 20, one filter once RS-1's sweep exists. The tripwire for both is a *trigger*, not a replacement |
 
 ---
 
@@ -370,9 +421,11 @@ the top of this file.)*
 
 ### After the merge, as follow-up PRs on `main`
 
-3. **Themes C + E — naming and hygiene.** One PR. Mechanical renames plus
-   `MAX_616_1F_ITERATIONS`'s home and `mod.rs`'s shape. Do it with theme G's
-   comment rule in hand, and it will shrink the file it touches.
+3. ~~**Themes C + E — naming and hygiene.**~~ ✅ **done 2026-08-30**, branch
+   `replacement/rb-naming`, two commits (`cd83889`, `69a805e`). One PR as
+   planned, and theme G's comment rule did shrink what it touched. The one
+   surprise: E4's "is this safe futureproofing" turned out to be two questions
+   with two answers, and the damage half was wrong.
 4. **Themes D + F — scaling and rules questions.** Mostly `defer` entries in
    `codebase-state.md` rather than code. F2's test is the exception and is
    worth pulling forward into step 3.
@@ -480,8 +533,11 @@ here suggests any of them is triaged wrong. Rows continue the lettering at H.
 
 ## H. Pipeline and SBA correctness — second pass
 
-**H2 closed 2026-08-30** (the pre-merge session); H1 and H3–H6 remain for the
-post-merge C+E session, H7–H9 are `defer`/`design`.
+**H2 closed 2026-08-30** (the pre-merge session). H1 and H3–H6 were bundled
+with C+E on the queue and did **not** ride with it — they move behaviour and
+share no mental model with a naming pass, so they are their own session.
+H7–H9 are `defer`/`design`. Note the line numbers in the rows below predate
+2026-08-30's renames and have drifted by a few lines in `gather.rs`.
 
 The first review found no correctness defect. This pass found one reachable
 family and one test-pinned wrong behavior, both currently latent — nothing in
@@ -540,6 +596,23 @@ implies — none moves any RS phase's sizing by more than a rounding error.
 | J2 | `cant-census.py:150` | **"can't be attacked" is bucketed under *attachment* (Tier 2) and is a combat restriction (Tier 1a).** Two clauses hit it — Island Sanctuary and The Aetherspark, verified against the cache — both restrictions on attack declaration. True Tier 2 is 234, Tier 1a 1,264; nothing resizes, but the classifier has a provable mis-bucket and RS-1's spine count inherits it. Nearby, lower: "can't become suspected/night/monarch" (3 clauses) land under "transform / turn face up / phase", which is the right tier with the wrong label. | `fix` |
 | J3 | `cant-effects-architecture.md:142` | **"Every number below is `cant-census.py`" overclaims — §2.4's and §4.2's derived numbers have no script behind them.** The 62 distinct tails, 77 counting clauses, 1,200/49/13 decomposition, the 35%/28%/11% duration shares and the 149/138 conditional counts are all dated hand counts. Two loose threads a reader cannot resolve from the page: §2.4 says 77 counting clauses where §4.2's table has 49 per-attacker counts (where are the other 28?), and the "2 cards" global-cap row only sums to 1,262 if those cards' clauses live inside the 13. Either extend the script to print the decomposition or mark those numbers as hand counts with their method, and reconcile 77/49/13. | `doc` |
 | J4 | `cant-effects-architecture.md` §2.1 | The doc's tier table faithfully mirrors the script — which means it inherits J2's ±2. When J2's script fix lands, re-run and update the table (236 → 234, 1,262 → 1,264) in the same commit, or the doc and its evidence disagree by exactly the amount that looks like drift. | `doc` |
+| J5 | `cant-census.py:54` | **The census's query is `o:"can't" -is:funny`, so restrictions phrased "isn't" or "doesn't" are outside all 2,034 clauses** — and that is a *scope*, correctly stated by the script, not a regex bug. It is worth stating in the doc because one such family is not small: **248 cards print "doesn't untap during …"** (`o:/doesn.t untap during/ -is:funny`, 2026-08-30), and 7 print "damage isn't removed …" (`codebase-state.md` item 20). §2.2 "What the census cannot see" already exists for exactly this and currently lists only the keyword-borne restrictions; these are the phrasing-borne ones. Found while answering E4, which is why it is here rather than in E. | `doc` |
+
+## M. Owner review of the C+E branch (2026-08-30)
+
+Five points raised on `replacement/rb-naming` before merge. **Four closed on
+the branch** and are recorded where they belong: E1's answer was rejected for
+the right reason and replaced with `check_exempt_terminates` (see theme E);
+`replacement-architecture.md` §8a lost an overreach about CR 506.4 and gained
+the "what does it cost to be wrong" pricing it was missing; the vestigial
+`impl Default for ReplacementEffectRegistry` is deleted. **One is new and
+stays open.**
+
+| # | Area | Finding | Verdict |
+|---|---|---|---|
+| M1 | `card_data.rs:31`, `layers/types.rs:260` | **The field `keywords` reads as "this object's keywords" and is really "the presence-only ones".** `KeywordFlag`'s own doc is exemplary — CR 702's 189 keyword abilities split by a four-quadrant table, and this enum is quadrant ① — but the *field* drops the qualifier the *type* carries, on both `CardData` and `EffectiveCharacteristics`. A card with ward or cycling has those in `abilities`, so `card.keywords` is **not** the card's keyword list, and `CLAUDE.md`'s layer invariant lists `keywords` beside `abilities` as though they partitioned. Nothing is wrong today — every reader passes a `KeywordFlag`, so the type enforces the intent — which is exactly why this is legibility debt rather than a bug. Note the *other* half of the word is already clean: CR 701's keyword **actions** have their own type in `types/keyword_actions.rs`, so the ambiguity is inside CR 702 only. **Sized:** rename the field to `keyword_flags` to match its type — 94 sites across 33 files, every one compiler-enforced, no behaviour. Do it in its own commit, not folded into anything. | `fix` (naming) |
+
+---
 
 ## The merge question, re-answered
 

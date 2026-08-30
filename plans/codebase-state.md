@@ -545,7 +545,7 @@ built, and none of it blocks RC-1 through RC-3.
     battlefield, citing CR 611.2a for the opposite of what it says: every row in
     that registry was made by a *resolution*, and 611.2a gives those the
     duration the spell or ability stated. The call is gone. What goes with it:
-    `RegisteredReplacement.duration` can hold `WhileSourceOnBattlefield`,
+    `RegisteredReplacementEffect.duration` can hold `WhileSourceOnBattlefield`,
     `WhileEnchanted` and `WhileEquipped`, and no hook removes any of them —
     `remove_expired_at_cleanup` handles `UntilEndOfTurn` and
     `remove_expired_at_turn_start` handles `UntilYourNextTurn`. Unreachable
@@ -555,6 +555,55 @@ built, and none of it blocks RC-1 through RC-3.
     CR 611.2b ("for as long as . . ."), not 611.2a. Owed by the first
     resolution-created replacement whose text is "for as long as [this
     permanent] is on the battlefield".
+
+### Found by the theme C+E pass (2026-08-30)
+
+18. **Combat already has a CR 506.4 implementation, and it arrived in a
+    replacement PR (`rb-review.md` E2).** `GameState::remove_from_combat` is
+    combat code that RB needed for CR 701.19a's regeneration rider — it untaps
+    and removes the regenerating creature from combat — and it does the job
+    properly in both directions: an attacker leaving combat also stops being
+    *blocked by* its blockers, and a blocker leaving stops appearing in the
+    attackers' `blocked_by` lists, with CR 506.4b's "remains blocked even if all
+    creatures blocking it are removed" deliberately preserved. **Recorded so the
+    combat phase uses it rather than writing a second one**; a one-line
+    `entry.attacking = None` is the version that looks right and is not. No
+    action owed before then. (It is also the sizing lesson: a phase split on
+    subsystem lines would have kept it out, which is `engineering-practices.md`
+    §4's rule and why RB ran to +5,475.)
+
+19. **`zone_change_epoch` has one consumer and two counters behind it
+    (`rb-review.md` E3).** `GameObject.zone_change_epoch` plus
+    `GameState::next_zone_change_epoch` and the SBA-check tick exist for
+    CR 704.6d alone — "was put into that zone since the last time state-based
+    actions were checked", which nothing about an object answers a moment later.
+    Recording an unrecoverable fact is the right call and item 10 wants the same
+    tick for CR 400.7, so this is not debt to pay down; it is a **re-confirm
+    when item 10 lands**. If 400.7 arrives and does *not* use the field, three
+    pieces of plumbing serve one rule and the question becomes live again.
+
+20. **The CR 514.2 cleanup damage wipe has no enforcement point, and seven cards
+    want one (found 2026-08-30, answering `rb-review.md` E4).** `turns.rs:133`
+    zeroes `damage_marked` on every battlefield entry unconditionally. Ancient
+    Adamantoise, Case of the Market Melee, Melt Through, Patient Zero,
+    Switchgrass Grazer, Uthgardt Fury and Victory of the Pyrohammer all say
+    damage isn't removed during cleanup steps (Scryfall
+    `o:/damage isn.t removed/ -is:funny`, 2026-08-30). **Not this pipeline's
+    problem:** CR 514.2 is a turn-based action that "doesn't use the stack", and
+    the restrictions are per-permanent and filtered ("from creatures your
+    opponents control"), so the wipe needs to consult a predicate — the sixth
+    enforcement point in `cant-effects-architecture.md` §3 — rather than propose
+    a `GameAction`. **Sized:** one filter on one loop, once `RestrictionDef` and
+    its sweep exist (RS-1). Until then the seven cards are unauthorable, which
+    is the right state; what was wrong was `Primitive::RemoveAllDamage`'s
+    comment citing this wipe as an *unrestricted* precedent for its own direct
+    write. → `replacement-architecture.md` §8a.
+
+    Also from that check, and owed to the census rather than to this section:
+    `cant-census.py` queries `o:"can't"`, so restrictions phrased "isn't" or
+    "doesn't" are outside its 2,034 clauses — including **248 cards printing
+    "doesn't untap during ..."**. `cant-effects-architecture.md` §2.2 is where
+    that belongs.
 
 ### Was the critical path complete? — audited 2026-08-27
 
