@@ -45,9 +45,11 @@ same way. An earlier draft claimed two axes and tried to argue the third away;
 was pulled and each of its 2,034 "can't" clauses classified by *where the engine
 would have to enforce it* (`plans/references/cant-census.py`). The answer is
 §2.1's table: six enforcement points, of which **Phase RB built one**. The
-residual after classification is 4 clauses and they are printed in §2.5 rather
-than rounded away; §2.6 records the one family the first pass classified wrong,
-because a census's failure mode is a bucket nobody re-read.
+residual after classification is 6 clauses and they are printed in §2.5 rather
+than rounded away; §2.6 records the four families the census classified wrong,
+because a census's failure mode is a bucket nobody re-read. Three of the four
+were found on a *second* read of the same buckets (2026-08-30), which is the
+argument for re-reading a census rather than for trusting one.
 
 **Four. Performance has one designated lever and a measurement gate — and this
 is hotter than the replacement pipeline.** `apply_replacements` sits on
@@ -139,30 +141,44 @@ Three ordering facts, only one of which the review named:
 
 ## 2. Scope, measured
 
-Every number below is `python plans/references/cant-census.py`, run 2026-08-27
-against `o:"can't" -is:funny`. **These are clause counts, not card counts** —
-one card contributes several clauses to several tiers — and card counts are
-printed alongside. Neither is a work estimate; §2.4 is.
+Every number below is `python plans/references/cant-census.py`, re-run
+2026-08-30 against `o:"can't" -is:funny` — §2.1 and §2.5 from the bare
+invocation, §2.4's and §4.2's decomposition from `--decompose`. **These are
+clause counts, not card counts** — one card contributes several clauses to
+several tiers — and card counts are printed alongside. Neither is a work
+estimate; §2.4 is.
+
+**`--decompose` exists because §2.4's and §4.2's numbers were hand counts and
+drifted** (`rb-review.md` J3). §2.4 said 77 counting clauses where §4.2's table
+said 49, neither was reproducible, and both were wrong. They are measured now,
+and the two sections read one output.
 
 ### 2.1 The tier table
 
 | Tier | Enforcement point | CR | Clauses | Cards | Built? |
 |---|---|---|---:|---:|---|
-| **1a** | Declaring attackers and blockers | 508.1c, 509.1b | **1,262** | 1,195 | Flying + Defender only |
-| **1b** | Beginning to cast a spell / playing a land | 601.3, 116.2a | **120** | 115 | ❌ |
+| **1a** | Declaring attackers and blockers | 508.1c, 509.1b | **1,277** | 1,209 | Flying + Defender only |
+| **1b** | Beginning to cast a spell / playing a land | 601.3, 116.2a | **122** | 117 | ❌ |
 | **1c** | Activating an ability | 602.5 | **35** | 35 | ❌ |
 | **1d** | Choosing targets | 115.6 | **51** | 51 | ❌ (`targeting.rs` TODO) |
 | **1e** | Paying a cost | 614.17b, 118 | **16** | 16 | ❌ |
 | **2** | An engine-proposed event | **614.17** | **236** | 220 | ✅ **Phase RB** |
-| **3** | Applying a replacement effect | 701.19c, 615.12 | **187** | 182 | Half (701.19c only) |
+| **3** | Applying a replacement effect | 701.19c, 615.12 | **188** | 183 | Half (701.19c only) |
 | **4** | Having an ability at all | 113.11 | 6 | 6 | Layer system's (§5.4) |
-| **5** | *A query, not a restriction* | 101.3 | 74 | 74 | ❌ (§4.8) |
+| **5** | *A query, not a restriction* | 101.3 | 54 | 54 | ❌ (§4.8) |
 | **6** | *Not a game event* | 601.2b, 601.2f | 43 | 41 | Out of scope (§10) |
-| ? | unclassified | — | 4 | 4 | printed in §2.5 |
+| ? | unclassified | — | 6 | 6 | printed in §2.5 |
 
-Tier 1a is 62% of the corpus on its own, and the single largest bucket
-("can't be blocked", 580 clauses) is where the engine's evasion story stops
+Tier 1a is 63% of the corpus on its own, and the single largest bucket
+("can't be blocked", 587 clauses) is where the engine's evasion story stops
 after flying.
+
+**Five rows moved on 2026-08-30 and the load-bearing one did not** (§2.6).
+**Tier 2 is still 236**, because the two corrections that touch it cancel
+exactly: Island Sanctuary's "can't be attacked" left for Tier 1a, and Slicer's
+"can't be sacrificed" arrived from Tier 5. "RB built 12% of the problem"
+survives its own evidence being corrected, which is the only claim in this
+document a census error could have falsified.
 
 ### 2.2 What the census cannot see
 
@@ -183,6 +199,21 @@ separately on Scryfall the same day:
 | Hexproof | 702.11b | 96 (336 incl. grants) | can't be targeted by opponents |
 | Shroud | 702.18a | 35 | can't be targeted at all |
 | Indestructible | 702.12b | 115 (524 incl. grants) | can't be destroyed |
+
+**And one whole family is invisible to the *query* rather than to the buckets.**
+The census asks for `o:"can't"`, so a restriction printed as "isn't" or
+"doesn't" is outside all 2,034 clauses — correctly, since that is the query's
+stated scope, but the population is not small (Scryfall, 2026-08-30):
+
+| Phrasing | Cards | Where it would land |
+|---|---:|---|
+| "doesn't untap during …" | **248** | Tier 2 — the CR 502.1 untap step's turn-based action |
+| "damage isn't removed …" | 7 | Tier 2 — CR 514.2's cleanup wipe (`codebase-state.md` item 20) |
+| "no more than N creature can attack" | 2 | Tier 1a's global cap — Silent Arbiter, Dueling Grounds |
+
+The last row is why `--decompose` prints the global caps *outside* its sum:
+§4.2's table used to imply they were among the 13 cross-creature clauses, and
+they are not among the 2,034 clauses at all.
 
 Two consequences. **Keyword-derived restrictions are a first-class discovery
 source** (§3.4 source 3), the way CR 122.1c's counters are for the replacement
@@ -213,25 +244,33 @@ them. That is the shape the model replaces.
 
 The clause counts are not the work. Sorted by what each clause actually needs:
 
-- **A filter over the *other* object.** 222 of the 580 "can't be blocked"
-  clauses name a would-be blocker ("by creatures with power 3 or greater", "by
-  artifact creatures"). There are **62 distinct tails** across all 580, and all
-  but the counting ones are `PermanentFilter`-expressible today. The counting
-  ones ("more than one creature", "three or more creatures" — 77 clauses) want
-  one integer field, which is CR 509.1b's own menace shape.
-- **A duration.** 35% of Tier 1a, 28% of Tier 1b and 11% of Tier 2 are
-  turn-scoped ("can't be blocked this turn"). They come from a *resolution*, so
-  they need a registry row with a `Duration`, exactly as CR 701.19a's
-  regeneration shield does. This is what makes `Primitive::Restrict` the right
-  answer to A3 rather than a primitive per mechanic (§6.3).
-- **A condition.** 149 clauses are CR 508.1c's "or that it can't [X] unless some
-  condition is met" — 138 of them in Tier 1a. These need `Effect::Conditional`,
-  which is unimplemented and belongs to Phase 6. Scoped out of every phase
-  below, and named so it is not rediscovered.
+- **A filter over the *other* object.** **292 of the 587 "can't be blocked"
+  clauses name a would-be blocker** ("by creatures with power 3 or greater",
+  "by artifact creatures"); the other 295 have no tail at all and are plain
+  unblockability. There are **111 distinct tails** under `--decompose`'s
+  normalization (reminder text, durations and the plural of "creature"
+  stripped, since a `PermanentFilter` carries none of those), and all but the
+  counting ones are `PermanentFilter`-expressible today. The counting ones
+  ("by more than one creature", "except by three or more") are **48 clauses**
+  and want one integer field, which is CR 509.1b's own menace shape.
+- **A duration.** **35% of Tier 1a (457 clauses), 31% of Tier 1b and 8% of
+  Tier 2** are turn-scoped ("can't be blocked this turn"). They come from a
+  *resolution*, so they need a registry row with a `Duration`, exactly as
+  CR 701.19a's regeneration shield does. This is what makes
+  `Primitive::Restrict` the right answer to A3 rather than a primitive per
+  mechanic (§6.3).
+- **A condition.** **149 clauses** are CR 508.1c's "or that it can't [X] unless
+  some condition is met" — **138 of them in Tier 1a**. These need
+  `Effect::Conditional`, which is unimplemented and belongs to Phase 6. Scoped
+  out of every phase below, and named so it is not rediscovered.
+
+The first bullet's three numbers moved when they were measured; the second's
+35% and the third's 149/138 came out of `--decompose` exactly as hand-counted,
+which is the reason to keep dated hand counts rather than delete them.
 
 ### 2.5 The residual
 
-Three clauses that no bucket caught and that are about the game, printed rather
+Five clauses that no bucket caught and that are about the game, printed rather
 than rounded away. **None is a sixth mechanism** — each is an existing tier with
 an unusual subject, which is the only claim this section makes:
 
@@ -240,6 +279,14 @@ an unusual subject, which is the only claim this section makes:
 | Artificial Evolution | "The new creature type can't be Wall." | CR 612 text-changing, a constraint on a *choice made during resolution* |
 | Chef's Kiss | "The new targets can't be you or a permanent you control." | CR 115.7 retargeting; Tier 1d with a different subject |
 | Melira, the Living Cure | "…you can't get additional poison counters this turn." | Tier 2, reached through a replacement's `then` |
+| Forgotten Lore | "…that opponent can't choose a card already chosen…" | a constraint on a *choice during resolution*, like Artificial Evolution's |
+| Shrouded Lore | (the same clause) | as above |
+
+The last two arrived on 2026-08-30 out of the Tier 5 correction below. They are
+the same shape as Artificial Evolution's and confirm rather than widen the
+claim: the residual is *choices made during resolution*, a subject the six
+enforcement points do not name because no engine site offers such a choice
+today.
 
 The census also prints a fourth, **Sovereign's Realm** — "Your starting deck
 can't have basic land cards" — which is a **Conspiracy**. Conspiracies start the
@@ -267,6 +314,40 @@ Multiplied are the same shape. Five clauses, moved 2026-08-27; Tier 1e fell from
 provenance is already threaded — `ActionContext` carries the resolution — so
 this is a field, not a mechanism. It is the one thing §3.3's `Event` arm needs
 beyond `EventPattern` + `AffectedSet`.
+
+#### Three more, found on the second pass (2026-08-30)
+
+Two were `rb-review.md` J1 and J2; the third came out of checking J2's arithmetic
+and is four times the size of the two that were reported.
+
+**"can't be attacked" was bucketed under *attachment*.** Island Sanctuary and
+The Aetherspark both restrict attack declaration, which is CR 508.1a, and both
+landed in Tier 2's `can't be attached` arm on the shared prefix. Tier 1a's arm
+now asks first. *Costs the model nothing* — it was already going to be a
+Tier 1a predicate.
+
+**"can't search" cited CR 701.19.** Search is **701.23**; 701.19 is Regenerate,
+which this engine cites correctly a hundred times, so the collision was
+maximally confusing. Label only. Nearby and also label-only: the
+"transform / turn face up / phase" bucket holds three "can't become
+suspected/night/monarch" clauses, which are designations (CR 701.60, 724, 730),
+not CR 701 keyword actions — the tier was right and the name was not.
+
+**Tier 5's anchor swallowed 21 restrictions, 19 of them Tier 1a.** The CR 101.3
+arm matched any clause beginning "if you/they …" that contained "can't" within
+60 characters, which is also the shape of "If you do, target creature can't
+block this turn" — a conditional *effect* whose payload is a restriction. The
+guard is one negative lookahead on `do,`/`don't,`; Gilded Drake's "If you don't
+or can't make an exchange" is the genuine 101.3 query and survives it, because
+its "don't" carries no comma. **This is the correction that moved the table**:
+Tier 1a 1,262 → 1,277, Tier 5 74 → 54, and Tier 3 and the residual by one and
+two. Tier 2 came out unchanged for the reason §2.1 gives.
+
+**What the three cost the model: nothing.** Every moved clause landed in a tier
+that already existed, which is the same result §2.6's first family had. What
+they cost the *document* is the 12%-of-the-problem headline needing to be
+re-derived from corrected evidence — and it survived, which is worth more than
+having been right the first time.
 
 ---
 
@@ -567,14 +648,22 @@ the over-deferral this project has been bitten by, so it gets counted instead.
 
 #### The decomposition, measured
 
-The 1,262 Tier-1a clauses are not 1,262 constraints. Counted 2026-08-27:
+The 1,277 Tier-1a clauses are not 1,277 constraints. Measured by
+`cant-census.py --decompose`, 2026-08-30 — the numbers below were hand counts
+until then and disagreed with §2.4's by 28 (`rb-review.md` J3):
 
-| Shape | Clauses | Couples creatures? |
-|---|---:|---|
-| Per-creature restriction ("this creature can't block", "can't be blocked by artifact creatures") | **1,200** | no — a predicate on one creature |
-| Per-attacker blocker count ("can't be blocked by more than one", menace's "except by two or more") | **49** | no — local to one attacker's block assignment |
-| Cross-creature restriction ("can't attack alone", "can't attack unless at least two other creatures attack") | **13** | **yes** |
-| Global cap ("no more than one creature can attack each combat") | **2 cards** — Silent Arbiter, Dueling Grounds | **yes**, over everything |
+| Shape | Clauses | Cards | Couples creatures? |
+|---|---:|---:|---|
+| Per-creature restriction ("this creature can't block", "can't be blocked by artifact creatures") | **1,219** | 1,159 | no — a predicate on one creature |
+| Per-attacker blocker count ("can't be blocked by more than one", menace's "except by two or more") | **48** | 46 | no — local to one attacker's block assignment |
+| Cross-creature restriction ("can't attack alone", "can't attack unless at least two other creatures attack") | **10** | 9 | **yes** |
+| Global cap ("no more than one creature can attack each combat") | *not in the sum* | **2** — Silent Arbiter, Dueling Grounds | **yes**, over everything |
+
+The three clause counts sum to exactly 1,277. **The global caps are outside
+that sum, and outside the census** — they print "no more than", never "can't",
+so the old table's "2 cards" row could never have been part of a clause total
+(§2.2). That was J3's unresolvable arithmetic, and it had no resolution because
+the row was in the wrong units.
 
 And the requirements side, counted on Scryfall the same day: "attacks each
 combat if able" **88**, "attacks this turn if able" **18**, "blocks this turn if
@@ -583,8 +672,10 @@ able" **20** — plus **goad** (83 cards), whose reminder text *is* "attacks eac
 combat if able". Call it ~150 cards, and note that goad is the one that matters
 for v1: it is a Commander staple and it applies to *many* creatures at once.
 
-**So 95% of Tier 1a is a predicate**, and the solver exists for ~15 printed
-cards plus the requirement population. That ratio is the design.
+**So 95% of Tier 1a is a predicate**, and the solver exists for **11 printed
+cards** — the 9 cross-creature ones plus the 2 global caps — plus the
+requirement population. That ratio is the design, and it got slightly *better*
+when it was measured rather than estimated.
 
 #### The algorithm — and brute force is the *fallback*, not the plan
 
@@ -677,11 +768,11 @@ requirements ship together or not at all**, because 508.1d's answer depends on
 both — so `Restriction` gets a sibling `Requirement` type in RS-3, discovered by
 the same sweep, and neither is useful alone.
 
-**Consumers.** Menace and the 77 counting clauses; the fear/intimidate/shadow/
+**Consumers.** Menace and the 48 counting clauses; the fear/intimidate/shadow/
 skulk/horsemanship family (147 cards) as `except_by` filters; landwalk (122);
 protection's blocking half; Defender re-expressed as data rather than as
-`validation.rs:187`'s hardcoded arm; and the 445 turn-scoped "target creature
-can't block this turn" effects, which are registry rows.
+`validation.rs:187`'s hardcoded arm; and the 457 turn-scoped Tier-1a clauses
+("target creature can't block this turn"), which are registry rows.
 
 **Deliberately not here.** The 138 Tier-1a "unless" clauses (§2.4). A creature
 that "can't attack unless you pay {2}" needs `Effect::Conditional` *and* a
@@ -1223,7 +1314,7 @@ builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
 | **RS-0 — the shared duration registry** | A `DurationRegistry<T>` that both existing registries *own* and delegate to — composition, not a split (§9 finding 7). Migrate both; no new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today | low — pure refactor, two existing test suites as the check, and a stated abort condition if `effects_in_layer`'s cache will not compose |
 | **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`; **§4.9's candidate filter**. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in, Sigarda stops producing a prompt | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site |
 | **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`cast.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `cast.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
-| **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,249 of 1,262** Tier-1a clauses — the 1,200 per-creature plus the 49 per-attacker blocker counts | medium — large surface, but every check is local |
+| **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,267 of 1,277** Tier-1a clauses — the 1,219 per-creature plus the 48 per-attacker blocker counts | medium — large surface, but every check is local |
 | **RS-3b — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
 | **RS-4 — costs** | `PayCost`, the CR 614.17b derivation, the `Cost → GameAction` projection. Consumers: Yasharn, Platinum Emperion | **10**-arm projection over a closed enum; **2** payment sites (`costs.rs`, the `ChooseAdditionalCosts` path) | low, and it is last because 614.17b's derived half needs Tier 2 *and* the authored half is 16 clauses |
 
@@ -1243,7 +1334,7 @@ effective characteristics under timestamp-only ordering will produce answers
 that change when 613.8 lands. **RS-3a does not have that problem** — a
 per-creature predicate reads the same frame every other combat check already
 reads today — which is the second reason to split RS-3 in two rather than the
-first. The split lets 1,249 of 1,262 clauses land without waiting on item 7.
+first. The split lets 1,267 of 1,277 clauses land without waiting on item 7.
 
 **What each PR must not do.** RS-1 must not touch a choice site; RS-2 must not
 touch combat; RS-3a must not attempt CR 508.1d; and no RS phase carries the
@@ -1275,7 +1366,7 @@ useful question is "what do I do next", not "what does each doc own".
 | 9 | **RS-2** — casting, activating, targeting | Unlocks hexproof/shroud/protection. Independent of Track R entirely; can slot anywhere from 4 onward |
 | 10 | **Cost modification** — its own small phase | `replacement-architecture.md` §9 asks for it; commander tax runs through it; RS-4 wants it nearby |
 | 11 | **RS-4** — costs (CR 614.17b) | Needs RS-1 for the derived half and reads better after 10 |
-| 12 | **RS-3a** — combat, the predicate half | 1,249 of 1,262 Tier-1a clauses. Does **not** need item 7 |
+| 12 | **RS-3a** — combat, the predicate half | 1,267 of 1,277 Tier-1a clauses. Does **not** need item 7 |
 | 13 | **CR 613.8** — the dependency cluster | `CLAUDE.md` item 7, hard back-stop before Phase 8 breadth |
 | 14 | **RS-3b** — combat, the solver half | After 13, because evasion is cumulative |
 | 15 | **RD**, then **RE** | Damage/prevention, then the remaining event kinds. RD gives Tier 3's other half something to withhold |
