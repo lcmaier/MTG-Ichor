@@ -168,6 +168,7 @@ PHASE_ORDER = [
     "Phase 8",
     "Phase 9",
     "Post-v1",
+    "Backlog",
     "Cross-cutting",
     "DEFERRED",
     "COMP-REF",
@@ -208,6 +209,12 @@ def normalize_phase(raw):
     # A COMP whose "phase" field lists ATOM ids instead of a phase label.
     if re.match(r"^ATOM-", cleaned):
         return "COMP-REF"
+    # `Backlog - <mechanic>`: re-filed by the CR audit off a shipped phase that
+    # never described it. Tested before the digit scan below, because a backlog
+    # label names its rules ("Backlog - cost pipeline (CR 107/118/202)") and the
+    # scan would read those as phase numbers.
+    if lowered.startswith("backlog"):
+        return "Backlog"
     if "already" in lowered or lowered == "impl" or lowered.startswith("partial impl"):
         return "ALREADY-IMPL"
     if "post" in lowered or "pre-phase" in lowered:
@@ -1051,8 +1058,8 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None, bucket=None)
         ORDER BY a.rule_num, a.id
     """, SHIPPED_PHASES).fetchall()
 
-    # This query's own method doc is not an owner - see `_scan_citations`.
-    src_cites, doc_cites = _scan_citations(exclude_docs=(AUDIT_DOC,))
+    # Neither this query's method doc nor its output is an owner.
+    src_cites, doc_cites = _scan_citations(exclude_docs=(AUDIT_DOC, BACKLOG_DOC))
     texts = {n: t for n, t in db.execute(
         "SELECT number, text FROM rules WHERE cr_version = ?", (BASELINE_VERSION,))}
 
@@ -1163,6 +1170,9 @@ PLAN_DOCS_DIR = ROOT / "plans"
 # The audit's own method doc. It cites rules as *examples*, so it is excluded
 # from `orphaned`'s ownership set - see `_scan_citations`.
 AUDIT_DOC = "cr-coverage-audit.md"
+# The inventory this query feeds. Excluded for a different reason than the
+# audit doc's - see `_scan_citations`.
+BACKLOG_DOC = "backlog.md"
 
 _SORT_RE = re.compile(r"^(\d+)\.(\d+)([a-z]?)$")
 _FAMILY_RE = re.compile(r"^(\d+\.\d+)")
@@ -1203,6 +1213,21 @@ def _scan_citations(exclude_docs=()):
     it named silently became "owned", shrinking `orphaned`'s worklist by the
     act of documenting it. Darkness is unaffected (a mention really is somebody
     looking), so `audit` keeps the full set and only `orphaned` prunes.
+
+    **`backlog.md` is excluded too, and the reason is not the audit doc's.**
+    Its citations are not examples; they are claims, and a claim is exactly what
+    the third filter looks for. It is excluded because it is `orphaned`'s
+    *output*: a backlog exists to eventually name every rule the query found, so
+    leaving it in makes the query converge to zero by being written rather than
+    by anything being owned. That is a completion signal guaranteed to fire, and
+    a gate any prose can satisfy is not a gate - contrast `owed`, which needs a
+    `// COVERS:` and therefore a test. Excluding it keeps the 332 re-derivable
+    after the inventory exists, which is the only way the inventory can be
+    checked against its own source.
+
+    So the burn-down still happens, driven by the right thing: when a mechanic
+    graduates from a backlog line to an architecture doc, *that* doc cites the
+    rules and `orphaned` shrinks. Design claims the rule; listing it does not.
     """
     src, docs = set(), set()
     for directory in CODE_DIRS:
