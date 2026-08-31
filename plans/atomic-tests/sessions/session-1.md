@@ -93,7 +93,7 @@
 - **Minimal Board:** A decklist with 3 copies of Lightning Bolt in main and 2 in sideboard (5 total)
 - **Action:** Validate against `GameConfig::standard()`
 - **Expected Result:** Validation fails — 5 total copies exceeds 4-copy limit
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — deck limits (was Phase 5-Pre)
 - **Ticket:** NEW — Combined main+sideboard copy-count validation
 
 **100.4b** — DEFERRED/BOUNDARY-DEF. Limited play is in scope (sealed/draft). Deck validation for limited (40-card minimum, no copy limit) is testable. Sideboard-swap workflow ("exchange cards between main deck and sideboard between games") is a match-level concern deferred to match management implementation.

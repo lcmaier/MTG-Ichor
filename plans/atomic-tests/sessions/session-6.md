@@ -918,7 +918,7 @@ Counters get timestamps. If a counter of the same kind already exists, all count
 - **Minimal Board:** A creature has one +1/+1 counter (timestamp T1). A second +1/+1 counter is added (timestamp T2).
 - **Action:** Query the timestamp of the +1/+1 counters.
 - **Expected Result:** All +1/+1 counters now have timestamp T2. This affects ordering relative to other L7c effects.
-- **Phase:** Phase 5 Layers (D6 — counter timestamps)
+- **Phase:** Backlog — layers timestamp debt (was Phase 5 Layers)
 - **Ticket:** NEW — Counter timestamps within L7c (D6)
 
 ### 613.7d — TESTABLE
@@ -944,7 +944,7 @@ Aura/Equipment/Fortification gets new timestamp on each attach.
 - **Minimal Board:** Equipment A (timestamp T1) gives equipped creature "loses flying." Aura B (timestamp T2, T2 > T1) gives enchanted creature flying. Both on creature X. Equipment A is moved to creature Y, getting new timestamp T3 (T3 > T2), then moved back to creature X.
 - **Action:** Query: does creature X have flying?
 - **Expected Result:** After re-attach, Equipment A has timestamp T3 > T2. In L6: Aura B (T2, "has flying") applies first, then Equipment A (T3, "loses flying"). Creature does NOT have flying — the re-attach changed the outcome.
-- **Phase:** Phase 5 Layers (D4 — Aura/Equipment re-timestamp)
+- **Phase:** Backlog — layers timestamp debt (was Phase 5 Layers)
 - **Ticket:** NEW — Aura/Equipment re-timestamp on attach (D4)
 
 ### 613.7f — DEFERRED — Phase 8: Morph/Transform

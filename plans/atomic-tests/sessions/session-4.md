@@ -29,7 +29,7 @@
 - **Minimal Board:** A game state with cards in library, hand, battlefield, graveyard, stack, and exile.
 - **Action:** Query visibility status of each zone.
 - **Expected Result:** Library and hand return "hidden"; battlefield, graveyard, stack, exile return "public." Even if all cards in a hidden zone happen to be revealed, the zone itself is still classified as hidden.
-- **Phase:** Phase 1 (zone fundamentals)
+- **Phase:** Backlog — information model (was Phase 1)
 - **Ticket:** NEW — zone visibility classification query
 
 ---
@@ -466,7 +466,7 @@ See `rule-400-7-details.md` for the full article by a certified MTG judge detail
 - **Minimal Board:** Two players, each with 3 cards in hand. No reveal effects active.
 - **Action:** Player A queries Player B's hand contents. Player A queries their own hand contents.
 - **Expected Result:** Player B's hand query returns `{ count: 3, cards: None }`. Player A's own hand query returns `{ count: 3, cards: [CardId1, CardId2, CardId3] }` with full card data.
-- **Phase:** Phase 1 (zone visibility)
+- **Phase:** Backlog — information model (was Phase 1)
 - **Ticket:** NEW — hand visibility enforcement in oracle layer. Currently all `GameState` access is unrestricted; this needs a per-player visibility filter.
 
 **ATOM-402.3-002**

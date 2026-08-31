@@ -219,7 +219,9 @@ rule-level citations this file will accumulate as it fills, not for today's text
   method — §2.4's question again, in a different costume.
 - **Blocks** — every charm and command; escalate and entwine; the
   "choose one or both" cycle. Devotion (700.5a) is separate and layer-shaped:
-  it reads a *partial* layer result, after L1–L3 but before L4–L7.
+  it reads a *partial* layer result, after L1–L3 but before L4–L7 — and it is
+  itself modifiable, so the count needs a hook rather than being a pure query
+  (Altar of the Pantheon, "your devotion to each color is increased by one").
 - **Atoms** — 7, not re-filed.
 - **Owner** — none yet.
 
@@ -263,6 +265,11 @@ rule-level citations this file will accumulate as it fills, not for today's text
   flag (§2.5's manifest and cloak, §2.3's foretell); "look at the top card of
   your library"; revealing, and every effect whose text distinguishes *reveal*
   from *look at*.
+- **Where the corpus already sited it** — two retired `NEW` tickets named the
+  shape before this entry existed: 400.2 wanted a *zone visibility
+  classification query*, and 402.3 put *hand visibility enforcement in the
+  oracle layer*. Both point the same way — a per-viewer query beside
+  `oracle/characteristics.rs`, not a flag on the zone.
 - **Atoms** — 4 here, plus **CR 400.2, which slice 1 filed under §3.2 in
   error**: "public zones are zones in which all players can see the cards" is
   this entry, not a zone guard. Corrected in §3.2's table.
@@ -334,7 +341,9 @@ rule-level citations this file will accumulate as it fills, not for today's text
   (60/4/15 and 40/none/none). **No validator exists** — nothing in the tree
   reads them. Configuration with no consumer, which is the §2.7 `chosen_modes`
   shape again in a milder form.
-- **Size** — tiny; one validation function against a `Decklist`.
+- **Size** — tiny; one validation function against a `Decklist`. CR 100.4a is
+  the only clause with a wrinkle: the copy limit counts **main deck and
+  sideboard combined**, so the check is not per-list.
 - **Blocks** — nothing in play. It matters for a deckbuilding UI and for
   refusing a malformed decklist rather than starting a broken game.
 - **Atoms** — 7. **This is a candidate for `codebase-state.md` Deferred
@@ -415,24 +424,46 @@ function**: CR 113 and CR 115 each mix implemented behavior with one atom that
 is not (113.6j's zone-agnostic activation is §2.8; 115.4's "any target" names a
 `TargetSpec` type the tree does not define). Confirm before annotating.
 
-### 3.3 The `owed` collision — a policy question, not a triage one
+### 3.3 The `owed` policy — decided
 
-**None of §2.5–§2.8's atoms were re-filed to `Backlog`, deliberately.**
-`owed` reports 31 atoms, and **27 of them sit in slice-1 sections — 14 in
-CR 701 alone.** Re-filing this slice the way D3a re-filed the cost pipeline
-would take the gate from 31 to 4.
+`owed` selects atoms in a shipped phase, ticketed `NEW…`, with no test. Its
+docstring says what it is for: `ATOM-400.7-001`'s ticket specified a
+`zone_change_epoch` field on `GameObject` **down to the name**, nobody asked at
+phase close, and the design was lost for two years. **`owed` exists to stop a
+design dying inside a ticket.**
 
-D3a's re-file was justified because those atoms' shipped-phase filing was
-*wrong* — hybrid mana payment was never shipped, so `owed` shrinking was a
-consequence of a correction, not its purpose. Here the filing is not obviously
-wrong in the same way: a `NEW` ticket under a shipped phase is precisely what
-`owed` exists to surface, and an atom can honestly be both "a shipped phase
-promised this" and "here is the mechanic that would deliver it".
+That makes the rule about capture, not about bookkeeping:
 
-**So this is a question about which register owns a `NEW`-ticketed atom, and it
-moves a gate the project reads.** It is left open rather than settled in
-passing — silencing a gate as a side effect of triage is the same error §1
-refuses for `orphaned`.
+> **Re-file when a backlog entry or a Deferred Migrations item has captured the
+> design. Keep when the ticket is the only place the design exists.**
+
+Re-filing a captured atom loses nothing — the ticket has been read, and the
+entry says more than it did. Re-filing an uncaptured one is exactly the failure
+`owed` was built after. **This is also why "re-file everything" and "re-file
+nothing" were both wrong**: the first guts the gate, the second leaves it
+permanently red at 31, which erodes a gate into a report nobody reads.
+
+Applied 2026-08-31: **22 re-filed, 9 kept, `owed` 31 → 9.** Three entries were
+strengthened first, so that no retired ticket said more than the entry
+inheriting it — §2.13 gained CR 100.4a's combined main-plus-sideboard copy
+count, §2.9 gained the two tickets' shared siting of the query in the oracle
+layer, and §2.7 gained devotion's modifiability.
+
+**The nine that stayed, and why each is uncaptured:**
+
+| Atom | Why it stays |
+|---|---|
+| `ATOM-208.4b-001` | names `get_base_power`/`get_base_toughness` down to the name — the `zone_change_epoch` case exactly |
+| `ATOM-400.7a-002` | text-change persistence across stack→battlefield; Layer 3, and no entry covers it |
+| `ATOM-613.1f-002` | Layer 6 keyword counters (roadmap D10) — §3.1 files CR 613 as owned, but not this |
+| `ATOM-605.1a-002/004` | a mana ability may not require a target. **Contradicts §3.2's pre-sort**, which read CR 605 as implemented — confirm before annotating |
+| `ATOM-502.3-002`, `ATOM-703.4c-002` | "doesn't untap" restriction effects — **one mechanic wearing two section numbers**, and the closest thing left to a missing entry |
+| `COMP-ZONE-TRANSITION-001` | a cross-rule composition test to write; no design to capture |
+| `ATOM-702.19d-001` | a trample regression test — D2b-shaped, not backlog |
+
+Two of the nine are worth acting on rather than filing: the **605.1a pair**
+disagrees with a disposition in this file, and the **502.3/703.4c pair** is a
+mechanic that no entry names.
 
 ### 3.4 Pass 2's remainder (17 sections, 49 atoms)
 
@@ -469,11 +500,12 @@ pass 1's (5 from 38), so "no doc mentions it" turned out to be a weak signal.
 python plans/specdb.py orphaned --bucket unbuilt --all
 ```
 
-**All 63 sections are triaged.** The query still reports 297 atoms across 63
-sections and will keep doing so: **re-filing is not how a section leaves that
-list, and §3's dispositions are prose the query cannot read.** Use it as the
-source, not as a progress bar — and regenerate it before trusting any number
-here, since the corpus moves.
+**All 63 sections are triaged.** The query reports **277 atoms across 63
+sections** after §3.3's re-file — down from the 297 the triage read, because 20
+of the 22 re-filed atoms were in this bucket. It will not fall much further on
+its own: **re-filing is not how a section leaves that list, and §3's
+dispositions are prose the query cannot read.** Use it as the source, not as a
+progress bar, and regenerate it before trusting any number here.
 
 Thirteen entries and 180 dispositioned atoms came out of it. Six things learned,
 recorded so they are not re-derived:

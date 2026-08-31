@@ -172,7 +172,7 @@
 - **Minimal Board:** P0 controls Purphoros ({3}{R}, "not a creature if devotion to red < 5") and permanents with 4 total {R} symbols. An anthem gives all creatures +1/+1 (L7c).
 - **Action:** Check if Purphoros is a creature.
 - **Expected Result:** Devotion computed at L3 result = 4+1(Purphoros) = 5. Purphoros IS a creature. The anthem applies after this determination. (Devotion is calculated before type-changing effects apply, per 700.5a.)
-- **Phase:** Phase 5-Layers (requires partial-layer devotion hook)
+- **Phase:** Backlog — modal spells and devotion (was Phase 5-Layers)
 - **Ticket:** NEW — devotion partial-layer computation (6b-D14)
 - **Tags:** dependency, layers
 - **Architectural note:** Devotion computation must be tightly coupled to the layer system, not the general devotion oracle query. The oracle `compute_devotion` for non-layer contexts (e.g., "devotion to red ≥ 5" conditions on spells) can call the layer system's partial result. The layer system owns the computation.
@@ -183,7 +183,7 @@
 - **Minimal Board:** P0 controls Purphoros ({3}{R}, "not a creature if devotion to red < 5"), permanents with 3 total {R} symbols, and Altar of the Pantheon ("Your devotion to each color and combination of colors is increased by one."). Purphoros contributes 1 {R}. Base devotion = 4 + 1 (Altar) = 5.
 - **Action:** Layer system recalculates.
 - **Expected Result:** Devotion to red = 5 (3 others + 1 Purphoros + 1 Altar). 5 ≥ 5 → Purphoros IS a creature. Without Altar, devotion would be 4 < 5 and Purphoros would not be a creature. This tests that devotion-modifying effects (not just mana symbols) feed into the partial-layer devotion computation.
-- **Phase:** Phase 5-Layers
+- **Phase:** Backlog — modal spells and devotion (was Phase 5-Layers)
 - **Ticket:** NEW — devotion modifier effect test
 
 ### 700.6 — Historic
@@ -445,7 +445,7 @@
 - **Minimal Board:** Creature C base 3/4. Effect "double C's power and toughness" resolves.
 - **Action:** Effect resolves.
 - **Expected Result:** C gets +3/+4 (continuous effect in L7c). C is now 6/8. A subsequent "set P/T to 0/1" (L7b) would make it 0/1+3/4 = 3/5 if applied in correct layer order.
-- **Phase:** Phase 5-Layers (L7c modification)
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Layers)
 - **Ticket:** NEW — double P/T as L7c continuous effect
 
 **ATOM-701.10b-001**
@@ -454,7 +454,7 @@
 - **Minimal Board:** Creature C has effective power 3, effective toughness 4. Effect "double C's power" resolves.
 - **Action:** Effect resolves.
 - **Expected Result:** C gets +3/+0. C is now 6/4. Toughness unchanged.
-- **Phase:** Phase 5-Layers
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Layers)
 - **Ticket:** NEW — double P/T snapshot
 
 **ATOM-701.10c-001**
@@ -463,7 +463,7 @@
 - **Minimal Board:** Creature C has effective power -2, toughness 3. Effect "double C's power and toughness."
 - **Action:** Effect resolves.
 - **Expected Result:** C gets -2/+3 (power: -2 doubled = gets -2/-0; toughness: 3 doubled = gets +0/+3). C is now -4/6.
-- **Phase:** Phase 5-Layers
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Layers)
 - **Ticket:** NEW — negative power doubling
 
 **ATOM-701.10d-001**
@@ -520,7 +520,7 @@
 - **Minimal Board:** Creature C base 3/4.
 - **Action:** Effect "triple C's power and toughness."
 - **Expected Result:** C gets +6/+8. C is now 9/12.
-- **Phase:** Phase 5-Layers
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Layers)
 - **Ticket:** NEW — triple P/T as L7c continuous effect
 
 **ATOM-701.11b-001**
@@ -529,7 +529,7 @@
 - **Minimal Board:** Creature C power 4, toughness 2. Effect "triple C's power."
 - **Action:** Effect resolves.
 - **Expected Result:** C gets +8/+0. C is now 12/2. Toughness unchanged.
-- **Phase:** Phase 5-Layers
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Layers)
 - **Ticket:** NEW — triple power only
 
 **ATOM-701.11c-001**
@@ -538,7 +538,7 @@
 - **Minimal Board:** Creature C power -2, toughness 3. Effect "triple C's power and toughness."
 - **Action:** Effect resolves.
 - **Expected Result:** C gets -4/+6. C is now -6/9.
-- **Phase:** Phase 5-Layers
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Layers)
 - **Ticket:** NEW — negative power tripling
 
 ### 701.12 — Exchange
@@ -1148,7 +1148,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Minimal Board:** Card C (a 5/5 creature) in P0's library. Effect "Manifest the top card of your library."
 - **Action:** Manifest resolves.
 - **Expected Result:** C is on battlefield face-down. Effective characteristics: 2/2 creature, no name, no subtypes, no mana cost, no abilities. `face_down == true`, `face_down_origin == Manifested`.
-- **Phase:** Phase 5-Pre (face-down infrastructure)
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — face-down permanent subsystem
 
 **ATOM-701.40b-001**
@@ -1157,7 +1157,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Minimal Board:** Face-down manifested permanent (actually a 4/4 creature with cost {2}{G}{G}).
 - **Action:** P0 uses special action, reveals creature card, pays {2}{G}{G}.
 - **Expected Result:** Permanent turns face up. Now 4/4 with all printed characteristics. `face_down == false`.
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — special action turn-face-up
 
 **ATOM-701.40b-002**
@@ -1165,7 +1165,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Minimal Board:** Face-down manifested permanent (actually an instant card underneath).
 - **Action:** P0 attempts special action to turn face up.
 - **Expected Result:** Illegal — card is not a creature card. Action rejected.
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — manifest turn-face-up guard
 
 **701.40c–d:** DEFERRED until morph/disguise keyword abilities (702.37/702.168) — these sub-rules just say "you can also use morph/disguise procedure." No independent architectural impact beyond the face-down origin enum already designed above.
@@ -1185,7 +1185,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Minimal Board:** Face-down manifested permanent (actually a sorcery card).
 - **Action:** Some effect would turn it face up (e.g., Ixidron leaves).
 - **Expected Result:** Controller reveals it's a sorcery. Stays face-down. No "turned face up" trigger.
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — instant/sorcery face-up guard
 
 **701.40h:** PURE-DEF — reference to rule 708.
@@ -1235,7 +1235,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Minimal Board:** Creature C (untapped). Effect "Exert C."
 - **Action:** Exert resolves. Next untap step arrives.
 - **Expected Result:** C does not untap. All other permanents untap normally. On the following untap step, C untaps normally.
-- **Phase:** Phase 5-Pre (untap-step modification)
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — skip-untap tracking + exert primitive
 
 **ATOM-701.43b-001**
@@ -1243,7 +1243,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Minimal Board:** Creature C (already exerted once this turn). Effect "Exert C" again.
 - **Action:** Second exert resolves.
 - **Expected Result:** C has skip_next_untap = 2. At next untap step, both expire → C doesn't untap. At following untap step, C untaps normally (not held for two turns).
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — exert stacking
 
 **701.43c:** PURE-DEF — non-battlefield objects can't be exerted. Trivial zone check.
@@ -1590,7 +1590,7 @@ All three are orthogonal and checked independently. A permanent fails to untap i
 - **Minimal Board:** Card C in P0's library. Effect "Cloak the top card."
 - **Action:** Cloak resolves.
 - **Expected Result:** C is face-down 2/2 creature with ward {2}. `face_down_origin == Cloaked`.
-- **Phase:** Phase 5-Pre (same ticket as 701.40 face-down infrastructure)
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — cloak variant of face-down system
 
 **701.58b–h:** Same structural rules as 701.40b–h. Tests mirror manifest tests with `Cloaked` origin and ward {2}.
@@ -1656,7 +1656,7 @@ All three are orthogonal and checked independently. A permanent fails to untap i
 - **Minimal Board:** P0's top 2 library cards: Creature C (5/5), Instant I.
 - **Action:** P0 chooses to manifest C.
 - **Expected Result:** C is face-down 2/2 on battlefield (manifested). I goes to graveyard.
-- **Phase:** Phase 5-Pre (depends on manifest from 701.40)
+- **Phase:** Backlog — CR 701 keyword actions (was Phase 5-Pre)
 - **Ticket:** NEW — manifest dread (depends on face-down subsystem)
 
 **701.62b:** PURE-DEF — trigger timing.
