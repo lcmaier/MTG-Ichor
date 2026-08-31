@@ -712,6 +712,90 @@ built, and none of it blocks RC-1 through RC-3.
     the batch is the caller. What it must not become is a `match` on error
     strings, which would make a real bug indistinguishable from a stale member.
 
+### Found by a rider read-through (2026-08-30)
+
+Three items in the seam between `ReplacementDef.then` and `engine::resolve`.
+None is reachable today and none is a defect in what RB shipped; each is a place
+where the *next* phase will find a channel missing rather than wrong. §4.1a
+settled *when* a rider runs — these are about *what it can reach*, which that
+section never asked.
+
+27. **A rider cannot name the affected player, because `Rider` flattens the
+    subject to an object.** `subject_object` (`engine/replacement/pipeline.rs`)
+    maps `EventSubject::Player(_)` to `None`, and `resolve_rider`
+    (`engine/actions.rs`) then builds a `ResolutionContext` with empty
+    `targets`. So for a rider on `DrawCard`, `GainLife`, `LoseLife` or damage
+    dealt to a **player**, the only recipient that resolves is
+    `EffectRecipient::Controller` — the *effect's* controller, which is in
+    general a different player from the one the event was about.
+
+    **Accidentally correct on the one card that exercises it.** Notion Thief's
+    rider is "you draw a card", and "you" *is* the effect's controller (CR
+    109.5). A rider phrased "… instead that player loses 1 life" has no channel
+    at all, and would quietly act for the wrong player rather than erroring —
+    which is the shape that reads as a card doing something subtly wrong.
+
+    **Sized: two call sites.** Carry `EventSubject` verbatim on `Rider` instead
+    of `Option<ObjectId>`, and emit `ResolvedTarget::Player(pid)` for the player
+    case in `resolve_rider`. `ResolvedTarget` already has the variant and
+    `resolve_player_for_self` already reads it, so nothing new is invented.
+    **Trigger:** RD — prevention riders are the first that ride routinely on
+    player-subject events. → `replacement-architecture.md` §11 item 16.
+
+28. **A rider reaches exactly one object — its subject — because
+    `resolve_primitive` ignores the `EffectRecipient` for everything that
+    affects an object.** Of its 29 arms, **24 reach objects only through
+    `ctx.targets`** (directly, via `collect_battlefield_targets` /
+    `collect_permanent_or_spell_targets`, or via
+    `register_resolution_ability_effect`), **4 are player-directed** through
+    `resolve_player_for_self`, and one — `ProduceMana` — is neither. The
+    recipient's `SelectionFilter` and `TargetCount` are read at *cast* time and
+    nowhere else: `EffectRecipient::Choose` has no generic resolution-time
+    enumeration path (the only such call in the tree is the Aura-host special
+    case in `resolve.rs`), and `FilteredPermanents`'s own doc scopes it to ETB
+    registration.
+
+    For a rider that means an `Effect::Sequence` can do several *things*, but
+    only ever to the one object the event was about. A rider phrased over a set
+    — item 24's "put a +1/+1 counter on each of them" — cannot be written at
+    all. **The visible symptom is inert data:** `regeneration_rider`'s
+    `Target(Permanent(All), Exactly(1))` filter and count satisfy the type and
+    are read by nothing.
+
+    **Not replacement-shaped, and recorded here so it is not mistaken for one.**
+    This is owed by the `Effect` tree on behalf of the whole card pool, exactly
+    as item 24's "if you do" is, and nothing in `types/replacement.rs` changes
+    when it lands. **Deliberately unsized:** `ask_select_recipients` and
+    `enumerate_legal_selections` both exist already, so the number that decides
+    the phase is how many of the 24 arms want per-arm treatment rather than a
+    shared helper. Count that before committing to one.
+    → `replacement-architecture.md` §11 item 17.
+
+29. **`apply_replacements`'s `inherited` applied-set is empty at its only call
+    site, so §3.2d's lineage rule ships with no producer.**
+    `execute_batch_inner` builds `let inherited = HashSet::new()` and hands the
+    same empty set to every batch member. The parameter is CR 614.5's
+    *termination* argument, not a nicety: a **decomposed** event continues its
+    parent's applied set, a **contained** event of a different kind starts a
+    fresh one, and without inheritance on decomposition Teferi's Ageless Insight
+    re-applies to its own output and the game **hangs** rather than answering
+    wrongly.
+
+    **Correct today because nothing decomposes.** `Rewrite` is 1→1 by §3.2d, and
+    every nested call RB makes is containment, which wants the fresh set it
+    already gets. Decomposition lives in a *performer*, never in a rewrite:
+    CR 121.2 carries out "draw N" as N individual draws, and
+    `GameAction::DrawCard { player }` has no count field yet.
+
+    **Trigger: RE**, the draw replacement — *not* RD, whose CR 120.3
+    results-of-damage split is containment and is already right. **Sized: one
+    call site**, in the first performer that decomposes; the parameter, the
+    clone and the doc comment all exist, so nothing is re-threaded. §3.2d
+    already names the regression this owes —
+    `test_two_teferis_draw_four_not_infinity` — and notes it needs a bounded
+    iteration guard, because it hangs rather than fails if the rule is wrong.
+    → `replacement-architecture.md` §11 item 18.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
