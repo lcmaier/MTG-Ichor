@@ -1,13 +1,13 @@
 # CR Coverage Audit — is the plan complete against the frozen rules?
 
-**Status:** planned, not started. This document is the target a cold audit
-session executes from; it owns the method, the denominator and the session
-split. `codebase-state.md` → "Was the critical path complete?" is the parent —
+**Status:** **A-0 landed 2026-08-31** (`specdb.py audit`); Pass A triage
+(A-1, A-2) not started. This document is the target a cold audit session
+executes from; it owns the method, the denominator and the session split. `codebase-state.md` → "Was the critical path complete?" is the parent —
 this is the systematic version of the detector that section describes.
 
 **Baseline:** `MTG-Rules/versions/tmnt.txt`, 3,120 rules, effective 2026-02-27.
-Every number below was measured against that tree on 2026-08-31 and is
-reproducible from `plans/atomic-tests/spec.sqlite` plus a grep. **The freeze is
+Every number below is `python plans/specdb.py audit` against that tree, and is
+reproducible by re-running it. **The freeze is
 what makes the result durable** — against a moving CR it would rot.
 
 ---
@@ -62,7 +62,7 @@ for this document:
 
 **So the audit's job is to find the remaining facts**, and a feature it happens
 to surface is a bonus rather than the point. That reframing is what turns 3,120
-rules into §5's two sessions.
+rules into §5's two triage sessions.
 
 **Facts in this codebase have a recognizable shape.** Every one found so far is
 either a *type* many phases read or a *context* threaded through many calls:
@@ -101,38 +101,55 @@ net-deleting or narrow, and none introduces a type shape.
 
 ### 2.1 The denominator
 
-| | Rules | |
+`python plans/specdb.py audit` prints exactly this. The figures are its output
+on 2026-08-31 and are what A-0's exit criterion checks against.
+
+| Column | Rules | |
 |---|---:|---|
 | CR rules in `tmnt.txt` | **3,120** | the frozen baseline |
-| Examined by the corpus — has an atom **or** a classification verdict | 1,747 | 56% |
-| Unexamined | 1,373 | 44% |
-| …and cited nowhere at all: no atom, no verdict, no source comment, no plan doc | **1,315** | the dark zone |
+| has a corpus atom | 1,260 | |
+| has a classification verdict | 1,035 | `TESTABLE`, `PURE-DEF`, `DEFERRED`, … |
+| cited in Rust source or tests | 269 | the code already assumes something |
+| cited in a plan doc | 263 | a design has considered it |
+| **DARK** — none of the four | **1,304** | the audit surface |
 
 `specdb gaps` reports a narrower 155 "NEVER SEEN", which counts only rules no
-session file ever *mentioned*. The 1,315 above is the stricter and more useful
+session file ever *mentioned*. The 1,304 above is the stricter and more useful
 figure: a rule can be name-dropped in a session and still never assessed.
+
+**The generator is the authority for these numbers, not this document.** A
+hand-measurement while scoping gave 1,315 / 547 / 482; the generator gives
+1,304 / 542 / 478. Both differences are the generator being right — it expands
+an atom's multi-rule citation the way `gaps` already does, and this document's
+own rule citations now count as doc cites. Re-run rather than trusting the
+prose if they ever disagree again.
 
 ### 2.2 Where the dark rules are
 
-The 1,315 collapse into **547 wholly-dark rule families** (`NNN.M`), which is
-the triage unit. After pruning out-of-scope variants (§2.4): **482 in-scope**.
+The 1,304 collapse into **597 dark families** (`NNN.M`), the triage unit. Of
+those, **55 have an examined sibling** — a depth gap, and Pass B's — leaving
+**542 wholly dark**. Pruning §2.4's out-of-scope sections removes **64**, giving
+the **478 in-scope families** that are Pass A's worklist.
 
 ```
-CR 7  Additional Rules          266      CR 6  Spells/Abilities/Effects   33
-CR 3  Card Types                 85      CR 2  Parts of a Card            31
-CR 8  Multiplayer                47      CR 1  Game Concepts              17
-                                          CR 9  Casual Variants (903 only)  3
+CR 7  Additional Rules          262      CR 6  Spells/Abilities/Effects   33
+CR 3  Card Types                  85     CR 2  Parts of a Card            31
+CR 8  Multiplayer                 47     CR 1  Game Concepts              17
+                                         CR 9  Commander (903) only        3
 ```
+
+CR 4 and CR 5 come back **0**: their only dark families were CR 407's ante
+rules, which §2.4 prunes. Both chapters are genuinely accounted for.
 
 ### 2.3 Two collapses that make this tractable
 
 **Most rows are dispositions, not work.** Of the 1,035 rules already carrying a
 verdict, only **492 came back `TESTABLE`** — 48%. The rest are `PURE-DEF` (336),
 `DEFERRED` (92), `OUT-OF-SCOPE` (37), `BOUNDARY-DEF` (35), `ALREADY-IMPLEMENTED`
-(32), `META` (5), `LKI` (3). Applying that rate to 482 projects **~229 rows that
+(32), `META` (5), `LKI` (3). Applying that rate to 478 projects **~227 rows that
 produce anything at all**, and those cluster into far fewer mechanics.
 
-**CR 7's 266 is shallower than it reads.** Measured directly: of CR 702's **190
+**CR 7's 262 is shallower than it reads.** Measured directly: of CR 702's **190
 keyword-ability families, 180 already have an examined subrule**. The darkness
 there is at *depth*, not at the family level, and a depth gap is a coverage
 question rather than a planning one. Only **10 families are wholly untouched**,
@@ -150,7 +167,9 @@ keyword abilities.
 
 ### 2.4 What is out of scope, and why it is a prune rather than a judgment
 
-65 dark families, removed by rule prefix rather than by opinion:
+**64 dark families**, removed by rule prefix rather than by opinion. The list
+lives in `specdb.py`'s `OUT_OF_SCOPE`, as data, so extending it is a one-line
+diff with its reason beside it:
 
 - **CR 901–910** — Planechase, Vanguard, Archenemy, Conspiracy and the rest.
   Commander (903) stays; `CLAUDE.md` names it as a v1 target.
@@ -190,7 +209,17 @@ python plans/specdb.py audit                 # the full five-column table
 python plans/specdb.py audit --dark          # only rules with none of columns 1-4
 python plans/specdb.py audit --chapter 8     # restrict
 python plans/specdb.py audit --families      # collapse to NNN.M, the triage unit
+python plans/specdb.py audit --dark --families --out plans/handoffs/cr-audit-worklist.md
 ```
+
+**The worklist is generated, never committed.** `--out` writes the Pass A
+worklist wherever the session wants it; `plans/handoffs/` is the natural home
+because a handoff is exactly what it is. It is *derived*, so it follows
+`spec.sqlite`'s rule rather than the corpus's: regenerate it, do not hand-edit
+it, and do not check it in. Verdicts a triage session reaches go into the
+**corpus** (`plans/atomic-tests/sessions/*.md`), which is where `rule_mentions`
+comes from — so the next `audit` run reflects the session's work and the
+worklist shrinks on its own.
 
 Requirements:
 
@@ -236,7 +265,7 @@ this later require unbuilding something".
 
 ### 4.1 Pass A — the fact sweep (do this)
 
-482 in-scope dark families, triaged on §3.3's single question. Output is a
+478 in-scope dark families, triaged on §3.3's single question. Output is a
 disposition per family plus, for the rare `fact`, an escalation.
 
 **Exit criterion:** every in-scope dark family carries a disposition, and every
@@ -262,12 +291,18 @@ is the failure mode that would turn two sessions into fifteen.
 
 | Session | Shape | Size | Risk |
 |---|---|---|---|
-| **A-0 — the generator** | `specdb.py audit` per §3.2, and nothing else. No triage, no findings | ~150 lines, one file, reuses the DB | low — its check is that column totals reproduce §2.1 |
-| **A-1 — CR 8, CR 6, CR 1, CR 2** | 128 families. CR 8 **first**: v1 is 4-player Commander and multiplayer is the least-examined *relevant* chapter | 128 rows, mostly definitional | medium — CR 8 is where an N-player fact would hide |
-| **A-2 — CR 7 and CR 3** | 351 families. CR 7 collapses hard (§2.3); CR 3 is card-type definitions and is fast | 351 rows, high collapse rate | medium |
+| ~~**A-0 — the generator**~~ ✅ **2026-08-31** | `specdb.py audit` per §3.2. No triage, no findings | +177 lines in one file, reusing the DB | landed — exit criteria below |
+| **A-1 — CR 8, 6, 2, 1, 9** | **131** families. CR 8 **first**: v1 is 4-player Commander and multiplayer is the least-examined *relevant* chapter. CR 9's three are Commander-only (903) | 131 rows, mostly definitional | medium — CR 8 is where an N-player fact would hide |
+| **A-2 — CR 7 and CR 3** | **347** families. CR 7 collapses hard (§2.3); CR 3 is card-type definitions and is fast | 347 rows, high collapse rate | medium |
 
 **Three sessions, not five to seven.** The earlier estimate was for a full
 coverage classification; scoping to §3.3's question is what removes the rest.
+
+**A-0's exit criteria, met on 2026-08-31.** `audit` reproduces §2.1's six
+column totals and §2.2's family collapse; `specdb build`, `gaps`, `orphans` and
+`owed` are all unchanged (`owed` still prints **38**, `orphans` clean, `gaps`
+still 1,260 / 496 / 155). A-0 is Python, so `cargo test` is not its gate and no
+Rust changed.
 
 **Ordering argument.** A-0 first because its output *is* the handoff — A-1 and
 A-2 start cold from a generated table rather than a blank page, which is the
@@ -336,11 +371,12 @@ here — they go to the corpus and to `codebase-state.md`.
 
 ## 9. Documents this owes
 
-- **`CLAUDE.md`'s authority table** needs a row for this file. The file is at
-  199/200 lines, and its own rule is that **adding a section requires removing
-  one** — so this is a deliberate trade for the owner to make, not a silent
-  edit. Candidate: fold the `plans/handoffs/*.md` row into the
-  `engineering-practices.md` row, which already owns process.
+- ~~**`CLAUDE.md`'s authority table** needs a row for this file.~~ ✅ done
+  2026-08-31, and it **freed** two lines rather than costing one. The four
+  per-architecture-doc rows collapsed into a single `plans/*-architecture.md`
+  row carrying the phase-code mapping, which is the load-bearing part; the
+  table was never an index (it omitted two files in `plans/`) and framing it as
+  a precedence list is what stops it growing per subsystem. 199 → 197.
 - **`codebase-state.md`** → "Was the critical path complete?" gets a pointer
   here, since this document is that section's method made systematic.
 - **`plans/specdb.py`'s module docstring** gains the `audit` subcommand when

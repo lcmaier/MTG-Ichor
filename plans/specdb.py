@@ -37,6 +37,8 @@ Usage:
     python plans/specdb.py orphans        # COVERS ids with no matching atom
     python plans/specdb.py suspicious     # COVERS ids that exist but look wrong
     python plans/specdb.py gaps --chapter 6   # CR rules the corpus never examined
+    python plans/specdb.py owed           # atoms a shipped phase left uncovered
+    python plans/specdb.py audit --dark --families   # CR rules NOBODY examined
 
 CR snapshots live in MTG-Rules/versions/<version>.txt, one official file per
 version. Rule text is stored with a sha256 so a future `sync-rules` can diff
@@ -881,6 +883,173 @@ def owed(phase=None, show_all=False):
     print("See codebase-state.md, 'Before Replacement effects' item 9.")
 
 
+# --- audit: is the plan complete against the frozen CR? ----------------------
+#
+# `plans/cr-coverage-audit.md` owns the method and the session split; this is
+# its generator. Everything below is derived - nothing here is hand-maintained.
+
+# CR sections outside the engine's scope, as *data* so that extending the list
+# is a one-line diff with its reason beside it. CR 903 (Commander) is
+# deliberately absent: CLAUDE.md names 4-player Commander a v1 target, so it is
+# in scope and its dark rules are real work.
+OUT_OF_SCOPE = [
+    ("901.", "Planechase"),
+    ("902.", "Vanguard"),
+    ("904.", "Archenemy"),
+    ("905.", "Conspiracy Draft"),
+    ("407.", "ante"),
+    ("801.", "limited range of influence - an OPTIONAL multiplayer rule; "
+             "CR 800 and 802 are on the critical path and stay in scope"),
+    ("100.6", "tournament rules"),
+    ("100.7", "casual / acorn cards"),
+]
+
+# A CR citation in prose or code: "CR 613.7a", "rule 702.33". Deliberately does
+# not match a bare number, which is ambiguous with damage amounts and years.
+CITE_RE = re.compile(r"\b(?:CR|rule)\s+(\d{3}(?:\.\d+[a-z]?)?)", re.I)
+PLAN_DOCS_DIR = ROOT / "plans"
+
+_SORT_RE = re.compile(r"^(\d+)\.(\d+)([a-z]?)$")
+_FAMILY_RE = re.compile(r"^(\d+\.\d+)")
+
+
+def _rule_sort_key(number):
+    """Numeric ordering, so 702.10 follows 702.9 instead of preceding 702.2."""
+    m = _SORT_RE.match(number)
+    return (int(m.group(1)), int(m.group(2)), m.group(3)) if m else (9999, 9999, number)
+
+
+def _family(number):
+    """The triage unit: 702.10a and 702.10b both belong to family 702.10."""
+    m = _FAMILY_RE.match(number)
+    return m.group(1) if m else number
+
+
+def _out_of_scope(number):
+    for prefix, reason in OUT_OF_SCOPE:
+        if number.startswith(prefix):
+            return reason
+    return None
+
+
+def _scan_citations():
+    """Rule numbers cited in Rust source/tests, and in plan docs.
+
+    Two sets, because they answer different questions. A citation in *source*
+    means the code already encodes an assumption about that rule; one in a
+    *plan doc* means a design has considered it. Neither is coverage - a cited
+    rule can still have no atom and no test - but either one means the rule is
+    not dark, which is the only claim these two columns make.
+    """
+    src, docs = set(), set()
+    for directory in CODE_DIRS:
+        for path in sorted(directory.rglob("*.rs")):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            src.update(m.group(1) for m in CITE_RE.finditer(text))
+    for path in sorted(PLAN_DOCS_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        docs.update(m.group(1) for m in CITE_RE.finditer(text))
+    return src, docs
+
+
+def audit(chapter, dark_only, families, out_path):
+    """Every CR rule joined against the four places it could have been examined.
+
+    The columns, strongest claim first:
+
+      atom     an atom in the corpus cites the rule
+      verdict  a session classified it (TESTABLE, PURE-DEF, DEFERRED, ...)
+      src      a Rust source or test file cites it - the code assumes something
+      doc      a plan doc cites it - a design has considered it
+
+    A rule with **none** of the four is *dark*: nobody has looked at it in any
+    recorded way. `--families` collapses dark rules to the triage unit, because
+    a dark subrule of an examined rule is a depth gap rather than a blind spot
+    (CR 702: 180 of its 190 keyword families already have an examined subrule).
+
+    Reports what is unexamined, never what is wrong - a rule with an atom and a
+    verdict can still be mis-modelled. `cr-coverage-audit.md` section 6.
+    """
+    db = connect()
+    rules = db.execute(
+        "SELECT number, text FROM rules WHERE cr_version = ? ORDER BY number",
+        (BASELINE_VERSION,),
+    ).fetchall()
+    if not rules:
+        sys.exit("no rules for baseline version %r - check %s"
+                 % (BASELINE_VERSION, CR_DIR))
+
+    atomized = set()
+    for (r,) in db.execute("SELECT DISTINCT rule_num FROM atoms WHERE rule_num <> ''"):
+        atomized.update(RULE_TOKEN_RE.findall(r))
+    verdicts = {r: v for r, v in db.execute("SELECT number, verdict FROM rule_mentions")}
+    src_cites, doc_cites = _scan_citations()
+
+    numbers = {n for n, _ in rules}
+    known = atomized | set(verdicts) | (src_cites & numbers) | (doc_cites & numbers)
+
+    rows = [(n, t) for n, t in rules if not chapter or n[:1] == str(chapter)]
+    rows.sort(key=lambda nt: _rule_sort_key(nt[0]))
+    dark = [(n, t) for n, t in rows if n not in known]
+
+    lines = []
+    emit = lines.append
+    scope = "CR %s" % chapter if chapter else "all chapters"
+    emit("CR coverage audit - %s, baseline CR %s" % (scope, BASELINE_VERSION))
+    emit("  rules in scope of this run : %d" % len(rows))
+    emit("  has a corpus atom          : %d" % sum(1 for n, _ in rows if n in atomized))
+    emit("  has a classification       : %d" % sum(1 for n, _ in rows if n in verdicts))
+    emit("  cited in Rust source/tests : %d" % sum(1 for n, _ in rows if n in src_cites))
+    emit("  cited in a plan doc        : %d" % sum(1 for n, _ in rows if n in doc_cites))
+    emit("  DARK (none of the four)    : %d" % len(dark))
+
+    if families:
+        by_family = {}
+        for n, _t in dark:
+            by_family.setdefault(_family(n), []).append(n)
+        # A family survives only if *no* rule in it is known anywhere. A dark
+        # subrule of an examined family is a depth gap - Pass B's, not Pass A's.
+        orphans = [f for f in by_family
+                   if not any(k == f or k.startswith(f + ".") for k in known)]
+        texts = {n: t for n, t in rules}
+        in_scope = [f for f in orphans if not _out_of_scope(f)]
+        emit("  dark families                     : %d" % len(by_family))
+        emit("    with an examined sibling (depth) : %d" % (len(by_family) - len(orphans)))
+        emit("    wholly dark                      : %d" % len(orphans))
+        emit("    ... of which out of scope        : %d" % (len(orphans) - len(in_scope)))
+        emit("    IN-SCOPE AUDIT SURFACE           : %d" % len(in_scope))
+        emit("")
+        emit("in-scope wholly-dark families - the Pass A worklist:")
+        emit("  %-10s %5s  %s" % ("family", "subs", "rule text"))
+        for f in sorted(in_scope, key=_rule_sort_key):
+            head = texts.get(f, "").split("\n")[0]
+            emit("  %-10s %5d  %s" % (f, len(by_family[f]), head[:66]))
+    else:
+        listing = dark if dark_only else rows
+        label = "dark rules" if dark_only else "every rule"
+        emit("")
+        emit("%s - flags are atom/verdict/src/doc:" % label)
+        for n, t in listing:
+            flags = "".join([
+                "a" if n in atomized else "-",
+                "v" if n in verdicts else "-",
+                "s" if n in src_cites else "-",
+                "d" if n in doc_cites else "-",
+            ])
+            oos = _out_of_scope(n)
+            tag = "  [out of scope]" if oos else ""
+            emit("  %-10s %s  %-14s %s%s"
+                 % (n, flags, verdicts.get(n, "")[:14],
+                    t.split("\n")[0][:56], tag))
+
+    text = "\n".join(lines) + "\n"
+    if out_path:
+        Path(out_path).write_text(text, encoding="utf-8")
+        print("wrote %d lines to %s" % (len(lines), out_path))
+    else:
+        print(text, end="")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -907,6 +1076,14 @@ def main():
     o.add_argument("--phase", help="one phase instead of every shipped one")
     o.add_argument("--all", action="store_true", dest="owed_all",
                    help="every uncovered atom, not just those ticketed NEW")
+    u = sub.add_parser("audit",
+                       help="CR rules nobody has examined (cr-coverage-audit.md)")
+    u.add_argument("--chapter", type=int, help="CR chapter 1-9")
+    u.add_argument("--dark", action="store_true",
+                   help="only rules with no atom, verdict, source cite or doc cite")
+    u.add_argument("--families", action="store_true",
+                   help="collapse to NNN.M, the Pass A triage unit")
+    u.add_argument("--out", help="write the table here instead of stdout")
     a = ap.parse_args()
     {"build": lambda: build(),
      "stats": lambda: stats(),
@@ -915,7 +1092,8 @@ def main():
      "orphans": lambda: orphans(),
      "suspicious": lambda: suspicious(a.threshold),
      "gaps": lambda: gaps(a.chapter, a.limit, a.show_all),
-     "owed": lambda: owed(a.phase, a.owed_all)}[a.cmd]()
+     "owed": lambda: owed(a.phase, a.owed_all),
+     "audit": lambda: audit(a.chapter, a.dark, a.families, a.out)}[a.cmd]()
 
 
 if __name__ == "__main__":

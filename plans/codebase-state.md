@@ -915,9 +915,10 @@ atoms, all uncovered, mentioned by no architecture doc), and **voting** (CR
 
 `plans/cr-coverage-audit.md` is now the method's owner and the plan for
 finishing it. Two numbers from it are worth carrying here: against the frozen
-`tmnt.txt`, **1,315 of 3,120 rules are cited nowhere at all** — no atom, no
-verdict, no source comment, no plan doc — collapsing to **482 in-scope dark rule
-families**. And the sweep is scoped to *facts*, not coverage, on this section's
+`tmnt.txt`, **1,304 of 3,120 rules are cited nowhere at all** — no atom, no
+verdict, no source comment, no plan doc — collapsing to **478 in-scope dark rule
+families**. `python plans/specdb.py audit` is the generator and the authority
+for those numbers; phase A-0 landed it 2026-08-31. And the sweep is scoped to *facts*, not coverage, on this section's
 own fact/feature triage: it should run **before CV-5, CV-7 and RD**, because
 those three are the phases that would otherwise encode a fact's absence into
 `CardData`, `BattlefieldEntity` and the `GameAction` vocabulary.
