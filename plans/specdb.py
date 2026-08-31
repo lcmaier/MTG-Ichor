@@ -1000,7 +1000,7 @@ def owed(phase=None, show_all=False):
     print("See codebase-state.md, 'Before Replacement effects' item 9.")
 
 
-def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
+def orphaned(chapter=None, limit=25, show_all=False, out_path=None, bucket=None):
     """Behavior a shipped phase promised, that no test covers and no doc claims.
 
     **This is the query the five motivating gaps needed; `audit --dark` is not
@@ -1027,10 +1027,19 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
     to five documents at once - which is how an ownership query silently turns
     back into a darkness one.
 
-    **What it cannot separate** is a missing `// COVERS:` annotation on code
-    that already exists from genuinely missing behavior. Only reading the code
-    does that, which is why the session plan budgets a per-cluster read rather
-    than trusting this list.
+    **The third column pre-sorts the read that used to be the whole cost.**
+    Separating "a missing `// COVERS:` on code that exists" from "genuinely
+    unbuilt" is the expensive half, and a *source* citation is the proxy for it:
+    `_scan_citations` already reports every rule the Rust cites, and code citing
+    a rule has encoded some assumption about it.
+
+    **A pre-sort, never a verdict**, and it errs in both directions. A comment
+    can cite a rule the code then contradicts - `check_cast_legality` cites
+    CR 117.1a and still hard-codes `Zone::Hand` - and behavior can exist with no
+    citation at all. Calibrated on the hardest available case, CR 613 under the
+    shipped layer phases: it correctly withheld 613.6 (cited by two card files)
+    and correctly flagged 613.8c, the dependency algorithm, which is unbuilt and
+    is critical-path item 7. Confirm a cluster before acting on its bucket.
     """
     db = connect()
     marks = ",".join("?" * len(SHIPPED_PHASES))
@@ -1042,7 +1051,7 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
         ORDER BY a.rule_num, a.id
     """, SHIPPED_PHASES).fetchall()
 
-    _src_cites, doc_cites = _scan_citations()
+    src_cites, doc_cites = _scan_citations()
     texts = {n: t for n, t in db.execute(
         "SELECT number, text FROM rules WHERE cr_version = ?", (BASELINE_VERSION,))}
 
@@ -1050,6 +1059,10 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
     # atom is one scenario, and one doc claiming any part of it means the
     # mechanic has a home. Over-claiming ownership is the safe direction here -
     # it shrinks the list rather than inventing work.
+    #
+    # The `cited` flag uses the same any-token rule for the same reason: it
+    # sorts an atom toward the cheap bucket, and over-claiming there costs a
+    # confirmation rather than inventing work.
     orphans = []
     for aid, rule_num, phase, summary in rows:
         tokens = RULE_TOKEN_RE.findall(rule_num)
@@ -1058,11 +1071,18 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
         section = tokens[0].split(".")[0]
         if chapter and section[:1] != str(chapter):
             continue
-        orphans.append((section, tokens[0], aid, summary or ""))
+        cited = any(t in src_cites for t in tokens)
+        if bucket == "cited" and not cited:
+            continue
+        if bucket == "unbuilt" and cited:
+            continue
+        orphans.append((section, tokens[0], aid, summary or "", cited))
 
     by_section = {}
-    for section, rule, aid, summary in orphans:
-        by_section.setdefault(section, []).append((rule, aid, summary))
+    for section, rule, aid, summary, cited in orphans:
+        by_section.setdefault(section, []).append((rule, aid, summary, cited))
+    n_cited = sum(1 for o in orphans if o[4])
+    n_unbuilt = len(orphans) - n_cited
 
     lines = []
     emit = lines.append
@@ -1070,23 +1090,40 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
     emit("ORPHANED - promised by a shipped phase, untested, unowned by any plan doc")
     emit("  %s, baseline CR %s" % (scope, BASELINE_VERSION))
     emit("  shipped phases: %s" % ", ".join(SHIPPED_PHASES))
+    if bucket:
+        emit("  bucket filter : %s" % bucket)
     emit("")
-    ordered = sorted(by_section.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    emit("  section  atoms  cited  unbuilt  rule      text")
+    # Ranked by the unbuilt count, not the total: the cheap bucket is an
+    # annotation errand, so a section that is mostly cited is not mostly work.
+    ordered = sorted(by_section.items(),
+                     key=lambda kv: (-sum(1 for i in kv[1] if not i[3]),
+                                     -len(kv[1]), kv[0]))
     shown = ordered if (show_all or chapter) else ordered[:limit]
     for section, items in shown:
         rule = items[0][0]
         head = texts.get(rule, "").split("\n")[0]
-        emit("  CR %-5s %3d atoms    %-8s %s" % (section, len(items), rule, head[:52]))
+        sec_cited = sum(1 for i in items if i[3])
+        emit("  CR %-5s %5d  %5d  %7d  %-8s  %s"
+             % (section, len(items), sec_cited, len(items) - sec_cited,
+                rule, head[:38]))
     if len(ordered) > len(shown):
         emit("  ... %d more sections (use --all)" % (len(ordered) - len(shown)))
     emit("")
     emit("%d sections, %d atoms." % (len(by_section), len(orphans)))
+    emit("  %3d cited in src   -> likely a missing `// COVERS:` on code that"
+         % n_cited)
+    emit("                        exists. Confirm, annotate, and the backlog")
+    emit("                        shrinks by that much.")
+    emit("  %3d cited nowhere  -> likely genuinely unbuilt. THIS IS THE BACKLOG"
+         % n_unbuilt)
+    emit("                        UPPER BOUND, and the only bucket that ranks.")
     emit("")
-    emit("Triage each CLUSTER, not each atom, and on two questions in order:")
-    emit("  1. is this a missing `// COVERS:` on code that exists, or missing")
-    emit("     behavior? Only reading the code answers it.")
-    emit("  2. if behavior: does it need a new field on an existing type, or an")
-    emit("     existing assumption to become false? Yes -> a FACT, escalate.")
+    emit("The split is a PRE-SORT, not a verdict - a comment can cite a rule the")
+    emit("code contradicts, and behavior can exist uncited. Confirm a cluster")
+    emit("before acting on its bucket; `--bucket cited|unbuilt` lists one.")
+    emit("Then, for unbuilt behavior: does it need a new field on an existing")
+    emit("type, or an existing assumption to become false? Yes -> a FACT.")
     emit("See cr-coverage-audit.md section 2 for the fact/feature question.")
 
     text = "\n".join(lines) + "\n"
@@ -1303,6 +1340,9 @@ def main():
     r.add_argument("--limit", type=int, default=25)
     r.add_argument("--all", action="store_true", dest="orph_all")
     r.add_argument("--out", help="write the table here instead of stdout")
+    r.add_argument("--bucket", choices=("cited", "unbuilt"),
+                   help="only atoms whose rule is cited in src (likely a "
+                        "missing COVERS) or cited nowhere (likely unbuilt)")
     u = sub.add_parser("audit",
                        help="CR rules nobody has examined (cr-coverage-audit.md)")
     u.add_argument("--chapter", type=int, help="CR chapter 1-9")
@@ -1321,7 +1361,8 @@ def main():
      "gaps": lambda: gaps(a.chapter, a.limit, a.show_all),
      "owed": lambda: owed(a.phase, a.owed_all),
      "audit": lambda: audit(a.chapter, a.dark, a.families, a.out),
-     "orphaned": lambda: orphaned(a.chapter, a.limit, a.orph_all, a.out)}[a.cmd]()
+     "orphaned": lambda: orphaned(a.chapter, a.limit, a.orph_all, a.out,
+                                  a.bucket)}[a.cmd]()
 
 
 if __name__ == "__main__":

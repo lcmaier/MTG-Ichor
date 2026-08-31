@@ -289,9 +289,23 @@ python plans/specdb.py audit --dark --families   # darkness; in-scope surface is
 ```
 
 - **`owed` is a gate**, not a report: a phase does not close until it is clean.
-- **`orphaned` triages by cluster, never by atom.** It cannot separate a missing
-  `// COVERS:` on code that exists from missing behavior — only reading the code
-  does that.
+- **`orphaned` triages by cluster, never by atom**, and it **pre-sorts the read
+  that used to be its whole cost.** Separating "a missing `// COVERS:` on code
+  that exists" from "genuinely unbuilt" is the expensive half, and a *source*
+  citation is the proxy: code citing a rule has encoded some assumption about
+  it. Today, of 402 orphaned atoms across 65 sections — **75 cited in `src/`**
+  (27 sections, an annotation errand that *shrinks* the backlog) and **327 cited
+  nowhere** (63 sections, and the backlog's upper bound). `--bucket
+  cited|unbuilt` lists one; sections rank by the unbuilt count, because a
+  section that is mostly cited is not mostly work.
+
+  **A pre-sort, never a verdict**, erring in both directions: a comment can cite
+  a rule the code contradicts — `check_cast_legality` cites CR 117.1a and still
+  hardcodes `Zone::Hand` — and behavior can exist uncited. Calibrated on the
+  hardest available case, CR 613 under the shipped layer phases: it withheld
+  613.6 (cited by two card files) and flagged 613.8c, the dependency algorithm,
+  which is unbuilt and is critical-path item 7. Confirm a cluster before acting
+  on its bucket.
 - **`audit --dark` is retired as an instrument.** Its in-scope surface is 0 and
   the remaining darkness is a *depth* gap, overwhelmingly CR 702 keyword
   subrules. That is corpus authoring, it belongs beside the phases that need it,
