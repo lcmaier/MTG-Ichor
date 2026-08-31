@@ -1051,7 +1051,8 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None, bucket=None)
         ORDER BY a.rule_num, a.id
     """, SHIPPED_PHASES).fetchall()
 
-    src_cites, doc_cites = _scan_citations()
+    # This query's own method doc is not an owner - see `_scan_citations`.
+    src_cites, doc_cites = _scan_citations(exclude_docs=(AUDIT_DOC,))
     texts = {n: t for n, t in db.execute(
         "SELECT number, text FROM rules WHERE cr_version = ?", (BASELINE_VERSION,))}
 
@@ -1159,6 +1160,9 @@ OUT_OF_SCOPE = [
 # not match a bare number, which is ambiguous with damage amounts and years.
 CITE_RE = re.compile(r"\b(?:CR|rule)\s+(\d{3}(?:\.\d+[a-z]?)?)", re.I)
 PLAN_DOCS_DIR = ROOT / "plans"
+# The audit's own method doc. It cites rules as *examples*, so it is excluded
+# from `orphaned`'s ownership set - see `_scan_citations`.
+AUDIT_DOC = "cr-coverage-audit.md"
 
 _SORT_RE = re.compile(r"^(\d+)\.(\d+)([a-z]?)$")
 _FAMILY_RE = re.compile(r"^(\d+\.\d+)")
@@ -1183,7 +1187,7 @@ def _out_of_scope(number):
     return None
 
 
-def _scan_citations():
+def _scan_citations(exclude_docs=()):
     """Rule numbers cited in Rust source/tests, and in plan docs.
 
     Two sets, because they answer different questions. A citation in *source*
@@ -1191,6 +1195,14 @@ def _scan_citations():
     *plan doc* means a design has considered it. Neither is coverage - a cited
     rule can still have no atom and no test - but either one means the rule is
     not dark, which is the only claim these two columns make.
+
+    `exclude_docs` drops plan docs by filename, and exists for one reason:
+    **an instrument must not be able to satisfy its own filter.**
+    `cr-coverage-audit.md` discusses rules as *examples* - CR 117.1a appears
+    there only to show where the source-citation proxy is weak - and every one
+    it named silently became "owned", shrinking `orphaned`'s worklist by the
+    act of documenting it. Darkness is unaffected (a mention really is somebody
+    looking), so `audit` keeps the full set and only `orphaned` prunes.
     """
     src, docs = set(), set()
     for directory in CODE_DIRS:
@@ -1198,6 +1210,8 @@ def _scan_citations():
             text = path.read_text(encoding="utf-8", errors="ignore")
             src.update(m.group(1) for m in CITE_RE.finditer(text))
     for path in sorted(PLAN_DOCS_DIR.glob("*.md")):
+        if path.name in exclude_docs:
+            continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         docs.update(m.group(1) for m in CITE_RE.finditer(text))
     return src, docs

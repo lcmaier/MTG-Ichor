@@ -291,6 +291,12 @@ fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
 // Layer 5 — Devoid
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-702.114a-001
+//
+// Partial: the atom's point is "this applies in all zones" and it checks a card
+// in *hand*. Devoid is a CDA, so the battlefield case this builds is the one
+// the layer system can answer today; the in-hand read needs the pre-layer zone
+// to route through `oracle/characteristics.rs` first.
 #[test]
 fn test_devoid_makes_a_black_card_colorless() {
     let mut game = setup_two_player_game();

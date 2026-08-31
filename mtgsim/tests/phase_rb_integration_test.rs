@@ -471,6 +471,12 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
 }
 
 // COVERS-PARTIAL: ATOM-614.7a-001
+// COVERS-PARTIAL: ATOM-120.8-001
+//
+// Partial on 120.8: the atom deals its 0 damage to a *player* and checks that
+// no life change and no damage trigger follow. This deals it to a permanent,
+// so it proves the "not an event" half against the event log but not the
+// life-total half.
 #[test]
 fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
     // > 614.7a If a source would deal 0 damage, it does not deal damage at all.

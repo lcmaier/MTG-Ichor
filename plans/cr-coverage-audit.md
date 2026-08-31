@@ -293,11 +293,10 @@ python plans/specdb.py audit --dark --families   # darkness; in-scope surface is
   that used to be its whole cost.** Separating "a missing `// COVERS:` on code
   that exists" from "genuinely unbuilt" is the expensive half, and a *source*
   citation is the proxy: code citing a rule has encoded some assumption about
-  it. Today, of 402 orphaned atoms across 65 sections — **75 cited in `src/`**
-  (27 sections, an annotation errand that *shrinks* the backlog) and **327 cited
-  nowhere** (63 sections, and the backlog's upper bound). `--bucket
-  cited|unbuilt` lists one; sections rank by the unbuilt count, because a
-  section that is mostly cited is not mostly work.
+  it. Today, of 406 orphaned atoms across 66 sections — **74 cited in `src/`**
+  and **332 cited nowhere**, the latter being the backlog's upper bound.
+  `--bucket cited|unbuilt` lists one; sections rank by the unbuilt count,
+  because a section that is mostly cited is not mostly work.
 
   **A pre-sort, never a verdict**, erring in both directions: a comment can cite
   a rule the code contradicts — `check_cast_legality` cites CR 117.1a and still
@@ -306,6 +305,22 @@ python plans/specdb.py audit --dark --families   # darkness; in-scope surface is
   613.6 (cited by two card files) and flagged 613.8c, the dependency algorithm,
   which is unbuilt and is critical-path item 7. Confirm a cluster before acting
   on its bucket.
+
+  **How weak the `cited` half is, measured.** Of the 18 whose citation sits in
+  `mtgsim/tests/`, exactly **three** turned out to be real: the rest cite a rule
+  in an assertion message or an explanatory comment while testing something
+  else. `test_a_fizzling_spell_moves_through_the_chokepoint` discusses CR 608.3a
+  to explain what it is *not* doing. So `cited` splits again — **18 sit in
+  `tests/`** (a possible annotation) and **54 only in `src/`** (behavior with no
+  test at all, which needs a test *written*, not annotated). Neither half
+  reduces the 332.
+
+  **This doc is excluded from its own ownership set**, and the reason is a bug
+  it caused: writing §5.1 made `orphaned` treat CR 117.1a, 601.2f and 17 others
+  as *owned*, because the third filter reads any plan-doc mention as a design
+  claiming the rule. An instrument must not satisfy its own filter — the query
+  was deflating by the act of being documented. `audit` still counts this file,
+  since for *darkness* a mention really is somebody looking.
 - **`audit --dark` is retired as an instrument.** Its in-scope surface is 0 and
   the remaining darkness is a *depth* gap, overwhelmingly CR 702 keyword
   subrules. That is corpus authoring, it belongs beside the phases that need it,
