@@ -2901,6 +2901,56 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
     instead of handing each member a fresh clone. §3.2d's `inherited` lineage
     rule is untouched — it is about decomposition, not simultaneity.
 
+### Found by a rider read-through (2026-08-30)
+
+Three items from reading `ReplacementDef.then` end to end against
+`engine::resolve`. §4.1a settled *when* a rider runs; none of these was asked
+there, because all three are about **what a rider can reach**.
+
+16. **`Rider.subject` is `Option<ObjectId>`, and the `Option` is doing two jobs.**
+    One is honest: an event has exactly one subject — `subject_of` is total over
+    `GameAction` and returns a scalar — so a rider carrying one subject records
+    the *event's* arity rather than any limit on the rider. The other is a
+    silent loss. `subject_object` maps `EventSubject::Player(_)` to `None`, so
+    the player case does not survive into the `ResolutionContext` at all.
+
+    **The fix is to stop flattening, not to widen.** Carry `EventSubject` and
+    let `resolve_rider` emit `ResolvedTarget::Player(pid)`; both types exist and
+    `resolve_player_for_self` already reads that variant. `codebase-state.md`
+    item 27 has the sizing and the trigger.
+
+    **Why it earns a line rather than a fix now:** the failure is not an error,
+    it is a rider quietly acting for the effect's controller where the card said
+    "that player". Notion Thief hides it, because for Notion Thief those are the
+    same player — which is exactly why the one card in the tree does not catch it.
+
+17. **A rider's object reach is its subject, and that ceiling belongs to the
+    `Effect` tree rather than to this document.** `resolve_primitive` consults
+    the `EffectRecipient` only for player-directed primitives; the 24 arms that
+    affect objects read `ctx.targets` and ignore the recipient's
+    `SelectionFilter` and `TargetCount` entirely. `EffectRecipient::Choose`
+    therefore buys a rider nothing today, and `regeneration_rider`'s filter and
+    count are inert data.
+
+    **This pins the same boundary item 11 pins, and it is worth stating once for
+    both.** `then` is an `Effect`, so anything a rider cannot say is something
+    the `Effect` tree cannot say. The test for whether such a gap is *this*
+    document's is whether closing it changes `types/replacement.rs`. For "if you
+    do" (item 11) and for set-valued recipients, it does not — which is the
+    §3.2 growth contract working as intended, not a hole in it.
+
+    `codebase-state.md` item 28 has the arm count and why it is deliberately
+    left unsized.
+
+18. **§3.2d's lineage rule ships with no producer**, and the parameter that
+    carries it is handed an empty set at its only call site. Recorded because
+    the failure mode §3.2d names is a **hang** rather than a wrong answer, and
+    because "a correct mechanism with no customer" is precisely the shape
+    `codebase-state.md`'s Deferred Migrations section exists to catch. Item 29
+    there has the sizing; the regression is the one §3.2d already names,
+    `test_two_teferis_draw_four_not_infinity`, and **RE** is the phase that
+    needs it.
+
 ---
 
 ## 12. Explicitly out of scope
