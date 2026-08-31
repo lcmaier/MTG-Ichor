@@ -22,9 +22,11 @@
 > rationale: replacement effects provide the `execute_action` middleware triggers need,
 > so 614 precedes 603.
 >
-> What remains authoritative here: **Milestone 8 ("Commander Playable")** and
-> **Phase 10** (GUI, AI API, parallel fuzz) — between them they describe the v1 target
-> shape — and the rest of the **milestone list**. Treat the rest as history.
+> **Update 2026-08-31:** Milestone 8, Phase 10 and the milestone ladder moved to
+> **`plans/roadmap-v2.md`**, which owns the route narrative now. What remains
+> citable here: the **Deferred Items → Phase Mapping** tables (cited elsewhere
+> as "roadmap D10" etc.). Treat everything else as history, and do not update
+> this file.
 
 ---
 

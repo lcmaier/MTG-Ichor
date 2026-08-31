@@ -1058,8 +1058,9 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None, bucket=None)
         ORDER BY a.rule_num, a.id
     """, SHIPPED_PHASES).fetchall()
 
-    # Neither this query's method doc nor its output is an owner.
-    src_cites, doc_cites = _scan_citations(exclude_docs=(AUDIT_DOC, BACKLOG_DOC))
+    # Neither this query's method doc, its output, nor the route doc that
+    # cites both is an owner.
+    src_cites, doc_cites = _scan_citations(exclude_docs=(AUDIT_DOC, BACKLOG_DOC, ROADMAP_V2_DOC))
     texts = {n: t for n, t in db.execute(
         "SELECT number, text FROM rules WHERE cr_version = ?", (BASELINE_VERSION,))}
 
@@ -1173,6 +1174,9 @@ AUDIT_DOC = "cr-coverage-audit.md"
 # The inventory this query feeds. Excluded for a different reason than the
 # audit doc's - see `_scan_citations`.
 BACKLOG_DOC = "backlog.md"
+# The route narrative. Its citations are pointers to owning docs, not designs -
+# the audit doc's reason, not the backlog's - see `_scan_citations`.
+ROADMAP_V2_DOC = "roadmap-v2.md"
 
 _SORT_RE = re.compile(r"^(\d+)\.(\d+)([a-z]?)$")
 _FAMILY_RE = re.compile(r"^(\d+\.\d+)")
@@ -1228,6 +1232,12 @@ def _scan_citations(exclude_docs=()):
     So the burn-down still happens, driven by the right thing: when a mechanic
     graduates from a backlog line to an architecture doc, *that* doc cites the
     rules and `orphaned` shrinks. Design claims the rule; listing it does not.
+
+    **`roadmap-v2.md` is excluded for the audit doc's reason.** It narrates the
+    route by pointing at owning docs, so its citations are references - "item
+    30's constraint is CR 707.10" claims nothing the pointed-at doc doesn't
+    already claim, and the rest would become false ownership the day it cites a
+    rule whose owner is still `backlog.md`. Darkness keeps it, like the others.
     """
     src, docs = set(), set()
     for directory in CODE_DIRS:

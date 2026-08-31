@@ -28,7 +28,8 @@ python plans/check_claude_md.py           # this file's 200-line budget — must
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
 | `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live; its `L##`/`T##` vocabulary is defined in `plans/archive/implementation-plan-final.md` |
-| `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md` | Historical. Still live from them: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's Milestone 8 / Phase 10 v1 target shape. The §8/§11 delta-log fork was **resolved against** 2026-08-24 — trigger detection is the performed-action event stream; see `codebase-state.md`. `plans/archive/*` is superseded: do not act on it |
+| `plans/roadmap-v2.md` | The route narrative: why the spine is ordered, card stakes per segment, milestones, sizing. Ordering authority stays with **Critical path to v1** below |
+| `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md` | Historical. Still live from them: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's D## deferred-item tables — its milestones and v1 target shape moved to `roadmap-v2.md`. The §8/§11 delta-log fork was **resolved against** 2026-08-24 — trigger detection is the performed-action event stream; see `codebase-state.md`. `plans/archive/*` is superseded: do not act on it |
 | `plans/references/*` | Research tooling, not rules authority. Fetch card text/rulings via Bash+curl with a UA header — Scryfall 403s `WebFetch` |
 
 ## The layer-system invariant
