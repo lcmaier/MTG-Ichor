@@ -20,3 +20,7 @@ __pycache__/
 
 # Scryfall census caches (plans/references/replacement-census.py) — derived, re-fetchable
 plans/references/.census-*.json
+
+# Derived audit worklists (`specdb.py audit --out`, `orphaned --out`) - a
+# query's output, not a document. Regenerate it; never hand-edit or commit it.
+plans/handoffs/cr-audit-worklist.md

@@ -2920,7 +2920,7 @@ All sub-rules DEFERRED — Phase 9 (DFC casting transformed).
 - **Minimal Board:** Player has a creature with "Warp {1}{U}" (normal cost {3}{U}{U}) in hand
 - **Action:** Player casts for warp cost {1}{U}
 - **Expected Result:** Spell is cast for {1}{U}. Creature enters the battlefield normally.
-- **Phase:** Phase 5-Pre T17
+- **Phase:** Backlog — CR 702 keywords (was Phase 5-Pre T17)
 - **Ticket:** NEW — Warp keyword (alt cost, delayed exile, future free cast)
 - **Dependencies:** T17 (alternative cost)
 

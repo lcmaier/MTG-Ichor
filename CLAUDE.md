@@ -20,10 +20,9 @@ python plans/check_claude_md.py           # this file's 200-line budget — must
 | Doc | Authority |
 |---|---|
 | `plans/codebase-state.md` | Current state; wins over every other doc. Hand-maintained — update it as part of the work that changes it. Its **Deferred Migrations** section is the one to guard: debt owed by forward-looking scaffolding, invisible to tests until the dependent system lands. Add a line for every new stub or TODO at commit time |
-| `plans/layers-architecture.md` | The layer system: type shapes, module layout, sublayer enumeration, dependency algorithm |
-| `plans/replacement-architecture.md` | Replacement + prevention (CR 614–616): event vocabulary, CR 616.1 pipeline, ETB look-ahead frame, RA–RE sequencing |
-| `plans/cant-effects-architecture.md` | "Can't" effects (CR 101.2, 614.17, 613.11): the six enforcement points, `RestrictionDef`, RS-1–RS-4 sequencing. Supersedes ticket L15 |
-| `plans/copy-effects-architecture.md` | Copy effects (CR 707, 712, 708, 729) and Layer 1: `CopiableValues`, the four producers, CV-1–CV-7 sequencing. Supersedes ticket D5 |
+| `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5). **A new subsystem extends this row, never adds one** |
+| `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
+| `plans/backlog.md` | Everything off the critical path — one entry per mechanic: the surface that can't express the rule, rough size, what it blocks. **Not designs** — a mechanic graduates out to an architecture doc. Excluded from `orphaned`'s ownership set on purpose; §1 says why |
 | `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |

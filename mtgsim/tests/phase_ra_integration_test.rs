@@ -247,6 +247,12 @@ fn test_a_stale_zone_change_proposal_is_loud() {
 // CR 601.2 — a rewind is not an event
 // ---------------------------------------------------------------------------
 
+// COVERS-PARTIAL: ATOM-601.2h-002
+//
+// Partial: the atom leaves a *partial* pool ({2}{R} against a {3}{R} cost) and
+// asserts the rewind spends none of it. This player has no mana at all, so the
+// "payment fails, the cast rewinds" half is proven and the "and the mana you
+// did have is still there" half is not.
 #[test]
 fn test_a_failed_cast_announces_nothing() {
     // RA-1 took cast rollbacks off the chokepoint and tagged them

@@ -9,21 +9,22 @@
 
 | Phase | ATOMs | BOUNDARYs | COMPs | Total |
 |-------|-------|-----------|-------|-------|
-| ALREADY-IMPL | 197 | 0 | 3 | 200 |
-| Phase 5-Pre | 216 | 1 | 6 | 223 |
-| Phase 5-Layers | 170 | 0 | 13 | 183 |
+| ALREADY-IMPL | 195 | 0 | 3 | 198 |
+| Phase 5-Pre | 185 | 1 | 6 | 192 |
+| Phase 5-Layers | 138 | 0 | 13 | 151 |
 | Phase 6 | 111 | 7 | 6 | 124 |
 | Phase 7 | 128 | 2 | 3 | 133 |
 | Phase 8 | 633 | 3 | 7 | 643 |
 | Phase 9 | 218 | 5 | 7 | 230 |
 | Post-v1 | 3 | 0 | 0 | 3 |
+| Backlog | 65 | 0 | 0 | 65 |
 | UNKNOWN | 3 | 0 | 11 | 14 |
 
 ---
 
 ## ALREADY-IMPL
 
-**200 entries**
+**198 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -118,14 +119,12 @@
 | ATOM-305.3-001 | 305.3 | A player can't play a land if it isn't their turn | ALREADY-IMPLEMENTED | S3 |  |
 | ATOM-305.6-001 | 305.6 | A land with a basic land type has the intrinsic mana ability for that type | ALREADY-IMPLEMENTED | S3 |  |
 | ATOM-305.8-002 | 305.8 | A land with the "Basic" supertype IS a basic land | ALREADY-IMPLEMENTED | S3 |  |
-| ATOM-400.2-001 | 400.2 | Graveyard, battlefield, stack, exile, ante, and command are public zones. Library and hand are hidden zones. | NEW — zone visibility classification query | S4 |  |
 | ATOM-400.3-001 | 400.3 | If an object would go to any library, graveyard, or hand other than its owner's, it goes to its owner's corresponding zone. | ALREADY-IMPLEMENTED — `move_object` routes to `obj.owner`'s graveyard per design_doc §3.9 / audit memory | S4 |  |
 | ATOM-400.5-001 | 400.5 | The order of objects in a library, graveyard, or on the stack can't be changed except when effects or rules allow it. | ALREADY-IMPLEMENTED — zones use Vec<ObjectId> | S4 |  |
 | ATOM-401.2-001 | 401.2 | Each library must be kept in a single face-down pile. Players can't look at or change the order of cards in a library. | ALREADY-IMPLEMENTED — library is a `Vec<ObjectId>` with draw from end; no public visibility API | S4 |  |
 | ATOM-401.3-001 | 401.3 | Any player may count the number of cards remaining in any player's library at any time. | ALREADY-IMPLEMENTED — `player.library.len()` is accessible | S4 |  |
 | ATOM-402.2-001 | 402.2 | Each player has a maximum hand size, normally seven. During cleanup, the player must discard excess cards. | ALREADY-IMPLEMENTED — design_doc §3.4, `Game::run_turn` cleanup discard | S4 |  |
 | ATOM-402.2-002 | 402.2 | A player may have any number of cards in their hand (no maximum during other steps). | ALREADY-IMPLEMENTED — discard only happens in cleanup | S4 |  |
-| ATOM-402.3-001 | 402.3 | A player can see and rearrange cards in their own hand but can't look at the cards in another player's hand. | NEW — hand visibility enforcement in oracle layer. Currently all `GameState` access is unrestricted; this needs a per-player visibility filter. | S4 |  |
 | ATOM-403.2-001 | 403.2 | A spell or ability affects and checks only the battlefield unless it specifically mentions a player or another zone. | ALREADY-IMPLEMENTED — targeting validation checks zone (battlefield) by default | S4 |  |
 | ATOM-403.2-002 | 403.2 (positive case: player-targeting) | A spell that targets a player can't target a permanent. | ALREADY-IMPLEMENTED — target type validation separates Player from Permanent | S4 |  |
 | ATOM-403.2-003 | 403.2 (positive case: graveyard-targeting) | A spell that targets a card in a graveyard can't target a permanent on the battlefield. | ALREADY-IMPLEMENTED — target zone filter in targeting validation | S4 |  |
@@ -230,7 +229,7 @@
 
 ## Phase 5-Pre
 
-**223 entries**
+**192 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -240,17 +239,9 @@
 | ATOM-100.2b-001 | 100.2b | Limited deck minimum size is 40 cards | Already covered by `GameConfig::limited()` — verify `min_deck_size == 40` and `max_copies == None` | S1 |  |
 | ATOM-100.2b-002 | 100.2b | Limited format does NOT enforce the 4-copy limit from constructed | Already covered by `GameConfig::limited()` — verify `max_copies == None` | S1 |  |
 | ATOM-100.4a-001 | 100.4a | Constructed sideboard max 15 cards | Already covered by `GameConfig` — verify `sideboard_size == Some(15)` | S1 |  |
-| ATOM-100.4a-002 | 100.4a | 4-copy limit applies across main deck AND sideboard combined | NEW — Combined main+sideboard copy-count validation | S1 |  |
 | ATOM-104.3d-001 | 104.3d | Player with 10+ poison counters loses (SBA) | T16 | S1 |  |
 | ATOM-106.6-001 | 106.6 | Mana spending restrictions don't affect the mana's type | T12 | S1 |  |
 | ATOM-107.3a-001 | 107.3a | Controller chooses X when casting a spell with {X} in its mana cost | T18 | S1 |  |
-| ATOM-107.4e-001 | 107.4e | {W/U} can be paid with either {W} or {U} | NEW — Hybrid mana payment implementation | S1 |  |
-| ATOM-107.4e-002 | 107.4e | {2/B} can be paid with {B} or two mana of any type | NEW — Monocolored hybrid mana payment | S1 |  |
-| ATOM-107.4e-003 | 107.4e | {W/U} paid with the other half (choosing {U}) | NEW — Hybrid mana payment implementation | S1 |  |
-| ATOM-107.4f-001 | 107.4f | {R/P} can be paid with {R} or by paying 2 life | NEW — Phyrexian mana payment implementation | S1 |  |
-| ATOM-107.4f-002 | 107.4f | {W/U/P} can be paid with {W}, {U}, or 2 life | NEW — Hybrid Phyrexian mana payment | S1 |  |
-| ATOM-107.4f-003 | 107.4f | {R/P} paid with mana instead of life | NEW — Phyrexian mana payment implementation | S1 |  |
-| ATOM-107.6-002 | 107.6 | Summoning-sick creature can't activate {Q} ability | T10 | S1 |  |
 | ATOM-108.2b-001 | 108.2b | Tokens aren't cards, even if represented by a physical card | T03 | S1 |  |
 | ATOM-110.4-001 | 110.4 | Instant and sorcery cards can't enter the battlefield | T21a | S1 |  |
 | ATOM-111.7-001 | 111.7 | Token in a non-battlefield zone ceases to exist as an SBA | T13 | S1 |  |
@@ -261,7 +252,6 @@
 | ATOM-115.6-001 | 115.6 | "Up to" allows choosing zero targets; spell still resolves | T18 | S1 |  |
 | ATOM-115.3/4-001 | 115.3/115.4 | Spell with two separate target requirements must choose distinct legal targets for each 115.3/115.4 — A single object can't fill two "target" slots even if it satisfies both criteria | T18 T18 | S1 |  |
 | ATOM-118.6-001 | 118.6 | Attempting to cast a spell with unpayable cost is legal, but paying is illegal | T18 | S1 |  |
-| ATOM-118.9a-001 | 118.9a | Only one alternative cost can be applied to a spell | T18 | S1 |  |
 | ATOM-122.1-001 | 122.1 | Counters are markers, not objects; they have no characteristics | T14 | S1 |  |
 | ATOM-122.1e-001 | 122.1e | Planeswalker with 0 loyalty is put into graveyard as SBA | T14 + T16 | S1 |  |
 | ATOM-122.1f-001 | 122.1f | Player with 10+ poison counters loses as SBA | T16 (cross-ref ATOM-104.3d-001) | S1 |  |
@@ -343,10 +333,7 @@
 | ATOM-601.2d-001 | 601.2d | If the spell requires the player to divide or distribute an effect among one or more targets, the player announces the division. Each target must receive at least one. | T18 | S5 |  |
 | ATOM-601.2d-002 | 601.2d | Each target must receive at least one of whatever is being divided. | T18 | S5 |  |
 | ATOM-601.2e-001 | 601.2e | The game checks to see if the proposed spell can legally be cast. If illegal, the game rewinds. | T18 | S5 |  |
-| ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | T18 | S5 |  |
 | ATOM-601.2g-001 | 601.2g | If the total cost includes a mana payment, the player then has a chance to activate mana abilities. Mana abilities must be activated before costs are paid. | T18 | S5 |  |
-| ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | T18 | S5 |  |
-| ATOM-601.2h-003 | 601.2h | Cost payment ordering matters and is player-controlled. | T18 | S5 |  |
 | ATOM-601.4-001 | 601.4 | While announcing choices in 601.2b, if an option is available only if other choices are made later in that step, the player may consider those later choices. | T18 | S5 |  |
 | ATOM-601.5-001 | 601.5 | If a player is no longer allowed to cast a spell after completing its proposal (601.2a–d), the casting is illegal and the game rewinds. | T18 | S5 |  |
 | ATOM-601.5-002 | 601.5 | It doesn't matter if a rule makes casting illegal during cost determination/payment (601.2f–h) or after the spell has been cast. | T18 | S5 |  |
@@ -363,16 +350,6 @@
 | ATOM-604.6-002 | 604.6 | "Cast only during combat" restriction applies from hand zone. | T18 | S5 |  |
 | ATOM-605.1a-002 | 605.1a | An activated ability that requires a target is NOT a mana ability, even if it could produce mana. | NEW — "Mana ability classification: target check" | S5 |  |
 | ATOM-605.1a-004 | 605.1a | A spell/ability with targets is NOT a mana ability despite adding mana. | NEW — "Mana ability classification: target check" | S5 |  |
-| ATOM-607.1-001 | 607.1 | If two abilities are linked, the second refers only to actions taken or objects affected by the first, and not by any other ability. | T20 | S5 |  |
-| ATOM-607.1c-001 | 607.1c | An ability that fulfills both criteria (causes actions AND refers to those actions) is linked to itself. | T20 | S5 |  |
-| ATOM-607.2a-001 | 607.2a | If an object has an ability that exiles cards AND an ability that refers to "the exiled cards" or cards "exiled with [this object]," they are linked. | T20 | S5 |  |
-| ATOM-607.2a-002 | 607.2a | Object with two different exile abilities, each linked to a separate "exiled cards" reference. | T20 | S5 |  |
-| ATOM-607.2d-001 | 607.2d | Ability that causes "choose a [value]" + ability referring to "the chosen [value]" are linked. | T20 | S5 |  |
-| ATOM-607.2d-002 | 607.2d | Choice persists across zone changes if ability specifies. | T20 | S5 |  |
-| ATOM-607.2i-001 | 607.2i | Ability allowing an additional cost + ability referring to whether that cost was paid are linked. The second refers only to whether the intent to pay was declared during casting. | T17, T20 | S5 |  |
-| ATOM-607.2i-002 | 607.2i | Multiple kicker costs can each have their own linked ability. | T17, T20 | S5 |  |
-| ATOM-607.2j-001 | 607.2j | Ability causing a variable additional cost + ability referring to "the cost paid as [this] was cast" are linked. The second refers to the value of X chosen during casting. | T17, T18, T20 | S5 |  |
-| ATOM-607.2q-001 | 607.2q | If a permanent spell has an ability that exiles cards while paying a cost to cast it, and the permanent refers to "exiled with [this object]," those are linked. | T17, T20 | S5 |  |
 | ATOM-608.2b-002 | 608.2b | If SOME targets are legal and others are illegal, the spell resolves but illegal targets aren't affected. | T18 | S5 |  |
 | ATOM-608.2b-005 | 608.2b | Partial-target resolution with simpler card. | T18 | S5 |  |
 | ATOM-608.2d-002 | 608.2d | If an effect divides among untargeted objects, each chosen object must receive at least one. | T18 | S5 |  |
@@ -396,14 +373,6 @@
 | ATOM-701.21a-001 | 701.21a | To sacrifice a permanent, its controller moves it from battlefield to owner's graveyard. Can't sacrifice non-permanents or things you don't control. Sacrifice is NOT destruction — regeneration/indestructible don't apply. | T15 (expanded sacrifice primitive) | S7a |  |
 | ATOM-701.21a-002 | 701.21a | Can't sacrifice a permanent you don't control. | T15 | S7a |  |
 | ATOM-701.21a-003 | 701.21a | Can't sacrifice something that isn't a permanent. | T15 | S7a |  |
-| ATOM-701.40a-001 | 701.40a | Manifest a card: face-down 2/2 creature, no text/name/subtypes/cost. | NEW — face-down permanent subsystem | S7a |  |
-| ATOM-701.40b-001 | 701.40b | Turn manifested creature face up by paying mana cost. | NEW — special action turn-face-up | S7a |  |
-| ATOM-701.40b-002 | 701.40b | Non-creature card can't turn face up via manifest procedure. | NEW — manifest turn-face-up guard | S7a |  |
-| ATOM-701.40g-001 | 701.40g | Instant/sorcery manifested permanent can't turn face up. | NEW — instant/sorcery face-up guard | S7a |  |
-| ATOM-701.43a-001 | 701.43a | Exert: doesn't untap during next untap step. | NEW — skip-untap tracking + exert primitive | S7a |  |
-| ATOM-701.43b-001 | 701.43b | Can exert already-exerted permanent; both expire same untap step. | NEW — exert stacking | S7a |  |
-| ATOM-701.58a-001 | 701.58a | Cloak: face-down 2/2 with ward {2}. | NEW — cloak variant of face-down system | S7a |  |
-| ATOM-701.62a-001 | 701.62a | Manifest dread: look at top 2, manifest one, other to graveyard. | NEW — manifest dread (depends on face-down subsystem) | S7a |  |
 | COMP-7A-005 |  | Equipment unattach on creature sacrifice (701.3d + 701.21a) |  | S7a |  |
 | ATOM-702.2e-001 | 702.2e | If an object changes zones before an effect causes it to deal damage, its last known information is used to determine whether it had deathtouch. | T20b (LKI system, deferred to Part 2) | S7b | deathtouch, LKI, DEFERRED |
 | ATOM-702.4c-001 | 702.4c | Removing double strike from a creature during the first combat damage step will stop it from assigning combat damage in the second combat damage step. | DEFERRED — Phase 5 Layers. Requires continuous effect removal mid-combat. | S7b | double-strike, mid-combat, continuous-effects, DEFERRED |
@@ -437,7 +406,6 @@
 | BOUNDARY-702.114a-001 | 702.114a | Devoid only removes color, not mana cost | L05 | S8 |  |
 | ATOM-702.126a-001 | 702.126a | Improvise: tap artifacts to pay generic mana costs | T17 (cost modification) + NEW — Improvise keyword | S8 |  |
 | ATOM-702.176a-002 | 702.176a (ability 3) | Impending: not a creature while impending cost was paid and has time counters | (same as above) | S8 |  |
-| ATOM-702.185a-001 | 702.185a (ability 1) | Warp: alt cost from hand | NEW — Warp keyword (alt cost, delayed exile, future free cast) | S8 |  |
 | ATOM-703.4c-002 | 703.4c | "Determines which permanents they control will untap" — effects may restrict untapping. | NEW — Untap restriction effects (703.4c + continuous effects) | S9a |  |
 | ATOM-703.4p-001 | 703.4p | After discard, all damage removed from permanents and all "until end of turn"/"this turn" effects end simultaneously. | ALREADY-IMPLEMENTED (damage removal in turns.rs); T22 (duration expiry hooks) | S9a |  |
 | ATOM-704.3-002 | 704.3 | Cleanup step: if no SBAs performed and no triggers waiting on first check, no player gets priority and step ends. | T16 (cleanup SBA re-loop) | S9a |  |
@@ -460,7 +428,7 @@
 
 ## Phase 5-Layers
 
-**183 entries**
+**151 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -475,8 +443,6 @@
 | ATOM-105.3-002 | 105.3 | An effect that gives a color "in addition" adds to existing colors | L10 | S1 |  |
 | ATOM-107.1b-001 | 107.1b | A creature's power can be negative (e.g., 3/4 creature gets -5/-0 → -2/4) | L04 / L08 | S1 |  |
 | ATOM-107.1b-004 | 107.1b | Exception: doubling P/T does NOT clamp negative values to 0 | L08 | S1 |  |
-| ATOM-107.3g-001 | 107.3g | {X} in mana cost of a card not on the stack is treated as 0 | NEW — Mana value calculation with X=0 in non-stack zones | S1 |  |
-| ATOM-107.3j-001 | 107.3j | X in a gained ability uses the gaining ability's definition, or 0 if undefined | L06 + L08 | S1 |  |
 | ATOM-109.3-001 | 109.3 | Object characteristics are a defined set; other info (tapped, target, owner, controller) is NOT a characteristic | L01 | S1 |  |
 | ATOM-110.2b-001 | 110.2b | Gaining control of a permanent spell → the gaining player controls the resulting permanent | L11 | S1 |  |
 | ATOM-110.4c-001 | 110.4c | If a permanent loses all its permanent types, it remains on the battlefield | L09 | S1 |  |
@@ -486,15 +452,6 @@
 | ATOM-113.10b-001 | 113.10b | Effects that remove an ability remove all instances of it | L06 | S1 |  |
 | ATOM-113.12-001 | 113.12 | A P/T CDA is applied in Layer 7a, not as a granted ability | L18 | S1 |  |
 | ATOM-113.12-002 | 113.12 | A color CDA is applied in Layer 5, not Layer 6 | L18 | S1 |  |
-| ATOM-118.7-001 | 118.7 | Cost reduced to nothing is considered {0} | T18 | S1 |  |
-| ATOM-118.7-002 | 118.7 | Reducing cost to {0} allows free casting | T18 | S1 |  |
-| ATOM-118.7a-001 | 118.7a | Effects reducing by generic mana only affect the generic component | T18 | S1 |  |
-| ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | T18 | S1 |  |
-| ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | T18 | S1 |  |
-| ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | T18 | S1 |  |
-| ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | L01 | S1 |  |
-| ATOM-118.9c-001 | 118.9c | Alternative cost doesn't change the spell's mana cost for mana value purposes | L01 | S1 |  |
-| ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | T18 | S1 |  |
 | ATOM-122.1a-001 | 122.1a | +1/+1 counter adds 1 to power and 1 to toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-002 | 122.1a | -1/-1 counter subtracts 1 from power and 1 from toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-003 | 122.1a | Non-standard P/T counters (e.g., +2/+0) do NOT annihilate with +1/+1 or -1/-1 counters | L04 / L08 | S1 |  |
@@ -506,13 +463,6 @@
 | ATOM-202.2c-001 | 202.2c | An object with two or more different colored mana symbols is each of those colors. | L10 | S2 |  |
 | ATOM-202.2d-002 | 202.2d | An object with Phyrexian mana symbols is the color of those symbols. | L10 | S2 |  |
 | ATOM-202.2e-001 | 202.2e | An object with a color indicator is each color denoted by that indicator. | T05, L10 | S2 |  |
-| ATOM-202.3-001 | 202.3 | Mana value is the total amount of mana in the mana cost. | L10 | S2 |  |
-| ATOM-202.3a-001 | 202.3a | The mana value of an object with no mana cost is 0. | L10 | S2 |  |
-| ATOM-202.3e-001 | 202.3e | X is treated as 0 while the object is not on the stack. | L10 | S2 |  |
-| ATOM-202.3e-002 | 202.3e | X is treated as the chosen value while on the stack. | T06, L10 | S2 |  |
-| ATOM-202.3f-001 | 202.3f | Hybrid mana uses largest component for MV calculation. | L10 | S2 |  |
-| ATOM-202.3f-002 | 202.3f | MonoHybrid {2/C} contributes 2 to MV. | L10 | S2 |  |
-| ATOM-202.3g-001 | 202.3g | Each Phyrexian mana symbol contributes 1 to mana value. | L10 | S2 |  |
 | ATOM-205.1a-001 | 205.1a | When an effect sets an object's card type, the new type(s) replace existing types. | L10 | S2 |  |
 | ATOM-205.1a-002 | 205.1a | An object with instant or sorcery card type retains that type when other types are set. | L10 | S2 |  |
 | ATOM-205.1a-003 | 205.1a | When an effect sets subtypes, new subtypes replace existing subtypes of the appropriate set only. | L10 | S2 |  |
@@ -562,12 +512,8 @@
 | ATOM-506.4-002 | 506.4 | A permanent is removed from combat if its controller changes. | T21b — combat removal on control change (E36) | S4 |  |
 | ATOM-506.4-003 | 506.4 | A permanent is removed from combat if it stops being a creature. | T21b — combat removal on type change (E36) | S4 |  |
 | ATOM-601.2a-002 | 601.2a | Continuous effects that modify the spell's characteristics as you start casting it begin as it is put on the stack. | L15 / T18 | S5 |  |
-| ATOM-601.2f-001 | 601.2f | Total cost = base mana cost (or alt cost) + additional costs + cost increases − cost reductions. Cost can't be reduced below {0}. Then total cost is locked in. | T18, L15 | S5 |  |
-| ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | L15 | S5 |  |
-| ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | L15 | S5 |  |
 | ATOM-601.2i-003 | 601.2i | Effects modifying spell characteristics apply at the "spell becomes cast" step. | L10 | S5 |  |
 | ATOM-601.3-001 | 601.3 | A player can begin to cast a spell only if a rule or effect allows it and no rule or effect prohibits it. | L15 | S5 |  |
-| ATOM-601.7-001 | 601.7 | Casting a spell that alters costs won't affect spells and abilities that are already on the stack. | T18 | S5 |  |
 | ATOM-602.1e-001 | 602.1e | If a spell or ability modifies how a player may pay an "activation cost," that modification applies to the total cost, even if increased/decreased by other effects. | L15 | S5 |  |
 | ATOM-602.1e-002 | 602.1e | Single cost modifier applies to total activation cost. | L15 | S5 |  |
 | ATOM-602.4-001 | 602.4 | Activating an ability that alters costs won't affect spells and abilities that are already on the stack. | L15 | S5 |  |
@@ -616,9 +562,7 @@
 | ATOM-613.7-001 | 613.7 | Timestamp ordering observable via conflicting set-PT effects in L7b | L03 | S6 |  |
 | ATOM-613.7a-001 | 613.7a | Static ability uses later of object vs. granting effect timestamp | NEW — Static ability timestamp = later of object vs grant (D5) | S6 |  |
 | ATOM-613.7b-001 | 613.7b | Spell effect timestamp set at creation | L07 | S6 |  |
-| ATOM-613.7c-001 | 613.7c | Counter timestamp updates when new counter of same kind added | NEW — Counter timestamps within L7c (D6) | S6 |  |
 | ATOM-613.7d-001 | 613.7d | Object timestamp set on zone entry | L03 | S6 |  |
-| ATOM-613.7e-001 | 613.7e | Equipment re-timestamp on attach | NEW — Aura/Equipment re-timestamp on attach (D4) | S6 |  |
 | ATOM-613.7m-001 | 613.7m | APNAP ordering for simultaneous timestamps | L03 | S6 |  |
 | ATOM-613.7n-001 | 613.7n | Static ability timestamp < resolving effect timestamp when simultaneous | L08 | S6 |  |
 | ATOM-613.8-001 | 613.8 | Dependency overrides timestamp order | L14 | S6 |  |
@@ -636,14 +580,6 @@
 | COMP-613-BLOOD-MOON-URBORG-001 | 613.8a + 613.8 | Blood Moon + Urborg dependency analysis | L14, L17, L20 | S6 |  |
 | COMP-613-TARMOGOYF-HUMILITY-001 | 613.1f + 613.4a + 613.4b | Tarmogoyf under Humility | L19, L20 | S6 |  |
 | COMP-613-SVOGTHOS-001 | 613.6 + 613.4a | Svogthos multi-layer activation | L04, L05, L10 | S6 |  |
-| ATOM-700.5a-001 | 700.5a | Devotion calculated after copy/control/text effects but before other characteristic modifications. Exception to 613.10. | NEW — devotion partial-layer computation (6b-D14) | S7a | dependency, layers |
-| ATOM-700.5a-002 | 700.5a | Devotion-modifying effects: Altar of the Pantheon ("Your devotion to each color and each combination of colors is increased by one.") changes the devotion result used by the partial-layer query. | NEW — devotion modifier effect test | S7a |  |
-| ATOM-701.10a-001 | 701.10a | Doubling a creature's power/toughness creates a continuous effect that modifies (not sets) P/T. See 613.4c. | NEW — double P/T as L7c continuous effect | S7a |  |
-| ATOM-701.10b-001 | 701.10b | Doubling power: creature gets +X/+0 where X = current power at resolution. Doubling toughness: +0/+X where X = current toughness. Both: +X/+Y. | NEW — double P/T snapshot | S7a |  |
-| ATOM-701.10c-001 | 701.10c | If power < 0 when doubled, creature gets -X/-0 where X = \|power\|. (Negative doubled = more negative.) | NEW — negative power doubling | S7a |  |
-| ATOM-701.11a-001 | 701.11a | Tripling P/T creates a continuous effect (L7c modification, not L7b set). | NEW — triple P/T as L7c continuous effect | S7a |  |
-| ATOM-701.11b-001 | 701.11b | Tripling power: +X/+0 where X = 2× current power. Tripling toughness: +0/+X where X = 2× current toughness. | NEW — triple power only | S7a |  |
-| ATOM-701.11c-001 | 701.11c | Negative power tripling: -X where X = 2× \|power\|. | NEW — negative power tripling | S7a |  |
 | COMP-7A-006 |  | Double P/T + layer ordering with set-P/T effect (701.10a + 613.4b/c) |  | S7a |  |
 | ATOM-702.90d-001 | 702.90d | If source changes zones before dealing damage, LKI determines if it had infect | L18 (LKI system) | S8 |  |
 | ATOM-704.8-001 | 704.8 | LKI of a permanent leaving via SBA is from the game state before any SBAs in that batch. | L18 (LKI) | S9a |  |
@@ -1815,6 +1751,78 @@
 | ATOM-104.4b-001 | 104.4b | Game enters mandatory loop with no way to stop → draw | D11 | S1 |  |
 | ATOM-405.6f-001 | 405.6f | State-based actions don't use the stack; they happen automatically when certain conditions are met, before a player would receive priority. | ALREADY-IMPLEMENTED — `perform_sba_and_triggers` stub in `priority.rs` | S4 |  |
 | ATOM-703.4n-001 | 703.4n | If active player's hand exceeds max hand size, discard to max hand size. | ALREADY-IMPLEMENTED (game.rs cleanup handling) | S9a |  |
+
+## Backlog
+
+**65 entries**
+
+| ID | Rule | Summary | Ticket | Session | Tags |
+|----|------|---------|--------|---------|------|
+| ATOM-100.4a-002 | 100.4a | 4-copy limit applies across main deck AND sideboard combined | NEW — Combined main+sideboard copy-count validation | S1 |  |
+| ATOM-107.3g-001 | 107.3g | {X} in mana cost of a card not on the stack is treated as 0 | NEW — Mana value calculation with X=0 in non-stack zones | S1 |  |
+| ATOM-107.3j-001 | 107.3j | X in a gained ability uses the gaining ability's definition, or 0 if undefined | L06 + L08 | S1 |  |
+| ATOM-107.4e-001 | 107.4e | {W/U} can be paid with either {W} or {U} | NEW — Hybrid mana payment implementation | S1 |  |
+| ATOM-107.4e-002 | 107.4e | {2/B} can be paid with {B} or two mana of any type | NEW — Monocolored hybrid mana payment | S1 |  |
+| ATOM-107.4e-003 | 107.4e | {W/U} paid with the other half (choosing {U}) | NEW — Hybrid mana payment implementation | S1 |  |
+| ATOM-107.4f-001 | 107.4f | {R/P} can be paid with {R} or by paying 2 life | NEW — Phyrexian mana payment implementation | S1 |  |
+| ATOM-107.4f-002 | 107.4f | {W/U/P} can be paid with {W}, {U}, or 2 life | NEW — Hybrid Phyrexian mana payment | S1 |  |
+| ATOM-107.4f-003 | 107.4f | {R/P} paid with mana instead of life | NEW — Phyrexian mana payment implementation | S1 |  |
+| ATOM-107.6-002 | 107.6 | Summoning-sick creature can't activate {Q} ability | T10 | S1 |  |
+| ATOM-118.7-001 | 118.7 | Cost reduced to nothing is considered {0} | T18 | S1 |  |
+| ATOM-118.7-002 | 118.7 | Reducing cost to {0} allows free casting | T18 | S1 |  |
+| ATOM-118.7a-001 | 118.7a | Effects reducing by generic mana only affect the generic component | T18 | S1 |  |
+| ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | T18 | S1 |  |
+| ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | T18 | S1 |  |
+| ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | T18 | S1 |  |
+| ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | L01 | S1 |  |
+| ATOM-118.9a-001 | 118.9a | Only one alternative cost can be applied to a spell | T18 | S1 |  |
+| ATOM-118.9c-001 | 118.9c | Alternative cost doesn't change the spell's mana cost for mana value purposes | L01 | S1 |  |
+| ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | T18 | S1 |  |
+| ATOM-202.3-001 | 202.3 | Mana value is the total amount of mana in the mana cost. | L10 | S2 |  |
+| ATOM-202.3a-001 | 202.3a | The mana value of an object with no mana cost is 0. | L10 | S2 |  |
+| ATOM-202.3e-001 | 202.3e | X is treated as 0 while the object is not on the stack. | L10 | S2 |  |
+| ATOM-202.3e-002 | 202.3e | X is treated as the chosen value while on the stack. | T06, L10 | S2 |  |
+| ATOM-202.3f-001 | 202.3f | Hybrid mana uses largest component for MV calculation. | L10 | S2 |  |
+| ATOM-202.3f-002 | 202.3f | MonoHybrid {2/C} contributes 2 to MV. | L10 | S2 |  |
+| ATOM-202.3g-001 | 202.3g | Each Phyrexian mana symbol contributes 1 to mana value. | L10 | S2 |  |
+| ATOM-400.2-001 | 400.2 | Graveyard, battlefield, stack, exile, ante, and command are public zones. Library and hand are hidden zones. | NEW — zone visibility classification query | S4 |  |
+| ATOM-402.3-001 | 402.3 | A player can see and rearrange cards in their own hand but can't look at the cards in another player's hand. | NEW — hand visibility enforcement in oracle layer. Currently all `GameState` access is unrestricted; this needs a per-player visibility filter. | S4 |  |
+| ATOM-601.2f-001 | 601.2f | Total cost = base mana cost (or alt cost) + additional costs + cost increases − cost reductions. Cost can't be reduced below {0}. Then total cost is locked in. | T18, L15 | S5 |  |
+| ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | L15 | S5 |  |
+| ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | T18 | S5 |  |
+| ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | L15 | S5 |  |
+| ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | T18 | S5 |  |
+| ATOM-601.2h-003 | 601.2h | Cost payment ordering matters and is player-controlled. | T18 | S5 |  |
+| ATOM-601.7-001 | 601.7 | Casting a spell that alters costs won't affect spells and abilities that are already on the stack. | T18 | S5 |  |
+| ATOM-607.1-001 | 607.1 | If two abilities are linked, the second refers only to actions taken or objects affected by the first, and not by any other ability. | T20 | S5 |  |
+| ATOM-607.1c-001 | 607.1c | An ability that fulfills both criteria (causes actions AND refers to those actions) is linked to itself. | T20 | S5 |  |
+| ATOM-607.2a-001 | 607.2a | If an object has an ability that exiles cards AND an ability that refers to "the exiled cards" or cards "exiled with [this object]," they are linked. | T20 | S5 |  |
+| ATOM-607.2a-002 | 607.2a | Object with two different exile abilities, each linked to a separate "exiled cards" reference. | T20 | S5 |  |
+| ATOM-607.2d-001 | 607.2d | Ability that causes "choose a [value]" + ability referring to "the chosen [value]" are linked. | T20 | S5 |  |
+| ATOM-607.2d-002 | 607.2d | Choice persists across zone changes if ability specifies. | T20 | S5 |  |
+| ATOM-607.2i-001 | 607.2i | Ability allowing an additional cost + ability referring to whether that cost was paid are linked. The second refers only to whether the intent to pay was declared during casting. | T17, T20 | S5 |  |
+| ATOM-607.2i-002 | 607.2i | Multiple kicker costs can each have their own linked ability. | T17, T20 | S5 |  |
+| ATOM-607.2j-001 | 607.2j | Ability causing a variable additional cost + ability referring to "the cost paid as [this] was cast" are linked. The second refers to the value of X chosen during casting. | T17, T18, T20 | S5 |  |
+| ATOM-607.2q-001 | 607.2q | If a permanent spell has an ability that exiles cards while paying a cost to cast it, and the permanent refers to "exiled with [this object]," those are linked. | T17, T20 | S5 |  |
+| ATOM-613.7c-001 | 613.7c | Counter timestamp updates when new counter of same kind added | NEW — Counter timestamps within L7c (D6) | S6 |  |
+| ATOM-613.7e-001 | 613.7e | Equipment re-timestamp on attach | NEW — Aura/Equipment re-timestamp on attach (D4) | S6 |  |
+| ATOM-700.5a-001 | 700.5a | Devotion calculated after copy/control/text effects but before other characteristic modifications. Exception to 613.10. | NEW — devotion partial-layer computation (6b-D14) | S7a | dependency, layers |
+| ATOM-700.5a-002 | 700.5a | Devotion-modifying effects: Altar of the Pantheon ("Your devotion to each color and each combination of colors is increased by one.") changes the devotion result used by the partial-layer query. | NEW — devotion modifier effect test | S7a |  |
+| ATOM-701.10a-001 | 701.10a | Doubling a creature's power/toughness creates a continuous effect that modifies (not sets) P/T. See 613.4c. | NEW — double P/T as L7c continuous effect | S7a |  |
+| ATOM-701.10b-001 | 701.10b | Doubling power: creature gets +X/+0 where X = current power at resolution. Doubling toughness: +0/+X where X = current toughness. Both: +X/+Y. | NEW — double P/T snapshot | S7a |  |
+| ATOM-701.10c-001 | 701.10c | If power < 0 when doubled, creature gets -X/-0 where X = \|power\|. (Negative doubled = more negative.) | NEW — negative power doubling | S7a |  |
+| ATOM-701.11a-001 | 701.11a | Tripling P/T creates a continuous effect (L7c modification, not L7b set). | NEW — triple P/T as L7c continuous effect | S7a |  |
+| ATOM-701.11b-001 | 701.11b | Tripling power: +X/+0 where X = 2× current power. Tripling toughness: +0/+X where X = 2× current toughness. | NEW — triple power only | S7a |  |
+| ATOM-701.11c-001 | 701.11c | Negative power tripling: -X where X = 2× \|power\|. | NEW — negative power tripling | S7a |  |
+| ATOM-701.40a-001 | 701.40a | Manifest a card: face-down 2/2 creature, no text/name/subtypes/cost. | NEW — face-down permanent subsystem | S7a |  |
+| ATOM-701.40b-001 | 701.40b | Turn manifested creature face up by paying mana cost. | NEW — special action turn-face-up | S7a |  |
+| ATOM-701.40b-002 | 701.40b | Non-creature card can't turn face up via manifest procedure. | NEW — manifest turn-face-up guard | S7a |  |
+| ATOM-701.40g-001 | 701.40g | Instant/sorcery manifested permanent can't turn face up. | NEW — instant/sorcery face-up guard | S7a |  |
+| ATOM-701.43a-001 | 701.43a | Exert: doesn't untap during next untap step. | NEW — skip-untap tracking + exert primitive | S7a |  |
+| ATOM-701.43b-001 | 701.43b | Can exert already-exerted permanent; both expire same untap step. | NEW — exert stacking | S7a |  |
+| ATOM-701.58a-001 | 701.58a | Cloak: face-down 2/2 with ward {2}. | NEW — cloak variant of face-down system | S7a |  |
+| ATOM-701.62a-001 | 701.62a | Manifest dread: look at top 2, manifest one, other to graveyard. | NEW — manifest dread (depends on face-down subsystem) | S7a |  |
+| ATOM-702.185a-001 | 702.185a (ability 1) | Warp: alt cost from hand | NEW — Warp keyword (alt cost, delayed exile, future free cast) | S8 |  |
 
 ## UNKNOWN
 

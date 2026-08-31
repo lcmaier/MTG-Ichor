@@ -313,7 +313,7 @@
 - **Minimal Board:** Player has a {3}{R} spell. A continuous effect says "spells cost {1} more." Player is paying kicker {2}.
 - **Action:** Player casts the spell with kicker.
 - **Expected Result:** Total cost = {3}{R} (base) + {2} (kicker) + {1} (increase) = {6}{R}. This is locked in.
-- **Phase:** Phase 5 Pre-Work (T18) + Phase 5 Layers (L15 for cost modification effects)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
 - **Ticket:** T18, L15
 
 **ATOM-601.2f-002**
@@ -323,7 +323,7 @@
 - **Minimal Board:** Player has a {1}{G} spell. Two effects each reduce cost by {1}. A third effect reduces cost by {G}. Total reduction = {2}{G}, but mana component is only {1} generic + {G}.
 - **Action:** Player casts the spell.
 - **Expected Result:** After reducing generic by {1} (first reduction) the generic becomes {0}. The second reduction can't reduce below {0}. After reducing by {G}, total mana cost is {0} (even though reduction is greater than the total cost). Final cost is at least {0}.
-- **Phase:** Phase 5 Layers (L15)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L15
 
 **ATOM-601.2f-003**
@@ -333,7 +333,7 @@
 - **Minimal Board:** Player casts a spell. Total cost is locked at {2}{R}. After lock-in, a new cost-increase effect enters (e.g., from a trigger resolving).
 - **Action:** Player proceeds to pay costs.
 - **Expected Result:** The new cost increase does NOT apply — the cost was already locked in. Player pays {2}{R}.
-- **Phase:** Phase 5 Pre-Work (T18)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
 - **Ticket:** T18
 
 > **Note (601.2f-003):** See also ATOM-601.2h-001 which tests cost lock-in more thoroughly. This test focuses specifically on the lock-in *preventing* later modifications.
@@ -345,7 +345,7 @@
 - **Minimal Board:** Player controls two different cost reduction permanents (e.g., "Instant spells cost {1} less" and "Red spells cost {R} less"). Player casts a {1}{R}{R} red instant.
 - **Action:** Player chooses which reduction to apply first via DP.
 - **Expected Result:** DP is prompted for application order. Both reductions apply; final cost depends on order if reductions interact (e.g., reducing generic first vs. colored first).
-- **Phase:** Phase 5 Layers (L15 — cost modification)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L15
 
 ---
@@ -377,7 +377,7 @@
 - **Minimal Board:** Player has a spell with costs: {1}{B} mana + sacrifice a creature. Player controls a creature that reduces black spell costs by {1}.
 - **Action:** Player sacrifices the creature (non-random, non-library cost), then pays mana.
 - **Expected Result:** Per the Example (Altar's Reap + Thunderscape Familiar): cost was locked in at {B} (not {1}{B}) because cost locking happened BEFORE payment. Even though the familiar is sacrificed during payment, the locked cost doesn't change.
-- **Phase:** Phase 5 Pre-Work (T18)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
 - **Ticket:** T18
 
 **ATOM-601.2h-002**
@@ -398,7 +398,7 @@
 - **Action A:** Sacrifice Omnath first → LKI P/T = 5/5 → draw 5, gain 5. Then pay {2}{G}{G} from pool.
 - **Action B:** Pay {2}{G}{G} first → pool has 0 green → Omnath is 1/1 → sacrifice → LKI P/T = 1/1 → draw 1, gain 1.
 - **Expected Result:** DP chooses payment order. Both orderings are legal but produce different outcomes. Tests that cost payment ordering is player-controlled.
-- **Phase:** Phase 5 Pre-Work (T18)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
 - **Ticket:** T18
 
 ---
@@ -678,7 +678,7 @@
 - **Minimal Board:** Player A's spell ({3}{R}) is on the stack. Player B casts a creature that says "Spells cost {1} more to cast."
 - **Action:** Player B's creature resolves (or is cast). Player A's spell is still on the stack.
 - **Expected Result:** Player A's spell's cost is unchanged (was locked at {3}{R}). The new cost increase only affects future spells.
-- **Phase:** Phase 5 Layers (L15) — but the lock-in mechanism is T18
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers, L15/T18)
 - **Ticket:** T18
 
 ---
@@ -2172,7 +2172,7 @@
 - **Minimal Board:** A permanent has "When this enters, exile target creature" (ability A) and "When this leaves the battlefield, return the exiled card to the battlefield" (ability B). A and B are linked.
 - **Action:** Ability A exiles creature X. Separately, another effect also exiles creature Y referencing the same permanent. Permanent leaves → ability B triggers.
 - **Expected Result:** Ability B returns ONLY creature X (exiled by ability A). Creature Y (exiled by a different source) is NOT returned.
-- **Phase:** Phase 5 Pre-Work (T20 — linked abilities)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T20
 
 ### 607.1a — Granted ability is "printed on"
@@ -2194,7 +2194,7 @@
 - **Minimal Board:** Tyrant's Choice ({1}{B} Sorcery, "Will of the council — Starting with you, each player votes for death or torture. If death gets more votes, each opponent sacrifices a creature. If torture gets more votes or tied, each opponent loses 4 life."). Single ability causes the vote (action) and references the vote result (self-linked).
 - **Action:** Cast Tyrant's Choice. Both players vote.
 - **Expected Result:** If death wins: each opponent sacrifices. If torture wins/ties: each opponent loses 4 life. The vote-causing and vote-reading are within a single ability — self-linked.
-- **Phase:** Phase 5 Pre-Work (T20 — linked abilities)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T20
 
 ### 607.1d — Cross-object linked abilities (token/emblem sources)
@@ -2230,7 +2230,7 @@
 - **Minimal Board:** Banishing Light: "When this enters, exile target nonland permanent an opponent controls until this leaves the battlefield."
 - **Action:** ETB exiles creature A. Banishing Light leaves → LTB trigger.
 - **Expected Result:** LTB returns creature A specifically — it was exiled by the linked ETB ability.
-- **Phase:** Phase 5 Pre-Work (T20 — linked abilities)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T20
 
 **ATOM-607.2a-002**
@@ -2240,7 +2240,7 @@
 - **Minimal Board:** A permanent has ability A ("When this enters, exile target creature") and ability C ("When this attacks, exile top card of defending player's library"). It also has ability B ("When this leaves, return all creatures exiled with this") linked to A, and ability D ("You may play cards exiled with this") linked to C.
 - **Action:** Ability A exiles creature X. Ability C exiles card Y. Permanent leaves.
 - **Expected Result:** Ability B returns creature X only. Ability D allows playing card Y only. The two exile pools are independent.
-- **Phase:** Phase 5 Pre-Work (T20 — linked abilities)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T20
 
 ### 607.2b — Replacement exile + "exiled cards" link
@@ -2282,7 +2282,7 @@
 - **Minimal Board:** Voice of All: "As this enters, choose a color." + "This creature has protection from the chosen color."
 - **Action:** Player chooses blue on ETB.
 - **Expected Result:** The creature has protection from blue. The second ability reads the choice made by the first.
-- **Phase:** Phase 5 Pre-Work (T20 — linked abilities, choice storage)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T20
 
 **ATOM-607.2d-002**
@@ -2292,7 +2292,7 @@
 - **Minimal Board:** Cavern of Souls: "As this enters, choose a creature type." + "{T}: Add {C}. Spend this mana only to cast a creature spell of the chosen type, and it can't be countered." Player chooses "Elf."
 - **Action:** Player taps Cavern for mana, casts an Elf creature spell.
 - **Expected Result:** The spell can't be countered. The chosen type "Elf" persists on the permanent.
-- **Phase:** Phase 5 Pre-Work (T20 — linked abilities, choice storage)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T20
 
 ### 607.2e — "Note" + "noted information" link
@@ -2362,7 +2362,7 @@
 - **Minimal Board:** A creature with "Kicker {W}" and "When this enters, if it was kicked, destroy target enchantment."
 - **Action:** Player casts the creature, paying the kicker cost. It enters.
 - **Expected Result:** The ETB trigger checks "was it kicked?" — yes, linked to the kicker cost payment. Destroys target enchantment.
-- **Phase:** Phase 5 Pre-Work (T17 — alt/add cost types, T20 — linked abilities)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T17, T20
 
 **ATOM-607.2i-002**
@@ -2372,7 +2372,7 @@
 - **Minimal Board:** Stormscape Battlemage: "Kicker {W} and/or {2}{B}." ETB #1 triggers if {W} was paid. ETB #2 triggers if {2}{B} was paid.
 - **Action:** Player casts with only {W} kicker paid.
 - **Expected Result:** ETB #1 fires. ETB #2 does NOT fire — it's linked to the {2}{B} kicker, which wasn't paid.
-- **Phase:** Phase 5 Pre-Work (T17, T20)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T17, T20
 
 ### 607.2j — Variable additional cost + "cost paid as cast" link
@@ -2386,7 +2386,7 @@
 - **Minimal Board:** A creature: "As an additional cost to cast this, pay X life." + "This enters with X +1/+1 counters."
 - **Action:** Player pays 3 life as the additional cost (X=3).
 - **Expected Result:** Creature enters with 3 +1/+1 counters.
-- **Phase:** Phase 5 Pre-Work (T17, T18, T20)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T17, T18, T20
 
 ### 607.2k — Champion linked abilities
@@ -2416,7 +2416,7 @@
 - **Minimal Board:** A permanent spell: "As an additional cost to cast this, exile a creature card from your graveyard." + "This creature's power is equal to the exiled card's power."
 - **Action:** Player exiles a 4-power creature from graveyard as cost. Permanent enters.
 - **Expected Result:** The permanent's power is 4 — linked to the specific card exiled as a casting cost.
-- **Phase:** Phase 5 Pre-Work (T17, T20)
+- **Phase:** Backlog — linked abilities (was Phase 5 Pre-Work)
 - **Ticket:** T17, T20
 
 ---

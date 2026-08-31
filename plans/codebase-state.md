@@ -796,6 +796,78 @@ section never asked.
     iteration guard, because it hangs rather than fails if the rule is wrong.
     → `replacement-architecture.md` §11 item 18.
 
+30. **Nothing records what was spent to pay a cost, and five rules want it
+    (found 2026-08-31 by the type-surface audit; `cr-coverage-audit.md` §5.1).**
+    `StackEntry.chosen_alternative_cost` and `additional_costs_paid` hold the
+    cost *definitions* — which alternative was chosen, which additional costs
+    were paid — and both are written at cast and read by no production code.
+    Neither says **which mana** or **which objects** were spent, and payment
+    destroys both: the mana leaves the pool, and a sacrificed permanent is in a
+    graveyard by the time the spell resolves.
+
+    **A fact rather than a feature, because separate future phases each encode
+    its absence — but not the phase a first draft of this entry named.** The
+    corpus scheduled the readers years ago and named this dependency while
+    doing it: ATOM-702.44a-001 (sunburst, CR 702.44) is ticketed *"DEFERRED —
+    Phase 8. Requires mana-color-spent tracking."* **RC does not read this.**
+    The order is **CV** (CR 707.10, atoms under D5) → **item 6** (CR 700.14's
+    "expend N", mana spent to cast spells this turn) → **Phase 8** (sunburst).
+    CR 400.7d is the general form — "an ability of a permanent can reference …
+    what costs were paid to cast that spell or what mana was spent to pay those
+    costs" — and CR 107.4h's snow `{S}` is a fourth reader.
+
+    **CR 707.10 splits the fact in half, and that half is the design
+    constraint.** A copy of a spell inherits the *objects* used to pay the
+    original's costs — the Fling case the CR names — but **not** the mana,
+    "because mana isn't an object" (the Dawnglow Infusion example). Both halves
+    are already atoms: ATOM-707.10-002 and ATOM-707.10-003. A copy spine that
+    treats cost-payment provenance as one undifferentiated blob gets one of the
+    two wrong. `ManaPool.last_spent_grants` is a partial, transient version of
+    the mana half already — grants from atoms spent in the *last*
+    `pay_with_plan` call, drained after one read.
+
+    **Sized: the `x_value` rail.** A cast-time value carried from `StackEntry`
+    to `BattlefieldEntity` on resolution is a shape this codebase already has,
+    so this rides it rather than re-threading anything — and the rail survives
+    RC-2's ETB rewrite either way, which is why RC is not the gate. The part
+    that needs thought is what a spent *object* is once it has left: Fling
+    reads the sacrificed creature's power out of a graveyard, which is LKI, and
+    LKI formalization belongs to item 6. **Trigger: capture is independent of
+    every scheduled phase and cheap whenever; the design constraint lands at
+    CV.** Recording it early is the cheap half — the mana atoms exist at
+    payment time and nowhere afterward.
+    → `cr-coverage-audit.md` §5.1.
+
+31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
+    (found 2026-08-31 by the D3b slice-1 triage).** Declared at
+    `state/game_state.rs:33` as `Vec<usize>`, constructed `Vec::new()` at all
+    twelve sites (`cast.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
+    ×3, one test), and **read nowhere in the tree.**
+
+    Exactly the shape of `CardData.color_indicator` in `cr-coverage-audit.md`
+    §5.2: a field that represents its fact correctly, with nothing on either
+    side of it. So this is **debt, not a fact** — the type is already right, and
+    whoever builds modal spells inherits it rather than designing it.
+
+    **Nothing chooses a mode, so nothing can be modal**, which is why CR 700.2's
+    seven atoms sit under a shipped phase with no test. The reader arrives with
+    that work; CR 700.2h's per-mode additional costs and 700.2c's
+    mode-conditional targeting both reach into the cost pipeline, so it wants
+    doing near it. → `backlog.md` §2.7.
+
+32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
+    D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
+    `max_deck_size`, `max_copies` and `sideboard_size`, and both `standard()`
+    and `limited()` set them correctly — 60/4/15 and 40/none/none. **Nothing
+    in the tree reads them.** One validation function against a `Decklist`
+    closes it; until then a malformed decklist starts a game.
+
+    Third instance of the same shape in one triage, after item 31 and
+    `color_indicator`: **configuration or a field that looks like progress in a
+    grep and has no consumer.** Worth naming as a class — it is what a
+    type-surface audit finds easily and a test suite never does.
+    → `backlog.md` §2.13.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
@@ -902,6 +974,43 @@ seven items; the plan will always be coarser than the rules, and a third
 `can't`-shaped gap is likely rather than unlikely. The claim is narrower and
 checkable: the detector above is cheap, it has found two, and running it at the
 start of each phase is a better instrument than confidence.
+
+**Update 2026-08-31 — it has now found six, and the method has its own
+document.** Asked whether the critical path covers everything in the CR, a run
+of the detector turned up three in one sitting: **cost modification** (~903
+cards; `replacement-architecture.md` §9 already called it homeless and "not
+small", and `apply_cost_modifications` is a passthrough stub with a test
+asserting so), **casting from a zone other than hand** (~764 cards;
+`check_cast_legality` hard-codes `Zone::Hand`; **CR 607 linked abilities was
+bundled in here and is a separate mechanic** — no CR 601 atom concerns a non-hand
+zone, see `backlog.md` §2.2/§2.3), and **voting** (CR
+701.38 — zero atoms in a 1,753-atom corpus, though ~~never examined~~ DEFERRED
+in session 7A since 2026-04-07; zero *atoms* is the half that was true).
+
+`plans/cr-coverage-audit.md` owns the method. **It changed on 2026-08-31, and
+the reason belongs here, because this section is where the detector lives.**
+The first plan swept the frozen CR for *dark* rules — ones nobody had examined
+— and came back with **zero facts** across 199 families. Measured afterward,
+five of the six gaps carry 20+ atoms each: they were examined in 2026-04 and
+then **orphaned**, so a darkness filter removes them before the sweep starts.
+Only voting was dark.
+
+**Darkness is not ownership**, and the corpus fails at both, in opposite
+directions — `audit --dark` catches voting and misses the other five;
+`orphaned` catches the five and misses voting, which has no atom to orphan.
+Neither query is the instrument. What all six *do* share is that **a type or a
+function could not express what the CR requires**, which is this section's own
+fact/feature triage — and facts live in types, not in rules. The audit is now a
+**type-surface** sweep: for each fact-bearing type, what can the CR require
+here that this type cannot represent? It found one fact, Deferred Migrations
+item 30 (cost-payment provenance), and it is calibrated against the six above
+before it is trusted.
+
+The lesson the failed pass paid for applies to this section's own tooling: **a
+number nobody can reproduce by hand is a number nobody has checked.** `audit`
+had been counting *unread* verdicts as unexamined rules for as long as it
+existed, because `parse_rule_mentions` read one of the three shapes the corpus
+writes a verdict in.
 
 ### Fuzz-pool coverage — audited 2026-08-26
 

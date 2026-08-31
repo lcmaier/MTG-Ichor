@@ -37,6 +37,8 @@ Usage:
     python plans/specdb.py orphans        # COVERS ids with no matching atom
     python plans/specdb.py suspicious     # COVERS ids that exist but look wrong
     python plans/specdb.py gaps --chapter 6   # CR rules the corpus never examined
+    python plans/specdb.py owed           # atoms a shipped phase left uncovered
+    python plans/specdb.py audit --dark --families   # CR rules NOBODY examined
 
 CR snapshots live in MTG-Rules/versions/<version>.txt, one official file per
 version. Rule text is stored with a sha256 so a future `sync-rules` can diff
@@ -77,9 +79,51 @@ CRITICAL_PATH = ["Phase 5-Layers", "Phase 6", "Phase 7"]
 ENTRY_RE = re.compile(r"^\*\*((?:ATOM|BOUNDARY|COMP)-[^*]+)\*\*\s*$")
 # A CR rule line: "613.4c Layer 7c: Effects and counters that modify ..."
 CR_RULE_RE = re.compile(r"^(\d{3}\.\d+[a-z]?)\.?\s+(.*)$")
-# A session classification line: "**100.1** — PURE-DEF. Defines scope ..."
-CLASSIFY_RE = re.compile(r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-]+)")
 RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")
+
+# --- Session classification lines -------------------------------------------
+#
+# **The corpus writes a verdict in three shapes, not one**, and reading only the
+# first is what made `audit` report 478 in-scope dark families when the real
+# number was far smaller (`cr-coverage-audit.md` §1, defect D1). The shapes are authored
+# fact across twelve session files and five months, so the parser learns them
+# rather than the files being rewritten to match a regex — `CLAUDE.md` calls the
+# corpus authored, never generated.
+#
+#   1. bold span   `**100.1** — PURE-DEF.`   (sessions 1, 4, 7a, 7b, 9a, 9b, 10)
+#   2. heading     `### 609.1 — PURE-DEF`     (session 6)
+#   3. heading + `**Classification: PURE-DEF.**` on a later line  (2, 3, 5, 8)
+#
+# A span may name several rules: a comma list, a `+`, or a range written either
+# in full (`903.12a–903.12h`) or with a bare letter tail (`100.4c–d`).
+CLASSIFY_VERDICTS = ("TESTABLE", "PURE-DEF", "DEFERRED", "OUT-OF-SCOPE",
+                     "BOUNDARY-DEF", "ALREADY-IMPLEMENTED", "ALREADY-IMPL",
+                     "META", "LKI")
+_V = "(%s)" % "|".join(CLASSIFY_VERDICTS)
+# The verdict must come *first*, not merely somewhere on the line: three lines
+# in the corpus discuss a verdict mid-sentence ("They are all TESTABLE but
+# belong to Session 5") and reading those as classifications would claim rules
+# no session actually classified. Precision over recall — over-claiming a
+# verdict is the failure this whole table exists to avoid.
+# The leading `(?:[-*]\s+)?` is a list bullet: sessions 4, 7a and 9b write the
+# same shape as a bullet under a section heading (`- **726.1** — DEFERRED …`).
+# Same shape, not a new one, which is why it earns a character rather than a
+# branch — it resolves 35 otherwise-dark rules and disagrees with none.
+CLASSIFY_BOLD_RE = re.compile(
+    r"^(?:[-*]\s+)?\*\*\s*([\d.,+a-z–—\s-]*\d{3}\.\d+[a-z]?[\d.,+a-z–—\s-]*?)\s*:?\s*\*\*"
+    r"\s*(?:\([^)]*\)\s*)?[—–:-]?\s*" + _V)
+CLASSIFY_HEAD_RE = re.compile(r"^#{2,4}\s+(\d{3}\.\d+[a-z]?)\s*[—–-]?\s*(.*)$")
+CLASSIFY_FIELD_RE = re.compile(r"^\*\*Classification:\s*" + _V)
+# The pre-2026-08-31 regex, kept as a fallback so that widening the parser can
+# never *narrow* it. It took any leading uppercase word as a verdict, which is
+# how `108.5` (`PARTIALLY DEFERRED`) and `732.1`/`732.2`
+# (`ALREADY-HANDLED-BY-DESIGN`) got classified off-vocabulary. Those three are
+# corpus defects to normalise, not rules to re-darken.
+CLASSIFY_LEGACY_RE = re.compile(
+    r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-]+)")
+# `100.4c–d` and `903.12a–903.12h`; the tail may drop the shared `NNN.M`.
+CLASSIFY_RANGE_RE = re.compile(
+    r"^(\d{3}\.\d+)([a-z]?)\s*[–—-]\s*(?:(\d{3}\.\d+))?([a-z]?)$")
 FIELD_RE = re.compile(r"^-\s+\*\*([A-Za-z ]+):\*\*\s*(.*)$")
 COVERS_RE = re.compile(r"COVERS(-PARTIAL)?:\s*(.+)$")
 # Ids are `KIND-<rule>-<seq>`, but a COMP may name its cards instead of a
@@ -124,6 +168,7 @@ PHASE_ORDER = [
     "Phase 8",
     "Phase 9",
     "Post-v1",
+    "Backlog",
     "Cross-cutting",
     "DEFERRED",
     "COMP-REF",
@@ -164,6 +209,12 @@ def normalize_phase(raw):
     # A COMP whose "phase" field lists ATOM ids instead of a phase label.
     if re.match(r"^ATOM-", cleaned):
         return "COMP-REF"
+    # `Backlog - <mechanic>`: re-filed by the CR audit off a shipped phase that
+    # never described it. Tested before the digit scan below, because a backlog
+    # label names its rules ("Backlog - cost pipeline (CR 107/118/202)") and the
+    # scan would read those as phase numbers.
+    if lowered.startswith("backlog"):
+        return "Backlog"
     if "already" in lowered or lowered == "impl" or lowered.startswith("partial impl"):
         return "ALREADY-IMPL"
     if "post" in lowered or "pre-phase" in lowered:
@@ -175,8 +226,16 @@ def normalize_phase(raw):
 
     phase_nums = re.findall(r"phase\s*(\d+)", lowered)
     combo_nums = re.findall(r"(\d+)", lowered)
-    has_l_ticket = bool(re.search(r"L\d+", cleaned))
-    has_t_ticket = bool(re.search(r"T\d+", cleaned))
+    # The word-boundary escape here was a literal backspace until 2026-08-31,
+    # so both flags were permanently false. Fixing it changes no output, and
+    # that is worth knowing: their only reader is the digit-free branch below,
+    # and every corpus phase string carrying an `L##`/`T##` ticket also names
+    # its phase in digits ("Phase 5 Layers (L10)"), so the branch is
+    # unreachable for a second, independent reason. Left as the fallback it
+    # was written to be — promoting it above the digit path would relabel
+    # atoms and move what `owed` gates on, which nothing is asking for.
+    has_l_ticket = bool(re.search(r"\bL\d+", cleaned))
+    has_t_ticket = bool(re.search(r"\bT\d+", cleaned))
     has_pre = "5-pre" in lowered or "5 pre" in lowered or "pre" in lowered
     has_layers = "5-layer" in lowered or "5 layer" in lowered or "layer" in lowered
 
@@ -246,21 +305,87 @@ def _finish_rule(version, effective, pending):
     return (version, number, text, sha, effective, line_no)
 
 
-def parse_rule_mentions():
+def _expand_classify_span(span, known):
+    """The rule numbers a classification span names, in CR order.
+
+    Expansion is bounded by `known` — the rule numbers the CR ingest actually
+    found — so a range never invents a subrule. `104.3g–k` has to skip `l` and
+    `o`, which the CR does not use, and asking the CR beats encoding its
+    alphabet here.
+    """
+    out = []
+    for part in re.split(r"[,+]", span):
+        part = part.strip()
+        if not part:
+            continue
+        if RULE_TOKEN_RE.fullmatch(part):
+            out.append(part)
+            continue
+        m = CLASSIFY_RANGE_RE.match(part)
+        if not m:
+            continue
+        family, lo_tail, hi_family, hi_tail = m.groups()
+        lo, hi = family + lo_tail, (hi_family or family) + hi_tail
+        if lo not in known or hi not in known:
+            continue
+        # Everything between the endpoints, capped at the section (`NNN`) they
+        # share. `805.1–805.10f` spans ten families and means all of them; the
+        # cap is what stops it running on into 806.
+        section = lo.split(".")[0]
+        lo_key, hi_key = _rule_sort_key(lo), _rule_sort_key(hi)
+        out.extend(sorted(
+            (r for r in known
+             if r.split(".")[0] == section
+             and lo_key <= _rule_sort_key(r) <= hi_key),
+            key=_rule_sort_key))
+    return out
+
+
+def parse_rule_mentions(known=()):
     """Rules a session explicitly classified, e.g. `**100.1** - PURE-DEF.`
 
     A rule with a verdict but no atom was considered and deliberately not
-    atomized; that is different from a rule nobody ever looked at.
+    atomized; that is different from a rule nobody ever looked at. `known` is
+    the CR's own rule numbers, so a range expands against the real CR.
+
+    Rule numbers come from the classification's *span* only, never from the
+    rest of the line: the prose beside a verdict routinely cross-references
+    other rules ("deferred until 702.87"), and harvesting those would classify
+    a rule on the strength of someone else's footnote.
     """
+    known = set(known)
     rows, loose = [], set()
     for path in sorted(SESSIONS_DIR.glob("session-*.md")):
         session = path.stem.replace("session-", "S")
         text = path.read_text(encoding="utf-8")
         loose.update(RULE_TOKEN_RE.findall(text))
-        for line in text.split("\n"):
-            m = CLASSIFY_RE.match(line.strip())
-            if m:
-                rows.append((m.group(1), m.group(2), session))
+        pending_head = None
+        for line in text.splitlines():
+            s = line.strip()
+            head = CLASSIFY_HEAD_RE.match(s)
+            if head:
+                # `### 609.1 — PURE-DEF` classifies inline; `### 200.1 — Parts
+                # of a card` defers to the `**Classification:**` line below it.
+                inline = re.match(_V, head.group(2))
+                if inline:
+                    rows.append((head.group(1), inline.group(1), session))
+                    pending_head = None
+                else:
+                    pending_head = head.group(1)
+                continue
+            field = CLASSIFY_FIELD_RE.match(s)
+            if field and pending_head:
+                rows.append((pending_head, field.group(1), session))
+                pending_head = None
+                continue
+            bold = CLASSIFY_BOLD_RE.match(s)
+            if bold:
+                for number in _expand_classify_span(bold.group(1), known):
+                    rows.append((number, bold.group(2), session))
+                continue
+            legacy = CLASSIFY_LEGACY_RE.match(s)
+            if legacy:
+                rows.append((legacy.group(1), legacy.group(2), session))
     return rows, loose
 
 
@@ -465,7 +590,8 @@ def build():
     atoms = parse_sessions()
     cov = scan_coverage()
     rules = parse_cr_versions()
-    mentions, loose_mentions = parse_rule_mentions()
+    mentions, loose_mentions = parse_rule_mentions(
+        {number for version, number, *_ in rules if version == BASELINE_VERSION})
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Drop and recreate in place rather than unlinking: on Windows an open
     # SQLite browser holds a lock on the file and unlink() raises WinError 32.
@@ -881,6 +1007,346 @@ def owed(phase=None, show_all=False):
     print("See codebase-state.md, 'Before Replacement effects' item 9.")
 
 
+def orphaned(chapter=None, limit=25, show_all=False, out_path=None, bucket=None):
+    """Behavior a shipped phase promised, that no test covers and no doc claims.
+
+    **This is the query the five motivating gaps needed; `audit --dark` is not
+    it** (`cr-coverage-audit.md` section 1). The two sound alike and
+    are not:
+
+      darkness   "has anyone *looked* at this rule?"   -> examination
+      ownership  "does anyone *own* it?"                -> a home in the plan
+
+    Five of the six motivating clusters had atoms - CR 107, 118, 202, 601 and
+    607 were all examined years ago and then orphaned - so a darkness filter
+    removes them before the sweep starts. Only voting (CR 701.38) was dark.
+    Getting that backwards is what made A-0's sweep come back empty.
+
+    Three filters, all mechanical:
+
+      1. the atom is filed under a **shipped** phase - somebody promised this
+         already works, which is exactly what `owed` selects
+      2. **no test covers it** - the promise is unkept
+      3. **no plan doc cites its rule** - and no design has claimed it since
+
+    Citations are matched per *rule*, never per section. `plans/*.md` say
+    "CR 702" constantly, and a section-level test hands every keyword ability
+    to five documents at once - which is how an ownership query silently turns
+    back into a darkness one.
+
+    **The third column pre-sorts the read that used to be the whole cost.**
+    Separating "a missing `// COVERS:` on code that exists" from "genuinely
+    unbuilt" is the expensive half, and a *source* citation is the proxy for it:
+    `_scan_citations` already reports every rule the Rust cites, and code citing
+    a rule has encoded some assumption about it.
+
+    **A pre-sort, never a verdict**, and it errs in both directions. A comment
+    can cite a rule the code then contradicts - `check_cast_legality` cites
+    CR 117.1a and still hard-codes `Zone::Hand` - and behavior can exist with no
+    citation at all. Calibrated on the hardest available case, CR 613 under the
+    shipped layer phases: it correctly withheld 613.6 (cited by two card files)
+    and correctly flagged 613.8c, the dependency algorithm, which is unbuilt and
+    is critical-path item 7. Confirm a cluster before acting on its bucket.
+    """
+    db = connect()
+    marks = ",".join("?" * len(SHIPPED_PHASES))
+    rows = db.execute(f"""
+        SELECT a.id, a.rule_num, a.phase, a.summary FROM atoms a
+        WHERE a.phase IN ({marks})
+          AND a.rule_num <> ''
+          AND a.id NOT IN (SELECT atom_id FROM coverage)
+        ORDER BY a.rule_num, a.id
+    """, SHIPPED_PHASES).fetchall()
+
+    # Neither this query's method doc nor its output is an owner.
+    src_cites, doc_cites = _scan_citations(exclude_docs=(AUDIT_DOC, BACKLOG_DOC))
+    texts = {n: t for n, t in db.execute(
+        "SELECT number, text FROM rules WHERE cr_version = ?", (BASELINE_VERSION,))}
+
+    # An atom is owned when *any* rule it cites is claimed by a plan doc: the
+    # atom is one scenario, and one doc claiming any part of it means the
+    # mechanic has a home. Over-claiming ownership is the safe direction here -
+    # it shrinks the list rather than inventing work.
+    #
+    # The `cited` flag uses the same any-token rule for the same reason: it
+    # sorts an atom toward the cheap bucket, and over-claiming there costs a
+    # confirmation rather than inventing work.
+    orphans = []
+    for aid, rule_num, phase, summary in rows:
+        tokens = RULE_TOKEN_RE.findall(rule_num)
+        if not tokens or any(t in doc_cites for t in tokens):
+            continue
+        section = tokens[0].split(".")[0]
+        if chapter and section[:1] != str(chapter):
+            continue
+        cited = any(t in src_cites for t in tokens)
+        if bucket == "cited" and not cited:
+            continue
+        if bucket == "unbuilt" and cited:
+            continue
+        orphans.append((section, tokens[0], aid, summary or "", cited))
+
+    by_section = {}
+    for section, rule, aid, summary, cited in orphans:
+        by_section.setdefault(section, []).append((rule, aid, summary, cited))
+    n_cited = sum(1 for o in orphans if o[4])
+    n_unbuilt = len(orphans) - n_cited
+
+    lines = []
+    emit = lines.append
+    scope = "CR %s" % chapter if chapter else "all chapters"
+    emit("ORPHANED - promised by a shipped phase, untested, unowned by any plan doc")
+    emit("  %s, baseline CR %s" % (scope, BASELINE_VERSION))
+    emit("  shipped phases: %s" % ", ".join(SHIPPED_PHASES))
+    if bucket:
+        emit("  bucket filter : %s" % bucket)
+    emit("")
+    emit("  section  atoms  cited  unbuilt  rule      text")
+    # Ranked by the unbuilt count, not the total: the cheap bucket is an
+    # annotation errand, so a section that is mostly cited is not mostly work.
+    ordered = sorted(by_section.items(),
+                     key=lambda kv: (-sum(1 for i in kv[1] if not i[3]),
+                                     -len(kv[1]), kv[0]))
+    shown = ordered if (show_all or chapter) else ordered[:limit]
+    for section, items in shown:
+        rule = items[0][0]
+        head = texts.get(rule, "").split("\n")[0]
+        sec_cited = sum(1 for i in items if i[3])
+        emit("  CR %-5s %5d  %5d  %7d  %-8s  %s"
+             % (section, len(items), sec_cited, len(items) - sec_cited,
+                rule, head[:38]))
+    if len(ordered) > len(shown):
+        emit("  ... %d more sections (use --all)" % (len(ordered) - len(shown)))
+    emit("")
+    emit("%d sections, %d atoms." % (len(by_section), len(orphans)))
+    emit("  %3d cited in src   -> likely a missing `// COVERS:` on code that"
+         % n_cited)
+    emit("                        exists. Confirm, annotate, and the backlog")
+    emit("                        shrinks by that much.")
+    emit("  %3d cited nowhere  -> likely genuinely unbuilt. THIS IS THE BACKLOG"
+         % n_unbuilt)
+    emit("                        UPPER BOUND, and the only bucket that ranks.")
+    emit("")
+    emit("The split is a PRE-SORT, not a verdict - a comment can cite a rule the")
+    emit("code contradicts, and behavior can exist uncited. Confirm a cluster")
+    emit("before acting on its bucket; `--bucket cited|unbuilt` lists one.")
+    emit("Then, for unbuilt behavior: does it need a new field on an existing")
+    emit("type, or an existing assumption to become false? Yes -> a FACT.")
+    emit("See cr-coverage-audit.md section 2 for the fact/feature question.")
+
+    text = "\n".join(lines) + "\n"
+    if out_path:
+        Path(out_path).write_text(text, encoding="utf-8")
+        print("wrote %d lines to %s" % (len(lines), out_path))
+    else:
+        print(text, end="")
+
+
+# --- audit: is the plan complete against the frozen CR? ----------------------
+#
+# `plans/cr-coverage-audit.md` owns the method; this is
+# its generator. Everything below is derived - nothing here is hand-maintained.
+
+# CR sections outside the engine's scope, as *data* so that extending the list
+# is a one-line diff with its reason beside it. CR 903 (Commander) is
+# deliberately absent: CLAUDE.md names 4-player Commander a v1 target, so it is
+# in scope and its dark rules are real work.
+OUT_OF_SCOPE = [
+    ("901.", "Planechase"),
+    ("902.", "Vanguard"),
+    ("904.", "Archenemy"),
+    ("905.", "Conspiracy Draft"),
+    ("407.", "ante"),
+    ("801.", "limited range of influence - an OPTIONAL multiplayer rule; "
+             "CR 800 and 802 are on the critical path and stay in scope"),
+    ("100.6", "tournament rules"),
+    ("100.7", "casual / acorn cards"),
+]
+
+# A CR citation in prose or code: "CR 613.7a", "rule 702.33". Deliberately does
+# not match a bare number, which is ambiguous with damage amounts and years.
+CITE_RE = re.compile(r"\b(?:CR|rule)\s+(\d{3}(?:\.\d+[a-z]?)?)", re.I)
+PLAN_DOCS_DIR = ROOT / "plans"
+# The audit's own method doc. It cites rules as *examples*, so it is excluded
+# from `orphaned`'s ownership set - see `_scan_citations`.
+AUDIT_DOC = "cr-coverage-audit.md"
+# The inventory this query feeds. Excluded for a different reason than the
+# audit doc's - see `_scan_citations`.
+BACKLOG_DOC = "backlog.md"
+
+_SORT_RE = re.compile(r"^(\d+)\.(\d+)([a-z]?)$")
+_FAMILY_RE = re.compile(r"^(\d+\.\d+)")
+
+
+def _rule_sort_key(number):
+    """Numeric ordering, so 702.10 follows 702.9 instead of preceding 702.2."""
+    m = _SORT_RE.match(number)
+    return (int(m.group(1)), int(m.group(2)), m.group(3)) if m else (9999, 9999, number)
+
+
+def _family(number):
+    """The triage unit: 702.10a and 702.10b both belong to family 702.10."""
+    m = _FAMILY_RE.match(number)
+    return m.group(1) if m else number
+
+
+def _out_of_scope(number):
+    for prefix, reason in OUT_OF_SCOPE:
+        if number.startswith(prefix):
+            return reason
+    return None
+
+
+def _scan_citations(exclude_docs=()):
+    """Rule numbers cited in Rust source/tests, and in plan docs.
+
+    Two sets, because they answer different questions. A citation in *source*
+    means the code already encodes an assumption about that rule; one in a
+    *plan doc* means a design has considered it. Neither is coverage - a cited
+    rule can still have no atom and no test - but either one means the rule is
+    not dark, which is the only claim these two columns make.
+
+    `exclude_docs` drops plan docs by filename, and exists for one reason:
+    **an instrument must not be able to satisfy its own filter.**
+    `cr-coverage-audit.md` discusses rules as *examples* - CR 117.1a appears
+    there only to show where the source-citation proxy is weak - and every one
+    it named silently became "owned", shrinking `orphaned`'s worklist by the
+    act of documenting it. Darkness is unaffected (a mention really is somebody
+    looking), so `audit` keeps the full set and only `orphaned` prunes.
+
+    **`backlog.md` is excluded too, and the reason is not the audit doc's.**
+    Its citations are not examples; they are claims, and a claim is exactly what
+    the third filter looks for. It is excluded because it is `orphaned`'s
+    *output*: a backlog exists to eventually name every rule the query found, so
+    leaving it in makes the query converge to zero by being written rather than
+    by anything being owned. That is a completion signal guaranteed to fire, and
+    a gate any prose can satisfy is not a gate - contrast `owed`, which needs a
+    `// COVERS:` and therefore a test. Excluding it keeps the 332 re-derivable
+    after the inventory exists, which is the only way the inventory can be
+    checked against its own source.
+
+    So the burn-down still happens, driven by the right thing: when a mechanic
+    graduates from a backlog line to an architecture doc, *that* doc cites the
+    rules and `orphaned` shrinks. Design claims the rule; listing it does not.
+    """
+    src, docs = set(), set()
+    for directory in CODE_DIRS:
+        for path in sorted(directory.rglob("*.rs")):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            src.update(m.group(1) for m in CITE_RE.finditer(text))
+    for path in sorted(PLAN_DOCS_DIR.glob("*.md")):
+        if path.name in exclude_docs:
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        docs.update(m.group(1) for m in CITE_RE.finditer(text))
+    return src, docs
+
+
+def audit(chapter, dark_only, families, out_path):
+    """Every CR rule joined against the four places it could have been examined.
+
+    The columns, strongest claim first:
+
+      atom     an atom in the corpus cites the rule
+      verdict  a session classified it (TESTABLE, PURE-DEF, DEFERRED, ...)
+      src      a Rust source or test file cites it - the code assumes something
+      doc      a plan doc cites it - a design has considered it
+
+    A rule with **none** of the four is *dark*: nobody has looked at it in any
+    recorded way. `--families` collapses dark rules to the triage unit, because
+    a dark subrule of an examined rule is a depth gap rather than a blind spot
+    (CR 702: 180 of its 190 keyword families already have an examined subrule).
+
+    Reports what is unexamined, never what is wrong - a rule with an atom and a
+    verdict can still be mis-modelled. `cr-coverage-audit.md` section 3.
+    """
+    db = connect()
+    rules = db.execute(
+        "SELECT number, text FROM rules WHERE cr_version = ? ORDER BY number",
+        (BASELINE_VERSION,),
+    ).fetchall()
+    if not rules:
+        sys.exit("no rules for baseline version %r - check %s"
+                 % (BASELINE_VERSION, CR_DIR))
+
+    atomized = set()
+    for (r,) in db.execute("SELECT DISTINCT rule_num FROM atoms WHERE rule_num <> ''"):
+        atomized.update(RULE_TOKEN_RE.findall(r))
+    verdicts = {r: v for r, v in db.execute("SELECT number, verdict FROM rule_mentions")}
+    src_cites, doc_cites = _scan_citations()
+
+    numbers = {n for n, _ in rules}
+    known = atomized | set(verdicts) | (src_cites & numbers) | (doc_cites & numbers)
+
+    rows = [(n, t) for n, t in rules if not chapter or n[:1] == str(chapter)]
+    rows.sort(key=lambda nt: _rule_sort_key(nt[0]))
+    dark = [(n, t) for n, t in rows if n not in known]
+
+    lines = []
+    emit = lines.append
+    scope = "CR %s" % chapter if chapter else "all chapters"
+    emit("CR coverage audit - %s, baseline CR %s" % (scope, BASELINE_VERSION))
+    emit("  rules in scope of this run : %d" % len(rows))
+    emit("  has a corpus atom          : %d" % sum(1 for n, _ in rows if n in atomized))
+    emit("  has a classification       : %d" % sum(1 for n, _ in rows if n in verdicts))
+    emit("  cited in Rust source/tests : %d" % sum(1 for n, _ in rows if n in src_cites))
+    emit("  cited in a plan doc        : %d" % sum(1 for n, _ in rows if n in doc_cites))
+    emit("  DARK (none of the four)    : %d" % len(dark))
+
+    if families:
+        by_family = {}
+        for n, _t in dark:
+            by_family.setdefault(_family(n), []).append(n)
+        # A family survives only if *no* rule in it is known anywhere. A dark
+        # subrule of an examined family is a depth gap - Pass B's, not Pass A's.
+        #
+        # **Membership is `_family`, not a string prefix.** The prefix test this
+        # replaces asked whether a known rule started with `613.4.`, which no
+        # subrule ever does - they are `613.4a`, not `613.4.a` - so a family
+        # whose subrules were all examined still reported wholly dark. That is
+        # `cr-coverage-audit.md` section 1 defect D2, and it inflated that
+        # sweep's worklist by roughly sevenfold.
+        known_families = {_family(k) for k in known}
+        orphans = [f for f in by_family if f not in known_families]
+        texts = {n: t for n, t in rules}
+        in_scope = [f for f in orphans if not _out_of_scope(f)]
+        emit("  dark families                     : %d" % len(by_family))
+        emit("    with an examined sibling (depth) : %d" % (len(by_family) - len(orphans)))
+        emit("    wholly dark                      : %d" % len(orphans))
+        emit("    ... of which out of scope        : %d" % (len(orphans) - len(in_scope)))
+        emit("    IN-SCOPE AUDIT SURFACE           : %d" % len(in_scope))
+        emit("")
+        emit("in-scope wholly-dark families - the Pass A worklist:")
+        emit("  %-10s %5s  %s" % ("family", "subs", "rule text"))
+        for f in sorted(in_scope, key=_rule_sort_key):
+            head = texts.get(f, "").split("\n")[0]
+            emit("  %-10s %5d  %s" % (f, len(by_family[f]), head[:66]))
+    else:
+        listing = dark if dark_only else rows
+        label = "dark rules" if dark_only else "every rule"
+        emit("")
+        emit("%s - flags are atom/verdict/src/doc:" % label)
+        for n, t in listing:
+            flags = "".join([
+                "a" if n in atomized else "-",
+                "v" if n in verdicts else "-",
+                "s" if n in src_cites else "-",
+                "d" if n in doc_cites else "-",
+            ])
+            oos = _out_of_scope(n)
+            tag = "  [out of scope]" if oos else ""
+            emit("  %-10s %s  %-14s %s%s"
+                 % (n, flags, verdicts.get(n, "")[:14],
+                    t.split("\n")[0][:56], tag))
+
+    text = "\n".join(lines) + "\n"
+    if out_path:
+        Path(out_path).write_text(text, encoding="utf-8")
+        print("wrote %d lines to %s" % (len(lines), out_path))
+    else:
+        print(text, end="")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -907,6 +1373,23 @@ def main():
     o.add_argument("--phase", help="one phase instead of every shipped one")
     o.add_argument("--all", action="store_true", dest="owed_all",
                    help="every uncovered atom, not just those ticketed NEW")
+    r = sub.add_parser("orphaned",
+                       help="shipped-phase behavior no test covers and no doc owns")
+    r.add_argument("--chapter", type=int, help="CR chapter 1-9")
+    r.add_argument("--limit", type=int, default=25)
+    r.add_argument("--all", action="store_true", dest="orph_all")
+    r.add_argument("--out", help="write the table here instead of stdout")
+    r.add_argument("--bucket", choices=("cited", "unbuilt"),
+                   help="only atoms whose rule is cited in src (likely a "
+                        "missing COVERS) or cited nowhere (likely unbuilt)")
+    u = sub.add_parser("audit",
+                       help="CR rules nobody has examined (cr-coverage-audit.md)")
+    u.add_argument("--chapter", type=int, help="CR chapter 1-9")
+    u.add_argument("--dark", action="store_true",
+                   help="only rules with no atom, verdict, source cite or doc cite")
+    u.add_argument("--families", action="store_true",
+                   help="collapse to NNN.M, the Pass A triage unit")
+    u.add_argument("--out", help="write the table here instead of stdout")
     a = ap.parse_args()
     {"build": lambda: build(),
      "stats": lambda: stats(),
@@ -915,7 +1398,10 @@ def main():
      "orphans": lambda: orphans(),
      "suspicious": lambda: suspicious(a.threshold),
      "gaps": lambda: gaps(a.chapter, a.limit, a.show_all),
-     "owed": lambda: owed(a.phase, a.owed_all)}[a.cmd]()
+     "owed": lambda: owed(a.phase, a.owed_all),
+     "audit": lambda: audit(a.chapter, a.dark, a.families, a.out),
+     "orphaned": lambda: orphaned(a.chapter, a.limit, a.orph_all, a.out,
+                                  a.bucket)}[a.cmd]()
 
 
 if __name__ == "__main__":

@@ -19,6 +19,8 @@
 
 All sub-rules (713.1, 713.2, 713.2a, 713.2b, 713.2c, 713.3, 713.4, 713.5) are **OUT-OF-SCOPE**. Substitute cards are a physical play aid with no digital equivalent. The simulator represents all cards directly.
 
+**713.1–713.5** — OUT-OF-SCOPE. Ratified per family by Pass A-2 (2026-08-31). **The cleanest prune in the audit, and for a different reason than the rest:** CR 713 is not a mechanic the engine declines to build, it is a rule about cardboard. 713.4 — “the substitute card is considered to be the card it represents” — is already true by construction here, because a `CardData` *is* the card it represents. There is no referent to model.
+
 ---
 
 ### 714. Saga Cards
@@ -334,6 +336,10 @@ All sub-rules (713.1, 713.2, 713.2a, 713.2b, 713.2c, 713.3, 713.4, 713.5) are **
 ### 717. Attraction Cards — OUT-OF-SCOPE
 
 All sub-rules (717.1, 717.2, 717.2a, 717.2b, 717.3, 717.4, 717.5, 717.6, 717.6a) are **OUT-OF-SCOPE**. Attractions are an Un-set mechanic from Unfinity with non-standard card backs and dice rolling.
+
+**717.1–717.6a** — OUT-OF-SCOPE. Ratified per family by Pass A-2 (2026-08-31), consistent with the other Unfinity prunes — stickers (CR 123, session 1) and the ticket symbol (CR 107.17).
+
+> **One note worth keeping past the prune.** CR 717.6 sends any Astrotorium-backed card to the command zone instead of most zones, and says the replacement “may apply more than once to the same event. **This is an exception to rule 614.5.**” The engine builds 614.5's applied set, and `replacement-architecture.md` §11 item 15 still owes it an identity key. 717.6 is evidence that the CR itself carves exceptions out of 614.5 — so whatever key RD settles on should be able to express “this effect is exempt from the applied set,” which is the same shape CR 903.9b already needs. Out of scope as a mechanic; in scope as a constraint on RD's design.
 
 ---
 
