@@ -1000,6 +1000,103 @@ def owed(phase=None, show_all=False):
     print("See codebase-state.md, 'Before Replacement effects' item 9.")
 
 
+def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
+    """Behavior a shipped phase promised, that no test covers and no doc claims.
+
+    **This is the query the five motivating gaps needed; `audit --dark` is not
+    it** (`cr-coverage-audit.md` sections 7 and 8.4). The two sound alike and
+    are not:
+
+      darkness   "has anyone *looked* at this rule?"   -> examination
+      ownership  "does anyone *own* it?"                -> a home in the plan
+
+    Five of the six motivating clusters had atoms - CR 107, 118, 202, 601 and
+    607 were all examined years ago and then orphaned - so a darkness filter
+    removes them before the sweep starts. Only voting (CR 701.38) was dark.
+    Getting that backwards is what made A-0's sweep come back empty.
+
+    Three filters, all mechanical:
+
+      1. the atom is filed under a **shipped** phase - somebody promised this
+         already works, which is exactly what `owed` selects
+      2. **no test covers it** - the promise is unkept
+      3. **no plan doc cites its rule** - and no design has claimed it since
+
+    Citations are matched per *rule*, never per section. `plans/*.md` say
+    "CR 702" constantly, and a section-level test hands every keyword ability
+    to five documents at once - which is how an ownership query silently turns
+    back into a darkness one.
+
+    **What it cannot separate** is a missing `// COVERS:` annotation on code
+    that already exists from genuinely missing behavior. Only reading the code
+    does that, which is why the session plan budgets a per-cluster read rather
+    than trusting this list.
+    """
+    db = connect()
+    marks = ",".join("?" * len(SHIPPED_PHASES))
+    rows = db.execute(f"""
+        SELECT a.id, a.rule_num, a.phase, a.summary FROM atoms a
+        WHERE a.phase IN ({marks})
+          AND a.rule_num <> ''
+          AND a.id NOT IN (SELECT atom_id FROM coverage)
+        ORDER BY a.rule_num, a.id
+    """, SHIPPED_PHASES).fetchall()
+
+    _src_cites, doc_cites = _scan_citations()
+    texts = {n: t for n, t in db.execute(
+        "SELECT number, text FROM rules WHERE cr_version = ?", (BASELINE_VERSION,))}
+
+    # An atom is owned when *any* rule it cites is claimed by a plan doc: the
+    # atom is one scenario, and one doc claiming any part of it means the
+    # mechanic has a home. Over-claiming ownership is the safe direction here -
+    # it shrinks the list rather than inventing work.
+    orphans = []
+    for aid, rule_num, phase, summary in rows:
+        tokens = RULE_TOKEN_RE.findall(rule_num)
+        if not tokens or any(t in doc_cites for t in tokens):
+            continue
+        section = tokens[0].split(".")[0]
+        if chapter and section[:1] != str(chapter):
+            continue
+        orphans.append((section, tokens[0], aid, summary or ""))
+
+    by_section = {}
+    for section, rule, aid, summary in orphans:
+        by_section.setdefault(section, []).append((rule, aid, summary))
+
+    lines = []
+    emit = lines.append
+    scope = "CR %s" % chapter if chapter else "all chapters"
+    emit("ORPHANED - promised by a shipped phase, untested, unowned by any plan doc")
+    emit("  %s, baseline CR %s" % (scope, BASELINE_VERSION))
+    emit("  shipped phases: %s" % ", ".join(SHIPPED_PHASES))
+    emit("")
+    ordered = sorted(by_section.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    shown = ordered if (show_all or chapter) else ordered[:limit]
+    for section, items in shown:
+        rule = items[0][0]
+        head = texts.get(rule, "").split("\n")[0]
+        emit("  CR %-5s %3d atoms    %-8s %s" % (section, len(items), rule, head[:52]))
+    if len(ordered) > len(shown):
+        emit("  ... %d more sections (use --all)" % (len(ordered) - len(shown)))
+    emit("")
+    emit("%d sections, %d atoms." % (len(by_section), len(orphans)))
+    emit("")
+    emit("Triage each CLUSTER, not each atom, and on two questions in order:")
+    emit("  1. is this a missing `// COVERS:` on code that exists, or missing")
+    emit("     behavior? Only reading the code answers it.")
+    emit("  2. if behavior: does it need a new field on an existing type, or an")
+    emit("     existing assumption to become false? Yes -> a FACT, escalate.")
+    emit("See cr-coverage-audit.md section 3.3.")
+
+    text = "\n".join(lines) + "\n"
+    if out_path:
+        Path(out_path).write_text(text, encoding="utf-8")
+        print("wrote %d lines to %s" % (len(lines), out_path))
+    else:
+        print(text, end="")
+
+
 # --- audit: is the plan complete against the frozen CR? ----------------------
 #
 # `plans/cr-coverage-audit.md` owns the method and the session split; this is
@@ -1200,6 +1297,12 @@ def main():
     o.add_argument("--phase", help="one phase instead of every shipped one")
     o.add_argument("--all", action="store_true", dest="owed_all",
                    help="every uncovered atom, not just those ticketed NEW")
+    r = sub.add_parser("orphaned",
+                       help="shipped-phase behavior no test covers and no doc owns")
+    r.add_argument("--chapter", type=int, help="CR chapter 1-9")
+    r.add_argument("--limit", type=int, default=25)
+    r.add_argument("--all", action="store_true", dest="orph_all")
+    r.add_argument("--out", help="write the table here instead of stdout")
     u = sub.add_parser("audit",
                        help="CR rules nobody has examined (cr-coverage-audit.md)")
     u.add_argument("--chapter", type=int, help="CR chapter 1-9")
@@ -1217,7 +1320,8 @@ def main():
      "suspicious": lambda: suspicious(a.threshold),
      "gaps": lambda: gaps(a.chapter, a.limit, a.show_all),
      "owed": lambda: owed(a.phase, a.owed_all),
-     "audit": lambda: audit(a.chapter, a.dark, a.families, a.out)}[a.cmd]()
+     "audit": lambda: audit(a.chapter, a.dark, a.families, a.out),
+     "orphaned": lambda: orphaned(a.chapter, a.limit, a.orph_all, a.out)}[a.cmd]()
 
 
 if __name__ == "__main__":
