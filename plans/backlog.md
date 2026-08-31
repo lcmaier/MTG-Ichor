@@ -475,7 +475,7 @@ list, and §3's dispositions are prose the query cannot read.** Use it as the
 source, not as a progress bar — and regenerate it before trusting any number
 here, since the corpus moves.
 
-Ten entries and 181 dispositioned atoms came out of it. Six things learned,
+Thirteen entries and 180 dispositioned atoms came out of it. Six things learned,
 recorded so they are not re-derived:
 
 1. **A CR section is a loose proxy for a mechanic, and it over-collects.** The
