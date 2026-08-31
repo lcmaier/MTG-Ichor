@@ -10,22 +10,28 @@ mechanics, and it is not restated here. Then `cr-coverage-audit.md` §2 (method)
 
 ## 0. What is left
 
-**D3b — one judgment each for the remaining sections.** Real backlog item, rough
-size, what it blocks. The bulk, and the part most likely to go thin if rushed;
-split it rather than doing 63 sections in one pass.
+D3b was split three ways. **Slice 1 landed** — the 38 sections a plan doc
+already discusses, 197 atoms, now `backlog.md` §3. Five became entries
+(§2.5–§2.8); the other 33 are dispositioned in §3.1 and §3.2.
+
+**Slice 2 — the 25 sections no plan doc mentions, 100 atoms.** This is where
+the remaining real entries come from. `backlog.md` §4 lists the clusters and
+warns what to expect: several look plainly implemented from their summaries
+alone and will resolve like §3.2 rather than becoming entries.
+
+**Slice 3 — the long tail**, 24 sections at ≤2 atoms. One line each.
 
 ```bash
 python plans/specdb.py orphaned --bucket unbuilt --all
 ```
 
-**297 atoms across 63 sections** at D3a's close, down from 332/64. Regenerate it;
-a number in prose rots. Largest clusters: CR 701 (24), CR 702 (20), CR 205
-type-changing (15), CR 306 loyalty (10), CR 602 activating abilities (9).
+Still reports 297/63 and will keep doing so: **re-filing is not how a section
+leaves that list, and §3's dispositions are prose the query cannot read.** Use
+it as the source, not as a progress bar.
 
-**The obvious first entry is already scoped**: the 25 CR 601 casting-procedure
-atoms — modal announcement, kicker-conditional targets, divide-or-distribute,
-the 601.2g mana window, 601.4's look-ahead. `backlog.md` §3 says why they were
-left out of §2 rather than folded in.
+**Also still open**: the 25 CR 601 casting-procedure atoms — modal
+announcement, kicker-conditional targets, divide-or-distribute, the 601.2g mana
+window, 601.4's look-ahead. `backlog.md` §4 says why they were left out.
 
 ---
 
@@ -43,7 +49,14 @@ left out of §2 rather than folded in.
   different project.
 - **D2b is deferred, deliberately.** 54 atoms are cited only in `mtgsim/src/`:
   production code encodes the rule and no test mentions it. Those need a test
-  *written*, not annotated. It does not block D3b.
+  *written*, not annotated. It does not block D3b — but slice 1 found **56 more
+  atoms of the same shape** (`backlog.md` §3.2), so D2b is larger than its
+  original 54 and is now the biggest single thing this workstream has deferred.
+- **Slice 1 did not re-file anything, and left a policy question open**
+  (`backlog.md` §3.3): **27 of `owed`'s 31 atoms sit in slice-1 sections, 14 in
+  CR 701 alone.** Re-filing them would take the gate from 31 to 4. Whether a
+  `NEW`-ticketed atom belongs to `owed` or to `backlog.md` is the owner's call,
+  and it was not taken in passing.
 
 ---
 
@@ -82,6 +95,12 @@ D3a's own.
 its rule number.** `Mechanism` names the function; the rule number names a CR
 section, and a CR section is a loose proxy for a mechanic. This needs no code
 read and it is the single most useful thing carried into D3b.
+
+7. **"Slice 1 is bookkeeping — mostly pointers."** Broadly right, and worth the
+   number: **two thirds of it (132 of 197 atoms) needed no entry.** But it also
+   produced four real entries and one verified Deferred Migrations find —
+   `StackEntry.chosen_modes`, dead scaffolding with twelve empty writers and no
+   reader (`codebase-state.md` item 31). Cheap slices still turn things up.
 
 **Three estimates, all low**: D1 called ~20 lines, landed +58/−17; D2a called 18
 annotations, produced 3 plus a query bug; D3a inherited "~101 atoms to re-file"

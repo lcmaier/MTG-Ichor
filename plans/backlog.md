@@ -135,7 +135,7 @@ rule-level citations this file will accumulate as it fills, not for today's text
   discover, airbend. Most also need §2.1, because they are alternative costs.
 - **Atoms** — **none re-filed, and that is the finding.** Every atom about
   casting from a non-hand zone (601.2a-003, 601.3f-001/002, and the CR 702
-  keyword family) is already filed at Phase 8, correctly. See §3's second note.
+  keyword family) is already filed at Phase 8, correctly. See §4's second note.
 - **Owner** — none yet.
 
 ### 2.4 Voting, and the `DecisionProvider` choice shapes
@@ -158,22 +158,206 @@ rule-level citations this file will accumulate as it fills, not for today's text
   is explicitly unscheduled (audit §6).
 - **Owner** — none yet.
 
+### 2.5 CR 701 keyword actions — the unimplemented half of `Primitive`
+
+- **Rules** — CR 701.3 (attach/unattach), 701.10–701.11 (doubling/tripling
+  P/T), 701.21 (sacrifice), 701.40 (manifest), 701.43 (exert), 701.58 (cloak),
+  701.62 (manifest dread)
+- **Verdict** — `Primitive` is the type, and audit §4 already ruled it a
+  **feature by contract**: one arm per keyword action, so nothing here makes an
+  existing assumption false. Confirmed against the enum — `Destroy`, `Exile`,
+  `Sacrifice`, `Mill`, `Discard`, `Scry`, `Surveil`, `Regenerate`,
+  `CreateToken` exist; **`Manifest`, `Cloak`, `ManifestDread`, `Exert` and
+  `Unattach` do not**, and neither does a P/T-doubling arm. `Attach` exists
+  without its inverse.
+- **Size** — per arm, batched a few to a PR. **One exception that is not
+  additive:** the doubling/tripling family, which `codebase-state.md` Deferred
+  Migrations item 5 already owns — CR 701.10a makes doubling a Layer 7c effect
+  whose addend depends on what already applied, needing an `AmountExpr`
+  affected-power leaf *and* a timestamp merge. 6 of the 24 atoms are that, and
+  they are the only ones with a design question.
+- **Blocks** — manifest and cloak need the face-down subsystem, shared with
+  foretell in §2.3; exert needs skip-untap tracking; unattach is the missing
+  half of an `Attach` that already works.
+- **Atoms** — 24, **not re-filed** — see §3's note on the `owed` collision.
+  **14 of the 31 atoms `owed` currently reports are this section.**
+- **Owner** — none yet.
+
+### 2.6 CR 702 keyword abilities
+
+- **Rules** — CR 702, the evasion/combat and static-ability half: menace
+  (702.111), shroud (702.18), protection (702.16), improvise (702.126), flash
+  (702.8), impending (702.176), warp (702.185), and first/double strike
+  (702.4, 702.7)
+- **Verdict** — mostly card breadth rather than a missing surface, which is why
+  audit §6 retired `audit --dark` over exactly this material: it is *depth*, and
+  it belongs beside the phases that need it. Two exceptions worth naming
+  separately, because they are engine behavior and not a card:
+  **mid-combat keyword change** (702.4c/d, 702.7c — gaining or losing
+  first/double strike between damage steps re-decides who participates) and
+  **LKI for a damage source that changed zones** (702.2e, 702.15c, 702.90d),
+  which is item 6's LKI formalization.
+- **Size** — the keywords are Phase 8 breadth. The mid-combat re-check is one
+  focused change to the combat damage step; the LKI half rides item 6.
+- **Blocks** — nothing structural. Protection also needs §2.8's SBA legality
+  re-check for Auras and Equipment.
+- **Atoms** — 20, not re-filed.
+- **Owner** — none yet.
+
+### 2.7 Modal spells and abilities (CR 700.2), and devotion (700.5)
+
+- **Verdict** — **`StackEntry.chosen_modes` is dead scaffolding.** Declared at
+  `state/game_state.rs:33` as `Vec<usize>`, written `Vec::new()` at all twelve
+  construction sites, and **read nowhere**. That is the same shape as
+  `CardData.color_indicator` in audit §5.2 — a field that represents the fact
+  correctly with no writer and no reader — so it is Deferred Migrations debt,
+  not a fact. Nothing chooses a mode, so nothing can be modal.
+- **Size** — one phase, and it wants doing near §2.1: CR 700.2h's per-mode
+  additional costs and 700.2c's mode-conditional targeting both reach into the
+  cost pipeline and into CR 601.2b/601.2c, which §4 leaves for later triage.
+  700.2e hands the choice to an opponent, so it also needs a `DecisionProvider`
+  method — §2.4's question again, in a different costume.
+- **Blocks** — every charm and command; escalate and entwine; the
+  "choose one or both" cycle. Devotion (700.5a) is separate and layer-shaped:
+  it reads a *partial* layer result, after L1–L3 but before L4–L7.
+- **Atoms** — 7, not re-filed.
+- **Owner** — none yet.
+
+### 2.8 Where an ability functions, and when it can be activated
+
+- **Rules** — CR 602.5 (activation restrictions), 604.5/604.6 (static abilities
+  that function on the stack or in hand), 113.6 (functioning zones), 608.3g
+- **Verdict** — audit §4 already ruled both halves on `AbilityDef`:
+  **activation restrictions (CR 602.5d) and functioning zone (CR 113.6) are
+  additive** — the trigger-condition field in the same row is critical-path
+  item 6, these two are not. Today an `AbilityDef` says what an ability does
+  and not where it works or when it may be used, so "activate only as a
+  sorcery" and "you may cast this from your hand for its flash cost" have no
+  representation.
+- **Size** — one small phase for both fields, but it is a **prerequisite that
+  looks optional**: §2.3's cast-from-elsewhere keywords are written as
+  hand-zone or graveyard-zone static abilities (604.6), so this is the surface
+  that admits them. 608.3g's stack-zone static → ETB delayed trigger (Dash,
+  Blitz, Warp) also needs item 6.
+- **Blocks** — flash and every "activate only as a sorcery" ability; the
+  once-per-turn restriction that must survive a controller change (602.5b);
+  §2.3, in the sense that it is where those keywords will be expressed.
+- **Atoms** — 14 across CR 602 (9) and CR 604 (5), not re-filed.
+- **Owner** — none yet.
+
 ---
 
-## 3. Not triaged yet
+## 3. Dispositioned — sections that need no entry of their own
+
+`orphaned --bucket unbuilt` reports 38 sections that a plan doc already
+discusses — 197 atoms. They are in the worklist only because **citations match
+per rule, never per section**: `layers-architecture.md` saying "CR 613" never
+claims `613.1e`. That is the filter working as specified, not a miss.
+
+Five of the 38 turned out to be real mechanics and became §2.5–§2.8 (65 atoms).
+**The other 33 sections — 132 atoms, two thirds of the slice — need no entry**,
+and this table is the record of where each one actually belongs. It is a
+**pre-sort, not a verdict**, in exactly the sense audit §6 means: confirm a
+cluster before acting on its row.
+
+### 3.1 Owned by a doc or a critical-path item (17 sections, 76 atoms)
+
+| CR | Atoms | Belongs to |
+|---|---|---|
+| 205 | 15 | Layer 4 type-changing — `layers-architecture.md` |
+| 613 | 8 | 613.8c is **critical-path item 7**; 613.5/613.9/613.7m–n are `layers-architecture.md` |
+| 107 | 8 | §2.1 — these are the 28 that stayed put, D3a |
+| 118 | 7 | §2.1, same |
+| 601 | 5 | the casting-procedure cluster — §4 |
+| 305 | 4 | effective lands-per-turn, a continuous-effect query — layers |
+| 704 | 4 | SBA; 704.5m Aura legality pairs with §2.6's protection |
+| 608 | 4 | resolution; 608.3g is §2.8 |
+| 612 | 3 | Layer 3 text-changing — unbuilt, and `layers-architecture.md`'s |
+| 208 | 3 | Layer 7 P/T, incl. 208.3a's dormant effect on a type change |
+| 122 | 3 | SBA (704.5i/704.5c/704.5q) |
+| 110 | 3 | `is_permanent()` and characteristics; 110.4c is a layers invariant |
+| 611 | 2 | continuous-effect start; 611.2d's X lock is §2.1-adjacent |
+| 609 | 2 | `AffectedSet` defaults — audit §4 found no gap here |
+| 109 | 2 | `EffectiveCharacteristics` — characteristics |
+| 302 | 2 | P/T as a characteristic — layers |
+| 111 | 1 | token cease-to-exist SBA — `copy-effects-architecture.md` |
+
+### 3.2 Behavior that exists, missing only a test (16 sections, 56 atoms)
+
+The `orphaned` doc's own caveat — *"behavior can exist uncited"* — is not a
+footnote here; it is **the larger half of this slice.** Each of these names a
+function the tree defines. This is D2b-shaped work: a test written or a
+`// COVERS:` added, never a backlog entry.
+
+| CR | Atoms | Confirmed present |
+|---|---|---|
+| 120 | 8 | `assign_combat_damage`, `damage_marked`, `lethal_damage_for`, `perform_cleanup_actions` |
+| 104 | 6 | `check_game_over`, `draw_card`, poison SBA |
+| 113 | 6 | `activate_mana_ability`; ability-type enum |
+| 115 | 6 | target legality checking |
+| 506 | 5 | `AttackingInfo` / `BlockingInfo`, combat step structure |
+| 605 | 5 | `activate_mana_ability` and its casting-time window |
+| 400 | 4 | zone guards in `move_object`; ordered zone collections |
+| 119 | 4 | `GameConfig.starting_life`, life gain/loss, life SBA |
+| 106 | 2 | `ManaSymbol::Colored`, colorless distinct from generic |
+| 121 | 2 | draw-from-empty SBA flag |
+| 509 | 2 | `BlockingInfo` on declaration |
+| 510 | 2 | combat damage assignment and validation |
+| 103 | 1 | `Game::setup()` |
+| 108 | 1 | `is_token` |
+| 116 | 1 | priority after a special action |
+| 508 | 1 | `AttackingInfo` on declaration |
+
+**Two of these rows are weaker than the rest and were not confirmed to the
+function**: CR 113 and CR 115 each mix implemented behavior with one atom that
+is not (113.6j's zone-agnostic activation is §2.8; 115.4's "any target" names a
+`TargetSpec` type the tree does not define). Confirm before annotating.
+
+### 3.3 The `owed` collision — a policy question, not a triage one
+
+**None of §2.5–§2.8's atoms were re-filed to `Backlog`, deliberately.**
+`owed` reports 31 atoms, and **27 of them sit in slice-1 sections — 14 in
+CR 701 alone.** Re-filing this slice the way D3a re-filed the cost pipeline
+would take the gate from 31 to 4.
+
+D3a's re-file was justified because those atoms' shipped-phase filing was
+*wrong* — hybrid mana payment was never shipped, so `owed` shrinking was a
+consequence of a correction, not its purpose. Here the filing is not obviously
+wrong in the same way: a `NEW` ticket under a shipped phase is precisely what
+`owed` exists to surface, and an atom can honestly be both "a shipped phase
+promised this" and "here is the mechanic that would deliver it".
+
+**So this is a question about which register owns a `NEW`-ticketed atom, and it
+moves a gate the project reads.** It is left open rather than settled in
+passing — silencing a gate as a side effect of triage is the same error §1
+refuses for `orphaned`.
+
+---
+
+## 4. Not triaged yet
 
 ```bash
 python plans/specdb.py orphaned --bucket unbuilt --all
 ```
 
-**297 atoms across 63 sections** as of 2026-08-31, down from 332/64 by this
-file's re-file. Regenerate rather than trusting that number — it is a query, and
-a number in prose rots. The largest remaining clusters are CR 701 (24), CR 702
-(20), CR 205 type-changing effects (15), CR 306 loyalty (10), CR 602 activating
-abilities (9). Each needs one judgment: real backlog item, rough size, what it
-blocks.
+The query still reports **297 atoms across 63 sections** as of 2026-08-31 —
+regenerate rather than trusting it, since re-filing is not how a section leaves
+this list; §3's dispositions are prose and the query cannot read them.
 
-Two things learned while seeding §2, recorded so they are not re-derived:
+**What is genuinely untriaged is the 25 sections no plan doc mentions — 100
+atoms.** The other 38 sections are §3. The largest untriaged clusters are
+CR 202 colour derivation (11), CR 306 loyalty (10), CR 105 (9), CR 117 priority
+(8), CR 405 stack ordering (8), CR 100 deck construction (7), CR 500 and CR 703
+turn structure (11 together). Each needs one judgment: real backlog item, rough
+size, what it blocks.
+
+**Expect the §3.2 pattern to dominate here too.** Several of the 25 look plainly
+implemented from their summaries alone — five colours, the fifteen card types,
+five phases per turn, maximum hand size seven — and will resolve to a missing
+test rather than an entry, the way 28 of the cost cluster's 54 did.
+
+Three things learned while seeding §2 and §3, recorded so they are not
+re-derived:
 
 1. **A CR section is a loose proxy for a mechanic, and it over-collects.** The
    CR 107/118/202 shipped-phase bucket reads as one cluster and is at least four:
@@ -191,6 +375,13 @@ Two things learned while seeding §2, recorded so they are not re-derived:
    which bundles the `Zone::Hand` hard-code and linked abilities into one bullet.
    They are two mechanics that share no rule, no type and no phase.
 
+3. **The `Mechanism`-field method does not automate.** Matching backticked
+   identifiers against what the Rust tree defines was tried and abandoned: 224
+   of the 297 name no identifier at all, and the "absent" bucket is mostly false
+   negatives — `sba.rs` is a file, `TargetSpec::AnyTarget` a variant, `i32` a
+   primitive. **It is a human read**, and that is the sizing constraint: D3a read
+   ~97 atoms by eye, slice 1 read ~197.
+
 The 25 remaining CR 601 casting-procedure atoms — modal announcement,
 kicker-conditional targets, divide-or-distribute (CR 601.2d, which audit §4
 already sizes as "same shape as `x_value`"), the 601.2g mana window, 601.4's
@@ -200,7 +391,7 @@ seeding.
 
 ---
 
-## 4. What this file does not cover
+## 5. What this file does not cover
 
 - **The critical path** — `CLAUDE.md` items 1–7, and the Commander/multiplayer
   track interleaved after item 5. Cited by number elsewhere; do not restate them

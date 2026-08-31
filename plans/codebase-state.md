@@ -838,6 +838,23 @@ section never asked.
     payment time and nowhere afterward.
     → `cr-coverage-audit.md` §5.1.
 
+31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
+    (found 2026-08-31 by the D3b slice-1 triage).** Declared at
+    `state/game_state.rs:33` as `Vec<usize>`, constructed `Vec::new()` at all
+    twelve sites (`cast.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
+    ×3, one test), and **read nowhere in the tree.**
+
+    Exactly the shape of `CardData.color_indicator` in `cr-coverage-audit.md`
+    §5.2: a field that represents its fact correctly, with nothing on either
+    side of it. So this is **debt, not a fact** — the type is already right, and
+    whoever builds modal spells inherits it rather than designing it.
+
+    **Nothing chooses a mode, so nothing can be modal**, which is why CR 700.2's
+    seven atoms sit under a shipped phase with no test. The reader arrives with
+    that work; CR 700.2h's per-mode additional costs and 700.2c's
+    mode-conditional targeting both reach into the cost pipeline, so it wants
+    doing near it. → `backlog.md` §2.7.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
