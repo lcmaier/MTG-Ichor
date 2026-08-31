@@ -796,6 +796,38 @@ section never asked.
     iteration guard, because it hangs rather than fails if the rule is wrong.
     → `replacement-architecture.md` §11 item 18.
 
+30. **Nothing records what was spent to pay a cost, and five rules want it
+    (found 2026-08-31 by the type-surface audit; `cr-coverage-audit.md` §5.1).**
+    `StackEntry.chosen_alternative_cost` and `additional_costs_paid` hold the
+    cost *definitions* — which alternative was chosen, which additional costs
+    were paid — and both are written at cast and read by no production code.
+    Neither says **which mana** or **which objects** were spent, and payment
+    destroys both: the mana leaves the pool, and a sacrificed permanent is in a
+    graveyard by the time the spell resolves.
+
+    **A fact rather than a feature, because three separate future phases would
+    each encode its absence.** CR 702.44's sunburst is an ETB replacement
+    (**RC**); CR 707.10 makes a copy use *the original's* paid objects — the
+    Fling case the CR spells out by name (**CV-2**); CR 700.14's "expend N"
+    counts mana spent to cast spells this turn (**critical-path item 6**).
+    CR 400.7d is the general form — "an ability of a permanent can reference
+    … what costs were paid to cast that spell or what mana was spent to pay
+    those costs" — and CR 107.4h's snow `{S}` is a fourth reader.
+    `ManaPool.last_spent_grants` is already a partial, transient version of
+    exactly this: it holds grants from atoms spent in the *last*
+    `pay_with_plan` call and is drained after one read.
+
+    **Sized: the `x_value` rail.** A cast-time value carried from `StackEntry`
+    to `BattlefieldEntity` on resolution is a shape this codebase already has,
+    so this rides it rather than re-threading anything — which is what keeps it
+    a field and not a redesign. The part that needs thought is what a spent
+    *object* is once it has left: CR 707.10's Fling reads the sacrificed
+    creature's power out of a graveyard, which is LKI, and LKI formalization
+    belongs to item 6. **Trigger: the first reader — sunburst at RC or
+    CR 707.10 at CV-2, whichever lands first.** Recording it now is the cheap
+    half; the mana atoms exist at payment time and nowhere afterward.
+    → `cr-coverage-audit.md` §5.1.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
@@ -903,37 +935,41 @@ seven items; the plan will always be coarser than the rules, and a third
 checkable: the detector above is cheap, it has found two, and running it at the
 start of each phase is a better instrument than confidence.
 
-**Update 2026-08-31 — it has now found five, and the method has its own
+**Update 2026-08-31 — it has now found six, and the method has its own
 document.** Asked whether the critical path covers everything in the CR, a run
-of the detector turned up three more in one sitting: **cost modification**
-(~903 cards; `replacement-architecture.md` §9 already called it homeless and
-"not small", and `apply_cost_modifications` is a passthrough stub with a test
+of the detector turned up three in one sitting: **cost modification** (~903
+cards; `replacement-architecture.md` §9 already called it homeless and "not
+small", and `apply_cost_modifications` is a passthrough stub with a test
 asserting so), **casting from a zone other than hand** (~764 cards;
 `check_cast_legality` hard-codes `Zone::Hand`, and CR 607 linked abilities is 20
 atoms, all uncovered, mentioned by no architecture doc), and **voting** (CR
-701.38 — **zero atoms** in a 1,753-atom corpus, never examined).
+701.38 — zero atoms in a 1,753-atom corpus, though ~~never examined~~ DEFERRED
+in session 7A since 2026-04-07; zero *atoms* is the half that was true).
 
-`plans/cr-coverage-audit.md` is now the method's owner and the plan for
-finishing it. Two numbers from it are worth carrying here: against the frozen
-`tmnt.txt`, **514 of 3,120 rules are cited nowhere at all** — no atom, no
-verdict, no source comment, no plan doc — collapsing to **68 dark rule
-families**, all of them in CR 3 and CR 7. `python plans/specdb.py audit` is the
-generator and the authority for those numbers; phase A-0 landed it 2026-08-31.
+`plans/cr-coverage-audit.md` owns the method. **It changed on 2026-08-31, and
+the reason belongs here, because this section is where the detector lives.**
+The first plan swept the frozen CR for *dark* rules — ones nobody had examined
+— and came back with **zero facts** across 199 families. Measured afterward,
+five of the six gaps carry 20+ atoms each: they were examined in 2026-04 and
+then **orphaned**, so a darkness filter removes them before the sweep starts.
+Only voting was dark.
 
-**Those figures replace a much larger pair, and the reason is worth carrying.**
-A-0 first reported 1,304 and 478. Phase A-1 triaged 131 families against that
-worklist and found **every one of them already classified** — the corpus writes
-a verdict in three different shapes and `parse_rule_mentions` read one, so
-`audit` had been counting *unread* verdicts as unexamined rules. A-1 fixed that
-and the family-collapse test beside it (`cr-coverage-audit.md` §8, D1 and D2).
-**Zero facts came out of A-1**; what came out was the generator. The lesson
-this section already owns applies to its own tooling: a number that nobody can
-reproduce by hand is a number nobody has checked.
+**Darkness is not ownership**, and the corpus fails at both, in opposite
+directions — `audit --dark` catches voting and misses the other five;
+`orphaned` catches the five and misses voting, which has no atom to orphan.
+Neither query is the instrument. What all six *do* share is that **a type or a
+function could not express what the CR requires**, which is this section's own
+fact/feature triage — and facts live in types, not in rules. The audit is now a
+**type-surface** sweep: for each fact-bearing type, what can the CR require
+here that this type cannot represent? It found one fact, Deferred Migrations
+item 30 (cost-payment provenance), and it is calibrated against the six above
+before it is trusted.
 
-And the sweep is scoped to *facts*, not coverage, on this section's
-own fact/feature triage: it should run **before CV-5, CV-7 and RD**, because
-those three are the phases that would otherwise encode a fact's absence into
-`CardData`, `BattlefieldEntity` and the `GameAction` vocabulary.
+The lesson the failed pass paid for applies to this section's own tooling: **a
+number nobody can reproduce by hand is a number nobody has checked.** `audit`
+had been counting *unread* verdicts as unexamined rules for as long as it
+existed, because `parse_rule_mentions` read one of the three shapes the corpus
+writes a verdict in.
 
 ### Fuzz-pool coverage — audited 2026-08-26
 

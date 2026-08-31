@@ -85,7 +85,7 @@ RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")
 #
 # **The corpus writes a verdict in three shapes, not one**, and reading only the
 # first is what made `audit` report 478 in-scope dark families when the real
-# number was 74 (`cr-coverage-audit.md` §8, defect D1). The shapes are authored
+# number was far smaller (`cr-coverage-audit.md` §1, defect D1). The shapes are authored
 # fact across twelve session files and five months, so the parser learns them
 # rather than the files being rewritten to match a regex — `CLAUDE.md` calls the
 # corpus authored, never generated.
@@ -1004,7 +1004,7 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
     """Behavior a shipped phase promised, that no test covers and no doc claims.
 
     **This is the query the five motivating gaps needed; `audit --dark` is not
-    it** (`cr-coverage-audit.md` sections 7 and 8.4). The two sound alike and
+    it** (`cr-coverage-audit.md` section 1). The two sound alike and
     are not:
 
       darkness   "has anyone *looked* at this rule?"   -> examination
@@ -1087,7 +1087,7 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
     emit("     behavior? Only reading the code answers it.")
     emit("  2. if behavior: does it need a new field on an existing type, or an")
     emit("     existing assumption to become false? Yes -> a FACT, escalate.")
-    emit("See cr-coverage-audit.md section 3.3.")
+    emit("See cr-coverage-audit.md section 2 for the fact/feature question.")
 
     text = "\n".join(lines) + "\n"
     if out_path:
@@ -1099,7 +1099,7 @@ def orphaned(chapter=None, limit=25, show_all=False, out_path=None):
 
 # --- audit: is the plan complete against the frozen CR? ----------------------
 #
-# `plans/cr-coverage-audit.md` owns the method and the session split; this is
+# `plans/cr-coverage-audit.md` owns the method; this is
 # its generator. Everything below is derived - nothing here is hand-maintained.
 
 # CR sections outside the engine's scope, as *data* so that extending the list
@@ -1182,7 +1182,7 @@ def audit(chapter, dark_only, families, out_path):
     (CR 702: 180 of its 190 keyword families already have an examined subrule).
 
     Reports what is unexamined, never what is wrong - a rule with an atom and a
-    verdict can still be mis-modelled. `cr-coverage-audit.md` section 6.
+    verdict can still be mis-modelled. `cr-coverage-audit.md` section 3.
     """
     db = connect()
     rules = db.execute(
@@ -1228,8 +1228,8 @@ def audit(chapter, dark_only, families, out_path):
         # replaces asked whether a known rule started with `613.4.`, which no
         # subrule ever does - they are `613.4a`, not `613.4.a` - so a family
         # whose subrules were all examined still reported wholly dark. That is
-        # `cr-coverage-audit.md` section 8 defect D2, and it inflated the Pass A
-        # surface from 74 families to 478.
+        # `cr-coverage-audit.md` section 1 defect D2, and it inflated that
+        # sweep's worklist by roughly sevenfold.
         known_families = {_family(k) for k in known}
         orphans = [f for f in by_family if f not in known_families]
         texts = {n: t for n, t in rules}
