@@ -951,8 +951,9 @@ of the detector turned up three in one sitting: **cost modification** (~903
 cards; `replacement-architecture.md` §9 already called it homeless and "not
 small", and `apply_cost_modifications` is a passthrough stub with a test
 asserting so), **casting from a zone other than hand** (~764 cards;
-`check_cast_legality` hard-codes `Zone::Hand`, and CR 607 linked abilities is 20
-atoms, all uncovered, mentioned by no architecture doc), and **voting** (CR
+`check_cast_legality` hard-codes `Zone::Hand`; **CR 607 linked abilities was
+bundled in here and is a separate mechanic** — no CR 601 atom concerns a non-hand
+zone, see `backlog.md` §2.2/§2.3), and **voting** (CR
 701.38 — zero atoms in a 1,753-atom corpus, though ~~never examined~~ DEFERRED
 in session 7A since 2026-04-07; zero *atoms* is the half that was true).
 

@@ -1,138 +1,101 @@
-# Handoff — `plans/backlog.md` and the D3 triage
+# Handoff — the D3b triage
 
-**Resume here.** Everything below is state from the 2026-08-31 session that is
-*not* recoverable from the repo. What *is* in the repo is not restated: read
-`cr-coverage-audit.md` §2 (the method), §5 (findings), §6 (the queries) first.
-Delete this file when D3 lands.
-
----
-
-## 0. Where the work stopped
-
-PR #70 is open and carries the whole CR-audit rewrite plus the tooling. It is
-**not** a prerequisite for D3 in the code sense, but D3's numbers come from
-`orphaned`, which #70 introduces — so either merge #70 first or branch off it.
-
-Done: the type-surface audit, `specdb orphaned`, D1 (the cited/unbuilt
-pre-sort), D2a (hand-confirming the 18 test-cited candidates).
-
-Not done: **D2b** and **D3**, below.
+**Resume here.** D3a landed: `plans/backlog.md` exists, with its structure, the
+exclusion decision, and four seeded entries. **Read `backlog.md` first** — it is
+now authoritative for everything this file used to hold about the three known
+mechanics, and it is not restated here. Then `cr-coverage-audit.md` §2 (method),
+§5 (findings), §6 (the queries). Delete this file when D3b lands.
 
 ---
 
-## 1. The one number that matters
+## 0. What is left
+
+**D3b — one judgment each for the remaining sections.** Real backlog item, rough
+size, what it blocks. The bulk, and the part most likely to go thin if rushed;
+split it rather than doing 63 sections in one pass.
 
 ```bash
-python plans/specdb.py orphaned --bucket unbuilt
+python plans/specdb.py orphaned --bucket unbuilt --all
 ```
 
-**332 atoms across 63 sections.** That is `backlog.md`'s upper bound, and
-**nothing pending reduces it** — see §4's correction 2. Regenerate it rather
-than trusting this file; it is a query, and a number in prose rots.
+**297 atoms across 63 sections** at D3a's close, down from 332/64. Regenerate it;
+a number in prose rots. Largest clusters: CR 701 (24), CR 702 (20), CR 205
+type-changing (15), CR 306 loyalty (10), CR 602 activating abilities (9).
+
+**The obvious first entry is already scoped**: the 25 CR 601 casting-procedure
+atoms — modal announcement, kicker-conditional targets, divide-or-distribute,
+the 601.2g mana window, 601.4's look-ahead. `backlog.md` §3 says why they were
+left out of §2 rather than folded in.
 
 ---
 
-## 2. What D3 is, and the split
+## 1. Decided at D3a, do not re-litigate
 
-**D3a — structure plus the two known clusters.**
-Write `backlog.md`; seed it with the two mechanics whose verdicts are already
-established, and re-file their atoms off the shipped phases they are wrongly
-filed under.
-
-- **Cost modification** (CR 107/118/202/601.2f) — 58 atoms, sessions 1, 2, 5.
-  `apply_cost_modifications` is a passthrough stub with a test asserting so.
-  `replacement-architecture.md` §9 already says it "needs a phase marker of its
-  own … and it is not small."
-- **Casting from a non-hand zone** (CR 601/607) — 43 atoms, session 5.
-  `check_cast_legality` hard-codes `Zone::Hand`. CR 607 linked abilities is 20
-  uncovered atoms and no doc mentions it.
-
-**No code read is needed for these two** — the type-surface audit already did
-it, and both are documented stubs. That is what makes them the cheap first
-slice.
-
-> **D3a moves a gate: `owed` 38 → 31.** Seven of the 101 carry a NEW ticket.
-> That is expected and is the reason D3a needs its own branch rather than
-> joining PR #70, whose stated exit criterion is `owed` = 38. **Verify the
-> arithmetic before assuming it still holds.**
-
-**D3b — the remaining ~61 sections.** One judgment each: real backlog item,
-rough size, what it blocks. This is the bulk and the part most likely to go
-thin if rushed; consider splitting again rather than doing 61 in one pass.
-
-**Third mechanic, no atoms: voting (CR 701.38)** and CR 201.4 with it —
-`DecisionProvider` is four index-shaped methods with no vote and no "choose a
-card name". It gets a `backlog.md` entry but stays invisible to `owed` and
-`orphaned` either way, because it has **zero atoms**. Authoring them is corpus
-work — writing atoms for a rule that carries a verdict but has none —
-and that is explicitly unscheduled.
-
----
-
-## 3. Decisions taken, not yet written anywhere
-
-- **`plans/backlog.md` is the agreed home** for everything off the critical
-  path — owner's call, and the motivation was wanting a roadmap with everything
-  yet to do rather than only the critical components. It needs a row in
-  `CLAUDE.md`'s authority table; the file is at **197/200**, so there is room
-  for one line and not much more.
-- **Do not design the three mechanics here.** A line each — rough size, what it
-  blocks — is the deliverable. Sizing before writing is the project's own rule,
-  and three phase designs is a different project.
+- **`backlog.md` is excluded from `orphaned`'s ownership set** — it is that
+  query's *output*, so leaving it in would make the query converge to zero by
+  being written. The full argument, and why it is **not** the audit doc's
+  argument, is `backlog.md` §1 and `_scan_citations`'s docstring. The burn-down
+  is driven by graduation to an architecture doc instead.
+- **Atoms re-file to a `Backlog` phase**, a real phase name in `PHASE_ORDER`
+  that `normalize_phase` recognises. The line keeps its old filing visible:
+  `- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)`.
+- **Do not design the mechanics here.** A line each. Three phase designs is a
+  different project.
 - **D2b is deferred, deliberately.** 54 atoms are cited only in `mtgsim/src/`:
-  production code encodes the rule and *no test mentions it at all*. Those need
-  a test **written**, not annotated — larger than D2a, and test authoring
-  rather than planning. It does not block D3.
+  production code encodes the rule and no test mentions it. Those need a test
+  *written*, not annotated. It does not block D3b.
 
 ---
 
-## 4. Corrections — claims made and then disproved this session
+## 2. Corrections — claims made and then disproved
 
 Recorded so they are not re-derived. Each was believed, acted on, and killed by
-a measurement.
+a measurement. The first four are from the D2/D3a sessions; the last two are
+D3a's own.
 
 1. **"~24% of the corpus points at a dead `L##`/`T##` ticket vocabulary."**
    False. Every atom normalizes to a real phase; `ticket` is a secondary label
-   that no query gates on. There is no tombstone problem in the data.
-2. **"D2 shrinks the backlog."** False, and it is the important one: D2 operates
-   on the **cited** bucket, the backlog is the **uncited** one. **D2 never
-   gated D3.**
-3. **"Item 30's back-stop is before RC."** False. `ATOM-702.44a-001` is ticketed
-   *"DEFERRED — Phase 8. Requires mana-color-spent tracking"* — the corpus
-   scheduled sunburst at Phase 8 and named the dependency itself. Fixed in
+   no query gates on. There is no tombstone problem in the data.
+2. **"D2 shrinks the backlog."** False. D2 operates on the **cited** bucket, the
+   backlog is the **uncited** one. **D2 never gated D3.**
+3. **"Item 30's back-stop is before RC."** False — `ATOM-702.44a-001` is
+   ticketed *"DEFERRED — Phase 8"* and named the dependency itself. Fixed in
    `77bda5e`; the back-stop is **CV**.
 4. **"The 75 `cited` atoms are a cheap annotation errand."** False twice over —
-   18 in `tests/` of which only **3** were real, and 54 in `src/` needing tests
-   written.
+   18 in `tests/` of which only **3** were real, and 54 in `src/` needing tests.
+5. **"CR 601/607 is casting from a non-hand zone, 43 atoms."** False, and it is
+   the one that changed D3a's shape. **No** shipped-phase CR 601 or 607 atom
+   concerns a non-hand zone — those are at Phase 8, correctly filed. The 43 are
+   casting-procedure depth (25), linked abilities (10), cost pipeline (7) and one
+   covered. **Linked abilities (CR 607) is a whole mechanic of its own**, and it
+   had been travelling under CR 601's section number. It is *named* in three plan
+   docs and designed by none; no mention is rule-level, which is why its atoms
+   survived the ownership filter. Do not repeat "no doc mentions it" — that was
+   checked at D3a and is false.
+6. **"Cost modification is CR 107/118/202, 58 atoms."** Over-collected. That
+   bucket is 54 shipped-phase atoms and at least four mechanics; **28 stayed
+   put** because their `Mechanism` field names a function that exists and works
+   (`ManaPool::spend()`, `pay_life()`, `check_cost_resource`). They are missing a
+   test, not missing behavior.
 
-**Two estimates, both low**: D1 was called ~20 lines and landed +58/−17; D2a
-was called 18 annotations and produced 3 plus a query bug. **Re-size D3 against
-live `orphaned` output before committing to scope.**
+**The method that fixed 5 and 6: triage from the atom's `Mechanism` field, not
+its rule number.** `Mechanism` names the function; the rule number names a CR
+section, and a CR section is a loose proxy for a mechanic. This needs no code
+read and it is the single most useful thing carried into D3b.
+
+**Three estimates, all low**: D1 called ~20 lines, landed +58/−17; D2a called 18
+annotations, produced 3 plus a query bug; D3a inherited "~101 atoms to re-file"
+and re-filed 43. **Re-size against live output before committing to scope.**
 
 ---
 
-## 5. A trap to know about
-
-`orphaned`'s third filter reads *any* plan-doc mention as ownership. Writing
-about a rule in `plans/*.md` therefore removes its atoms from the worklist.
-`cr-coverage-audit.md` is excluded from that set (`_scan_citations`'s
-`exclude_docs`) because an instrument must not satisfy its own filter — it had
-been claiming 19 atoms, CR 117.1a among them, purely by citing them as
-examples.
-
-**`backlog.md` will have the same problem, and worse**: a backlog exists to
-name rules, so every entry written will delete its own atoms from the query
-that found them. **Decide up front** whether `backlog.md` joins the exclusion
-list. The argument for excluding it is identical to the audit doc's; the
-argument against is that a backlog entry genuinely *is* a design claiming the
-rule. This is a real design question and it should not be discovered halfway
-through writing entries.
-
----
-
-## 6. Gates
+## 3. Gates
 
 `python plans/specdb.py build` / `gaps` / `orphans` / `owed` ·
-`python plans/check_claude_md.py`. Expect `owed` **38 → 31** at D3a and **only**
-there. If D3 touches Rust — it should not — `cargo build --all-targets` must
-print zero warnings and `cargo test` must stay green.
+`python plans/check_claude_md.py`.
+
+`owed` moved **38 → 31** at D3a and should not move again at D3b unless a
+re-filed atom carries a `NEW` ticket — check, don't assume. `CLAUDE.md` is at
+**198/200**; a new authority row needs one removed. If D3b touches Rust — it
+should not — `cargo build --all-targets` must print zero warnings and
+`cargo test` must stay green.

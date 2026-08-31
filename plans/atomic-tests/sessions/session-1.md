@@ -851,7 +851,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** A card with mana cost {X}{R}{R} in a player's graveyard
 - **Action:** Query the card's mana value (converted mana cost)
 - **Expected Result:** Mana value is 2 (X=0, so {0}{R}{R} = 2)
-- **Phase:** Phase 5 Layers (mana value calculation)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** NEW — Mana value calculation with X=0 in non-stack zones
 
 **107.3h** — TESTABLE. Paying an object's mana cost that includes {X}: X=0 unless it's a spell on the stack.
@@ -875,7 +875,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Jodah, the Unifier ("Creatures you control get +X/+X, where X is the number of legendary creatures you control.") controls 3 legendary creatures including himself. A vanilla 1/1 token is on the battlefield.
 - **Action:** Compute the token's effective P/T
 - **Expected Result:** Token is 4/4 (1/1 + 3/3 from Jodah's granted ability, X=3 legendary creatures)
-- **Phase:** Phase 5 Layers (L06 ability granting + L08 P/T)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L06 + L08
 - **Note:** Integration test case: a creature with its own X ability (e.g., from its mana cost) AND a Jodah-granted X ability should have two independent X values.
 
@@ -941,7 +941,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Player has {W} in pool. Cost includes {W/U}.
 - **Action:** Pay {W/U} with {W}
 - **Expected Result:** Payment succeeds
-- **Phase:** Phase 5-Pre (known gap — hybrid payment not yet implemented)
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** NEW — Hybrid mana payment implementation
 
 **ATOM-107.4e-002**
@@ -950,7 +950,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Player has {R}{R} in pool. Cost includes {2/B}.
 - **Action:** Pay {2/B} with {R}{R} (generic half)
 - **Expected Result:** Payment succeeds (two generic mana pays the generic half)
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** NEW — Monocolored hybrid mana payment
 
 **ATOM-107.4e-003**
@@ -959,7 +959,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Player has {U} in pool. Cost includes {W/U}.
 - **Action:** Pay {W/U} with {U}
 - **Expected Result:** Payment succeeds
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** NEW — Hybrid mana payment implementation
 
 **107.4f** — TESTABLE. Phyrexian mana can be paid with color or 2 life. Hybrid Phyrexian can be paid with either component color or 2 life.
@@ -970,7 +970,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Player at 20 life with empty mana pool. Cost is {R/P}.
 - **Action:** Player chooses to pay 2 life
 - **Expected Result:** Player's life total becomes 18. Cost is paid.
-- **Phase:** Phase 5-Pre (known gap — Phyrexian payment not implemented)
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** NEW — Phyrexian mana payment implementation
 
 **ATOM-107.4f-002**
@@ -979,7 +979,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Player has {U} in pool. Cost is {W/U/P}.
 - **Action:** Pay with {U}
 - **Expected Result:** Payment succeeds
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** NEW — Hybrid Phyrexian mana payment
 
 **ATOM-107.4f-003**
@@ -988,7 +988,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** Player has {R} in pool. Cost is {R/P}.
 - **Action:** Player chooses to pay with {R}
 - **Expected Result:** Payment succeeds. No life lost.
-- **Phase:** Phase 5-Pre
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** NEW — Phyrexian mana payment implementation
 
 **107.4g** — PURE-DEF. {H} in rules text means any Phyrexian symbol. Naming.
@@ -1059,7 +1059,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Minimal Board:** A creature that entered this turn with a {Q} activated ability
 - **Action:** Attempt to activate
 - **Expected Result:** Activation fails — summoning sickness
-- **Phase:** Phase 5-Pre (T10)
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** T10
 
 **107.7** — TESTABLE. Planeswalker loyalty symbols: [+N] puts N loyalty counters, [-N] removes N.
@@ -2447,7 +2447,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {1}{R}. An effect reduces costs by {2}.
 - **Action:** Calculate the final cost
 - **Expected Result:** Cost is {R} (generic reduced from {1} to {0}, colored component untouched per 118.7a)
-- **Phase:** Phase 5 Layers (cost modification pipeline — T18 601.2e)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **ATOM-118.7-002**
@@ -2456,7 +2456,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {2}. An effect reduces costs by {3}.
 - **Action:** Calculate the final cost and cast
 - **Expected Result:** Cost is {0} (reduced from {2}; excess {1} is lost). Player can cast for free. This is distinct from 118.5 (objects that *naturally* cost {0}) — this tests that the reduction pipeline correctly produces a zero cost.
-- **Phase:** Phase 5 Layers (cost modification pipeline)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **118.7a** — TESTABLE. Generic cost reductions only affect generic mana component.
@@ -2467,7 +2467,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {2}{R}{R}. Effect reduces by {3}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {R}{R} (generic {2} reduced to {0}; the extra {1} reduction doesn't affect colored)
-- **Phase:** Phase 5 Layers (cost modification)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **118.7b** — TESTABLE. If a cost is reduced by colored/colorless mana the cost doesn't require, reduce generic instead.
@@ -2478,7 +2478,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {3}{R}. Effect reduces by {U}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {2}{R} (no {U} component, so {U} reduction → reduce generic by 1)
-- **Phase:** Phase 5 Layers (cost modification)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **118.7c** — TESTABLE. Colored reduction exceeding colored component overflows to generic.
@@ -2489,7 +2489,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {2}{R}. Effect reduces by {R}{R}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {1} (first {R} reduces the {R} component; second {R} overflows to reduce generic by 1)
-- **Phase:** Phase 5 Layers (cost modification)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **118.7d** — TESTABLE. Colorless reduction exceeding colorless component overflows to generic.
@@ -2500,7 +2500,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {2}{C}. Effect reduces by {C}{C}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {1} (first {C} removes {C}; second overflows to reduce generic by 1)
-- **Phase:** Phase 5 Layers (cost modification)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **118.7e** — TESTABLE. Hybrid mana reduction: when a cost reduction is itself a hybrid mana symbol (e.g., an effect says "Spells cost {2/U} less to cast"), the player paying the cost chooses which half of the *reduction* to apply. This is analogous to how paying a hybrid cost works — the reduction is a hybrid symbol and you choose which half to reduce by.
@@ -2563,7 +2563,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {2}{R} and additional cost "sacrifice a creature." Player pays {2}{R} + sacrifices.
 - **Action:** Query the spell's mana value on the stack
 - **Expected Result:** Mana value is 3 (only the mana cost matters, not the additional cost)
-- **Phase:** Phase 5 Layers (mana value calculation)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L01
 
 **118.9** — PURE-DEF. Alternative costs framework. "You may [action] rather than pay [mana cost]." Only one alternative cost per spell.
@@ -2576,7 +2576,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with two available alternative costs
 - **Action:** Attempt to apply both
 - **Expected Result:** Only one is applied. Player must choose one.
-- **Phase:** Phase 5-Pre (T18 — 601.2b cost selection)
+- **Phase:** Backlog — cost pipeline (was Phase 5-Pre)
 - **Ticket:** T18
 
 **118.9b** — PURE-DEF. Alternative costs are generally optional.
@@ -2589,7 +2589,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {4}{U}{U} cast via "without paying its mana cost"
 - **Action:** Query the spell's mana value on the stack
 - **Expected Result:** Mana value is 6 (original mana cost, not the alternative {0})
-- **Phase:** Phase 5 Layers
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L01
 
 **118.9d** — TESTABLE. Additional costs, cost increases, and cost reductions apply to alternative costs too.
@@ -2600,7 +2600,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {4}{R}{R} has alternative cost {R}{R}. An effect increases costs by {1}.
 - **Action:** Calculate final cost using alternative cost
 - **Expected Result:** Final cost is {1}{R}{R} (alternative cost {R}{R} + increase {1})
-- **Phase:** Phase 5 Layers (cost modification pipeline)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** T18
 
 **118.10** — TESTABLE. Each cost payment applies to only one spell/ability/effect.

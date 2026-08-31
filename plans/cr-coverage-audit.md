@@ -264,17 +264,28 @@ none makes an existing assumption false.
   legality" working as designed — worth stating because the obvious place to
   look for the guard is the wrong one.
 
-### 5.3 Still unowned
+### 5.3 Inherited, and now inventoried
 
-Not findings of this audit — findings it inherited, and none has an owner yet.
+Not findings of this audit — findings it inherited. All three have a home as of
+2026-08-31: **`plans/backlog.md`**, which is where they are maintained. Kept here
+as the register's record of what it handed over.
 
-- **Cost modification** (CR 601.2f, 118). `replacement-architecture.md` §9 says
-  it "needs a phase marker of its own … and it is not small";
-  `apply_cost_modifications` is a passthrough stub with a test asserting so.
+- **Cost modification** (CR 601.2f, 118). `apply_cost_modifications` is a
+  passthrough stub with a test asserting so; `replacement-architecture.md` §9
+  says it "needs a phase marker of its own … and it is not small". → backlog §2.1
 - **Casting from a non-hand zone** (CR 601, 607). `check_cast_legality`
-  hardcodes `Zone::Hand`; linked abilities is 20 atoms, all uncovered.
+  hardcodes `Zone::Hand`. → backlog §2.3
 - **Voting** (CR 701.38), and CR 201.4 with it — `DecisionProvider`'s choice
-  shapes.
+  shapes. Zero atoms, and the only one of the six that was genuinely dark.
+  → backlog §2.4
+
+**One correction, made while filing them: the "CR 601, 607" pairing above names
+the verdict, not the atoms.** It reads as one mechanic and is two. No CR 601 or
+607 atom under a shipped phase concerns a non-hand zone at all — those are filed
+at Phase 8, correctly — and the 43 that are there decompose into casting-procedure
+depth (25), **linked abilities (10, which no plan doc mentioned)**, cost pipeline
+(7) and one already covered. Linked abilities was invisible precisely because it
+was travelling under another mechanic's section number. → backlog §2.2, §3.
 
 ---
 
@@ -321,6 +332,16 @@ python plans/specdb.py audit --dark --families   # darkness; in-scope surface is
   claiming the rule. An instrument must not satisfy its own filter — the query
   was deflating by the act of being documented. `audit` still counts this file,
   since for *darkness* a mention really is somebody looking.
+
+  **`backlog.md` is excluded too, for a different reason**, and it is the more
+  important of the two because that file's job is to name every rule this query
+  finds. Its citations are genuine claims, not examples — but it is `orphaned`'s
+  *output*, so leaving it in makes the query converge to zero by being written.
+  A gate any prose can satisfy is not a gate; contrast `owed`, which needs a
+  test. The burn-down still happens and is driven by the right thing: a mechanic
+  graduating to an architecture doc. **Design claims the rule; listing it does
+  not.** → `backlog.md` §1, which also measures the trap — section-level prose
+  claims nothing, and of the 332 only 2 atoms cite more than one rule.
 - **`audit --dark` is retired as an instrument.** Its in-scope surface is 0 and
   the remaining darkness is a *depth* gap, overwhelmingly CR 702 keyword
   subrules. That is corpus authoring — writing atoms for rules that carry a
@@ -338,8 +359,8 @@ into a darkness one.
 
 ## 7. Documents this owes
 
-- **`codebase-state.md`** gets §5.1 as a Deferred Migrations entry, back-stopped
-  before RC.
+- **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
+  back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
 - **Open — the second vocabulary.** Four rules carry a disposition outside the
   eight `specdb` knows: `DUPLICATE` (305.9), `PARTIALLY DEFERRED` (108.5),
   `ALREADY-HANDLED-BY-DESIGN` (732.1, 732.2). Either normalise them or admit a
