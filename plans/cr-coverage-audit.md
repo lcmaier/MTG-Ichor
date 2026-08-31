@@ -365,11 +365,18 @@ into a darkness one.
 
 - **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
-- **Open — the second vocabulary.** Four rules carry a disposition outside the
-  eight `specdb` knows: `DUPLICATE` (305.9), `PARTIALLY DEFERRED` (108.5),
-  `ALREADY-HANDLED-BY-DESIGN` (732.1, 732.2). Either normalise them or admit a
-  ninth — `DUPLICATE` says something the eight cannot. The parser keeps all four
-  visible via its legacy fallback, so this is not urgent.
+- **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
+  the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
+  with the duplication explained in prose, which is the worked example for the
+  rest. Left: `PARTIALLY DEFERRED` (108.5) and `ALREADY-HANDLED-BY-DESIGN`
+  (732.1, 732.2). Either normalise them the same way or admit a ninth verdict.
+
+  **108.5 is the one with a concrete defect**, not just an off-vocabulary label:
+  the legacy fallback's `([A-Z][A-Z-]+)` stops at the space, so `rule_mentions`
+  holds the verdict `PARTIALLY` — a truncation that is in no vocabulary at all
+  and reads as a word rather than a disposition. Not urgent: the fallback keeps
+  all three rules *visible*, so none is dark, and `audit` never gates on the
+  label's value.
 - **Open — ~100 rules whose only verdict is a session's summary table.** A
   summary table is *derived*, and six rules already disagree with their own body
   verdict (305.3, 310.4, 400.12, 402.3, 700.4, 701.12d). Teaching the parser to
