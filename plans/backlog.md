@@ -255,8 +255,11 @@ rule-level citations this file will accumulate as it fills, not for today's text
   (hand), 404.2 (graveyard)
 - **Verdict** — **nothing in the tree answers "can player N see this object?"**
   A grep of `mtgsim/src` for a visibility predicate returns exactly one piece of
-  hidden-information state: `BattlefieldEntity.face_down: bool`. Zones carry an
-  identity but not a visibility, and no query takes a viewing player at all.
+  hidden-information state: `BattlefieldEntity.face_down: bool`.
+  `Zone::is_public()` exists as the coarse, viewer-independent classification —
+  **and nothing calls it** (the fifth no-consumer find, 2026-08-31) — while no
+  query takes a viewing player at all. The per-viewer query is the gap, and it
+  should consume the classifier rather than duplicate it.
 - **Size** — a real phase, and the one entry in this file that is arguably a
   **v1 blocker rather than card breadth**. `CLAUDE.md` names v1 as 4-player
   Commander through a GUI and highly parallel AI games over the CLI: the first
@@ -380,6 +383,65 @@ triage's thirteen entries plus one.*
   next `owed` pass** — left in place for now so this addition moves no gate
   number.
 - **Owner** — none yet; RS scoping decides.
+
+### 2.15 Player-scoped continuous effects (CR 613.10–613.11)
+
+*Added 2026-08-31 by the `PlayerState` type sweep — probed by Winter,
+Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
+
+- **Rules** — CR 613.10, 613.11 (less the cost half, which is CR 601.2f's and
+  travels with §2.1, and the prohibition half, which is
+  `cant-effects-architecture.md`'s); CR 402.2 as modified
+- **Verdict** — **`PlayerState` stores rule values and no effect can reach
+  them.** `max_hand_size` is seeded from config and read raw by
+  `handle_cleanup_discard`; nothing can say "you have hexproof" for a player,
+  and target legality consults nothing player-scoped. CR 613.11 applies these
+  after all object layers, in timestamp order — that application point does
+  not exist. `lands_per_turn` is the same shape and already dispositioned to a
+  layers-owned query (§3.1's CR 305 row); this entry is the general surface
+  both should share.
+- **Size** — small-to-medium: an effective-value/ability query beside the
+  oracle layer plus one post-layer, timestamp-ordered application step; one
+  production reader to migrate today. Conditional gating ("as long as…")
+  arrives with critical-path item 6.
+- **Blocks** — Winter's clause and the Reliquary Tower class (62 cards touch
+  maximum hand size, 43 remove it — Commander staples); player hexproof and
+  shroud (Leyline of Sanctity's class, 14 cards); effective lands-per-turn's
+  general form.
+- **Atoms** — the two CR 402.2 atoms cover the base rule only; the
+  modification half has none. Corpus-thin — see §5.
+- **Owner** — none yet.
+
+### 2.16 Counters on players (CR 122.1)
+
+- **Rules** — CR 122.1's player half; proliferate reads it (CR 701.34a)
+- **Verdict** — `PlayerState.poison_counters: u32` hardcodes one kind where
+  the CR wants kinds-on-players: energy (145 cards), experience (16,
+  Commander-native), rad. A kind → count map plus a handful of reader
+  migrations (the poison SBA today; proliferate later).
+- **Size** — small; the one design decision is whether player counters share
+  `CounterType` with object counters — they should, because CR 701.34a
+  iterates permanents and players in a single sweep.
+- **Blocks** — every energy card; the experience-counter commanders;
+  proliferate reaching players.
+- **Atoms** — thin under the obvious phrasings; see §5.
+- **Owner** — none yet.
+
+### 2.17 Extra turns and the turn queue (CR 500.7)
+
+- **Rules** — CR 500.7. Skips are CR 614.10's — the replacement track's, not
+  this entry's; the two meet on cards like Time Stop only at Phase 8.
+- **Verdict** — turns advance by iteration; **no turn queue exists**, so "take
+  an extra turn after this one" has nowhere to go. Additive: a queue the turn
+  loop drains before the natural order resumes. Extra *phases and steps*
+  (Aggravated Assault's class) are the same shape one level down.
+- **Size** — small for the queue itself; the care is CR 500.7's ordering —
+  most recently created turn first, APNAP when several players get them — and
+  the cleanup of "that turn"-scoped state.
+- **Blocks** — Time Walk's whole family, ~60 cards; "additional combat phase"
+  cards behind them.
+- **Atoms** — CR 500's atoms cover 500.1–500.5; 500.7 is thin — see §5.
+- **Owner** — none yet.
 
 ---
 
@@ -537,7 +599,8 @@ dispositions are prose the query cannot read.** Use it as the source, not as a
 progress bar, and regenerate it before trusting any number here.
 
 Thirteen entries and 180 dispositioned atoms came out of it (§2.14 arrived
-later, from `owed`'s kept pair — see its header). Six things learned,
+later from `owed`'s kept pair; §2.15–§2.17 from the 2026-08-31
+`PlayerState`/`Zone` type sweep). Six things learned,
 recorded so they are not re-derived:
 
 1. **A CR section is a loose proxy for a mechanic, and it over-collects.** The
@@ -613,4 +676,6 @@ judgment rather than pretending otherwise.
   functions.
 - **Corpus authoring** — rules carrying a verdict but no atom, overwhelmingly
   CR 702 keyword subrules. Unscheduled, and it belongs beside the phases that
-  need it.
+  need it. The type-sweep probes named three more spots, thin rather than
+  empty: CR 402.2's modification half, CR 122.1's player-counter kinds, and
+  CR 500.7's extra turns.

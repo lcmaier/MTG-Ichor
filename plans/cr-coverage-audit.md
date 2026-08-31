@@ -151,7 +151,7 @@ type cannot say, not what a type says wrongly.** Reviews own the other half.
 
 ---
 
-## 4. The sweep — fifteen types
+## 4. The sweep — seventeen types
 
 Per type: read it, read the CR sections describing what it models, answer the
 question. Run 2026-08-31.
@@ -173,13 +173,29 @@ question. Run 2026-08-31.
 | `ContinuousEffect` | CR 611.2c's locked set; CR 613.8 dependency | **no gap** — `AffectedSet::Fixed` is exactly 611.2c; 613.8 is critical-path item 7 |
 | `StackEntry` | **what was spent to pay the costs** | **FACT** — §5.1 |
 | `ManaPool` | non-fungible mana — CR 106.6 restrictions, grants, persistence | **no gap in the type** (T12b built it); the *gatekeepers* are unwired — Deferred Migrations item 33 |
+| `PlayerState` | continuous effects on player values and rules (CR 402.2, 613.10–613.11); counter *kinds* on players (CR 122.1) | features — `backlog.md` §2.15, §2.16; probed by Winter, Misanthropic Guide |
+| `Zone` | per-viewer visibility; object identity across zones; CR 729 merging | **no gap** — every demand already owned (§2.9, item 6's LKI, CV-7). `is_public()` exists, unconsumed |
 
-**`ManaPool` was not in the original fourteen.** It was swept 2026-08-31 after
-a card-population probe (`o:"this mana"`, 227 cards) asked why the audit had
-nothing to say about it — and its verdict is what §3's refined unit exists
-for: the type is complete and its gatekeepers are not, which a field-level
-read cannot see. **The sweep list still has no enumeration criterion**; until
-it states one, population probes of exactly that shape are the check on it.
+**The last three rows were not in the original fourteen — each arrived by
+probe, all on 2026-08-31.** `ManaPool` from `o:"this mana"` (227 cards);
+`PlayerState` from a single card — Winter, Misanthropic Guide, whose
+maximum-hand-size clause is CR 613.11's own worked example; `Zone` swept
+beside it to close the question. Each verdict is what §3's refined unit
+exists for: a type can be complete while its gatekeepers are not, which a
+field-level read cannot see.
+
+**The list now states its criterion: every type `GameState` transitively
+owns that stores rule-relevant state.** The remainder under it,
+dispositioned rather than swept: `GameConfig` (already probed — item 32's
+`DeckLimits` was its finding); `AttackingInfo`/`BlockingInfo` (RS-3's design
+owns the combat-restriction surface); turn structure (one gap, extra turns —
+`backlog.md` §2.17; skips are replacement effects, CR 614.10); the
+`GameState`-level designations (monarch, initiative — session 9b atoms,
+filed at Phase 7 as D15's source-less triggers); and the `GameAction`/event
+vocabulary, which grows by contract (`CLAUDE.md`). A new type joins the
+sweep the day it joins `GameState`. Card-population probes stay on as the
+standing check that the criterion holds — three ran, three earned their
+keep.
 
 ---
 
