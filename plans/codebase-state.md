@@ -903,6 +903,25 @@ seven items; the plan will always be coarser than the rules, and a third
 checkable: the detector above is cheap, it has found two, and running it at the
 start of each phase is a better instrument than confidence.
 
+**Update 2026-08-31 — it has now found five, and the method has its own
+document.** Asked whether the critical path covers everything in the CR, a run
+of the detector turned up three more in one sitting: **cost modification**
+(~903 cards; `replacement-architecture.md` §9 already called it homeless and
+"not small", and `apply_cost_modifications` is a passthrough stub with a test
+asserting so), **casting from a zone other than hand** (~764 cards;
+`check_cast_legality` hard-codes `Zone::Hand`, and CR 607 linked abilities is 20
+atoms, all uncovered, mentioned by no architecture doc), and **voting** (CR
+701.38 — **zero atoms** in a 1,753-atom corpus, never examined).
+
+`plans/cr-coverage-audit.md` is now the method's owner and the plan for
+finishing it. Two numbers from it are worth carrying here: against the frozen
+`tmnt.txt`, **1,315 of 3,120 rules are cited nowhere at all** — no atom, no
+verdict, no source comment, no plan doc — collapsing to **482 in-scope dark rule
+families**. And the sweep is scoped to *facts*, not coverage, on this section's
+own fact/feature triage: it should run **before CV-5, CV-7 and RD**, because
+those three are the phases that would otherwise encode a fact's absence into
+`CardData`, `BattlefieldEntity` and the `GameAction` vocabulary.
+
 ### Fuzz-pool coverage — audited 2026-08-26
 
 **The pool is thin exactly where the engine is thin, and card selection cannot
