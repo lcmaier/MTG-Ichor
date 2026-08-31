@@ -855,6 +855,19 @@ section never asked.
     mode-conditional targeting both reach into the cost pipeline, so it wants
     doing near it. → `backlog.md` §2.7.
 
+32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
+    D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
+    `max_deck_size`, `max_copies` and `sideboard_size`, and both `standard()`
+    and `limited()` set them correctly — 60/4/15 and 40/none/none. **Nothing
+    in the tree reads them.** One validation function against a `Decklist`
+    closes it; until then a malformed decklist starts a game.
+
+    Third instance of the same shape in one triage, after item 31 and
+    `color_indicator`: **configuration or a field that looks like progress in a
+    grep and has no consumer.** Worth naming as a class — it is what a
+    type-surface audit finds easily and a test suite never does.
+    → `backlog.md` §2.13.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
