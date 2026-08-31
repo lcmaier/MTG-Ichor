@@ -838,6 +838,36 @@ section never asked.
     payment time and nowhere afterward.
     → `cr-coverage-audit.md` §5.1.
 
+31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
+    (found 2026-08-31 by the D3b slice-1 triage).** Declared at
+    `state/game_state.rs:33` as `Vec<usize>`, constructed `Vec::new()` at all
+    twelve sites (`cast.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
+    ×3, one test), and **read nowhere in the tree.**
+
+    Exactly the shape of `CardData.color_indicator` in `cr-coverage-audit.md`
+    §5.2: a field that represents its fact correctly, with nothing on either
+    side of it. So this is **debt, not a fact** — the type is already right, and
+    whoever builds modal spells inherits it rather than designing it.
+
+    **Nothing chooses a mode, so nothing can be modal**, which is why CR 700.2's
+    seven atoms sit under a shipped phase with no test. The reader arrives with
+    that work; CR 700.2h's per-mode additional costs and 700.2c's
+    mode-conditional targeting both reach into the cost pipeline, so it wants
+    doing near it. → `backlog.md` §2.7.
+
+32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
+    D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
+    `max_deck_size`, `max_copies` and `sideboard_size`, and both `standard()`
+    and `limited()` set them correctly — 60/4/15 and 40/none/none. **Nothing
+    in the tree reads them.** One validation function against a `Decklist`
+    closes it; until then a malformed decklist starts a game.
+
+    Third instance of the same shape in one triage, after item 31 and
+    `color_indicator`: **configuration or a field that looks like progress in a
+    grep and has no consumer.** Worth naming as a class — it is what a
+    type-surface audit finds easily and a test suite never does.
+    → `backlog.md` §2.13.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
@@ -951,8 +981,9 @@ of the detector turned up three in one sitting: **cost modification** (~903
 cards; `replacement-architecture.md` §9 already called it homeless and "not
 small", and `apply_cost_modifications` is a passthrough stub with a test
 asserting so), **casting from a zone other than hand** (~764 cards;
-`check_cast_legality` hard-codes `Zone::Hand`, and CR 607 linked abilities is 20
-atoms, all uncovered, mentioned by no architecture doc), and **voting** (CR
+`check_cast_legality` hard-codes `Zone::Hand`; **CR 607 linked abilities was
+bundled in here and is a separate mechanic** — no CR 601 atom concerns a non-hand
+zone, see `backlog.md` §2.2/§2.3), and **voting** (CR
 701.38 — zero atoms in a 1,753-atom corpus, though ~~never examined~~ DEFERRED
 in session 7A since 2026-04-07; zero *atoms* is the half that was true).
 

@@ -328,7 +328,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A card with mana cost {3}{U}{U}
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 5
-- **Phase:** Phase 5 Layers (L10 — `get_mana_value` oracle function)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L10
 
 ### 202.3a — No mana cost → mana value 0 (with exceptions for nonmodal DFC backs and melds)
@@ -341,7 +341,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A land card (no mana cost)
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 0
-- **Phase:** Phase 5 Layers (L10)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L10
 
 **ATOM-202.3a-002**
@@ -386,7 +386,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A card with mana cost {X}{R} in a player's hand
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 1 (X=0, plus {R}=1)
-- **Phase:** Phase 5 Layers (L10)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L10
 
 **ATOM-202.3e-002**
@@ -395,7 +395,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A spell with mana cost {X}{R} on the stack with X=5
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 6 (X=5, plus {R}=1)
-- **Phase:** Phase 5 Pre-Work (T06 — x_value on StackEntry) + Phase 5 Layers (L10)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
 - **Ticket:** T06, L10
 
 ### 202.3f — Hybrid mana MV uses largest component
@@ -408,7 +408,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A card with mana cost {1}{W/U}{W/U}
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 3 (1 generic + 1 for each hybrid, largest component of {W/U} is 1)
-- **Phase:** Phase 5 Layers (L10)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L10
 
 **ATOM-202.3f-002**
@@ -417,7 +417,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A card with mana cost {2/B}{2/B}{2/B}
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 6 (each {2/B} contributes 2, the larger component)
-- **Phase:** Phase 5 Layers (L10)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L10
 
 ### 202.3g — Phyrexian mana contributes 1 each to MV
@@ -430,7 +430,7 @@ This defines how name comparison works for **all** name-checking effects: legend
 - **Minimal Board:** A card with mana cost {1}{W/P}{W/P}
 - **Action:** Query its mana value
 - **Expected Result:** Mana value = 3 (1 generic + 1 per Phyrexian symbol)
-- **Phase:** Phase 5 Layers (L10)
+- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
 - **Ticket:** L10
 
 ### 202.4 — Additional costs are not part of mana cost

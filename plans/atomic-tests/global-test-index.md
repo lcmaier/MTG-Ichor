@@ -10,13 +10,14 @@
 | Phase | ATOMs | BOUNDARYs | COMPs | Total |
 |-------|-------|-----------|-------|-------|
 | ALREADY-IMPL | 197 | 0 | 3 | 200 |
-| Phase 5-Pre | 216 | 1 | 6 | 223 |
-| Phase 5-Layers | 170 | 0 | 13 | 183 |
+| Phase 5-Pre | 195 | 1 | 6 | 202 |
+| Phase 5-Layers | 148 | 0 | 13 | 161 |
 | Phase 6 | 111 | 7 | 6 | 124 |
 | Phase 7 | 128 | 2 | 3 | 133 |
 | Phase 8 | 633 | 3 | 7 | 643 |
 | Phase 9 | 218 | 5 | 7 | 230 |
 | Post-v1 | 3 | 0 | 0 | 3 |
+| Backlog | 43 | 0 | 0 | 43 |
 | UNKNOWN | 3 | 0 | 11 | 14 |
 
 ---
@@ -230,7 +231,7 @@
 
 ## Phase 5-Pre
 
-**223 entries**
+**202 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -244,13 +245,6 @@
 | ATOM-104.3d-001 | 104.3d | Player with 10+ poison counters loses (SBA) | T16 | S1 |  |
 | ATOM-106.6-001 | 106.6 | Mana spending restrictions don't affect the mana's type | T12 | S1 |  |
 | ATOM-107.3a-001 | 107.3a | Controller chooses X when casting a spell with {X} in its mana cost | T18 | S1 |  |
-| ATOM-107.4e-001 | 107.4e | {W/U} can be paid with either {W} or {U} | NEW — Hybrid mana payment implementation | S1 |  |
-| ATOM-107.4e-002 | 107.4e | {2/B} can be paid with {B} or two mana of any type | NEW — Monocolored hybrid mana payment | S1 |  |
-| ATOM-107.4e-003 | 107.4e | {W/U} paid with the other half (choosing {U}) | NEW — Hybrid mana payment implementation | S1 |  |
-| ATOM-107.4f-001 | 107.4f | {R/P} can be paid with {R} or by paying 2 life | NEW — Phyrexian mana payment implementation | S1 |  |
-| ATOM-107.4f-002 | 107.4f | {W/U/P} can be paid with {W}, {U}, or 2 life | NEW — Hybrid Phyrexian mana payment | S1 |  |
-| ATOM-107.4f-003 | 107.4f | {R/P} paid with mana instead of life | NEW — Phyrexian mana payment implementation | S1 |  |
-| ATOM-107.6-002 | 107.6 | Summoning-sick creature can't activate {Q} ability | T10 | S1 |  |
 | ATOM-108.2b-001 | 108.2b | Tokens aren't cards, even if represented by a physical card | T03 | S1 |  |
 | ATOM-110.4-001 | 110.4 | Instant and sorcery cards can't enter the battlefield | T21a | S1 |  |
 | ATOM-111.7-001 | 111.7 | Token in a non-battlefield zone ceases to exist as an SBA | T13 | S1 |  |
@@ -261,7 +255,6 @@
 | ATOM-115.6-001 | 115.6 | "Up to" allows choosing zero targets; spell still resolves | T18 | S1 |  |
 | ATOM-115.3/4-001 | 115.3/115.4 | Spell with two separate target requirements must choose distinct legal targets for each 115.3/115.4 — A single object can't fill two "target" slots even if it satisfies both criteria | T18 T18 | S1 |  |
 | ATOM-118.6-001 | 118.6 | Attempting to cast a spell with unpayable cost is legal, but paying is illegal | T18 | S1 |  |
-| ATOM-118.9a-001 | 118.9a | Only one alternative cost can be applied to a spell | T18 | S1 |  |
 | ATOM-122.1-001 | 122.1 | Counters are markers, not objects; they have no characteristics | T14 | S1 |  |
 | ATOM-122.1e-001 | 122.1e | Planeswalker with 0 loyalty is put into graveyard as SBA | T14 + T16 | S1 |  |
 | ATOM-122.1f-001 | 122.1f | Player with 10+ poison counters loses as SBA | T16 (cross-ref ATOM-104.3d-001) | S1 |  |
@@ -343,10 +336,7 @@
 | ATOM-601.2d-001 | 601.2d | If the spell requires the player to divide or distribute an effect among one or more targets, the player announces the division. Each target must receive at least one. | T18 | S5 |  |
 | ATOM-601.2d-002 | 601.2d | Each target must receive at least one of whatever is being divided. | T18 | S5 |  |
 | ATOM-601.2e-001 | 601.2e | The game checks to see if the proposed spell can legally be cast. If illegal, the game rewinds. | T18 | S5 |  |
-| ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | T18 | S5 |  |
 | ATOM-601.2g-001 | 601.2g | If the total cost includes a mana payment, the player then has a chance to activate mana abilities. Mana abilities must be activated before costs are paid. | T18 | S5 |  |
-| ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | T18 | S5 |  |
-| ATOM-601.2h-003 | 601.2h | Cost payment ordering matters and is player-controlled. | T18 | S5 |  |
 | ATOM-601.4-001 | 601.4 | While announcing choices in 601.2b, if an option is available only if other choices are made later in that step, the player may consider those later choices. | T18 | S5 |  |
 | ATOM-601.5-001 | 601.5 | If a player is no longer allowed to cast a spell after completing its proposal (601.2a–d), the casting is illegal and the game rewinds. | T18 | S5 |  |
 | ATOM-601.5-002 | 601.5 | It doesn't matter if a rule makes casting illegal during cost determination/payment (601.2f–h) or after the spell has been cast. | T18 | S5 |  |
@@ -363,16 +353,6 @@
 | ATOM-604.6-002 | 604.6 | "Cast only during combat" restriction applies from hand zone. | T18 | S5 |  |
 | ATOM-605.1a-002 | 605.1a | An activated ability that requires a target is NOT a mana ability, even if it could produce mana. | NEW — "Mana ability classification: target check" | S5 |  |
 | ATOM-605.1a-004 | 605.1a | A spell/ability with targets is NOT a mana ability despite adding mana. | NEW — "Mana ability classification: target check" | S5 |  |
-| ATOM-607.1-001 | 607.1 | If two abilities are linked, the second refers only to actions taken or objects affected by the first, and not by any other ability. | T20 | S5 |  |
-| ATOM-607.1c-001 | 607.1c | An ability that fulfills both criteria (causes actions AND refers to those actions) is linked to itself. | T20 | S5 |  |
-| ATOM-607.2a-001 | 607.2a | If an object has an ability that exiles cards AND an ability that refers to "the exiled cards" or cards "exiled with [this object]," they are linked. | T20 | S5 |  |
-| ATOM-607.2a-002 | 607.2a | Object with two different exile abilities, each linked to a separate "exiled cards" reference. | T20 | S5 |  |
-| ATOM-607.2d-001 | 607.2d | Ability that causes "choose a [value]" + ability referring to "the chosen [value]" are linked. | T20 | S5 |  |
-| ATOM-607.2d-002 | 607.2d | Choice persists across zone changes if ability specifies. | T20 | S5 |  |
-| ATOM-607.2i-001 | 607.2i | Ability allowing an additional cost + ability referring to whether that cost was paid are linked. The second refers only to whether the intent to pay was declared during casting. | T17, T20 | S5 |  |
-| ATOM-607.2i-002 | 607.2i | Multiple kicker costs can each have their own linked ability. | T17, T20 | S5 |  |
-| ATOM-607.2j-001 | 607.2j | Ability causing a variable additional cost + ability referring to "the cost paid as [this] was cast" are linked. The second refers to the value of X chosen during casting. | T17, T18, T20 | S5 |  |
-| ATOM-607.2q-001 | 607.2q | If a permanent spell has an ability that exiles cards while paying a cost to cast it, and the permanent refers to "exiled with [this object]," those are linked. | T17, T20 | S5 |  |
 | ATOM-608.2b-002 | 608.2b | If SOME targets are legal and others are illegal, the spell resolves but illegal targets aren't affected. | T18 | S5 |  |
 | ATOM-608.2b-005 | 608.2b | Partial-target resolution with simpler card. | T18 | S5 |  |
 | ATOM-608.2d-002 | 608.2d | If an effect divides among untargeted objects, each chosen object must receive at least one. | T18 | S5 |  |
@@ -460,7 +440,7 @@
 
 ## Phase 5-Layers
 
-**183 entries**
+**161 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -475,8 +455,6 @@
 | ATOM-105.3-002 | 105.3 | An effect that gives a color "in addition" adds to existing colors | L10 | S1 |  |
 | ATOM-107.1b-001 | 107.1b | A creature's power can be negative (e.g., 3/4 creature gets -5/-0 → -2/4) | L04 / L08 | S1 |  |
 | ATOM-107.1b-004 | 107.1b | Exception: doubling P/T does NOT clamp negative values to 0 | L08 | S1 |  |
-| ATOM-107.3g-001 | 107.3g | {X} in mana cost of a card not on the stack is treated as 0 | NEW — Mana value calculation with X=0 in non-stack zones | S1 |  |
-| ATOM-107.3j-001 | 107.3j | X in a gained ability uses the gaining ability's definition, or 0 if undefined | L06 + L08 | S1 |  |
 | ATOM-109.3-001 | 109.3 | Object characteristics are a defined set; other info (tapped, target, owner, controller) is NOT a characteristic | L01 | S1 |  |
 | ATOM-110.2b-001 | 110.2b | Gaining control of a permanent spell → the gaining player controls the resulting permanent | L11 | S1 |  |
 | ATOM-110.4c-001 | 110.4c | If a permanent loses all its permanent types, it remains on the battlefield | L09 | S1 |  |
@@ -486,15 +464,6 @@
 | ATOM-113.10b-001 | 113.10b | Effects that remove an ability remove all instances of it | L06 | S1 |  |
 | ATOM-113.12-001 | 113.12 | A P/T CDA is applied in Layer 7a, not as a granted ability | L18 | S1 |  |
 | ATOM-113.12-002 | 113.12 | A color CDA is applied in Layer 5, not Layer 6 | L18 | S1 |  |
-| ATOM-118.7-001 | 118.7 | Cost reduced to nothing is considered {0} | T18 | S1 |  |
-| ATOM-118.7-002 | 118.7 | Reducing cost to {0} allows free casting | T18 | S1 |  |
-| ATOM-118.7a-001 | 118.7a | Effects reducing by generic mana only affect the generic component | T18 | S1 |  |
-| ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | T18 | S1 |  |
-| ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | T18 | S1 |  |
-| ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | T18 | S1 |  |
-| ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | L01 | S1 |  |
-| ATOM-118.9c-001 | 118.9c | Alternative cost doesn't change the spell's mana cost for mana value purposes | L01 | S1 |  |
-| ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | T18 | S1 |  |
 | ATOM-122.1a-001 | 122.1a | +1/+1 counter adds 1 to power and 1 to toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-002 | 122.1a | -1/-1 counter subtracts 1 from power and 1 from toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-003 | 122.1a | Non-standard P/T counters (e.g., +2/+0) do NOT annihilate with +1/+1 or -1/-1 counters | L04 / L08 | S1 |  |
@@ -506,13 +475,6 @@
 | ATOM-202.2c-001 | 202.2c | An object with two or more different colored mana symbols is each of those colors. | L10 | S2 |  |
 | ATOM-202.2d-002 | 202.2d | An object with Phyrexian mana symbols is the color of those symbols. | L10 | S2 |  |
 | ATOM-202.2e-001 | 202.2e | An object with a color indicator is each color denoted by that indicator. | T05, L10 | S2 |  |
-| ATOM-202.3-001 | 202.3 | Mana value is the total amount of mana in the mana cost. | L10 | S2 |  |
-| ATOM-202.3a-001 | 202.3a | The mana value of an object with no mana cost is 0. | L10 | S2 |  |
-| ATOM-202.3e-001 | 202.3e | X is treated as 0 while the object is not on the stack. | L10 | S2 |  |
-| ATOM-202.3e-002 | 202.3e | X is treated as the chosen value while on the stack. | T06, L10 | S2 |  |
-| ATOM-202.3f-001 | 202.3f | Hybrid mana uses largest component for MV calculation. | L10 | S2 |  |
-| ATOM-202.3f-002 | 202.3f | MonoHybrid {2/C} contributes 2 to MV. | L10 | S2 |  |
-| ATOM-202.3g-001 | 202.3g | Each Phyrexian mana symbol contributes 1 to mana value. | L10 | S2 |  |
 | ATOM-205.1a-001 | 205.1a | When an effect sets an object's card type, the new type(s) replace existing types. | L10 | S2 |  |
 | ATOM-205.1a-002 | 205.1a | An object with instant or sorcery card type retains that type when other types are set. | L10 | S2 |  |
 | ATOM-205.1a-003 | 205.1a | When an effect sets subtypes, new subtypes replace existing subtypes of the appropriate set only. | L10 | S2 |  |
@@ -562,12 +524,8 @@
 | ATOM-506.4-002 | 506.4 | A permanent is removed from combat if its controller changes. | T21b — combat removal on control change (E36) | S4 |  |
 | ATOM-506.4-003 | 506.4 | A permanent is removed from combat if it stops being a creature. | T21b — combat removal on type change (E36) | S4 |  |
 | ATOM-601.2a-002 | 601.2a | Continuous effects that modify the spell's characteristics as you start casting it begin as it is put on the stack. | L15 / T18 | S5 |  |
-| ATOM-601.2f-001 | 601.2f | Total cost = base mana cost (or alt cost) + additional costs + cost increases − cost reductions. Cost can't be reduced below {0}. Then total cost is locked in. | T18, L15 | S5 |  |
-| ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | L15 | S5 |  |
-| ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | L15 | S5 |  |
 | ATOM-601.2i-003 | 601.2i | Effects modifying spell characteristics apply at the "spell becomes cast" step. | L10 | S5 |  |
 | ATOM-601.3-001 | 601.3 | A player can begin to cast a spell only if a rule or effect allows it and no rule or effect prohibits it. | L15 | S5 |  |
-| ATOM-601.7-001 | 601.7 | Casting a spell that alters costs won't affect spells and abilities that are already on the stack. | T18 | S5 |  |
 | ATOM-602.1e-001 | 602.1e | If a spell or ability modifies how a player may pay an "activation cost," that modification applies to the total cost, even if increased/decreased by other effects. | L15 | S5 |  |
 | ATOM-602.1e-002 | 602.1e | Single cost modifier applies to total activation cost. | L15 | S5 |  |
 | ATOM-602.4-001 | 602.4 | Activating an ability that alters costs won't affect spells and abilities that are already on the stack. | L15 | S5 |  |
@@ -1815,6 +1773,56 @@
 | ATOM-104.4b-001 | 104.4b | Game enters mandatory loop with no way to stop → draw | D11 | S1 |  |
 | ATOM-405.6f-001 | 405.6f | State-based actions don't use the stack; they happen automatically when certain conditions are met, before a player would receive priority. | ALREADY-IMPLEMENTED — `perform_sba_and_triggers` stub in `priority.rs` | S4 |  |
 | ATOM-703.4n-001 | 703.4n | If active player's hand exceeds max hand size, discard to max hand size. | ALREADY-IMPLEMENTED (game.rs cleanup handling) | S9a |  |
+
+## Backlog
+
+**43 entries**
+
+| ID | Rule | Summary | Ticket | Session | Tags |
+|----|------|---------|--------|---------|------|
+| ATOM-107.3g-001 | 107.3g | {X} in mana cost of a card not on the stack is treated as 0 | NEW — Mana value calculation with X=0 in non-stack zones | S1 |  |
+| ATOM-107.3j-001 | 107.3j | X in a gained ability uses the gaining ability's definition, or 0 if undefined | L06 + L08 | S1 |  |
+| ATOM-107.4e-001 | 107.4e | {W/U} can be paid with either {W} or {U} | NEW — Hybrid mana payment implementation | S1 |  |
+| ATOM-107.4e-002 | 107.4e | {2/B} can be paid with {B} or two mana of any type | NEW — Monocolored hybrid mana payment | S1 |  |
+| ATOM-107.4e-003 | 107.4e | {W/U} paid with the other half (choosing {U}) | NEW — Hybrid mana payment implementation | S1 |  |
+| ATOM-107.4f-001 | 107.4f | {R/P} can be paid with {R} or by paying 2 life | NEW — Phyrexian mana payment implementation | S1 |  |
+| ATOM-107.4f-002 | 107.4f | {W/U/P} can be paid with {W}, {U}, or 2 life | NEW — Hybrid Phyrexian mana payment | S1 |  |
+| ATOM-107.4f-003 | 107.4f | {R/P} paid with mana instead of life | NEW — Phyrexian mana payment implementation | S1 |  |
+| ATOM-107.6-002 | 107.6 | Summoning-sick creature can't activate {Q} ability | T10 | S1 |  |
+| ATOM-118.7-001 | 118.7 | Cost reduced to nothing is considered {0} | T18 | S1 |  |
+| ATOM-118.7-002 | 118.7 | Reducing cost to {0} allows free casting | T18 | S1 |  |
+| ATOM-118.7a-001 | 118.7a | Effects reducing by generic mana only affect the generic component | T18 | S1 |  |
+| ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | T18 | S1 |  |
+| ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | T18 | S1 |  |
+| ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | T18 | S1 |  |
+| ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | L01 | S1 |  |
+| ATOM-118.9a-001 | 118.9a | Only one alternative cost can be applied to a spell | T18 | S1 |  |
+| ATOM-118.9c-001 | 118.9c | Alternative cost doesn't change the spell's mana cost for mana value purposes | L01 | S1 |  |
+| ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | T18 | S1 |  |
+| ATOM-202.3-001 | 202.3 | Mana value is the total amount of mana in the mana cost. | L10 | S2 |  |
+| ATOM-202.3a-001 | 202.3a | The mana value of an object with no mana cost is 0. | L10 | S2 |  |
+| ATOM-202.3e-001 | 202.3e | X is treated as 0 while the object is not on the stack. | L10 | S2 |  |
+| ATOM-202.3e-002 | 202.3e | X is treated as the chosen value while on the stack. | T06, L10 | S2 |  |
+| ATOM-202.3f-001 | 202.3f | Hybrid mana uses largest component for MV calculation. | L10 | S2 |  |
+| ATOM-202.3f-002 | 202.3f | MonoHybrid {2/C} contributes 2 to MV. | L10 | S2 |  |
+| ATOM-202.3g-001 | 202.3g | Each Phyrexian mana symbol contributes 1 to mana value. | L10 | S2 |  |
+| ATOM-601.2f-001 | 601.2f | Total cost = base mana cost (or alt cost) + additional costs + cost increases − cost reductions. Cost can't be reduced below {0}. Then total cost is locked in. | T18, L15 | S5 |  |
+| ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | L15 | S5 |  |
+| ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | T18 | S5 |  |
+| ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | L15 | S5 |  |
+| ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | T18 | S5 |  |
+| ATOM-601.2h-003 | 601.2h | Cost payment ordering matters and is player-controlled. | T18 | S5 |  |
+| ATOM-601.7-001 | 601.7 | Casting a spell that alters costs won't affect spells and abilities that are already on the stack. | T18 | S5 |  |
+| ATOM-607.1-001 | 607.1 | If two abilities are linked, the second refers only to actions taken or objects affected by the first, and not by any other ability. | T20 | S5 |  |
+| ATOM-607.1c-001 | 607.1c | An ability that fulfills both criteria (causes actions AND refers to those actions) is linked to itself. | T20 | S5 |  |
+| ATOM-607.2a-001 | 607.2a | If an object has an ability that exiles cards AND an ability that refers to "the exiled cards" or cards "exiled with [this object]," they are linked. | T20 | S5 |  |
+| ATOM-607.2a-002 | 607.2a | Object with two different exile abilities, each linked to a separate "exiled cards" reference. | T20 | S5 |  |
+| ATOM-607.2d-001 | 607.2d | Ability that causes "choose a [value]" + ability referring to "the chosen [value]" are linked. | T20 | S5 |  |
+| ATOM-607.2d-002 | 607.2d | Choice persists across zone changes if ability specifies. | T20 | S5 |  |
+| ATOM-607.2i-001 | 607.2i | Ability allowing an additional cost + ability referring to whether that cost was paid are linked. The second refers only to whether the intent to pay was declared during casting. | T17, T20 | S5 |  |
+| ATOM-607.2i-002 | 607.2i | Multiple kicker costs can each have their own linked ability. | T17, T20 | S5 |  |
+| ATOM-607.2j-001 | 607.2j | Ability causing a variable additional cost + ability referring to "the cost paid as [this] was cast" are linked. The second refers to the value of X chosen during casting. | T17, T18, T20 | S5 |  |
+| ATOM-607.2q-001 | 607.2q | If a permanent spell has an ability that exiles cards while paying a cost to cast it, and the permanent refers to "exiled with [this object]," those are linked. | T17, T20 | S5 |  |
 
 ## UNKNOWN
 
