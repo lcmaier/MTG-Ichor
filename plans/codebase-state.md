@@ -868,6 +868,33 @@ section never asked.
     type-surface audit finds easily and a test suite never does.
     → `backlog.md` §2.13.
 
+33. **The CR 106.6 subsystem has no production consumer on the payment side
+    (found 2026-08-31 by a card-population probe — `o:"this mana"`, 227 cards —
+    during the roadmap review).** T12b built non-fungible mana whole:
+    `ManaRestriction` (Cavern of Souls' chosen-type variant included),
+    `ManaGrant`, `ManaPersistence`, the `special` sidecar, `SpendContext` and
+    `pay_with_plan`, unit-tested in `types/mana.rs`. Production never touches
+    it: `pay_single_cost`'s Mana arm routes `ManaPool::pay` /
+    `pay_specific_only`, which read the simple pool only; nothing builds a
+    `SpendContext`; `drain_spent_grants` has no caller; and every
+    `Primitive::ProduceMana` site passes `special: vec![]`.
+
+    **Safely dormant, verified at both ends**: no restricted atom can enter a
+    real game's pool, and one could not be spent — not misspent — if it did.
+    The emptying half *is* wired (`empty_with_reason` at step transitions),
+    minus the blanket-persistence `TODO(T12c)` the detector section below
+    already tracks.
+
+    Fourth instance of the item-31/32 class, and much the largest — a whole
+    unit-tested subsystem that looks finished in a grep. The wiring is
+    ticketed in the ledger: **T12c**, restricted mana in the casting pipeline;
+    **T12d**, the cards and the grants (Cavern of Souls, Boseiju). Grant
+    delivery to the cast spell rides item 30's `StackEntry` rail, so the two
+    want doing together. **Trigger: T12d's cards, or item 30's capture PR,
+    whichever comes first.**
+    → `plans/cards-unlocked-ledger.md` T12 rows; `roadmap-v2.md` §4;
+    `cr-coverage-audit.md` §4's `ManaPool` row.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem

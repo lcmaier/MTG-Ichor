@@ -179,8 +179,10 @@ rule-level citations this file will accumulate as it fills, not for today's text
 - **Blocks** — manifest and cloak need the face-down subsystem, shared with
   foretell in §2.3; exert needs skip-untap tracking; unattach is the missing
   half of an `Attach` that already works.
-- **Atoms** — 24, **not re-filed** — see §3's note on the `owed` collision.
-  **14 of the 31 atoms `owed` currently reports are this section.**
+- **Atoms** — 14 re-filed to `Backlog` by §3.3's policy, this entry having
+  captured their tickets; the remainder stay on their shipped phases —
+  `orphaned --bucket unbuilt` lists them under CR 701 (11 at the 2026-08-31
+  re-count). Nothing of this section remains in `owed`.
 - **Owner** — none yet.
 
 ### 2.6 CR 702 keyword abilities
@@ -352,6 +354,33 @@ rule-level citations this file will accumulate as it fills, not for today's text
   together. Move it if that reads better.
 - **Owner** — none yet.
 
+### 2.14 Untap restrictions — "doesn't untap"
+
+*Added 2026-08-31 from `owed`'s kept pair, during the roadmap review — the
+triage's thirteen entries plus one.*
+
+- **Rules** — CR 502.3, 703.4c
+- **Verdict** — nothing can say "this permanent doesn't untap during its
+  controller's untap step." `Duration` has no such shape, and the untap step's
+  sweep consults nothing before proposing untaps. The *seam* exists —
+  `Primitive::Untap`'s contract is already "performers are loud; callers check
+  legality," and RB's stun counters already intercept the untap **event** as a
+  replacement — what is missing is the static-restriction flavour and the
+  query the sweep would ask.
+- **Size** — small: a continuous-effect query consulted by the untap TBA. The
+  design call is the home — a "can't" (`is_blocked`, RS's model) or an
+  untap-step filter — and it is taken at RS scoping, since
+  `cant-effects-architecture.md` owns that boundary. One-shot riders
+  ("doesn't untap during its controller's next untap step", Frost Titan)
+  additionally want item 6's delayed-trigger machinery.
+- **Blocks** — Colossus-class "doesn't untap" statics; exert (§2.5's
+  skip-untap tracking is this plus a turn marker); tap-and-lock cards.
+- **Atoms** — ATOM-502.3-002 and ATOM-703.4c-002, both in `owed`'s kept nine.
+  **This entry captures their tickets, so §3.3's policy re-files them at the
+  next `owed` pass** — left in place for now so this addition moves no gate
+  number.
+- **Owner** — none yet; RS scoping decides.
+
 ---
 
 ## 3. Dispositioned — sections that need no entry of their own
@@ -457,13 +486,13 @@ layer, and §2.7 gained devotion's modifiability.
 | `ATOM-400.7a-002` | text-change persistence across stack→battlefield; Layer 3, and no entry covers it |
 | `ATOM-613.1f-002` | Layer 6 keyword counters (roadmap D10) — §3.1 files CR 613 as owned, but not this |
 | `ATOM-605.1a-002/004` | a mana ability may not require a target. **Contradicts §3.2's pre-sort**, which read CR 605 as implemented — confirm before annotating |
-| `ATOM-502.3-002`, `ATOM-703.4c-002` | "doesn't untap" restriction effects — **one mechanic wearing two section numbers**, and the closest thing left to a missing entry |
+| `ATOM-502.3-002`, `ATOM-703.4c-002` | "doesn't untap" restriction effects — **one mechanic wearing two section numbers**; §2.14 names it now (2026-08-31) — re-file at the next pass |
 | `COMP-ZONE-TRANSITION-001` | a cross-rule composition test to write; no design to capture |
 | `ATOM-702.19d-001` | a trample regression test — D2b-shaped, not backlog |
 
-Two of the nine are worth acting on rather than filing: the **605.1a pair**
-disagrees with a disposition in this file, and the **502.3/703.4c pair** is a
-mechanic that no entry names.
+Two of the nine were worth acting on rather than filing: the **605.1a pair**
+disagrees with a disposition in this file (still open — confirm before
+annotating), and the **502.3/703.4c pair** got its entry, §2.14 (2026-08-31).
 
 ### 3.4 Pass 2's remainder (17 sections, 49 atoms)
 
@@ -507,7 +536,8 @@ its own: **re-filing is not how a section leaves that list, and §3's
 dispositions are prose the query cannot read.** Use it as the source, not as a
 progress bar, and regenerate it before trusting any number here.
 
-Thirteen entries and 180 dispositioned atoms came out of it. Six things learned,
+Thirteen entries and 180 dispositioned atoms came out of it (§2.14 arrived
+later, from `owed`'s kept pair — see its header). Six things learned,
 recorded so they are not re-derived:
 
 1. **A CR section is a loose proxy for a mechanic, and it over-collects.** The

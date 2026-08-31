@@ -151,7 +151,7 @@ type cannot say, not what a type says wrongly.** Reviews own the other half.
 
 ---
 
-## 4. The sweep — fourteen types
+## 4. The sweep — fifteen types
 
 Per type: read it, read the CR sections describing what it models, answer the
 question. Run 2026-08-31.
@@ -172,6 +172,14 @@ question. Run 2026-08-31.
 | `DecisionProvider` | a vote (CR 701.38); a card name (CR 201.4) | near-miss, §5.2 |
 | `ContinuousEffect` | CR 611.2c's locked set; CR 613.8 dependency | **no gap** — `AffectedSet::Fixed` is exactly 611.2c; 613.8 is critical-path item 7 |
 | `StackEntry` | **what was spent to pay the costs** | **FACT** — §5.1 |
+| `ManaPool` | non-fungible mana — CR 106.6 restrictions, grants, persistence | **no gap in the type** (T12b built it); the *gatekeepers* are unwired — Deferred Migrations item 33 |
+
+**`ManaPool` was not in the original fourteen.** It was swept 2026-08-31 after
+a card-population probe (`o:"this mana"`, 227 cards) asked why the audit had
+nothing to say about it — and its verdict is what §3's refined unit exists
+for: the type is complete and its gatekeepers are not, which a field-level
+read cannot see. **The sweep list still has no enumeration criterion**; until
+it states one, population probes of exactly that shape are the check on it.
 
 ---
 
