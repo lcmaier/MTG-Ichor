@@ -541,9 +541,12 @@ judgment rather than pretending otherwise.
   with a `TODO` is that file's; a mechanic with no code is this one's.
 - **Missing tests for behavior that exists** — needs a test written or a
   `// COVERS:` added, never a backlog entry. This is the workstream's largest
-  outstanding item and it grew during the triage: **54 atoms** in `orphaned`'s
+  outstanding item and it grew during the triage: **55 atoms** in `orphaned`'s
   `cited` half (behavior encoded in `src/` that no test mentions), plus the
   **104 in §3.2 and §3.4** that this file confirmed present and untested.
+  ~159 tests to write, and none of it buys new capability — it is regression
+  protection for behavior that already works, so it wants doing in
+  high-value subsets beside other work rather than as a block.
   Audit §6 measures how weak the `cited` signal is; §3.2's rows name the
   functions.
 - **Corpus authoring** — rules carrying a verdict but no atom, overwhelmingly

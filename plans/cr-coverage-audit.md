@@ -326,6 +326,10 @@ python plans/specdb.py audit --dark --families   # darkness; in-scope surface is
   test at all, which needs a test *written*, not annotated). Neither half
   reduces the 332.
 
+  *Measured before D3a's re-file, which moved four cited atoms; the split reads
+  15/55 today. `backlog.md` §5 carries the live figure — this one is the record
+  of the run that produced the finding.*
+
   **This doc is excluded from its own ownership set**, and the reason is a bug
   it caused: writing §5.1 made `orphaned` treat CR 117.1a, 601.2f and 17 others
   as *owned*, because the third filter reads any plan-doc mention as a design
