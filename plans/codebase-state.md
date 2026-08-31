@@ -915,10 +915,22 @@ atoms, all uncovered, mentioned by no architecture doc), and **voting** (CR
 
 `plans/cr-coverage-audit.md` is now the method's owner and the plan for
 finishing it. Two numbers from it are worth carrying here: against the frozen
-`tmnt.txt`, **1,304 of 3,120 rules are cited nowhere at all** — no atom, no
-verdict, no source comment, no plan doc — collapsing to **478 in-scope dark rule
-families**. `python plans/specdb.py audit` is the generator and the authority
-for those numbers; phase A-0 landed it 2026-08-31. And the sweep is scoped to *facts*, not coverage, on this section's
+`tmnt.txt`, **514 of 3,120 rules are cited nowhere at all** — no atom, no
+verdict, no source comment, no plan doc — collapsing to **68 dark rule
+families**, all of them in CR 3 and CR 7. `python plans/specdb.py audit` is the
+generator and the authority for those numbers; phase A-0 landed it 2026-08-31.
+
+**Those figures replace a much larger pair, and the reason is worth carrying.**
+A-0 first reported 1,304 and 478. Phase A-1 triaged 131 families against that
+worklist and found **every one of them already classified** — the corpus writes
+a verdict in three different shapes and `parse_rule_mentions` read one, so
+`audit` had been counting *unread* verdicts as unexamined rules. A-1 fixed that
+and the family-collapse test beside it (`cr-coverage-audit.md` §8, D1 and D2).
+**Zero facts came out of A-1**; what came out was the generator. The lesson
+this section already owns applies to its own tooling: a number that nobody can
+reproduce by hand is a number nobody has checked.
+
+And the sweep is scoped to *facts*, not coverage, on this section's
 own fact/feature triage: it should run **before CV-5, CV-7 and RD**, because
 those three are the phases that would otherwise encode a fact's absence into
 `CardData`, `BattlefieldEntity` and the `GameAction` vocabulary.

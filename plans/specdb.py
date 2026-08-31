@@ -79,9 +79,51 @@ CRITICAL_PATH = ["Phase 5-Layers", "Phase 6", "Phase 7"]
 ENTRY_RE = re.compile(r"^\*\*((?:ATOM|BOUNDARY|COMP)-[^*]+)\*\*\s*$")
 # A CR rule line: "613.4c Layer 7c: Effects and counters that modify ..."
 CR_RULE_RE = re.compile(r"^(\d{3}\.\d+[a-z]?)\.?\s+(.*)$")
-# A session classification line: "**100.1** — PURE-DEF. Defines scope ..."
-CLASSIFY_RE = re.compile(r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-]+)")
 RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")
+
+# --- Session classification lines -------------------------------------------
+#
+# **The corpus writes a verdict in three shapes, not one**, and reading only the
+# first is what made `audit` report 478 in-scope dark families when the real
+# number was 74 (`cr-coverage-audit.md` §8, defect D1). The shapes are authored
+# fact across twelve session files and five months, so the parser learns them
+# rather than the files being rewritten to match a regex — `CLAUDE.md` calls the
+# corpus authored, never generated.
+#
+#   1. bold span   `**100.1** — PURE-DEF.`   (sessions 1, 4, 7a, 7b, 9a, 9b, 10)
+#   2. heading     `### 609.1 — PURE-DEF`     (session 6)
+#   3. heading + `**Classification: PURE-DEF.**` on a later line  (2, 3, 5, 8)
+#
+# A span may name several rules: a comma list, a `+`, or a range written either
+# in full (`903.12a–903.12h`) or with a bare letter tail (`100.4c–d`).
+CLASSIFY_VERDICTS = ("TESTABLE", "PURE-DEF", "DEFERRED", "OUT-OF-SCOPE",
+                     "BOUNDARY-DEF", "ALREADY-IMPLEMENTED", "ALREADY-IMPL",
+                     "META", "LKI")
+_V = "(%s)" % "|".join(CLASSIFY_VERDICTS)
+# The verdict must come *first*, not merely somewhere on the line: three lines
+# in the corpus discuss a verdict mid-sentence ("They are all TESTABLE but
+# belong to Session 5") and reading those as classifications would claim rules
+# no session actually classified. Precision over recall — over-claiming a
+# verdict is the failure this whole table exists to avoid.
+# The leading `(?:[-*]\s+)?` is a list bullet: sessions 4, 7a and 9b write the
+# same shape as a bullet under a section heading (`- **726.1** — DEFERRED …`).
+# Same shape, not a new one, which is why it earns a character rather than a
+# branch — it resolves 35 otherwise-dark rules and disagrees with none.
+CLASSIFY_BOLD_RE = re.compile(
+    r"^(?:[-*]\s+)?\*\*\s*([\d.,+a-z–—\s-]*\d{3}\.\d+[a-z]?[\d.,+a-z–—\s-]*?)\s*:?\s*\*\*"
+    r"\s*(?:\([^)]*\)\s*)?[—–:-]?\s*" + _V)
+CLASSIFY_HEAD_RE = re.compile(r"^#{2,4}\s+(\d{3}\.\d+[a-z]?)\s*[—–-]?\s*(.*)$")
+CLASSIFY_FIELD_RE = re.compile(r"^\*\*Classification:\s*" + _V)
+# The pre-2026-08-31 regex, kept as a fallback so that widening the parser can
+# never *narrow* it. It took any leading uppercase word as a verdict, which is
+# how `108.5` (`PARTIALLY DEFERRED`) and `732.1`/`732.2`
+# (`ALREADY-HANDLED-BY-DESIGN`) got classified off-vocabulary. Those three are
+# corpus defects to normalise, not rules to re-darken.
+CLASSIFY_LEGACY_RE = re.compile(
+    r"^\*\*(\d{3}\.\d+[a-z]?)\*\*\s*[—–-]\s*([A-Z][A-Z-]+)")
+# `100.4c–d` and `903.12a–903.12h`; the tail may drop the shared `NNN.M`.
+CLASSIFY_RANGE_RE = re.compile(
+    r"^(\d{3}\.\d+)([a-z]?)\s*[–—-]\s*(?:(\d{3}\.\d+))?([a-z]?)$")
 FIELD_RE = re.compile(r"^-\s+\*\*([A-Za-z ]+):\*\*\s*(.*)$")
 COVERS_RE = re.compile(r"COVERS(-PARTIAL)?:\s*(.+)$")
 # Ids are `KIND-<rule>-<seq>`, but a COMP may name its cards instead of a
@@ -177,8 +219,16 @@ def normalize_phase(raw):
 
     phase_nums = re.findall(r"phase\s*(\d+)", lowered)
     combo_nums = re.findall(r"(\d+)", lowered)
-    has_l_ticket = bool(re.search(r"L\d+", cleaned))
-    has_t_ticket = bool(re.search(r"T\d+", cleaned))
+    # The word-boundary escape here was a literal backspace until 2026-08-31,
+    # so both flags were permanently false. Fixing it changes no output, and
+    # that is worth knowing: their only reader is the digit-free branch below,
+    # and every corpus phase string carrying an `L##`/`T##` ticket also names
+    # its phase in digits ("Phase 5 Layers (L10)"), so the branch is
+    # unreachable for a second, independent reason. Left as the fallback it
+    # was written to be — promoting it above the digit path would relabel
+    # atoms and move what `owed` gates on, which nothing is asking for.
+    has_l_ticket = bool(re.search(r"\bL\d+", cleaned))
+    has_t_ticket = bool(re.search(r"\bT\d+", cleaned))
     has_pre = "5-pre" in lowered or "5 pre" in lowered or "pre" in lowered
     has_layers = "5-layer" in lowered or "5 layer" in lowered or "layer" in lowered
 
@@ -248,21 +298,87 @@ def _finish_rule(version, effective, pending):
     return (version, number, text, sha, effective, line_no)
 
 
-def parse_rule_mentions():
+def _expand_classify_span(span, known):
+    """The rule numbers a classification span names, in CR order.
+
+    Expansion is bounded by `known` — the rule numbers the CR ingest actually
+    found — so a range never invents a subrule. `104.3g–k` has to skip `l` and
+    `o`, which the CR does not use, and asking the CR beats encoding its
+    alphabet here.
+    """
+    out = []
+    for part in re.split(r"[,+]", span):
+        part = part.strip()
+        if not part:
+            continue
+        if RULE_TOKEN_RE.fullmatch(part):
+            out.append(part)
+            continue
+        m = CLASSIFY_RANGE_RE.match(part)
+        if not m:
+            continue
+        family, lo_tail, hi_family, hi_tail = m.groups()
+        lo, hi = family + lo_tail, (hi_family or family) + hi_tail
+        if lo not in known or hi not in known:
+            continue
+        # Everything between the endpoints, capped at the section (`NNN`) they
+        # share. `805.1–805.10f` spans ten families and means all of them; the
+        # cap is what stops it running on into 806.
+        section = lo.split(".")[0]
+        lo_key, hi_key = _rule_sort_key(lo), _rule_sort_key(hi)
+        out.extend(sorted(
+            (r for r in known
+             if r.split(".")[0] == section
+             and lo_key <= _rule_sort_key(r) <= hi_key),
+            key=_rule_sort_key))
+    return out
+
+
+def parse_rule_mentions(known=()):
     """Rules a session explicitly classified, e.g. `**100.1** - PURE-DEF.`
 
     A rule with a verdict but no atom was considered and deliberately not
-    atomized; that is different from a rule nobody ever looked at.
+    atomized; that is different from a rule nobody ever looked at. `known` is
+    the CR's own rule numbers, so a range expands against the real CR.
+
+    Rule numbers come from the classification's *span* only, never from the
+    rest of the line: the prose beside a verdict routinely cross-references
+    other rules ("deferred until 702.87"), and harvesting those would classify
+    a rule on the strength of someone else's footnote.
     """
+    known = set(known)
     rows, loose = [], set()
     for path in sorted(SESSIONS_DIR.glob("session-*.md")):
         session = path.stem.replace("session-", "S")
         text = path.read_text(encoding="utf-8")
         loose.update(RULE_TOKEN_RE.findall(text))
-        for line in text.split("\n"):
-            m = CLASSIFY_RE.match(line.strip())
-            if m:
-                rows.append((m.group(1), m.group(2), session))
+        pending_head = None
+        for line in text.splitlines():
+            s = line.strip()
+            head = CLASSIFY_HEAD_RE.match(s)
+            if head:
+                # `### 609.1 — PURE-DEF` classifies inline; `### 200.1 — Parts
+                # of a card` defers to the `**Classification:**` line below it.
+                inline = re.match(_V, head.group(2))
+                if inline:
+                    rows.append((head.group(1), inline.group(1), session))
+                    pending_head = None
+                else:
+                    pending_head = head.group(1)
+                continue
+            field = CLASSIFY_FIELD_RE.match(s)
+            if field and pending_head:
+                rows.append((pending_head, field.group(1), session))
+                pending_head = None
+                continue
+            bold = CLASSIFY_BOLD_RE.match(s)
+            if bold:
+                for number in _expand_classify_span(bold.group(1), known):
+                    rows.append((number, bold.group(2), session))
+                continue
+            legacy = CLASSIFY_LEGACY_RE.match(s)
+            if legacy:
+                rows.append((legacy.group(1), legacy.group(2), session))
     return rows, loose
 
 
@@ -467,7 +583,8 @@ def build():
     atoms = parse_sessions()
     cov = scan_coverage()
     rules = parse_cr_versions()
-    mentions, loose_mentions = parse_rule_mentions()
+    mentions, loose_mentions = parse_rule_mentions(
+        {number for version, number, *_ in rules if version == BASELINE_VERSION})
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Drop and recreate in place rather than unlinking: on Windows an open
     # SQLite browser holds a lock on the file and unlink() raises WinError 32.
@@ -1009,8 +1126,15 @@ def audit(chapter, dark_only, families, out_path):
             by_family.setdefault(_family(n), []).append(n)
         # A family survives only if *no* rule in it is known anywhere. A dark
         # subrule of an examined family is a depth gap - Pass B's, not Pass A's.
-        orphans = [f for f in by_family
-                   if not any(k == f or k.startswith(f + ".") for k in known)]
+        #
+        # **Membership is `_family`, not a string prefix.** The prefix test this
+        # replaces asked whether a known rule started with `613.4.`, which no
+        # subrule ever does - they are `613.4a`, not `613.4.a` - so a family
+        # whose subrules were all examined still reported wholly dark. That is
+        # `cr-coverage-audit.md` section 8 defect D2, and it inflated the Pass A
+        # surface from 74 families to 478.
+        known_families = {_family(k) for k in known}
+        orphans = [f for f in by_family if f not in known_families]
         texts = {n: t for n, t in rules}
         in_scope = [f for f in orphans if not _out_of_scope(f)]
         emit("  dark families                     : %d" % len(by_family))

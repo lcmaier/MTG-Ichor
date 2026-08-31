@@ -251,7 +251,20 @@
 - **Phase:** Phase 8 (D27)
 - **Ticket:** D27 — Pregame actions (103.6)
 
-**103.6a–c** — Elaborations on 103.6. Covered by ATOM-103.6-001.
+**103.6a–103.6b** — TESTABLE. Elaborations on 103.6, covered by ATOM-103.6-001.
+103.6a is the Leyline half (card starts on the battlefield); 103.6b is the
+reveal half (Chancellors, Gemstone Caverns), where the card stays in hand and
+the effect fires later. Both are D27 and both are features: the type support
+already exists — `controller_since_turn = 0` is the CR 103.6 pregame sentinel,
+and `Game::setup()` names the insertion point in a comment.
+
+**103.6c** — OUT-OF-SCOPE. The shared team turns variant of the same step;
+CR 805 is OUT-OF-SCOPE, so this is too.
+
+> Verdicts added by Pass A of the CR coverage audit (2026-08-31). The three
+> were classified here from the day this session was written, but by a pointer
+> rather than a verdict, so `specdb`'s parser could not see one — it requires
+> the disposition to lead the line. Nothing about the judgment changed.
 
 **103.7** — OUT-OF-SCOPE. Planechase starting plane.
 
@@ -3445,6 +3458,15 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 ### 123. Stickers
 
 **123.1–123.9** — OUT-OF-SCOPE. Stickers are an Unfinity mechanic. All sub-rules (123.1 through 123.9 and their sub-rules) are out of scope for this simulator.
+
+> Two of these reach an in-scope subsystem and are worth knowing about before
+> Layer 3 is designed (Pass A of the CR coverage audit, 2026-08-31). **123.5**
+> keeps stickers across a move between public zones and calls itself an
+> exception to CR 400.7 — the field that would carry it, `zone_change_epoch`,
+> already exists. **123.6c** makes a name sticker a text-changing effect
+> resolved in timestamp order, so an object can hold a name assembled from
+> several words; the in-scope witness for that shape is CR 612.7 (Spy Kit),
+> DEFERRED in session 6.
 
 ---
 

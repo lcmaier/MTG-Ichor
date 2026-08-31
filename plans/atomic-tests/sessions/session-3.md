@@ -1220,6 +1220,8 @@ Rule text: "If an object is both a land and another card type, it can be played 
 
 Identical to 300.2a. Tests ATOM-300.2a-001 and ATOM-300.2a-002 cover this rule. No separate test needed.
 
+**305.9** — ALREADY-IMPLEMENTED. Restated in the vocabulary `specdb` reads (`DUPLICATE` is not one of the eight), and checked against the engine by Pass A-2 on 2026-08-31: `oracle::mana_helpers::castable_spells` skips any card whose printed types include Land, citing CR 305.1, so a Land Creature is never offered as a spell; `zones::play_land` accepts it because it tests for the Land type rather than for Land alone. Both halves of the rule hold. Enforcement is at the enumeration boundary, not inside `cast_spell` — `CLAUDE.md`'s “performers are loud; callers check legality.”
+
 ---
 
 ## Rules 306.x — Planeswalkers
@@ -1623,6 +1625,8 @@ This integration test should be deferred to Phase 8 when Kindred cards are imple
 
 Dungeons (309.1–309.7) are a specialized card type used with the "venture into the dungeon" keyword action. Per roadmap.md, dungeons are Phase 8–9 scope at earliest. All rules in this section are classified as DEFERRED.
 
+**309.1–309.7** — DEFERRED. Ratified per family by Pass A-2 (2026-08-31) against CR 309 and CR 701.49. A dungeon is a command-zone object that is not a permanent, plus a per-player venture-marker position on one of its rooms. **A feature, not a fact:** `Zone::Command` already exists, and the marker is read only by venture itself — nothing else in the engine would encode its absence. Paired with CR 701.49 in session 7A.
+
 | Rule | Summary |
 |------|---------|
 | 309.1 | Dungeon is a nontraditional card type |
@@ -1785,6 +1789,8 @@ Planes (311.1–311.7) are Planechase-only supplemental cards. Per roadmap.md, s
 |------|---------------|
 | 311.1–311.7 | OUT-OF-SCOPE (Planechase only) |
 
+
+**311.1–311.7** — OUT-OF-SCOPE. Ratified per family by Pass A-2 (2026-08-31); Planes are Planechase-only (CR 901), which §2.4 of `cr-coverage-audit.md` prunes. Nothing in CR 311 asks an existing type for a new field — each is a card type that lives in the command zone and is read only by its own variant.
 ---
 
 ## Rules 312.x — Phenomena
@@ -1797,6 +1803,8 @@ Phenomena (312.1–312.7) are Planechase-only supplemental cards.
 |------|---------------|
 | 312.1–312.7 | OUT-OF-SCOPE (Planechase only) |
 
+
+**312.1–312.7** — OUT-OF-SCOPE. Ratified per family by Pass A-2 (2026-08-31); Phenomena are Planechase-only (CR 901); same prune as 311. Nothing in CR 312 asks an existing type for a new field — each is a card type that lives in the command zone and is read only by its own variant.
 ---
 
 ## Rules 313.x — Vanguards
@@ -1809,6 +1817,8 @@ Vanguards (313.1–313.7) are Vanguard casual variant. Deferred to stretch goal 
 |------|---------------|
 | 313.1–313.7 | DEFERRED (Vanguard — stretch goal) |
 
+
+**313.1–313.7** — DEFERRED. Ratified per family by Pass A-2 (2026-08-31); Vanguard (CR 902) is a stretch goal, not a permanent exclusion — consistent with 211.1/212.1 in session 2 and with session 10's reading of 902. Nothing in CR 313 asks an existing type for a new field — each is a card type that lives in the command zone and is read only by its own variant.
 ---
 
 ## Rules 314.x — Schemes
@@ -1821,6 +1831,8 @@ Schemes (314.1–314.7) are Archenemy casual variant only.
 |------|---------------|
 | 314.1–314.7 | OUT-OF-SCOPE (Archenemy only) |
 
+
+**314.1–314.7** — OUT-OF-SCOPE. Ratified per family by Pass A-2 (2026-08-31); Schemes are Archenemy-only (CR 904). Nothing in CR 314 asks an existing type for a new field — each is a card type that lives in the command zone and is read only by its own variant.
 ---
 
 ## Rules 315.x — Conspiracies
@@ -1833,6 +1845,8 @@ Conspiracies (315.1–315.7) are Conspiracy Draft variant only.
 |------|---------------|
 | 315.1–315.7 | OUT-OF-SCOPE (Conspiracy Draft only) |
 
+
+**315.1–315.7** — OUT-OF-SCOPE. Ratified per family by Pass A-2 (2026-08-31); Conspiracies are Conspiracy Draft-only (CR 905), and 315.2 is a pregame draft action rather than gameplay. Nothing in CR 315 asks an existing type for a new field — each is a card type that lives in the command zone and is read only by its own variant.
 ---
 
 ## Composition Tests
