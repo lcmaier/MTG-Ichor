@@ -63,8 +63,9 @@ thin if rushed; consider splitting again rather than doing 61 in one pass.
 **Third mechanic, no atoms: voting (CR 701.38)** and CR 201.4 with it —
 `DecisionProvider` is four index-shaped methods with no vote and no "choose a
 card name". It gets a `backlog.md` entry but stays invisible to `owed` and
-`orphaned` either way, because it has **zero atoms**. Authoring them is Pass B,
-which is explicitly unscheduled.
+`orphaned` either way, because it has **zero atoms**. Authoring them is corpus
+work — writing atoms for a rule that carries a verdict but has none —
+and that is explicitly unscheduled.
 
 ---
 
@@ -80,8 +81,8 @@ which is explicitly unscheduled.
   and three phase designs is a different project.
 - **D2b is deferred, deliberately.** 54 atoms are cited only in `mtgsim/src/`:
   production code encodes the rule and *no test mentions it at all*. Those need
-  a test **written**, not annotated — larger than D2a and closer to Pass B than
-  to planning. It does not block D3.
+  a test **written**, not annotated — larger than D2a, and test authoring
+  rather than planning. It does not block D3.
 
 ---
 

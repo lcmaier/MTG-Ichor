@@ -323,9 +323,11 @@ python plans/specdb.py audit --dark --families   # darkness; in-scope surface is
   since for *darkness* a mention really is somebody looking.
 - **`audit --dark` is retired as an instrument.** Its in-scope surface is 0 and
   the remaining darkness is a *depth* gap, overwhelmingly CR 702 keyword
-  subrules. That is corpus authoring, it belongs beside the phases that need it,
-  and **it is not scheduled here.** Recording that is what stops a type sweep
-  sliding into it.
+  subrules. That is corpus authoring — writing atoms for rules that carry a
+  verdict but have none — it belongs beside the phases that need it, and **it is
+  not scheduled here.** Recording that is what stops a type sweep sliding into
+  it. (Older drafts and PR #69 call this **"Pass B"**, against a **"Pass A"**
+  fact sweep. Both names are retired with the A/B split; the activity is not.)
 
 Citations in both queries match per **rule**, never per section: `plans/*.md`
 say "CR 702" constantly, and a section-level test hands every keyword ability
