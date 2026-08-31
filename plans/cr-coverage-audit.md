@@ -197,17 +197,36 @@ shape exactly. The CR asks for them in at least five places:
 | CR 107.4h | snow `{S}` — mana *from a snow source* spent on a cost |
 | CR 700.14 | expend N — mana spent to cast spells *this turn* |
 
-**Why it is a fact and not a feature.** Sunburst is an ETB replacement, so
-**RC** would encode its absence; CR 707.10 is a copy rule, so **CV-2** would
-encode it again; CR 700.14 is a trigger, so **item 6** would make it three.
-`ManaPool.last_spent_grants` is already a partial, transient version of this —
-the engine knows it needs *something* here and drains it after one call.
+**Why it is a fact and not a feature — and where it actually lands.** The
+corpus already scheduled the readers, and it named this dependency first:
+ATOM-702.44a-001 (sunburst) is ticketed *"DEFERRED — Phase 8. Requires
+mana-color-spent tracking."* So **RC does not read this**, and an earlier draft
+of this section back-stopped it there wrongly.
+
+The earliest reader is **CV's spell-copy work** (CR 707.10, atoms under D5,
+superseded by `copy-effects-architecture.md`), then **item 6** for CR 700.14's
+expend, then **Phase 8** for sunburst itself.
+
+**CR 707.10 splits the fact in half, and that is the part that must be designed
+rather than bolted on.** A copy inherits the *objects* used to pay the
+original's costs — the Fling case the CR spells out by name — but **not** the
+mana, because "mana isn't an object" (the Dawnglow Infusion example). Both
+halves are already atoms: ATOM-707.10-002 and ATOM-707.10-003. A copy spine
+that treats cost-payment provenance as one undifferentiated blob gets this
+wrong in one direction or the other.
+
+`ManaPool.last_spent_grants` is already a partial, transient version of the
+mana half — the engine knows it needs *something* here and drains it after one
+`pay_with_plan` call.
 
 **Not a rewrite.** `x_value` is the precedent and the rail: captured at cast,
-carried `StackEntry` → `BattlefieldEntity` on resolution. This rides it.
+carried `StackEntry` → `BattlefieldEntity` on resolution. This rides it, and
+the rail survives RC-2's ETB rewrite either way.
 
-→ **Owner: `codebase-state.md` Deferred Migrations item 30. Back-stop: the
-  first reader — sunburst at RC, or CR 707.10 at CV-2, whichever lands first.**
+→ **Owner: `codebase-state.md` Deferred Migrations item 30. Capture is
+  independent of every scheduled phase and cheap whenever. The design
+  constraint lands at CV — the 707.10 split above — which is where the
+  back-stop belongs.**
 
 ### 5.2 Near-misses
 

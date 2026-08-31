@@ -805,27 +805,37 @@ section never asked.
     destroys both: the mana leaves the pool, and a sacrificed permanent is in a
     graveyard by the time the spell resolves.
 
-    **A fact rather than a feature, because three separate future phases would
-    each encode its absence.** CR 702.44's sunburst is an ETB replacement
-    (**RC**); CR 707.10 makes a copy use *the original's* paid objects — the
-    Fling case the CR spells out by name (**CV-2**); CR 700.14's "expend N"
-    counts mana spent to cast spells this turn (**critical-path item 6**).
-    CR 400.7d is the general form — "an ability of a permanent can reference
-    … what costs were paid to cast that spell or what mana was spent to pay
-    those costs" — and CR 107.4h's snow `{S}` is a fourth reader.
-    `ManaPool.last_spent_grants` is already a partial, transient version of
-    exactly this: it holds grants from atoms spent in the *last*
-    `pay_with_plan` call and is drained after one read.
+    **A fact rather than a feature, because separate future phases each encode
+    its absence — but not the phase a first draft of this entry named.** The
+    corpus scheduled the readers years ago and named this dependency while
+    doing it: ATOM-702.44a-001 (sunburst, CR 702.44) is ticketed *"DEFERRED —
+    Phase 8. Requires mana-color-spent tracking."* **RC does not read this.**
+    The order is **CV** (CR 707.10, atoms under D5) → **item 6** (CR 700.14's
+    "expend N", mana spent to cast spells this turn) → **Phase 8** (sunburst).
+    CR 400.7d is the general form — "an ability of a permanent can reference …
+    what costs were paid to cast that spell or what mana was spent to pay those
+    costs" — and CR 107.4h's snow `{S}` is a fourth reader.
+
+    **CR 707.10 splits the fact in half, and that half is the design
+    constraint.** A copy of a spell inherits the *objects* used to pay the
+    original's costs — the Fling case the CR names — but **not** the mana,
+    "because mana isn't an object" (the Dawnglow Infusion example). Both halves
+    are already atoms: ATOM-707.10-002 and ATOM-707.10-003. A copy spine that
+    treats cost-payment provenance as one undifferentiated blob gets one of the
+    two wrong. `ManaPool.last_spent_grants` is a partial, transient version of
+    the mana half already — grants from atoms spent in the *last*
+    `pay_with_plan` call, drained after one read.
 
     **Sized: the `x_value` rail.** A cast-time value carried from `StackEntry`
     to `BattlefieldEntity` on resolution is a shape this codebase already has,
-    so this rides it rather than re-threading anything — which is what keeps it
-    a field and not a redesign. The part that needs thought is what a spent
-    *object* is once it has left: CR 707.10's Fling reads the sacrificed
-    creature's power out of a graveyard, which is LKI, and LKI formalization
-    belongs to item 6. **Trigger: the first reader — sunburst at RC or
-    CR 707.10 at CV-2, whichever lands first.** Recording it now is the cheap
-    half; the mana atoms exist at payment time and nowhere afterward.
+    so this rides it rather than re-threading anything — and the rail survives
+    RC-2's ETB rewrite either way, which is why RC is not the gate. The part
+    that needs thought is what a spent *object* is once it has left: Fling
+    reads the sacrificed creature's power out of a graveyard, which is LKI, and
+    LKI formalization belongs to item 6. **Trigger: capture is independent of
+    every scheduled phase and cheap whenever; the design constraint lands at
+    CV.** Recording it early is the cheap half — the mana atoms exist at
+    payment time and nowhere afterward.
     → `cr-coverage-audit.md` §5.1.
 
 ### Was the critical path complete? — audited 2026-08-27
