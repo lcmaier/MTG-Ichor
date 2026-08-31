@@ -75,8 +75,9 @@ trusting a number.
   implemented-but-untested behavior besides (`backlog.md` §5). The gate that
   matters, `owed`, is clean at 9 deliberate keeps.
 - **What the audit did for the route** (`cr-coverage-audit.md`): after sweeping
-  every fact-bearing type — fifteen in its §4, the last (`ManaPool`) added from
-  a card-population probe (2026-08-31) — **exactly one fact had escaped the plan**
+  every fact-bearing type — seventeen in its §4, the last three (`ManaPool`,
+  `PlayerState`, `Zone`) added from card-population probes, with the
+  enumeration criterion now stated there (2026-08-31) — **exactly one fact had escaped the plan**
   (cost-payment provenance, `codebase-state.md` Deferred Migrations item 30,
   back-stopped at CV), and **one v1 blocker sits off-spine** (the information
   model, `backlog.md` §2.9 → §5 below). Everything else found is additive.
@@ -173,6 +174,9 @@ free is the internal arrows.
 | T12c/T12d restricted-mana wiring | the 227 `o:"this mana"` cards; Omnath-class blanket persistence | grants want item 30 and item 6 |
 | §2.4 `DecisionProvider` choice shapes | the voting cycle; name-a-card | one trait decision, taken once |
 | §2.13 deck-limit validation | a deckbuilding UI that refuses malformed lists | trivial |
+| §2.15 player-scoped continuous effects | Winter's hand-size clause; the Reliquary Tower class (62 touch it, 43 remove it); player hexproof (14) | conditional gating: item 6 |
+| §2.16 counters on players | energy (145 cards), experience (16); proliferate's player half | — |
+| §2.17 extra turns | Time Walk's family, ~60 cards | skips ride the replacement track |
 | **§2.9 the information model** | **v1 itself** — see §5 | back-stop before Phase 8's face-down/reveal cards |
 
 ---
@@ -317,6 +321,11 @@ All with `-is:funny unique:cards` appended; fetch per
 | 335 | `t:planeswalker` |
 | 257 | `(keyword:kicker or keyword:multikicker)` |
 | 227 | `o:"this mana"` |
+| 145 | `o:"{E}"` |
+| 62 / 43 | `o:"maximum hand size"` / `o:"no maximum hand size"` |
+| 60 | `o:"extra turn"` |
+| 16 | `o:"experience counter"` |
+| 14 | `(o:"you have hexproof" or o:"you have shroud" or o:"players have hexproof")` |
 | 10 | `o:"until end of combat"` |
 
 The ~1,350 (RC), ~903 (§2.1) and ~764 (§2.3) figures are the detector
