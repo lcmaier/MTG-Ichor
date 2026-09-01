@@ -4,7 +4,37 @@
 //! lives in `engine/layers/compute.rs`.
 
 use crate::engine::layers::types::{ContinuousEffect, EffectId, Layer, Timestamp};
-use crate::types::ids::ObjectId;
+use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
+use crate::types::effects::Duration;
+use crate::types::ids::{ObjectId, PlayerId};
+
+/// CR 613.7's storage order: layer first, then timestamp, with the registry's
+/// own id breaking ties. `effects_in_layer` binary-searches on it.
+impl DurationRow for ContinuousEffect {
+    type SortKey = (Layer, Timestamp);
+
+    fn id(&self) -> RowId {
+        self.id
+    }
+    fn set_id(&mut self, id: RowId) {
+        self.id = id;
+    }
+    fn source(&self) -> ObjectId {
+        self.source
+    }
+    fn duration(&self) -> Duration {
+        self.duration
+    }
+    fn controller(&self) -> PlayerId {
+        self.controller
+    }
+    fn created_on_turn(&self) -> u32 {
+        self.created_on_turn
+    }
+    fn sort_key(&self) -> Self::SortKey {
+        (self.layer, self.timestamp)
+    }
+}
 
 /// Cheap, registry-wide facts that let `compute_characteristics` skip work it
 /// would otherwise have to do per object per layer.
@@ -74,18 +104,21 @@ pub struct RegistryScopeSummary {
 }
 
 /// Owns all active continuous effects in the game.
+///
+/// The `Vec`, the id counter and the CR 514.2 expiry hooks live in
+/// [`DurationRegistry`], which this type owns and delegates to; what stays here
+/// is what is specific to *layered* effects — the CR 613.7 layer slice and the
+/// summary flags.
 #[derive(Debug, Clone)]
 pub struct ContinuousEffectRegistry {
-    effects: Vec<ContinuousEffect>,
-    next_effect_id: EffectId,
+    effects: DurationRegistry<ContinuousEffect>,
     summary: RegistryScopeSummary,
 }
 
 impl ContinuousEffectRegistry {
     pub fn new() -> Self {
         ContinuousEffectRegistry {
-            effects: Vec::new(),
-            next_effect_id: 1,
+            effects: DurationRegistry::new(),
             summary: RegistryScopeSummary::default(),
         }
     }
@@ -95,12 +128,23 @@ impl ContinuousEffectRegistry {
         &self.summary
     }
 
+    /// Run a mutation against the rows, then rebuild the summary.
+    ///
+    /// Every mutating method funnels through here. The summary is derived
+    /// state, and a path that skipped the rebuild would show up as a silently
+    /// skipped existence check — the exact class of bug the Layer 2 phase
+    /// existed to remove.
+    fn mutating<R>(&mut self, f: impl FnOnce(&mut DurationRegistry<ContinuousEffect>) -> R) -> R {
+        let out = f(&mut self.effects);
+        self.recompute_summary();
+        out
+    }
+
     /// Recompute `summary` from scratch.
     ///
     /// A full walk on every mutation rather than incremental counters: adds and
     /// removes are rare next to reads, and a counter that drifts would show up
-    /// as a silently skipped existence check — the exact class of bug this
-    /// phase exists to remove.
+    /// as a silently skipped existence check.
     fn recompute_summary(&mut self) {
         let mut seen: std::collections::HashSet<crate::engine::layers::types::EffectGroup> =
             std::collections::HashSet::with_capacity(self.effects.len());
@@ -120,11 +164,19 @@ impl ContinuousEffectRegistry {
             }
         });
 
-        debug_assert!(self.is_sorted(), "registry order invariant violated after mutation");
+        debug_assert!(
+            self.effects.is_sorted(),
+            "registry order invariant violated after mutation"
+        );
     }
 
     /// Register a new continuous effect. Returns its unique ID.
-    pub fn add(&mut self, mut effect: ContinuousEffect) -> EffectId {
+    ///
+    /// Placement is `DurationRegistry::add`'s: `(layer, timestamp)` from
+    /// `sort_key`, then the id it just allocated. `EffectId` as the sub-order is
+    /// doing real work rather than breaking an accidental tie — see
+    /// `effects_in_layer`.
+    pub fn add(&mut self, effect: ContinuousEffect) -> EffectId {
         // CR 604.3a(3) — a CDA affects only the object that has it, so it needs
         // no `AffectedSet` and never becomes a registry row. `layers::cda`
         // applies them off the object's own ability list instead. Layer 7a is
@@ -133,43 +185,27 @@ impl ContinuousEffectRegistry {
         // apply twice.
         debug_assert!(
             effect.layer != Layer::Layer7aCdaPT,
-            "Layer 7a is applied intrinsically, never from the registry \
-             (CR 604.3a(3)); effect from source {:?} tried to register there",
+            "Layer 7a is applied intrinsically, never from the registry              (CR 604.3a(3)); effect from source {:?} tried to register there",
             effect.source
         );
 
-        let id = self.next_effect_id;
-        self.next_effect_id += 1;
-        effect.id = id;
-        let key = (effect.layer, effect.timestamp, effect.id);
-        let pos = self
-            .effects
-            .partition_point(|e| (e.layer, e.timestamp, e.id) < key);
-        self.effects.insert(pos, effect);
-        self.recompute_summary();
-        id
+        self.mutating(|rows| rows.add(effect))
     }
 
     /// Remove a specific effect by its ID. Returns the removed effect if found.
     pub fn remove(&mut self, id: EffectId) -> Option<ContinuousEffect> {
-        if let Some(pos) = self.effects.iter().position(|e| e.id == id) {
-            let removed = self.effects.remove(pos);
-            self.recompute_summary();
-            Some(removed)
-        } else {
-            None
-        }
+        self.mutating(|rows| rows.remove(id))
     }
 
     /// Remove all effects generated by a given source object.
-    /// Used when a permanent leaves the battlefield.
+    /// Used when a permanent leaves the battlefield (CR 611.3b).
     pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<ContinuousEffect> {
-        self.retain_effects(|e| e.source != source)
+        self.mutating(|rows| rows.remove_by_source(source))
     }
 
     /// All effects in a layer, already in application order (CR 613.7).
     ///
-    /// No sorting happens here. `effects` is *maintained* in
+    /// No sorting happens here. The rows are *maintained* in
     /// `(layer, timestamp, id)` order by `add`, so a layer is a contiguous
     /// range and this is two binary searches and a slice.
     ///
@@ -181,46 +217,17 @@ impl ContinuousEffectRegistry {
     /// is what 613.7a's "the relative order of those timestamps remains the
     /// same" asks for.
     ///
-    /// Removals preserve order for the same reason — see `retain_effects`.
+    /// Removals preserve order for the same reason — see
+    /// `DurationRegistry::retain`.
     ///
     /// (Not yet CR 613.8: dependency ordering is unimplemented, so this is
     /// timestamp order only. See Deferred Migrations item 8.)
     pub fn effects_in_layer(&self, layer: Layer) -> &[ContinuousEffect] {
-        debug_assert!(self.is_sorted(), "registry order invariant violated");
-        let lo = self.effects.partition_point(|e| e.layer < layer);
-        let hi = self.effects.partition_point(|e| e.layer <= layer);
-        &self.effects[lo..hi]
-    }
-
-    /// The `(layer, timestamp, id)` ordering invariant `effects_in_layer`
-    /// depends on. Checked under `debug_assertions` on every read and after
-    /// every mutation, so a future code path that pushes without maintaining
-    /// order fails a test rather than silently misordering a layer.
-    fn is_sorted(&self) -> bool {
-        self.effects
-            .windows(2)
-            .all(|w| (w[0].layer, w[0].timestamp, w[0].id) < (w[1].layer, w[1].timestamp, w[1].id))
-    }
-
-    /// Remove every effect failing `keep`, returning them; order preserved.
-    ///
-    /// One pass. The obvious `while i < len { if .. { v.remove(i) } }` is
-    /// `O(n²)`, since each `Vec::remove` shifts the tail — and `swap_remove`,
-    /// which is what this used before the registry became ordered, is not an
-    /// option any more because it destroys the invariant above.
-    fn retain_effects(&mut self, keep: impl Fn(&ContinuousEffect) -> bool) -> Vec<ContinuousEffect> {
-        let mut removed = Vec::new();
-        let mut kept = Vec::with_capacity(self.effects.len());
-        for effect in self.effects.drain(..) {
-            if keep(&effect) {
-                kept.push(effect);
-            } else {
-                removed.push(effect);
-            }
-        }
-        self.effects = kept;
-        self.recompute_summary();
-        removed
+        debug_assert!(self.effects.is_sorted(), "registry order invariant violated");
+        let all = self.effects.as_slice();
+        let lo = all.partition_point(|e| e.layer < layer);
+        let hi = all.partition_point(|e| e.layer <= layer);
+        &all[lo..hi]
     }
 
     /// Iterate over all registered effects.
@@ -239,42 +246,21 @@ impl ContinuousEffectRegistry {
     }
 
     /// Remove effects that expire during the cleanup step (rule 514.2).
-    ///
-    /// Handles:
-    /// - `UntilEndOfTurn` — always expires at cleanup.
-    /// - `UntilEndOfYourNextTurn` (future) — expires at cleanup if the active
-    ///   player matches the effect's controller AND the current turn is after
-    ///   the turn the effect was created on.
     pub fn remove_expired_at_cleanup(
         &mut self,
-        active_player: crate::types::ids::PlayerId,
+        active_player: PlayerId,
         current_turn: u32,
     ) -> Vec<ContinuousEffect> {
-        use crate::types::effects::Duration;
-        // Suppress unused variable warnings until multi-turn durations are added
-        // (UntilEndOfYourNextTurn would read both).
-        let _ = (active_player, current_turn);
-        self.retain_effects(|e| !matches!(e.duration, Duration::UntilEndOfTurn))
+        self.mutating(|rows| rows.remove_expired_at_cleanup(active_player, current_turn))
     }
 
     /// Remove effects that expire at the start of a player's turn.
-    ///
-    /// Handles:
-    /// - `UntilYourNextTurn` — expires at the beginning of the controller's
-    ///   next turn (checked at untap step). Only fires if the current turn is
-    ///   strictly after the turn the effect was created on (prevents immediate
-    ///   expiry when created on your own turn).
     pub fn remove_expired_at_turn_start(
         &mut self,
-        active_player: crate::types::ids::PlayerId,
+        active_player: PlayerId,
         current_turn: u32,
     ) -> Vec<ContinuousEffect> {
-        use crate::types::effects::Duration;
-        self.retain_effects(|e| {
-            !matches!(e.duration, Duration::UntilYourNextTurn)
-                || e.controller != active_player
-                || current_turn <= e.created_on_turn
-        })
+        self.mutating(|rows| rows.remove_expired_at_turn_start(active_player, current_turn))
     }
 
     /// Allocate the next timestamp value.
@@ -313,7 +299,7 @@ mod tests {
         assert_eq!(id, 1);
         assert_eq!(reg.len(), 1);
         assert_eq!(reg.iter().next().unwrap().id, 1);
-        assert_eq!(reg.next_effect_id, 2);
+        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), 2, "ids ascend");
     }
 
     #[test]

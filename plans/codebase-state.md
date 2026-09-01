@@ -12,7 +12,8 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
 - **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **Still ahead: RC (ETB replacements, ~1,350 cards), RD (damage and prevention, CR 615), RE (the remaining event kinds).**
-- **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry with duration-based expiry (`state/continuous_effects.rs`, 304 lines), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
+- **"Can't" effects (CR 101.2/614.17/613.11) — designed, and RS-0 has landed (2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0 is done**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. §9 finding 7's abort condition did not trigger — see the entry under "Found by the RS-0 refactor". **RS-1 (the Tier-2 spine) is next on that track, and it is the one hard join: RC-4 cannot start without it.**
+- **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
   - **Still stubbed:** Layer 3 (text) and Layer 1 (copy) are enum variants only. Nothing produces an effect in either.
   - **Dependency algorithm (CR 613.8) not implemented.** Ordering is timestamp-only, which is sufficient for the layers landed so far in isolation but will not survive Layer 6 + Layer 4 interaction (Humility/Opalescence).
@@ -894,6 +895,63 @@ section never asked.
     whichever comes first.**
     → `plans/cards-unlocked-ledger.md` T12 rows; `roadmap-v2.md` §4;
     `cr-coverage-audit.md` §4's `ManaPool` row.
+
+### Found by the RS-0 refactor (2026-08-31)
+
+34. **§9 finding 7's abort condition did not trigger, and the reason is worth
+    keeping.** `cant-effects-architecture.md` §9 finding 7 said to stop and keep
+    three registries if composing them meant the wrapper leaking the generic's
+    internals, naming "`effects_in_layer`'s layer-indexed cache" as the thing
+    that might. **There is no cache.** `effects_in_layer` is two
+    `partition_point` calls over a `Vec` that `add` *maintains* in
+    `(layer, timestamp, id)` order — an ordering invariant, not a memo, and it
+    has exactly one production caller (`compute.rs:242`).
+
+    A second correction, found in review: the shared rules content is **CR 514.2
+    alone**, reaching both registries through CR 611.2a. An earlier draft of the
+    module comment said "CR 514.2 and CR 613.7" — but 613.7 is timestamp
+    ordering, the one axis the registries do *not* share, and `SortKey` exists
+    precisely to let them differ on it. The durable measure of what the generic
+    bought is greppable: the engine now dispatches on a `Duration` variant in
+    **two** places, both in `duration_registry.rs`, and `Duration` is a closed
+    enum item 14 is scheduled to grow.
+
+    That distinction is what let composition work. A memo would have had to live
+    on one side of the boundary and be invalidated from the other; an ordering
+    invariant can simply *move inside* the generic. `DurationRow::SortKey` is
+    where it went: the row type declares its storage key — `(Layer, Timestamp)`
+    for CR 613.7, `()` for CR 616.1's registration order — `DurationRegistry::add`
+    places by `(sort_key, id)`, and the ascending never-reused id makes the
+    unkeyed case degenerate to a push. One `add` and one `is_sorted` serve both
+    registries, and the wrapper only ever reads `as_slice()` to binary-search
+    what the generic already ordered.
+
+    **The premise checked before building on it, since the finding rested on
+    it:** `remove_expired_at_turn_start` diffs to *nothing* between the two
+    registries once the row type is renamed, and `remove_expired_at_cleanup`
+    differs only in the wording of the comment that says it matches its twin.
+
+    **What did not move into the generic, and should not.** The CR 613.6 summary
+    flags and the layer slice, both `ContinuousEffectRegistry`'s. Every
+    `ContinuousEffectRegistry` mutation funnels through a private `mutating()`
+    so a method added later cannot skip the summary rebuild.
+
+    **`ReplacementEffectRegistry` is a type alias, not a wrapper** (revised in
+    review, 2026-08-31). Finding 7 predicted a struct keeping "`Uses::Once`
+    removal, gather-order iteration"; both turned out to *be* generic methods —
+    `remove(id)` and `iter()` — so all nine of its methods were one-line
+    delegations. A wrapper that adds nothing costs a hop at every call site and
+    makes the reader ask what it is for, which is exactly what happened in
+    review. It can grow a method later without becoming a struct again: an
+    inherent `impl DurationRegistry<RegisteredReplacementEffect>` is legal
+    because the generic is crate-local. **The general rule: compose where the
+    wrapper has its own surface, alias where it does not.**
+
+    **Owed by the next customer, not by RS-0.** Item 17's source-scoped expiry
+    hook is now a one-line `retain` closure on the generic that both registries
+    inherit the day it is written — it was two closures before. And the third
+    customer the finding predicted, delayed triggers (CR 603.7), needs a
+    `DurationRow` impl and nothing else.
 
 ### Was the critical path complete? — audited 2026-08-27
 

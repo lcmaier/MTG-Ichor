@@ -1356,7 +1356,7 @@ useful question is "what do I do next", not "what does each doc own".
 | # | Do this | Why here |
 |---|---|---|
 | 1 | Finish #62 — themes G, then B | `rb-review.md`'s plan; both are on the branch already |
-| 2 | **RS-0** — the shared duration registry | Pure refactor, two existing suites as the check. Cheapest thing on the list and it makes 3 and 6 smaller |
+| 2 | ~~**RS-0** — the shared duration registry~~ ✅ **done 2026-08-31** | Pure refactor, two existing suites as the check. Cheapest thing on the list and it makes 3 and 6 smaller |
 | 3 | **RS-1** — the Tier-2 spine | Net-deleting. **This is the join**: RC-4 cannot start without it |
 | 4 | **RC-1** — delete the early stack pop | Independent of everything; the safest shape the project writes |
 | 5 | **RC-2** — `EnterBattlefield` as an event | 773 enters-tapped cards, and the first thing that makes Track R visible in a game |
@@ -1498,6 +1498,9 @@ Four things to act on rather than read past:
    builds `PlayerRef`-scoped continuous effects should claim it.
 
 7. **RS-1 makes this the third duration registry — compose, do not split.**
+   ✅ *Shipped 2026-08-31 as RS-0. The abort condition did not trigger; the
+   outcome is recorded at the bottom of this finding and in
+   `codebase-state.md` Deferred Migrations item 34.*
 
    **Measured.** `ContinuousEffectRegistry` (`state/continuous_effects.rs`)
    and `ReplacementEffectRegistry` (`state/replacement_effects.rs`) already
@@ -1550,6 +1553,37 @@ Four things to act on rather than read past:
    existing registries first so RS-1 is a *user* of the abstraction rather than
    the thing that invents it. Two existing test suites are the check and no
    behaviour moves.
+
+   **What happened (2026-08-31).** The premise held on inspection:
+   `remove_expired_at_turn_start` diffs to nothing between the two registries
+   once the row type is renamed, and `remove_expired_at_cleanup` differs only in
+   a comment's wording. The abort condition **did not trigger, and the reason
+   corrects this finding**: there is no layer-indexed *cache*. `effects_in_layer`
+   is two `partition_point` calls over a `Vec` that `add` maintains in
+   `(layer, timestamp, id)` order. That is an ordering invariant, and unlike a
+   memo an ordering invariant can move *inside* the generic rather than
+   straddling it — which is what `DurationRow::SortKey` does: the row type
+   declares its key (`(Layer, Timestamp)` for CR 613.7, `()` for CR 616.1's
+   registration order), `add` places by `(sort_key, id)`, and the ascending
+   never-reused id makes the unkeyed case a push. The wrapper reads `as_slice()`
+   and binary-searches what the generic already ordered; it cannot reach the
+   `Vec`.
+
+   **The wrapper this finding sketched did not survive, and that is the useful
+   correction.** It proposed a `ReplacementEffectRegistry` struct keeping
+   "`Uses::Once` removal, gather-order iteration". Both are generic methods —
+   `remove(id)` and `iter()` — so all nine of its methods came out as one-line
+   delegations, and in review that read as pure indirection. It is a **type
+   alias** for `DurationRegistry<RegisteredReplacementEffect>` instead. The rule
+   to carry forward: **compose where the wrapper has its own surface, alias
+   where it does not.** An alias can still grow a method — an inherent
+   `impl DurationRegistry<RegisteredReplacementEffect>` is legal on a
+   crate-local generic — so this is not a door closing.
+
+   **Two consequences for later phases.** RS-1's restriction registry needs a
+   `DurationRow` impl and nothing else — `SortKey = ()` unless a read wants an
+   order, and no wrapper unless it has surface of its own. And `codebase-state.md` item 17's source-scoped expiry hook is now one
+   `retain` closure both registries inherit, where it would have been two.
 
 8. **`Restriction` needs a `Requirement` sibling and RS-3 cannot ship without
    it** (§4.2). CR 508.1d's maximisation is defined over both, so a restriction
