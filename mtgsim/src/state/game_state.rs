@@ -15,6 +15,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::zones::Zone;
+use crate::types::replacement::EnterMods;
 
 /// Metadata for a spell or ability on the stack.
 ///
@@ -582,20 +583,129 @@ impl GameState {
 
     // --- Battlefield convenience ---
 
-    /// Create a `BattlefieldEntity` for the given object and insert it onto the
-    /// battlefield. Allocates a fresh timestamp and uses the current turn number.
-    /// Returns a mutable reference to the inserted entry so callers can tweak
-    /// fields (e.g. `entry.tapped = true`) without a second lookup.
-    pub fn place_on_battlefield(&mut self, id: ObjectId, controller: PlayerId) -> &mut BattlefieldEntity {
+    /// **The performer for `GameAction::EnterBattlefield`** (CR 614.1c/d).
+    ///
+    /// Creates a `BattlefieldEntity` for the object, applies the `mods` the
+    /// CR 616.1 loop settled on, and announces the arrival. Returns a mutable
+    /// reference to the inserted entry so callers can tweak fields without a
+    /// second lookup.
+    ///
+    /// **Not the entry point.** Engine code proposes an entry with
+    /// [`GameState::propose_entry`], which routes through `execute_actions` so
+    /// that a CR 614.1c replacement sees it. This runs after the pipeline has
+    /// decided what the permanent enters *as*, and it is the only emitter of
+    /// `GameEvent::PermanentEnteredBattlefield` — the `mods` and the resulting
+    /// controller are both known here and nowhere else.
+    ///
+    /// **The order inside the entry is the CR's.** Status and counters
+    /// (CR 110.5b, 122.6a) are part of *arriving*, so they are written before
+    /// anything can observe the permanent: a creature that enters with +1/+1
+    /// counters is never momentarily a 0/0 for CR 704.5f to kill.
+    /// `register_static_effects` comes last because CR 613.7a timestamps what
+    /// it registers off the entry that now exists.
+    pub fn place_on_battlefield(
+        &mut self,
+        id: ObjectId,
+        controller: PlayerId,
+        mods: &EnterMods,
+    ) -> &mut BattlefieldEntity {
         let ts = self.allocate_timestamp();
         let current_turn = self.turn_number;
-        let entry = BattlefieldEntity::new(id, controller, ts, current_turn);
+        let mut entry = BattlefieldEntity::new(id, controller, ts, current_turn);
+        // CR 110.5b — the one status a permanent can currently enter with.
+        entry.tapped = mods.tapped;
         self.battlefield.insert(id, entry);
 
-        self.init_etb_counters(id);
+        // CR 122.6a. Deliberately not a nested `AddCounters` proposal: these
+        // counters are part of the entry event rather than a separate "counters
+        // would be put on it" one, which is why CR 614.16's doublers replace the
+        // `EnterMods` this performer is handed rather than an event of their own.
+        for &(counter, n) in &mods.counters {
+            self.add_counters(id, counter, n);
+        }
+
         self.register_static_effects(id, controller);
 
+        // The controller the *game* sees, not the CR 110.2b default it entered
+        // under: a stolen permanent spell enters under its caster's control and
+        // CR 400.7a's Layer 2 row has already moved it to the thief by the time
+        // anything can look.
+        let effective = crate::oracle::characteristics::get_effective_controller(self, id)
+            .unwrap_or(controller);
+        self.events.emit(crate::events::event::GameEvent::PermanentEnteredBattlefield {
+            object_id: id,
+            controller: effective,
+        });
+
         self.battlefield.get_mut(&id).unwrap()
+    }
+
+    /// CR 110.2b's **default** controller for an object that is entering the
+    /// battlefield — the value `GameAction::EnterBattlefield` carries.
+    ///
+    /// > 110.2b. A permanent's controller is, by default, the player under
+    /// > whose control it entered the battlefield.
+    ///
+    /// The owner for a land drop and for a token; the player who put the spell
+    /// onto the stack for a resolving permanent spell. This is the **default** —
+    /// the value Layer 2 modifies, not the answer `get_effective_controller`
+    /// gives. A stolen permanent spell enters under its caster's control here
+    /// and is moved to the thief by the Layer 2 row CR 400.7a keeps alive.
+    ///
+    /// **The one reader of [`GameState::resolving`].** The `StackEntry` that
+    /// recorded CR 110.2b's answer has been taken by the time a permanent spell
+    /// reaches the battlefield, so that field is how the answer survives the
+    /// resolution. This used to live in `init_zone_state`, which is where the
+    /// battlefield entity used to be created; RC-2 moved the creation to the
+    /// performer and the question moved with it.
+    pub(crate) fn default_enter_controller(&self, id: ObjectId) -> Result<PlayerId, String> {
+        Ok(match self.resolving {
+            Some(r) if r.id == id => r.default_controller,
+            _ => self.get_object(id)?.owner,
+        })
+    }
+
+    /// What the *rules* say this object enters the battlefield with, before any
+    /// replacement effect has been consulted.
+    ///
+    /// The seed for `GameAction::EnterBattlefield`'s `mods`, and the successor
+    /// to `init_etb_counters`. Being part of the proposal rather than of the
+    /// performer is the point: CR 614.16's counter doublers replace what a
+    /// permanent enters *with*, and a loyalty count written straight into the
+    /// entity would be invisible to them.
+    ///
+    /// **CR 306.5b is a rule, not an ability**, which is why it lives here
+    /// rather than in a `ReplacementDef` — nothing on a planeswalker's card
+    /// says it enters with loyalty counters, the same way nothing on a
+    /// commander card says CR 903.9b.
+    ///
+    /// Reads the *effective* type, so a Layer 4 effect that made something a
+    /// planeswalker would be accounted for; but the object is not on the
+    /// battlefield yet, so an `AffectedSet::Filter` effect does not reach it.
+    /// That is `compute.rs`'s battlefield gate — Phase RC-3's one line — and it
+    /// is the same gap that keeps an entering Clone out of every filter.
+    pub(crate) fn default_enter_mods(&self, id: ObjectId) -> EnterMods {
+        let mut mods = EnterMods::NONE;
+
+        // CR 306.5b — "a planeswalker enters the battlefield with a number of
+        // loyalty counters on it equal to its printed loyalty number".
+        let loyalty = match self.objects.get(&id) {
+            Some(obj) => obj.card_data.loyalty,
+            None => return mods,
+        };
+        if let Some(loyalty) = loyalty {
+            if loyalty > 0
+                && crate::oracle::characteristics::has_type(
+                    self,
+                    id,
+                    crate::types::card_types::CardType::Planeswalker,
+                )
+            {
+                mods.counters.push((CounterType::Loyalty, loyalty as u32));
+            }
+        }
+
+        mods
     }
 
     /// Put `n` counters of `counter_type` on a permanent, allocating the CR
@@ -1122,31 +1232,6 @@ impl GameState {
         }
     }
 
-    /// Set initial counters for a permanent entering the battlefield.
-    ///
-    /// Currently handles:
-    /// - Planeswalker loyalty (rule 306.5b): set loyalty counters equal to
-    ///   printed loyalty. Replacement effects (e.g. Doubling Season) will
-    ///   intercept this in the replacement-effect layer (Phase 7+).
-    ///
-    /// Future: Sagas (lore counters), other ETB counter patterns.
-    fn init_etb_counters(&mut self, id: ObjectId) {
-        let loyalty = match self.objects.get(&id) {
-            Some(obj) => obj.card_data.loyalty,
-            None => return,
-        };
-        if !crate::oracle::characteristics::has_type(
-            self, id, crate::types::card_types::CardType::Planeswalker)
-        {
-            return;
-        }
-        if let Some(loyalty) = loyalty {
-            if loyalty > 0 {
-                self.add_counters(id, CounterType::Loyalty, loyalty as u32);
-            }
-        }
-    }
-
     // --- Object management ---
 
     /// Register a game object in the central store
@@ -1338,7 +1423,7 @@ mod tests {
             let obj = GameObject::new(card, 0, Zone::Battlefield);
             let id = obj.id;
             game.add_object(obj);
-            game.place_on_battlefield(id, 0);
+            game.place_on_battlefield(id, 0, &EnterMods::NONE);
         }
     }
 

@@ -4,6 +4,7 @@ use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
 
@@ -173,6 +174,33 @@ pub enum GameAction {
         source: DestructionSource,
     },
 
+    /// A permanent enters the battlefield (CR 614.1c/d).
+    ///
+    /// **A separate event from the `ZoneChange` that carries it**, proposed
+    /// after it rather than folded into it. The CR asks two different questions
+    /// at two different instants: a zone-change replacement rewrites *where the
+    /// object goes* (CR 614.8's "would be put into a graveyard" — Kalitas, a
+    /// finality counter), while an entry replacement rewrites *how it arrives*
+    /// once the destination is settled (CR 614.12's "check the characteristics
+    /// of the permanent as it would exist on the battlefield"). One action for
+    /// both would let an ETB replacement see a destination a later zone-change
+    /// replacement then changed.
+    ///
+    /// `controller` is CR 110.2b's **default**: the owner for a land drop or a
+    /// token, the player who put the spell on the stack for a resolving
+    /// permanent spell. It is the value Layer 2 modifies, not the answer
+    /// `get_effective_controller` gives.
+    ///
+    /// `mods` starts as whatever the *rules* say the permanent enters with
+    /// (`GameState::default_enter_mods`) and accumulates through
+    /// [`Rewrite::EnterWith`](crate::types::replacement::Rewrite::EnterWith)
+    /// as CR 616.1f iterates.
+    EnterBattlefield {
+        object: ObjectId,
+        controller: PlayerId,
+        mods: EnterMods,
+    },
+
     // === Phase 3+ actions — add variants here as primitives are implemented ===
     // Sacrifice { object: ObjectId },
     // Exile { object: ObjectId },
@@ -330,12 +358,12 @@ impl GameState {
     /// Stable within a player, so a sweep that built its batch from
     /// `battlefield_ids_ordered` keeps that order among its own members.
     fn apnap_batch_order(&self, batch: &[GameAction]) -> Vec<usize> {
-        use crate::engine::replacement::{subject_of, chooser_for};
+        use crate::engine::replacement::chooser_for_event;
 
         let n = self.players.len();
         let mut order: Vec<usize> = (0..batch.len()).collect();
         order.sort_by_key(|&i| {
-            let chooser = chooser_for(self, subject_of(&batch[i]));
+            let chooser = chooser_for_event(self, &batch[i]);
             // `None` — an object with neither controller nor owner — sorts
             // last; the pipeline errors on it rather than guessing, and this
             // keeps that error deterministic.
@@ -575,6 +603,22 @@ impl GameState {
                     cause,
                     lki,
                 });
+
+                // CR 614.1c — arriving on the battlefield is its own proposed
+                // event, so that "this permanent enters tapped" has something to
+                // replace. Nested rather than performed inline: a nested
+                // `execute_actions` joins the enclosing batch, which keeps
+                // CR 603.2c's boundary around the whole zone change.
+                //
+                // `move_object` has already written `obj.zone`, so between here
+                // and the `EnterBattlefield` performer the object is *in* the
+                // battlefield zone with no `BattlefieldEntity`. That window is
+                // one `emit` wide, and it is why nothing may be inserted
+                // between these two statements.
+                if to == Zone::Battlefield {
+                    let controller = self.default_enter_controller(object)?;
+                    self.propose_entry(object, controller, _ctx)?;
+                }
                 Ok(())
             }
 
@@ -691,7 +735,48 @@ impl GameState {
                 )?;
                 Ok(())
             }
+
+            // CR 614.1c/d's event. The performer is `place_on_battlefield`,
+            // which is also the only emitter of
+            // `GameEvent::PermanentEnteredBattlefield`.
+            GameAction::EnterBattlefield { object, controller, mods } => {
+                self.place_on_battlefield(object, controller, &mods);
+                Ok(())
+            }
         }
+    }
+
+    /// Propose CR 614.1c's entry for an object that is already in the
+    /// battlefield zone but has no `BattlefieldEntity` yet.
+    ///
+    /// **Loud if the entry is dropped.** Nothing in RC-2 can drop one — only
+    /// `Rewrite::EnterWith` matches an `EnterBattlefield`, and no card writes a
+    /// CR 614.17d prohibition on entering — but a dropped entry would leave the
+    /// object in `Zone::Battlefield` with nothing on the battlefield, a state no
+    /// rule describes and no query survives. CR 614.17d belongs to Phase RC-4
+    /// and has to stop the *zone change*; this error is what makes an attempt to
+    /// do it here fail at the attempt rather than three queries later.
+    pub(crate) fn propose_entry(
+        &mut self,
+        object: ObjectId,
+        controller: PlayerId,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        let mods = self.default_enter_mods(object);
+        let performed = self.execute_actions(
+            vec![GameAction::EnterBattlefield { object, controller, mods }],
+            ctx,
+        )?;
+        if performed.is_empty() {
+            return Err(format!(
+                "the entry of {} onto the battlefield was replaced away, which leaves \
+                 it in the battlefield zone with no permanent. A CR 614.17d \
+                 prohibition on entering has to stop the zone change, not the entry \
+                 - see `replacement-architecture.md` section 9, RC-4.",
+                object
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -717,10 +802,11 @@ mod tests {
             .power_toughness(2, 2)
             .build();
 
-        let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        // `place_bare`, not `place_on_battlefield`: entering the battlefield is
+        // an event now (CR 614.1c), and every assertion below counts the events
+        // the *action under test* emitted. A fixture that announces itself is
+        // the reason `test_support` keeps the two idioms apart.
+        let id = crate::test_support::place_bare(&mut game, bears, 0);
 
         (game, id)
     }
@@ -877,7 +963,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         (game, id)
     }
@@ -987,7 +1073,7 @@ mod tests {
             let obj = GameObject::new(data, 0, Zone::Battlefield);
             let id = obj.id;
             game.add_object(obj);
-            game.place_on_battlefield(id, 0);
+            game.place_on_battlefield(id, 0, &EnterMods::NONE);
             id
         };
 
@@ -1044,7 +1130,7 @@ mod tests {
         obj.is_commander = true;
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         (game, id)
     }
@@ -1127,7 +1213,7 @@ mod tests {
             obj.is_commander = true;
             let id = obj.id;
             game.add_object(obj);
-            game.place_on_battlefield(id, 0);
+            game.place_on_battlefield(id, 0, &EnterMods::NONE);
             id
         };
 

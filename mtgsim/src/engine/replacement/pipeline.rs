@@ -12,7 +12,7 @@ use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_replacement;
 
 use super::gather::{applies_to, forced_bucket};
-use super::{subject_of, chooser_for, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
+use super::{subject_of, chooser_for_event, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
 
 /// The "and also" half of an applied replacement, queued for after the event.
 ///
@@ -174,7 +174,7 @@ pub(crate) fn apply_replacements(
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player.
         let subject = subject_of(&event);
-        let chooser = chooser_for(game, subject);
+        let chooser = chooser_for_event(game, &event);
 
         // **Never prompt with fewer than two candidates.** CR-correct (there is
         // no choice to make with one), and it is what keeps every existing
@@ -385,6 +385,33 @@ fn apply_rewrite(
     match &chosen.def.rewrite {
         // CR 614.6 / 615.6.
         Rewrite::Prevent => Ok(None),
+
+        // CR 614.1c/d — the event still happens; only *how* changes.
+        //
+        // Merged into the proposal rather than substituted for it, which is
+        // what makes CR 616.1f's re-gather accumulate: a permanent facing an
+        // "enters tapped" and an "enters with two charge counters" comes out
+        // the far side with both, in either application order. CR 614.5 is
+        // what stops the merge from repeating — the pattern still watches the
+        // rewritten event, and the applied set is what makes that terminate
+        // rather than loop.
+        Rewrite::EnterWith(extra) => match event {
+            GameAction::EnterBattlefield { object, controller, mods } => {
+                let mut merged = mods.clone();
+                merged.merge(extra);
+                Ok(Some(GameAction::EnterBattlefield {
+                    object: *object,
+                    controller: *controller,
+                    mods: merged,
+                }))
+            }
+            other => Err(format!(
+                "replacement {:?} modifies how a permanent enters but matched {:?}, \
+                 which is not an entry. Its `EventPattern` and its `Rewrite` \
+                 describe different events.",
+                chosen.id, other
+            )),
+        },
 
         Rewrite::Instead(template) => match (template, event) {
             (

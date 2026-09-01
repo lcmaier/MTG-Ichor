@@ -224,6 +224,7 @@ pub fn enumerate_legal_selections(
 
 #[cfg(test)]
 mod tests {
+    use crate::types::replacement::EnterMods;
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -276,7 +277,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
+        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         assert!(!can_attack(&game, id));
     }
@@ -292,7 +293,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
+        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         assert!(can_attack(&game, id));
     }

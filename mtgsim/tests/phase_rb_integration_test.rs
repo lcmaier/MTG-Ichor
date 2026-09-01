@@ -40,6 +40,7 @@ use mtgsim::types::restriction::{
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1593,7 +1594,7 @@ fn place_commander(game: &mut GameState, owner: PlayerId, zone: Zone) -> ObjectI
     game.add_object(obj);
     match zone {
         Zone::Battlefield => {
-            game.place_on_battlefield(id, owner);
+            game.place_on_battlefield(id, owner, &EnterMods::NONE);
         }
         Zone::Graveyard => game.players[owner].graveyard.push(id),
         Zone::Library => game.players[owner].library.push(id),

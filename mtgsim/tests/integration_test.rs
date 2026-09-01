@@ -14,6 +14,7 @@ use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::types::ids::AbilityId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
+use mtgsim::types::replacement::EnterMods;
 
 /// Build a deck of basic lands for a player
 fn build_test_deck(game: &mut GameState, player_id: usize, land_fn: fn() -> Arc<CardData>, count: usize) {
@@ -203,7 +204,7 @@ fn test_sba_integration_with_turn_structure() {
     let bears = GameObject::new(bears_data.clone(), 0, Zone::Battlefield);
     let bears_id = bears.id;
     game.add_object(bears);
-    game.place_on_battlefield(bears_id, 0).damage_marked = 3;
+    game.place_on_battlefield(bears_id, 0, &EnterMods::NONE).damage_marked = 3;
 
     game.check_state_based_actions_loop(&mtgsim::ui::decision::ScriptedDecisionProvider::new()).unwrap();
 

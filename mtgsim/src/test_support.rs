@@ -15,9 +15,12 @@
 //!
 //! # The two battlefield-placement idioms are NOT interchangeable
 //!
-//! [`put_on_battlefield`] routes through [`GameState::place_on_battlefield`], which fires
-//! `init_etb_counters` and `register_static_effects`. [`place_bare`] inserts a
-//! [`BattlefieldEntity`] directly and fires neither.
+//! [`put_on_battlefield`] routes through [`GameState::place_on_battlefield`] with the
+//! [`EnterMods`] the rules give it, so CR 306.5b's loyalty counters and
+//! `register_static_effects` both fire and the arrival is announced.
+//! [`place_bare`] inserts a [`BattlefieldEntity`] directly and does none of it —
+//! which is what a fixture wants when the test counts the events its own action
+//! emitted.
 //!
 //! Existing tests depend on the difference: the combat tests place vanilla creatures with
 //! no static abilities and no ETB counters, and registering effects for them would put
@@ -205,9 +208,15 @@ pub fn put_in_hand(game: &mut GameState, card_data: Arc<CardData>, player: Playe
 
 /// Put any permanent onto the battlefield **with ETB hooks**.
 ///
-/// Routes through [`GameState::place_on_battlefield`], so ETB counters and static-effect
-/// registration both fire. Sets `entered_battlefield_turn = 0` so the permanent is not
-/// summoning-sick — it mimics "has been here since before this turn".
+/// Routes through [`GameState::place_on_battlefield`] with `default_enter_mods`, so
+/// CR 306.5b's counters and static-effect registration both fire. Sets
+/// `entered_battlefield_turn = 0` so the permanent is not summoning-sick — it mimics
+/// "has been here since before this turn".
+///
+/// **Not the production path.** A permanent really entering goes through
+/// `GameState::propose_entry`, so a CR 614.1c replacement can modify how — this
+/// helper skips the pipeline and puts the permanent down as the rules alone
+/// would have it.
 ///
 /// See the module docs: this is not interchangeable with [`place_bare`].
 pub fn put_on_battlefield(
@@ -218,7 +227,8 @@ pub fn put_on_battlefield(
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
-    let entry = game.place_on_battlefield(id, player);
+    let mods = game.default_enter_mods(id);
+    let entry = game.place_on_battlefield(id, player, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
     id
@@ -486,6 +496,7 @@ pub fn put_on_battlefield_this_turn(
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
-    game.place_on_battlefield(id, player);
+    let mods = game.default_enter_mods(id);
+    game.place_on_battlefield(id, player, &mods);
     id
 }

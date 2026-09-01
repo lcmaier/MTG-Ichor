@@ -247,6 +247,7 @@ pub fn get_effective_toughness(game: &GameState, id: ObjectId) -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::replacement::EnterMods;
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -335,7 +336,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         assert_eq!(get_effective_power(&game, id), Some(2));
     }
@@ -355,7 +356,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a +3/+0 effect via the layer system
         let effect = ContinuousEffect {
@@ -385,7 +386,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         assert_eq!(get_effective_toughness(&game, id), Some(2));
     }

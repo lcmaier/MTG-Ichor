@@ -402,6 +402,7 @@ fn check_block_set_constraints(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::replacement::EnterMods;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::oracle::characteristics::has_keyword;
@@ -442,7 +443,7 @@ mod tests {
         let mut obj = GameObject::new(data, owner, Zone::Battlefield);
         obj.id = id;
         game.add_object(obj);
-        game.place_on_battlefield(id, owner); // entered this turn = summoning sick
+        game.place_on_battlefield(id, owner, &EnterMods::NONE); // entered this turn = summoning sick
         id
     }
 
@@ -824,7 +825,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
+        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         let result = validate_attackers(
             &game, 0,
@@ -858,7 +859,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0); // entered this turn = summoning sick
+        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         // Should be able to pay tap cost despite summoning sickness
         let result = game.can_pay_costs(
