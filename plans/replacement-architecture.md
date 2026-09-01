@@ -2716,7 +2716,7 @@ cannot produce** — `check_cast_legality` refuses "another player's spell" — 
 the test builds the disagreement after an ordinary cast, and the trap it removes
 is for whoever relaxes that check.
 
-**Exit met.** Whole suite green (826 tests), zero warnings, both `check_*.py`.
+**Exit met.** Whole suite green (823 tests, 7 of them new), zero warnings, both `check_*.py`.
 `specdb owed` unchanged and clean for RC; ATOM-614.12-003 claimed in full,
 ATOM-614.12-001 partially and deliberately — its board is Yixlid Jailer, and
 `PermanentFilter` has no zone leaf, so the scenario is inexpressible rather than
