@@ -189,6 +189,46 @@ you are reading.
 `--threads 1` is what an A/B compares; the tail says whether a *new* cost
 appeared, not whether an existing one grew.
 
+### 3.3 How many cards a mechanic owes — ask the rule, not a quota
+
+**The question is "is this rule defined over one object, or over several?"** If
+several, one card leaves the multi-object branch unreachable — not rarely hit,
+*unreachable*, at any game count — and the tests pass because nothing can build
+the scenario. Count is the wrong metric; the axis the rule is defined over is
+the right one.
+
+**Tier 1 — the rule itself requires two, and one card is dead code.** CR 616.1
+applies only among "two or more"; CR 613.7 orders effects *within* a layer, so it
+needs two in one layer on one object; CR 614.5's applied set is keyed on effect
+*instance*; CR 704.7 collapses two actions with the same result. **Worked
+example, measured 2026-08-31:** exactly one registered card produces a
+replacement effect (Kalitas), it is Legendary, and CR 704.5j is enforced — so no
+player can control two, and two opposing copies each apply only to the *other*
+player's creatures. CR 616.1's entire multi-candidate branch has never been
+reachable in a fuzz game. RB's own status line says so from the other side:
+"zero new `DecisionProvider` prompts appeared."
+
+**Tier 2 — two are valuable, and they must differ in shape.** RB's discovered
+hang was "a declined `exempt_from_614_5` optional without a second set" — a bug
+at the *intersection* of two attributes. A card with the ordinary shape never
+reaches it. The axes worth varying are the ones the CR itself names:
+optional/mandatory, self/other (CR 614.15), exempt/not, and which player the
+effect is scoped to (that is who CR 616.1 asks).
+
+**Tier 3 — one is plenty.** A keyword flag, a vanilla body, a one-shot with no
+interaction surface.
+
+**And the counter-pressure, which is equally real.** A second card of the *same
+shape* buys nothing, cards cost authoring plus registration plus a test, and PRs
+are sized 1,500–2,500. This must not become "N cards per phase". The current
+distribution is the argument for shape over count: **11** keyword creatures for a
+boolean flag, **1** card for the whole CR 616.1 pipeline, **1** for Layer 2.
+
+**What makes this cheap now.** `PERFORMANCE_POOL` is frozen, so registering a
+card cannot move a recorded baseline — it only grows the stress pool, which is
+read as a threshold. That is what §3 bought and it is why "register every card
+you write" costs nothing today.
+
 ---
 
 ## 4. Sizing a phase, and splitting it

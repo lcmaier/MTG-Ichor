@@ -953,6 +953,60 @@ section never asked.
     customer the finding predicted, delayed triggers (CR 603.7), needs a
     `DurationRow` impl and nothing else.
 
+### Found by the fuzz-tail pass (2026-08-31)
+
+35. **CR 616.1's multi-candidate branch has never been reachable in a fuzz game,
+    and more games cannot fix it.** Measured: exactly one registered card
+    produces a replacement effect — Kalitas, in `phase_rb_cards.rs`. It is
+    Legendary and CR 704.5j is enforced (`sba.rs:287`), so no player controls
+    two; and two opposing copies each apply only to the *other* player's
+    creatures, so any single death still has exactly one candidate. CR 616.1
+    engages only among "two or more", so the ordering choice, the applied set
+    *across instances*, and the APNAP ordering among simultaneous choosers are
+    all structurally unreachable. RB's status line confirms it from the other
+    side: "zero new `DecisionProvider` prompts appeared." → `engineering-
+    practices.md` §3.3, which generalises this into a rule.
+
+    **Sized: two cards, zero engine change.** Both are non-legendary
+    enchantments whose battlefield-side replacement is the shape Kalitas already
+    proves — `EventPattern::ZoneChange` + `AffectedSet::Filter` +
+    `Rewrite::Instead(ZoneChangeTo { Exile })`. Text verified on Scryfall
+    2026-08-31:
+
+    - **Rest in Peace** `{1}{W}` — "If a card or token would be put into a
+      graveyard from anywhere, exile it instead." Global, so it competes with
+      both of the others. Its ETB "exile all graveyards" is a triggered ability
+      and is deferred, the way Blood Moon shipped while Aura casting did not.
+    - **Leyline of the Void** `{2}{B}{B}` — "If a card would be put into an
+      opponent's graveyard from anywhere, exile it instead." Opponent-scoped, so
+      the pair disagrees about *which player chooses* — which is the half of
+      CR 616.1 a same-scope pair would not exercise. Its opening-hand clause is a
+      static ability functioning in another zone and is deferred on the same
+      terms as `replacement-architecture.md` §3.3's source 2.
+
+    With Kalitas that is **three** sources that can apply to one event (an
+    opponent's nontoken creature dying), reaching CR 616.1 at both two and three
+    candidates. Non-legendary, so even one card in a deck reaches ≥2. Cost
+    anchor: `phase_rb_cards.rs` is 195 lines for one card including its doc
+    block, so this is a small PR, not a phase.
+
+    **One open question the writing will answer, and it is a finding either
+    way:** "from anywhere" wants `from: None`, which `EventPattern` supports, but
+    `AffectedSet::Filter` is a `PermanentFilter` and a card moving from the stack
+    or library is not a permanent. Kalitas dodged this by scoping to
+    `from: Battlefield`. Either the filter grows a non-permanent case, or both
+    cards ship battlefield-scoped with the narrowing documented on the card.
+    **Do not widen `AffectedSet` speculatively** — write the battlefield half
+    first and let the second half earn the change.
+
+    **Layer 2 has the same shape of gap and is genuinely blocked.** One producer
+    (`SetController`, Act of Treason). A second *shape* would be a static or
+    ETB control effect, and every candidate is an Aura (blocked by item 8's
+    `enchant_filter` gap) or a triggered ability (CR 603, not started), or wants
+    a `WhileSourceTapped` duration that does not exist. Recorded so it is not
+    re-derived: **Layer 2's second card is owed by Auras or triggers, not by
+    card-writing effort.**
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
