@@ -9,7 +9,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker, idyllic_beachfront};
+use mtgsim::cards::phase_rc_cards::{
+    adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
@@ -19,7 +21,7 @@ use mtgsim::test_support::{
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
-use mtgsim::types::effects::{AffectedSet, CounterType, Effect};
+use mtgsim::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter};
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite};
@@ -350,30 +352,53 @@ fn test_one_entry_replacement_applies_once() {
     );
 }
 
+/// Orb of Dreams' shape: one static replacement over *every* permanent.
+///
+/// A fixture rather than the card, for [`enters_with`]'s reason — it varies one
+/// axis, and the axis here is `AffectedSet::Filter` on the entering permanent's
+/// own ability. Registered cards make the same claim from the other side:
+/// `root_maze` is a filter on a permanent already on the battlefield.
+fn orb_shaped() -> Arc<CardData> {
+    CardDataBuilder::new("Orb-shaped")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(mtgsim::types::colors::Color::Green)
+        .card_type(CardType::Artifact)
+        .rules_text("Permanents enter tapped.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield,
+                AffectedSet::Filter { filter: PermanentFilter::All },
+                Rewrite::EnterWith(EnterMods::tapped()),
+            ))),
+        })
+        .build()
+}
+
 // ---------------------------------------------------------------------------
 // The gather source, and what strips it
 // ---------------------------------------------------------------------------
 
-/// **A known-wrong answer, asserted so that RC-3 flips it.**
+/// CR 305.7 reaches the entry — RC-3's first consumer, and RC-2 asserted the
+/// opposite here on purpose.
 ///
 /// `gather` reads the entering permanent's *effective* ability list, so an
-/// effect that takes the ability away should take the entry modification with
-/// it — Blood Moon makes a nonbasic land a Mountain with no abilities but the
-/// intrinsic one (CR 305.7), so a tapland under Blood Moon enters **untapped**.
-/// That is the real ruling and it is not what happens here.
+/// effect that takes the ability away takes the entry modification with it.
+/// Blood Moon makes a nonbasic land a Mountain with no abilities but the
+/// intrinsic one, so a tapland under Blood Moon enters **untapped** — the real
+/// ruling, and now the engine's answer.
 ///
-/// The reason is one line: Blood Moon's row is an `AffectedSet::Filter`, and
-/// `effect_applies_to` returns `false` for any filter effect against an object
-/// that is not on the battlefield (`compute.rs`, the gate). An entering
-/// permanent is never on the battlefield yet, so **no `Filter` effect reaches
-/// an entry at all** — Dress Down and every Clone included.
-///
-/// Removing that gate is Phase **RC-3**, deliberately separated because the
-/// line sits in the hottest path in the engine and its deliverable is a
-/// measurement. This test is the flag on it: when RC-3 lands, the assertion
-/// below inverts and this doc comment goes away.
+/// It needed one predicate: `effect_applies_to` gated a filter-scoped
+/// `ContinuousEffect` on `game.battlefield` *membership*, and an entering
+/// permanent is in the battlefield **zone** with no entry yet. Blood Moon is
+/// one of CR 614.12 clause (3)'s "continuous effects that already exist and
+/// would apply to the object", so the filter has to be allowed to match it.
+// COVERS-PARTIAL: ATOM-614.12-001
 #[test]
-fn test_blood_moon_does_not_yet_strip_an_entering_taplands_ability() {
+fn test_blood_moon_strips_an_entering_taplands_ability() {
     let mut game = setup_two_player_game();
 
     put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::blood_moon(), 1);
@@ -382,16 +407,79 @@ fn test_blood_moon_does_not_yet_strip_an_entering_taplands_ability() {
     game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
 
     assert!(
-        game.battlefield.get(&land).unwrap().tapped,
-        "RC-3 has not landed: the CR 305.7 strip cannot reach an entering permanent"
+        !game.battlefield.get(&land).unwrap().tapped,
+        "CR 305.7 took the ability away before it could apply, so the land          enters untapped"
     );
-    // The strip is real the moment it *is* on the battlefield, which is what
-    // localises the gap to the entry rather than to Blood Moon.
     assert!(
         mtgsim::oracle::characteristics::get_effective_abilities(&game, land)
             .iter()
             .all(|a| !matches!(a.effect, Effect::Replacement(_))),
-        "on the battlefield, CR 305.7 has taken the ability away"
+        "and it is still gone once the land is on the battlefield"
+    );
+}
+
+/// The same rule at the *counters* half of `EnterMods`, and the sharper board.
+///
+/// Humility takes every creature's abilities away in Layer 6 and sets base P/T
+/// 1/1 in Layer 7b. Chainbreaker "enters with two -1/-1 counters", so with the
+/// ability stripped before the entry it is a plain 1/1; with the counters it
+/// would be 1/1 less two, and CR 704.5f would kill it the moment SBAs ran.
+/// **Alive is the assertion**, which is the difference between an entry
+/// modification that did not happen and one that happened and was undone.
+#[test]
+fn test_humility_strips_an_entering_permanents_enters_with_counters() {
+    let mut game = setup_two_player_game();
+
+    put_on_battlefield(&mut game, mtgsim::cards::phase_lf_cards::humility(), 1);
+
+    let scarecrow = reanimate(&mut game, chainbreaker(), 0);
+
+    let entry = game.battlefield.get(&scarecrow).unwrap();
+    assert_eq!(
+        entry.counter_count(CounterType::MinusOneMinusOne),
+        0,
+        "Humility took the ability away before CR 122.6a could put counters on"
+    );
+
+    game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
+    assert!(
+        game.battlefield.contains_key(&scarecrow),
+        "a 1/1 with no counters survives CR 704.5f"
+    );
+}
+
+/// CR 614.12's parenthesis: an entering permanent's own **filter-scoped**
+/// replacement does not apply to itself.
+///
+/// > Such effects may come from the permanent itself if they affect only that
+/// > permanent (as opposed to a general subset of permanents that includes it).
+///
+/// Orb of Dreams is the CR's own example — "Permanents enter tapped", and it
+/// enters untapped. A `Filter` is matched by `set_affects` against any object
+/// in any zone, so without the `SelfScope` check in `gather` the entering Orb
+/// finds its own row and taps itself.
+///
+/// The fixture is Orb-shaped rather than Orb: `PermanentFilter::All` and
+/// `EnterWith(tapped)` is the whole card as far as this rule can see, and the
+/// second permanent is what proves the row is live rather than inert.
+// COVERS: ATOM-614.12-003
+#[test]
+fn test_an_entering_permanents_own_filter_replacement_does_not_reach_itself() {
+    let mut game = setup_two_player_game();
+
+    let orb = reanimate(&mut game, orb_shaped(), 0);
+
+    assert!(
+        !game.battlefield.get(&orb).unwrap().tapped,
+        "CR 614.12: its own ability is not one of the effects that already exist"
+    );
+
+    // ...and the row is not inert. The next permanent in enters tapped.
+    let bear = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    assert!(
+        game.battlefield.get(&bear).unwrap().tapped,
+        "the same ability does reach a permanent entering after it"
     );
 }
 
@@ -581,5 +669,211 @@ fn test_rc2_cards_read_as_printed() {
             .filter(|a| a.ability_type == AbilityType::Activated)
             .count(),
         1
+    );
+}
+
+// ---------------------------------------------------------------------------
+// CR 616.1 from two registered cards — Root Maze (RC-3)
+// ---------------------------------------------------------------------------
+
+/// A filter-scoped replacement reaches an entering permanent, and always could.
+///
+/// Root Maze is on the battlefield, so it is not a look-ahead question: it is
+/// one of CR 614.12 clause (3)'s effects that "already exist". `set_affects`
+/// matches its `AffectedSet::Filter` through
+/// `GameState::permanent_matches_filter`, which has no battlefield gate — the
+/// path RC-2's "no `Filter` effect reaches an entry" claim missed, and the
+/// reason this test passes against the pre-RC-3 tree too.
+#[test]
+fn test_root_maze_taps_an_entering_land() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let forest = put_in_hand(&mut game, mtgsim::cards::basic_lands::forest(), 0);
+    game.play_land(0, forest, Zone::Hand, &test_ctx()).unwrap();
+
+    assert!(
+        game.battlefield.get(&forest).unwrap().tapped,
+        "an opponent's Root Maze taps a land entering under it"
+    );
+}
+
+/// **The multi-candidate branch, from two registered cards** — and this test
+/// proves the prompt fires, not that the answer matters.
+///
+/// Root Maze's filter and Idyllic Beachfront's own `SourceOnly` ability both
+/// rewrite the same `EnterBattlefield` into `EnterWith(tapped)`, so CR 616.1
+/// makes the affected object's controller choose which applies first. **No
+/// assertion can distinguish the two orders, and that is structural rather than
+/// a weakness of this board**: `EnterMods::merge` is `|=` and `+`, and neither
+/// `EventPattern::EnterBattlefield` nor `set_affects` reads `mods`, so an
+/// `EnterWith` cannot change which effects apply on the next CR 616.1f
+/// iteration. Every `EnterWith` bucket is order-invariant.
+///
+/// So `dp.is_empty()` is the whole assertion, and it is worth having for one
+/// reason: RB left this branch dead with Kalitas and RC-2 recorded it as
+/// blocked on RC-3's gate when it was blocked on nothing, so *that a registered
+/// board reaches the prompt at all* is the claim. What both effects **applying**
+/// looks like is [`test_root_maze_and_chainbreaker_modify_one_entry_together`],
+/// where the two rewrites touch different fields of `EnterMods` and the board
+/// shows both.
+///
+/// That the engine prompts here at all is a real cost the CLI harness pays per
+/// entry, and it is open — `replacement-architecture.md` §11 item 19 has the
+/// theorem, the narrow rule that follows from it, and why suppressing the
+/// prompt before a non-commuting entry card is registered would re-kill this
+/// branch.
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_two_registered_cards_make_cr_616_1_ask() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: Some(land) },
+        vec![0],
+    );
+    game.play_land(0, land, Zone::Hand, &ActionContext::new(&dp)).unwrap();
+
+    assert!(dp.is_empty(), "CR 616.1 asked, and the answer was consumed");
+    assert!(game.battlefield.get(&land).unwrap().tapped, "either order taps it");
+}
+
+/// The other index. `phase_rb_integration_test`'s pair does this to show the
+/// choice *changes the outcome*; here it cannot, per the note above, so this
+/// test makes the weaker claim that is still worth making: **index 1 is a real
+/// candidate and not an out-of-range accident.** Root Maze's row is gathered by
+/// the battlefield sweep and Idyllic Beachfront's by source 1a, spliced in
+/// after it (CR 613.7 — the entering permanent is the newest object), so the
+/// bucket genuinely holds two distinct effects rather than one listed twice.
+#[test]
+fn test_the_other_cr_616_1_order_is_available() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: Some(land) },
+        vec![1],
+    );
+    game.play_land(0, land, Zone::Hand, &ActionContext::new(&dp)).unwrap();
+
+    assert!(dp.is_empty(), "the second candidate is a real one");
+    assert!(game.battlefield.get(&land).unwrap().tapped);
+}
+
+/// Root Maze matches **artifacts** too, which is what puts it on a board with
+/// Chainbreaker: one entry, one filter-scoped status rewrite and one
+/// `SourceOnly` counters rewrite, and they are not the same half of `EnterMods`.
+///
+/// CR 616.1 still asks — two effects apply to one event — but the two rewrites
+/// touch different fields, so this is the accumulation case (CR 616.1f) rather
+/// than the commuting one above.
+#[test]
+fn test_root_maze_and_chainbreaker_modify_one_entry_together() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: Some(scarecrow) },
+        vec![0],
+    );
+    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+        .unwrap();
+
+    let entry = game.battlefield.get(&scarecrow).unwrap();
+    assert!(entry.tapped, "Root Maze's half");
+    assert_eq!(
+        entry.counter_count(CounterType::MinusOneMinusOne),
+        2,
+        "and Chainbreaker's, on the same entry"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// CR 110.2b across a resolution — the read RC-3's gate makes reachable
+// ---------------------------------------------------------------------------
+
+/// Kismet's shape: "permanents **your opponents** control enter tapped".
+///
+/// The half of the four Root-Maze-family cards that RC-3 could not register
+/// until `base_controller` grew its resolving arm — see the test below and
+/// `root_maze`'s doc comment.
+fn kismet_shaped() -> Arc<CardData> {
+    CardDataBuilder::new("Kismet-shaped")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(mtgsim::types::colors::Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text("Permanents your opponents control enter tapped.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield,
+                AffectedSet::Filter {
+                    filter: PermanentFilter::ByController(
+                        mtgsim::types::effects::PlayerRef::Opponent,
+                    ),
+                },
+                Rewrite::EnterWith(EnterMods::tapped()),
+            ))),
+        })
+        .build()
+}
+
+/// A permanent spell resolving is controlled by whoever cast it, **not by its
+/// owner**, and a filter that asks about controllers has to see that.
+///
+/// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything,
+/// so for the whole resolution `base_controller`'s first two probes miss. The
+/// owner fallback answered, which is right for a land drop and wrong here:
+/// CR 110.2b says the controller is the player who put the spell onto the
+/// stack, and `GameState::resolving` is where that value lives across exactly
+/// this window.
+///
+/// P1's Kismet-shaped enchantment scopes to its opponents. P0 casts a creature
+/// **owned by P1**, so owner and controller disagree and the two answers are
+/// opposite: as P0's permanent it enters tapped, as P1's it would not.
+#[test]
+fn test_a_spell_cast_by_a_non_owner_enters_under_its_caster_for_a_filter() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, kismet_shaped(), 1);
+
+    // No replacement ability of its own: the Kismet-shaped filter must be the
+    // *only* candidate, or CR 616.1 asks a question this test is not about.
+    let bear = CardDataBuilder::new("Borrowed Bear")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(mtgsim::types::colors::Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Bear))
+        .power_toughness(2, 2)
+        .build();
+    let id = put_in_hand(&mut game, bear, 0);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+    game.cast_spell(0, id, &test_dp()).expect("it is castable");
+
+    // Owner and controller pulled apart by hand, and **after** the cast on
+    // purpose: `check_cast_legality` refuses "another player's spell", so no
+    // registered card can reach this board and the disagreement CR 110.2b
+    // describes is unreachable end to end today. The `StackEntry` written by
+    // the ordinary cast above still says P0, which is the whole point — the
+    // resolution below is not doctored.
+    game.get_object_mut(id).unwrap().owner = 1;
+    assert_eq!(game.stack_entries[&id].controller, 0, "the cast was ordinary");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    let entry = game.battlefield.get(&id).expect("it is a permanent now");
+    assert_eq!(entry.controller, 0, "CR 110.2b — the player who put it on the stack");
+    assert!(
+        entry.tapped,
+        "it entered as P0's permanent, and P0 is the enchantment controller's opponent"
     );
 }

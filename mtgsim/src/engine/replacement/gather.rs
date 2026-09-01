@@ -212,7 +212,9 @@ pub(crate) fn gather(
     // singleton batch. Both are `codebase-state.md`'s item 4.
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
-        push_static_ability_replacements(game, &mut entering, *object, *controller, action, subject);
+        push_static_ability_replacements(
+            game, &mut entering, *object, *controller, action, subject, SelfScope::EnteringSelf,
+        );
     }
 
     let has_static_source = !game.replacement_ability_sources.is_empty()
@@ -245,7 +247,9 @@ pub(crate) fn gather(
     for id in game.battlefield_ids_ordered() {
         if any_granted || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
-            push_static_ability_replacements(game, &mut candidates, id, controller, action, subject);
+            push_static_ability_replacements(
+                game, &mut candidates, id, controller, action, subject, SelfScope::OnBattlefield,
+            );
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
@@ -286,6 +290,34 @@ pub(crate) fn gather(
     candidates
 }
 
+/// Whether the object being asked for replacement abilities is already on the
+/// battlefield, or is the one entering.
+///
+/// **CR 614.12's parenthesis, and it is a membership rule rather than a frame
+/// question** — which is why it is here in RC-3 and not in RC-4's overlay:
+///
+/// > 614.12. … Such effects may come from the permanent itself if they affect
+/// > only that permanent (as opposed to a general subset of permanents that
+/// > includes it) …
+///
+/// So an entering permanent contributes its `AffectedSet::SourceOnly`
+/// replacements ("this land enters tapped") and **not** its filter-scoped ones.
+/// Orb of Dreams says "Permanents enter tapped" and enters untapped; without
+/// this the entering Orb finds its own row through `set_affects`, which matches
+/// a `Filter` against any object in any zone, and taps itself.
+///
+/// Nothing on the battlefield is excluded from anything — a permanent already
+/// there is one of the "existing" effects clause (3) means — so the sweep
+/// passes [`SelfScope::OnBattlefield`] and the check costs it one integer
+/// comparison it always wins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelfScope {
+    /// The battlefield sweep. Every replacement ability the object has counts.
+    OnBattlefield,
+    /// Source 1a. Only `AffectedSet::SourceOnly` counts (CR 614.12).
+    EnteringSelf,
+}
+
 /// Every static replacement ability on `id`, as candidate instances.
 ///
 /// **The battlefield sweep's loop body, lifted so the entering permanent can
@@ -302,6 +334,10 @@ pub(crate) fn gather(
 /// the battlefield it is `controller_or_owner`, and for an entering permanent it
 /// is CR 110.2b's default off the proposal — the same reason `chooser_for` takes
 /// the action.
+///
+/// `scope` is CR 614.12's parenthesis, and it is the only thing the two callers
+/// ask differently about the *effects* rather than about the object — see
+/// [`SelfScope`].
 fn push_static_ability_replacements(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
@@ -309,6 +345,7 @@ fn push_static_ability_replacements(
     controller: PlayerId,
     action: &GameAction,
     subject: EventSubject,
+    scope: SelfScope,
 ) {
     for ability in get_effective_abilities(game, id) {
         if ability.ability_type != AbilityType::Static {
@@ -317,6 +354,9 @@ fn push_static_ability_replacements(
         let Effect::Replacement(def) = &ability.effect else {
             continue;
         };
+        if scope == SelfScope::EnteringSelf && !matches!(def.affected, AffectedSet::SourceOnly) {
+            continue;
+        }
         push_if_applicable(
             game,
             out,

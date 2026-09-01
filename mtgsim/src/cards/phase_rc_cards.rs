@@ -26,29 +26,41 @@
 //! measurement this phase owes, so it is a selection criterion and not a
 //! footnote.
 //!
-//! # What is *not* reachable, measured rather than assumed (2026-09-01)
+//! # What is *not* reachable — corrected 2026-09-02, and the correction is
+//! the finding
 //!
-//! Neither card makes **CR 616.1's multi-candidate branch** reachable on an
-//! entry, and no printed card can while RC-2's consumers are limited to
-//! `AffectedSet::SourceOnly`. Two applicable effects on one entry needs either
+//! **RC-2 recorded that no `AffectedSet::Filter` effect reaches an entering
+//! permanent. That is false, and it was never true.** There are two filter
+//! paths and they are different functions:
 //!
-//! - **two entry-modifying abilities on one card** — the whole printed
-//!   population is Slumbering Trudge, Chocobo Camp, Steel Dromedary, Rotating
-//!   Fireplace and Arixmethes (Scryfall, `o:/enters tapped./ o:/enters with/`
-//!   plus the counter searches beside it), and every one of them needs {X},
-//!   a condition, or a triggered ability this engine does not have yet; or
-//! - **an `AffectedSet::Filter` effect** — Root Maze, Kismet, Loxodon
-//!   Gatekeeper, Frozen Aether — which cannot match an object that is not on
-//!   the battlefield until Phase **RC-3** removes `compute.rs`'s battlefield
-//!   gate.
+//! - `compute.rs::effect_applies_to` gates on `game.battlefield.contains_key`
+//!   and governs **`ContinuousEffect`** — the layer registry. That is the gate
+//!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
+//!   behind it.
+//! - `gather::set_affects` → `GameState::permanent_matches_filter` governs
+//!   **`ReplacementDef.affected`**, and it has **no gate at all**.
 //!
-//! So the branch belongs to RC-3, and that is a finding about RC-3 rather than
-//! an excuse for RC-2.
+//! So a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`,
+//! `EnterWith(tapped)`) already taps an entering land, and with
+//! [`idyllic_beachfront`] entering under it the pipeline produces two
+//! candidates and asks CR 616.1's question. **The multi-candidate branch was
+//! reachable the day RC-2 merged**; Root Maze, Kismet, Loxodon Gatekeeper and
+//! Frozen Aether were not blocked and never were. `root_maze` is the card
+//! that closes it, in RC-3 rather than a third phase from now.
+//!
+//! What is genuinely out of reach at `AffectedSet::SourceOnly` is **two
+//! entry-modifying abilities on one card** — the whole printed population is
+//! Slumbering Trudge, Chocobo Camp, Steel Dromedary, Rotating Fireplace and
+//! Arixmethes (Scryfall, `o:/enters tapped./ o:/enters with/` plus the counter
+//! searches beside it), and every one needs {X}, a condition, or a triggered
+//! ability this engine does not have yet. That was one of RC-2's two routes to
+//! the branch; the mistake was ruling out the other.
 
 use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
+use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
@@ -100,13 +112,18 @@ use crate::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite
 /// *effective* ability list is meant to deliver that for free
 /// (`replacement-architecture.md` §3.3).
 ///
-/// **It does not, and this card is what found out.** Blood Moon's row is an
-/// `AffectedSet::Filter`, and `effect_applies_to` returns `false` for a filter
-/// effect against an object that is not on the battlefield — so no `Filter`
-/// effect reaches an entry at all. That gate is Phase **RC-3**'s one line, and
-/// until it moves the strip is real everywhere except at the instant it
-/// matters here. `tests/phase_rc_integration_test.rs` asserts the wrong answer
-/// on purpose so RC-3 has to flip it.
+/// **It does not, and this card is what found out.** Blood Moon's row is a
+/// `ContinuousEffect` whose `AffectedSet` is a `Filter`, and
+/// `compute.rs::effect_applies_to` returns `false` for a filter effect against
+/// an object that is not on the battlefield — so the *layer registry* reaches
+/// no entering permanent. That gate is Phase **RC-3**'s one line, and until it
+/// moves the strip is real everywhere except at the instant it matters here.
+///
+/// **The gate is not "no filter reaches an entry", which is what RC-2 wrote
+/// (corrected 2026-09-02).** `ReplacementDef.affected` is matched by
+/// `gather::set_affects` through a different and ungated function, so
+/// `root_maze` taps this land on the way in without any help from RC-3. The
+/// two paths are separated in this module's doc comment.
 pub fn idyllic_beachfront() -> Arc<CardData> {
     CardDataBuilder::new("Idyllic Beachfront")
         .card_type(CardType::Land)
@@ -254,6 +271,94 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
                 EventPattern::EnterBattlefield,
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 3)),
+            ))),
+        })
+        .build()
+}
+
+/// Root Maze — {G}
+/// Enchantment
+///
+/// Artifacts and lands enter tapped.
+///
+/// (Oracle text verified on Scryfall, 2026-09-02.)
+///
+/// # Why RC-3 ships a card at all
+///
+/// `engineering-practices.md` §3.3's axis, not a quota: **RC-3's own claim
+/// needs no new card, and that is argued rather than assumed.** The gate change
+/// widens a path the pool already walks — Blood Moon and Humility are both in
+/// `PERFORMANCE_POOL`, both are filter-scoped layer effects, and RC-2 put two
+/// permanents that enter modified in beside them. A tapland under Blood Moon
+/// and a Scarecrow under Humility are reachable in a fuzz game today and
+/// answered differently the moment the gate moves.
+///
+/// This card is for a **different** gap, and it is one RC-2 left by mistake.
+/// RC-2 recorded that CR 616.1's multi-candidate branch was unreachable on an
+/// entry until RC-3 opened the gate, on the grounds that no `AffectedSet::Filter`
+/// effect could match an entering permanent. That was never true of the
+/// *replacement* pipeline: `gather::set_affects` matches a `ReplacementDef`'s
+/// filter through `GameState::permanent_matches_filter`, which has no
+/// battlefield gate and never had one. The branch has been reachable since RB
+/// merged, one registered card away, and RB left the identical gap with Kalitas
+/// — a Legendary whose two copies each apply only to the other player's
+/// creatures, so the ordering choice, the applied set across instances and CR
+/// 101.4's APNAP ordering among simultaneous choosers were all dead code that
+/// tested green.
+///
+/// **Two applicable effects on one entry, from a registered pool, is what this
+/// card buys.** Root Maze plus [`idyllic_beachfront`] is exactly that: two
+/// `EnterWith(tapped)` rewrites on one land, one from a filter on another
+/// permanent and one `SourceOnly` from the land itself, so the pipeline asks
+/// CR 616.1's question of a real player in a real game.
+///
+/// # Why this card out of the four
+///
+/// Kismet, Loxodon Gatekeeper and Frozen Aether all scope to "your opponents",
+/// which is `PermanentFilter::ByController(PlayerRef::Opponent)` — and that
+/// leaf reads `chars.controller`, which for an entering permanent comes from
+/// `compute::base_controller`'s owner fallback. Right for a land drop, wrong
+/// for a permanent spell cast by a non-owner, and unowned until this phase
+/// (see `codebase-state.md`). Root Maze scopes by *type* and asks nothing about
+/// controllers, so it exercises the multi-candidate branch without standing on
+/// a read RC-3 is still fixing.
+///
+/// Its reachability is the other half. `random_deck` picks one or two colours
+/// out of five, so a mono-green card is in about a third of decks; `{G}` at one
+/// mana means it lands on turn one and is out before most permanents arrive.
+/// It also matches **artifacts**, which is what puts it and [`chainbreaker`] on
+/// the same board — a permanent whose entry both a filter and CR 122.6a modify.
+///
+/// # What it is not
+///
+/// Not a look-ahead test. Root Maze is on the battlefield before the entry it
+/// modifies, so it is one of CR 614.12 clause (3)'s effects that "already
+/// exist" and needs no frame. The self-exclusion half of CR 614.12 — Orb of
+/// Dreams entering untapped under its own "Permanents enter tapped" — is
+/// covered by a fixture in `tests/phase_rc_integration_test.rs`, because Root
+/// Maze is an Enchantment and its own filter excludes it by type. A registered
+/// card that matches *itself* would be the sharper board, and Orb of Dreams is
+/// the card for it whenever the pool wants a second one.
+pub fn root_maze() -> Arc<CardData> {
+    CardDataBuilder::new("Root Maze")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text("Artifacts and lands enter tapped.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield,
+                AffectedSet::Filter {
+                    filter: PermanentFilter::Or(
+                        Box::new(PermanentFilter::ByType(CardType::Artifact)),
+                        Box::new(PermanentFilter::ByType(CardType::Land)),
+                    ),
+                },
+                Rewrite::EnterWith(EnterMods::tapped()),
             ))),
         })
         .build()

@@ -287,6 +287,18 @@ impl GameState {
                 let matches_b = self.permanent_matches_filter(id, b, you)?;
                 Ok(matches_a && matches_b)
             }
+            // Short-circuits, where `And` above does not, and the asymmetry is
+            // deliberate: a leaf can answer `Err` rather than `false` (`PowerLE`
+            // on something with no power), `set_affects` collapses `Err` to
+            // `false`, and a matched left arm makes the right arm's answer
+            // irrelevant. Evaluating it anyway would turn a true `Or` into a
+            // silent `false`.
+            PermanentFilter::Or(a, b) => {
+                if self.permanent_matches_filter(id, a, you)? {
+                    return Ok(true);
+                }
+                self.permanent_matches_filter(id, b, you)
+            }
             PermanentFilter::Not(inner) => {
                 let matches = self.permanent_matches_filter(id, inner, you)?;
                 Ok(!matches)

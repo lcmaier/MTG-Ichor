@@ -692,10 +692,10 @@ impl GameState {
     /// commander card says CR 903.9b.
     ///
     /// Reads the *effective* type, so a Layer 4 effect that made something a
-    /// planeswalker would be accounted for; but the object is not on the
-    /// battlefield yet, so an `AffectedSet::Filter` effect does not reach it.
-    /// That is `compute.rs`'s battlefield gate — Phase RC-3's one line — and it
-    /// is the same gap that keeps an entering Clone out of every filter.
+    /// planeswalker is accounted for — including a filter-scoped one, since
+    /// RC-3 made `compute.rs`'s membership gate read the battlefield *zone*
+    /// rather than `game.battlefield`, and an entering permanent is already in
+    /// the zone.
     pub(crate) fn default_enter_mods(&self, id: ObjectId) -> EnterMods {
         let mut mods = EnterMods::NONE;
 

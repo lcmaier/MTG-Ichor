@@ -119,34 +119,52 @@ across months buys the timing measurement nothing.
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-01 (performance pool 59 → 60, stress 62 → 64; Battlegrowth and Adaptive
-Shimmerer):**
+2026-09-02 (performance pool 60 → 61, stress 64 → 65; Root Maze, Phase RC-3):**
 
-| | performance (60 cards) | stress (64 cards) |
+| | performance (61 cards) | stress (65 cards) |
 |---|---|---|
-| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 26 (52.0%) / 24 (48.0%) |
-| Avg turns | 30.4 | 29.6 |
-| Spells cast | 22.1 | 21.4 |
-| Lands played | 19.1 | 18.1 |
-| Combat w/ atk | 11.9 | 11.1 |
-| Creatures died | 7.6 | 4.7 |
-| Damage events | 25.0 | 24.7 |
-| Total damage | 52.3 | 57.4 |
-| Life changes | 17.0 | 15.5 |
-| **Layer walks** | **99,877** | **93,245** |
-| **Layer frames** | **123,802** | **108,422** |
-| **Frames/walk** | **1.24** | **1.16** |
-| **Replacement gathers** | **626** | **600** |
-| **Restriction queries** | **627** | **601** |
+| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 30 (60.0%) / 20 (40.0%) |
+| Avg turns | 31.7 | 29.8 |
+| Spells cast | 23.0 | 21.8 |
+| Lands played | 19.8 | 18.1 |
+| Combat w/ atk | 12.4 | 11.6 |
+| Creatures died | 7.8 | 4.5 |
+| Damage events | 25.7 | 25.8 |
+| Total damage | 52.2 | 58.8 |
+| Life changes | 17.0 | 16.5 |
+| **Layer walks** | **108,632** | **98,843** |
+| **Layer frames** | **135,449** | **118,256** |
+| **Frames/walk** | **1.25** | **1.20** |
+| **Replacement gathers** | **669** | **618** |
+| **Restriction queries** | **670** | **618** |
 
-**Both columns moved and neither move is a delta.** The performance pool gained
-Battlegrowth — `Primitive::AddCounters` had no reader anywhere, which is the new
-engine path §3 asks a card for — and the stress pool gained it plus Adaptive
-Shimmerer, whose RC-2 doc comment had claimed it was registered when it was not.
-So §3.1's rule applies to this very row: *never A/B any number across a pool
-change*. Nothing above is comparable to the values below it.
+**Both columns moved for two reasons at once, and only one of them is the pool.**
+Root Maze was added to `PERFORMANCE_POOL` (so §3.1 applies: nothing above is
+comparable to the values below), *and* RC-3 changed what the engine answers for
+a permanent entering under a filter-scoped layer effect. The two were separated
+before this row was recorded, by building a branch binary with the card
+unregistered:
 
-*Previous values, 2026-09-01 (performance 57 → 59, RC-2): performance 25/25,
+| | main | RC-3, card unregistered | RC-3 shipped |
+|---|---|---|---|
+| performance walks | 99,877 | 100,556 (+0.7%) | 108,632 |
+| performance frames/walk | 1.24 | 1.24 | 1.25 |
+| stress walks | 93,245 | 98,099 (+5.2%) | 98,843 |
+| stress frames/walk | 1.16 | 1.17 | 1.20 |
+
+**`Frames/walk` is the number RC-3 was told to watch, and it barely moved.** The
+worry was that admitting non-battlefield objects to filter matching would let
+`permanent_matches_filter` request other objects' frames; the gate admits only
+objects in the battlefield *zone*, which outside the one-`emit`-wide entry
+window is the same set as before. The +5.2% walk count on `stress` is mostly
+longer games (29.6 → 30.6 turns) — a behaviour change, not per-walk cost.
+
+*Previous values, 2026-09-01 (performance 59 → 60, Battlegrowth and Adaptive
+Shimmerer): performance 25/25, 30.4 turns, 22.1 spells, 19.1 lands, 11.9
+combats, 7.6 deaths, 25.0 damage events, 52.3 damage, 17.0 life changes, 99,877
+walks / 123,802 frames / 1.24 per walk / 626 gathers / 627 queries; stress 26/24,
+29.6, 21.4, 18.1, 11.1, 4.7, 24.7, 57.4, 15.5, 93,245 / 108,422 / 1.16 / 600 /
+601. Before that (performance 57 → 59, RC-2): performance 25/25,
 31.8 turns, 22.8 spells, 19.7 lands, 12.7 combats, 8.6 deaths, 26.7 damage
 events, 53.3 damage, 17.6 life changes, 108,902 walks / 135,893 frames / 1.25
 per walk / 669 gathers / 670 queries; stress 27/23, 30.6, 21.9, 18.6, 12.1, 4.8,

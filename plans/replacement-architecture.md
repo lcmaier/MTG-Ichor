@@ -1323,9 +1323,10 @@ questions into one:
    overlay was designed for.
 
 Question 1 needs exactly the piece the overlay half was going to build: the membership gate
-at `compute.rs:622`, which returns `false` for any `AffectedSet::Filter` effect
-against an object not in `game.battlefield` — so today an entering Clone matches
-no filter, Dress Down included, and keeps its ability.
+at `compute.rs:629` (✅ RC-3), which returned `false` for any filter-scoped
+`ContinuousEffect` against an object not in `game.battlefield` — so an entering
+Clone matched no filter, Dress Down included, and kept its ability. It now gates
+on the battlefield *zone*, which the entering object is already in.
 
 **The seam moves, the split survives.** The membership gate and the frame's
 ability list — enough to ask "what abilities would this object have on the
@@ -1369,7 +1370,7 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
 | `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
-| `engine/layers/compute.rs` | the `AffectedSet::Filter` membership gate admits entering objects (§5c) | RC-3 |
+| `engine/layers/compute.rs` | ✅ RC-3 — the filter membership gate reads the battlefield *zone*, so it admits entering objects (§5c) | RC-3 |
 | `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-4 |
 | `engine/turns.rs::advance_turn` | gains `dp`; consults pending skips (CR 614.10) | RA / RE |
 | `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA |
@@ -2324,8 +2325,8 @@ accepts that a later PR may fix an earlier one.
 |---|---|---|---|
 | **RC-1 — delete the early stack pop** ✅ | pure deletion, zero new behavior | measured **12**, not 11: `stack.is_empty()` × **6** (the row said 5 — see below) + `GameState::resolving` × 6; deletes one leniency branch | low |
 | **RC-2 — `EnterBattlefield` as an event** ✅ | the performer migration, plus enters-tapped as its first consumer | predicted **10** production `place_on_battlefield` sites; **two**, and the number that mattered was 92 direct callers with 88 in `#[cfg(test)]`. Shipped **+1,409 / −218 across 25 files** — 611 engine, 207 cards, 591 tests | medium |
-| **RC-3 — the membership gate and the frame's ability list** | §5c's question 1 | **1** site — `compute.rs:623` — inside the hottest path in the engine | **high** |
-| **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **5** concrete-state reads to route through the accessor pair (`compute.rs:180, 242, 408, 623` + the `176/203/389` summary reads) | **highest** |
+| **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
+| **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **re-count before building.** Was "5 reads at `compute.rs:180, 242, 408, 623`"; measured 2026-09-02 there are **8** — `98, 187, 431, 434, 442, 609, 660, 721/727` — and the two RC-3 touched (`431`–`442`, `660`) are not the two the row named | **highest** |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
 (`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
@@ -2477,33 +2478,62 @@ entering permanent has no controller — so it fell through to the *owner*, whic
 is the wrong player the moment someone casts a permanent spell they do not own.
 `chooser_for_event` reads the answer off the proposal.
 
-**7. CR 616.1's multi-candidate branch is *not* reachable on an entry, and no
-printed card can make it so at `AffectedSet::SourceOnly`.** Measured
-2026-09-01, and this is RC-2's answer to §3.3's two-card rule rather than an
-evasion of it. Two applicable effects on one entry needs either two
-entry-modifying abilities on one card — the whole printed population is
-Slumbering Trudge, Chocobo Camp, Steel Dromedary, Rotating Fireplace and
-Arixmethes, every one needing {X}, a condition or a trigger — or an
-`AffectedSet::Filter` effect, which cannot match an object that is not on the
-battlefield. **So the branch is RC-3's unlock, not RC-2's**, which is a finding
-about RC-3's value rather than an excuse. The two cards shipped are Idyllic
-Beachfront (CR 110.5b, status) and Chainbreaker (CR 122.6a, counters) — one per
-half of `EnterMods`, which is CR 614.1c's own axis and two genuinely different
+**7. ❌ WRONG — struck 2026-09-02 by RC-3, and the retraction is worth more
+than the finding was.** As written, this finding said: "CR 616.1's
+multi-candidate branch is *not* reachable on an entry, and no printed card can
+make it so at `AffectedSet::SourceOnly` … an `AffectedSet::Filter` effect
+cannot match an object that is not on the battlefield. So the branch is RC-3's
+unlock, not RC-2's."
+
+**The second sentence is false and was never true, so the conclusion is too.**
+`AffectedSet` is matched by *two* functions on two paths, and RC-2 checked one
+of them:
+
+| Path | Matcher | Governs | Battlefield gate |
+|---|---|---|---|
+| layer registry | `compute.rs::effect_applies_to` (`:629`) | `ContinuousEffect.affected` | **yes** — RC-3's line |
+| replacement pipeline | `gather::set_affects` → `GameState::permanent_matches_filter` | `ReplacementDef.affected`, `RestrictionDef.affected` | **none** |
+
+Probed on `main` at 4f9eb94: a Root-Maze-shaped `ReplacementDef`
+(`Filter { ByType(Land) }`, `EnterWith(tapped)`) taps an entering Forest, and
+with Idyllic Beachfront entering under it `ask_choose_replacement` fires — two
+candidates, CR 616.1's question asked. **The branch has been reachable since RB
+merged, one registered card away.** Root Maze, Kismet, Loxodon Gatekeeper and
+Frozen Aether were never blocked on RC-3, and `root_maze` ships in RC-3 to
+close it rather than waiting for a card PR (§3.3, and the Kalitas precedent
+below).
+
+**What survives.** The *first* route is still genuinely shut: two
+entry-modifying abilities on one card is Slumbering Trudge, Chocobo Camp, Steel
+Dromedary, Rotating Fireplace and Arixmethes, every one needing {X}, a
+condition or a trigger. RC-2's two cards — Idyllic Beachfront (CR 110.5b,
+status) and Chainbreaker (CR 122.6a, counters), one per half of `EnterMods` —
+are the right two for CR 614.1c's own axis and two genuinely different
 performer paths. Both join `PERFORMANCE_POOL` (57 → 59); Adaptive Shimmerer is
 registered into the stress pool alone for the ordering claim (see the review
 pass below). The accumulation behaviour is covered by a two-ability fixture,
 labelled as one.
 
+**The transferable error**, since this is the second unreachable-branch gap in
+three phases: the finding named a mechanism by its **type** (`AffectedSet::Filter`)
+when the property it asserted belongs to a **call path**. One type, two matchers,
+and a reachability claim is only ever true of a path. A claim of the form "no X
+can reach Y" now owes the list of functions that match X — which is a thing
+`grep` answers in one line, and nobody ran it.
+
 **8. Blood Moon does not strip an entering tapland's ability, and RC-3 is
 exactly one line away from fixing it.** The real ruling is that a tapland under
 Blood Moon enters untapped; `gather` reading the *effective* ability list was
-supposed to deliver that for free. It does not, because Blood Moon's row is an
-`AffectedSet::Filter` and `effect_applies_to`'s battlefield gate returns `false`
-for any filter effect against an object that is not on the battlefield. **No
-`Filter` effect reaches an entry at all** — which is the same statement as RC-3's
-"an entering Clone matches no filter, Dress Down included", now with a
-registered card behind it and a test asserting the wrong answer so RC-3 has to
-flip it.
+supposed to deliver that for free. It does not, because Blood Moon's row is a
+`ContinuousEffect` whose `AffectedSet` is a `Filter`, and
+`effect_applies_to`'s battlefield gate returns `false` for a filter effect
+against an object that is not on the battlefield. **No filter-scoped row in the
+layer registry reaches an entry** — which is the same statement as RC-3's "an
+entering Clone matches no filter, Dress Down included", now with a registered
+card behind it and a test asserting the wrong answer so RC-3 has to flip it.
+(The original wording here was "no `Filter` effect reaches an entry at all",
+which overreached into the replacement pipeline's ungated matcher — see the
+strike on finding 7. The *layer* half was right, and it is what RC-3 fixes.)
 
 **Exit met.** Whole suite green (810 tests, 17 of them new), zero warnings,
 `check_module_layout.py` and `check_claude_md.py` both pass. `specdb owed` is
@@ -2614,24 +2644,90 @@ so the two helpers documented as firing ETB counters now pass
 `default_enter_mods` explicitly, and `place_bare`'s promise not to fire them is
 what makes it the right fixture for a test that counts events.
 
-#### RC-3 — the membership gate and the frame's ability list
+#### RC-3 — the membership gate and the frame's ability list — ✅ landed 2026-09-02
 
 §5c's finding, and the reason this is a PR rather than a paragraph inside RC-2.
 `effect_applies_to`'s `game.battlefield.contains_key(&id)` gate at
-`compute.rs:623` returns `false` for any `AffectedSet::Filter` effect against an
-object that is not on the battlefield — so today an entering Clone matches no
-filter, **Dress Down included**, and keeps the ability that Dress Down should
-have taken away.
+`compute.rs:629` returned `false` for any filter-scoped `ContinuousEffect`
+against an object not on the battlefield — so an entering Clone matched no
+filter, **Dress Down included**, and kept the ability Dress Down should have
+taken away.
 
 **One line of code, and it is in the hottest path in the engine.** That is the
 whole reason it is separated: `compute_characteristics` is what every layer
 query runs, `layers-architecture.md` §12 measured the ungated CR 613.7a
 existence check at 5.2×–8.0×, and a gate that starts admitting non-battlefield
 objects changes what that walk does on every board. RC-3's deliverable is as much
-the `fuzz_games --games 200 --seed 12345` measurement as the behavior.
+the measurement as the behavior.
 
-**Its consumer is Dress Down + a Clone-shaped probe** — question 1 answered, and
-the enters-tapped land that loses its ability before it can use it.
+**Five findings.**
+
+**1. The predicate is the battlefield *zone*, and that is what makes it free.**
+`move_object` writes `obj.zone` before the `EnterBattlefield` performer builds
+the `BattlefieldEntity` — RC-2's one-`emit`-wide window, documented in the
+`ZoneChange` arm — so an entering permanent is already *in* the zone. Swapping
+`game.battlefield.contains_key` for `obj.zone == Battlefield` admits exactly the
+entering object and nothing else: hidden zones keep their own zone tag, so no
+library or graveyard card becomes filter-matchable. The feared 5.2× never
+arrives because the newly-admitted set is one object wide. **Measured over seven
+interleaved runs: `Frames/walk` 1.24 → 1.24 on `performance` and 1.16 → 1.17 on
+`stress`; ms per 1,000 layer walks 0.807 → 0.808 and 0.679 → 0.694.** §12's
+warning was about admitting a *population*, and the fix admits a singleton.
+
+**2. CR 614.12 is two membership rules, not one, and the second was missing.**
+The clause everyone quotes is (3) — effects that already exist and would apply.
+The clause in the *first sentence's* parenthesis is the mirror: an effect "may
+come from the permanent itself if [it affects] only that permanent (as opposed
+to a general subset of permanents that includes it)". `gather`'s source 1a
+pushed every static replacement ability the entering permanent had, and
+`set_affects` matches a `Filter` against any object in any zone — so an
+entering Orb of Dreams found its own "Permanents enter tapped" and tapped
+itself. Source 1a now takes a `SelfScope` and admits `AffectedSet::SourceOnly`
+alone. **It belongs in RC-3 and not RC-4** because it is a question about
+membership in the applicable set, which needs no frame to answer.
+
+**3. Its consumers needed no new cards, and that had to be checked rather than
+assumed.** §9's plan said "Dress Down + a Clone-shaped probe", which is stale
+twice: Dress Down needs an ETB trigger and a delayed one (item 6), and Clone
+needs Phase CV. What was already registered answers the same question — Blood
+Moon + Idyllic Beachfront (the tapland enters untapped, CR 305.7) and Humility +
+Chainbreaker (the Scarecrow enters with no -1/-1 counters and lives). Both pairs
+were in `PERFORMANCE_POOL` before this phase, which is why the phase widens an
+engine path rather than opening one — §3.3's axis, argued rather than waived.
+
+**4. The card RC-3 does ship is for RB's and RC-2's gap, not its own.** Root
+Maze (`{G}`, "Artifacts and lands enter tapped") makes CR 616.1's
+multi-candidate branch reachable in a fuzz game, which finding 7's retraction
+above shows was never blocked on this phase. Chosen over Kismet, Loxodon
+Gatekeeper and Frozen Aether because those scope to "your opponents", which
+reads `chars.controller` — finding 5. `PermanentFilter::Or` is new, for
+"Artifacts and lands"; its `targeting.rs` arm short-circuits where `And` does
+not, because a leaf can answer `Err` and `set_affects` collapses `Err` to
+`false`.
+
+**5. `base_controller` answered *owner* for a resolving object, and RC-3 made
+that askable.** `resolve_top_of_stack` takes the `StackEntry` before it resolves
+anything, so both of the first two probes miss for the whole resolution. Right
+for a land drop, wrong for a spell cast by a non-owner (CR 110.2b), and
+previously unreachable for an entering permanent because the gate stopped every
+filter. `GameState::resolving` carries the default across exactly that window
+and the leg goes above the fallback. **It fixes a wrong answer the current pool
+cannot produce** — `check_cast_legality` refuses "another player's spell" — so
+the test builds the disagreement after an ordinary cast, and the trap it removes
+is for whoever relaxes that check.
+
+**Exit met.** Whole suite green (823 tests, 7 of them new), zero warnings, both `check_*.py`.
+`specdb owed` unchanged and clean for RC; ATOM-614.12-003 claimed in full,
+ATOM-614.12-001 partially and deliberately — its board is Yixlid Jailer, and
+`PermanentFilter` has no zone leaf, so the scenario is inexpressible rather than
+unimplemented. Determinism: three 200-game runs per pool byte-identical outside
+`=== Timing ===`, and `--threads 1` vs `--threads 8` identical on the
+engine-work block. Event streams at 40 games: **36/40 `performance` and 34/40
+`stress` games byte-identical**, and every one of the 10 divergences has a
+Humility or Blood Moon on the battlefield ahead of it and a permanent entering
+modified under it. A behaviour change cascades where RC-1's deletion did not, so
+the claim that can be checked is the *first* divergence per game — not the
+whole-stream diff, which is noise past that point.
 
 #### RC-4 — the overlay
 
@@ -3185,6 +3281,53 @@ there, because all three are about **what a rider can reach**.
     there has the sizing; the regression is the one §3.2d already names,
     `test_two_teferis_draw_four_not_infinity`, and **RE** is the phase that
     needs it.
+
+### Found by asking what RC-3's own test proves (2026-09-02)
+
+19. **CR 616.1 prompts for a choice with one outcome on every entry, and for
+    `Rewrite::EnterWith` that is a theorem rather than a coincidence.** Raised
+    against `test_two_registered_cards_make_cr_616_1_ask`: Root Maze and
+    Idyllic Beachfront both rewrite one `EnterBattlefield` into
+    `EnterWith(tapped)`, the pipeline asks which applies first, and **no
+    assertion can tell the two orders apart**. Three facts make that general:
+
+    - `EnterMods::merge` is `tapped |= other` and per-kind counter `+` — both
+      commutative and associative.
+    - `EventPattern::EnterBattlefield` matches `GameAction::EnterBattlefield { .. }`
+      on the variant alone, and `set_affects` keys on the event's *subject*.
+      Neither reads `mods`, so applying an `EnterWith` cannot change which
+      effects are applicable on the next CR 616.1f iteration.
+    - So for a bucket whose members are all `EnterWith`, the loop is
+      order-invariant. The prompt is real, CR-mandated and pure noise.
+
+    **The v1 stake is the CLI harness**: "highly parallel AI games over the
+    CLI" pays a decision round-trip per entry under two entry replacements, for
+    an answer that cannot matter.
+
+    **The sound rule is narrow and provable, and it is not "collapse identical
+    rewrites".** That would be a semantics-assuming shortcut of exactly the kind
+    `layers-architecture.md` §12 item 3 says never to reach for. The provable
+    form is: *skip the prompt when every member of the bucket is a
+    non-optional, non-counter-derived `EnterWith` with no `then`*. The `then`
+    exclusion is load-bearing — riders queue in choice order and run in queue
+    order (CR 615.5), so two candidates that both carry one make the order
+    observable through the event log even though the board is identical.
+
+    **Do not ship it without the card that keeps the branch alive**, and this is
+    the whole reason it is a question rather than a patch. Suppressing the
+    prompt returns CR 616.1's multi-candidate branch to dead code in a fuzz
+    game — the ordering choice, the applied set across instances and CR 101.4's
+    APNAP ordering among simultaneous choosers — which is the Kalitas gap for a
+    third time, now caused by a fix. What keeps it reachable is a registered
+    entry replacement that **does not** commute: a `Rewrite` that drops the
+    event (CR 614.6) beside an `EnterWith`, where the order decides whether the
+    `EnterWith`'s CR 614.5 slot is spent and its rider queues at all.
+    Containment Priest is the printed shape and needs a "wasn't cast" predicate
+    `EventPattern` does not have. **Order: card first, suppression second.**
+
+    Lands in **RC-4**, which opens this loop anyway for CR 614.13a/b's exclusion
+    sets and the CR 616.1b/c buckets. Until then the prompt stays, and the tests
+    say what they actually prove.
 
 ---
 

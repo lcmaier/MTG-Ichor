@@ -13,6 +13,7 @@ use crate::engine::layers::types::*;
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::zones::Zone;
 
 /// The layers, in application order (CR 613.1). Index into this array is the
 /// "layer ceiling" used by the frame cache: ceiling `n` means layers
@@ -409,6 +410,22 @@ fn effective_controller(
 /// `any_control_changing` gates return this instead of walking, and they are
 /// only exact while they and `compute_to_ceiling`'s seed agree — which they
 /// used to do by having the same body written out three times.
+///
+/// **The third arm is a resolving object, and it is not the owner fallback.**
+/// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything
+/// (CR 608.2's object stays on the stack, but its *entry* is owned by the
+/// resolution), so between there and the end of the resolution the first two
+/// probes both miss and the owner fallback answers. That is right for a land
+/// drop, where owner and controller coincide, and wrong for a spell cast by a
+/// player who does not own it — which CR 110.2b calls out by name. `resolving`
+/// carries that default across exactly this window, so it belongs above the
+/// fallback rather than inside it.
+///
+/// RC-3 is where this is fixed because RC-3 is where it became askable of an
+/// *entering* permanent: `effect_applies_to` no longer stops a filter at the
+/// battlefield boundary, so `PermanentFilter::ByController` now reads this
+/// value for every entry. It was already wrong on the replacement path, where
+/// `set_affects` has never had a gate.
 pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
     // Battlefield first, so the common case is one probe rather than three.
     if let Some(entry) = game.battlefield.get(&id) {
@@ -416,6 +433,11 @@ pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId
     }
     if let Some(entry) = game.stack_entries.get(&id) {
         return Some(entry.controller);
+    }
+    if let Some(resolving) = game.resolving {
+        if resolving.id == id {
+            return Some(resolving.default_controller);
+        }
     }
     game.objects.get(&id).map(|obj| obj.owner)
 }
@@ -623,10 +645,19 @@ fn effect_applies_to(
         AffectedSet::SourceOnly => effect.source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
         AffectedSet::Filter { filter } => {
-            // Object must be on the battlefield for filter-based effects.
+            // Object must be in the battlefield *zone* for filter-based effects.
             // Checked before anything else so a non-permanent costs no frame
             // computation for the source.
-            if !game.battlefield.contains_key(&id) {
+            //
+            // The zone, not `game.battlefield` membership, and that is CR
+            // 614.12's clause (3) in one predicate: `move_object` writes
+            // `obj.zone` before the `EnterBattlefield` performer builds the
+            // `BattlefieldEntity`, so an entering permanent is in the zone with
+            // no entry. Asking the stricter question here is what kept Blood
+            // Moon, Humility and Dress Down away from an entry — the effects
+            // that "already exist and would apply to the object" are exactly
+            // the ones a filter has to be allowed to match.
+            if !matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield) {
                 return false;
             }
             let mut players = FilterPlayers {
@@ -709,6 +740,10 @@ fn permanent_matches_filter(
         PermanentFilter::And(a, b) => {
             permanent_matches_filter(a, id, chars, players)
                 && permanent_matches_filter(b, id, chars, players)
+        }
+        PermanentFilter::Or(a, b) => {
+            permanent_matches_filter(a, id, chars, players)
+                || permanent_matches_filter(b, id, chars, players)
         }
         PermanentFilter::Not(inner) => !permanent_matches_filter(inner, id, chars, players),
     }
