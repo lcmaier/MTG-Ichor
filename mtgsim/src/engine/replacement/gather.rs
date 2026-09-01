@@ -97,30 +97,26 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
 ///
 /// A lookup, and therefore already N-player-safe — no `bool`, no "the other
 /// player".
-pub(crate) fn chooser_for(game: &GameState, subject: EventSubject) -> Option<PlayerId> {
-    match subject {
-        EventSubject::Player(pid) => Some(pid),
-        EventSubject::Object(id) => controller_or_owner(game, id),
-    }
-}
-
-/// [`chooser_for`], asked of a whole proposal.
+/// Takes the whole proposal rather than its [`EventSubject`], because **an
+/// entry's chooser is not a property of the board**. A permanent that has not
+/// entered yet has no controller, so `controller_or_owner` falls through to its
+/// owner — the wrong player the moment someone casts a permanent spell they do
+/// not own, or a token is created under an opponent's control. CR 110.2b's
+/// answer rides on `GameAction::EnterBattlefield` instead, and CR 616.1b's
+/// control-changing bucket is the same reading from the other side: the rules
+/// expect an entering permanent to have a controller to ask, and it is the one
+/// it is *about to* enter under.
 ///
-/// Every event answers through [`chooser_for`] **except an entry**, and the
-/// exception is CR 110.2b rather than a special case: a permanent that has not
-/// entered yet has no controller, so `controller_or_owner` would fall through to
-/// its owner — which is the wrong player the moment someone casts a permanent
-/// spell they do not own, or a token is created under an opponent's control.
-/// `GameAction::EnterBattlefield` carries the answer the rules give, so this
-/// asks it rather than the board.
-///
-/// CR 616.1b's control-changing bucket is the same reading from the other side:
-/// the rules expect an entering permanent to have a controller to ask, and
-/// that controller is the one it is *about to* enter under.
-pub(crate) fn chooser_for_event(game: &GameState, action: &GameAction) -> Option<PlayerId> {
+/// That is why this is one function with an entry arm rather than a wrapper
+/// around a subject-shaped one. A subject cannot answer for an entry, and both
+/// callers — the CR 616.1 loop and `apnap_batch_order` — hold the action.
+pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<PlayerId> {
     match action {
         GameAction::EnterBattlefield { controller, .. } => Some(*controller),
-        other => chooser_for(game, subject_of(other)),
+        other => match subject_of(other) {
+            EventSubject::Player(pid) => Some(pid),
+            EventSubject::Object(id) => controller_or_owner(game, id),
+        },
     }
 }
 
@@ -191,12 +187,14 @@ pub(crate) fn gather(
     // `compute_characteristics` walk on an entry, where opening the gate would
     // cost one per permanent on the board.
     //
-    // First in the candidate list, which the battlefield sweep's CR 613.7
-    // timestamp order cannot say anything about — the object has no timestamp
-    // until it enters. Deterministic is the requirement here; CR 616.1 lets the
-    // chooser pick any of them.
+    // Gathered here for cost and spliced in after the sweep for order: the
+    // entering permanent is about to be the *newest* object on the battlefield
+    // — `next_timestamp` is monotonic and nothing gives another object a new
+    // timestamp when something enters — so oldest-first (CR 613.7) puts it
+    // last among the sweep's candidates.
+    let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
-        push_static_ability_replacements(game, &mut candidates, *object, *controller, action, subject);
+        push_static_ability_replacements(game, &mut entering, *object, *controller, action, subject);
     }
 
     let has_static_source = !game.replacement_ability_sources.is_empty()
@@ -205,6 +203,7 @@ pub(crate) fn gather(
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
     {
+        candidates.extend(entering);
         return candidates;
     }
 
@@ -232,6 +231,8 @@ pub(crate) fn gather(
         }
     }
 
+    candidates.extend(entering);
+
     // --- Sources 3 and 4: the registry -------------------------------------
     for row in game.replacement_effects.iter() {
         push_if_applicable(
@@ -253,15 +254,20 @@ pub(crate) fn gather(
 
 /// Every static replacement ability on `id`, as candidate instances.
 ///
+/// **The battlefield sweep's loop body, lifted so the entering permanent can
+/// reuse it** — nothing more. It is not a look-ahead view and computes no
+/// hypothetical: it asks one object what replacement abilities it has, and the
+/// caller decides which objects to ask. CR 614.12's "as it would exist on the
+/// battlefield" frame is Phase RC-4's and lives nowhere yet.
+///
 /// Read off the **effective** ability list, which is source 1's whole point:
 /// Humility and Blood Moon strip a replacement ability for free, and CR 614.4's
 /// "must exist before the event" is asked at the one instant that matters.
 ///
-/// Shared by the battlefield sweep and by the entering permanent, and they are
-/// not the same object set — which is the reason this is a function rather than
-/// a loop body. `controller` is passed in because the two callers know it
-/// differently: on the battlefield it is `controller_or_owner`, and for an
-/// entering permanent it is CR 110.2b's default off the proposal.
+/// `controller` is a parameter because the two callers know it differently: on
+/// the battlefield it is `controller_or_owner`, and for an entering permanent it
+/// is CR 110.2b's default off the proposal — the same reason `chooser_for` takes
+/// the action.
 fn push_static_ability_replacements(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,

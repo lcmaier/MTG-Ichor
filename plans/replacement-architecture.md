@@ -2489,8 +2489,10 @@ battlefield. **So the branch is RC-3's unlock, not RC-2's**, which is a finding
 about RC-3's value rather than an excuse. The two cards shipped are Idyllic
 Beachfront (CR 110.5b, status) and Chainbreaker (CR 122.6a, counters) — one per
 half of `EnterMods`, which is CR 614.1c's own axis and two genuinely different
-performer paths. Both join `PERFORMANCE_POOL` (57 → 59). The accumulation
-behaviour is covered by a two-ability fixture, labelled as one.
+performer paths. Both join `PERFORMANCE_POOL` (57 → 59); Adaptive Shimmerer is
+registered into the stress pool alone for the ordering claim (see the review
+pass below). The accumulation behaviour is covered by a two-ability fixture,
+labelled as one.
 
 **8. Blood Moon does not strip an entering tapland's ability, and RC-3 is
 exactly one line away from fixing it.** The real ruling is that a tapland under
@@ -2522,6 +2524,50 @@ the spread within either arm. That is the expected shape: the new gather source
 costs one `compute_characteristics` walk per *entry*, and entries are rare
 against untap steps and SBA sweeps. **RC-3's line is the one on the hot path,
 and this measurement is the control it will be read against.**
+
+**Six changes from the review pass (PR #81), and two of them are findings.**
+
+- **The two-card rule wanted a third card, and §3.3 says why.** The ordering
+  claim — CR 122.6a's counters go on before anything can observe the permanent —
+  is falsifiable only by a **0/0**, and it was being made against a hand-built
+  fixture. That is §3.3's own sharpest finding ("a bespoke fixture can cover an
+  atom while the registered pool cannot build the same scenario") landing on the
+  phase that quoted it. **Adaptive Shimmerer** ({5}, 0/0, Flash, three +1/+1
+  counters, colorless) is registered — stress pool only, since RC-2's engine path
+  is already measured by the two cards in `PERFORMANCE_POOL`. The rejected
+  reasoning is recorded because it was wrong on the facts: the note claimed a
+  0/0 with +1/+1 counters is `{G}{W}`-shaped and rare, and Adaptive Shimmerer and
+  Ivy Elemental are both castable in any deck.
+- **`chooser_for_event` was a one-arm wrapper and is gone.** `chooser_for` takes
+  the whole proposal now. The wrapper existed because `chooser_for` took an
+  `EventSubject`, and the real content of the finding is that *an entry's chooser
+  is not a property of the board* — so the subject-shaped signature was the
+  thing that could not answer, not a caller that needed special-casing.
+- **The entering permanent's candidates are spliced in after the sweep, not
+  before it.** They are gathered before the fast-path gate for cost and appended
+  after the sweep for order: `next_timestamp` is monotonic and nothing gives
+  another object a new timestamp when something enters, so the entering permanent
+  is the newest object on the board and CR 613.7's oldest-first puts it last.
+- **`apply_rewrite` takes the event by value**, which removes the `EnterMods`
+  clone `Rewrite::EnterWith` was paying to own something the loop was about to
+  discard. Clone pressure is a real axis here — a tree search clones
+  `GameState`, and this loop runs inside every proposal.
+- **`EnterMods::merge` uses plain addition**, matching
+  `BattlefieldEntity::add_counters`, which is where the number ends up. The
+  `saturating_add` it replaced picked a clamp width the type has no business
+  choosing and would have been the only place in the engine with a different
+  overflow story.
+- **`EnterMods` now documents what a third status would cost**, because "face
+  down" looks like another `bool` and is not one. The plumbing really is one
+  field — [`Rewrite`] and [`EventPattern`] do not grow, which is the growth
+  contract working — but CR 707.2 makes a face-down permanent a 2/2 colorless
+  creature with no name or abilities, which is a **Layer 1a copiable-values**
+  change and wants Phase CV underneath it. The printed population agrees: nothing
+  prints "permanents enter face down" as an effect over another player's
+  permanents (Scryfall, 2026-09-01), and morph/manifest are instructions the
+  *mover* carries — CR 701.34a's "put it onto the battlefield face down as a 2/2
+  creature card" would seed `default_enter_mods` exactly the way CR 306.5b's
+  loyalty does, not register a `ReplacementDef`.
 
 **Not changed, and the ticket asked:** `put_on_battlefield_this_turn` (10 call
 sites, absent from the row above) routes through the performer like

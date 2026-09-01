@@ -358,12 +358,12 @@ impl GameState {
     /// Stable within a player, so a sweep that built its batch from
     /// `battlefield_ids_ordered` keeps that order among its own members.
     fn apnap_batch_order(&self, batch: &[GameAction]) -> Vec<usize> {
-        use crate::engine::replacement::chooser_for_event;
+        use crate::engine::replacement::chooser_for;
 
         let n = self.players.len();
         let mut order: Vec<usize> = (0..batch.len()).collect();
         order.sort_by_key(|&i| {
-            let chooser = chooser_for_event(self, &batch[i]);
+            let chooser = chooser_for(self, &batch[i]);
             // `None` — an object with neither controller nor owner — sorts
             // last; the pipeline errors on it rather than guessing, and this
             // keeps that error deterministic.

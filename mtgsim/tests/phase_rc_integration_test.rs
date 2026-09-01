@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rc_cards::{chainbreaker, idyllic_beachfront};
+use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker, idyllic_beachfront};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
@@ -205,22 +205,17 @@ fn test_enters_with_counters_under_its_controller() {
 /// The ordering claim, and the only test in the suite that can fail if the
 /// performer puts counters on *after* the entry is visible.
 ///
-/// Faithful Watchdog ({G}{W}, 0/0, "This creature enters with three +1/+1
-/// counters on it") is deliberately a fixture rather than a registered card:
-/// `random_deck` filters by colour, so it would reach about one deck in
-/// sixteen, and [`chainbreaker`] is what carries CR 122.6a into a fuzz game.
-/// The atom it sharpens is covered by the registered card above.
+/// **On a registered card**, which is the point rather than an incidental
+/// choice: `engineering-practices.md` §3.3's sharpest finding is that a bespoke
+/// fixture can cover an atom while the registered pool cannot build the same
+/// scenario, and a 0/0 that enters with counters is exactly the board state
+/// this claim needs. Adaptive Shimmerer is colorless, so `random_deck` puts it
+/// in every deck.
 #[test]
 fn test_zero_toughness_creature_survives_because_counters_arrive_with_it() {
     let mut game = setup_two_player_game();
 
-    let watchdog = enters_with(
-        "Faithful Watchdog",
-        0,
-        0,
-        EnterMods::with_counters(CounterType::PlusOnePlusOne, 3),
-    );
-    let id = reanimate(&mut game, watchdog, 0);
+    let id = reanimate(&mut game, adaptive_shimmerer(), 0);
 
     let performed = game
         .check_state_based_actions(&ScriptedDecisionProvider::new())
@@ -566,6 +561,13 @@ fn test_rc2_cards_read_as_printed() {
             .count(),
         2
     );
+
+    let shimmerer = adaptive_shimmerer();
+    assert_eq!(shimmerer.power, Some(0));
+    assert_eq!(shimmerer.toughness, Some(0));
+    assert!(shimmerer
+        .keyword_flags
+        .contains(&mtgsim::types::keywords::KeywordFlag::Flash));
 
     let scarecrow = chainbreaker();
     assert!(scarecrow.types.contains(&CardType::Artifact));

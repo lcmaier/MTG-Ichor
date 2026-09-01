@@ -1,20 +1,28 @@
 //! Cards for Phase RC — replacement effects that modify how a permanent enters
 //! the battlefield (CR 614.1c/d).
 //!
-//! **Two cards, and the axis they differ on is CR 614.1c's own.** A replacement
-//! that modifies an entry can change the permanent's *status* (CR 110.5b) or
-//! give it *counters* (CR 122.6a), and those are two fields of `EnterMods` with
-//! two separate performers behind them — one writes `BattlefieldEntity.tapped`
-//! before anything can look, the other allocates a CR 613.7c timestamp per kind
-//! and puts counters on. A phase that shipped only the first would leave the
-//! second exactly as reachable as CR 616.1's multi-candidate branch was after
-//! RB shipped Kalitas alone: covered by a test, unreachable in a game
-//! (`engineering-practices.md` §3.3).
+//! **Two cards on CR 614.1c's own axis, and a third for the ordering.** A
+//! replacement that modifies an entry can change the permanent's *status*
+//! (CR 110.5b) or give it *counters* (CR 122.6a), and those are two fields of
+//! `EnterMods` with two separate performer paths behind them — one writes
+//! `BattlefieldEntity.tapped` before anything can look, the other allocates a
+//! CR 613.7c timestamp per kind and puts counters on. A phase that shipped only
+//! the first would leave the second exactly as reachable as CR 616.1's
+//! multi-candidate branch was after RB shipped Kalitas alone: covered by a test,
+//! unreachable in a game (`engineering-practices.md` §3.3).
 //!
-//! Neither is gated behind a colour a random deck may not have: `random_deck`
+//! **The third is [`adaptive_shimmerer`], and it is §3.3's own finding applied
+//! to this phase.** "A bespoke fixture can cover an atom while the registered
+//! pool cannot build the same scenario." The claim at stake is that CR 122.6a's
+//! counters go on *before* anything can observe the permanent — and the only
+//! board state that can falsify it is a 0/0 that CR 704.5f would kill without
+//! them. A fixture made that claim; a registered card is what makes the *pool*
+//! able to.
+//!
+//! None is gated behind a colour a random deck may not have: `random_deck`
 //! filters nonlands by colour, so a `{G}{W}` card reaches roughly one deck in
-//! sixteen, while a colorless artifact is in every deck and a two-type nonbasic
-//! land is in every deck that wants either of its colours. Reachability is the
+//! sixteen, while a colorless card is in every deck and a two-type nonbasic land
+//! is in every deck that wants either of its colours. Reachability is the
 //! measurement this phase owes, so it is a selection criterion and not a
 //! footnote.
 //!
@@ -47,6 +55,7 @@ use crate::types::effects::{
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite};
 
@@ -130,7 +139,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
 ///
 /// (Oracle text verified on Scryfall, 2026-09-01.)
 ///
-/// # The second shape, and what it reaches that Charcoal Diamond cannot
+/// # The second shape, and what it reaches that a tapland cannot
 ///
 /// CR 122.6a — "an object that's given counters as it enters the battlefield" —
 /// is the other half of `EnterMods`, and it is not the same code path: the
@@ -145,13 +154,18 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
 /// then stops disagreeing. Nothing else in either pool produces a -1/-1
 /// counter at all, and being colorless it is in every deck in every game.
 ///
-/// # Why not a 0/0 with +1/+1 counters
+/// # What it is *not* the card for
 ///
-/// It would be the sharper test — Faithful Watchdog enters as a 0/0 and only
-/// the ordering inside the performer keeps CR 704.5f from killing it — and it
-/// is `{G}{W}`, which `random_deck` puts in about one deck in sixteen. The ordering claim is made in the
-/// integration test with exactly that fixture, unregistered and labelled as
-/// one; the *registered* card is the one that plays in every game.
+/// A 0/0 that enters with +1/+1 counters is the sharper test of the ordering
+/// inside the performer, and it is [`adaptive_shimmerer`]'s job rather than a
+/// reason to prefer one over the other. Chainbreaker earns its place on a
+/// different axis: it is `{2}` rather than `{5}`, so a random game casts it far
+/// more often, and its ability is the only thing in either pool that *spends* a
+/// counter a permanent entered with.
+///
+/// **The -1/-1 sign is not decoration either.** Layer 7c reads both, and a
+/// board where a permanent's printed and effective P/T disagree *downward* is
+/// one no other registered card produces.
 pub fn chainbreaker() -> Arc<CardData> {
     CardDataBuilder::new("Chainbreaker")
         .mana_cost(ManaCost::build(&[], 2))
@@ -186,6 +200,61 @@ pub fn chainbreaker() -> Arc<CardData> {
                     TargetCount::Exactly(1),
                 ),
             ),
+        })
+        .build()
+}
+
+/// Adaptive Shimmerer — {5}
+/// Creature — Insect, 0/0
+///
+/// Flash
+/// This creature enters with three +1/+1 counters on it.
+///
+/// (Oracle text verified on Scryfall, 2026-09-01.)
+///
+/// # A 0/0 is the only board state that can falsify the ordering
+///
+/// CR 122.6a's counters go on inside the performer, before the entry is
+/// announced and long before state-based actions next run. That ordering is a
+/// claim, and every *other* card in either pool would pass whether it held or
+/// not — a 3/3 that briefly reads 3/3 looks exactly like a 3/3 that reads 1/1.
+/// **This one dies if the counters arrive a moment late**: a 0/0 is what
+/// CR 704.5f is written about.
+///
+/// **Registered for `engineering-practices.md` §3.3's sharpest finding**, which
+/// is not about counts: *a bespoke fixture can cover an atom while the
+/// registered pool cannot build the same scenario*. The ordering was asserted
+/// against a hand-built 0/0 before this card existed, which proved the engine
+/// and proved nothing about the pool. Colorless, so `random_deck` puts it in
+/// every deck in every game.
+///
+/// **Not in `PERFORMANCE_POOL`.** Registering a card and adding one to that pool
+/// are different acts (§3), and RC-2's new engine path is already measured by
+/// the two cards that are in it. This one grows the stress pool, which is read
+/// as a threshold rather than a baseline.
+///
+/// Flash is a printed keyword the engine already enforces (`engine/cast.rs`
+/// reads `KeywordFlag::Flash` for timing), so the card ships whole rather than
+/// trimmed — which matters here, because a flashed-in 0/0 enters during an
+/// opponent's turn and reaches the ordering from a second direction.
+pub fn adaptive_shimmerer() -> Arc<CardData> {
+    CardDataBuilder::new("Adaptive Shimmerer")
+        .mana_cost(ManaCost::build(&[], 5))
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Insect))
+        .power_toughness(0, 0)
+        .keyword(KeywordFlag::Flash)
+        .rules_text("Flash\nThis creature enters with three +1/+1 counters on it.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield,
+                AffectedSet::SourceOnly,
+                Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 3)),
+            ))),
         })
         .build()
 }

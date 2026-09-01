@@ -329,10 +329,40 @@ pub enum Rewrite {
 /// rule speaking rather than a missing value. CR 122.6a covers `counters`:
 /// "an object that's given counters as it enters the battlefield".
 ///
-/// The other two statuses CR 110.5b names, flipped and face down, are absent
-/// on purpose: nothing in the engine can produce either yet, and CR 614.12's
-/// face-down case needs the look-ahead frame that Phase RC-4 builds. Phasing
-/// is not a status a permanent can enter with at all (CR 702.26).
+/// # The other two statuses, and what adding one would actually cost
+///
+/// CR 110.5b names four: tapped, flipped, face down, phased in. Phasing is not
+/// something a permanent can enter with (CR 702.26). The other two are absent,
+/// and it is worth being precise about why, because "face down" looks like a
+/// third `bool` and is not one.
+///
+/// **A new status is a field here, not an arm anywhere.** That is the growth
+/// contract working: [`Rewrite`] does not grow, [`EventPattern`] does not grow,
+/// and no reader outside the performer learns a new shape. So the *plumbing*
+/// really is one line.
+///
+/// **What is not one line is what face down means.** CR 707.2 makes a face-down
+/// permanent a 2/2 colorless creature with no name, no mana cost, no creature
+/// types and no abilities — a change to its **copiable values**, which is
+/// Layer 1a. A `face_down: true` that only set a flag would leave every layer
+/// query answering off the printed card, so the field wants Layer 1 (Phase CV)
+/// underneath it and CR 614.12's frame (RC-4) beside it, since the entry is
+/// changing the very characteristics the frame is asked about.
+///
+/// **The printed population says the same thing from the other side.** Nothing
+/// prints "permanents enter the battlefield face down" as an effect over
+/// someone else's permanents (Scryfall, 2026-09-01). Face-down entry is morph,
+/// manifest, disguise and cloak, and those are *how the object gets there* —
+/// CR 701.34a's "put it onto the battlefield face down as a 2/2 creature card"
+/// is an instruction the mover carries, not a replacement effect watching for
+/// an entry. Which is the shape this type already has: `EnterMods` is the
+/// payload of both [`Rewrite::EnterWith`] **and** the proposal's seed
+/// (`GameState::default_enter_mods`), so manifest would set the field at the
+/// proposal, exactly the way CR 306.5b's loyalty does today.
+///
+/// A *hypothetical* "creatures your opponents control enter face down" would
+/// additionally need `AffectedSet::Filter` to reach an entering permanent,
+/// which is Phase RC-3 — the same gate that stops Root Maze and Kismet.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EnterMods {
     /// CR 110.5b — the permanent enters tapped.
@@ -379,7 +409,12 @@ impl EnterMods {
         self.tapped |= other.tapped;
         for (counter, n) in &other.counters {
             match self.counters.iter_mut().find(|(c, _)| c == counter) {
-                Some((_, existing)) => *existing = existing.saturating_add(*n),
+                // Plain addition, matching `BattlefieldEntity::add_counters`,
+                // which is where this number ends up. A saturating add here
+                // would be the only place in the engine with a different
+                // overflow story, and clamping at `u32::MAX` is not a rules
+                // answer — it is a width this type has no business choosing.
+                Some((_, existing)) => *existing += *n,
                 None => self.counters.push((*counter, *n)),
             }
         }

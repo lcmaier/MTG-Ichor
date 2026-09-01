@@ -12,7 +12,7 @@ use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_replacement;
 
 use super::gather::{applies_to, forced_bucket};
-use super::{subject_of, chooser_for_event, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
+use super::{subject_of, chooser_for, gather, EventSubject, ReplacementInstance, ReplacementInstanceId};
 
 /// The "and also" half of an applied replacement, queued for after the event.
 ///
@@ -174,7 +174,7 @@ pub(crate) fn apply_replacements(
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player.
         let subject = subject_of(&event);
-        let chooser = chooser_for_event(game, &event);
+        let chooser = chooser_for(game, &event);
 
         // **Never prompt with fewer than two candidates.** CR-correct (there is
         // no choice to make with one), and it is what keeps every existing
@@ -248,7 +248,7 @@ pub(crate) fn apply_replacements(
             });
         }
 
-        match apply_rewrite(&chosen, &event, subject)? {
+        match apply_rewrite(&chosen, event, subject)? {
             // CR 614.6 — the event does not happen. Queued riders still run.
             None => return Ok(None),
             // CR 616.1f — re-gather against the modified event, which is how
@@ -377,9 +377,15 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
 
 /// Apply the chosen effect's [`Rewrite`] to the event (`replacement-architecture.md`
 /// §3.2b).
+///
+/// **Takes the event by value.** The CR 616.1f loop replaces its `event` with
+/// whatever this returns and never reads the old one again, so borrowing it
+/// would only force `Rewrite::EnterWith` to clone an `EnterMods` it is about to
+/// own. Clone pressure matters here beyond tidiness: a tree search clones
+/// `GameState`, and this loop runs inside every proposal.
 fn apply_rewrite(
     chosen: &ReplacementInstance,
-    event: &GameAction,
+    event: GameAction,
     subject: EventSubject,
 ) -> Result<Option<GameAction>, String> {
     match &chosen.def.rewrite {
@@ -396,14 +402,9 @@ fn apply_rewrite(
         // rewritten event, and the applied set is what makes that terminate
         // rather than loop.
         Rewrite::EnterWith(extra) => match event {
-            GameAction::EnterBattlefield { object, controller, mods } => {
-                let mut merged = mods.clone();
-                merged.merge(extra);
-                Ok(Some(GameAction::EnterBattlefield {
-                    object: *object,
-                    controller: *controller,
-                    mods: merged,
-                }))
+            GameAction::EnterBattlefield { object, controller, mut mods } => {
+                mods.merge(extra);
+                Ok(Some(GameAction::EnterBattlefield { object, controller, mods }))
             }
             other => Err(format!(
                 "replacement {:?} modifies how a permanent enters but matched {:?}, \
@@ -418,8 +419,8 @@ fn apply_rewrite(
                 GameActionTemplate::ZoneChangeTo { to, cause },
                 GameAction::ZoneChange { object, from, .. },
             ) => Ok(Some(GameAction::ZoneChange {
-                object: *object,
-                from: *from,
+                object,
+                from,
                 to: *to,
                 cause: *cause,
             })),

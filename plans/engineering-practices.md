@@ -121,17 +121,17 @@ across months buys the timing measurement nothing.
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
 2026-09-01 (performance pool 57 → 59, RC-2):**
 
-| | performance (59 cards) | stress (62 cards) |
+| | performance (59 cards) | stress (63 cards) |
 |---|---|---|
-| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 24 (48.0%) / 26 (52.0%) |
-| Avg turns | 31.8 | 31.1 |
-| Spells cast | 22.8 | 22.0 |
-| Lands played | 19.7 | 19.1 |
-| Combat w/ atk | 12.7 | 13.1 |
-| Creatures died | 8.6 | 4.7 |
-| Damage events | 26.7 | 29.5 |
-| Total damage | 53.3 | 61.4 |
-| Life changes | 17.6 | 20.6 |
+| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 27 (54.0%) / 23 (46.0%) |
+| Avg turns | 31.8 | 30.6 |
+| Spells cast | 22.8 | 21.9 |
+| Lands played | 19.7 | 18.6 |
+| Combat w/ atk | 12.7 | 12.1 |
+| Creatures died | 8.6 | 4.8 |
+| Damage events | 26.7 | 27.5 |
+| Total damage | 53.3 | 60.5 |
+| Life changes | 17.6 | 17.3 |
 
 *Previous values, 2026-09-01 morning (performance 55 → 57, RS-1): performance
 29/21, 28.4 turns, 21.0 spells, 18.1 lands, 11.2 combats, 5.9 deaths, 22.8
@@ -160,6 +160,11 @@ creatures-died jump on `performance` (5.9 → 8.6) is Chainbreaker: a 3/3 body f
 `{2}` that arrives as a 1/1 both blocks more often and dies more often than
 anything else in that pool. **This is a pool change, not an engine regression** —
 the engine A/B for the same PR ran on identical pools and is recorded in the PR.
+
+The stress column carries a third RC-2 card, Adaptive Shimmerer, which is
+registered but **not** in `PERFORMANCE_POOL` — which is why only that column
+moved a second time and why the two columns now differ by more than the pool
+sizes suggest.
 
 ### 3.1 The gate: run both pools, and read them differently
 
