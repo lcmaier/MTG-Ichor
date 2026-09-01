@@ -165,19 +165,58 @@ alone with `--seed N --games 1`.
 **Two tails, and the pair is the point.** `CPU/game` conflates *long* games with
 *slow* ones; `CPU/turn` divides that out. Compare them:
 
-**Baselines, 200 games / seed 12345 / `--threads 1`, recorded 2026-08-31:**
+**Absolute ms are comparable only *within one measurement sitting*, and that is
+not a caveat — it is the method.** Measured 2026-08-31: the frozen pool read
+~63 ms p50 early in a session and ~72 ms p50 hours later, **13%** apart with
+byte-identical game content.
 
-| | performance | stress |
+**That gap was A/B'd against the obvious suspect and the suspect was cleared.**
+The tree had gained `PermanentFilter::ByOwner`, a new match arm in
+`permanent_matches_filter` — which `compute.rs` calls inside the layer walk, the
+hottest path the engine has. Two release binaries were built from the two
+commits into separate target directories and run **alternately** in one sitting,
+four runs each, on the pool whose cards are identical on both sides:
+
+| | pre-`ByOwner` | with `ByOwner` |
 |---|---|---|
-| CPU/game mean | 86.62 ms | 87.11 ms |
-| CPU/game p50 / p99 / max | 63.36 / 409.86 / 475.81 ms | 59.36 / 409.57 / 498.16 ms |
-| CPU/turn p50 / p99 / max | 2.35 / 6.52 / 7.11 ms | 2.29 / 6.72 / 7.73 ms |
+| CPU/game, 4 interleaved runs | 96.37 / 96.70 / 96.39 / 98.25 ms | 96.87 / 96.52 / 96.69 / 97.59 ms |
 
-The game-level tail is **6.5x** the median and the turn-level tail is **2.8x**.
-The gap between those two numbers is the finding: most of the game tail is games
-being *longer* (73 and 87 turns against a ~30 average), and the residual 2.8x is
-genuine per-turn growth as the board fills — more permanents, more expensive
-layer walks. Superlinear but modest, and expected.
+**0.2% apart, and the game content byte-identical.** So the arm costs nothing and
+the drift is machine state — thermal or background load over a long session, not
+diagnosed further because it does not need to be. Note what the table also
+shows: *both* binaries read ~96 ms where the same pool read ~83–87 ms earlier
+that day. Within a sitting the spread is ~2%; across sittings it is ~15%.
+
+**So the frozen pool is the control, and what you compare is the two pools
+measured together**, never stress-today against stress-last-week — and a
+suspicious cross-sitting delta gets an interleaved A/B before it gets a
+diagnosis. The numbers below are medians of three interleaved runs in one
+sitting, which is what makes the two columns mean anything beside each other.
+
+**Baselines, 200 games / seed 12345 / `--threads 1`, medians of three
+interleaved runs, 2026-08-31:**
+
+| | performance (55, frozen) | stress (58) |
+|---|---|---|
+| CPU/game p50 / p99 / max | 69.12 / 418.18 / 514.26 ms | 66.28 / 497.11 / 568.28 ms |
+| CPU/turn p50 / p99 / max | 2.59 / 7.04 / 7.58 ms | 2.48 / 7.51 / 8.59 ms |
+| game tail ratio (max ÷ p50) | 7.4x | 8.6x |
+| turn tail ratio (max ÷ p50) | 2.9x | 3.5x |
+
+**The ratios are the durable numbers**, and that is measured rather than
+asserted: across the 13% drift above, the frozen pool's game-tail ratio held at
+**7.1–7.4x** and its turn-tail ratio at **2.8–2.9x**. Deterministic game content travels too, and it
+is what moved when Rest in Peace and Leyline of the Void landed and were widened
+to "from anywhere": stress avg turns 30.1 → **29.6**, max turns 98 → **75**.
+Games end sooner because graveyards stop filling — the cards doing their job,
+not a cost appearing. The frozen column did not move at all, which is the freeze
+working: registering a card cannot disturb a recorded baseline.
+
+**The two tails, and the gap between them is the finding.** The game tail runs
+7–9x the median and the turn tail about 3x. Most of the game tail is games being
+*longer* (73 and 87 turns against a ~30 average); the residual ~3x is genuine
+per-turn growth as the board fills — more permanents, more expensive layer
+walks. Superlinear but modest, and expected.
 
 **What a regression looks like, then.** A turn tail that climbs while the median
 holds is the signal to chase; a game tail that climbs with it is probably just a
@@ -201,12 +240,21 @@ the right one.
 applies only among "two or more"; CR 613.7 orders effects *within* a layer, so it
 needs two in one layer on one object; CR 614.5's applied set is keyed on effect
 *instance*; CR 704.7 collapses two actions with the same result. **Worked
-example, measured 2026-08-31:** exactly one registered card produces a
-replacement effect (Kalitas), it is Legendary, and CR 704.5j is enforced — so no
-player can control two, and two opposing copies each apply only to the *other*
-player's creatures. CR 616.1's entire multi-candidate branch has never been
-reachable in a fuzz game. RB's own status line says so from the other side:
-"zero new `DecisionProvider` prompts appeared."
+example, measured 2026-08-31 and closed the same day:** exactly one registered
+card produced a replacement effect (Kalitas), it is Legendary, and CR 704.5j is
+enforced — so no player could control two, and two opposing copies each apply
+only to the *other* player's creatures. CR 616.1's entire multi-candidate branch
+had never been reachable in a fuzz game. Rest in Peace and Leyline of the Void
+are the second and third sources; `phase_rb_integration_test.rs` now reaches
+CR 616.1 with two *printed* cards.
+
+**The sharpest part of that finding is what it says about coverage
+measurements.** The atom was not uncovered — `ATOM-616.1-001` had a passing test
+the whole time, built on `graveyard_probe`, a fixture defined in the test file
+and registered in no pool. **A bespoke fixture can cover an atom while the
+registered pool cannot build the same scenario**, so `specdb` coverage and fuzz
+reachability are different measurements and neither implies the other. When a
+rule needs two objects, check that two *registered* cards can produce them.
 
 **Tier 2 — two are valuable, and they must differ in shape.** RB's discovered
 hang was "a declined `exempt_from_614_5` optional without a second set" — a bug

@@ -683,6 +683,20 @@ fn permanent_matches_filter(
         PermanentFilter::Token => {
             players.game.objects.get(&id).map(|obj| obj.is_token).unwrap_or(false)
         }
+        // Off the object for the same reason as `Token`: CR 108.3 ownership is
+        // fixed when the game starts and no layer touches it. An object with no
+        // entry cannot match anybody's ownership question.
+        PermanentFilter::ByOwner(player_ref) => {
+            let Some(owner) = players.game.objects.get(&id).map(|obj| obj.owner) else {
+                return false;
+            };
+            match player_ref {
+                PlayerRef::You => owner == players.you(),
+                PlayerRef::Opponent => owner != players.you(),
+                PlayerRef::Owner => owner == players.owner(),
+                PlayerRef::Player(pid) => owner == *pid,
+            }
+        }
         PermanentFilter::PowerLE(n) => {
             chars.power.map(|p| p <= *n).unwrap_or(false)
         }

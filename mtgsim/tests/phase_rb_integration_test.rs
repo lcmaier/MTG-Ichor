@@ -8,22 +8,26 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
+use mtgsim::cards::phase_rb_cards::{
+    kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
+};
 use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
-use mtgsim::engine::layers::types::{EffectModification, Layer};
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
+use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::test_support::{
-    pass_turn, place_bare, put_on_battlefield, registered, set_attacking, set_blocked_by,
+    pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_attacking,
+    set_blocked_by,
     set_blocking, setup_game, setup_two_player_game, stock_libraries, test_ctx, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::types::effects::{
-    AffectedSet, CounterType, Duration, Effect, EffectRecipient, PermanentFilter, Primitive,
-    SelectionFilter, TargetCount,
+    AffectedSet, CounterType, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef,
+    Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -2348,4 +2352,213 @@ fn exile_on_death(name: &str) -> Arc<CardData> {
             }),
         ),
     )
+}
+
+// ---------------------------------------------------------------------------
+// The second and third registered replacement sources (2026-08-31)
+//
+// `test_two_replacements_on_one_event_prompt_the_affected_controller` above
+// already reaches CR 616.1 — with `graveyard_probe`, a fixture defined in this
+// file and registered in no pool. That is the distinction these tests exist to
+// close: the *atom* was covered while the **registered pool** could not build
+// the scenario, so `fuzz_games` had never once run the branch at any game count.
+// Kalitas was the only registered replacement source and it is Legendary.
+// → `engineering-practices.md` §3.3.
+// ---------------------------------------------------------------------------
+
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_kalitas_and_rest_in_peace_compete_and_choosing_kalitas_makes_a_zombie() {
+    // Two *printed* cards, both applicable to one death: Kalitas wants "a
+    // nontoken creature an opponent controls", Rest in Peace wants "a card or
+    // token ... put into a graveyard". CR 616.1 asks the affected object's
+    // controller — player 1, who owns the dying creature, not the player who
+    // controls both replacement sources.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
+    let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![0],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert!(dp.is_empty(), "CR 616.1 prompted, and with two printed cards");
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    // Index 0 is Kalitas: `gather` sweeps the battlefield in timestamp order and
+    // Kalitas entered first. Its CR 615.5 rider is what makes the choice
+    // *observable* — both effects exile, only one makes a Zombie.
+    assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
+}
+
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_choosing_rest_in_peace_instead_exiles_without_the_zombie() {
+    // The same board and the other index. This is the assertion that proves the
+    // choice is real rather than decorative: if the prompt were not being
+    // consulted, both runs would end identically.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
+    let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![1],
+    );
+    let ctx = ActionContext::new(&dp);
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+        .unwrap();
+
+    assert!(dp.is_empty(), "the prompt was consumed");
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    assert!(
+        tokens(&game).is_empty(),
+        "Rest in Peace exiles too, but it carries no rider — and once the card is \
+         on its way to exile Kalitas's `to: Graveyard` pattern no longer matches",
+    );
+}
+
+#[test]
+fn test_leyline_reads_ownership_where_kalitas_reads_control() {
+    // The reason `PermanentFilter::ByOwner` exists, and the case that makes
+    // `ByController` the wrong spelling rather than a near-enough one.
+    //
+    // P0 controls Leyline and has stolen P1's creature (CR 613.3, Layer 2 — what
+    // Act of Treason does, and Act of Treason is in the registered pool). The
+    // creature dies. CR 400.3 sends it to its *owner's* graveyard, which is
+    // P1's — an opponent of P0 — so Leyline applies. Read as control, the
+    // creature is P0's own and Leyline would sit out.
+    let mut game = setup_two_player_game();
+    let _leyline = put_on_battlefield(&mut game, leyline_of_the_void(), 0);
+    let thief = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let stolen = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.continuous_effects.add(ContinuousEffect {
+        id: 0,
+        source: thief,
+        origin: EffectOrigin::Resolution,
+        layer: Layer::Layer2Control,
+        duration: Duration::Indefinite,
+        controller: 0,
+        created_on_turn: 1,
+        timestamp: 100,
+        affected: AffectedSet::Fixed(vec![stolen]),
+        modification: EffectModification::SetController(PlayerRef::You),
+    });
+    assert_eq!(
+        get_effective_controller(&game, stolen),
+        Some(0),
+        "P0 controls it; P1 still owns it",
+    );
+
+    game.change_zone(stolen, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(
+        game.get_object(stolen).unwrap().zone,
+        Zone::Exile,
+        "Leyline applied: the card was headed for its owner's graveyard, and its \
+         owner is P0's opponent",
+    );
+}
+
+#[test]
+fn test_leyline_ignores_tokens_and_rest_in_peace_does_not_discriminate() {
+    // "a **card**" against "a card **or token**" — the one clause separating the
+    // two, and `PermanentFilter::All` versus `Not(Token)` is the whole encoding.
+    // A single prompt would mean both applied; `test_ctx` panics on any prompt,
+    // so this passing is itself the assertion that exactly one did.
+    let mut game = setup_two_player_game();
+    let _leyline = put_on_battlefield(&mut game, leyline_of_the_void(), 0);
+    let token = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
+    game.objects.get_mut(&token).unwrap().is_token = true;
+
+    game.change_zone(token, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+    assert_eq!(
+        game.get_object(token).unwrap().zone,
+        Zone::Graveyard,
+        "Leyline reads 'a card', and CR 111.1 says a token is not one",
+    );
+}
+
+#[test]
+fn test_rest_in_peace_exiles_a_card_headed_to_a_graveyard_from_hand() {
+    // "From anywhere", and this is the clause a first draft narrowed away.
+    // `EventPattern::ZoneChange { from: None }` matches every origin, and the
+    // filter — `PermanentFilter::All` — reads nothing off the layer frame, so a
+    // card that is not a permanent resolves it fine. The reachable origins today
+    // are stack→graveyard (CR 608.2n's resolved spell, CR 608.3's fizzle) and
+    // this one, the CR 514.1 cleanup discard. Milling would be the third and
+    // `Primitive::Mill` is unimplemented.
+    let mut game = setup_two_player_game();
+    let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
+    let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+        .unwrap();
+
+    assert_eq!(
+        game.get_object(discarded).unwrap().zone,
+        Zone::Exile,
+        "a card put into a graveyard from *anywhere*, not just the battlefield",
+    );
+    assert!(
+        game.players[1].graveyard.is_empty(),
+        "and it is not in the graveyard it was headed for",
+    );
+}
+
+#[test]
+fn test_kalitas_stays_battlefield_scoped_because_cr_700_4_defines_dies() {
+    // The narrowing that is *not* a narrowing. CR 700.4 defines "dies" as "put
+    // into a graveyard from the battlefield", so Kalitas's `from: Battlefield`
+    // is its text rather than a limitation of the filter language — a discarded
+    // creature card has not died and Kalitas must not see it.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(discarded).unwrap().zone, Zone::Graveyard);
+    assert!(tokens(&game).is_empty(), "no death, so no Zombie");
+}
+
+#[test]
+fn test_rest_in_peace_applies_to_a_noncreature_permanent() {
+    // `PermanentFilter::All` is wider than Kalitas's `ByType(Creature)` in the
+    // other direction too: an enchantment going to the graveyard is a card
+    // going to a graveyard. Kalitas alone leaves this event untouched, so a
+    // single applicable effect means no prompt — hence `test_ctx`.
+    //
+    // The victim is a bare enchantment rather than a second Rest in Peace,
+    // which the first draft used: a dying Rest in Peace still has its own static
+    // ability at the instant the event is proposed, so it applies to its own
+    // death, and the board had *two* applicable effects instead of one. Correct
+    // rules, wrong fixture for this assertion.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
+    let enchantment = place_bare(
+        &mut game,
+        CardDataBuilder::new("Test Enchantment")
+            .card_type(CardType::Enchantment)
+            .build(),
+        1,
+    );
+
+    game.change_zone(enchantment, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(enchantment).unwrap().zone, Zone::Exile);
+    assert!(tokens(&game).is_empty(), "Kalitas wants a creature");
 }

@@ -58,3 +58,102 @@ fn test_every_registered_card_lowers_for_either_controller() {
         put_on_battlefield(&mut game, card, 1);
     }
 }
+
+/// CR 202.2 — a card's colors must be the colors of its mana cost.
+///
+/// # Why a test rather than a derivation
+///
+/// `CardDataBuilder::color()` is hand-written on all 52 call sites and is
+/// **redundant with the mana cost on every card in the registry today** — this
+/// test measured zero disagreements the day it was written. The right end state
+/// is deriving it in the builder, which is one small PR and is not this one:
+/// CR 202.2e's colour indicator is printed data that no mana cost implies
+/// (Dryad Arbor is a green land with no mana cost; Ancestral Vision is blue with
+/// none), so the derivation needs an override rather than a deletion, and CR
+/// 702.114a's devoid is a CDA that belongs in Layer 5 rather than in `CardData`.
+///
+/// Until then this is the guard that makes deferring safe. A miscoloured card is
+/// exactly the failure class this file exists for: it produces a card that is
+/// quietly the wrong colour, which no other check we have would notice.
+///
+/// **When it starts mattering: hybrid.** A `{W/U}` card is *both* white and blue
+/// (CR 202.2d), and that is the first place a human writing `.color()` by hand
+/// gets it wrong. The registry has no hybrid card yet, so the error class has
+/// had no chance to appear.
+///
+/// **If this fails for a card with a colour indicator**, the card is right and
+/// the test is too strict — add it to an exemption list here with its CR 202.2e
+/// citation rather than bending the card to the check.
+#[test]
+fn test_every_registered_cards_color_matches_its_mana_cost() {
+    use mtgsim::types::colors::Color;
+    use mtgsim::types::mana::{ManaSymbol, ManaType};
+
+    fn color_of(m: ManaType) -> Option<Color> {
+        match m {
+            ManaType::White => Some(Color::White),
+            ManaType::Blue => Some(Color::Blue),
+            ManaType::Black => Some(Color::Black),
+            ManaType::Red => Some(Color::Red),
+            ManaType::Green => Some(Color::Green),
+            // CR 202.2b — {C} is not a colour.
+            ManaType::Colorless => None,
+        }
+    }
+
+    /// CR 202.2 + 202.2d: every colored symbol contributes, and a hybrid or
+    /// Phyrexian symbol contributes *all* of its colours.
+    fn derived(symbols: &[ManaSymbol]) -> Vec<Color> {
+        let mut out: Vec<Color> = Vec::new();
+        let push = |out: &mut Vec<Color>, c: Option<Color>| {
+            if let Some(c) = c {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+        };
+        for s in symbols {
+            match s {
+                ManaSymbol::Colored(m) | ManaSymbol::MonoHybrid(m) | ManaSymbol::Phyrexian(m) => {
+                    push(&mut out, color_of(*m))
+                }
+                ManaSymbol::Hybrid(a, b) | ManaSymbol::HybridPhyrexian(a, b) => {
+                    push(&mut out, color_of(*a));
+                    push(&mut out, color_of(*b));
+                }
+                // Generic, {C}, snow and X carry no colour.
+                ManaSymbol::Generic
+                | ManaSymbol::Colorless
+                | ManaSymbol::Snow
+                | ManaSymbol::X => {}
+            }
+        }
+        out
+    }
+
+    let registry = CardRegistry::default_registry();
+    let mut mismatches = Vec::new();
+
+    for name in registry.card_names() {
+        let Ok(card) = registry.create(&name) else { continue };
+        let mut declared: Vec<Color> = card.colors.iter().copied().collect();
+        // CR 202.2b — no mana cost at all means no coloured symbols, so
+        // colorless. A colour indicator would be the exception; see the doc.
+        let mut expected = match &card.mana_cost {
+            Some(cost) => derived(&cost.symbols),
+            None => Vec::new(),
+        };
+        let key = |c: &Color| format!("{c:?}");
+        declared.sort_by_key(key);
+        expected.sort_by_key(key);
+        if declared != expected {
+            mismatches.push(format!("  {name}: declared {declared:?}, mana cost implies {expected:?}"));
+        }
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "CR 202.2 — these cards' colors disagree with their mana costs:\n{}",
+        mismatches.join("\n"),
+    );
+}

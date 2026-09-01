@@ -955,21 +955,28 @@ section never asked.
 
 ### Found by the fuzz-tail pass (2026-08-31)
 
-35. **CR 616.1's multi-candidate branch has never been reachable in a fuzz game,
-    and more games cannot fix it.** Measured: exactly one registered card
+35. **CR 616.1's multi-candidate branch had never been reachable in a fuzz game
+    — ✅ CLOSED 2026-08-31, two cards later.** Measured: exactly one registered card
     produces a replacement effect — Kalitas, in `phase_rb_cards.rs`. It is
     Legendary and CR 704.5j is enforced (`sba.rs:287`), so no player controls
     two; and two opposing copies each apply only to the *other* player's
     creatures, so any single death still has exactly one candidate. CR 616.1
     engages only among "two or more", so the ordering choice, the applied set
     *across instances*, and the APNAP ordering among simultaneous choosers are
-    all structurally unreachable. RB's status line confirms it from the other
-    side: "zero new `DecisionProvider` prompts appeared." → `engineering-
-    practices.md` §3.3, which generalises this into a rule.
+    all structurally unreachable *from the pool*. RB's status line confirms it
+    from the other side: "zero new `DecisionProvider` prompts appeared."
 
-    **Sized: two cards, zero engine change.** Both are non-legendary
-    enchantments whose battlefield-side replacement is the shape Kalitas already
-    proves — `EventPattern::ZoneChange` + `AffectedSet::Filter` +
+    **The atom was not uncovered, which is the sharp part.** `ATOM-616.1-001`
+    had a passing test throughout, built on `graveyard_probe` — a fixture
+    defined in `phase_rb_integration_test.rs` and registered in no pool. A
+    bespoke fixture can cover an atom while the registered pool cannot build the
+    same scenario, so **`specdb` coverage and fuzz reachability are different
+    measurements and neither implies the other.** → `engineering-practices.md`
+    §3.3, which generalises both halves into a rule.
+
+    **Sized as two cards and zero engine change; the second half of that was
+    wrong.** Both are non-legendary enchantments whose battlefield-side
+    replacement is the shape Kalitas already proves — `EventPattern::ZoneChange` + `AffectedSet::Filter` +
     `Rewrite::Instead(ZoneChangeTo { Exile })`. Text verified on Scryfall
     2026-08-31:
 
@@ -990,14 +997,81 @@ section never asked.
     anchor: `phase_rb_cards.rs` is 195 lines for one card including its doc
     block, so this is a small PR, not a phase.
 
-    **One open question the writing will answer, and it is a finding either
-    way:** "from anywhere" wants `from: None`, which `EventPattern` supports, but
-    `AffectedSet::Filter` is a `PermanentFilter` and a card moving from the stack
-    or library is not a permanent. Kalitas dodged this by scoping to
-    `from: Battlefield`. Either the filter grows a non-permanent case, or both
-    cards ship battlefield-scoped with the narrowing documented on the card.
-    **Do not widen `AffectedSet` speculatively** — write the battlefield half
-    first and let the second half earn the change.
+    **What shipped, 2026-08-31.** Both cards, registered, plus five integration
+    tests. CR 616.1 now prompts with two *printed* cards, and the choice is
+    observable rather than notional: both effects exile, but Kalitas carries a
+    CR 615.5 rider, so picking it makes a Zombie and picking Rest in Peace does
+    not. Whichever applies first, the other stops matching.
+
+    **The sizing was wrong about "zero engine change", and the reason is worth
+    keeping.** Leyline says "an opponent's **graveyard**", and CR 400.3 sends a
+    card to its *owner's* graveyard — so the clause is about ownership, not
+    control, and `PermanentFilter` had only `ByController`. The two answers
+    diverge whenever control has moved, which the registered pool can already
+    reach: Act of Treason steals a creature, it dies, and it goes to the
+    graveyard of the player who owns it. Shipping it as `ByController` would
+    have been a *different card*, not a narrower one. `PermanentFilter::ByOwner`
+    is new — one variant and two match arms (`compute.rs`, `targeting.rs`), with
+    ownership read off the `GameObject` for the reason `Token` gives.
+
+    **"From anywhere" shipped literal, after a correction in review.** Both cards
+    were first written `from: Battlefield`, on the argument that
+    `AffectedSet::Filter` carries a `PermanentFilter` and a card on the stack is
+    not a permanent. **That argument was wrong about these two cards.** Rest in
+    Peace's filter is `All`, which reads nothing; Leyline's is `Not(Token)` and
+    `ByOwner`, which read `GameObject.is_token` and `GameObject.owner` — present
+    in every zone and not characteristics the layer system computes. So neither
+    needs the object to be a permanent, and `from: None` costs nothing.
+
+    It is reachable and load-bearing rather than theoretical: stack→graveyard
+    happens on every resolved instant or sorcery (CR 608.2n) and every fizzle
+    (CR 608.3), and hand→graveyard on the CR 514.1 cleanup discard. Milling is
+    the third and `Primitive::Mill` is unimplemented, so the library case is out
+    of reach rather than out of scope. The narrowed version shipped a card that
+    did not do what it says — a resolving Lightning Bolt went to the graveyard.
+
+    **Kalitas stays `from: Battlefield`, and that is a different call**: CR 700.4
+    *defines* "dies" as "put into a graveyard from the battlefield", so the
+    clause is its text rather than a limit. What the filter language still cannot
+    do is describe a card by a **characteristic** off the battlefield — "if a red
+    card would be put into a graveyard" needs the hidden-zone work — and no card
+    here asks it to.
+
+    **The general lesson.** "Wait for a card that needs it" was the right
+    instinct and the wrong diagnosis: the trigger was not a missing card, it was
+    a missing *event* already in the tree. Before deferring a widening, check
+    which events can reach it — not only which cards.
+
+    **Colour is not derived from mana cost, and that is now guarded rather than
+    fixed** (raised in review 2026-08-31). CR 202.2 makes a card's colours the
+    colours of its mana cost, and `CardDataBuilder::color()` restates it by hand
+    at **52** call sites. Measured: **0 of 58** registered cards disagree, so
+    there is no bug today — only redundancy and drift risk.
+
+    Deriving it is one small PR and *not* a deletion: CR 202.2e's colour
+    indicator is printed data no mana cost implies (Dryad Arbor is a green land
+    with no mana cost, Ancestral Vision is blue with none), so the builder needs
+    an override, and CR 702.114a's devoid is a **CDA** that belongs in Layer 5
+    rather than in `CardData`. The minimal shape computes `colors` inside
+    `build()`, so no reader changes.
+
+    **Deadline: before Phase 8 breadth**, when 52 sites become 500+. The error
+    class that will actually bite is **hybrid** — a `{W/U}` card is *both*
+    colours (CR 202.2d) and that is what a human writing `.color()` gets wrong.
+    The registry has no hybrid card yet. Until then
+    `card_pool_lowering_test::test_every_registered_cards_color_matches_its_mana_cost`
+    is the guard that makes deferring safe, and it was verified to fail on an
+    injected miscolour rather than merely to pass.
+
+    **Two findings from writing them.** A Rest in Peace that is itself dying
+    still has its static ability at the instant the event is proposed, so it
+    applies to its own death — correct rules, and it cost a test fixture that
+    had two applicable effects where it wanted one. And `PlayerRef::Owner`
+    resolves differently at the two filter sites: `compute.rs` reads it as the
+    *source's* owner (a `FilterPlayers` has the source), `targeting.rs` as the
+    tested object's (its signature has only `you`). Pre-existing — `ByController`
+    already diverges the same way — and not fixed here, because no card reads
+    either spelling and changing it would move `ByController` too.
 
     **Layer 2 has the same shape of gap and is genuinely blocked.** One producer
     (`SetController`, Act of Treason). A second *shape* would be a static or

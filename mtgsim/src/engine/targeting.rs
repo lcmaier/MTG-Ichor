@@ -255,6 +255,28 @@ impl GameState {
             // than off the layer frame. A copy effect does not make a nontoken
             // permanent a token (CR 707.2: copiable values do not include it).
             PermanentFilter::Token => Ok(obj.is_token),
+            // CR 108.3 / 400.3 — ownership, not control. See the variant's doc:
+            // the two diverge the moment control moves, and a card always goes
+            // to its *owner's* graveyard.
+            PermanentFilter::ByOwner(player_ref) => {
+                use crate::types::effects::PlayerRef;
+                Ok(match player_ref {
+                    PlayerRef::You => obj.owner == you,
+                    PlayerRef::Opponent => obj.owner != you,
+                    // Tautological here, and forced by the signature: this
+                    // function takes `you` and no source id, so `Owner` can only
+                    // mean the tested object's own owner — which is what the
+                    // `ByController` arm above already reads it as. `compute.rs`
+                    // resolves the same `PlayerRef::Owner` against the *source's*
+                    // owner, because a `FilterPlayers` has the source. The two
+                    // sites therefore disagree about one variant; recorded in
+                    // `codebase-state.md` rather than fixed here, because
+                    // changing it would move `ByController` too and no card
+                    // reads either spelling yet.
+                    PlayerRef::Owner => true,
+                    PlayerRef::Player(pid) => obj.owner == *pid,
+                })
+            }
             PermanentFilter::PowerLE(max_power) => {
                 get_effective_power(self, id)
                     .map(|p| p <= *max_power)

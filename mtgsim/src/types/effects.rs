@@ -97,6 +97,19 @@ pub enum PermanentFilter {
     /// It is a leaf rather than a `Not`-only helper because `Not` already
     /// composes; adding `Nontoken` as well would give one quality two spellings.
     Token,
+    /// CR 108.3 — the player who started the game with the card in their deck.
+    ///
+    /// **Not `ByController` with extra steps.** A card put into a graveyard goes
+    /// to its *owner's* graveyard (CR 400.3), so every card whose text says
+    /// "an opponent's graveyard" is asking this question and not the control
+    /// question. The two answers diverge whenever control has moved, which the
+    /// registered pool can already reach: Act of Treason steals a creature, it
+    /// dies, and it goes to the graveyard of the player who owns it.
+    ///
+    /// Read off the `GameObject` rather than the layer frame, for the reason
+    /// `Token` gives — ownership is not a characteristic, so no layer can
+    /// change the answer and there is nothing on `chars` to consult.
+    ByOwner(PlayerRef),
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     Not(Box<PermanentFilter>),
 }
