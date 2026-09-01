@@ -410,6 +410,22 @@ fn effective_controller(
 /// `any_control_changing` gates return this instead of walking, and they are
 /// only exact while they and `compute_to_ceiling`'s seed agree — which they
 /// used to do by having the same body written out three times.
+///
+/// **The third arm is a resolving object, and it is not the owner fallback.**
+/// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything
+/// (CR 608.2's object stays on the stack, but its *entry* is owned by the
+/// resolution), so between there and the end of the resolution the first two
+/// probes both miss and the owner fallback answers. That is right for a land
+/// drop, where owner and controller coincide, and wrong for a spell cast by a
+/// player who does not own it — which CR 110.2b calls out by name. `resolving`
+/// carries that default across exactly this window, so it belongs above the
+/// fallback rather than inside it.
+///
+/// RC-3 is where this is fixed because RC-3 is where it became askable of an
+/// *entering* permanent: `effect_applies_to` no longer stops a filter at the
+/// battlefield boundary, so `PermanentFilter::ByController` now reads this
+/// value for every entry. It was already wrong on the replacement path, where
+/// `set_affects` has never had a gate.
 pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
     // Battlefield first, so the common case is one probe rather than three.
     if let Some(entry) = game.battlefield.get(&id) {
@@ -417,6 +433,11 @@ pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId
     }
     if let Some(entry) = game.stack_entries.get(&id) {
         return Some(entry.controller);
+    }
+    if let Some(resolving) = game.resolving {
+        if resolving.id == id {
+            return Some(resolving.default_controller);
+        }
     }
     game.objects.get(&id).map(|obj| obj.owner)
 }

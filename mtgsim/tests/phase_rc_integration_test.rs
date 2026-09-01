@@ -780,3 +780,86 @@ fn test_root_maze_and_chainbreaker_modify_one_entry_together() {
         "and Chainbreaker's, on the same entry"
     );
 }
+
+// ---------------------------------------------------------------------------
+// CR 110.2b across a resolution — the read RC-3's gate makes reachable
+// ---------------------------------------------------------------------------
+
+/// Kismet's shape: "permanents **your opponents** control enter tapped".
+///
+/// The half of the four Root-Maze-family cards that RC-3 could not register
+/// until `base_controller` grew its resolving arm — see the test below and
+/// `root_maze`'s doc comment.
+fn kismet_shaped() -> Arc<CardData> {
+    CardDataBuilder::new("Kismet-shaped")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(mtgsim::types::colors::Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text("Permanents your opponents control enter tapped.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield,
+                AffectedSet::Filter {
+                    filter: PermanentFilter::ByController(
+                        mtgsim::types::effects::PlayerRef::Opponent,
+                    ),
+                },
+                Rewrite::EnterWith(EnterMods::tapped()),
+            ))),
+        })
+        .build()
+}
+
+/// A permanent spell resolving is controlled by whoever cast it, **not by its
+/// owner**, and a filter that asks about controllers has to see that.
+///
+/// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything,
+/// so for the whole resolution `base_controller`'s first two probes miss. The
+/// owner fallback answered, which is right for a land drop and wrong here:
+/// CR 110.2b says the controller is the player who put the spell onto the
+/// stack, and `GameState::resolving` is where that value lives across exactly
+/// this window.
+///
+/// P1's Kismet-shaped enchantment scopes to its opponents. P0 casts a creature
+/// **owned by P1**, so owner and controller disagree and the two answers are
+/// opposite: as P0's permanent it enters tapped, as P1's it would not.
+#[test]
+fn test_a_spell_cast_by_a_non_owner_enters_under_its_caster_for_a_filter() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, kismet_shaped(), 1);
+
+    // No replacement ability of its own: the Kismet-shaped filter must be the
+    // *only* candidate, or CR 616.1 asks a question this test is not about.
+    let bear = CardDataBuilder::new("Borrowed Bear")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(mtgsim::types::colors::Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Bear))
+        .power_toughness(2, 2)
+        .build();
+    let id = put_in_hand(&mut game, bear, 0);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+    game.cast_spell(0, id, &test_dp()).expect("it is castable");
+
+    // Owner and controller pulled apart by hand, and **after** the cast on
+    // purpose: `check_cast_legality` refuses "another player's spell", so no
+    // registered card can reach this board and the disagreement CR 110.2b
+    // describes is unreachable end to end today. The `StackEntry` written by
+    // the ordinary cast above still says P0, which is the whole point — the
+    // resolution below is not doctored.
+    game.get_object_mut(id).unwrap().owner = 1;
+    assert_eq!(game.stack_entries[&id].controller, 0, "the cast was ordinary");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    let entry = game.battlefield.get(&id).expect("it is a permanent now");
+    assert_eq!(entry.controller, 0, "CR 110.2b — the player who put it on the stack");
+    assert!(
+        entry.tapped,
+        "it entered as P0's permanent, and P0 is the enchantment controller's opponent"
+    );
+}
