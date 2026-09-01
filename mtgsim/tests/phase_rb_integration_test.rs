@@ -19,7 +19,8 @@ use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::test_support::{
-    pass_turn, place_bare, put_on_battlefield, registered, set_attacking, set_blocked_by,
+    pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_attacking,
+    set_blocked_by,
     set_blocking, setup_game, setup_two_player_game, stock_libraries, test_ctx, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -2486,6 +2487,50 @@ fn test_leyline_ignores_tokens_and_rest_in_peace_does_not_discriminate() {
         Zone::Graveyard,
         "Leyline reads 'a card', and CR 111.1 says a token is not one",
     );
+}
+
+#[test]
+fn test_rest_in_peace_exiles_a_card_headed_to_a_graveyard_from_hand() {
+    // "From anywhere", and this is the clause a first draft narrowed away.
+    // `EventPattern::ZoneChange { from: None }` matches every origin, and the
+    // filter — `PermanentFilter::All` — reads nothing off the layer frame, so a
+    // card that is not a permanent resolves it fine. The reachable origins today
+    // are stack→graveyard (CR 608.2n's resolved spell, CR 608.3's fizzle) and
+    // this one, the CR 514.1 cleanup discard. Milling would be the third and
+    // `Primitive::Mill` is unimplemented.
+    let mut game = setup_two_player_game();
+    let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
+    let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+        .unwrap();
+
+    assert_eq!(
+        game.get_object(discarded).unwrap().zone,
+        Zone::Exile,
+        "a card put into a graveyard from *anywhere*, not just the battlefield",
+    );
+    assert!(
+        game.players[1].graveyard.is_empty(),
+        "and it is not in the graveyard it was headed for",
+    );
+}
+
+#[test]
+fn test_kalitas_stays_battlefield_scoped_because_cr_700_4_defines_dies() {
+    // The narrowing that is *not* a narrowing. CR 700.4 defines "dies" as "put
+    // into a graveyard from the battlefield", so Kalitas's `from: Battlefield`
+    // is its text rather than a limitation of the filter language — a discarded
+    // creature card has not died and Kalitas must not see it.
+    let mut game = setup_two_player_game();
+    let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
+    let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+        .unwrap();
+
+    assert_eq!(game.get_object(discarded).unwrap().zone, Zone::Graveyard);
+    assert!(tokens(&game).is_empty(), "no death, so no Zombie");
 }
 
 #[test]

@@ -175,8 +175,23 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// "When this enchantment enters, exile all graveyards" is a triggered ability
 /// (CR 603), which does not exist. Shipping the static half alone is the trade
 /// Blood Moon already made — it works while Aura casting does not — and the
-/// replacement half is the half this card is here for. The `from: Battlefield`
-/// narrowing is the same story: see [`leyline_of_the_void`].
+/// replacement half is the half this card is here for.
+///
+/// # "From anywhere" is literal, and that took a correction
+///
+/// An earlier draft shipped this `from: Battlefield`, arguing that
+/// `AffectedSet::Filter` carries a `PermanentFilter` and a card on the stack is
+/// not a permanent. **That was wrong about this card.** The filter here is
+/// `All`, which reads nothing at all; `permanent_matches_filter` resolves it
+/// from `game.objects` in any zone. So `from: None` costs nothing, and the
+/// narrowing shipped a card that did not do what it says — a resolving
+/// Lightning Bolt went to the graveyard.
+///
+/// The widening is reachable and load-bearing: stack→graveyard happens on every
+/// resolved instant and sorcery (CR 608.2n) and every fizzle (CR 608.3), and
+/// hand→graveyard on the CR 514.1 cleanup discard. Milling would be the third
+/// and `Primitive::Mill` is unimplemented, so the library case is out of reach
+/// rather than out of scope.
 pub fn rest_in_peace() -> Arc<CardData> {
     CardDataBuilder::new("Rest in Peace")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -192,7 +207,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
+                    from: None,
                     to: Some(Zone::Graveyard),
                     cause: None,
                     object: None,
@@ -242,12 +257,17 @@ pub fn rest_in_peace() -> Arc<CardData> {
 /// `replacement-architecture.md` §3.3's source 2, deferred past Phase RE. The
 /// card is castable for `{2}{B}{B}` here and does nothing before it resolves.
 ///
-/// **`from: Battlefield`, not "from anywhere".** Both cards say "from anywhere",
-/// and both ship narrowed to the battlefield, because `AffectedSet::Filter`
-/// carries a `PermanentFilter` and a card on the stack or in a library is not a
-/// permanent. Kalitas dodged the same question the same way. Widening it is a
-/// real change to the filter language and should be earned by a card that needs
-/// nothing else, not smuggled in beside two that already work.
+/// **"From anywhere" is literal here too, and for a sharper reason.** This card's
+/// filter is `Not(Token)` and `ByOwner`, which read `GameObject.is_token` and
+/// `GameObject.owner` — both present in every zone, neither a characteristic the
+/// layer system computes. So no part of it needs the object to be a permanent.
+///
+/// **Kalitas stays `from: Battlefield`, and that is not the same call.** CR
+/// 700.4 *defines* "dies" as "put into a graveyard from the battlefield", so the
+/// clause is the card's text rather than a narrowing of it. The filter language
+/// still cannot describe a card by a *characteristic* off the battlefield — a
+/// hypothetical "if a red card would be put into a graveyard" needs the
+/// hidden-zone work — but neither card here asks it to.
 pub fn leyline_of_the_void() -> Arc<CardData> {
     CardDataBuilder::new("Leyline of the Void")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 2))
@@ -263,7 +283,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
+                    from: None,
                     to: Some(Zone::Graveyard),
                     cause: None,
                     object: None,

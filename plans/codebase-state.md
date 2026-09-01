@@ -1014,11 +1014,54 @@ section never asked.
     is new — one variant and two match arms (`compute.rs`, `targeting.rs`), with
     ownership read off the `GameObject` for the reason `Token` gives.
 
-    **The "from anywhere" question was left open, deliberately.** Both cards
-    ship `from: Battlefield`, narrowed on the card and for the reason Kalitas
-    was: `AffectedSet::Filter` carries a `PermanentFilter`, and a card on the
-    stack or in a library is not a permanent. Widening it is a real change to
-    the filter language and should be earned by a card that needs nothing else.
+    **"From anywhere" shipped literal, after a correction in review.** Both cards
+    were first written `from: Battlefield`, on the argument that
+    `AffectedSet::Filter` carries a `PermanentFilter` and a card on the stack is
+    not a permanent. **That argument was wrong about these two cards.** Rest in
+    Peace's filter is `All`, which reads nothing; Leyline's is `Not(Token)` and
+    `ByOwner`, which read `GameObject.is_token` and `GameObject.owner` — present
+    in every zone and not characteristics the layer system computes. So neither
+    needs the object to be a permanent, and `from: None` costs nothing.
+
+    It is reachable and load-bearing rather than theoretical: stack→graveyard
+    happens on every resolved instant or sorcery (CR 608.2n) and every fizzle
+    (CR 608.3), and hand→graveyard on the CR 514.1 cleanup discard. Milling is
+    the third and `Primitive::Mill` is unimplemented, so the library case is out
+    of reach rather than out of scope. The narrowed version shipped a card that
+    did not do what it says — a resolving Lightning Bolt went to the graveyard.
+
+    **Kalitas stays `from: Battlefield`, and that is a different call**: CR 700.4
+    *defines* "dies" as "put into a graveyard from the battlefield", so the
+    clause is its text rather than a limit. What the filter language still cannot
+    do is describe a card by a **characteristic** off the battlefield — "if a red
+    card would be put into a graveyard" needs the hidden-zone work — and no card
+    here asks it to.
+
+    **The general lesson.** "Wait for a card that needs it" was the right
+    instinct and the wrong diagnosis: the trigger was not a missing card, it was
+    a missing *event* already in the tree. Before deferring a widening, check
+    which events can reach it — not only which cards.
+
+    **Colour is not derived from mana cost, and that is now guarded rather than
+    fixed** (raised in review 2026-08-31). CR 202.2 makes a card's colours the
+    colours of its mana cost, and `CardDataBuilder::color()` restates it by hand
+    at **52** call sites. Measured: **0 of 58** registered cards disagree, so
+    there is no bug today — only redundancy and drift risk.
+
+    Deriving it is one small PR and *not* a deletion: CR 202.2e's colour
+    indicator is printed data no mana cost implies (Dryad Arbor is a green land
+    with no mana cost, Ancestral Vision is blue with none), so the builder needs
+    an override, and CR 702.114a's devoid is a **CDA** that belongs in Layer 5
+    rather than in `CardData`. The minimal shape computes `colors` inside
+    `build()`, so no reader changes.
+
+    **Deadline: before Phase 8 breadth**, when 52 sites become 500+. The error
+    class that will actually bite is **hybrid** — a `{W/U}` card is *both*
+    colours (CR 202.2d) and that is what a human writing `.color()` gets wrong.
+    The registry has no hybrid card yet. Until then
+    `card_pool_lowering_test::test_every_registered_cards_color_matches_its_mana_cost`
+    is the guard that makes deferring safe, and it was verified to fail on an
+    injected miscolour rather than merely to pass.
 
     **Two findings from writing them.** A Rest in Peace that is itself dying
     still has its static ability at the instant the event is proposed, so it

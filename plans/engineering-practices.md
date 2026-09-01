@@ -165,27 +165,39 @@ alone with `--seed N --games 1`.
 **Two tails, and the pair is the point.** `CPU/game` conflates *long* games with
 *slow* ones; `CPU/turn` divides that out. Compare them:
 
-**Baselines, 200 games / seed 12345 / `--threads 1`, recorded 2026-08-31:**
+**Absolute ms are comparable only *within one measurement sitting*, and that is
+not a caveat — it is the method.** Measured 2026-08-31: two sets of runs hours
+apart, same machine, same commit for the frozen pool, differ by **9%** while the
+frozen pool's *game content* is byte-identical — same avg turns, same max turns,
+same slowest-game seed. Machine state moves the milliseconds and nothing else
+does. **So the frozen pool is the control, and what you compare is the two pools
+measured together**, never stress-today against stress-last-week. The numbers
+below are medians of three interleaved runs in one sitting, which is what makes
+the two columns mean anything beside each other.
 
-| | performance (55, frozen) | stress (56 cards) | stress (58 cards, 2026-08-31) |
-|---|---|---|---|
-| CPU/game mean | 86.62 ms | 87.11 ms | 87.40 ms |
-| CPU/game p50 / p99 / max | 63.36 / 409.86 / 475.81 ms | 59.36 / 409.57 / 498.16 ms | 57.89 / 433.56 / 620.68 ms |
-| CPU/turn p50 / p99 / max | 2.35 / 6.52 / 7.11 ms | 2.29 / 6.72 / 7.73 ms | 2.16 / 6.57 / 8.39 ms |
+**Baselines, 200 games / seed 12345 / `--threads 1`, medians of three
+interleaved runs, 2026-08-31:**
 
-**Both stress columns are kept, and the pair is the worked example for §3.1's
-rule.** Adding Rest in Peace and Leyline of the Void moved the stress tail max
-by 25% and the mean by 0.3% — longer games, not a new cost, which is exactly the
-reading §3.2 describes. **It is not a regression, because it is not a delta**:
-the pool changed underneath it, so the honest comparison is the threshold, and
-the threshold held. The frozen column did not move at all, which is the freeze
-doing its job — same avg turns, same max turns, same slowest-game seed.
+| | performance (55, frozen) | stress (58) |
+|---|---|---|
+| CPU/game p50 / p99 / max | 69.12 / 418.18 / 514.26 ms | 66.28 / 497.11 / 568.28 ms |
+| CPU/turn p50 / p99 / max | 2.59 / 7.04 / 7.58 ms | 2.48 / 7.51 / 8.59 ms |
+| game tail ratio (max ÷ p50) | 7.4x | 8.6x |
+| turn tail ratio (max ÷ p50) | 2.9x | 3.5x |
 
-The game-level tail is **6.5x** the median and the turn-level tail is **2.8x**.
-The gap between those two numbers is the finding: most of the game tail is games
-being *longer* (73 and 87 turns against a ~30 average), and the residual 2.8x is
-genuine per-turn growth as the board fills — more permanents, more expensive
-layer walks. Superlinear but modest, and expected.
+**The ratios are the durable numbers**, because they survive the machine-state
+problem the absolute ms do not. Deterministic game content travels too, and it
+is what moved when Rest in Peace and Leyline of the Void landed and were widened
+to "from anywhere": stress avg turns 30.1 → **29.6**, max turns 98 → **75**.
+Games end sooner because graveyards stop filling — the cards doing their job,
+not a cost appearing. The frozen column did not move at all, which is the freeze
+working: registering a card cannot disturb a recorded baseline.
+
+**The two tails, and the gap between them is the finding.** The game tail runs
+7–9x the median and the turn tail about 3x. Most of the game tail is games being
+*longer* (73 and 87 turns against a ~30 average); the residual ~3x is genuine
+per-turn growth as the board fills — more permanents, more expensive layer
+walks. Superlinear but modest, and expected.
 
 **What a regression looks like, then.** A turn tail that climbs while the median
 holds is the signal to chase; a game tail that climbs with it is probably just a
