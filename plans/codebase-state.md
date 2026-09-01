@@ -1166,6 +1166,20 @@ section never asked.
     machine drift commit `a926627` documented. A stored baseline from another
     day would have reported a 12% regression that does not exist.
 
+    **What this did *not* measure, stated so it is not read as more than it is.**
+    `PERFORMANCE_POOL` is frozen and contains no restriction source, so every
+    `is_prohibited` call in the A/B returned on the gate's **closed** path. That
+    is the case that matters for "did RS-1 slow down every board that existed
+    before it", and the answer is no. The **open** path — a board that does have
+    a restriction source, where each proposed action costs a
+    `battlefield_ids_ordered` sweep of `get_effective_abilities` — is unmeasured,
+    and it cannot be measured by an A/B against `main`, because `main` cannot
+    play the cards that open it. It is the same cost `gather` already pays on a
+    board with Kalitas, priced by §3.5 and gated by the same instrument. **Its
+    first honest measurement belongs to whichever phase puts a restriction card
+    into `PERFORMANCE_POOL`** — which is a deliberate decision that phase should
+    make, not a side effect of registering a card.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
