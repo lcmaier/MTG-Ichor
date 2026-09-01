@@ -167,11 +167,19 @@ alone with `--seed N --games 1`.
 
 **Baselines, 200 games / seed 12345 / `--threads 1`, recorded 2026-08-31:**
 
-| | performance | stress |
-|---|---|---|
-| CPU/game mean | 86.62 ms | 87.11 ms |
-| CPU/game p50 / p99 / max | 63.36 / 409.86 / 475.81 ms | 59.36 / 409.57 / 498.16 ms |
-| CPU/turn p50 / p99 / max | 2.35 / 6.52 / 7.11 ms | 2.29 / 6.72 / 7.73 ms |
+| | performance (55, frozen) | stress (56 cards) | stress (58 cards, 2026-08-31) |
+|---|---|---|---|
+| CPU/game mean | 86.62 ms | 87.11 ms | 87.40 ms |
+| CPU/game p50 / p99 / max | 63.36 / 409.86 / 475.81 ms | 59.36 / 409.57 / 498.16 ms | 57.89 / 433.56 / 620.68 ms |
+| CPU/turn p50 / p99 / max | 2.35 / 6.52 / 7.11 ms | 2.29 / 6.72 / 7.73 ms | 2.16 / 6.57 / 8.39 ms |
+
+**Both stress columns are kept, and the pair is the worked example for §3.1's
+rule.** Adding Rest in Peace and Leyline of the Void moved the stress tail max
+by 25% and the mean by 0.3% — longer games, not a new cost, which is exactly the
+reading §3.2 describes. **It is not a regression, because it is not a delta**:
+the pool changed underneath it, so the honest comparison is the threshold, and
+the threshold held. The frozen column did not move at all, which is the freeze
+doing its job — same avg turns, same max turns, same slowest-game seed.
 
 The game-level tail is **6.5x** the median and the turn-level tail is **2.8x**.
 The gap between those two numbers is the finding: most of the game tail is games
@@ -201,12 +209,21 @@ the right one.
 applies only among "two or more"; CR 613.7 orders effects *within* a layer, so it
 needs two in one layer on one object; CR 614.5's applied set is keyed on effect
 *instance*; CR 704.7 collapses two actions with the same result. **Worked
-example, measured 2026-08-31:** exactly one registered card produces a
-replacement effect (Kalitas), it is Legendary, and CR 704.5j is enforced — so no
-player can control two, and two opposing copies each apply only to the *other*
-player's creatures. CR 616.1's entire multi-candidate branch has never been
-reachable in a fuzz game. RB's own status line says so from the other side:
-"zero new `DecisionProvider` prompts appeared."
+example, measured 2026-08-31 and closed the same day:** exactly one registered
+card produced a replacement effect (Kalitas), it is Legendary, and CR 704.5j is
+enforced — so no player could control two, and two opposing copies each apply
+only to the *other* player's creatures. CR 616.1's entire multi-candidate branch
+had never been reachable in a fuzz game. Rest in Peace and Leyline of the Void
+are the second and third sources; `phase_rb_integration_test.rs` now reaches
+CR 616.1 with two *printed* cards.
+
+**The sharpest part of that finding is what it says about coverage
+measurements.** The atom was not uncovered — `ATOM-616.1-001` had a passing test
+the whole time, built on `graveyard_probe`, a fixture defined in the test file
+and registered in no pool. **A bespoke fixture can cover an atom while the
+registered pool cannot build the same scenario**, so `specdb` coverage and fuzz
+reachability are different measurements and neither implies the other. When a
+rule needs two objects, check that two *registered* cards can produce them.
 
 **Tier 2 — two are valuable, and they must differ in shape.** RB's discovered
 hang was "a declined `exempt_from_614_5` optional without a second set" — a bug

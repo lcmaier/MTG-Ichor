@@ -142,6 +142,150 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
     // the replacement effect is here to test.
 }
 
+/// **Rest in Peace** — `{1}{W}` Enchantment.
+///
+/// "If a card or token would be put into a graveyard from anywhere, exile it
+/// instead."
+///
+/// # Why this card exists: CR 616.1 had never run
+///
+/// Kalitas was the only registered card producing a replacement effect, and it
+/// is Legendary — CR 704.5j means no player controls two, and two opposing
+/// copies each apply only to the *other* player's creatures, so every death had
+/// exactly one candidate. CR 616.1 engages only among "two or more", so its
+/// ordering choice, its applied set across instances, and its APNAP ordering
+/// were unreachable in any game at any length. This card is the second
+/// candidate. `engineering-practices.md` §3.3 generalises the lesson.
+///
+/// **The pair is observable, which is what makes it a test and not a claim.**
+/// Both rewrites exile, but Kalitas carries a CR 615.5 rider and this does not:
+/// pick Kalitas and a Zombie appears, pick this and none does. Whichever
+/// applies first, the other stops matching — the card is on its way to exile,
+/// and both patterns want `to: Graveyard`.
+///
+/// # `PermanentFilter::All`, deliberately
+///
+/// "a card **or token**" is the widest filter in the file, and the absence of
+/// `Not(Token)` is the whole difference from Leyline below. It also means this
+/// competes with Kalitas on exactly the deaths Kalitas cares about while
+/// applying to plenty it does not.
+///
+/// # What is deferred, and on what precedent
+///
+/// "When this enchantment enters, exile all graveyards" is a triggered ability
+/// (CR 603), which does not exist. Shipping the static half alone is the trade
+/// Blood Moon already made — it works while Aura casting does not — and the
+/// replacement half is the half this card is here for. The `from: Battlefield`
+/// narrowing is the same story: see [`leyline_of_the_void`].
+pub fn rest_in_peace() -> Arc<CardData> {
+    CardDataBuilder::new("Rest in Peace")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If a card or token would be put into a graveyard from anywhere,              exile it instead.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::ZoneChange {
+                    from: Some(Zone::Battlefield),
+                    to: Some(Zone::Graveyard),
+                    cause: None,
+                    object: None,
+                },
+                // "a card or token" — no owner clause, no type clause, and
+                // no `Not(Token)`. Everything that would hit a graveyard.
+                AffectedSet::Filter { filter: PermanentFilter::All },
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                    to: Zone::Exile,
+                    cause: ZoneChangeCause::Exiled,
+                }),
+            ))),
+        })
+        .build()
+}
+
+/// **Leyline of the Void** — `{2}{B}{B}` Enchantment.
+///
+/// "If a card would be put into an opponent's graveyard from anywhere, exile it
+/// instead."
+///
+/// # Why *this* second card and not another copy of the shape
+///
+/// A second card of the same shape buys nothing (`engineering-practices.md`
+/// §3.3). This one disagrees with [`rest_in_peace`] on both axes the CR cares
+/// about: it excludes tokens, and it is **owner-scoped** where that one is
+/// global. The second difference is the load-bearing one — CR 616.1 asks the
+/// *affected object's controller*, so a global effect and an opponent-scoped
+/// effect can be offered to different players for different objects, which a
+/// same-scope pair would never exercise.
+///
+/// # `ByOwner`, and why `ByController` would have been a different card
+///
+/// "an opponent's graveyard" is a question about **ownership**: a card put into
+/// a graveyard goes to its owner's (CR 400.3), whoever was controlling it. The
+/// two answers diverge the moment control moves, and the registered pool can
+/// already reach that — Act of Treason steals a creature, it dies, and it goes
+/// to the graveyard of the player who owns it, so a Leyline controlled by the
+/// thief's opponent should replace a death the thief is controlling.
+/// `PermanentFilter::ByOwner` is new for this card and is why this one is not
+/// the "zero engine change" its sizing predicted.
+///
+/// # What is deferred
+///
+/// "If this card is in your opening hand, you may begin the game with it on the
+/// battlefield" is a static ability functioning in another zone —
+/// `replacement-architecture.md` §3.3's source 2, deferred past Phase RE. The
+/// card is castable for `{2}{B}{B}` here and does nothing before it resolves.
+///
+/// **`from: Battlefield`, not "from anywhere".** Both cards say "from anywhere",
+/// and both ship narrowed to the battlefield, because `AffectedSet::Filter`
+/// carries a `PermanentFilter` and a card on the stack or in a library is not a
+/// permanent. Kalitas dodged the same question the same way. Widening it is a
+/// real change to the filter language and should be earned by a card that needs
+/// nothing else, not smuggled in beside two that already work.
+pub fn leyline_of_the_void() -> Arc<CardData> {
+    CardDataBuilder::new("Leyline of the Void")
+        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 2))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If a card would be put into an opponent's graveyard from anywhere,              exile it instead.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::ZoneChange {
+                    from: Some(Zone::Battlefield),
+                    to: Some(Zone::Graveyard),
+                    cause: None,
+                    object: None,
+                },
+                AffectedSet::Filter {
+                    filter: PermanentFilter::And(
+                        // "a card" — CR 111.1, a token is not one.
+                        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::Token))),
+                        // "an opponent's graveyard" — CR 400.3 sends it to the
+                        // owner's, so this is ownership and not control.
+                        Box::new(PermanentFilter::ByOwner(PlayerRef::Opponent)),
+                    ),
+                },
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                    to: Zone::Exile,
+                    cause: ZoneChangeCause::Exiled,
+                }),
+            ))),
+        })
+        .build()
+}
+
 /// The 2/2 black Zombie Kalitas makes.
 fn zombie_token() -> TokenDef {
     TokenDef {

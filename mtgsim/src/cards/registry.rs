@@ -225,6 +225,11 @@ impl CardRegistry {
 
         // Phase RB — the first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", phase_rb_cards::kalitas_traitor_of_ghet);
+        // The second and third replacement sources. Before these, CR 616.1's
+        // "two or more" branch was unreachable in any game — see
+        // `engineering-practices.md` §3.3.
+        registry.register("Rest in Peace", phase_rb_cards::rest_in_peace);
+        registry.register("Leyline of the Void", phase_rb_cards::leyline_of_the_void);
 
         registry
     }

@@ -955,21 +955,28 @@ section never asked.
 
 ### Found by the fuzz-tail pass (2026-08-31)
 
-35. **CR 616.1's multi-candidate branch has never been reachable in a fuzz game,
-    and more games cannot fix it.** Measured: exactly one registered card
+35. **CR 616.1's multi-candidate branch had never been reachable in a fuzz game
+    — ✅ CLOSED 2026-08-31, two cards later.** Measured: exactly one registered card
     produces a replacement effect — Kalitas, in `phase_rb_cards.rs`. It is
     Legendary and CR 704.5j is enforced (`sba.rs:287`), so no player controls
     two; and two opposing copies each apply only to the *other* player's
     creatures, so any single death still has exactly one candidate. CR 616.1
     engages only among "two or more", so the ordering choice, the applied set
     *across instances*, and the APNAP ordering among simultaneous choosers are
-    all structurally unreachable. RB's status line confirms it from the other
-    side: "zero new `DecisionProvider` prompts appeared." → `engineering-
-    practices.md` §3.3, which generalises this into a rule.
+    all structurally unreachable *from the pool*. RB's status line confirms it
+    from the other side: "zero new `DecisionProvider` prompts appeared."
 
-    **Sized: two cards, zero engine change.** Both are non-legendary
-    enchantments whose battlefield-side replacement is the shape Kalitas already
-    proves — `EventPattern::ZoneChange` + `AffectedSet::Filter` +
+    **The atom was not uncovered, which is the sharp part.** `ATOM-616.1-001`
+    had a passing test throughout, built on `graveyard_probe` — a fixture
+    defined in `phase_rb_integration_test.rs` and registered in no pool. A
+    bespoke fixture can cover an atom while the registered pool cannot build the
+    same scenario, so **`specdb` coverage and fuzz reachability are different
+    measurements and neither implies the other.** → `engineering-practices.md`
+    §3.3, which generalises both halves into a rule.
+
+    **Sized as two cards and zero engine change; the second half of that was
+    wrong.** Both are non-legendary enchantments whose battlefield-side
+    replacement is the shape Kalitas already proves — `EventPattern::ZoneChange` + `AffectedSet::Filter` +
     `Rewrite::Instead(ZoneChangeTo { Exile })`. Text verified on Scryfall
     2026-08-31:
 
@@ -990,14 +997,38 @@ section never asked.
     anchor: `phase_rb_cards.rs` is 195 lines for one card including its doc
     block, so this is a small PR, not a phase.
 
-    **One open question the writing will answer, and it is a finding either
-    way:** "from anywhere" wants `from: None`, which `EventPattern` supports, but
-    `AffectedSet::Filter` is a `PermanentFilter` and a card moving from the stack
-    or library is not a permanent. Kalitas dodged this by scoping to
-    `from: Battlefield`. Either the filter grows a non-permanent case, or both
-    cards ship battlefield-scoped with the narrowing documented on the card.
-    **Do not widen `AffectedSet` speculatively** — write the battlefield half
-    first and let the second half earn the change.
+    **What shipped, 2026-08-31.** Both cards, registered, plus five integration
+    tests. CR 616.1 now prompts with two *printed* cards, and the choice is
+    observable rather than notional: both effects exile, but Kalitas carries a
+    CR 615.5 rider, so picking it makes a Zombie and picking Rest in Peace does
+    not. Whichever applies first, the other stops matching.
+
+    **The sizing was wrong about "zero engine change", and the reason is worth
+    keeping.** Leyline says "an opponent's **graveyard**", and CR 400.3 sends a
+    card to its *owner's* graveyard — so the clause is about ownership, not
+    control, and `PermanentFilter` had only `ByController`. The two answers
+    diverge whenever control has moved, which the registered pool can already
+    reach: Act of Treason steals a creature, it dies, and it goes to the
+    graveyard of the player who owns it. Shipping it as `ByController` would
+    have been a *different card*, not a narrower one. `PermanentFilter::ByOwner`
+    is new — one variant and two match arms (`compute.rs`, `targeting.rs`), with
+    ownership read off the `GameObject` for the reason `Token` gives.
+
+    **The "from anywhere" question was left open, deliberately.** Both cards
+    ship `from: Battlefield`, narrowed on the card and for the reason Kalitas
+    was: `AffectedSet::Filter` carries a `PermanentFilter`, and a card on the
+    stack or in a library is not a permanent. Widening it is a real change to
+    the filter language and should be earned by a card that needs nothing else.
+
+    **Two findings from writing them.** A Rest in Peace that is itself dying
+    still has its static ability at the instant the event is proposed, so it
+    applies to its own death — correct rules, and it cost a test fixture that
+    had two applicable effects where it wanted one. And `PlayerRef::Owner`
+    resolves differently at the two filter sites: `compute.rs` reads it as the
+    *source's* owner (a `FilterPlayers` has the source), `targeting.rs` as the
+    tested object's (its signature has only `you`). Pre-existing — `ByController`
+    already diverges the same way — and not fixed here, because no card reads
+    either spelling and changing it would move `ByController` too.
 
     **Layer 2 has the same shape of gap and is genuinely blocked.** One producer
     (`SetController`, Act of Treason). A second *shape* would be a static or
