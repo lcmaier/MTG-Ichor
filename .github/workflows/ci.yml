@@ -1,6 +1,6 @@
 # Correctness only. This workflow deliberately does not gate on any timing
 # number: shared runners vary 2-3x run to run, so a performance gate here would
-# be flake rather than signal. The frozen-pool A/B stays a local measurement at
+# be flake rather than signal. The performance-pool A/B stays a local measurement at
 # `--threads 1` — see `plans/engineering-practices.md` §3.1.
 name: CI
 
@@ -60,7 +60,7 @@ jobs:
       # on it would trade a real signal for a flaky one. The count is printed;
       # watch it, and promote it to a failure if it ever moves off zero for a
       # reason anyone can name.
-      - name: Fuzz — performance pool (the frozen 55)
+      - name: Fuzz — performance pool
         run: cargo run --release --bin fuzz_games -- --games 200 --seed 12345
 
       - name: Fuzz — stress pool (every registered card)
@@ -86,3 +86,10 @@ jobs:
       - name: CLAUDE.md line budget
         working-directory: .
         run: python3 plans/check_claude_md.py
+
+      # A `mod.rs` declares and re-exports; it does not define. Held by
+      # convention alone for two years and then broken twice in two phases,
+      # which is the definition of a rule that needs a mechanism.
+      - name: Module layout
+        working-directory: .
+        run: python3 plans/check_module_layout.py

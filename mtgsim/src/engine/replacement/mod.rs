@@ -22,7 +22,9 @@ mod gather;
 mod instance;
 mod pipeline;
 
-pub(crate) use gather::{chooser_for, gather, subject_of, EventSubject};
+pub(crate) use gather::{
+    chooser_for, gather, pattern_watches, set_affects, subject_of, EventSubject,
+};
 pub use gather::CounterEffectKind;
 pub(crate) use instance::{GameRuleReplacement, ReplacementInstanceId};
 pub use instance::ReplacementInstance;

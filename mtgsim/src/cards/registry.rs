@@ -17,15 +17,30 @@ use super::phase_le_cards;
 use super::phase_lf_cards;
 use super::phase_lg_cards;
 use super::phase_rb_cards;
+use super::phase_rs_cards;
 
-/// The 55 cards every recorded `fuzz_games` baseline was measured on, frozen.
+/// The board an engine change is measured against — **representative, not
+/// frozen** (revised 2026-09-01).
 ///
-/// A pool that grows makes two runs incomparable, and A/B-ing an engine change
-/// is the one thing the harness cannot do without a fixed one. Adding a card
-/// here invalidates every baseline in `plans/` and is a deliberate act;
-/// registering a card is not. `plans/engineering-practices.md` § "Two card
-/// pools".
-const PERFORMANCE_POOL: [&str; 55] = [
+/// It was frozen for a year, to keep runs comparable against baselines recorded
+/// in `plans/`. That rationale is gone: `CLAUDE.md` mandates an **interleaved
+/// A/B in one sitting**, both arms of which use this pool by construction, so
+/// stability across months buys the timing measurement nothing — and commit
+/// `a926627` showed a stored ms/game number is machine drift, not a baseline.
+///
+/// What a freeze cost instead was *representativeness*. RS-1 added a gated
+/// subsystem no card in the pool could open, so its A/B measured only the
+/// closed path — the pool had begun measuring a shrinking fraction of the
+/// engine. That is the same failure the two-pool split was created to fix one
+/// level down, where a card was kept out of the *registry* to protect a number.
+///
+/// **The rule now: a phase that opens a new engine path adds one card here,
+/// deliberately, and re-records the gameplay table in
+/// `plans/engineering-practices.md` §3.** That table's seed-deterministic rows
+/// — turns, spells cast, creatures died — are what an addition invalidates and
+/// what still has to be re-measured. Registering a card is still not the same
+/// act as adding one here.
+const PERFORMANCE_POOL: [&str; 57] = [
     "Plains",
     "Island",
     "Swamp",
@@ -81,6 +96,12 @@ const PERFORMANCE_POOL: [&str; 55] = [
     "Bayou",
     "Plateau",
     "Tropical Island",
+    // RS-1 — the first cards that open the CR 101.2 restriction sweep. A pair,
+    // because neither is measurable alone: Sigarda populates
+    // `restriction_ability_sources` (and nothing else in the pool does), and
+    // the edict is the only resolution that asks her anything.
+    "Sigarda, Host of Herons",
+    "Diabolic Edict",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -92,7 +113,7 @@ const PERFORMANCE_POOL: [&str; 55] = [
 /// This keeps card definitions purely data-driven — no engine code needed.
 ///
 /// Two pools are built from these definitions — `default_registry` (everything)
-/// and `performance_pool` (frozen). `plans/engineering-practices.md` §
+/// and `performance_pool` (representative). `plans/engineering-practices.md` §
 /// "Two card pools" says which to reach for.
 pub struct CardRegistry {
     cards: HashMap<String, fn() -> Arc<CardData>>,
@@ -231,14 +252,21 @@ impl CardRegistry {
         registry.register("Rest in Peace", phase_rb_cards::rest_in_peace);
         registry.register("Leyline of the Void", phase_rb_cards::leyline_of_the_void);
 
+        // Phase RS-1 — the first CR 101.2 "can't" with printed card text, and
+        // the resolution that makes its *absence of a prompt* observable.
+        registry.register("Sigarda, Host of Herons", phase_rs_cards::sigarda_host_of_herons);
+        registry.register("Diabolic Edict", phase_rs_cards::diabolic_edict);
+
         registry
     }
 
-    /// The frozen subset every recorded `fuzz_games` baseline was measured on.
+    /// The subset an engine change is A/B'd against — see [`PERFORMANCE_POOL`]
+    /// for why it grows rather than stays frozen.
     ///
     /// Panics if a name in `PERFORMANCE_POOL` is no longer registered. That is
     /// the point: a rename that silently shrank the pool would leave two runs
-    /// incomparable without saying so.
+    /// incomparable without saying so, which is the one failure a *deliberate*
+    /// addition does not have.
     pub fn performance_pool() -> Self {
         let all = Self::default_registry();
         let mut registry = CardRegistry::new();
@@ -281,21 +309,28 @@ mod tests {
     }
 
     #[test]
-    fn test_performance_pool_is_the_frozen_55() {
+    fn test_every_performance_pool_name_still_resolves() {
         // `performance_pool` panics on a name it cannot find, so building it is
-        // the check that the frozen list still resolves.
+        // the check. The count is asserted against the array's own length
+        // rather than a literal: the pool grows by deliberate act now, and a
+        // hardcoded number would fail the *addition* instead of failing the
+        // thing worth catching, which is a name that stopped resolving.
         let pool = CardRegistry::performance_pool();
-        assert_eq!(pool.card_names().len(), 55);
+        assert_eq!(pool.card_names().len(), PERFORMANCE_POOL.len());
     }
 
     #[test]
     fn test_stress_pool_is_a_superset_of_the_performance_pool() {
         // The two pools share definitions rather than duplicating them, so the
-        // only way to fail this is to unregister a card the frozen list names.
+        // only way to fail this is to unregister a card the performance list
+        // names.
         let all = CardRegistry::default_registry();
         for name in CardRegistry::performance_pool().card_names() {
             assert!(all.create(name).is_ok(), "{name:?} left the full registry");
         }
-        assert!(all.card_names().len() > 55, "nothing has been added since RB");
+        assert!(
+            all.card_names().len() > PERFORMANCE_POOL.len(),
+            "the stress pool has stopped being a strict superset"
+        );
     }
 }

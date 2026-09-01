@@ -60,6 +60,26 @@ pub fn controls(game: &GameState, id: ObjectId, player: PlayerId) -> bool {
     get_effective_controller(game, id) == Some(player)
 }
 
+/// The controller, or the **owner** if it has no controller.
+///
+/// Not a convenience — it is a rule, and the CR spells it out in the same
+/// breath more than once. CR 616.1 asks for "the affected object's controller
+/// (**or its owner if it has no controller**)"; CR 108.4 is why the second half
+/// is ever needed, since "a card doesn't have a controller unless that card
+/// represents a permanent or spell" — so a card in a graveyard, library or hand
+/// has an owner and nothing else. CR 903.9b's chooser falls out of this with no
+/// special case at all.
+///
+/// `None` only when `id` is not in the object store, which means it does not
+/// exist. **Callers keep their own policy for that**, and they differ on
+/// purpose: `chooser_for` propagates it so CR 616.1 can report having nobody to
+/// ask, while the two sweeps take `0` because they are walking
+/// `battlefield_ids_ordered` and CR 110.2 gives every permanent a controller —
+/// the value is unreachable there rather than a default.
+pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
+    get_effective_controller(game, id).or_else(|| game.objects.get(&id).map(|obj| obj.owner))
+}
+
 /// Check if a permanent has summoning sickness (CR 302.6).
 ///
 /// > a creature's activated ability with the tap symbol [...] can't be

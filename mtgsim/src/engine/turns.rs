@@ -107,6 +107,10 @@ impl GameState {
                     self.active_player,
                     self.turn_number,
                 );
+                self.restrictions.remove_expired_at_turn_start(
+                    self.active_player,
+                    self.turn_number,
+                );
                 self.process_untap_step(ctx)?;
             }
             StepType::Draw => {
@@ -133,10 +137,6 @@ impl GameState {
                     entry.damage_marked = 0;
                     entry.damaged_by_deathtouch = false;
                 }
-                // CR 701.19c's "can't be regenerated" is a this-turn fact and
-                // expires with everything else that is.
-                self.cant_be_regenerated.clear();
-
                 // Rule 514.2: End "until end of turn" continuous effects
                 self.continuous_effects.remove_expired_at_cleanup(
                     self.active_player,
@@ -147,6 +147,16 @@ impl GameState {
                 // destroyed **this turn**" end at end of turn rather than
                 // lingering as an unused shield forever.
                 self.replacement_effects.remove_expired_at_cleanup(
+                    self.active_player,
+                    self.turn_number,
+                );
+                // ... and the CR 101.2 "can't"s, whose durations are the
+                // card's rather than the engine's. This replaces a hardcoded
+                // `cant_be_regenerated.clear()` that asserted every "can't be
+                // regenerated" was a this-turn fact with no rule cited; the
+                // scope is now a `Duration` argument on `Primitive::Restrict`,
+                // which is where CR 608.2c can be applied per card.
+                self.restrictions.remove_expired_at_cleanup(
                     self.active_player,
                     self.turn_number,
                 );

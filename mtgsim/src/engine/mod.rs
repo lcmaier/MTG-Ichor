@@ -13,3 +13,4 @@ pub mod combat;
 pub mod keywords;
 pub mod layers;
 pub mod replacement;
+pub mod restriction;

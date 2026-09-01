@@ -425,8 +425,23 @@ pub enum Primitive {
     Destroy,
     /// Exile an object (rule 701.13)
     Exile,
-    /// Sacrifice a permanent (rule 701.21)
-    Sacrifice,
+    /// Sacrifice N permanents (rule 701.21).
+    ///
+    /// **The filter is what gets sacrificed, the amount is how many, and the
+    /// `EffectRecipient` is who does the sacrificing.** Diabolic Edict's "target
+    /// *player* sacrifices *a creature* of their choice" needs all three and
+    /// they are three different questions: the recipient is CR 115.1's target,
+    /// the filter is CR 701.21a's "its controller moves **it**", and the amount
+    /// is what separates Diabolic Edict from Barter in Blood ("two creatures")
+    /// and Blasphemous Edict ("thirteen creatures"). Carrying only the filter
+    /// would make every edict sacrifice a player or target a creature; carrying
+    /// no amount would silently turn all three cards into the first.
+    ///
+    /// **The amount is a ceiling, not a requirement** — CR 101.3 performs "only
+    /// the possible portion", so Blasphemous Edict against a player with two
+    /// creatures takes two. The sacrifices are simultaneous (CR 701.21, one
+    /// batch), which is what a second permanent makes observable.
+    Sacrifice(SelectionFilter, AmountExpr),
     /// Return to owner's hand ("bounce")
     ReturnToHand,
     /// Return to the battlefield (from exile/graveyard)
@@ -487,14 +502,23 @@ pub enum Primitive {
     /// targets), and a card-authored `ReplacementDef` can know neither.
     Regenerate,
 
-    /// "It can't be regenerated" (CR 701.19c).
+    // === "Can't" effects (CR 101.2, 614.17) ===
+    /// A resolving spell or ability creates a CR 101.2 prohibition.
     ///
-    /// **Blocks application, not creation.** "Effects that say that a permanent
-    /// can't be regenerated don't preclude such abilities from being activated
-    /// or such spells from being cast; rather, they cause regeneration shields
-    /// to not be applied." So a shield made afterward still exists, is still
-    /// spent by nothing, and simply does not apply to this permanent.
-    CantBeRegenerated,
+    /// **The `Duration` is authored, never inferred, and that is the whole
+    /// point of it being an argument.** CR 608.2c says of "Destroy target
+    /// creature. It can't be regenerated" that later text modifies the meaning
+    /// of earlier text, and instructs the reader to "apply the rules of English
+    /// to the text" — scope determination handed to a human. Two cards with
+    /// identical restriction text can have different scopes because of the
+    /// sentence before them, so no engine can derive this
+    /// (`cant-effects-architecture.md` §9 finding 1). Same reason
+    /// [`Self::ModifyPowerToughness`] takes one.
+    ///
+    /// `AffectedSet::Fixed` inside the def is how a card names its resolved
+    /// targets; the primitive does not fill it in, because a restriction on
+    /// *players* ("players can't gain life this turn") has no targets to fill.
+    Restrict(crate::types::restriction::RestrictionDef, Duration),
 
     // === Combat ===
     /// Remove a permanent from combat (CR 506.4).
@@ -643,6 +667,25 @@ pub enum Effect {
     /// Boxed because `ReplacementDef` carries an `Effect` of its own (the
     /// CR 615.5 rider), so the recursion is real.
     Replacement(Box<crate::types::replacement::ReplacementDef>),
+
+    /// CR 101.2 / 614.17 — this ability states that something can't happen.
+    ///
+    /// The same shape as [`Self::Replacement`] and for the same reasons. On a
+    /// **static** ability it produces no layer rows: `register_static_effects`
+    /// skips it and `engine::restriction::is_prohibited` discovers it by reading
+    /// the source's *effective* ability list at the instant the question is
+    /// asked, which is what makes Humility strip a "can't" for free.
+    ///
+    /// A **resolving** spell or ability does not create one through this
+    /// variant, because this carries no duration and CR 608.2c will not let the
+    /// engine infer one (§9 finding 1). Skullcrack's "Players can't gain life
+    /// this turn" comes through [`Primitive::Restrict`], which takes the
+    /// `Duration` as an argument.
+    ///
+    /// Boxed to mirror [`Self::Replacement`] and to keep `Effect` small;
+    /// `RestrictionDef` grows an `unless: Option<Condition>` when Phase 6 gives
+    /// `Condition` a meaning, and `Condition` is not small.
+    Restriction(Box<crate::types::restriction::RestrictionDef>),
 
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),

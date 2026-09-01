@@ -84,7 +84,7 @@ existing density comes down, file by file, as those files are touched anyway.
 
 | Pool | Contents | For | Flag |
 |---|---|---|---|
-| **performance** | the frozen 55 (`PERFORMANCE_POOL`) | A/B-ing an engine change against a recorded baseline | `--pool performance` (default) |
+| **performance** | a *representative* board (`PERFORMANCE_POOL`) — grows deliberately, one card per new engine path | A/B-ing an engine change, **interleaved in one sitting** | `--pool performance` (default) |
 | **stress** | every registered card (`default_registry`) | panics, errors, and effect interactions | `--pool stress` |
 
 **Why two.** Before this split there was one pool, and it had to be both things
@@ -94,35 +94,57 @@ argument for separating the pools, not for keeping cards out: an unregistered
 card is invisible to `fuzz_games`, to `card_pool_lowering_test`, and to
 `cli_play` all at once, which is three losses to protect one number.
 
+**And why the *freeze* went, 2026-09-01 — it is the same argument one level up.**
+RS-1 added a gated subsystem that no card in the pool could open, so its A/B
+measured only the closed path. Left alone, a frozen pool measures a shrinking
+fraction of the engine: eventually "flat on the performance pool" means "flat on
+the parts that existed in 2026-08". Keeping a card out of *this* pool to protect
+a number costs one measurement where keeping it out of the registry cost three —
+weaker, and the same shape. What the freeze was protecting no longer needs it:
+an interleaved A/B uses one pool in both arms by construction, so stability
+across months buys the timing measurement nothing.
+
 **The rules that follow:**
 
 - **Register the card.** Writing a card and registering it are the same act now.
   Registration is what puts it in front of every check the project has.
-- **`PERFORMANCE_POOL` is frozen.** Adding a name to it invalidates every
-  baseline recorded in `plans/`, so it is a deliberate act with a re-measurement
-  attached. `performance_pool()` panics on a name that is no longer registered,
-  which is the guard against a rename shrinking the pool silently.
+- **`PERFORMANCE_POOL` is representative, not frozen** (revised 2026-09-01; it
+  was frozen for a year). **A phase that opens a new engine path adds one card
+  to it, deliberately, and re-records the table below.** Adding is still not the
+  same act as registering. `performance_pool()` panics on a name that is no
+  longer registered, which is the guard against a rename shrinking the pool
+  silently — the one failure a deliberate addition does not have.
 - **Say which pool a number came from.** `fuzz_games` prints it in the header
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
-**Baselines, 50 games / seed 12345 / `--threads 1`, recorded 2026-08-29:**
+**Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
+2026-09-01 (performance pool 55 → 57, RS-1):**
 
-| | performance | stress (56 cards) |
+| | performance (57 cards) | stress (60 cards) |
 |---|---|---|
-| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 30 (60.0%) / 20 (40.0%) |
-| Avg turns | 27.8 | 26.8 |
-| Spells cast | 20.8 | 19.5 |
-| Lands played | 17.9 | 17.2 |
-| Combat w/ atk | 11.4 | 10.7 |
-| Creatures died | 5.6 | 5.2 |
-| Damage events | 24.4 | 25.0 |
-| Total damage | 53.6 | 54.2 |
-| Life changes | 18.0 | 17.7 |
+| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 28 (56.0%) / 22 (44.0%) |
+| Avg turns | 28.4 | 28.8 |
+| Spells cast | 21.0 | 20.9 |
+| Lands played | 18.1 | 17.9 |
+| Combat w/ atk | 11.2 | 12.1 |
+| Creatures died | 5.9 | 3.8 |
+| Damage events | 22.8 | 25.5 |
+| Total damage | 49.1 | 57.0 |
+| Life changes | 16.6 | 19.2 |
 
-The performance column is byte-identical to the pre-split baseline, which is the
-acceptance test for the split. The stress column moved where Kalitas predicts:
-fewer creatures die, because opponents' creatures are exiled instead.
+**These are fixtures, not benchmarks, and the distinction is the point.** Every
+row is seed-deterministic, so it is comparable across machines and across months
+and a change to it means the *engine's behaviour* moved. **`ms/game` is
+deliberately absent** — it was in this table until 2026-09-01 and never belonged:
+commit `a926627` established that a stored timing number is machine drift, and
+`CLAUDE.md` accordingly mandates an interleaved A/B in one sitting. A number you
+cannot compare is worse than no number, because someone will compare it.
+
+Both columns moved when RS-1 added Sigarda and Diabolic Edict, which is what a
+pool addition is expected to do. The stress column's creatures-died halving is
+the edict and Kalitas together — the edict kills a creature the combat maths was
+counting on, and Kalitas exiles rather than letting things die.
 
 ### 3.1 The gate: run both pools, and read them differently
 
@@ -136,13 +158,15 @@ cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --
 
 | Pool | Question | Read | Grows with the card list? |
 |---|---|---|---|
-| **performance** | *Did my change make the engine slower?* | A **delta** against a recorded baseline | No — frozen, which is what keeps a number in `plans/` comparable months later |
+| **performance** | *Did my change make the engine slower?* | A **delta**, measured as an interleaved A/B in one sitting — never against a stored number | Deliberately: one card per new engine path, with a re-record |
 | **stress** | *Is there a card shape that makes the engine fall over?* | An **absolute threshold**: 0 errors, 0 panics, 0 turn-limit hits, and no tail number off its scale | Yes, by design |
 
-**Never A/B a stress number against a baseline recorded before the pool
-changed.** It moves for two reasons at once — the change and the new cards — and
-that conflation is the thing the pool split exists to prevent. A stress run is
-pass/fail against a ceiling; only the frozen pool measures a delta.
+**Never A/B any number across a pool change.** It moves for two reasons at once
+— the change and the new cards — and that conflation is the thing the pool split
+exists to prevent. This is why the performance pool grows *deliberately*: an
+addition is the one moment a delta is not readable, so it is a decision with a
+re-record attached rather than a side effect of registering a card. A stress run
+is pass/fail against a ceiling; only the performance pool measures a delta.
 
 **Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
 byte-identical across runs at one seed, so the three-run check in `CLAUDE.md` is
@@ -166,7 +190,7 @@ alone with `--seed N --games 1`.
 *slow* ones; `CPU/turn` divides that out. Compare them:
 
 **Absolute ms are comparable only *within one measurement sitting*, and that is
-not a caveat — it is the method.** Measured 2026-08-31: the frozen pool read
+not a caveat — it is the method.** Measured 2026-08-31: the performance pool read
 ~63 ms p50 early in a session and ~72 ms p50 hours later, **13%** apart with
 byte-identical game content.
 
@@ -187,7 +211,7 @@ diagnosed further because it does not need to be. Note what the table also
 shows: *both* binaries read ~96 ms where the same pool read ~83–87 ms earlier
 that day. Within a sitting the spread is ~2%; across sittings it is ~15%.
 
-**So the frozen pool is the control, and what you compare is the two pools
+**So the performance pool is the control, and what you compare is the two pools
 measured together**, never stress-today against stress-last-week — and a
 suspicious cross-sitting delta gets an interleaved A/B before it gets a
 diagnosis. The numbers below are medians of three interleaved runs in one
@@ -196,7 +220,7 @@ sitting, which is what makes the two columns mean anything beside each other.
 **Baselines, 200 games / seed 12345 / `--threads 1`, medians of three
 interleaved runs, 2026-08-31:**
 
-| | performance (55, frozen) | stress (58) |
+| | performance (55 — the pool as of 2026-08-31) | stress (58) |
 |---|---|---|
 | CPU/game p50 / p99 / max | 69.12 / 418.18 / 514.26 ms | 66.28 / 497.11 / 568.28 ms |
 | CPU/turn p50 / p99 / max | 2.59 / 7.04 / 7.58 ms | 2.48 / 7.51 / 8.59 ms |
@@ -204,13 +228,16 @@ interleaved runs, 2026-08-31:**
 | turn tail ratio (max ÷ p50) | 2.9x | 3.5x |
 
 **The ratios are the durable numbers**, and that is measured rather than
-asserted: across the 13% drift above, the frozen pool's game-tail ratio held at
+asserted: across the 13% drift above, the performance pool's game-tail ratio held at
 **7.1–7.4x** and its turn-tail ratio at **2.8–2.9x**. Deterministic game content travels too, and it
 is what moved when Rest in Peace and Leyline of the Void landed and were widened
 to "from anywhere": stress avg turns 30.1 → **29.6**, max turns 98 → **75**.
 Games end sooner because graveyards stop filling — the cards doing their job,
-not a cost appearing. The frozen column did not move at all, which is the freeze
-working: registering a card cannot disturb a recorded baseline.
+not a cost appearing. The performance column did not move at all, because
+registering a card was not the same act as adding one to that pool — which is
+still true, and is the half of the freeze that survived it (2026-09-01). What
+did not survive is the ms figures in this table: they are a *sitting*, not a
+baseline, and are kept only as the evidence for the ratios below them.
 
 **The two tails, and the gap between them is the finding.** The game tail runs
 7–9x the median and the turn tail about 3x. Most of the game tail is games being
@@ -224,9 +251,10 @@ longer game. **The p99 equals the max below 100 games** — nearest-rank on 50
 samples puts rank 50 at the last element — so run 200 when the tail is the thing
 you are reading.
 
-**The mean is still the benchmarking number.** `CPU/game` on the frozen pool at
-`--threads 1` is what an A/B compares; the tail says whether a *new* cost
-appeared, not whether an existing one grew.
+**The mean is still the benchmarking number.** `CPU/game` on the performance
+pool at `--threads 1` is what an A/B compares — *within one sitting, against a
+binary built from the other tree*, never against a figure in this file. The tail
+says whether a *new* cost appeared, not whether an existing one grew.
 
 ### 3.3 How many cards a mechanic owes — ask the rule, not a quota
 
@@ -272,10 +300,11 @@ are sized 1,500–2,500. This must not become "N cards per phase". The current
 distribution is the argument for shape over count: **11** keyword creatures for a
 boolean flag, **1** card for the whole CR 616.1 pipeline, **1** for Layer 2.
 
-**What makes this cheap now.** `PERFORMANCE_POOL` is frozen, so registering a
-card cannot move a recorded baseline — it only grows the stress pool, which is
-read as a threshold. That is what §3 bought and it is why "register every card
-you write" costs nothing today.
+**What makes this cheap now.** Registering a card is not the same act as adding
+one to `PERFORMANCE_POOL`, so it cannot move a recorded fixture — it only grows
+the stress pool, which is read as a threshold. That is what §3 bought, and it
+survived the pool un-freezing (2026-09-01): what changed is that a phase opening
+a new engine path now *also* makes the second, deliberate move.
 
 ---
 
@@ -341,3 +370,37 @@ opposite economics:
 
 Count cards to decide *when* to build a feature; never to decide *whether* to
 record a fact.
+
+---
+
+## 6. Module layout — a `mod.rs` declares and re-exports; it does not define
+
+**Checked, not trusted:** `python plans/check_module_layout.py`, in CI beside the
+`CLAUDE.md` budget. It fails on `fn`, `struct`, `enum`, `trait`, `impl`, `type`,
+`const`, `static` or `macro_rules!` at the top of a line in any `mod.rs` under
+`mtgsim/src/`. `lib.rs` and `main.rs` are exempt — they are crate roots, and a
+crate-level re-export belongs in one.
+
+A `mod.rs` may carry module docs, `mod` declarations, `use`/`pub use`, and
+attributes. The implementation goes in a sibling **named for what it does**.
+`engine/replacement/` is the pattern to copy: `gather.rs` finds things,
+`pipeline.rs` decides, `instance.rs` names one, and `mod.rs` is the page you
+read to learn that.
+
+**Why this needed a mechanism.** Every `mod.rs` in the crate was a pure
+re-exporter for two years, by unwritten convention — and then two phases in a
+row put a few hundred lines of working code in one. Nobody argued for it; "this
+module is small enough to be one file" is a locally reasonable thought that
+produces a globally inconsistent tree. A rule that can fail silently is not a
+mechanism, which is §1's argument for the `CLAUDE.md` budget and the same
+argument here.
+
+**The cost is not aesthetic.** `mod.rs` is the file you open to find out what a
+module *contains*. Once it also contains the implementation, that question takes
+a second read — and the next file added to the module has to relitigate where it
+goes, because the module no longer has a shape to match.
+
+**Splitting is not the same as adding files.** A one-file module is fine:
+`engine/restriction/` is `mod.rs` plus `predicate.rs`, and `predicate.rs` is
+allowed to be the whole module. What is not fine is that file being called
+`mod.rs`.

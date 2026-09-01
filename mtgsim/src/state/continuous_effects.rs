@@ -101,6 +101,17 @@ pub struct RegistryScopeSummary {
     /// path would buy nothing on exactly the boards that are most expensive to
     /// walk.
     pub any_granted_replacement: bool,
+
+    /// True iff some row grants an ability whose body is an
+    /// `Effect::Restriction` — i.e. some object on the battlefield may have a
+    /// restriction ability that it did not print.
+    ///
+    /// The other half of `engine::restriction::is_prohibited`'s gate, and a
+    /// separate flag rather than a widening of `any_granted_replacement` for
+    /// that flag's own stated reason: the two sweeps read different ability
+    /// bodies, so a shared flag would turn each one's fast path on for the
+    /// other's cards.
+    pub any_granted_restriction: bool,
 }
 
 /// Owns all active continuous effects in the game.
@@ -159,6 +170,14 @@ impl ContinuousEffectRegistry {
             match &e.modification {
                 crate::engine::layers::types::EffectModification::GrantAbility(def) => {
                     matches!(def.effect, crate::types::effects::Effect::Replacement(_))
+                }
+                _ => false,
+            }
+        });
+        self.summary.any_granted_restriction = self.effects.iter().any(|e| {
+            match &e.modification {
+                crate::engine::layers::types::EffectModification::GrantAbility(def) => {
+                    matches!(def.effect, crate::types::effects::Effect::Restriction(_))
                 }
                 _ => false,
             }
