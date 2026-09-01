@@ -907,6 +907,15 @@ section never asked.
     `(layer, timestamp, id)` order — an ordering invariant, not a memo, and it
     has exactly one production caller (`compute.rs:242`).
 
+    A second correction, found in review: the shared rules content is **CR 514.2
+    alone**, reaching both registries through CR 611.2a. An earlier draft of the
+    module comment said "CR 514.2 and CR 613.7" — but 613.7 is timestamp
+    ordering, the one axis the registries do *not* share, and `SortKey` exists
+    precisely to let them differ on it. The durable measure of what the generic
+    bought is greppable: the engine now dispatches on a `Duration` variant in
+    **two** places, both in `duration_registry.rs`, and `Duration` is a closed
+    enum item 14 is scheduled to grow.
+
     That distinction is what let composition work. A memo would have had to live
     on one side of the boundary and be invalidated from the other; an ordering
     invariant can simply *move inside* the generic. `DurationRow::SortKey` is
@@ -923,10 +932,20 @@ section never asked.
     differs only in the wording of the comment that says it matches its twin.
 
     **What did not move into the generic, and should not.** The CR 613.6 summary
-    flags and the layer slice are `ContinuousEffectRegistry`'s; `Uses::Once`
-    consumption is `ReplacementEffectRegistry`'s. Every `ContinuousEffectRegistry`
-    mutation funnels through a private `mutating()` so a method added later
-    cannot skip the summary rebuild.
+    flags and the layer slice, both `ContinuousEffectRegistry`'s. Every
+    `ContinuousEffectRegistry` mutation funnels through a private `mutating()`
+    so a method added later cannot skip the summary rebuild.
+
+    **`ReplacementEffectRegistry` is a type alias, not a wrapper** (revised in
+    review, 2026-08-31). Finding 7 predicted a struct keeping "`Uses::Once`
+    removal, gather-order iteration"; both turned out to *be* generic methods —
+    `remove(id)` and `iter()` — so all nine of its methods were one-line
+    delegations. A wrapper that adds nothing costs a hop at every call site and
+    makes the reader ask what it is for, which is exactly what happened in
+    review. It can grow a method later without becoming a struct again: an
+    inherent `impl DurationRegistry<RegisteredReplacementEffect>` is legal
+    because the generic is crate-local. **The general rule: compose where the
+    wrapper has its own surface, alias where it does not.**
 
     **Owed by the next customer, not by RS-0.** Item 17's source-scoped expiry
     hook is now a one-line `retain` closure on the generic that both registries

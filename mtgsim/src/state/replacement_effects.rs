@@ -21,6 +21,20 @@
 //!   once, at the instant the event is proposed, which is exactly when CR 614.4
 //!   wants it asked.
 //!
+//! # `remove_by_source` has no production caller, and battlefield-leave is not one
+//!
+//! The mirror call in `cleanup_zone_state` is right for
+//! `ContinuousEffectRegistry` — CR 611.3b, a *static ability's* effect lasts
+//! only while its source is on the battlefield — and wrong here: every row in
+//! this registry was made by a resolution, and CR 611.2a gives those the
+//! duration the spell or ability stated. A regeneration shield does not die
+//! with the permanent whose ability made it; it expires at the CR 514.2 cleanup
+//! with the rest of the turn.
+//!
+//! It earns a caller the day a row carries a source-scoped duration (CR 611.2b's
+//! "for as long as ..."), which is a `DurationRegistry::retain` keyed on
+//! duration *and* source, not on source alone — `codebase-state.md` item 17.
+//!
 //! # What is *not* in here
 //!
 //! Three of `replacement-architecture.md` §3.3's five sources never reach this
@@ -92,82 +106,21 @@ impl DurationRow for RegisteredReplacementEffect {
     fn sort_key(&self) -> Self::SortKey {}
 }
 
-/// Owns every replacement effect a resolution has created.
-#[derive(Debug, Clone)]
-pub struct ReplacementEffectRegistry {
-    /// The `Vec`, the id counter and the CR 514.2 expiry hooks. What stays in
-    /// this file is what is specific to *replacement* effects: `Uses::Once`
-    /// consumption and the reason `remove_by_source` has no production caller.
-    effects: DurationRegistry<RegisteredReplacementEffect>,
-}
-
-impl ReplacementEffectRegistry {
-    pub fn new() -> Self {
-        ReplacementEffectRegistry { effects: DurationRegistry::new() }
-    }
-
-    /// Register a replacement effect. Returns its unique id.
-    pub fn add(&mut self, row: RegisteredReplacementEffect) -> ReplacementEffectId {
-        self.effects.add(row)
-    }
-
-    /// Remove one row by id. Returns it if it was there.
-    ///
-    /// This is how `Uses::Once` is consumed (CR 701.19a — one shield, one
-    /// destruction replaced).
-    pub fn remove(&mut self, id: ReplacementEffectId) -> Option<RegisteredReplacementEffect> {
-        self.effects.remove(id)
-    }
-
-    /// Remove every row created by a given source object.
-    ///
-    /// **No production caller, and battlefield-leave is not one.** The mirror
-    /// call in `cleanup_zone_state` is right for `ContinuousEffectRegistry` —
-    /// CR 611.3b, a *static ability's* effect lasts only while its source is on
-    /// the battlefield — and wrong here: every row in this registry was made by
-    /// a resolution, and CR 611.2a gives those the duration the spell or
-    /// ability stated. A regeneration shield does not die with the permanent
-    /// whose ability made it; it expires at the CR 514.2 cleanup with the rest
-    /// of the turn.
-    ///
-    /// It earns a caller the day a row carries a source-scoped duration
-    /// (CR 611.2b's "for as long as ..."), which is a `DurationRegistry::retain`
-    /// keyed on duration *and* source, not on source alone.
-    pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<RegisteredReplacementEffect> {
-        self.effects.remove_by_source(source)
-    }
-
-    /// Every registered row, in registration order.
-    pub fn iter(&self) -> impl Iterator<Item = &RegisteredReplacementEffect> {
-        self.effects.iter()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.effects.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.effects.len()
-    }
-
-    /// Remove rows that expire during the cleanup step (CR 514.2).
-    pub fn remove_expired_at_cleanup(
-        &mut self,
-        active_player: PlayerId,
-        current_turn: u32,
-    ) -> Vec<RegisteredReplacementEffect> {
-        self.effects.remove_expired_at_cleanup(active_player, current_turn)
-    }
-
-    /// Remove rows that expire at the start of a player's turn.
-    pub fn remove_expired_at_turn_start(
-        &mut self,
-        active_player: PlayerId,
-        current_turn: u32,
-    ) -> Vec<RegisteredReplacementEffect> {
-        self.effects.remove_expired_at_turn_start(active_player, current_turn)
-    }
-}
+/// Every replacement effect a resolution has created.
+///
+/// A [`DurationRegistry`] and nothing more. `cant-effects-architecture.md` §9
+/// finding 7 expected a wrapper here keeping "`Uses::Once` removal, gather-order
+/// iteration" — but `Uses::Once` removal *is* `remove(id)` (CR 701.19a: one
+/// shield, one destruction replaced) and gather-order iteration *is* `iter()`,
+/// so every method the wrapper had was a one-line delegation that made a reader
+/// ask what it was adding.
+///
+/// If a replacement-specific method does earn its place — item 17's
+/// source-scoped expiry is the candidate — it goes on an inherent
+/// `impl DurationRegistry<RegisteredReplacementEffect>`, which is legal because
+/// the generic is local to this crate. This does not have to become a struct
+/// again to grow one.
+pub type ReplacementEffectRegistry = DurationRegistry<RegisteredReplacementEffect>;
 
 #[cfg(test)]
 mod tests {

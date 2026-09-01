@@ -1,25 +1,41 @@
-//! The storage and expiry half every effect registry shares (CR 514.2, 613.7).
+//! The storage and expiry half every effect registry shares (CR 514.2).
 //!
-//! `ContinuousEffectRegistry` and `ReplacementEffectRegistry` each *own* one of
-//! these and delegate to it; a third arrives with delayed triggers (CR 603.7).
-//! Composition rather than inheritance-by-copy, and rather than free functions
-//! over `&mut Vec<Row>`: each registry stays readable in one file, because this
-//! type answers "how do rows live and die" and the wrapper answers "what is
-//! this registry *for*".
+//! `ReplacementEffectRegistry` *is* one of these — a type alias, because it
+//! needs nothing else. `ContinuousEffectRegistry` owns one and delegates,
+//! because it does. A third customer arrives with delayed triggers (CR 603.7)
+//! and a fourth with RS-1's restrictions.
+//!
+//! Composition rather than free functions over `&mut Vec<Row>`: this type
+//! answers "how do rows live and die", and a wrapper — where there is one —
+//! answers "what is this registry *for*", so each stays readable in one file.
 //!
 //! # Why this is abstracted at all, given "don't refactor speculatively"
 //!
-//! Not the line count — three copies of fifteen lines is cheap. It is that the
-//! duplicated logic is **CR 514.2 and CR 613.7**, a rules concern, and its
-//! failure mode is a duration bug fixed in one registry and not the others,
-//! invisible because each has its own passing tests.
-//! `cant-effects-architecture.md` §9 finding 7 has the full argument.
+//! Not the line count, and **not CR 613.7** — an earlier draft of this comment
+//! cited it and was wrong. CR 613.7 is timestamp ordering, which is the one
+//! thing the two registries do *not* share; `SortKey` exists to let them differ
+//! on it. What is genuinely shared is **CR 514.2**, reaching both registries
+//! through CR 611.2a's "lasts as long as stated by the spell or ability".
 //!
-//! # What stays in the wrapper
+//! The load-bearing half is forward-looking and greppable: the engine now
+//! decides what a `Duration` *means* in exactly two places, both below
+//! (`grep -rn 'matches!(.*Duration::' src/`). `Duration` is a closed enum
+//! scheduled to grow — `codebase-state.md` item 14 needs a resolution-scoped
+//! variant before "can't be regenerated" is right, and both expiry methods
+//! already carry a note about `UntilEndOfYourNextTurn`. A registry that missed
+//! a new arm would be wrong in a way its own passing tests could not show.
 //!
-//! Anything that is not "a row exists until something ends it": the CR 613.6
-//! summary flags, `effects_in_layer`'s layer slicing, `Uses::Once` consumption.
-//! This type deliberately knows nothing about layers or events.
+//! The cost is real: a delegating method says less at the call site than the
+//! loop it replaced. It is paid only where the wrapper has its own surface to
+//! justify it, which is why `ReplacementEffectRegistry` is a type alias for
+//! this type and `ContinuousEffectRegistry` is not.
+//!
+//! # What stays in a wrapper
+//!
+//! Anything that is not "a row exists until something ends it" — which today is
+//! `ContinuousEffectRegistry`'s CR 613.6 summary flags and `effects_in_layer`'s
+//! layer slicing, and nothing else. This type deliberately knows nothing about
+//! layers or events.
 
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -55,7 +71,9 @@ pub trait DurationRow {
     /// Stamp the id `add` allocated. Called once, before the row is stored.
     fn set_id(&mut self, id: RowId);
 
-    /// The object whose spell, ability or static ability created this row.
+    /// The object this row came from: the source of the spell or ability whose
+    /// resolution created it (CR 611.2a), or the permanent whose static ability
+    /// generates it (CR 611.3).
     fn source(&self) -> ObjectId;
 
     /// When the row stops existing.
@@ -194,19 +212,24 @@ impl<T: DurationRow> DurationRegistry<T> {
         self.rows.len()
     }
 
-    /// The `(sort_key, id)` ordering invariant `add` maintains. Cheap enough to
-    /// `debug_assert` on reads and after mutations, so a future code path that
-    /// breaks the order fails a test rather than silently misordering a layer.
+    /// Whether the rows are still in the `(sort_key, id)` order [`Self::add`]
+    /// places them in.
+    ///
+    /// `windows(2)` yields every adjacent pair, and a sequence is ordered
+    /// exactly when each neighbouring pair is — so this is "no row outranks the
+    /// one after it". The comparison is strict `<` rather than `<=`, which also
+    /// asserts no two rows tie: they cannot, because the id is the last
+    /// component and ids are unique.
+    ///
+    /// Cheap enough to `debug_assert` on reads and after mutations, and worth
+    /// asserting because `effects_in_layer` *binary-searches* this order —
+    /// against unsorted rows a binary search returns a confidently wrong answer
+    /// rather than an error, so a future code path that bypasses `add` should
+    /// fail a test rather than silently misorder a layer.
     pub fn is_sorted(&self) -> bool {
         self.rows
             .windows(2)
             .all(|w| (w[0].sort_key(), w[0].id()) < (w[1].sort_key(), w[1].id()))
-    }
-}
-
-impl<T: DurationRow> Default for DurationRegistry<T> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

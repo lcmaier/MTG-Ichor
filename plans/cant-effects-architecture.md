@@ -1569,9 +1569,20 @@ Four things to act on rather than read past:
    and binary-searches what the generic already ordered; it cannot reach the
    `Vec`.
 
+   **The wrapper this finding sketched did not survive, and that is the useful
+   correction.** It proposed a `ReplacementEffectRegistry` struct keeping
+   "`Uses::Once` removal, gather-order iteration". Both are generic methods —
+   `remove(id)` and `iter()` — so all nine of its methods came out as one-line
+   delegations, and in review that read as pure indirection. It is a **type
+   alias** for `DurationRegistry<RegisteredReplacementEffect>` instead. The rule
+   to carry forward: **compose where the wrapper has its own surface, alias
+   where it does not.** An alias can still grow a method — an inherent
+   `impl DurationRegistry<RegisteredReplacementEffect>` is legal on a
+   crate-local generic — so this is not a door closing.
+
    **Two consequences for later phases.** RS-1's restriction registry needs a
    `DurationRow` impl and nothing else — `SortKey = ()` unless a read wants an
-   order. And `codebase-state.md` item 17's source-scoped expiry hook is now one
+   order, and no wrapper unless it has surface of its own. And `codebase-state.md` item 17's source-scoped expiry hook is now one
    `retain` closure both registries inherit, where it would have been two.
 
 8. **`Restriction` needs a `Requirement` sibling and RS-3 cannot ship without
