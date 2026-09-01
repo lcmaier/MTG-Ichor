@@ -1166,19 +1166,45 @@ section never asked.
     machine drift commit `a926627` documented. A stored baseline from another
     day would have reported a 12% regression that does not exist.
 
-    **What this did *not* measure, stated so it is not read as more than it is.**
-    `PERFORMANCE_POOL` is frozen and contains no restriction source, so every
-    `is_prohibited` call in the A/B returned on the gate's **closed** path. That
-    is the case that matters for "did RS-1 slow down every board that existed
-    before it", and the answer is no. The **open** path — a board that does have
-    a restriction source, where each proposed action costs a
-    `battlefield_ids_ordered` sweep of `get_effective_abilities` — is unmeasured,
-    and it cannot be measured by an A/B against `main`, because `main` cannot
-    play the cards that open it. It is the same cost `gather` already pays on a
-    board with Kalitas, priced by §3.5 and gated by the same instrument. **Its
-    first honest measurement belongs to whichever phase puts a restriction card
-    into `PERFORMANCE_POOL`** — which is a deliberate decision that phase should
-    make, not a side effect of registering a card.
+    **What this did *not* measure — and the policy change that came out of it.**
+    `PERFORMANCE_POOL` contained no restriction source, so every `is_prohibited`
+    call in the A/B returned on the gate's **closed** path. That is the case
+    that matters for "did RS-1 slow down every board that existed before it",
+    and the answer is no. The **open** path — a board that *does* have a
+    restriction source, where each proposed action costs a
+    `battlefield_ids_ordered` sweep of `get_effective_abilities` — was
+    unmeasured, and could not be measured by an A/B against `main`, because
+    `main` cannot play the cards that open it.
+
+    **So the pool stopped being frozen** (owner call, 2026-09-01). The freeze
+    existed to keep stored numbers comparable, and `CLAUDE.md` already forbids
+    comparing a stored *timing* number — an interleaved A/B uses one pool in
+    both arms by construction, so stability across months bought it nothing.
+    What the freeze cost instead was representativeness: left alone, the pool
+    measures a shrinking fraction of the engine, and "flat on the performance
+    pool" decays into "flat on the parts that existed in 2026-08". That is the
+    same argument the two-pool split already won one level down, where a card
+    was kept *out of the registry* to protect a number.
+
+    Sigarda and Diabolic Edict were added, 55 → 57, and
+    `engineering-practices.md` §3's table was re-recorded — with `ms/game`
+    **removed** from it, since a stored timing figure was never comparable
+    across days and someone will always compare a number that is present. Its
+    seed-deterministic rows stay, because those are fixtures rather than
+    benchmarks and an addition genuinely does invalidate them.
+
+    **And the open path finally has a number: ~1%.** Interleaved 55-pool vs
+    57-pool at `--seed 12345`, **same engine binary source**, four rounds after
+    a discarded warm-up pair: **187.6 vs 189.6 ms CPU/game**. That is a *card*
+    cost rather than an engine one — both arms run identical code, and what
+    differs is how often a board has a restriction source at all. It is inside
+    the ~2% within-sitting spread §3.2 measures, so the honest statement is
+    "the gate holds up on boards that open it", not "it costs 1%".
+
+    Worth noticing on its own: this sitting read 187–193 ms where the sitting
+    two hours earlier read 203–210 on the same tree. Third independent
+    confirmation, after `a926627` and the RS-1 A/B, that a stored ms figure is
+    a measurement of the machine.
 
 ### Was the critical path complete? — audited 2026-08-27
 
@@ -1369,9 +1395,9 @@ The audit above was run against one pool that had to be both the panic hunter an
 the A/B baseline, which is why Kalitas was written and left out of the registry —
 "it would move the baseline". That is an argument for splitting, not for keeping
 cards out. `cards/registry.rs` now builds `default_registry()` (every registered
-card, `fuzz_games --pool stress`) and `performance_pool()` (the frozen
-`PERFORMANCE_POOL`, the default, and what every baseline in this file was measured
-on). The paragraph above stays exactly true of the performance pool. Kalitas is
+card, `fuzz_games --pool stress`) and `performance_pool()` (`PERFORMANCE_POOL`,
+the default, and what every baseline in this file was measured on — *frozen*
+until 2026-09-01, and since then growing one card per new engine path). The paragraph above stays exactly true of the performance pool. Kalitas is
 registered into the stress pool only; 50 stress games at seed 12345 give P0 30 /
 P1 20, turns 26.8, spells 19.5, lands 17.2, combat 10.7, creatures died 5.2,
 damage events 25.0, total damage 54.2, life changes 17.7, zero panics and 202

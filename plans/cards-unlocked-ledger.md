@@ -236,10 +236,11 @@ It was held out of the registry at first on the grounds that registering a card
 moves the `fuzz_games` baseline. That was an argument for splitting the pool,
 not for keeping the card out: an unregistered card is invisible to `fuzz_games`,
 to `card_pool_lowering_test` and to `cli_play` at once. Since 2026-08-29 there
-are two pools — the frozen `PERFORMANCE_POOL` that every recorded baseline was
-measured on, and the growing stress pool that `--pool stress` plays. Kalitas is
-in the second only, so it moves nothing recorded and is still exercised: 50
-stress games at seed 12345 produce 202 Zombie tokens and no panics.
+are two pools — `PERFORMANCE_POOL`, the representative board an engine change is
+A/B'd against, and the stress pool that `--pool stress` plays. Kalitas is in the
+second only, and was in neither's way: 50 stress games at seed 12345 produce 202
+Zombie tokens and no panics. (`PERFORMANCE_POOL` was *frozen* until 2026-09-01
+and now grows one card per new engine path — `engineering-practices.md` §3.)
 **Register every card you write** (`plans/engineering-practices.md` §3);
 `PERFORMANCE_POOL` is what protects the baseline.
 

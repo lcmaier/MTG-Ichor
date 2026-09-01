@@ -187,8 +187,8 @@ call** — hand over the URL unless they say otherwise that session.
   → `engineering-practices.md` §2.
 - Don't refactor speculatively.
 - Test cards in `src/cards/phase_XX_cards.rs`; integration tests in
-  `tests/phase_XX_integration_test.rs`. **Register every card you write** — the frozen
-  `PERFORMANCE_POOL` protects the baseline, not omission. → `engineering-practices.md` §3.
+  `tests/phase_XX_integration_test.rs`. **Register every card you write**; a phase that
+  opens a new engine path also adds one to `PERFORMANCE_POOL`. → `engineering-practices.md` §3.
 - A bugfix must be shown to fail against the pre-fix tree (`git stash push mtgsim/src`) first.
 
 ## Maintaining this file
