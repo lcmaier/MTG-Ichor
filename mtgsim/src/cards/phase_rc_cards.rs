@@ -60,6 +60,7 @@ use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
+use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
@@ -270,6 +271,94 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
                 EventPattern::EnterBattlefield,
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 3)),
+            ))),
+        })
+        .build()
+}
+
+/// Root Maze — {G}
+/// Enchantment
+///
+/// Artifacts and lands enter tapped.
+///
+/// (Oracle text verified on Scryfall, 2026-09-02.)
+///
+/// # Why RC-3 ships a card at all
+///
+/// `engineering-practices.md` §3.3's axis, not a quota: **RC-3's own claim
+/// needs no new card, and that is argued rather than assumed.** The gate change
+/// widens a path the pool already walks — Blood Moon and Humility are both in
+/// `PERFORMANCE_POOL`, both are filter-scoped layer effects, and RC-2 put two
+/// permanents that enter modified in beside them. A tapland under Blood Moon
+/// and a Scarecrow under Humility are reachable in a fuzz game today and
+/// answered differently the moment the gate moves.
+///
+/// This card is for a **different** gap, and it is one RC-2 left by mistake.
+/// RC-2 recorded that CR 616.1's multi-candidate branch was unreachable on an
+/// entry until RC-3 opened the gate, on the grounds that no `AffectedSet::Filter`
+/// effect could match an entering permanent. That was never true of the
+/// *replacement* pipeline: `gather::set_affects` matches a `ReplacementDef`'s
+/// filter through `GameState::permanent_matches_filter`, which has no
+/// battlefield gate and never had one. The branch has been reachable since RB
+/// merged, one registered card away, and RB left the identical gap with Kalitas
+/// — a Legendary whose two copies each apply only to the other player's
+/// creatures, so the ordering choice, the applied set across instances and CR
+/// 101.4's APNAP ordering among simultaneous choosers were all dead code that
+/// tested green.
+///
+/// **Two applicable effects on one entry, from a registered pool, is what this
+/// card buys.** Root Maze plus [`idyllic_beachfront`] is exactly that: two
+/// `EnterWith(tapped)` rewrites on one land, one from a filter on another
+/// permanent and one `SourceOnly` from the land itself, so the pipeline asks
+/// CR 616.1's question of a real player in a real game.
+///
+/// # Why this card out of the four
+///
+/// Kismet, Loxodon Gatekeeper and Frozen Aether all scope to "your opponents",
+/// which is `PermanentFilter::ByController(PlayerRef::Opponent)` — and that
+/// leaf reads `chars.controller`, which for an entering permanent comes from
+/// `compute::base_controller`'s owner fallback. Right for a land drop, wrong
+/// for a permanent spell cast by a non-owner, and unowned until this phase
+/// (see `codebase-state.md`). Root Maze scopes by *type* and asks nothing about
+/// controllers, so it exercises the multi-candidate branch without standing on
+/// a read RC-3 is still fixing.
+///
+/// Its reachability is the other half. `random_deck` picks one or two colours
+/// out of five, so a mono-green card is in about a third of decks; `{G}` at one
+/// mana means it lands on turn one and is out before most permanents arrive.
+/// It also matches **artifacts**, which is what puts it and [`chainbreaker`] on
+/// the same board — a permanent whose entry both a filter and CR 122.6a modify.
+///
+/// # What it is not
+///
+/// Not a look-ahead test. Root Maze is on the battlefield before the entry it
+/// modifies, so it is one of CR 614.12 clause (3)'s effects that "already
+/// exist" and needs no frame. The self-exclusion half of CR 614.12 — Orb of
+/// Dreams entering untapped under its own "Permanents enter tapped" — is
+/// covered by a fixture in `tests/phase_rc_integration_test.rs`, because Root
+/// Maze is an Enchantment and its own filter excludes it by type. A registered
+/// card that matches *itself* would be the sharper board, and Orb of Dreams is
+/// the card for it whenever the pool wants a second one.
+pub fn root_maze() -> Arc<CardData> {
+    CardDataBuilder::new("Root Maze")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text("Artifacts and lands enter tapped.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield,
+                AffectedSet::Filter {
+                    filter: PermanentFilter::Or(
+                        Box::new(PermanentFilter::ByType(CardType::Artifact)),
+                        Box::new(PermanentFilter::ByType(CardType::Land)),
+                    ),
+                },
+                Rewrite::EnterWith(EnterMods::tapped()),
             ))),
         })
         .build()

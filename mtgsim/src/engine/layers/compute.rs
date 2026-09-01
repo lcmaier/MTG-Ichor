@@ -720,6 +720,10 @@ fn permanent_matches_filter(
             permanent_matches_filter(a, id, chars, players)
                 && permanent_matches_filter(b, id, chars, players)
         }
+        PermanentFilter::Or(a, b) => {
+            permanent_matches_filter(a, id, chars, players)
+                || permanent_matches_filter(b, id, chars, players)
+        }
         PermanentFilter::Not(inner) => !permanent_matches_filter(inner, id, chars, players),
     }
 }

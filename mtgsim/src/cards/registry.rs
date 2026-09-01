@@ -42,7 +42,7 @@ use super::phase_sba_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 60] = [
+const PERFORMANCE_POOL: [&str; 61] = [
     "Plains",
     "Island",
     "Swamp",
@@ -112,6 +112,12 @@ const PERFORMANCE_POOL: [&str; 60] = [
     // what makes Blood Moon's effect on a tapland measurable here.
     "Idyllic Beachfront",
     "Chainbreaker",
+    // RC-3 — the pool's first replacement effect scoped by a *filter* rather
+    // than to its own source, and so the first board on which two replacement
+    // effects apply to one event and CR 616.1 has to ask which one first. With
+    // Idyllic Beachfront it is two `EnterWith(tapped)` rewrites on one land;
+    // with Chainbreaker it is a filter and CR 122.6a on one artifact.
+    "Root Maze",
     // The first card in the crate to propose a `GameAction::AddCounters`.
     // Chainbreaker is already here and enters with -1/-1 counters, so this is
     // also what makes CR 704.5q's annihilation sweep run in a measured game
@@ -280,6 +286,12 @@ impl CardRegistry {
         // own doc comment says "this one grows the stress pool", which was
         // false for as long as this line was missing.
         registry.register("Adaptive Shimmerer", phase_rc_cards::adaptive_shimmerer);
+
+        // Phase RC-3 — the first registered `AffectedSet::Filter` replacement,
+        // and the card that makes CR 616.1's multi-candidate branch reachable in
+        // a fuzz game. RC-2 recorded that branch as blocked on RC-3's gate; it
+        // was blocked on nothing (`phase_rc_cards::root_maze`).
+        registry.register("Root Maze", phase_rc_cards::root_maze);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation sweep had never run in a fuzz

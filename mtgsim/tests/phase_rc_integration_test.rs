@@ -9,7 +9,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker, idyllic_beachfront};
+use mtgsim::cards::phase_rc_cards::{
+    adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
@@ -667,5 +669,114 @@ fn test_rc2_cards_read_as_printed() {
             .filter(|a| a.ability_type == AbilityType::Activated)
             .count(),
         1
+    );
+}
+
+// ---------------------------------------------------------------------------
+// CR 616.1 from two registered cards — Root Maze (RC-3)
+// ---------------------------------------------------------------------------
+
+/// A filter-scoped replacement reaches an entering permanent, and always could.
+///
+/// Root Maze is on the battlefield, so it is not a look-ahead question: it is
+/// one of CR 614.12 clause (3)'s effects that "already exist". `set_affects`
+/// matches its `AffectedSet::Filter` through
+/// `GameState::permanent_matches_filter`, which has no battlefield gate — the
+/// path RC-2's "no `Filter` effect reaches an entry" claim missed, and the
+/// reason this test passes against the pre-RC-3 tree too.
+#[test]
+fn test_root_maze_taps_an_entering_land() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let forest = put_in_hand(&mut game, mtgsim::cards::basic_lands::forest(), 0);
+    game.play_land(0, forest, Zone::Hand, &test_ctx()).unwrap();
+
+    assert!(
+        game.battlefield.get(&forest).unwrap().tapped,
+        "an opponent's Root Maze taps a land entering under it"
+    );
+}
+
+/// **The multi-candidate branch, from two registered cards.**
+///
+/// Root Maze's filter and Idyllic Beachfront's own `SourceOnly` ability both
+/// rewrite the same `EnterBattlefield` into `EnterWith(tapped)`, so CR 616.1
+/// makes the affected object's controller choose which applies first. Both
+/// orders reach the same board — two `tapped` rewrites commute — so the
+/// assertion that carries the weight is `dp.is_empty()`: the prompt was asked,
+/// of a real player, from a board a fuzz game can build.
+///
+/// RB left this branch dead with Kalitas and RC-2 recorded it as blocked on
+/// RC-3's gate; it was blocked on nothing. `plans/codebase-state.md` carries
+/// the correction.
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn test_two_registered_cards_make_cr_616_1_ask() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: Some(land) },
+        vec![0],
+    );
+    game.play_land(0, land, Zone::Hand, &ActionContext::new(&dp)).unwrap();
+
+    assert!(dp.is_empty(), "CR 616.1 asked, and the answer was consumed");
+    assert!(game.battlefield.get(&land).unwrap().tapped, "either order taps it");
+}
+
+/// The other index, for the reason `phase_rb_integration_test` gives: a choice
+/// test that only ever picks 0 cannot tell a prompt from a hard-coded first
+/// candidate. Root Maze's row is gathered by the battlefield sweep and Idyllic
+/// Beachfront's by source 1a, which is spliced in *after* it (CR 613.7 —
+/// the entering permanent is the newest object), so the two indices are two
+/// different effects.
+#[test]
+fn test_the_other_cr_616_1_order_is_available() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: Some(land) },
+        vec![1],
+    );
+    game.play_land(0, land, Zone::Hand, &ActionContext::new(&dp)).unwrap();
+
+    assert!(dp.is_empty(), "the second candidate is a real one");
+    assert!(game.battlefield.get(&land).unwrap().tapped);
+}
+
+/// Root Maze matches **artifacts** too, which is what puts it on a board with
+/// Chainbreaker: one entry, one filter-scoped status rewrite and one
+/// `SourceOnly` counters rewrite, and they are not the same half of `EnterMods`.
+///
+/// CR 616.1 still asks — two effects apply to one event — but the two rewrites
+/// touch different fields, so this is the accumulation case (CR 616.1f) rather
+/// than the commuting one above.
+#[test]
+fn test_root_maze_and_chainbreaker_modify_one_entry_together() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, root_maze(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
+    dp.expect_pick_n(
+        ChoiceKind::ChooseReplacementEffect { affected_object: Some(scarecrow) },
+        vec![0],
+    );
+    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+        .unwrap();
+
+    let entry = game.battlefield.get(&scarecrow).unwrap();
+    assert!(entry.tapped, "Root Maze's half");
+    assert_eq!(
+        entry.counter_count(CounterType::MinusOneMinusOne),
+        2,
+        "and Chainbreaker's, on the same entry"
     );
 }

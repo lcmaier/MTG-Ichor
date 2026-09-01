@@ -111,6 +111,14 @@ pub enum PermanentFilter {
     /// change the answer and there is nothing on `chars` to consult.
     ByOwner(PlayerRef),
     And(Box<PermanentFilter>, Box<PermanentFilter>),
+    /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
+    /// over two type leaves is set *union*, which is this node.
+    ///
+    /// Derivable as `Not(And(Not(a), Not(b)))` and deliberately not written
+    /// that way: a card definition is read by whoever is checking it against
+    /// the oracle text, and De Morgan's law is not something a reader should
+    /// have to undo to see that a filter is right.
+    Or(Box<PermanentFilter>, Box<PermanentFilter>),
     Not(Box<PermanentFilter>),
 }
 
