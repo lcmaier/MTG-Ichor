@@ -13,6 +13,7 @@ use crate::engine::layers::types::*;
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::zones::Zone;
 
 /// The layers, in application order (CR 613.1). Index into this array is the
 /// "layer ceiling" used by the frame cache: ceiling `n` means layers
@@ -623,10 +624,19 @@ fn effect_applies_to(
         AffectedSet::SourceOnly => effect.source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
         AffectedSet::Filter { filter } => {
-            // Object must be on the battlefield for filter-based effects.
+            // Object must be in the battlefield *zone* for filter-based effects.
             // Checked before anything else so a non-permanent costs no frame
             // computation for the source.
-            if !game.battlefield.contains_key(&id) {
+            //
+            // The zone, not `game.battlefield` membership, and that is CR
+            // 614.12's clause (3) in one predicate: `move_object` writes
+            // `obj.zone` before the `EnterBattlefield` performer builds the
+            // `BattlefieldEntity`, so an entering permanent is in the zone with
+            // no entry. Asking the stricter question here is what kept Blood
+            // Moon, Humility and Dress Down away from an entry — the effects
+            // that "already exist and would apply to the object" are exactly
+            // the ones a filter has to be allowed to match.
+            if !matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield) {
                 return false;
             }
             let mut players = FilterPlayers {
