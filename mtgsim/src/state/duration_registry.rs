@@ -362,7 +362,6 @@ mod tests {
         assert!(reg.is_sorted());
     }
 
-    // COVERS-PARTIAL: ATOM-611.2a-001
     #[test]
     fn until_end_of_turn_expires_at_cleanup_and_nothing_else_does() {
         let mut reg: DurationRegistry<Row> = DurationRegistry::new();
