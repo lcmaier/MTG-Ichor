@@ -201,11 +201,24 @@ impl GameState {
         first_strike_only: bool,
     ) -> Result<(), String> {
         if first_strike_only {
-            // Check if any creature in combat has first strike or double strike
-            let any_first_strike = self.battlefield.values().any(|e| {
-                (e.attacking.is_some() || e.blocking.is_some())
-                && (has_keyword(self, e.object_id, KeywordFlag::FirstStrike)
-                    || has_keyword(self, e.object_id, KeywordFlag::DoubleStrike))
+            // Check if any creature in combat has first strike or double strike.
+            //
+            // Ordered, not `battlefield.values()`, and the reason is narrower
+            // than CLAUDE.md's rule as written. The *answer* is order-independent
+            // — `any` over a set does not care — so this site was correct while
+            // "observable" meant the event log or a decision. It stopped being
+            // correct when `state/diagnostics.rs` made **cost** a recorded
+            // fixture: a short circuit over a `HashMap` stops after a different
+            // number of `has_keyword` layer walks in every process, and a
+            // fixture that wobbles is not a fixture.
+            let any_first_strike = self.battlefield_ids_ordered().into_iter().any(|id| {
+                let in_combat = self
+                    .battlefield
+                    .get(&id)
+                    .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
+                in_combat
+                    && (has_keyword(self, id, KeywordFlag::FirstStrike)
+                        || has_keyword(self, id, KeywordFlag::DoubleStrike))
             });
 
             if !any_first_strike {

@@ -136,6 +136,8 @@ pub(crate) fn gather(
     _ctx: &ActionContext,
     blocked: bool,
 ) -> Vec<ReplacementInstance> {
+    game.counters.record_replacement_gather();
+
     // CR 614.17c's filter is applied at the door rather than at the end: with
     // no self-replacement producer, a blocked event has no candidates at all
     // and the whole sweep below is dead work.

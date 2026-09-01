@@ -1337,6 +1337,63 @@ section never asked.
     behalf of different players cannot share a row. **Size it before RE writes
     its first doubler, not after.**
 
+44. **`is_prohibited`'s battlefield sweep has the gate defect `gather` just had,
+    and it measures flat — which is the finding (recorded 2026-09-01, RC-2
+    review).** `engine/restriction/predicate.rs` gates its sweep only on
+    `has_static_source`, "is *anything* on this board a static restriction
+    source", and then walks `get_effective_abilities` for every permanent. It is
+    structurally identical to the sweep in `replacement::gather` whose
+    per-permanent gate was worth **10.3%** of total game time — and
+    `is_prohibited` is called more often, on every iteration of the CR 616.1 loop
+    for every proposed action.
+
+    **Measured anyway, because structure is not exposure: −1.0% on
+    `performance` and −1.6% on `stress`**, four interleaved rounds each at 200
+    games, both inside the run-to-run spread. Event streams byte-identical. The
+    reason is the card, not the code: `restriction_ability_sources` is non-empty
+    only while a printed restriction is on the battlefield, and the only one in
+    the pool is **Sigarda at {2}{G}{W}{W}** — gold and five mana, so she is in
+    one deck in sixteen and lands late when she lands at all. `gather`'s gate
+    opened on turn two of most games because RC-2 put a *tapland* in the pool.
+
+    **So this is deferred rather than done, and the trigger is a card, not a
+    date.** The fix is five lines and exactly `gather`'s — skip the permanent
+    unless `restriction_ability_sources.contains(&id)` or the registry summary
+    reports a Layer 6 grant, which is the same predicate one object at a time,
+    exact by the same argument and inheriting the same Layer 1 hole (item 16).
+    **Do it with the first cheap or colorless restriction card**, which RS-2 and
+    RS-3 will both want; until then it is a 10%-shaped cliff nobody is standing
+    on. The general lesson is worth more than the item: **a sweep for this defect
+    shape would have "fixed" this instance and reported a win it did not earn.**
+
+45. **Engine cost is now a fixture, and it found two determinism violations the
+    old rule could not see (added 2026-09-01).** `state/diagnostics.rs` counts
+    layer walks, computed frames, replacement gathers and restriction queries per
+    game; `fuzz_games` prints them and `engineering-practices.md` §3 stores them
+    beside turns-per-game. Overhead A/B'd below the noise floor.
+
+    **Two sites had to be ordered before the numbers held still**, and both were
+    correct under CLAUDE.md's determinism rule as written — `combat/steps.rs`'s
+    first-strike scan and `targeting.rs`'s `has_any_legal_choice`, each an `any`
+    over `battlefield`'s `HashMap` with a layer query inside. `any` over a set is
+    order-independent, so the *answer* never varied and neither site ever
+    appeared in `determinism_test` or a `--dump-events` diff; what varied was how
+    many walks the short circuit took to get there (~14 per 50 games). The rule
+    now reads "a choice, log **or count**".
+
+    **The number itself points at work already scheduled.** ~109,000 layer walks
+    per game against **669** gathers: the CR 614 pipeline is low single digits of
+    engine cost even sweeping the whole board, and the bulk is ordinary oracle
+    traffic with no memo between calls. That is `CLAUDE.md` critical-path item
+    7's cross-call memoization, which already has a hard back-stop before Phase
+    8 — so the instrument's first finding is that **no new performance work is
+    warranted**, which is exactly what an instrument is for.
+
+    Two follow-ups it makes cheap rather than urgent: attributing the walks to
+    call sites (a profiler's job, deliberately not built here), and deciding
+    whether a `GameState` clone for search should inherit the counts or reset
+    them — today it inherits, so a branch's cost is a subtraction.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem

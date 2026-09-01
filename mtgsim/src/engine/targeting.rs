@@ -323,6 +323,16 @@ impl GameState {
     /// `exclude_id` is typically the Aura itself — it can't enchant itself.
     /// For player filters, all players are considered (hexproof/shroud will
     /// be added here when T22 lands).
+    ///
+    /// **The battlefield scans are ordered, and the reason is cost rather than
+    /// answer.** `any` over a set is order-independent, so this was correct
+    /// while "observable" meant an event or a decision — but every candidate it
+    /// tests is a `validate_selection`, which is a layer walk, and a short
+    /// circuit over a `HashMap` stops after a different number of them in every
+    /// process. `state/diagnostics.rs` records layer walks as a fixture, so the
+    /// count is observable now and the order has to be too. The sort is paid on
+    /// a hot path — `mana_helpers` asks this per castable spell per priority
+    /// check — and measured below the noise floor against the walks it bounds.
     pub(crate) fn has_any_legal_choice(
         &self,
         filter: &SelectionFilter,
@@ -339,9 +349,10 @@ impl GameState {
                 if !self.players.is_empty() {
                     return true;
                 }
-                self.battlefield.keys()
-                    .filter(|&&id| Some(id) != exclude_id)
-                    .any(|&id| {
+                self.battlefield_ids_ordered()
+                    .into_iter()
+                    .filter(|&id| Some(id) != exclude_id)
+                    .any(|id| {
                         let candidate = ResolvedTarget::Object(id);
                         self.validate_selection(filter, &candidate, you).is_ok()
                     })
@@ -351,9 +362,10 @@ impl GameState {
                 self.stack.iter()
                     .any(|&id| Some(id) != exclude_id)
             }
-            _ => self.battlefield.keys()
-                .filter(|&&id| Some(id) != exclude_id)
-                .any(|&id| {
+            _ => self.battlefield_ids_ordered()
+                .into_iter()
+                .filter(|&id| Some(id) != exclude_id)
+                .any(|id| {
                     let candidate = ResolvedTarget::Object(id);
                     self.validate_selection(filter, &candidate, you).is_ok()
                 }),

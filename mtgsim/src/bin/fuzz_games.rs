@@ -404,6 +404,11 @@ struct GameStats {
     lands_played: u32,
     combat_phases_with_attackers: u32,
     life_changes: u32,
+    // --- engine work (state/diagnostics.rs), not read off the event log ---
+    layer_walks: u64,
+    layer_frames: u64,
+    replacement_gathers: u64,
+    restriction_queries: u64,
 }
 
 /// Extract action statistics from raw GameEvents.
@@ -457,6 +462,10 @@ struct AggregateStats {
     total_lands_played: u64,
     total_combat_with_attackers: u64,
     total_life_changes: u64,
+    total_layer_walks: u64,
+    total_layer_frames: u64,
+    total_replacement_gathers: u64,
+    total_restriction_queries: u64,
     games_counted: u64,
 }
 
@@ -469,6 +478,10 @@ impl AggregateStats {
         self.total_lands_played += game.lands_played as u64;
         self.total_combat_with_attackers += game.combat_phases_with_attackers as u64;
         self.total_life_changes += game.life_changes as u64;
+        self.total_layer_walks += game.layer_walks;
+        self.total_layer_frames += game.layer_frames;
+        self.total_replacement_gathers += game.replacement_gathers;
+        self.total_restriction_queries += game.restriction_queries;
         self.games_counted += 1;
     }
 
@@ -599,7 +612,18 @@ fn run_one_game(
             game.result.clone(),
             turns,
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
-            extract_stats(game.state.events.events()),
+            {
+                let mut s = extract_stats(game.state.events.events());
+                // Read once at the end of the game rather than accumulated per
+                // turn: the counters are monotonic for the game's lifetime and
+                // nothing resets them, so the final value *is* the total.
+                let c = &game.state.counters;
+                s.layer_walks = c.layer_walks();
+                s.layer_frames = c.layer_frames();
+                s.replacement_gathers = c.replacement_gathers();
+                s.restriction_queries = c.restriction_queries();
+                s
+            },
         ))
     }));
     let elapsed = started.elapsed();
@@ -898,6 +922,30 @@ fn main() {
         println!("  Damage events:    {:>6.1}", agg_stats.avg(agg_stats.total_damage_events));
         println!("  Total damage:     {:>6.1}", agg_stats.avg(agg_stats.total_damage));
         println!("  Life changes:     {:>6.1}", agg_stats.avg(agg_stats.total_life_changes));
+
+        // Engine work, and it is a *fixture* like the block above rather than a
+        // benchmark like `=== Timing ===`. Every number here is a pure function
+        // of the seed and the card pool, so it is comparable across machines and
+        // across months — which is exactly what `ms/game` is not, and why
+        // `engineering-practices.md` §3 stores these and refuses to store that.
+        //
+        // **Read `Frames/walk` first.** It is the CR 613.7a existence re-check's
+        // cost per layer walk, and it is the number that moves when the layer
+        // system starts asking about other objects.
+        println!();
+        println!("=== Engine Work (avg per game) ===");
+        println!("  Layer walks:      {:>8.0}", agg_stats.avg(agg_stats.total_layer_walks));
+        println!("  Layer frames:     {:>8.0}", agg_stats.avg(agg_stats.total_layer_frames));
+        println!(
+            "  Frames/walk:      {:>8.2}",
+            if agg_stats.total_layer_walks == 0 {
+                0.0
+            } else {
+                agg_stats.total_layer_frames as f64 / agg_stats.total_layer_walks as f64
+            }
+        );
+        println!("  Replacement gathers: {:>5.0}", agg_stats.avg(agg_stats.total_replacement_gathers));
+        println!("  Restriction queries: {:>5.0}", agg_stats.avg(agg_stats.total_restriction_queries));
     }
 
     if panics > 0 || errors > 0 {

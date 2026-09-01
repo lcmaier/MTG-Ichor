@@ -50,6 +50,8 @@ pub(crate) enum Query<'a> {
 /// forbids it: CR 101.2 has no tiebreak because it needs none — two
 /// prohibitions agree, so this is a disjunction and never an ordering.
 pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
+    game.counters.record_restriction_query();
+
     // --- Source 3: keyword abilities -------------------------------------
     //
     // Ahead of the gate, because `get_effective_abilities` is not how a keyword

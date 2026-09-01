@@ -68,6 +68,7 @@ pub(super) type FrameCache = HashMap<(ObjectId, usize), EffectiveCharacteristics
 ///
 /// Returns `None` if the object doesn't exist.
 pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
+    game.counters.record_layer_walk();
     let mut cache = FrameCache::new();
     compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)
 }
@@ -87,6 +88,11 @@ pub(super) fn compute_to_ceiling(
             return Some(cached.clone());
         }
     }
+
+    // Past the memo, so this counts frames *computed* rather than frames asked
+    // for. The ratio against `layer_walks` is what CR 613.7a's existence
+    // re-check costs — see `EngineCounters::record_layer_frame`.
+    game.counters.record_layer_frame();
 
     let obj = game.objects.get(&id)?;
     let card = &obj.card_data;
