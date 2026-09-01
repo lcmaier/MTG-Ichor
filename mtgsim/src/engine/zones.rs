@@ -373,6 +373,12 @@ impl GameState {
             // The leaving permanent does stop being a gather candidate.
             // Idempotent, so one that never had a replacement ability is a no-op.
             self.replacement_ability_sources.remove(&id);
+            // Same rule, same reason (`cant-effects-architecture.md` §3.4): the
+            // leaving permanent stops being a restriction-sweep candidate. Its
+            // *registry* rows are deliberately untouched for the reason above —
+            // a resolution's "can't" has the duration that resolution stated,
+            // not the source's lifetime.
+            self.restriction_ability_sources.remove(&id);
 
             // Collect attachment info before mutating
             let (attached_to, attached_by) = {

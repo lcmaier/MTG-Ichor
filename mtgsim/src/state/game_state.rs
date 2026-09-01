@@ -9,6 +9,7 @@ use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::replacement_effects::ReplacementEffectRegistry;
+use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
@@ -260,19 +261,29 @@ pub struct GameState {
     /// stops working.
     pub replacement_ability_sources: HashSet<ObjectId>,
 
-    /// Permanents that CR 701.19c has said can't be regenerated, this turn.
+    /// Every CR 101.2 "can't" a resolution has created.
     ///
-    /// > 701.19c ... Effects that say that a permanent can't be regenerated
-    /// > don't preclude such abilities from being activated or such spells from
-    /// > being cast; rather, they cause regeneration shields to not be applied.
+    /// Source 4 of `cant-effects-architecture.md` §3.4's five, and the only one
+    /// that is a registry: static abilities are swept off *effective* ability
+    /// lists and keywords are synthesized, for the reason `gather` gives.
     ///
-    /// So this is read at *gather* time and withholds the shield, rather than
-    /// stopping anything from making one. Keyed on the permanent because the
-    /// rule is about the permanent — "**it** can't be regenerated" — and the
-    /// shield it withholds may not exist yet.
+    /// Read through `engine::restriction::is_prohibited` and nowhere else — one
+    /// predicate is what makes CR 101.3's "if you can't" a caller rather than a
+    /// parallel mechanism.
+    pub restrictions: RestrictionRegistry,
+
+    /// Objects that entered the battlefield printing a static ability whose
+    /// effect is an `Effect::Restriction` — `is_prohibited`'s fast-path gate.
     ///
-    /// Cleared at the CR 514.2 cleanup with everything else that lasts a turn.
-    pub(crate) cant_be_regenerated: HashSet<ObjectId>,
+    /// The twin of [`Self::replacement_ability_sources`], and a **different
+    /// set**: an object can have a restriction ability without having a
+    /// replacement one. Its doc's rule applies unchanged — add a new source of
+    /// static restriction abilities and it must add a leg to the gate, or the
+    /// source is silently dead on every board the gate skips.
+    ///
+    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
+    /// inserts and `cleanup_zone_state` removes.
+    pub restriction_ability_sources: HashSet<ObjectId>,
 
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
@@ -440,7 +451,8 @@ impl GameState {
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
             replacement_ability_sources: HashSet::new(),
-            cant_be_regenerated: HashSet::new(),
+            restrictions: RestrictionRegistry::new(),
+            restriction_ability_sources: HashSet::new(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
             events: EventLog::new(),
@@ -785,6 +797,14 @@ impl GameState {
                 self.replacement_ability_sources.insert(id);
             }
 
+            // CR 101.2 — the same shape for the same reason. A static
+            // restriction ability generates no continuous effect either; what it
+            // needs is for `engine::restriction::is_prohibited` to know this
+            // permanent is worth asking about.
+            if matches!(ability.effect, Effect::Restriction(_)) {
+                self.restriction_ability_sources.insert(id);
+            }
+
             // CR 604.3a(3) — a characteristic-defining ability affects only the
             // object that has it, so it needs no `AffectedSet` and no row here.
             // `engine::layers::cda` applies it off the object's own effective
@@ -891,6 +911,15 @@ impl GameState {
             // proposed. Registering it here as well would be the CDA mistake in
             // a second costume — one ability applying through two channels.
             Effect::Replacement(_) => Vec::new(),
+
+            // CR 101.2 — the same, for the same reason. A static ability that
+            // states something can't happen generates no continuous effect and
+            // so no layer rows: `engine::restriction::is_prohibited` reads it
+            // off this object's *effective* ability list at the instant the
+            // question is asked, which is what lets Humility strip a "can't".
+            // Registering it here as well would be one ability applying through
+            // two channels.
+            Effect::Restriction(_) => Vec::new(),
 
             Effect::Sequence(effects) => {
                 let mut atoms = Vec::with_capacity(effects.len());

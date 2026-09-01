@@ -34,6 +34,9 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{
     regeneration_rider, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
+use mtgsim::types::restriction::{
+    ReplacementKindFilter, Restriction, RestrictionDef,
+};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -1228,6 +1231,26 @@ fn test_static_regeneration_applies_every_time() {
     );
 }
 
+/// "It can't be regenerated" — CR 701.19c, now a `RestrictionDef` rather than a
+/// bespoke `HashSet` on `GameState` (phase RS-1).
+///
+/// `Duration::UntilEndOfTurn` reproduces exactly what `turns.rs`'s deleted
+/// `cant_be_regenerated.clear()` did, and is **still the wrong scope** — CR
+/// 608.2c scopes this to the destruction instruction it follows, which needs a
+/// resolution-scoped `Duration` variant that does not exist yet
+/// (`codebase-state.md` item 14). What changed is that the scope is now an
+/// authored argument here instead of an assumption hardcoded in the cleanup
+/// step, so correcting it is a one-argument change at the card.
+fn cant_be_regenerated() -> Primitive {
+    Primitive::Restrict(
+        RestrictionDef::new(Restriction::ApplyReplacement {
+            kind: ReplacementKindFilter::Regeneration,
+            to: AffectedSet::Fixed(Vec::new()),
+        }),
+        Duration::UntilEndOfTurn,
+    )
+}
+
 // COVERS: ATOM-701.19c-001
 #[test]
 fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
@@ -1251,7 +1274,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         targets: vec![ResolvedTarget::Object(bear)],
     };
     game.resolve_effect(
-        &Effect::Atom(Primitive::CantBeRegenerated, any_permanent()),
+        &Effect::Atom(cant_be_regenerated(), any_permanent()),
         &rctx,
         &dp,
     )
@@ -1287,7 +1310,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
         targets: vec![ResolvedTarget::Object(bear)],
     };
     game.resolve_effect(
-        &Effect::Atom(Primitive::CantBeRegenerated, any_permanent()),
+        &Effect::Atom(cant_be_regenerated(), any_permanent()),
         &rctx,
         &dp,
     )

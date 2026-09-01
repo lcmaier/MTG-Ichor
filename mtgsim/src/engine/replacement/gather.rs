@@ -36,6 +36,9 @@ use crate::types::replacement::{
 };
 use crate::types::zones::{Zone, ZoneChangeCause};
 
+use crate::engine::restriction::{is_prohibited, Query};
+use crate::types::restriction::ReplacementKindFilter;
+
 use super::{ReplacementInstance, ReplacementInstanceId};
 
 /// Which of CR 122.1c's two effects a counter-derived instance is.
@@ -233,15 +236,27 @@ fn push_if_applicable(
     subject: EventSubject,
 ) {
     // CR 701.19c — "can't be regenerated" causes shields "to not be applied",
-    // so this withholds one at the door rather than spending it. It stays in
-    // the registry, and CR 701.19a scopes it to this turn
-    // (`Duration::UntilEndOfTurn`), so it is there for a later destruction.
-    if instance.def.is_regeneration {
-        if let EventSubject::Object(id) = subject {
-            if game.cant_be_regenerated.contains(&id) {
-                return;
-            }
-        }
+    // so this withholds one at the door rather than spending it. The shield
+    // stays in the registry and is there for a later destruction.
+    //
+    // The one place in the engine where an effect is *applied* to an event,
+    // which is why `Restriction::ApplyReplacement` is closed at one arm
+    // (`cant-effects-architecture.md` §3.3). `is_regeneration` gains the second
+    // reader its own doc calls "the smell", and that is correct rather than a
+    // violation: CR 701.19c needs to *recognise* a shield in order to withhold
+    // one, and nothing about a shield's pattern, rewrite or rider distinguishes
+    // it from any other `Prevent`-with-a-rider. Phase RD widens the `bool` to a
+    // `ReplacementKind` when CR 615.12's prevention half arrives (§9 finding 3).
+    if instance.def.is_regeneration
+        && is_prohibited(
+            game,
+            &Query::ApplyReplacement {
+                kind: ReplacementKindFilter::Regeneration,
+                subject,
+            },
+        )
+    {
+        return;
     }
     if applies_to(game, &instance, action, subject) {
         out.push(instance);
@@ -263,15 +278,29 @@ pub(super) fn applies_to(
     action: &GameAction,
     subject: EventSubject,
 ) -> bool {
-    watches(game, &instance.def, action, instance.controller)
-        && affects(game, instance, subject)
+    pattern_watches(game, &instance.def.pattern, action, instance.controller)
+        && set_affects(
+            game,
+            &instance.def.affected,
+            instance.source,
+            instance.controller,
+            subject,
+        )
 }
 
-/// Is the event's subject inside this effect's `AffectedSet` — CR 614.1's
-/// "whatever they're affecting"?
-fn affects(
+/// Is the event's subject inside this `AffectedSet` — CR 614.1's "whatever
+/// they're affecting"?
+///
+/// Takes the set and its owner's two ids rather than a `ReplacementInstance`,
+/// because a "can't" asks the identical question of an identical `AffectedSet`
+/// and has no instance to offer (`cant-effects-architecture.md` §3.1: a
+/// restriction is discovered exactly the way a replacement effect is, and
+/// differs only in what it is asked at).
+pub(crate) fn set_affects(
     game: &GameState,
-    instance: &ReplacementInstance,
+    affected: &AffectedSet,
+    source: ObjectId,
+    controller: PlayerId,
     subject: EventSubject,
 ) -> bool {
     let id = match subject {
@@ -284,23 +313,27 @@ fn affects(
         // with the cards that want it.
         EventSubject::Player(_) => return false,
     };
-    match &instance.def.affected {
-        AffectedSet::SourceOnly => instance.source == id,
+    match affected {
+        AffectedSet::SourceOnly => source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
         AffectedSet::Filter { filter } => game
-            .permanent_matches_filter(id, filter, instance.controller)
+            .permanent_matches_filter(id, filter, controller)
             .unwrap_or(false),
     }
 }
 
-/// Does this effect watch for the proposed event's kind (CR 614.1)?
-fn watches(
+/// Does this pattern watch for the proposed event's kind (CR 614.1)?
+///
+/// `pub(crate)` for the same reason [`set_affects`] is: `Restriction::Event`
+/// reuses `EventPattern` verbatim, so a "can't be destroyed" and an "if it
+/// would be destroyed, instead …" ask this one function the same question.
+pub(crate) fn pattern_watches(
     game: &GameState,
-    def: &ReplacementDef,
+    pattern: &EventPattern,
     action: &GameAction,
     you: PlayerId,
 ) -> bool {
-    match (&def.pattern, action) {
+    match (pattern, action) {
         (EventPattern::DealDamage, GameAction::DealDamage { .. }) => true,
 
         (
@@ -353,7 +386,7 @@ fn watches(
 /// are SBA inputs, 122.1i is a trigger, and 122.1b's fifteen keyword counters
 /// grant a keyword. **None of those fifteen is CR 614-shaped**, and the two that
 /// come closest are the two the rules deliberately put elsewhere — indestructible
-/// is a "can't" (CR 702.12b, so `is_blocked` rather than a `ReplacementDef`) and
+/// is a "can't" (CR 702.12b, so `is_prohibited` rather than a `ReplacementDef`) and
 /// lifelink is a further result of the damage event (CR 120.3f), not a
 /// replacement of it. The rest are evasion, targeting, blocking,
 /// combat-damage-step, damage-assignment or turn-based rules; vigilance's

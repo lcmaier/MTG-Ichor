@@ -7,12 +7,12 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~31,900 lines of Rust across 83 `.rs` source files (~41,800 with the integration tests). 746 tests, 0 warnings, fuzz harness runs 250-game batches.
+- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 789 tests, 0 warnings, fuzz harness runs 250-game batches.
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
 - **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **Still ahead: RC (ETB replacements, ~1,350 cards), RD (damage and prevention, CR 615), RE (the remaining event kinds).**
-- **"Can't" effects (CR 101.2/614.17/613.11) — designed, and RS-0 has landed (2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0 is done**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. §9 finding 7's abort condition did not trigger — see the entry under "Found by the RS-0 refactor". **RS-1 (the Tier-2 spine) is next on that track, and it is the one hard join: RC-4 cannot start without it.**
+- **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (Phases RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. **RS-1**: `RestrictionDef` / `Restriction` (`types/restriction.rs`), the third `DurationRegistry` customer (`state/restrictions.rs`), and `engine::restriction::is_prohibited` — one predicate, a battlefield sweep off *effective* ability lists, and §4.9's candidate filter. Indestructible, "can't be regenerated" and Sigarda all reach it. **The hard join is satisfied: RC-4 is unblocked.** Still ahead on this track: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
   - **Still stubbed:** Layer 3 (text) and Layer 1 (copy) are enum variants only. Nothing produces an effect in either.
@@ -479,8 +479,21 @@ built, and none of it blocks RC-1 through RC-3.
     consumer (Before Layers item 3). Four corpus atoms still carry the `L15`
     ticket: `ATOM-601.3-001`, `ATOM-613.10-001`, `ATOM-613.11-001/002`.
 
-14. **`turns.rs:138` hardcodes a duration CR 608.2c does not give it — the
-    clear is too *broad*.** The CR 514.2 cleanup clears
+14. **A duration CR 608.2c does not give it — the scope is too *broad*.**
+    ⚠️ **RELOCATED, NOT FIXED, by RS-1 (2026-08-31).** `turns.rs`'s
+    `cant_be_regenerated.clear()` and the `GameState` `HashSet` are both gone;
+    the restriction is now a `RestrictionRegistry` row whose duration is a
+    `Primitive::Restrict` argument the *card* writes. **The scope is still
+    `Duration::UntilEndOfTurn` and still wrong** — what changed is that it is
+    now authored and greppable instead of an engine assumption, so correcting it
+    is a one-argument change at each card rather than an engine change. The fix
+    remains a resolution-scoped `Duration` variant, and RS-1 did not add one:
+    §7's "must not become one 5,000-line PR" won, and the variant needs a hook
+    at the end of a resolution that `resolve_effect`'s recursion (Sequence,
+    riders) makes a design question rather than a line. **The next phase that
+    touches `Primitive::Restrict` owns it.** Original finding follows.
+
+    The CR 514.2 cleanup used to clear
     `GameState::cant_be_regenerated` under a comment asserting that "can't be
     regenerated" is a this-turn fact, with no rule cited. The governing rule is
     **CR 608.2c**, which names this exact card text as an example of later text
@@ -1080,6 +1093,78 @@ section never asked.
     a `WhileSourceTapped` duration that does not exist. Recorded so it is not
     re-derived: **Layer 2's second card is owed by Auras or triggers, not by
     card-writing effort.**
+
+### Found by the RS-1 spine (2026-08-31)
+
+36. **RS-1 is net-*adding*, and `cant-effects-architecture.md` §7 never said
+    otherwise — the "net-deleting" reading was a paraphrase drift.** Counted
+    before building, because the sizing row was going to be built on:
+
+    | | lines |
+    |---|---|
+    | The five folded-in mechanisms, together | **73** |
+    | §7's own new-code anchors (`replacement_effects.rs` 259 + `gather`'s sweep/gate ~120) | **~379** |
+    | What actually shipped in `src/` | **+1,104 / −86 = net +1,018** |
+
+    §7's risk cell reads "it *deletes* two bespoke mechanisms and adds no new
+    call site", which is a claim about **mechanisms** and is true: the
+    `GameState::cant_be_regenerated` `HashSet`, its hand-rolled `turns.rs` clear,
+    and `is_blocked`'s hardcoded indestructible arm are all gone, and no
+    enforcement site was added — `pipeline.rs` and `gather.rs` ask a different
+    function at the same two places they already asked one. **A phase that
+    introduces a type surface, a registry, a sweep, a predicate, a primitive and
+    a candidate filter cannot come out negative on lines**, and the doc's own
+    anchors already predicted +300. The remaining ~640 over that estimate is
+    §4.9's candidate filter (which needed `Primitive::Sacrifice` to have any
+    prompt to suppress), two cards, and this project's doc-comment density.
+
+    **The rule worth keeping: size a phase in mechanisms *or* in lines, and say
+    which.** "Net-deleting" is unfalsifiable when the unit is left implicit, and
+    it survived two document revisions unchallenged because of it.
+
+37. **`Primitive::Sacrifice` had to ship for RS-1's headline to be observable,
+    and that was not in the plan.** §4.9 makes "Sigarda produces no prompt" a
+    rules requirement (CR 608.2d), and `Primitive::Sacrifice` was a stub — so
+    "no prompt" and "no code path" were the same board and no test could tell
+    them apart. It shipped narrow: `Primitive::Sacrifice(SelectionFilter)` plus
+    `resolve.rs::sacrifice_one_of_choice`, which is Diabolic Edict and nothing
+    else.
+
+    **Two filters, because they are two questions.** The `EffectRecipient` names
+    who sacrifices (CR 115.1's target — Diabolic Edict's "*target player*"); the
+    primitive's own filter names what is sacrificed (CR 701.21a's "its controller
+    moves **it**"). A first draft read both off the recipient and would have made
+    every edict either sacrifice a player or target a creature.
+
+    **The choosing player is the target, not the caster**, which is why this is
+    §4.9's "resolution-time selection path" and not a cast-time one. RS-2 owns
+    the cast-time and targeting sites and RS-1 did not touch them.
+
+38. **The keyword-derived restriction sweep is asked only of the event's
+    subject, and the `debug_assert` is what keeps that sound.** Indestructible is
+    `AffectedSet::SourceOnly`, so the only object whose synthesized restriction
+    can match an event about X is X itself — sweeping the battlefield would cost
+    one full `compute_characteristics` walk *per permanent per proposed action*,
+    where asking the subject costs the one walk `is_blocked` already paid. §3.5's
+    commitment 2 says keyword restrictions do not need the gate, and this is why
+    they can afford not to.
+
+    **The next keyword restriction that is not `SourceOnly` breaks it silently**,
+    which is why `keyword_prohibits` asserts the shape rather than assuming it.
+    Hexproof, shroud, menace and intimidate (item 15) are all axis-2 and none of
+    them lands here, so the assertion has no near-term customer — it has a
+    near-term *reader*, which is the point.
+
+39. **Perf did not move, measured interleaved in one sitting.** Six alternating
+    200-game runs at `--seed 12345` on the frozen `PERFORMANCE_POOL`, first pair
+    discarded as warm-up: **main 207.1 ms CPU/game, RS-1 205.0** — a 1.0%
+    *improvement*, i.e. indistinguishable from zero. Both binaries built from
+    the same toolchain minutes apart, main from a throwaway `git worktree`.
+
+    **RB's recorded 13.04 ms/game was not used and could not have been.** This
+    machine now produces ~14.6 ms/game on *unmodified main*, which is the same
+    machine drift commit `a926627` documented. A stored baseline from another
+    day would have reported a 12% regression that does not exist.
 
 ### Was the critical path complete? — audited 2026-08-27
 

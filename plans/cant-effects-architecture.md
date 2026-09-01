@@ -1312,7 +1312,7 @@ builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **RS-0 — the shared duration registry** | A `DurationRegistry<T>` that both existing registries *own* and delegate to — composition, not a split (§9 finding 7). Migrate both; no new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today | low — pure refactor, two existing test suites as the check, and a stated abort condition if `effects_in_layer`'s cache will not compose |
-| **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`; **§4.9's candidate filter**. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in, Sigarda stops producing a prompt | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site |
+| **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`; **§4.9's candidate filter**. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in, Sigarda stops producing a prompt | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site. **Shipped 2026-08-31**; both halves of that held, and the row was still read as "net-deleting in lines", which it never claimed — `codebase-state.md` item 36. Actual: +1,104/−86 in `src/`, and the anchors in this cell already predicted ~+300 |
 | **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`cast.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `cast.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
 | **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,267 of 1,277** Tier-1a clauses — the 1,219 per-creature plus the 48 per-attacker blocker counts | medium — large surface, but every check is local |
 | **RS-3b — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
@@ -1357,7 +1357,7 @@ useful question is "what do I do next", not "what does each doc own".
 |---|---|---|
 | 1 | Finish #62 — themes G, then B | `rb-review.md`'s plan; both are on the branch already |
 | 2 | ~~**RS-0** — the shared duration registry~~ ✅ **done 2026-08-31** | Pure refactor, two existing suites as the check. Cheapest thing on the list and it makes 3 and 6 smaller |
-| 3 | **RS-1** — the Tier-2 spine | Net-deleting. **This is the join**: RC-4 cannot start without it |
+| 3 | ~~**RS-1** — the Tier-2 spine~~ ✅ **done 2026-08-31** | **The join is satisfied — RC-4 is unblocked.** Net-*adding* by ~1,000 lines, not net-deleting; the sizing row meant mechanisms, and `codebase-state.md` item 36 has the count |
 | 4 | **RC-1** — delete the early stack pop | Independent of everything; the safest shape the project writes |
 | 5 | **RC-2** — `EnterBattlefield` as an event | 773 enters-tapped cards, and the first thing that makes Track R visible in a game |
 | 6 | Themes C + E — naming and hygiene | After the merge, with theme G's comment rule in hand |
@@ -1591,6 +1591,39 @@ Four things to act on rather than read past:
    rather than incomplete ones. ~150 printed cards, goad the important one for
    Commander. Named here because it is the one place this document's scope has
    to grow beyond its title.
+
+9. **Is any rule here defined over two objects? Asked before writing RS-1's
+   cards, because RB did not ask it and paid.** ✅ *Answered 2026-08-31.*
+
+   **Three are, and none of them is defined over two *restrictions*** — which is
+   the whole reason RS-1 is small where RB was not.
+
+   - **CR 614.17c** pairs a restriction with a *replacement effect*: "if an event
+     can't happen, it can only be replaced by a self-replacement effect." Real,
+     directional, and already built as `gather`'s `blocked` parameter. **It is
+     also the one thing RS-1 could have destroyed by accident:** folding
+     `is_prohibited` into `gather` as one more candidate would have lost the
+     ordering. The call kept its position ahead of the sweep.
+   - **CR 701.19c** pairs a restriction with a *shield*. That is why axis 3
+     exists and why `ApplyReplacement` carries a `ReplacementKindFilter` — the
+     restriction has to name the class of effect it withholds.
+   - **Sigarda's `by`** pairs the affected permanent with the *causing* spell or
+     ability. Two objects, one restriction: a field, not an ordering.
+
+   **What is absent is the important half.** CR 101.2 has no tiebreak, because
+   two prohibitions agree — so `is_prohibited` is a disjunction with no chooser,
+   no applied set and no APNAP pass. CR 616.1 is an ordering rule *over two
+   replacement effects*, and every one of those three mechanisms exists in
+   `pipeline.rs` because of it. The structural claim in §3.2 — five fields
+   `ReplacementDef` needs that `RestrictionDef` does not — is this fact, restated
+   at the type level.
+
+   **The general form, and it outlives this finding:** the question to ask of a
+   new subsystem is not "does it have interactions" but **"is any of its rules an
+   ordering over two instances of the thing I am building?"** If yes, the
+   chooser, the applied set and the tiebreak are all load-bearing and must be
+   designed before the first card. If no, a disjunction is not a simplification —
+   it is the rule.
 
 ---
 

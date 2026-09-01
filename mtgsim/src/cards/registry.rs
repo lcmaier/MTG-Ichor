@@ -17,6 +17,7 @@ use super::phase_le_cards;
 use super::phase_lf_cards;
 use super::phase_lg_cards;
 use super::phase_rb_cards;
+use super::phase_rs_cards;
 
 /// The 55 cards every recorded `fuzz_games` baseline was measured on, frozen.
 ///
@@ -230,6 +231,11 @@ impl CardRegistry {
         // `engineering-practices.md` §3.3.
         registry.register("Rest in Peace", phase_rb_cards::rest_in_peace);
         registry.register("Leyline of the Void", phase_rb_cards::leyline_of_the_void);
+
+        // Phase RS-1 — the first CR 101.2 "can't" with printed card text, and
+        // the resolution that makes its *absence of a prompt* observable.
+        registry.register("Sigarda, Host of Herons", phase_rs_cards::sigarda_host_of_herons);
+        registry.register("Diabolic Edict", phase_rs_cards::diabolic_edict);
 
         registry
     }

@@ -3,11 +3,10 @@
 use std::collections::HashSet;
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::oracle::characteristics::has_keyword;
+use crate::engine::restriction::{is_prohibited, Query};
 use crate::state::game_state::GameState;
 use crate::types::effects::Effect;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{GameActionTemplate, Rewrite, Uses};
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_replacement;
@@ -45,27 +44,6 @@ pub(crate) struct Rider {
     /// permanent the replacement was about.
     pub subject: Option<ObjectId>,
     pub effect: Effect,
-}
-
-/// CR 614.17 — "some effects state that something can't happen. These effects
-/// aren't replacement effects, but follow similar rules."
-///
-/// Checked *before* the pipeline and winning over it (CR 101.2). Today there is
-/// exactly one: CR 702.12b's indestructible, which moved here from
-/// `Primitive::Destroy` when `GameAction::Destroy` landed — a "can't" is not a
-/// `ReplacementDef` and modelling it as one would have put it in the CR 616.1
-/// choice list, where a player could decline it.
-///
-/// Re-asked on every iteration of the loop rather than once at the top, because
-/// CR 614.17c lets a self-replacement change the event's *type*, and an event
-/// of a different type is a different "can't" question.
-pub(crate) fn is_blocked(game: &GameState, action: &GameAction) -> bool {
-    match action {
-        GameAction::Destroy { object, .. } => {
-            has_keyword(game, *object, KeywordFlag::Indestructible)
-        }
-        _ => false,
-    }
 }
 
 /// CR 614.7a / 120.8 / 119.10 — the proposals that describe an event which
@@ -156,11 +134,24 @@ pub(crate) fn apply_replacements(
             return Ok(None);
         }
 
-        // CR 614.17: a "can't" is checked ahead of the pipeline and wins.
-        // CR 614.17c narrows what may still apply rather than ending the loop,
-        // because a self-replacement that changes the event's type would lift
-        // the block.
-        let blocked = is_blocked(game, &event);
+        // CR 614.17: a "can't" is checked ahead of the pipeline and wins
+        // (CR 101.2). Not a `ReplacementDef` and never one — modelling it as one
+        // would have put it in the CR 616.1 choice list, where a player could
+        // decline it.
+        //
+        // Re-asked on every iteration rather than once at the top, because
+        // CR 614.17c lets a self-replacement change the event's *type*, and an
+        // event of a different type is a different "can't" question.
+        let blocked = is_prohibited(
+            game,
+            &Query::Event {
+                action: &event,
+                // CR 101.2 scoped by cause (§2.6). `ActionContext` already
+                // threads the resolution that proposed this; a turn-based or
+                // state-based action has none, and no `SourceFilter` matches it.
+                cause: ctx.resolution.map(|r| r.controller),
+            },
+        );
 
         // CR 614.4 — gathered against live state at the moment of proposal.
         // There is no "go back in time" path because there is no other place

@@ -138,7 +138,7 @@ line for line but the timing lines. → `codebase-state.md`.
 5. Replacement effects (CR 614–616), phases RA–RE. RA and RB are in; **RC — ETB replacements
    — is next, and is the ~1,350-card unlock**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
-   **RS-1 must land before RC-4**; RS-3 (combat) wants item 7 first
+   **RS-1 is in, so RC-4 is unblocked**; RS-3 (combat) wants item 7 first
 5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **A copy
    row stores values, never a reference** — which is what keeps it off item 7. CV-2 needs RC-2
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes LKI
