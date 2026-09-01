@@ -143,12 +143,20 @@ pub(crate) fn gather(
         return Vec::new();
     }
 
-    // The fast path, and it is not an optimization — it is the difference
-    // between the pipeline being free and the pipeline tripling the engine's
-    // cost. `get_effective_abilities` is a full `compute_characteristics` walk,
-    // and an ungated sweep would run one per permanent per proposed action:
-    // measured against the untap step alone that is ~6,000 extra layer walks
-    // per `fuzz_games` game.
+    // The board-level fast path, and it is not an optimization — it is the
+    // difference between the pipeline being free and the pipeline tripling the
+    // engine's cost. `get_effective_abilities` is a full
+    // `compute_characteristics` walk, and an ungated sweep would run one per
+    // permanent per proposed action: measured against the untap step alone that
+    // is ~6,000 extra layer walks per `fuzz_games` game.
+    //
+    // **This one only answers "does the sweep run at all", which stopped being
+    // enough when RC-2 put replacement sources in the default card pool.** From
+    // the first tapland onward it is true for the rest of the game, and the
+    // sweep then walked every permanent to find the one or two that could
+    // matter. The per-permanent gate below is the other half; skipping it cost
+    // **10.3% of total game time on `performance` and 9.2% on `stress`**,
+    // interleaved A/B at 200 games (`replacement-architecture.md` §9, RC-2).
     //
     // The gate is *exact*, not a heuristic. An object on the battlefield can
     // only have a static replacement ability if it printed one — recorded in
@@ -188,10 +196,18 @@ pub(crate) fn gather(
     // cost one per permanent on the board.
     //
     // Gathered here for cost and spliced in after the sweep for order: the
-    // entering permanent is about to be the *newest* object on the battlefield
-    // — `next_timestamp` is monotonic and nothing gives another object a new
-    // timestamp when something enters — so oldest-first (CR 613.7) puts it
-    // last among the sweep's candidates.
+    // entering permanent is about to be the newest object on the battlefield,
+    // so CR 613.7's oldest-first puts it last among the sweep's candidates. It
+    // has no timestamp at all yet — `place_on_battlefield` takes one from the
+    // monotonic `next_timestamp` once the pipeline has decided — and nothing
+    // between here and there re-timestamps anything already on the board.
+    //
+    // **Attachment is the case that looks like a counter-example and is not.**
+    // CR 613.7e re-timestamps *the Aura or Equipment*, never its host, so an
+    // Aura entering and attaching (CR 303.4f) only ends up newer still. The one
+    // real limit is CR 613.7m — objects entering *simultaneously* are ordered by
+    // APNAP rather than by allocation — and every entry today is its own
+    // singleton batch. Both are `codebase-state.md`'s item 4.
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
         push_static_ability_replacements(game, &mut entering, *object, *controller, action, subject);
@@ -208,8 +224,24 @@ pub(crate) fn gather(
     }
 
     // --- Sources 1 and 5: the battlefield sweep ----------------------------
+    //
+    // The fast path is per *permanent*, not just per board. `has_static_source`
+    // above answers "is anything on this board a static replacement source",
+    // which is what decides whether the sweep runs at all; this decides which
+    // permanents inside it are worth a `compute_characteristics` walk, and it is
+    // the same predicate one object at a time. Exact by the same argument, with
+    // the same over-approximations: a printed ability is recorded at ETB, a
+    // Layer 6 grant is reported by the registry summary but not attributed to an
+    // object, and CR 305.7 or Humility can strip a printed one without touching
+    // the set. Over-approximating costs a walk, never an answer.
+    //
+    // It inherits the global gate's one *under*-approximation and adds none:
+    // `register_static_effects` records printed abilities, so a copied
+    // replacement ability is in neither set and is invisible to both — which is
+    // `codebase-state.md` item 16, and the gate leg Phase CV owes.
+    let any_granted = game.continuous_effects.summary().any_granted_replacement;
     for id in game.battlefield_ids_ordered() {
-        if has_static_source {
+        if any_granted || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             push_static_ability_replacements(game, &mut candidates, id, controller, action, subject);
         }

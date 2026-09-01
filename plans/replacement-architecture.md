@@ -2525,7 +2525,43 @@ costs one `compute_characteristics` walk per *entry*, and entries are rare
 against untap steps and SBA sweeps. **RC-3's line is the one on the hot path,
 and this measurement is the control it will be read against.**
 
-**Six changes from the review pass (PR #81), and two of them are findings.**
+**Nine changes from the review pass (PR #81), and the last one is the phase's
+most consequential number.**
+
+- **The A/B measured the wrong build, and the reviewer's question about clone
+  pressure is what surfaced it.** `gather`'s fast path answered only "is
+  *anything* on this board a static replacement source" — and RC-2 is the first
+  phase to put replacement sources in `PERFORMANCE_POOL`, so from the first
+  tapland onward that gate is true for the rest of the game and the sweep walked
+  **every permanent** with a full `compute_characteristics` per proposed action.
+  The exit-criterion A/B above ran against a build with the two cards
+  unregistered, so it measured the gate *closed* and reported flat. **A
+  per-permanent gate — the same predicate one object at a time — is worth
+  10.3% of total game time on `performance` and 9.2% on `stress`**, medians of
+  three and five interleaved rounds at 200 games, with every `performance` run
+  separated. Event streams are byte-identical on both pools at 40 games, which
+  is what "exact, not a heuristic" has to mean.
+- **The dominant clone was not the one named.** `def: (**def).clone()` is real
+  but small beside `get_effective_abilities`, which is a whole
+  `EffectiveCharacteristics` construction — two `Vec`s and three `HashSet`s —
+  per call. That is why the answer to "should we sweep the codebase for clones"
+  is no: **the lever was a gate, not a clone**, and the sweep would have found
+  the small one and missed the large one. The clone that matters for the AI use
+  case is `GameState::clone` for search, which is `codebase-state.md` item 42's
+  territory and wants a search harness to profile against before anyone touches
+  it.
+- **CR 613.7m is unimplemented and was found by asking whether attachment
+  breaks the entering-permanent ordering.** It does not — CR 613.7e re-timestamps
+  the *Aura or Equipment*, never its host, so an entering Aura only ends up newer
+  still. But 613.7m says objects entering *simultaneously* are ordered by APNAP
+  rather than by allocation, and `allocate_timestamp` can only produce allocation
+  order. Exact today because every entry is its own singleton batch; reachable
+  the moment `CreateTokens` (RE) or CR 614.13's auxiliary zone changes (RC-4)
+  land. Recorded under `codebase-state.md` item 4, including that the fix is a
+  decision point rather than a sort — 613.7m orders the active player's objects
+  "in the order of that player's choice".
+
+**Six more from the same pass, and two of those are findings too.**
 
 - **The two-card rule wanted a third card, and §3.3 says why.** The ordering
   claim — CR 122.6a's counters go on before anything can observe the permanent —
