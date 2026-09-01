@@ -124,6 +124,71 @@ The performance column is byte-identical to the pre-split baseline, which is the
 acceptance test for the split. The stress column moved where Kalitas predicts:
 fewer creatures die, because opponents' creatures are exiled instead.
 
+### 3.1 The gate: run both pools, and read them differently
+
+Each pool answers a question the other cannot, so a PR runs both. **They are
+different instruments, not a cheap and an expensive version of one.**
+
+```bash
+cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1
+cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1 --pool stress
+```
+
+| Pool | Question | Read | Grows with the card list? |
+|---|---|---|---|
+| **performance** | *Did my change make the engine slower?* | A **delta** against a recorded baseline | No — frozen, which is what keeps a number in `plans/` comparable months later |
+| **stress** | *Is there a card shape that makes the engine fall over?* | An **absolute threshold**: 0 errors, 0 panics, 0 turn-limit hits, and no tail number off its scale | Yes, by design |
+
+**Never A/B a stress number against a baseline recorded before the pool
+changed.** It moves for two reasons at once — the change and the new cards — and
+that conflation is the thing the pool split exists to prevent. A stress run is
+pass/fail against a ceiling; only the frozen pool measures a delta.
+
+**Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
+byte-identical across runs at one seed, so the three-run check in `CLAUDE.md` is
+a diff of two regions rather than a hunt for scattered lines. Strip the block and
+the runs must match exactly:
+
+```bash
+cd mtgsim && for i in 1 2 3; do cargo run --release --bin fuzz_games -- --games 50 --seed 12345 | sed '/^=== Timing ===$/,/^$/d' > run$i.txt; done && diff run1.txt run2.txt && diff run1.txt run3.txt
+```
+
+### 3.2 Reading the tail, and why the mean cannot do this job
+
+`CPU/game` is a mean, and **a mean is the one statistic guaranteed to hide a
+performance cliff**: a card shape that makes the layer walk fall over moves the
+slowest game by orders of magnitude and a 50-game mean by about two percent. The
+`tail` lines report p50 / p99 / max instead, and `Slowest game` prints the seed,
+because every game is a pure function of its own seed and the outlier replays
+alone with `--seed N --games 1`.
+
+**Two tails, and the pair is the point.** `CPU/game` conflates *long* games with
+*slow* ones; `CPU/turn` divides that out. Compare them:
+
+**Baselines, 200 games / seed 12345 / `--threads 1`, recorded 2026-08-31:**
+
+| | performance | stress |
+|---|---|---|
+| CPU/game mean | 86.62 ms | 87.11 ms |
+| CPU/game p50 / p99 / max | 63.36 / 409.86 / 475.81 ms | 59.36 / 409.57 / 498.16 ms |
+| CPU/turn p50 / p99 / max | 2.35 / 6.52 / 7.11 ms | 2.29 / 6.72 / 7.73 ms |
+
+The game-level tail is **6.5x** the median and the turn-level tail is **2.8x**.
+The gap between those two numbers is the finding: most of the game tail is games
+being *longer* (73 and 87 turns against a ~30 average), and the residual 2.8x is
+genuine per-turn growth as the board fills — more permanents, more expensive
+layer walks. Superlinear but modest, and expected.
+
+**What a regression looks like, then.** A turn tail that climbs while the median
+holds is the signal to chase; a game tail that climbs with it is probably just a
+longer game. **The p99 equals the max below 100 games** — nearest-rank on 50
+samples puts rank 50 at the last element — so run 200 when the tail is the thing
+you are reading.
+
+**The mean is still the benchmarking number.** `CPU/game` on the frozen pool at
+`--threads 1` is what an A/B compares; the tail says whether a *new* cost
+appeared, not whether an existing one grew.
+
 ---
 
 ## 4. Sizing a phase, and splitting it
