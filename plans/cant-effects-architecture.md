@@ -1341,6 +1341,16 @@ touch combat; RS-3a must not attempt CR 508.1d; and no RS phase carries the
 "unless" clauses (§2.4). Each of those is the seam where this would otherwise
 become one 5,000-line PR again.
 
+**And one rule every RS phase from 2 onward inherits** (added 2026-09-01):
+**no decision site may hold state that changes the game's outcome and is not in
+`GameState`.** RS-2's sizing row above names six enforcement sites and two
+enumeration sites, which is the largest single addition of decision sites left
+in this document — so it is the phase where the invariant is cheapest to keep
+and most expensive to break. Retry bookkeeping is exempt (drop it and the game
+reaches the same outcome); an applied-set or a partially-assembled proposal is
+not. `codebase-state.md` item 40 has the two current violators and the test that
+would confirm the rest.
+
 ### 7.1 The interleaved order, end to end
 
 **`CLAUDE.md` → "Critical path to v1" is the authority; this is a reading of

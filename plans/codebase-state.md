@@ -1206,6 +1206,102 @@ section never asked.
     confirmation, after `a926627` and the RS-1 A/B, that a stored ms figure is
     a measurement of the machine.
 
+### Found by the fork-and-search question (2026-09-01)
+
+40. **The decision-site invariant, and the two things that break it today.**
+
+    > **No decision site may hold state that changes the game's *outcome* and is
+    > not in `GameState`.**
+
+    **Why this shape and not "everything in `GameState`".** The absolutist form
+    was the framing this arrived in, and it is too strong: it condemns state
+    whose loss costs nothing. The test that separates them is *drop it and
+    re-derive* — if the game reaches the same outcome, the state is bookkeeping
+    and may live on the stack.
+
+    **What the invariant protects.** Forking. To search, a harness clones
+    `GameState` at a decision point, plays forward, and comes back to try the
+    other option. `GameState` already derives `Clone`; a fork is sound exactly
+    when the clone is a complete description of the game at that instant. It is
+    also what makes a pending decision *serializable*, which is the same
+    property a self-hosted server needs to survive a dropped connection — so
+    this is not AI-only spend.
+
+    **Measured, not assumed. What is on the stack at a decision point:**
+
+    | Site | Stack-resident | Outcome-bearing? |
+    |---|---|---|
+    | `priority.rs` priority loop | `blacklist`, `retries`, `all_candidates` | **No** — drop them and the fork re-offers a cast that fails again. Slower, same game |
+    | `cast.rs::run_mana_ability_window` | the `failed` set | **No** — same shape; the mana pool itself is on `GameState` |
+    | `cast.rs` 601.2b–d | the in-flight `StackEntry`, pre-push | **Yes** — see below |
+    | `apply_replacements` | `applied` / `declined` / `exempt_applied` | **Yes** — see below |
+
+    `priority_player` is already a `GameState` field, which is the fact that
+    makes the first row cheap.
+
+    **Violator 1 — `pipeline.rs:101/115/119`, the CR 614.5 sets.** `applied`,
+    `declined` and `exempt_applied` live in `apply_replacements`' frame and are
+    consulted across the `ask_choose_replacement` / `ask_apply_optional_replacement`
+    prompts. Fork at a CR 616.1 prompt and the branches disagree about which
+    effects have already applied — so a *different replacement* applies, which
+    is a different game. Worse than a wrong answer in one respect: the `declined`
+    set is what stops the loop re-offering a declined optional forever, so a
+    resumed frame that lost it **hangs**.
+
+    **Violator 2 — `cast.rs`, the CR 601.2 announcement window.** Between the
+    card leaving hand and the `StackEntry` being pushed, the proposal (modes,
+    targets, X, chosen costs) is a local. The four `rollback_cast_to_hand` call
+    sites are the evidence: a rewind is possible precisely because the state is
+    not yet committed anywhere a clone would see. This one is a *fact* on the
+    triage split — the announcement is CR 601.2's own sequence, and a later
+    phase cannot reconstruct what a player chose at 601.2b.
+
+    **Neither is a bug today**, and that is the point of recording them: nothing
+    forks. They are the debt a fork-based harness inherits, and the cost grows
+    per phase — RS-1 added one decision site (`sacrifice_of_choice`), RS-2 adds
+    six by its own sizing row. **The invariant is cheap as a review rule and
+    expensive as a migration**, which is why it is written down before there is
+    a customer.
+
+41. **A fork at a *priority boundary* is probably sound today, and one test
+    would settle it.** Every entry in the table above is unwound at a priority
+    pass: the two non-outcome-bearing sets are loop locals that do not survive
+    the iteration, and neither cast nor `apply_replacements` is on the stack.
+    That matters more than it sounds, because the priority boundary is where
+    essentially all the strategic signal in Magic lives — what to cast, what to
+    attack with. Search over *those* with a fast policy answering the micro
+    choices inside a rollout is how strong engines in adjacent games are built,
+    and it needs no resumable engine at all.
+
+    **The test, ~150 lines:** clone `GameState` at every priority pass, run both
+    copies to completion under a scripted `DecisionProvider`, assert identical
+    event logs. If it passes, forkability exists today and item 40 is purely
+    forward-looking. If it fails, the failures *are* the enumerated list of what
+    is on the stack that should not be — useful either way, which is what makes
+    it worth a day before any refactor is priced.
+
+    **One thing that test will surface, and it should be a decision rather than
+    a discovery:** `RandomDecisionProvider` owns its `StdRng`, outside
+    `GameState` (deliberately — `CLAUDE.md` names it as one of two opt-outs).
+    For search that is arguably correct, since determinization *wants* to
+    re-randomize the unseen library per branch. For "replay this game exactly"
+    it is wrong. The two forks share nothing and diverge, and which of those is
+    intended has never been written down.
+
+42. **`EventLog` is on `GameState` and grows monotonically.** `clear()` is
+    documented as between-games only, so a ~33-turn game carries every
+    `EventRecord` it ever emitted — and every clone carries them again. The
+    trigger matcher already reads a *suffix* (`records_from(index)`), so the
+    whole history is not what any consumer wants.
+
+    Bounding the in-state window and streaming the rest to an external sink pays
+    three different phases at once: clone cost for search, `serde` size for a
+    self-hosted server's wire format, and the per-viewer projection (backlog
+    §2.9) that both the GUI and an AI observation need. **Not urgent and not
+    hard**; recorded because it is the cheapest of the three, and because "the
+    log is unbounded" is the kind of fact that is obvious once and invisible
+    afterwards.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
