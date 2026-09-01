@@ -746,7 +746,7 @@ Assignment (CR 613.7c–d):
 2. **On effect creation** — `ContinuousEffect.timestamp = game.next_timestamp();` at registration.
 3. **Re-timestamping on aura/equipment attachment** (CR 613.7e) — when an Aura moves from one creature to another (e.g., via Sun Titan returning it), the Aura's effect timestamp updates. Similarly when a permanent becomes an Aura/Equipment.
 
-   **⚠️ Designed here, not implemented (recorded 2026-08-24).** Nothing in `src/` reassigns `BattlefieldEntity.timestamp`, and CLAUDE.md now states "allocated once, never reassigned" as the *determinism* contract. Unreachable while Equip is unimplemented and Auras attach only at ETB; the day a reattachment path lands, this and the contract wording have to move together. Ledgered under `codebase-state.md` → "Before card breadth".
+   **⚠️ Designed here, not implemented (recorded 2026-08-24; scheduled 2026-09-01 as §13a Phase LH-2).** Nothing in `src/` reassigns `BattlefieldEntity.timestamp`, and CLAUDE.md states "allocated once, never reassigned" as the *determinism* contract. **The 2026-08-24 entry framed this as a contract-wording change and it is not** — the field is doing two jobs, and 613.7e is what forces them apart. See §13a, which owns the split; this point owns the rule.
 
 Storage: `GameState.next_timestamp: Timestamp` — monotonic counter, never rewound. Saturation not a practical concern (u64).
 
@@ -1009,6 +1009,124 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 
 - Add specific cards per `cards-unlocked-ledger.md`.
 - Post-mortem: did the architecture hold? File-by-file review of what we'd change with hindsight. Document in `codebase-state.md`.
+
+---
+
+## 13a. Phase LH — attachment as a layers input (live plan, 2026-09-01)
+
+**Lettered, not numbered, because §13 is historical and other notes cite these
+section numbers.** This is the live plan; §13 stays readable for its exit
+criteria and its reasoning.
+
+**Why it extends this document rather than opening one.** `CLAUDE.md`'s
+architecture-doc row says a new subsystem extends a row and never adds one. Two
+of Phase LH's three pieces are CR 613 — a new `AffectedSet` and CR 613.7e's
+re-timestamping — so Auras are a layers extension wearing a card's clothes. The
+third piece (CR 608.3b) rides along for a reason given under LH-1.
+
+### Why it is scheduled before critical-path item 7
+
+Item 7 is the CR 613.8 dependency algorithm **plus cross-call memoization**, as
+one phase, with a hard back-stop before Phase 8. LH adds two new *inputs* to the
+layer walk:
+
+- `battlefield[source].attached_to` becomes an input (LH-1), and it is mutated
+  outside the walk.
+- `BattlefieldEntity`'s CR 613.7 timestamp becomes **mutable** (LH-2).
+
+A memo key designed without either is wrong, and retrofitting a memo key is
+strictly worse than designing against the settled shape. That is the whole
+scheduling argument; nothing else on the critical path blocks on Auras.
+
+**It is not folded *into* item 7.** LH is a state-shape change and item 7 is an
+ordering-algorithm change, and item 7 is already the largest phase on the path.
+§4's sizing rule cuts against growing it.
+
+### The finding that sets the scope: one field, two jobs
+
+`BattlefieldEntity.timestamp` has exactly **four** production readers:
+
+| Reader | Job |
+|---|---|
+| `battlefield_ordered` (`game_state.rs:563`) | determinism / decision order |
+| `battlefield_ids_ordered` (`:583`) | determinism / decision order |
+| `static_effect_timestamp` (`:839–840`) | CR 613.7a |
+
+`CLAUDE.md`'s determinism rule names this field as the sort key for every
+collection reaching a decision. **CR 613.7e reassigns it**, so an Aura that
+reattaches jumps to the end of every ordered sweep — every SBA gather, every
+prompt, every decision list silently reorders. So LH-2 is a *field split*, not a
+reassignment plus a doc edit: a stable entry timestamp for determinism, a
+CR 613.7 timestamp for layers.
+
+**The mechanism is already proven in-tree, which is what makes this bounded.**
+CR 613.7c already reassigns a timestamp from the same monotonic counter —
+`state/battlefield.rs:144`, `CounterStack.timestamp`, when a new counter of a
+kind arrives. Deterministic, shipped, and the same move one level up.
+
+### LH-1 — the host becomes addressable (~730 additions)
+
+1. **`AffectedSet::AttachedToSource`** plus its `EffectRecipient` lowering. One
+   arm in `compute::effect_applies_to`
+   (`game.battlefield.get(&effect.source).and_then(|e| e.attached_to) == Some(id)`),
+   one in `static_affected_set`. **Resolved during the walk, never snapshotted**
+   — the same correction §3.4 records for `ByController`, so registration
+   running before the attach is not a problem.
+2. **CR 608.3b, as one shared recipient helper.** `mana_helpers::spell_recipient`,
+   the inline block in `cast.rs`, and `stack::extract_recipient` are three copies
+   of the same fourteen lines deriving a recipient from a spell's *effect*, so
+   none can see an `enchant_filter`. The helper takes the object. This closes
+   `codebase-state.md` Deferred Migrations item 8.
+3. **Holy Strength** — `{W}` Aura, "Enchant creature / Enchanted creature gets
+   +1/+2". One Layer 7c row against the new affected set.
+
+**Item 8 rides here rather than shipping alone, and that was measured.** Zero
+registered cards carry an `enchant_filter`, so the shared helper returns exactly
+what the three copies return today for every card that exists — **a fix nothing
+in a fuzz game can reach**. Shipping it alone would put a new arm in front of
+the performance pool that no card can open, which is the failure §3 of
+`engineering-practices.md` describes. It ships with the card that makes it live.
+
+### LH-2 — CR 613.7e, and the field split (~900 additions)
+
+1. Split `BattlefieldEntity.timestamp` per the table above; update the four
+   readers, each deliberately.
+2. Reassign the CR 613.7 timestamp at the attach site, from `next_timestamp`.
+3. Restate the contract in `CLAUDE.md` and in `battlefield_ordered`'s docs:
+   determinism keys off the *entry* timestamp, which is still allocated once.
+4. **Consumer: Equip (CR 702.6).** Every PR in a split carries a consumer of what
+   it builds (§4), and LH-2's is a reattachment path. Equip is the right one:
+   `"[Cost]: Attach this Equipment to target creature you control"` is a
+   **single** target, where Aura Finesse is two and the pool has no multi-target
+   spell. It also closes CR 704.5p — Equipment detach, one of the six paths the
+   2026-09-01 fuzz re-audit measured at zero, and unreachable today because
+   nothing can attach an Equipment.
+
+**This is the piece to challenge first.** Equip brings an activated ability with
+a timing restriction and a new `Primitive::Attach` (only `KeywordAction::Attach`
+exists today). If that reads as too much for one PR, the alternative is
+multi-target plus Aura Finesse — a different subsystem, not a smaller one.
+
+### Exit criteria
+
+- An Aura cast from hand chooses a target at CR 601.2c, fizzles per CR 608.3b
+  against an illegal one, and enters attached.
+- 704.5m/n fire in a `fuzz_games --pool stress` run; the fuzz re-audit's Aura row
+  and (with LH-2) its Equipment row leave zero.
+- Determinism holds: three runs at one seed, both pools, byte-identical outside
+  `=== Timing ===`, **with a reattachment in the log**.
+- `PERFORMANCE_POOL` gains one card per new engine path, with the §3 table
+  re-recorded.
+
+### Explicitly out
+
+- **Animate Dead** — triggered abilities (item 6), text-changing effects, and
+  enchanting a card in a graveyard.
+- **Aura Finesse** — `Primitive::Attach` plus the pool's first multi-target spell.
+- **Pacifism** — RS-3, which wants item 7 first.
+- **CR 613.7m** APNAP timestamp ordering — same rule family, already ledgered
+  under "Before card breadth" item 4, and driven by `CreateTokens` (RE) and
+  RC-4 rather than by attachment.
 
 ---
 
