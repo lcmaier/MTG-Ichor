@@ -144,6 +144,7 @@ line for line but the timing lines. → `codebase-state.md`.
    row stores values, never a reference** — which is what keeps it off item 7. CV-2 needs RC-2
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes LKI
    formalization and conditional static abilities with it
+6b. Attachment as a layers input — CR 613.7e's field split + an Aura-host `AffectedSet`, phase LH. **Before 7**: two new memo-key inputs. → `layers-architecture.md` §13a
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass + cross-call
    memoization, as one phase. **Hard back-stop: before Phase 8 card breadth**; until it lands,
    author no dependency-ordering-sensitive cards
@@ -152,9 +153,8 @@ line for line but the timing lines. → `codebase-state.md`.
 Commander/multiplayer track — cost modification, `GameConfig::commander()`, CR 903.7, CR
 800/802. **903.9a/b are done**, but unreachable until something sets `GameObject.is_commander`.
 
-**v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly
-parallel AI games over the CLI. Two-player Standard is a checkpoint, not the target, so
-**write new systems N-player-shaped from the start**.
+**v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
+AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
 ## Spec database
 
