@@ -632,9 +632,15 @@ mod tests {
         assert!(game.battlefield.contains_key(&id));
     }
 
+    // COVERS: ATOM-122.3-001
     #[test]
     fn test_sba_counter_annihilation() {
         // Permanent with 3 +1/+1 and 2 -1/-1 → ends with 1 +1/+1 and 0 -1/-1
+        //
+        // The atom's `min(3, 2)` needs both signs at their full counts in one
+        // check, which no pair of registered cards can produce — CR 704.3
+        // sweeps between resolutions. `tests/phase_sba_integration_test.rs`
+        // carries the reachable half; this stays the whole atom.
         let mut game = GameState::new(2, 20);
 
         let data = CardDataBuilder::new("Grizzly Bears")

@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rs_cards;
+use super::phase_sba_cards;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -41,7 +42,7 @@ use super::phase_rs_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 59] = [
+const PERFORMANCE_POOL: [&str; 60] = [
     "Plains",
     "Island",
     "Swamp",
@@ -111,6 +112,11 @@ const PERFORMANCE_POOL: [&str; 59] = [
     // what makes Blood Moon's effect on a tapland measurable here.
     "Idyllic Beachfront",
     "Chainbreaker",
+    // The first card in the crate to propose a `GameAction::AddCounters`.
+    // Chainbreaker is already here and enters with -1/-1 counters, so this is
+    // also what makes CR 704.5q's annihilation sweep run in a measured game
+    // rather than only in a fixture.
+    "Battlegrowth",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -270,6 +276,15 @@ impl CardRegistry {
         // (CR 614.1c/d). One per half of `EnterMods`: status and counters.
         registry.register("Idyllic Beachfront", phase_rc_cards::idyllic_beachfront);
         registry.register("Chainbreaker", phase_rc_cards::chainbreaker);
+        // The third RC-2 card, and it was written but never registered — its
+        // own doc comment says "this one grows the stress pool", which was
+        // false for as long as this line was missing.
+        registry.register("Adaptive Shimmerer", phase_rc_cards::adaptive_shimmerer);
+
+        // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
+        // and until this card the annihilation sweep had never run in a fuzz
+        // game — `engineering-practices.md` §3.3.
+        registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 
         registry
     }

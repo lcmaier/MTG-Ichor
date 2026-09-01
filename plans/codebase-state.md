@@ -316,7 +316,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
 5. **CR 601.2a announces a move that CR 601.2 may un-happen (recorded 2026-08-25, RA-3).** `cast_spell` proposes the hand→stack move at CR 601.2a — correctly, since the object really is on the stack while costs are paid — but the `ZoneChange` is emitted *then*, before it is knowable whether the cast rewinds. A rewind leaves the forward event in the log, so a replay sees a move CR 601.2 says never happened. RA-3 fixed the other half (the rollback itself is silent, which is what `// CAST-ROLLBACK:` had always claimed and never delivered); this half needs the announcement deferred to CR 601.2i without deferring the move, which is a two-phase cast rather than a payload change. **Sized:** one function, `cast_spell`, plus wherever the deferred event is flushed. `tests/phase_ra_integration_test.rs::test_a_failed_cast_announces_nothing` documents the gap where it lives. Not blocking RB — no replacement effect applies to a rewind — but it is a wrong entry in a log the trigger matcher will read, so it should land before Phase 6.
 
-6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `BattlefieldEntity` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6). Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep is also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`:** `engine/sba.rs`'s 704.5d gather iterates `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emit `TokenCeasedToExist` in per-process order. It is invisible to `fuzz_games`' summary, which counts no such ordering, and shows up only in a `--dump-events` diff on the `stress` pool (two adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. Routing the sweep fixes it, since `execute_actions` orders a batch.
+6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `BattlefieldEntity` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6). Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep is also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`:** `engine/sba.rs`'s 704.5d gather iterates `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emit `TokenCeasedToExist` in per-process order. It is invisible to `fuzz_games`' summary, which counts no such ordering, and shows up only in a `--dump-events` diff on the `stress` pool (two adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. Routing the sweep fixes it, since `execute_actions` orders a batch.
 
 7. **The early stack pop — ✅ DELETED 2026-09-01 (phase RC-1).** `resolve_top_of_stack` used to remove the object from the `stack` `Vec` before resolving, documented as keeping an in-flight Counterspell from seeing the resolving object. Nothing could see it: CR 608.2g forbids casting a spell or activating an ability during a resolution, so no effect can *acquire* it as a target mid-resolution, and a spell cannot choose itself at CR 601.2c because `enumerate_legal_selections` (`oracle/legality.rs`) and `has_any_legal_choice` (`engine/targeting.rs`) already exclude it by `exclude_id`. The CR meanwhile keeps a resolving spell **on** the stack (CR 608.2; 608.2n/608.3a move it at the end), so the pop was an engine artifact the rules do not have.
 
@@ -326,7 +326,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
     **Exit met, mechanically.** Whole suite green, zero warnings, and `fuzz_games --games 200 --seed 12345` byte-identical to a same-day `main` binary on **both** pools outside the `=== Timing ===` block; three runs each, identical. A `--dump-events` diff at 40 games was added on top of the summary and is identical too, after canonicalizing the per-process v4 `ObjectId`s — 18,097 event lines on `performance`, 18,738 on `stress`, same kinds and same counts. No new `GameEvent`, no new behavior.
 
-8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger.
+8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger. **Sized 2026-09-01, and it is one helper, not three:** `oracle/mana_helpers.rs::spell_recipient`, the inline block in `engine/cast.rs`, and `engine/stack.rs::extract_recipient` are three copies of the same fourteen lines, computing a spell's recipient from its *effect* — so none can see an `enchant_filter` and all three must learn the Aura rule together or disagree. **A second blocker was found the same day and it is the larger one: fixing 608.3b still would not make an Aura registerable.** No `AffectedSet` names an Aura's host — `static_affected_set` has two productive arms (`FilteredPermanents` → `Filter`, `Implicit` → `SourceOnly`), `Duration::WhileEnchanted` has no consumer, and `register_static_effects` runs inside `place_on_battlefield`, *before* `resolve_taken` attaches the Aura, so even `Fixed` has nothing to capture. Every faithful Aura's text is about its host, so the Aura half is a phase with a layers change in it. `engine/resolve.rs::attach_aura_on_etb` is meanwhile dead code — zero production callers, three unit tests — implementing CR 303.4g's choose-on-entry for a path no card can take; the live path is `engine/stack.rs`'s Aura branch.
 
 ### Found by a judge-corpus pass (2026-08-26)
 
@@ -1590,6 +1590,84 @@ registered into the stress pool only; 50 stress games at seed 12345 give P0 30 /
 P1 20, turns 26.8, spells 19.5, lands 17.2, combat 10.7, creatures died 5.2,
 damage events 25.0, total damage 54.2, life changes 17.7, zero panics and 202
 Zombie tokens. Rules and both baselines: `plans/engineering-practices.md` §3.
+
+### Fuzz-pool coverage — re-audited 2026-09-01
+
+**Two of the six paths the audit above calls unreachable had already closed, and
+nobody had re-measured.** That audit is prose, and prose does not expire loudly:
+it was written when `Primitive::CreateToken` was a stub and before combat could
+produce a batch. The instrument this time is 200 stress games at seed 12345 with
+`--dump-events`, counting each path's own event signature in the log, so every
+row below is a number someone else can reproduce.
+
+| SBA / path | Signature counted in the dump | Occurrences | Blocker today |
+|---|---|---|---|
+| 704.5d token cease-to-exist | `TokenCeasedToExist` | **43**, across 23 of 200 games | **none** — RB's Kalitas closed it |
+| multi-member `Destroy` batch | ≥2 `[DestroyedBySba]` between two `StateBasedActionPerformed` | **155 batches**, largest 6 members | **none** — ordinary combat produces them |
+| 704.5q counter annihilation | `CountersAnnihilated` | **0** → **10** | **none** — a real card gap, closed below |
+| 704.5m/n Aura | `[AuraSba]` | **0** | *two* items deep — see below |
+| 704.5p Equipment detach | `EquipmentDetached` | **0** | Equip (CR 702.6). `attach_to` has exactly one production caller and it is the Aura path |
+| 704.5i planeswalker death | `[ZeroLoyalty]` | **0** | loyalty abilities have no `AbilityType`, and CR 120.3c is unimplemented |
+
+**The two closed rows are the finding, not the two cards.** The old audit's
+entry for multi-member `Destroy` was written about *mass removal from a spell* —
+Wrath of God, still unwritable, `EffectRecipient::FilteredPermanents` still a
+static-ability recipient. But the CR 608.2f batch it worried about is reached
+155 times per 200 games from the **SBA sweep**, because two creatures trading in
+combat is one `execute_actions` call with two `GameAction::Destroy` members. A
+gap named by its cause outlived the cause.
+
+**CR 704.5q closed with one card.** The rule is defined over one permanent
+holding two counter kinds, and `chainbreaker` (RC-2, colorless, in every deck)
+was already the -1/-1 half; nothing anywhere produced a +1/+1 counter.
+`cards/phase_sba_cards.rs::battlegrowth` — `{G}` Instant, "Put a +1/+1 counter
+on target creature", the only one of Scryfall's 72 cards with that clause whose
+oracle text is *just* that sentence — is the other half. It is also the first
+thing in the crate to propose a `GameAction::AddCounters`: Chainbreaker's
+counters arrive through `EnterMods` and `GameState::add_counters`, a direct
+write inside the entry performer, so `perform_action`'s arm and `gather`'s
+`EventSubject::Object` leg for it had no production reach at all. `CountersChanged`
+goes **0 → 82** per 200 games with it, which is what says the arm is live rather
+than merely correct. New engine path, so it takes the deliberate
+`PERFORMANCE_POOL` addition §3 asks for.
+
+**The Aura row is the one worth reading, because item 8 is only half of it.**
+Item 8 (CR 608.3b) is real and still owed, and this pass sized it: three
+functions compute a spell's recipient from its effect and *none* of them can see
+an Aura's `enchant_filter` — `oracle/mana_helpers.rs::spell_recipient` (the
+CR 601.2c castability pre-check), the inline block in `engine/cast.rs`
+(CR 601.2c target selection), and `engine/stack.rs::extract_recipient` (the
+CR 608.2b fizzle). They are three copies of the same fourteen lines, so the fix
+is one shared helper that takes the object rather than a fourth copy.
+
+**But fixing it still would not make an Aura registerable, which is the new
+finding.** No `AffectedSet` can name the permanent an Aura is attached to:
+`static_affected_set` has exactly two productive arms, `FilteredPermanents` →
+`Filter` and `Implicit` → `SourceOnly`, and `register_static_effects` runs
+inside `place_on_battlefield` — *before* `resolve_taken` attaches the Aura, so
+even `Fixed` has nothing to capture. `Duration::WhileEnchanted` exists and has
+no consumer. Every faithful Aura's text is about its host, so the Aura half
+needs a layers change on top of item 8 and is a phase, not a card drop. Auras
+were left out of this PR on that basis.
+
+**`attach_aura_on_etb` (`engine/resolve.rs`) is dead code**, found the same way:
+zero production callers, reached only by its own three unit tests. It implements
+CR 303.4g's *choose a host on entry*, which is the right shape for an Aura put
+onto the battlefield without being cast — a path no card can take yet. Left in
+place rather than deleted, and recorded here so the next reader does not mistake
+it for the live path (`engine/stack.rs`'s Aura branch is).
+
+**Also registered: `adaptive_shimmerer`.** Its own doc comment said "this one
+grows the stress pool" and `registry.rs` never registered it, so the claim was
+false from the day RC-2 landed — the same silent gap as an unregistered card,
+one level down. Registering it makes the doc true and adds a colorless 0/0 that
+lives only on its counters, which is the sharpest board CR 704.5f has.
+
+**Gate, both pools, 2026-09-01:** 200 stress games at seed 12345 `--threads 1` —
+0 errors, 0 panics, 0 turn-limit hits. Determinism re-checked three runs at one
+seed on both pools, byte-identical outside `=== Timing ===`. Fixtures re-recorded
+in `plans/engineering-practices.md` §3; **both columns moved, because both pools
+gained Battlegrowth**, so nothing in that table is comparable across this commit.
 
 ### Phasing (CR 702.26) — sized 2026-08-26, not started
 

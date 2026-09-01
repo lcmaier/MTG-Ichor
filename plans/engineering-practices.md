@@ -119,29 +119,41 @@ across months buys the timing measurement nothing.
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-01 (performance pool 57 → 59, RC-2):**
+2026-09-01 (performance pool 59 → 60, stress 62 → 64; Battlegrowth and Adaptive
+Shimmerer):**
 
-| | performance (59 cards) | stress (63 cards) |
+| | performance (60 cards) | stress (64 cards) |
 |---|---|---|
-| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 27 (54.0%) / 23 (46.0%) |
-| Avg turns | 31.8 | 30.6 |
-| Spells cast | 22.8 | 21.9 |
-| Lands played | 19.7 | 18.6 |
-| Combat w/ atk | 12.7 | 12.1 |
-| Creatures died | 8.6 | 4.8 |
-| Damage events | 26.7 | 27.5 |
-| Total damage | 53.3 | 60.5 |
-| Life changes | 17.6 | 17.3 |
-| **Layer walks** | **108,902** | **101,929** |
-| **Layer frames** | **135,893** | **127,209** |
-| **Frames/walk** | **1.25** | **1.25** |
-| **Replacement gathers** | **669** | **648** |
-| **Restriction queries** | **670** | **649** |
+| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 26 (52.0%) / 24 (48.0%) |
+| Avg turns | 30.4 | 29.6 |
+| Spells cast | 22.1 | 21.4 |
+| Lands played | 19.1 | 18.1 |
+| Combat w/ atk | 11.9 | 11.1 |
+| Creatures died | 7.6 | 4.7 |
+| Damage events | 25.0 | 24.7 |
+| Total damage | 52.3 | 57.4 |
+| Life changes | 17.0 | 15.5 |
+| **Layer walks** | **99,877** | **93,245** |
+| **Layer frames** | **123,802** | **108,422** |
+| **Frames/walk** | **1.24** | **1.16** |
+| **Replacement gathers** | **626** | **600** |
+| **Restriction queries** | **627** | **601** |
 
-*Previous values, 2026-09-01 morning (performance 55 → 57, RS-1): performance
-29/21, 28.4 turns, 21.0 spells, 18.1 lands, 11.2 combats, 5.9 deaths, 22.8
-damage events, 49.1 damage, 16.6 life changes; stress 28/22, 28.8, 20.9, 17.9,
-12.1, 3.8, 25.5, 57.0, 19.2.*
+**Both columns moved and neither move is a delta.** The performance pool gained
+Battlegrowth — `Primitive::AddCounters` had no reader anywhere, which is the new
+engine path §3 asks a card for — and the stress pool gained it plus Adaptive
+Shimmerer, whose RC-2 doc comment had claimed it was registered when it was not.
+So §3.1's rule applies to this very row: *never A/B any number across a pool
+change*. Nothing above is comparable to the values below it.
+
+*Previous values, 2026-09-01 (performance 57 → 59, RC-2): performance 25/25,
+31.8 turns, 22.8 spells, 19.7 lands, 12.7 combats, 8.6 deaths, 26.7 damage
+events, 53.3 damage, 17.6 life changes, 108,902 walks / 135,893 frames / 1.25
+per walk / 669 gathers / 670 queries; stress 27/23, 30.6, 21.9, 18.6, 12.1, 4.8,
+27.5, 60.5, 17.3, 101,929 / 127,209 / 1.25 / 648 / 649. Before that (performance
+55 → 57, RS-1): performance 29/21, 28.4 turns, 21.0 spells, 18.1 lands, 11.2
+combats, 5.9 deaths, 22.8 damage events, 49.1 damage, 16.6 life changes; stress
+28/22, 28.8, 20.9, 17.9, 12.1, 3.8, 25.5, 57.0, 19.2.*
 
 **These are fixtures, not benchmarks, and the distinction is the point.** Every
 row is seed-deterministic, so it is comparable across machines and across months
@@ -381,6 +393,19 @@ one to `PERFORMANCE_POOL`, so it cannot move a recorded fixture — it only grow
 the stress pool, which is read as a threshold. That is what §3 bought, and it
 survived the pool un-freezing (2026-09-01): what changed is that a phase opening
 a new engine path now *also* makes the second, deliberate move.
+
+**And the rule this section did not have, added 2026-09-01: a gap register
+needs a date on it too.** `codebase-state.md`'s fuzz-pool audit named six
+unreachable SBA paths, each with a blocker. Re-measured against 200 stress games
+with `--dump-events`, **two of the six had closed on their own** — a token
+ceasing to exist reached 43 times per 200 games once RB's Kalitas made tokens,
+and multi-member `GameAction::Destroy` batches 155 times, because two creatures
+trading in combat is one `execute_actions` call. The multi-member entry had been
+written about *mass removal from a spell*, which is still unwritable; the branch
+it worried about was being taken constantly by a route nobody had connected to
+it. **A gap named by its cause outlives the cause**, so the register is a
+measurement and gets re-run, not inherited — and counting an event signature in
+a `--dump-events` log is cheap enough that there is no excuse for inheriting.
 
 ---
 
