@@ -15,34 +15,30 @@ impl GameState {
     /// (rule 405.5 / 117.4).
     ///
     /// Steps:
-    /// 1. Pop the top ObjectId from the stack.
-    /// 2. Look up its StackEntry.
+    /// 1. Read the top ObjectId. It stays on the stack: CR 608.2 keeps a
+    ///    resolving spell there for the whole of its resolution.
+    /// 2. Take its StackEntry.
     /// 3. Re-validate targets (608.2b) — fizzle if all illegal.
     /// 4. Resolve the effect via resolve_effect().
     /// 5. Post-resolution: instant or sorcery to its owner's graveyard and the
     ///    ability removed (608.2n), permanent spell onto the battlefield
-    ///    (608.3a/c) — through `change_zone` like anything else.
+    ///    (608.3a/c) — through `change_zone` like anything else, which is also
+    ///    what takes it off the stack `Vec`.
     /// 6. Emit `AbilityResolved` if it was an ability.
     pub fn resolve_top_of_stack(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         if self.stack.is_empty() {
             return Err("Cannot resolve: stack is empty".to_string());
         }
 
-        // Pop the top of stack (last element = top, LIFO).
-        //
-        // The object comes off the stack `Vec` before it resolves. **This is not
-        // what the CR describes** — CR 608.2 keeps a resolving spell on the
-        // stack until 608.2n or 608.3a moves it — and the reason the pattern was
-        // originally given, that it stops an in-flight Counterspell from seeing
-        // the resolving object, does not hold: CR 608.2g forbids casting a spell
-        // during a resolution at all, and a spell cannot choose itself at
-        // CR 601.2c because target enumeration already excludes it by
-        // `exclude_id`. Kept for now, described honestly, and tracked for removal
-        // in `codebase-state.md` — see `GameState::resolving`.
+        // The top of the stack (last element = top, LIFO), read rather than
+        // popped. CR 608.2 leaves it there until 608.2n or 608.3a moves it, so
+        // the removal belongs to the zone change at the end of this function —
+        // or, on the ability path, to the two explicit `retain`s below, since an
+        // ability ceasing to exist is not a zone change.
         let object_id = *self.stack.last().unwrap();
 
-        // Before the pop, deliberately: a spell's controller lives on its
-        // `StackEntry`, which the next two lines destroy. Note it is *not* used
+        // Before the `StackEntry` is taken, deliberately: a spell's controller
+        // lives on it and the next statement destroys it. Note it is *not* used
         // for the graveyard below — a finished spell goes to its owner's
         // (CR 608.2n).
         //
@@ -61,7 +57,6 @@ impl GameState {
             crate::oracle::characteristics::get_effective_controller(self, object_id)
                 .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 
-        self.stack.pop();
         let entry = self.stack_entries.remove(&object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
@@ -71,26 +66,23 @@ impl GameState {
         // field — so it *is* "the player who put that spell onto the stack".
         let default_controller = entry.controller;
 
-        // Record the window the pop just opened. Two things downstream need to
-        // know about it, and both used to be served by writing `obj.zone` by
-        // hand at three sites instead: the stack removal in `move_object` (which
-        // would otherwise report a missing object as a bug) and CR 110.2b's
-        // controller (which the `StackEntry` just taken above was carrying).
-        // Cleared on every path out, including the error ones — that is what
-        // `resolve_popped` exists to make single-sited.
+        // Carry CR 110.2b's default controller across the resolution: it lives
+        // on the `StackEntry` taken above, and `init_zone_state` needs it after
+        // that entry is gone. Cleared on every path out, including the error
+        // ones — that is what `resolve_taken` exists to make single-sited.
         self.resolving = Some(ResolvingObject {
             id: object_id,
             default_controller,
         });
-        let result = self.resolve_popped(object_id, entry, effective_controller, dp);
+        let result = self.resolve_taken(object_id, entry, effective_controller, dp);
         self.resolving = None;
         result
     }
 
-    /// The body of [`Self::resolve_top_of_stack`], after the pop.
+    /// The body of [`Self::resolve_top_of_stack`], after the `StackEntry` is taken.
     ///
     /// Split out only so that `resolving` has exactly one place to be cleared.
-    fn resolve_popped(
+    fn resolve_taken(
         &mut self,
         object_id: crate::types::ids::ObjectId,
         entry: crate::state::game_state::StackEntry,
@@ -175,7 +167,11 @@ impl GameState {
                 self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
             }
         } else {
-            // Ability: ceases to exist — remove from objects entirely
+            // Ability: ceases to exist (CR 608.2n) — removed from objects
+            // entirely, with no destination zone. That is also why the stack
+            // removal is explicit here: every other exit from this function is a
+            // zone change, and `move_object` does it for them.
+            self.stack.retain(|&x| x != object_id);
             self.objects.remove(&object_id);
         }
 
@@ -197,8 +193,9 @@ impl GameState {
 
     /// Handle a spell/ability that fizzles (all targets now illegal).
     ///
-    /// The object has already been popped from self.stack before this is called.
-    /// Spells go to their owner's graveyard. Abilities cease to exist.
+    /// The object is still on self.stack when this is called (CR 608.2). Spells
+    /// go to their owner's graveyard, which is the zone change that removes them;
+    /// abilities cease to exist and take themselves off the stack here.
     fn handle_fizzle(
         &mut self,
         object_id: crate::types::ids::ObjectId,
@@ -215,7 +212,9 @@ impl GameState {
                 &ActionContext::new(dp),
             )?;
         } else {
-            // Ability: just remove from objects
+            // Ability: no destination zone, so the stack removal is explicit —
+            // same reason as the completed-ability arm in `resolve_taken`.
+            self.stack.retain(|&x| x != object_id);
             self.objects.remove(&object_id);
         }
 
