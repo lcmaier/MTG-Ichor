@@ -698,18 +698,31 @@ fn test_root_maze_taps_an_entering_land() {
     );
 }
 
-/// **The multi-candidate branch, from two registered cards.**
+/// **The multi-candidate branch, from two registered cards** — and this test
+/// proves the prompt fires, not that the answer matters.
 ///
 /// Root Maze's filter and Idyllic Beachfront's own `SourceOnly` ability both
 /// rewrite the same `EnterBattlefield` into `EnterWith(tapped)`, so CR 616.1
-/// makes the affected object's controller choose which applies first. Both
-/// orders reach the same board — two `tapped` rewrites commute — so the
-/// assertion that carries the weight is `dp.is_empty()`: the prompt was asked,
-/// of a real player, from a board a fuzz game can build.
+/// makes the affected object's controller choose which applies first. **No
+/// assertion can distinguish the two orders, and that is structural rather than
+/// a weakness of this board**: `EnterMods::merge` is `|=` and `+`, and neither
+/// `EventPattern::EnterBattlefield` nor `set_affects` reads `mods`, so an
+/// `EnterWith` cannot change which effects apply on the next CR 616.1f
+/// iteration. Every `EnterWith` bucket is order-invariant.
 ///
-/// RB left this branch dead with Kalitas and RC-2 recorded it as blocked on
-/// RC-3's gate; it was blocked on nothing. `plans/codebase-state.md` carries
-/// the correction.
+/// So `dp.is_empty()` is the whole assertion, and it is worth having for one
+/// reason: RB left this branch dead with Kalitas and RC-2 recorded it as
+/// blocked on RC-3's gate when it was blocked on nothing, so *that a registered
+/// board reaches the prompt at all* is the claim. What both effects **applying**
+/// looks like is [`test_root_maze_and_chainbreaker_modify_one_entry_together`],
+/// where the two rewrites touch different fields of `EnterMods` and the board
+/// shows both.
+///
+/// That the engine prompts here at all is a real cost the CLI harness pays per
+/// entry, and it is open — `replacement-architecture.md` §11 item 19 has the
+/// theorem, the narrow rule that follows from it, and why suppressing the
+/// prompt before a non-commuting entry card is registered would re-kill this
+/// branch.
 // COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn test_two_registered_cards_make_cr_616_1_ask() {
@@ -728,12 +741,13 @@ fn test_two_registered_cards_make_cr_616_1_ask() {
     assert!(game.battlefield.get(&land).unwrap().tapped, "either order taps it");
 }
 
-/// The other index, for the reason `phase_rb_integration_test` gives: a choice
-/// test that only ever picks 0 cannot tell a prompt from a hard-coded first
-/// candidate. Root Maze's row is gathered by the battlefield sweep and Idyllic
-/// Beachfront's by source 1a, which is spliced in *after* it (CR 613.7 —
-/// the entering permanent is the newest object), so the two indices are two
-/// different effects.
+/// The other index. `phase_rb_integration_test`'s pair does this to show the
+/// choice *changes the outcome*; here it cannot, per the note above, so this
+/// test makes the weaker claim that is still worth making: **index 1 is a real
+/// candidate and not an out-of-range accident.** Root Maze's row is gathered by
+/// the battlefield sweep and Idyllic Beachfront's by source 1a, spliced in
+/// after it (CR 613.7 — the entering permanent is the newest object), so the
+/// bucket genuinely holds two distinct effects rather than one listed twice.
 #[test]
 fn test_the_other_cr_616_1_order_is_available() {
     let mut game = setup_two_player_game();

@@ -3282,6 +3282,53 @@ there, because all three are about **what a rider can reach**.
     `test_two_teferis_draw_four_not_infinity`, and **RE** is the phase that
     needs it.
 
+### Found by asking what RC-3's own test proves (2026-09-02)
+
+19. **CR 616.1 prompts for a choice with one outcome on every entry, and for
+    `Rewrite::EnterWith` that is a theorem rather than a coincidence.** Raised
+    against `test_two_registered_cards_make_cr_616_1_ask`: Root Maze and
+    Idyllic Beachfront both rewrite one `EnterBattlefield` into
+    `EnterWith(tapped)`, the pipeline asks which applies first, and **no
+    assertion can tell the two orders apart**. Three facts make that general:
+
+    - `EnterMods::merge` is `tapped |= other` and per-kind counter `+` — both
+      commutative and associative.
+    - `EventPattern::EnterBattlefield` matches `GameAction::EnterBattlefield { .. }`
+      on the variant alone, and `set_affects` keys on the event's *subject*.
+      Neither reads `mods`, so applying an `EnterWith` cannot change which
+      effects are applicable on the next CR 616.1f iteration.
+    - So for a bucket whose members are all `EnterWith`, the loop is
+      order-invariant. The prompt is real, CR-mandated and pure noise.
+
+    **The v1 stake is the CLI harness**: "highly parallel AI games over the
+    CLI" pays a decision round-trip per entry under two entry replacements, for
+    an answer that cannot matter.
+
+    **The sound rule is narrow and provable, and it is not "collapse identical
+    rewrites".** That would be a semantics-assuming shortcut of exactly the kind
+    `layers-architecture.md` §12 item 3 says never to reach for. The provable
+    form is: *skip the prompt when every member of the bucket is a
+    non-optional, non-counter-derived `EnterWith` with no `then`*. The `then`
+    exclusion is load-bearing — riders queue in choice order and run in queue
+    order (CR 615.5), so two candidates that both carry one make the order
+    observable through the event log even though the board is identical.
+
+    **Do not ship it without the card that keeps the branch alive**, and this is
+    the whole reason it is a question rather than a patch. Suppressing the
+    prompt returns CR 616.1's multi-candidate branch to dead code in a fuzz
+    game — the ordering choice, the applied set across instances and CR 101.4's
+    APNAP ordering among simultaneous choosers — which is the Kalitas gap for a
+    third time, now caused by a fix. What keeps it reachable is a registered
+    entry replacement that **does not** commute: a `Rewrite` that drops the
+    event (CR 614.6) beside an `EnterWith`, where the order decides whether the
+    `EnterWith`'s CR 614.5 slot is spent and its rider queues at all.
+    Containment Priest is the printed shape and needs a "wasn't cast" predicate
+    `EventPattern` does not have. **Order: card first, suppression second.**
+
+    Lands in **RC-4**, which opens this loop anyway for CR 614.13a/b's exclusion
+    sets and the CR 616.1b/c buckets. Until then the prompt stays, and the tests
+    say what they actually prove.
+
 ---
 
 ## 12. Explicitly out of scope
