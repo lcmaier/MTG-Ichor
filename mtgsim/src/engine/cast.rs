@@ -573,6 +573,13 @@ impl GameState {
                 PhaseType::Precombat | PhaseType::Postcombat => {}
                 _ => return Err("Sorcery-speed spells can only be cast during a main phase".to_string()),
             }
+            // Since RC-1 the resolving object is still on the stack (CR 608.2),
+            // so this reads "not empty" throughout a resolution. Unreachable
+            // today — CR 608.2g forbids casting during one at all — but the
+            // "unless an effect instructs" half of 608.2g is what an RC-era card
+            // brings, and then this site has to say which it means: the
+            // instruction overriding timing outright, or the resolving object not
+            // counting against its own instruction. Not decided here.
             if !self.stack.is_empty() {
                 return Err("Sorcery-speed spells can only be cast when the stack is empty".to_string());
             }

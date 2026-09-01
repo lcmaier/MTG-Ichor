@@ -2322,7 +2322,7 @@ accepts that a later PR may fix an earlier one.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
-| **RC-1 — delete the early stack pop** | pure deletion, zero new behavior | **11** production sites across 7 files (`stack.is_empty()` × 5, `GameState::resolving` × 6); deletes one leniency branch | low |
+| **RC-1 — delete the early stack pop** ✅ | pure deletion, zero new behavior | measured **12**, not 11: `stack.is_empty()` × **6** (the row said 5 — see below) + `GameState::resolving` × 6; deletes one leniency branch | low |
 | **RC-2 — `EnterBattlefield` as an event** | the performer migration, plus enters-tapped as its first consumer | **10** production `place_on_battlefield` sites (4 `resolve.rs`, 1 `zones.rs`, 5 `game_state.rs`) + 4 in `test_support`; **7** `init_zone_state` / `init_etb_counters` sites; 4 new type-surface items | medium |
 | **RC-3 — the membership gate and the frame's ability list** | §5c's question 1 | **1** site — `compute.rs:623` — inside the hottest path in the engine | **high** |
 | **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **5** concrete-state reads to route through the accessor pair (`compute.rs:180, 242, 408, 623` + the `176/203/389` summary reads) | **highest** |
@@ -2366,9 +2366,37 @@ read `stack.is_empty()` (`zones.rs`, `legality.rs`, `mana_helpers.rs`,
 reachable during a resolution today, but CR 608.2g's "unless an effect
 instructs" case makes `cast.rs`'s reachable once RC-era cards arrive.
 
-**Exit:** whole suite green, zero warnings, `fuzz_games` identical on every line.
-No new events, no new behavior. If the fuzz numbers move, the deletion changed
-something it should not have.
+**✅ Shipped 2026-09-01. The audit above undercounted, and the miss is the
+finding.** There are **six** `stack.is_empty()` readers, not five: `zones.rs:169`
+had drifted to `:177`, and the unlisted sixth is `ui/display.rs:287`,
+`format_stack`. It turned out to have **no production caller** — `pub`, with
+every use a test in its own file — so nothing rendered differently; had it been
+called, the CR would still have been on the deletion's side, since CR 608.2 puts
+the resolving object on the stack. `stack.rs:27`'s guard is a seventh occurrence
+and is correctly outside both counts: it runs before the resolution. The
+`GameState::resolving` count of six was exact, and the field is down to one
+reader — CR 110.2b's default controller in `init_zone_state`. **The lesson is the
+one §9 keeps re-learning:** a count written into a plan is a measurement with a
+date on it, and RC-2's `place_on_battlefield` / `init_zone_state` figures should
+be re-run before they are built on, not read off this table.
+
+`resolve_popped` became `resolve_taken` — there is no pop left to name it after —
+and `cast.rs`'s site carries a comment naming the CR 608.2g choice it will have
+to make, unfixed here.
+
+**Exit met.** Whole suite green, zero warnings, and `fuzz_games --games 200
+--seed 12345` byte-identical to a same-day `main` binary on **both** pools
+outside `=== Timing ===`, three runs each. A `--dump-events` diff at 40 games was
+added on top of the summary — identical after canonicalizing the per-process v4
+`ObjectId`s, same event kinds at the same counts. **`--dump-events` also caught
+something the summary structurally cannot**, and it is not RC-1's: CR 704.5d's
+token sweep emits in `HashMap` order, so two `TokenCeasedToExist` lines swap
+between runs of the *same* binary on the `stress` pool. Recorded against
+`codebase-state.md` Deferred Migrations item 6, whose routing fixes it.
+
+**Original exit criterion, for the record:** whole suite green, zero warnings,
+`fuzz_games` identical on every line. No new events, no new behavior. If the fuzz
+numbers move, the deletion changed something it should not have.
 
 #### RC-2 — `EnterBattlefield` as an event
 

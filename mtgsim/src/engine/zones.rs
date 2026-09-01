@@ -37,10 +37,11 @@ impl GameState {
     ///
     /// The `// REPLACEMENT-BYPASS:` class is gone. Its three sites in
     /// `engine/stack.rs` *were* real zone changes the pipeline had to see; they
-    /// bypassed only because the stack-pop-first pattern removes the object
-    /// from the stack `Vec` before resolution begins, so this function would
-    /// have removed it twice. RA-3 closed them by naming the in-between state
-    /// instead of routing around it — see [`GameState::resolving`].
+    /// bypassed only because `resolve_top_of_stack` used to pop the object off
+    /// the stack `Vec` before resolution began, so this function would have
+    /// removed it twice. RA-3 closed them by naming the in-between state instead
+    /// of routing around it; RC-1 then deleted the pop, so the stack removal
+    /// here is now the only one and finds the object where CR 608.2 says it is.
     ///
     /// **This function performs the move and announces nothing.** The
     /// `GameEvent::ZoneChange` is emitted by `perform_action`'s own arm, which
@@ -257,13 +258,6 @@ impl GameState {
                     self.stack.remove(pos);
                     self.stack_entries.remove(&id);
                     Ok(())
-                } else if self.resolving.map(|r| r.id) == Some(id) {
-                    // Already off the `Vec`: `resolve_top_of_stack` pops before
-                    // resolving so in-flight effects cannot see the resolving
-                    // object (CR 608.2). Expected, not a bug — and the *only*
-                    // way it is expected. See `GameState::resolving`.
-                    self.stack_entries.remove(&id);
-                    Ok(())
                 } else {
                     Err(format!("Object {} not found on stack", id))
                 }
@@ -342,7 +336,7 @@ impl GameState {
     /// answer `get_effective_controller` gives. A stolen permanent spell enters
     /// under its caster's control here and is moved to the thief by the Layer 2
     /// row CR 400.7a keeps alive. `GameState::resolving` is where the answer
-    /// survives the pop.
+    /// survives the `StackEntry` being taken.
     pub(crate) fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         if zone == Zone::Battlefield {
             let controller = match self.resolving {

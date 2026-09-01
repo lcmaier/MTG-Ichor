@@ -78,14 +78,13 @@ pub struct StackEntry {
     pub ability_identity: Option<AbilityIdentity>,
 }
 
-/// A stack object between being popped for resolution and reaching its
-/// destination zone — a window this engine creates and the CR does not have.
-/// See [`GameState::resolving`].
+/// The stack object currently resolving, and the one thing about it that does
+/// not survive resolution on its own. See [`GameState::resolving`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvingObject {
     pub id: ObjectId,
     /// CR 110.2b's **default** controller: "the player who put that spell onto
-    /// the stack". Read off the `StackEntry` before the pop destroys it.
+    /// the stack". Read off the `StackEntry` before resolution takes it.
     ///
     /// Not the effective controller. If an opponent stole the spell they control
     /// the permanent it becomes — but by a Layer 2 effect that CR 400.7a keeps
@@ -130,32 +129,25 @@ pub struct GameState {
     pub stack_entries: HashMap<ObjectId, StackEntry>,
     /// The stack object currently resolving, if any.
     ///
-    /// **This models an engine artifact, not a game state.** CR 608.2 keeps a
-    /// resolving spell *on* the stack for the whole of its resolution, and
-    /// CR 608.2n/608.3a move it only at the end. There is no in-between zone in
-    /// the rules. `resolve_top_of_stack` nonetheless pops the object off `stack`
-    /// before resolving, which leaves a window this field exists to describe:
-    /// no longer in the stack `Vec`, not yet in its destination zone.
+    /// **One reader, and it is a rules question, not an engine artifact.**
+    /// `init_zone_state(Battlefield)` needs CR 110.2b's *default* controller —
+    /// "the player who put that spell onto the stack" — and the `StackEntry`
+    /// that recorded it has been taken by the time a permanent spell enters. The
+    /// field is how that answer crosses the resolution.
     ///
-    /// Two readers, and they want different things:
-    ///
-    /// - `remove_from_zone_collection(Stack)` would otherwise fail to find the
-    ///   object and report a bug that is not one. **This reader exists only
-    ///   because of the early pop** — see the note below.
-    /// - `init_zone_state(Battlefield)` needs CR 110.2b's *default* controller —
-    ///   the player who put the spell on the stack — and the `StackEntry` that
-    ///   recorded it has been taken by then. This reader is real regardless of
-    ///   the pop.
-    ///
-    /// **The early pop's stated reason does not survive inspection (audited
-    /// 2026-08-26).** It was documented as keeping in-flight effects — a
-    /// Counterspell — from seeing the resolving object. Nothing can: CR 608.2g
-    /// says no spell may normally be cast and no ability activated during a
-    /// resolution, so no effect can *acquire* the resolving object as a target
-    /// mid-resolution, and a spell cannot pick itself at CR 601.2c because
-    /// `enumerate_legal_selections` and `has_any_legal_choice` already exclude
-    /// it by `exclude_id`. Removing the pop is tracked in `codebase-state.md`;
-    /// it would delete the first reader above and leave the second.
+    /// It used to have a second reader, and RC-1 deleted it along with the thing
+    /// that created it. `resolve_top_of_stack` popped the object off `stack`
+    /// before resolving, which the CR does not do — CR 608.2 keeps a resolving
+    /// spell *on* the stack until 608.2n/608.3a move it at the end — so
+    /// `remove_from_zone_collection(Stack)` needed a branch licensing an object
+    /// that was already gone. The pop's stated reason had not survived
+    /// inspection (audited 2026-08-26): it was documented as keeping in-flight
+    /// effects — a Counterspell — from seeing the resolving object, and nothing
+    /// can, because CR 608.2g says no spell may normally be cast and no ability
+    /// activated during a resolution, so no effect can *acquire* the resolving
+    /// object as a target mid-resolution, and a spell cannot pick itself at
+    /// CR 601.2c because `enumerate_legal_selections` and `has_any_legal_choice`
+    /// already exclude it by `exclude_id`.
     ///
     /// Always `None` outside a resolution. `resolve_top_of_stack` clears it on
     /// every exit path, including the error ones.
