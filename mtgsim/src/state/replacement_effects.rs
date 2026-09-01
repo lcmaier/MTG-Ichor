@@ -6,11 +6,10 @@
 //!
 //! # Why this is not `ContinuousEffectRegistry`
 //!
-//! Modelled on it — same duration-expiry hooks, same `remove_by_source`, same
-//! "recompute by full walk rather than maintaining incremental counters"
-//! discipline, and for the same stated reason: a drifting counter shows up as a
-//! silently skipped effect. It differs in two ways, both because replacement
-//! effects are not layered:
+//! What the two have in common they now *share* rather than copy:
+//! [`DurationRegistry`] owns the rows, the id counter and the CR 514.2 expiry
+//! hooks for both. What is left here differs in two ways, both because
+//! replacement effects are not layered:
 //!
 //! - **No `Layer`, no timestamp ordering.** CR 616.1 orders by *player choice*,
 //!   not by timestamp, so there is no analogue of `effects_in_layer`. Insertion
@@ -36,6 +35,7 @@
 //!   sweep.
 //! - **Static abilities functioning in other zones** are deferred past Phase RE.
 
+use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::ReplacementDef;
@@ -64,25 +64,51 @@ pub struct RegisteredReplacementEffect {
     pub def: ReplacementDef,
 }
 
+/// `SortKey = ()` — CR 616.1 orders by player choice, not by any stored key, so
+/// the id tiebreak alone decides placement and `add` is an append. That is the
+/// registration order the CR 616.1 prompt offers candidates in, and a
+/// `DecisionProvider` picks by index.
+impl DurationRow for RegisteredReplacementEffect {
+    type SortKey = ();
+
+    fn id(&self) -> RowId {
+        self.id
+    }
+    fn set_id(&mut self, id: RowId) {
+        self.id = id;
+    }
+    fn source(&self) -> ObjectId {
+        self.source
+    }
+    fn duration(&self) -> Duration {
+        self.duration
+    }
+    fn controller(&self) -> PlayerId {
+        self.controller
+    }
+    fn created_on_turn(&self) -> u32 {
+        self.created_on_turn
+    }
+    fn sort_key(&self) -> Self::SortKey {}
+}
+
 /// Owns every replacement effect a resolution has created.
 #[derive(Debug, Clone)]
 pub struct ReplacementEffectRegistry {
-    effects: Vec<RegisteredReplacementEffect>,
-    next_id: ReplacementEffectId,
+    /// The `Vec`, the id counter and the CR 514.2 expiry hooks. What stays in
+    /// this file is what is specific to *replacement* effects: `Uses::Once`
+    /// consumption and the reason `remove_by_source` has no production caller.
+    effects: DurationRegistry<RegisteredReplacementEffect>,
 }
 
 impl ReplacementEffectRegistry {
     pub fn new() -> Self {
-        ReplacementEffectRegistry { effects: Vec::new(), next_id: 1 }
+        ReplacementEffectRegistry { effects: DurationRegistry::new() }
     }
 
     /// Register a replacement effect. Returns its unique id.
-    pub fn add(&mut self, mut row: RegisteredReplacementEffect) -> ReplacementEffectId {
-        let id = self.next_id;
-        self.next_id += 1;
-        row.id = id;
-        self.effects.push(row);
-        id
+    pub fn add(&mut self, row: RegisteredReplacementEffect) -> ReplacementEffectId {
+        self.effects.add(row)
     }
 
     /// Remove one row by id. Returns it if it was there.
@@ -90,8 +116,7 @@ impl ReplacementEffectRegistry {
     /// This is how `Uses::Once` is consumed (CR 701.19a — one shield, one
     /// destruction replaced).
     pub fn remove(&mut self, id: ReplacementEffectId) -> Option<RegisteredReplacementEffect> {
-        let pos = self.effects.iter().position(|e| e.id == id)?;
-        Some(self.effects.remove(pos))
+        self.effects.remove(id)
     }
 
     /// Remove every row created by a given source object.
@@ -106,10 +131,10 @@ impl ReplacementEffectRegistry {
     /// of the turn.
     ///
     /// It earns a caller the day a row carries a source-scoped duration
-    /// (CR 611.2b's "for as long as ..."), which is a `retain_effects` keyed on
-    /// duration *and* source, not on source alone.
+    /// (CR 611.2b's "for as long as ..."), which is a `DurationRegistry::retain`
+    /// keyed on duration *and* source, not on source alone.
     pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<RegisteredReplacementEffect> {
-        self.retain_effects(|e| e.source != source)
+        self.effects.remove_by_source(source)
     }
 
     /// Every registered row, in registration order.
@@ -131,10 +156,7 @@ impl ReplacementEffectRegistry {
         active_player: PlayerId,
         current_turn: u32,
     ) -> Vec<RegisteredReplacementEffect> {
-        // Suppress unused-variable warnings until multi-turn durations arrive,
-        // matching `ContinuousEffectRegistry`'s twin.
-        let _ = (active_player, current_turn);
-        self.retain_effects(|e| !matches!(e.duration, Duration::UntilEndOfTurn))
+        self.effects.remove_expired_at_cleanup(active_player, current_turn)
     }
 
     /// Remove rows that expire at the start of a player's turn.
@@ -143,34 +165,7 @@ impl ReplacementEffectRegistry {
         active_player: PlayerId,
         current_turn: u32,
     ) -> Vec<RegisteredReplacementEffect> {
-        self.retain_effects(|e| {
-            !matches!(e.duration, Duration::UntilYourNextTurn)
-                || e.controller != active_player
-                || current_turn <= e.created_on_turn
-        })
-    }
-
-    /// Remove every row failing `keep`, returning them; order preserved.
-    ///
-    /// One pass, for the reason `ContinuousEffectRegistry::retain_effects`
-    /// gives: the obvious `while i < len { v.remove(i) }` is `O(n²)`, and
-    /// `swap_remove` would destroy the registration order the CR 616.1 prompt
-    /// is offered in.
-    fn retain_effects(
-        &mut self,
-        keep: impl Fn(&RegisteredReplacementEffect) -> bool,
-    ) -> Vec<RegisteredReplacementEffect> {
-        let mut removed = Vec::new();
-        let mut kept = Vec::with_capacity(self.effects.len());
-        for effect in self.effects.drain(..) {
-            if keep(&effect) {
-                kept.push(effect);
-            } else {
-                removed.push(effect);
-            }
-        }
-        self.effects = kept;
-        removed
+        self.effects.remove_expired_at_turn_start(active_player, current_turn)
     }
 }
 
