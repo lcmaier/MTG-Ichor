@@ -155,6 +155,17 @@ pub struct GameState {
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
     pub battlefield: HashMap<ObjectId, BattlefieldEntity>,
+
+    /// How much work the engine has done this game — see
+    /// [`EngineCounters`](crate::state::diagnostics::EngineCounters).
+    ///
+    /// **Diagnostic only; nothing may branch on it.** It is on `GameState`
+    /// rather than in a thread-local for the reason `GameState.rng` is: ambient
+    /// state that a game can reach is state a fork or a replay cannot account
+    /// for. A read of these numbers changing behaviour would make them
+    /// unmeasurable, which is why every accessor is read-only and no engine
+    /// module imports them.
+    pub counters: crate::state::diagnostics::EngineCounters,
     /// Exile zone
     pub exile: Vec<ObjectId>,
     /// Command zone
@@ -422,6 +433,7 @@ impl GameState {
             stack_entries: HashMap::new(),
             resolving: None,
             battlefield: HashMap::new(),
+            counters: Default::default(),
             exile: Vec::new(),
             command: Vec::new(),
             turn_number: 1,

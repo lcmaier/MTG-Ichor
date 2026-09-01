@@ -7,3 +7,4 @@ pub mod duration_registry;
 pub mod continuous_effects;
 pub mod replacement_effects;
 pub mod restrictions;
+pub mod diagnostics;

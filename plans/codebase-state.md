@@ -1366,6 +1366,34 @@ section never asked.
     on. The general lesson is worth more than the item: **a sweep for this defect
     shape would have "fixed" this instance and reported a win it did not earn.**
 
+45. **Engine cost is now a fixture, and it found two determinism violations the
+    old rule could not see (added 2026-09-01).** `state/diagnostics.rs` counts
+    layer walks, computed frames, replacement gathers and restriction queries per
+    game; `fuzz_games` prints them and `engineering-practices.md` §3 stores them
+    beside turns-per-game. Overhead A/B'd below the noise floor.
+
+    **Two sites had to be ordered before the numbers held still**, and both were
+    correct under CLAUDE.md's determinism rule as written — `combat/steps.rs`'s
+    first-strike scan and `targeting.rs`'s `has_any_legal_choice`, each an `any`
+    over `battlefield`'s `HashMap` with a layer query inside. `any` over a set is
+    order-independent, so the *answer* never varied and neither site ever
+    appeared in `determinism_test` or a `--dump-events` diff; what varied was how
+    many walks the short circuit took to get there (~14 per 50 games). The rule
+    now reads "a choice, log **or count**".
+
+    **The number itself points at work already scheduled.** ~109,000 layer walks
+    per game against **669** gathers: the CR 614 pipeline is low single digits of
+    engine cost even sweeping the whole board, and the bulk is ordinary oracle
+    traffic with no memo between calls. That is `CLAUDE.md` critical-path item
+    7's cross-call memoization, which already has a hard back-stop before Phase
+    8 — so the instrument's first finding is that **no new performance work is
+    warranted**, which is exactly what an instrument is for.
+
+    Two follow-ups it makes cheap rather than urgent: attributing the walks to
+    call sites (a profiler's job, deliberately not built here), and deciding
+    whether a `GameState` clone for search should inherit the counts or reset
+    them — today it inherits, so a branch's cost is a subtraction.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem

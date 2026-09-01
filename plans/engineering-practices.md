@@ -132,6 +132,11 @@ across months buys the timing measurement nothing.
 | Damage events | 26.7 | 27.5 |
 | Total damage | 53.3 | 60.5 |
 | Life changes | 17.6 | 17.3 |
+| **Layer walks** | **108,902** | **101,929** |
+| **Layer frames** | **135,893** | **127,209** |
+| **Frames/walk** | **1.25** | **1.25** |
+| **Replacement gathers** | **669** | **648** |
+| **Restriction queries** | **670** | **649** |
 
 *Previous values, 2026-09-01 morning (performance 55 → 57, RS-1): performance
 29/21, 28.4 turns, 21.0 spells, 18.1 lands, 11.2 combats, 5.9 deaths, 22.8
@@ -145,6 +150,57 @@ deliberately absent** — it was in this table until 2026-09-01 and never belong
 commit `a926627` established that a stored timing number is machine drift, and
 `CLAUDE.md` accordingly mandates an interleaved A/B in one sitting. A number you
 cannot compare is worse than no number, because someone will compare it.
+
+### The five bold rows are engine *cost*, and they are here for one reason
+
+The rows above say what the engine **did**; these say what it **spent doing it**
+(`state/diagnostics.rs`, added 2026-09-01). They are fixtures by the same
+argument — a pure function of the seed and the card pool, verified identical
+across three runs and across `--threads 1` and `--threads 8` on both pools — so
+a change to one means the engine's **cost model** moved, exactly as a change to
+"creatures died" means its behaviour did. Their own overhead was A/B'd and is
+below the noise floor.
+
+**They exist because an A/B has to be run by someone who already suspects
+something.** RC-2 shipped a 10.3% regression and its 10.3% fix in the same PR,
+and neither was visible in any stored number: every behavioural row was
+unchanged while `gather` went from walking one permanent to walking all of them.
+Layer walks per game would have roughly tripled and said so on sight. That is
+the gap this closes — not "make it fast", but "notice".
+
+**How to read them.**
+
+- **Layer walks** is the headline. Almost every cost question in this engine
+  reduces to how many full CR 613 walks a game does.
+- **Frames/walk** is what CR 613.7a's existence re-check costs — a walk needing
+  no sub-frame is 1.00, and `layers-architecture.md` §5.2's descending ceiling is
+  what bounds this number instead of letting it iterate.
+- **Replacement gathers** and **restriction queries** are the two sweeps that
+  *multiply* into layer walks: one gather can be one walk per permanent. Reading
+  them beside the walk count is how you tell "a sweep got greedy" from "the game
+  got longer".
+
+**The first thing they say is not about the sweeps.** ~109,000 walks against
+**669** gathers means the CR 614 pipeline is a low single-digit percentage of
+engine cost even when it sweeps the whole board. The overwhelming majority is
+ordinary oracle traffic — `has_type`, `get_effective_power`, summoning sickness,
+mana-ability discovery — each a full walk with no memo between calls. **That is
+`CLAUDE.md`'s critical-path item 7**, which already schedules cross-call
+memoization alongside the CR 613.8 dependency algorithm and already carries a
+hard back-stop before Phase 8. The measurement did not find new work; it found
+that the work already on the plan is the lever, and that a general optimization
+sweep would be aimed away from it.
+
+**Adding them cost two determinism fixes, and that is the sharpest thing here.**
+`combat/steps.rs`'s first-strike scan and `targeting.rs`'s `has_any_legal_choice`
+both short-circuited an `any` over `battlefield`'s `HashMap` with a layer query
+inside. Both were **correct** under `CLAUDE.md`'s rule as it was written: `any`
+over a set is order-independent, so the *answer* never varied, and neither site
+ever showed up in `determinism_test` or in a `--dump-events` diff. What varied
+was how much work the engine did getting there — ~14 walks per 50 games. **Making
+cost a fixture is what turned two benign `HashMap` walks into determinism
+violations**, and `CLAUDE.md`'s determinism line now says "a choice, log **or
+count**" for that reason.
 
 Both columns moved when RS-1 added Sigarda and Diabolic Edict, which is what a
 pool addition is expected to do. The stress column's creatures-died halving is
