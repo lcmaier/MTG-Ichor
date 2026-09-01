@@ -1323,9 +1323,10 @@ questions into one:
    overlay was designed for.
 
 Question 1 needs exactly the piece the overlay half was going to build: the membership gate
-at `compute.rs:622`, which returns `false` for any `AffectedSet::Filter` effect
-against an object not in `game.battlefield` — so today an entering Clone matches
-no filter, Dress Down included, and keeps its ability.
+at `compute.rs:629` (✅ RC-3), which returned `false` for any filter-scoped
+`ContinuousEffect` against an object not in `game.battlefield` — so an entering
+Clone matched no filter, Dress Down included, and kept its ability. It now gates
+on the battlefield *zone*, which the entering object is already in.
 
 **The seam moves, the split survives.** The membership gate and the frame's
 ability list — enough to ask "what abilities would this object have on the
@@ -1369,7 +1370,7 @@ filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |
 | `state/game_state.rs::place_on_battlefield` | becomes the *performer* of an already-replaced `EnterBattlefield` | RC |
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
-| `engine/layers/compute.rs` | the `AffectedSet::Filter` membership gate admits entering objects (§5c) | RC-3 |
+| `engine/layers/compute.rs` | ✅ RC-3 — the filter membership gate reads the battlefield *zone*, so it admits entering objects (§5c) | RC-3 |
 | `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-4 |
 | `engine/turns.rs::advance_turn` | gains `dp`; consults pending skips (CR 614.10) | RA / RE |
 | `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA |
@@ -2324,8 +2325,8 @@ accepts that a later PR may fix an earlier one.
 |---|---|---|---|
 | **RC-1 — delete the early stack pop** ✅ | pure deletion, zero new behavior | measured **12**, not 11: `stack.is_empty()` × **6** (the row said 5 — see below) + `GameState::resolving` × 6; deletes one leniency branch | low |
 | **RC-2 — `EnterBattlefield` as an event** ✅ | the performer migration, plus enters-tapped as its first consumer | predicted **10** production `place_on_battlefield` sites; **two**, and the number that mattered was 92 direct callers with 88 in `#[cfg(test)]`. Shipped **+1,409 / −218 across 25 files** — 611 engine, 207 cards, 591 tests | medium |
-| **RC-3 — the membership gate and the frame's ability list** | §5c's question 1 | **1** site — `compute.rs:623` — inside the hottest path in the engine | **high** |
-| **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **5** concrete-state reads to route through the accessor pair (`compute.rs:180, 242, 408, 623` + the `176/203/389` summary reads) | **highest** |
+| **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
+| **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **re-count before building.** Was "5 reads at `compute.rs:180, 242, 408, 623`"; measured 2026-09-02 there are **8** — `98, 187, 431, 434, 442, 609, 660, 721/727` — and the two RC-3 touched (`431`–`442`, `660`) are not the two the row named | **highest** |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
 (`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
@@ -2643,24 +2644,90 @@ so the two helpers documented as firing ETB counters now pass
 `default_enter_mods` explicitly, and `place_bare`'s promise not to fire them is
 what makes it the right fixture for a test that counts events.
 
-#### RC-3 — the membership gate and the frame's ability list
+#### RC-3 — the membership gate and the frame's ability list — ✅ landed 2026-09-02
 
 §5c's finding, and the reason this is a PR rather than a paragraph inside RC-2.
 `effect_applies_to`'s `game.battlefield.contains_key(&id)` gate at
-`compute.rs:623` returns `false` for any `AffectedSet::Filter` effect against an
-object that is not on the battlefield — so today an entering Clone matches no
-filter, **Dress Down included**, and keeps the ability that Dress Down should
-have taken away.
+`compute.rs:629` returned `false` for any filter-scoped `ContinuousEffect`
+against an object not on the battlefield — so an entering Clone matched no
+filter, **Dress Down included**, and kept the ability Dress Down should have
+taken away.
 
 **One line of code, and it is in the hottest path in the engine.** That is the
 whole reason it is separated: `compute_characteristics` is what every layer
 query runs, `layers-architecture.md` §12 measured the ungated CR 613.7a
 existence check at 5.2×–8.0×, and a gate that starts admitting non-battlefield
 objects changes what that walk does on every board. RC-3's deliverable is as much
-the `fuzz_games --games 200 --seed 12345` measurement as the behavior.
+the measurement as the behavior.
 
-**Its consumer is Dress Down + a Clone-shaped probe** — question 1 answered, and
-the enters-tapped land that loses its ability before it can use it.
+**Five findings.**
+
+**1. The predicate is the battlefield *zone*, and that is what makes it free.**
+`move_object` writes `obj.zone` before the `EnterBattlefield` performer builds
+the `BattlefieldEntity` — RC-2's one-`emit`-wide window, documented in the
+`ZoneChange` arm — so an entering permanent is already *in* the zone. Swapping
+`game.battlefield.contains_key` for `obj.zone == Battlefield` admits exactly the
+entering object and nothing else: hidden zones keep their own zone tag, so no
+library or graveyard card becomes filter-matchable. The feared 5.2× never
+arrives because the newly-admitted set is one object wide. **Measured over seven
+interleaved runs: `Frames/walk` 1.24 → 1.24 on `performance` and 1.16 → 1.17 on
+`stress`; ms per 1,000 layer walks 0.807 → 0.808 and 0.679 → 0.694.** §12's
+warning was about admitting a *population*, and the fix admits a singleton.
+
+**2. CR 614.12 is two membership rules, not one, and the second was missing.**
+The clause everyone quotes is (3) — effects that already exist and would apply.
+The clause in the *first sentence's* parenthesis is the mirror: an effect "may
+come from the permanent itself if [it affects] only that permanent (as opposed
+to a general subset of permanents that includes it)". `gather`'s source 1a
+pushed every static replacement ability the entering permanent had, and
+`set_affects` matches a `Filter` against any object in any zone — so an
+entering Orb of Dreams found its own "Permanents enter tapped" and tapped
+itself. Source 1a now takes a `SelfScope` and admits `AffectedSet::SourceOnly`
+alone. **It belongs in RC-3 and not RC-4** because it is a question about
+membership in the applicable set, which needs no frame to answer.
+
+**3. Its consumers needed no new cards, and that had to be checked rather than
+assumed.** §9's plan said "Dress Down + a Clone-shaped probe", which is stale
+twice: Dress Down needs an ETB trigger and a delayed one (item 6), and Clone
+needs Phase CV. What was already registered answers the same question — Blood
+Moon + Idyllic Beachfront (the tapland enters untapped, CR 305.7) and Humility +
+Chainbreaker (the Scarecrow enters with no -1/-1 counters and lives). Both pairs
+were in `PERFORMANCE_POOL` before this phase, which is why the phase widens an
+engine path rather than opening one — §3.3's axis, argued rather than waived.
+
+**4. The card RC-3 does ship is for RB's and RC-2's gap, not its own.** Root
+Maze (`{G}`, "Artifacts and lands enter tapped") makes CR 616.1's
+multi-candidate branch reachable in a fuzz game, which finding 7's retraction
+above shows was never blocked on this phase. Chosen over Kismet, Loxodon
+Gatekeeper and Frozen Aether because those scope to "your opponents", which
+reads `chars.controller` — finding 5. `PermanentFilter::Or` is new, for
+"Artifacts and lands"; its `targeting.rs` arm short-circuits where `And` does
+not, because a leaf can answer `Err` and `set_affects` collapses `Err` to
+`false`.
+
+**5. `base_controller` answered *owner* for a resolving object, and RC-3 made
+that askable.** `resolve_top_of_stack` takes the `StackEntry` before it resolves
+anything, so both of the first two probes miss for the whole resolution. Right
+for a land drop, wrong for a spell cast by a non-owner (CR 110.2b), and
+previously unreachable for an entering permanent because the gate stopped every
+filter. `GameState::resolving` carries the default across exactly that window
+and the leg goes above the fallback. **It fixes a wrong answer the current pool
+cannot produce** — `check_cast_legality` refuses "another player's spell" — so
+the test builds the disagreement after an ordinary cast, and the trap it removes
+is for whoever relaxes that check.
+
+**Exit met.** Whole suite green (826 tests), zero warnings, both `check_*.py`.
+`specdb owed` unchanged and clean for RC; ATOM-614.12-003 claimed in full,
+ATOM-614.12-001 partially and deliberately — its board is Yixlid Jailer, and
+`PermanentFilter` has no zone leaf, so the scenario is inexpressible rather than
+unimplemented. Determinism: three 200-game runs per pool byte-identical outside
+`=== Timing ===`, and `--threads 1` vs `--threads 8` identical on the
+engine-work block. Event streams at 40 games: **36/40 `performance` and 34/40
+`stress` games byte-identical**, and every one of the 10 divergences has a
+Humility or Blood Moon on the battlefield ahead of it and a permanent entering
+modified under it. A behaviour change cascades where RC-1's deletion did not, so
+the claim that can be checked is the *first* divergence per game — not the
+whole-stream diff, which is noise past that point.
 
 #### RC-4 — the overlay
 
