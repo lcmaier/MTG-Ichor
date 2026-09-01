@@ -12,8 +12,7 @@ cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard ba
 cd mtgsim && cargo run --bin cli_play     # play a game at the terminal
 cd mtgsim && cargo run --bin fuzz_games   # random-vs-random; --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py           # this file's 200-line budget — must pass
-python plans/check_module_layout.py       # a mod.rs re-exports, never defines
+python plans/check_claude_md.py && python plans/check_module_layout.py   # both must pass
 ```
 
 ## Where authority lives
@@ -89,6 +88,7 @@ the event. Propose with `execute_action` / `change_zone`.
   collapse and 615.7's shield allocation are unreachable from a loop; a *nested* call joins the
   enclosing batch. One permanent exemption, tagged in `move_object`'s doc: `// CAST-ROLLBACK:`
   — CR 601.2 rewinds are not events. → `replacement-architecture.md` §2; `codebase-state.md`.
+- **A decision site may not hold outcome-bearing state off `GameState`.** → `codebase-state.md` item 40.
 
 ## The replacement pipeline (CR 614–616)
 
