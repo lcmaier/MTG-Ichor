@@ -11,6 +11,10 @@ MTG-Rules/
 
 # log files
 *.log
+
+# Determinism-check scratch. `engineering-practices.md` §3.1's three-run recipe
+# writes these into mtgsim/; they are a diff's inputs, not artifacts.
+mtgsim/run*.txt
 # Derived spec database (rebuild with: python plans/specdb.py build)
 spec.sqlite
 

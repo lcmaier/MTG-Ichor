@@ -1,0 +1,88 @@
+# Correctness only. This workflow deliberately does not gate on any timing
+# number: shared runners vary 2-3x run to run, so a performance gate here would
+# be flake rather than signal. The frozen-pool A/B stays a local measurement at
+# `--threads 1` — see `plans/engineering-practices.md` §3.1.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # `cargo build --all-targets` printing zero warnings is a hard bar in
+  # CLAUDE.md. This is what turns it into a failure rather than a convention.
+  # It reaches dependencies too, which is an accepted risk at 13 crates in the
+  # whole tree: a future compiler making `uuid` or `rand` warn would fail a
+  # build for something outside this repo. Move to a `[lints]` table in
+  # Cargo.toml if that ever actually happens.
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mtgsim
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned rather than `stable`, because an unpinned toolchain turns a
+      # GitHub image bump into a build break with no commit to blame.
+      #
+      # 1.98 is the version this repo is developed and verified on, **not a
+      # measured MSRV**. Edition 2024 puts the floor at 1.85, but nothing has
+      # checked whether the code builds there. Lowering this pin needs an actual
+      # build on the lower toolchain, not a guess from the edition.
+      - uses: dtolnay/rust-toolchain@1.98.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mtgsim
+
+      - name: Build (zero warnings is the bar)
+        run: cargo build --all-targets
+
+      - name: Test
+        run: cargo test
+
+      - name: Build the fuzz harness
+        run: cargo build --release --bin fuzz_games
+
+      # `fuzz_games` exits 1 on panics or errors, so the exit code is the gate
+      # and nothing here parses output. Threaded on purpose: the harness's own
+      # header says coverage wants threads (6.7x) and precision does not matter
+      # for a pass/fail sweep.
+      #
+      # Turn-limit hits are NOT a failure. A 200-turn game is a loop symptom,
+      # but it is also what a legitimately stalled board looks like, so gating
+      # on it would trade a real signal for a flaky one. The count is printed;
+      # watch it, and promote it to a failure if it ever moves off zero for a
+      # reason anyone can name.
+      - name: Fuzz — performance pool (the frozen 55)
+        run: cargo run --release --bin fuzz_games -- --games 200 --seed 12345
+
+      - name: Fuzz — stress pool (every registered card)
+        run: cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --pool stress
+
+      # Everything outside `=== Timing ===` is byte-identical across runs at one
+      # seed. Three runs rather than two: two agreeing can still both be wrong
+      # in the same way, and the harness has a documented reproducibility
+      # contract to hold up.
+      - name: Determinism — three runs at one seed
+        run: |
+          for i in 1 2 3; do
+            cargo run --release --bin fuzz_games -- --games 50 --seed 12345 \
+              | sed '/^=== Timing ===$/,/^$/d' > "run$i.txt"
+          done
+          diff run1.txt run2.txt
+          diff run1.txt run3.txt
+
+      # Stdlib-only Python, so no install step. This is the CLAUDE.md 200-line
+      # budget and nothing else — the spec database is deliberately not a gate
+      # here (owner call, 2026-08-31: `plans/` is largely generated and its
+      # labels are not trusted enough to block a merge).
+      - name: CLAUDE.md line budget
+        working-directory: .
+        run: python3 plans/check_claude_md.py
