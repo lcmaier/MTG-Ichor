@@ -259,7 +259,7 @@ impl GameState {
             // condition is lethal damage and says nothing about it; CR 702.12b
             // is what stops the destruction, and CR 614.17 makes that a "can't"
             // rather than a replacement effect. It is now asked once, in
-            // `engine::replacement::is_blocked`, for every destruction from
+            // `engine::restriction::is_prohibited`, for every destruction from
             // either of CR 701.8b's routes — so `Primitive::Destroy` and this
             // sweep can no longer disagree about it.
             //

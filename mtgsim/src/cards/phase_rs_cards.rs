@@ -18,8 +18,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive, SelectionFilter,
-    TargetCount,
+    AffectedSet, AmountExpr, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
@@ -163,10 +163,10 @@ pub fn diabolic_edict() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                // What is sacrificed: a creature.
-                Primitive::Sacrifice(SelectionFilter::Creature),
-                // Who sacrifices it: the target (CR 115.1). Two filters because
-                // they are two questions — see `Primitive::Sacrifice`.
+                // What is sacrificed, and how many: one creature.
+                Primitive::Sacrifice(SelectionFilter::Creature, AmountExpr::Fixed(1)),
+                // Who sacrifices it: the target (CR 115.1). Three parameters
+                // because they are three questions — see `Primitive::Sacrifice`.
                 EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             ),
         })

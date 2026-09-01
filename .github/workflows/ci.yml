@@ -86,3 +86,10 @@ jobs:
       - name: CLAUDE.md line budget
         working-directory: .
         run: python3 plans/check_claude_md.py
+
+      # A `mod.rs` declares and re-exports; it does not define. Held by
+      # convention alone for two years and then broken twice in two phases,
+      # which is the definition of a rule that needs a mechanism.
+      - name: Module layout
+        working-directory: .
+        run: python3 plans/check_module_layout.py

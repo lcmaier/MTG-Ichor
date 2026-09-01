@@ -341,3 +341,37 @@ opposite economics:
 
 Count cards to decide *when* to build a feature; never to decide *whether* to
 record a fact.
+
+---
+
+## 6. Module layout — a `mod.rs` declares and re-exports; it does not define
+
+**Checked, not trusted:** `python plans/check_module_layout.py`, in CI beside the
+`CLAUDE.md` budget. It fails on `fn`, `struct`, `enum`, `trait`, `impl`, `type`,
+`const`, `static` or `macro_rules!` at the top of a line in any `mod.rs` under
+`mtgsim/src/`. `lib.rs` and `main.rs` are exempt — they are crate roots, and a
+crate-level re-export belongs in one.
+
+A `mod.rs` may carry module docs, `mod` declarations, `use`/`pub use`, and
+attributes. The implementation goes in a sibling **named for what it does**.
+`engine/replacement/` is the pattern to copy: `gather.rs` finds things,
+`pipeline.rs` decides, `instance.rs` names one, and `mod.rs` is the page you
+read to learn that.
+
+**Why this needed a mechanism.** Every `mod.rs` in the crate was a pure
+re-exporter for two years, by unwritten convention — and then two phases in a
+row put a few hundred lines of working code in one. Nobody argued for it; "this
+module is small enough to be one file" is a locally reasonable thought that
+produces a globally inconsistent tree. A rule that can fail silently is not a
+mechanism, which is §1's argument for the `CLAUDE.md` budget and the same
+argument here.
+
+**The cost is not aesthetic.** `mod.rs` is the file you open to find out what a
+module *contains*. Once it also contains the implementation, that question takes
+a second read — and the next file added to the module has to relitigate where it
+goes, because the module no longer has a shape to match.
+
+**Splitting is not the same as adding files.** A one-file module is fine:
+`engine/restriction/` is `mod.rs` plus `predicate.rs`, and `predicate.rs` is
+allowed to be the whole module. What is not fine is that file being called
+`mod.rs`.

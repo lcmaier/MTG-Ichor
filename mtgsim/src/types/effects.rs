@@ -425,15 +425,23 @@ pub enum Primitive {
     Destroy,
     /// Exile an object (rule 701.13)
     Exile,
-    /// Sacrifice a permanent (rule 701.21).
+    /// Sacrifice N permanents (rule 701.21).
     ///
-    /// **The filter is what gets sacrificed; the `EffectRecipient` is who does
-    /// the sacrificing.** Diabolic Edict's "target *player* sacrifices a
-    /// *creature* of their choice" needs both and they are different questions:
-    /// the recipient is CR 115.1's target and the filter is CR 701.21a's "its
-    /// controller moves **it**". Carrying only one would make every edict
-    /// sacrifice a player or target a creature.
-    Sacrifice(SelectionFilter),
+    /// **The filter is what gets sacrificed, the amount is how many, and the
+    /// `EffectRecipient` is who does the sacrificing.** Diabolic Edict's "target
+    /// *player* sacrifices *a creature* of their choice" needs all three and
+    /// they are three different questions: the recipient is CR 115.1's target,
+    /// the filter is CR 701.21a's "its controller moves **it**", and the amount
+    /// is what separates Diabolic Edict from Barter in Blood ("two creatures")
+    /// and Blasphemous Edict ("thirteen creatures"). Carrying only the filter
+    /// would make every edict sacrifice a player or target a creature; carrying
+    /// no amount would silently turn all three cards into the first.
+    ///
+    /// **The amount is a ceiling, not a requirement** — CR 101.3 performs "only
+    /// the possible portion", so Blasphemous Edict against a player with two
+    /// creatures takes two. The sacrifices are simultaneous (CR 701.21, one
+    /// batch), which is what a second permanent makes observable.
+    Sacrifice(SelectionFilter, AmountExpr),
     /// Return to owner's hand ("bounce")
     ReturnToHand,
     /// Return to the battlefield (from exile/graveyard)

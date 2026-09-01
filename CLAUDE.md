@@ -13,6 +13,7 @@ cd mtgsim && cargo run --bin cli_play     # play a game at the terminal
 cd mtgsim && cargo run --bin fuzz_games   # random-vs-random; --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
 python plans/check_claude_md.py           # this file's 200-line budget — must pass
+python plans/check_module_layout.py       # a mod.rs re-exports, never defines
 ```
 
 ## Where authority lives
@@ -23,7 +24,7 @@ python plans/check_claude_md.py           # this file's 200-line budget — must
 | `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5). **A new subsystem extends this row, never adds one** |
 | `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
 | `plans/backlog.md` | Everything off the critical path — one entry per mechanic: the surface that can't express the rule, rough size, what it blocks. **Not designs** — a mechanic graduates out to an architecture doc. Excluded from `orphaned`'s ownership set on purpose; §1 says why |
-| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate |
+| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |

@@ -11,7 +11,7 @@ use crate::types::effects::{
     AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
     TargetCount,
 };
-use crate::oracle::characteristics::get_effective_controller;
+use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
@@ -101,7 +101,13 @@ impl GameState {
             // to "apply the rules of English to the text", which is the CR
             // handing scope determination to a human reader (§9 finding 1).
             Effect::Restriction(_) => Err(
-                "a \"can't\" effect created by a resolution needs a duration,                  which `Effect::Restriction` does not carry. CR 608.2c makes the                  scope unrecoverable from the restriction's own text, so it has                  to be authored: use `Primitive::Restrict`, which takes a                  `Duration` argument. A static ability's restriction does not                  resolve at all — put it on an `AbilityType::Static` ability and                  `engine::restriction::is_prohibited` will find it."
+                "a \"can't\" effect created by a resolution needs a duration, \
+                 which `Effect::Restriction` does not carry. CR 608.2c makes the \
+                 scope unrecoverable from the restriction's own text, so it has \
+                 to be authored: use `Primitive::Restrict`, which takes a \
+                 `Duration` argument. A static ability's restriction does not \
+                 resolve at all — put it on an `AbilityType::Static` ability and \
+                 `engine::restriction::is_prohibited` will find it."
                     .to_string(),
             ),
 
@@ -668,7 +674,11 @@ impl GameState {
                     let set = restriction_affected_set_mut(&mut def);
                     debug_assert!(
                         matches!(set, AffectedSet::Fixed(ids) if ids.is_empty()),
-                        "a `Primitive::Restrict` on {:?} authored a non-empty                          affected set, which the resolution then overwrote with                          its own targets. Write `AffectedSet::Fixed(Vec::new())`:                          the shape is the card's and the objects are the                          resolution's.",
+                        "a `Primitive::Restrict` on {:?} authored a non-empty \
+                         affected set, which the resolution then overwrote with \
+                         its own targets. Write `AffectedSet::Fixed(Vec::new())`: \
+                         the shape is the card's and the objects are the \
+                         resolution's.",
                         ctx.source
                     );
                     *set = AffectedSet::Fixed(vec![object]);
@@ -697,12 +707,13 @@ impl GameState {
             // Not destruction (CR 701.21b): regeneration and indestructible do
             // not apply, which is why the cause is its own `ZoneChangeCause`
             // variant and 278 cards care.
-            Primitive::Sacrifice(filter) => {
+            Primitive::Sacrifice(filter, amount) => {
+                let count = self.evaluate_amount(amount, ctx)?;
                 for target in &ctx.targets {
                     let ResolvedTarget::Player(player) = target else {
                         continue;
                     };
-                    self.sacrifice_one_of_choice(*player, filter, ctx, dp)?;
+                    self.sacrifice_of_choice(*player, filter, count, ctx, dp)?;
                 }
                 Ok(())
             }
@@ -1053,10 +1064,11 @@ impl GameState {
     /// `Effect::Conditional`, and that split is safe in one direction only:
     /// suppressing a prompt with no fallback is a resolved effect that does
     /// nothing, which is 101.3's own answer.
-    fn sacrifice_one_of_choice(
+    fn sacrifice_of_choice(
         &mut self,
         player: PlayerId,
         filter: &SelectionFilter,
+        count: u64,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
@@ -1066,26 +1078,48 @@ impl GameState {
                 .filter(|t| match t {
                     // "Its controller moves it": only your own permanents.
                     ResolvedTarget::Object(id) => {
-                        get_effective_controller(self, *id) == Some(player)
+                        controls(self, *id, player)
                             && !self.sacrifice_is_prohibited(*id, ctx.controller)
                     }
                     ResolvedTarget::Player(_) => false,
                 })
                 .collect();
 
-        if candidates.is_empty() {
+        // CR 101.3 — "if a player is instructed to do something impossible,
+        // only the possible portion is performed". Blasphemous Edict asks for
+        // thirteen and a player with two sacrifices two; the same clamp is what
+        // makes an empty pool a silent no-op rather than an error.
+        let n = (count as usize).min(candidates.len());
+        if n == 0 {
             return Ok(());
         }
 
-        let recipient = EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(1));
+        let recipient =
+            EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(n as u32));
         let chosen = crate::ui::ask::ask_select_recipients(
-            dp, self, player, &recipient, ctx.source, &candidates, 1, 1,
+            dp, self, player, &recipient, ctx.source, &candidates, n, n,
         );
-        let Some(ResolvedTarget::Object(id)) = chosen.first().copied() else {
-            return Ok(());
-        };
+
+        // **One batch, not a loop.** CR 701.21 sacrifices happen simultaneously
+        // — Barter in Blood's two creatures die as one event — and the
+        // chokepoint invariant is explicit that a simultaneous rule needs
+        // `execute_actions`: CR 704.3's single event and CR 615.7's shield
+        // allocation are both unreachable from a loop of `change_zone`.
         let actx = ActionContext::resolving(dp, ctx);
-        self.change_zone(id, Zone::Graveyard, ZoneChangeCause::Sacrificed, &actx)
+        let batch: Vec<GameAction> = chosen
+            .iter()
+            .filter_map(|t| match t {
+                ResolvedTarget::Object(id) => Some(GameAction::ZoneChange {
+                    object: *id,
+                    from: Zone::Battlefield,
+                    to: Zone::Graveyard,
+                    cause: ZoneChangeCause::Sacrificed,
+                }),
+                ResolvedTarget::Player(_) => None,
+            })
+            .collect();
+        self.execute_actions(batch, &actx)?;
+        Ok(())
     }
 
     /// Would sacrificing this permanent be prohibited (CR 101.2)?

@@ -24,7 +24,7 @@
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::events::event::DamageTarget;
 use crate::objects::card_data::AbilityType;
-use crate::oracle::characteristics::{get_effective_abilities, get_effective_controller};
+use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
@@ -99,8 +99,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
 pub(crate) fn chooser_for(game: &GameState, subject: EventSubject) -> Option<PlayerId> {
     match subject {
         EventSubject::Player(pid) => Some(pid),
-        EventSubject::Object(id) => get_effective_controller(game, id)
-            .or_else(|| game.objects.get(&id).map(|obj| obj.owner)),
+        EventSubject::Object(id) => controller_or_owner(game, id),
     }
 }
 
@@ -165,9 +164,7 @@ pub(crate) fn gather(
     // --- Sources 1 and 5: the battlefield sweep ----------------------------
     for id in game.battlefield_ids_ordered() {
         if has_static_source {
-            let controller = get_effective_controller(game, id).unwrap_or_else(|| {
-                game.objects.get(&id).map(|o| o.owner).unwrap_or(0)
-            });
+            let controller = controller_or_owner(game, id).unwrap_or(0);
             for ability in get_effective_abilities(game, id) {
                 if ability.ability_type != AbilityType::Static {
                     continue;
@@ -191,9 +188,7 @@ pub(crate) fn gather(
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
-            let controller = get_effective_controller(game, id).unwrap_or_else(|| {
-                game.objects.get(&id).map(|o| o.owner).unwrap_or(0)
-            });
+            let controller = controller_or_owner(game, id).unwrap_or(0);
             push_if_applicable(
                 game,
                 &mut candidates,

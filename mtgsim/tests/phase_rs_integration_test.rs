@@ -21,7 +21,8 @@ use mtgsim::test_support::{
     place_bare, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
 };
 use mtgsim::types::effects::{
-    AffectedSet, Duration, Effect, PermanentFilter, PlayerRef, Primitive, SelectionFilter,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef,
+    Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -141,8 +142,47 @@ fn edict_effect() -> Effect {
     diabolic_edict().abilities[0].effect.clone()
 }
 
-/// A creature that is not Sigarda, so "the edict took *a* creature" and "the
-/// edict took the protected one" cannot be confused.
+/// An edict for `n` creatures — Barter in Blood's and Blasphemous Edict's shape.
+///
+/// Not a registered card: both of those say "**each player** sacrifices", and
+/// `EffectRecipient` has no each-player variant, so neither is writable yet for
+/// a reason that has nothing to do with this phase. The *count* is what RS-1
+/// owes them, and this is what exercises it.
+fn edict_for(n: u64) -> Effect {
+    Effect::Atom(
+        Primitive::Sacrifice(SelectionFilter::Creature, AmountExpr::Fixed(n)),
+        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+    )
+}
+
+/// Resolve an arbitrary edict-shaped effect against `victim`.
+fn resolve_edict_effect(
+    game: &mut GameState,
+    caster: PlayerId,
+    victim: PlayerId,
+    effect: &Effect,
+    dp: &dyn DecisionProvider,
+) {
+    let source = place_bare(game, diabolic_edict(), caster);
+    let ctx = ResolutionContext {
+        source,
+        controller: caster,
+        targets: vec![ResolvedTarget::Player(victim)],
+    };
+    game.resolve_effect(effect, &ctx, dp).unwrap();
+}
+
+/// A plain creature — one that is not the restriction's own source.
+///
+/// Sigarda protects everything her controller controls, herself included, so
+/// this is not about protection scope. It is about telling `AffectedSet::Filter`
+/// apart from `AffectedSet::SourceOnly`: with only Sigarda on the board, a
+/// restriction that (wrongly) applied to its source alone would suppress the
+/// same single prompt and pass the same assertion. A second creature is what
+/// makes the two answers differ.
+///
+/// Verified rather than reasoned: flipping Sigarda's `affected` to
+/// `AffectedSet::SourceOnly` fails both zero-prompt tests and nothing else.
 fn bear(game: &mut GameState, owner: PlayerId) -> ObjectId {
     put_on_battlefield(game, vanilla_creature(2, 2, &[]), owner)
 }
@@ -316,6 +356,62 @@ fn test_sacrifice_is_not_destruction_so_indestructible_does_not_save_it() {
     assert_eq!(game.get_object(tank).unwrap().zone, Zone::Graveyard);
 }
 
+#[test]
+fn test_an_edict_for_two_takes_two_in_one_batch() {
+    // Barter in Blood's shape. **One prompt, not two** — the player picks both
+    // at once, and CR 701.21's sacrifices are simultaneous, so they go through
+    // `execute_actions` as one batch rather than a loop of `change_zone`. A loop
+    // would be invisible here and wrong the moment CR 704.3 or a CR 615.7
+    // shield allocation has to see the batch.
+    let mut game = setup_two_player_game();
+    let a = bear(&mut game, 0);
+    let b = bear(&mut game, 0);
+
+    let dp = CountingDp::new();
+    resolve_edict_effect(&mut game, 1, 0, &edict_for(2), &dp);
+
+    assert_eq!(dp.count(), 1, "one choice of two, not two choices of one");
+    assert_eq!(game.get_object(a).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(b).unwrap().zone, Zone::Graveyard);
+}
+
+#[test]
+fn test_an_edict_for_more_than_you_have_takes_only_what_you_have() {
+    // Blasphemous Edict asks for thirteen. CR 101.3: "only the possible portion
+    // is performed" — so a player with two creatures loses two, and the missing
+    // eleven are not an error. The same clamp is what makes an *empty* pool a
+    // silent no-op, which is why Sigarda needs no separate code path.
+    let mut game = setup_two_player_game();
+    let a = bear(&mut game, 0);
+    let b = bear(&mut game, 0);
+
+    let dp = CountingDp::new();
+    resolve_edict_effect(&mut game, 1, 0, &edict_for(13), &dp);
+
+    assert_eq!(dp.count(), 1);
+    assert_eq!(game.get_object(a).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(b).unwrap().zone, Zone::Graveyard);
+}
+
+#[test]
+fn test_sigarda_suppresses_a_multi_edict_entirely_rather_than_partially() {
+    // The clamp and the restriction compose the right way round: the filter runs
+    // *before* the count, so protecting every candidate leaves nothing to clamp
+    // and the whole instruction is ignored. Clamping first and filtering second
+    // would have asked for two and then sacrificed zero — the same board, but
+    // reached through a prompt that CR 608.2d forbids.
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
+    let a = bear(&mut game, 0);
+    let b = bear(&mut game, 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    resolve_edict_effect(&mut game, 1, 0, &edict_for(2), &dp);
+
+    assert_eq!(game.get_object(a).unwrap().zone, Zone::Battlefield);
+    assert_eq!(game.get_object(b).unwrap().zone, Zone::Battlefield);
+}
+
 // ---------------------------------------------------------------------------
 // Tier 2 — the event chokepoint, and indestructible arriving through it
 // ---------------------------------------------------------------------------
@@ -372,6 +468,50 @@ fn test_losing_the_keyword_lifts_the_prohibition_within_the_same_turn() {
     .unwrap();
 
     assert_eq!(game.get_object(tank).unwrap().zone, Zone::Graveyard);
+}
+
+// COVERS-PARTIAL: ATOM-702.12b-001
+#[test]
+fn test_losing_indestructible_with_lethal_damage_marked_dies_to_the_sba() {
+    // The *other* half of CR 702.12b, and a different road to the same
+    // restriction: CR 704.5g's destruction carries
+    // `DestructionSource::StateBasedAction`, where the test above carries
+    // `Effect`. `EventPattern::Destroy { source: None }` matches both, which is
+    // 702.12b's own words — "such permanents aren't destroyed by lethal damage,
+    // **and** they ignore the state-based action that checks for lethal damage".
+    //
+    // `sba_indestructible_survives_lethal_damage` asserts the positive case and
+    // has since Phase 7. This is its negative: nothing had shown that removing
+    // the keyword lets CR 704.5g through, so "the SBA is filtered somewhere
+    // else" and "the restriction answers the SBA" were indistinguishable.
+    let mut game = setup_two_player_game();
+    let tank = put_on_battlefield(
+        &mut game,
+        vanilla_creature(2, 2, &[KeywordFlag::Indestructible]),
+        0,
+    );
+    game.battlefield.get_mut(&tank).unwrap().damage_marked = 2;
+
+    let dp = ScriptedDecisionProvider::new();
+    assert!(
+        !game.check_state_based_actions(&dp).unwrap(),
+        "CR 702.12b — indestructible ignores the CR 704.5g check"
+    );
+    assert_eq!(game.get_object(tank).unwrap().zone, Zone::Battlefield);
+
+    game.continuous_effects.add(registered(
+        tank,
+        Layer::Layer6Ability,
+        1,
+        EffectModification::RemoveKeywordFlag(KeywordFlag::Indestructible),
+    ));
+
+    assert!(game.check_state_based_actions(&dp).unwrap());
+    assert_eq!(
+        game.get_object(tank).unwrap().zone,
+        Zone::Graveyard,
+        "the damage was already marked; only the prohibition was holding it up"
+    );
 }
 
 #[test]
