@@ -2477,33 +2477,62 @@ entering permanent has no controller — so it fell through to the *owner*, whic
 is the wrong player the moment someone casts a permanent spell they do not own.
 `chooser_for_event` reads the answer off the proposal.
 
-**7. CR 616.1's multi-candidate branch is *not* reachable on an entry, and no
-printed card can make it so at `AffectedSet::SourceOnly`.** Measured
-2026-09-01, and this is RC-2's answer to §3.3's two-card rule rather than an
-evasion of it. Two applicable effects on one entry needs either two
-entry-modifying abilities on one card — the whole printed population is
-Slumbering Trudge, Chocobo Camp, Steel Dromedary, Rotating Fireplace and
-Arixmethes, every one needing {X}, a condition or a trigger — or an
-`AffectedSet::Filter` effect, which cannot match an object that is not on the
-battlefield. **So the branch is RC-3's unlock, not RC-2's**, which is a finding
-about RC-3's value rather than an excuse. The two cards shipped are Idyllic
-Beachfront (CR 110.5b, status) and Chainbreaker (CR 122.6a, counters) — one per
-half of `EnterMods`, which is CR 614.1c's own axis and two genuinely different
+**7. ❌ WRONG — struck 2026-09-02 by RC-3, and the retraction is worth more
+than the finding was.** As written, this finding said: "CR 616.1's
+multi-candidate branch is *not* reachable on an entry, and no printed card can
+make it so at `AffectedSet::SourceOnly` … an `AffectedSet::Filter` effect
+cannot match an object that is not on the battlefield. So the branch is RC-3's
+unlock, not RC-2's."
+
+**The second sentence is false and was never true, so the conclusion is too.**
+`AffectedSet` is matched by *two* functions on two paths, and RC-2 checked one
+of them:
+
+| Path | Matcher | Governs | Battlefield gate |
+|---|---|---|---|
+| layer registry | `compute.rs::effect_applies_to` (`:629`) | `ContinuousEffect.affected` | **yes** — RC-3's line |
+| replacement pipeline | `gather::set_affects` → `GameState::permanent_matches_filter` | `ReplacementDef.affected`, `RestrictionDef.affected` | **none** |
+
+Probed on `main` at 4f9eb94: a Root-Maze-shaped `ReplacementDef`
+(`Filter { ByType(Land) }`, `EnterWith(tapped)`) taps an entering Forest, and
+with Idyllic Beachfront entering under it `ask_choose_replacement` fires — two
+candidates, CR 616.1's question asked. **The branch has been reachable since RB
+merged, one registered card away.** Root Maze, Kismet, Loxodon Gatekeeper and
+Frozen Aether were never blocked on RC-3, and `root_maze` ships in RC-3 to
+close it rather than waiting for a card PR (§3.3, and the Kalitas precedent
+below).
+
+**What survives.** The *first* route is still genuinely shut: two
+entry-modifying abilities on one card is Slumbering Trudge, Chocobo Camp, Steel
+Dromedary, Rotating Fireplace and Arixmethes, every one needing {X}, a
+condition or a trigger. RC-2's two cards — Idyllic Beachfront (CR 110.5b,
+status) and Chainbreaker (CR 122.6a, counters), one per half of `EnterMods` —
+are the right two for CR 614.1c's own axis and two genuinely different
 performer paths. Both join `PERFORMANCE_POOL` (57 → 59); Adaptive Shimmerer is
 registered into the stress pool alone for the ordering claim (see the review
 pass below). The accumulation behaviour is covered by a two-ability fixture,
 labelled as one.
 
+**The transferable error**, since this is the second unreachable-branch gap in
+three phases: the finding named a mechanism by its **type** (`AffectedSet::Filter`)
+when the property it asserted belongs to a **call path**. One type, two matchers,
+and a reachability claim is only ever true of a path. A claim of the form "no X
+can reach Y" now owes the list of functions that match X — which is a thing
+`grep` answers in one line, and nobody ran it.
+
 **8. Blood Moon does not strip an entering tapland's ability, and RC-3 is
 exactly one line away from fixing it.** The real ruling is that a tapland under
 Blood Moon enters untapped; `gather` reading the *effective* ability list was
-supposed to deliver that for free. It does not, because Blood Moon's row is an
-`AffectedSet::Filter` and `effect_applies_to`'s battlefield gate returns `false`
-for any filter effect against an object that is not on the battlefield. **No
-`Filter` effect reaches an entry at all** — which is the same statement as RC-3's
-"an entering Clone matches no filter, Dress Down included", now with a
-registered card behind it and a test asserting the wrong answer so RC-3 has to
-flip it.
+supposed to deliver that for free. It does not, because Blood Moon's row is a
+`ContinuousEffect` whose `AffectedSet` is a `Filter`, and
+`effect_applies_to`'s battlefield gate returns `false` for a filter effect
+against an object that is not on the battlefield. **No filter-scoped row in the
+layer registry reaches an entry** — which is the same statement as RC-3's "an
+entering Clone matches no filter, Dress Down included", now with a registered
+card behind it and a test asserting the wrong answer so RC-3 has to flip it.
+(The original wording here was "no `Filter` effect reaches an entry at all",
+which overreached into the replacement pipeline's ungated matcher — see the
+strike on finding 7. The *layer* half was right, and it is what RC-3 fixes.)
 
 **Exit met.** Whole suite green (810 tests, 17 of them new), zero warnings,
 `check_module_layout.py` and `check_claude_md.py` both pass. `specdb owed` is
