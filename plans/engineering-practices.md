@@ -166,14 +166,32 @@ alone with `--seed N --games 1`.
 *slow* ones; `CPU/turn` divides that out. Compare them:
 
 **Absolute ms are comparable only *within one measurement sitting*, and that is
-not a caveat — it is the method.** Measured 2026-08-31: two sets of runs hours
-apart, same machine, same commit for the frozen pool, differ by **9%** while the
-frozen pool's *game content* is byte-identical — same avg turns, same max turns,
-same slowest-game seed. Machine state moves the milliseconds and nothing else
-does. **So the frozen pool is the control, and what you compare is the two pools
-measured together**, never stress-today against stress-last-week. The numbers
-below are medians of three interleaved runs in one sitting, which is what makes
-the two columns mean anything beside each other.
+not a caveat — it is the method.** Measured 2026-08-31: the frozen pool read
+~63 ms p50 early in a session and ~72 ms p50 hours later, **13%** apart with
+byte-identical game content.
+
+**That gap was A/B'd against the obvious suspect and the suspect was cleared.**
+The tree had gained `PermanentFilter::ByOwner`, a new match arm in
+`permanent_matches_filter` — which `compute.rs` calls inside the layer walk, the
+hottest path the engine has. Two release binaries were built from the two
+commits into separate target directories and run **alternately** in one sitting,
+four runs each, on the pool whose cards are identical on both sides:
+
+| | pre-`ByOwner` | with `ByOwner` |
+|---|---|---|
+| CPU/game, 4 interleaved runs | 96.37 / 96.70 / 96.39 / 98.25 ms | 96.87 / 96.52 / 96.69 / 97.59 ms |
+
+**0.2% apart, and the game content byte-identical.** So the arm costs nothing and
+the drift is machine state — thermal or background load over a long session, not
+diagnosed further because it does not need to be. Note what the table also
+shows: *both* binaries read ~96 ms where the same pool read ~83–87 ms earlier
+that day. Within a sitting the spread is ~2%; across sittings it is ~15%.
+
+**So the frozen pool is the control, and what you compare is the two pools
+measured together**, never stress-today against stress-last-week — and a
+suspicious cross-sitting delta gets an interleaved A/B before it gets a
+diagnosis. The numbers below are medians of three interleaved runs in one
+sitting, which is what makes the two columns mean anything beside each other.
 
 **Baselines, 200 games / seed 12345 / `--threads 1`, medians of three
 interleaved runs, 2026-08-31:**
@@ -185,8 +203,9 @@ interleaved runs, 2026-08-31:**
 | game tail ratio (max ÷ p50) | 7.4x | 8.6x |
 | turn tail ratio (max ÷ p50) | 2.9x | 3.5x |
 
-**The ratios are the durable numbers**, because they survive the machine-state
-problem the absolute ms do not. Deterministic game content travels too, and it
+**The ratios are the durable numbers**, and that is measured rather than
+asserted: across the 13% drift above, the frozen pool's game-tail ratio held at
+**7.1–7.4x** and its turn-tail ratio at **2.8–2.9x**. Deterministic game content travels too, and it
 is what moved when Rest in Peace and Leyline of the Void landed and were widened
 to "from anywhere": stress avg turns 30.1 → **29.6**, max turns 98 → **75**.
 Games end sooner because graveyards stop filling — the cards doing their job,
