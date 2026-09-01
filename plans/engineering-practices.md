@@ -119,19 +119,24 @@ across months buys the timing measurement nothing.
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-01 (performance pool 55 → 57, RS-1):**
+2026-09-01 (performance pool 57 → 59, RC-2):**
 
-| | performance (57 cards) | stress (60 cards) |
+| | performance (59 cards) | stress (62 cards) |
 |---|---|---|
-| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 28 (56.0%) / 22 (44.0%) |
-| Avg turns | 28.4 | 28.8 |
-| Spells cast | 21.0 | 20.9 |
-| Lands played | 18.1 | 17.9 |
-| Combat w/ atk | 11.2 | 12.1 |
-| Creatures died | 5.9 | 3.8 |
-| Damage events | 22.8 | 25.5 |
-| Total damage | 49.1 | 57.0 |
-| Life changes | 16.6 | 19.2 |
+| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 24 (48.0%) / 26 (52.0%) |
+| Avg turns | 31.8 | 31.1 |
+| Spells cast | 22.8 | 22.0 |
+| Lands played | 19.7 | 19.1 |
+| Combat w/ atk | 12.7 | 13.1 |
+| Creatures died | 8.6 | 4.7 |
+| Damage events | 26.7 | 29.5 |
+| Total damage | 53.3 | 61.4 |
+| Life changes | 17.6 | 20.6 |
+
+*Previous values, 2026-09-01 morning (performance 55 → 57, RS-1): performance
+29/21, 28.4 turns, 21.0 spells, 18.1 lands, 11.2 combats, 5.9 deaths, 22.8
+damage events, 49.1 damage, 16.6 life changes; stress 28/22, 28.8, 20.9, 17.9,
+12.1, 3.8, 25.5, 57.0, 19.2.*
 
 **These are fixtures, not benchmarks, and the distinction is the point.** Every
 row is seed-deterministic, so it is comparable across machines and across months
@@ -145,6 +150,16 @@ Both columns moved when RS-1 added Sigarda and Diabolic Edict, which is what a
 pool addition is expected to do. The stress column's creatures-died halving is
 the edict and Kalitas together — the edict kills a creature the combat maths was
 counting on, and Kalitas exiles rather than letting things die.
+
+**Both columns moved again when RC-2 added Idyllic Beachfront and Chainbreaker,
+and the direction is worth reading.** Every row is *up*: three more turns per
+game, and more of everything that happens in a turn. The tapland is why — a land
+that enters tapped is a land that produces no mana the turn it lands, so a deck
+holding several of them curves out later and games run longer. The
+creatures-died jump on `performance` (5.9 → 8.6) is Chainbreaker: a 3/3 body for
+`{2}` that arrives as a 1/1 both blocks more often and dies more often than
+anything else in that pool. **This is a pool change, not an engine regression** —
+the engine A/B for the same PR ran on identical pools and is recorded in the PR.
 
 ### 3.1 The gate: run both pools, and read them differently
 

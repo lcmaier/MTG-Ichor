@@ -11,7 +11,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
-- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **Still ahead: RC (ETB replacements, ~1,350 cards), RD (damage and prevention, CR 615), RE (the remaining event kinds).**
+- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **RC is under way (2026-09-01): RC-1 deleted the early stack pop; RC-2 made entering the battlefield a proposed event (`GameAction::EnterBattlefield`, `Rewrite::EnterWith`, `EnterMods`), with `place_on_battlefield` as its performer and CR 110.5b / 122.6a as its two consumers.** Still ahead: **RC-3** (the CR 614.12 membership gate — one line in `compute.rs`, and the reason no `AffectedSet::Filter` effect can reach an entering permanent today), **RC-4** (the look-ahead frame), RD (damage and prevention, CR 615), RE (the remaining event kinds).
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (Phases RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. **RS-1**: `RestrictionDef` / `Restriction` (`types/restriction.rs`), the third `DurationRegistry` customer (`state/restrictions.rs`), and `engine::restriction::is_prohibited` — one predicate, a battlefield sweep off *effective* ability lists, and §4.9's candidate filter. Indestructible, "can't be regenerated" and Sigarda all reach it. **The hard join is satisfied: RC-4 is unblocked.** Still ahead on this track: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
@@ -224,6 +224,18 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 **The phase has an architecture doc as of 2026-08-24: `plans/replacement-architecture.md`.** It is authoritative for the type shapes, the CR 616.1 pipeline, the ETB look-ahead frame, and the RA–RE sequencing; item 3 below *is* its Phase RA. This section stays the status ledger.
 
 **RA ships as three PRs (sized 2026-08-25, `replacement-architecture.md` §9).** RA-1 = the `ActionContext` sweep + `ZoneChangeCause`; RA-2 = the six routing tickets; RA-3 = batch form, LKI/cause/batch-id payloads, the three bypass closures, and the death-event demotion. Ticket numbers below are stable and cited by §9.
+
+**Status 2026-09-01: Phase RC-2 ✅ — entering the battlefield is a proposed event.** `replacement-architecture.md` §9's RC-2 subsection carries the eight findings; this is the state ledger. What landed:
+
+- **`GameAction::EnterBattlefield { object, controller, mods }`**, proposed by `perform_action`'s `ZoneChange` arm the statement after it emits, and performed by `place_on_battlefield`. `EventPattern::EnterBattlefield`, `Rewrite::EnterWith(EnterMods)`, and `EnterMods { tapped, counters }` with a `merge` that is CR 616.1f's accumulation — status is `|=`, counters are `+` per kind.
+- **`init_zone_state` is deleted.** It created the `BattlefieldEntity` from inside `move_object`, below the chokepoint. CR 110.2b's default controller — `GameState::resolving`'s only reader since RC-1 — is now `GameState::default_enter_controller`, read at the proposal. The field still has exactly one reader.
+- **`init_etb_counters` is deleted.** CR 306.5b's loyalty is `GameState::default_enter_mods`, which *seeds the proposal* — so Phase RE's counter doublers will replace it with no further work. It is the first thing in the engine to be modelled as "what the rules say this permanent enters with" rather than as a direct write.
+- **One emitter.** `GameEvent::PermanentEnteredBattlefield` was emitted by `stack.rs` for a resolving permanent spell and by `resolve.rs` for a token, and **not at all for a land drop** — the most frequent entry in the game. The performer emits it now, once, with the *effective* controller (CR 400.7a's Layer 2 row has already moved a stolen permanent spell by then).
+- **`gather` grew source 1a and a gate leg**: the entering permanent itself, read off its effective ability list, ahead of the fast-path gate. Without it every "this permanent enters tapped" is dead text, because `replacement_ability_sources` is written by `register_static_effects` *inside* the performer. `chooser_for_event` reads CR 616.1's chooser off the proposal, because an entering permanent has no controller for `controller_or_owner` to find.
+- **Two cards, one per half of `EnterMods`**: Idyllic Beachfront (CR 110.5b) and Chainbreaker (CR 122.6a). `PERFORMANCE_POOL` 57 → 59; `engineering-practices.md` §3's table re-recorded.
+- **Event-stream check**: at 40 games / seed 12345, canonicalized and diffed against a same-day `main` binary with the new cards unregistered, **the only difference is one added `ETB` line per land drop** — 708 on `performance`, 699 on `stress`, zero deletions, zero reorderings.
+
+**Two known-wrong answers it leaves, both RC-3's one line** (`compute.rs`'s `game.battlefield.contains_key` gate in `effect_applies_to`): no `AffectedSet::Filter` effect reaches an entering permanent, so Blood Moon does not strip an entering tapland's "enters tapped" (the real ruling says it does), and `default_enter_mods` would miss a planeswalker made one by a filter-scoped Layer 4 effect. `tests/phase_rc_integration_test.rs::test_blood_moon_does_not_yet_strip_an_entering_taplands_ability` asserts the wrong answer on purpose so RC-3 has to flip it.
 
 **Status 2026-08-26: Phase RB ✅ — the CR 616.1 pipeline is live and three consumers use it.** All nine of `replacement-architecture.md` §9's RB items shipped. What landed:
 
@@ -1305,6 +1317,23 @@ section never asked.
     hard**; recorded because it is the cheapest of the three, and because "the
     log is unbounded" is the kind of fact that is obvious once and invisible
     afterwards.
+
+43. **CR 122.6a names a player and `EnterMods` does not carry one (recorded
+    2026-09-01, RC-2).** "If an object enters the battlefield with counters on
+    it, the effect causing the object to be given counters **may specify which
+    player puts those counters on it**. If the effect doesn't specify a player,
+    the object's controller puts them on." `EnterMods.counters` is
+    `Vec<(CounterType, u32)>`, so only the default half exists.
+
+    **Nothing in reach needs the named half** — no registered card specifies a
+    player, and ATOM-122.6a-001 is covered by the default. What needs it is
+    Phase **RE**: the atom's own expected result says so, because Doubling
+    Season doubles counters *you* put on, so a doubler has to know who put them
+    on before it can decide whether it applies. The field is one `Option<PlayerId>`
+    per entry and the merge already coalesces by kind, which is the thing that
+    would have to change — two effects giving counters of the same kind on
+    behalf of different players cannot share a row. **Size it before RE writes
+    its first doubler, not after.**
 
 ### Was the critical path complete? — audited 2026-08-27
 

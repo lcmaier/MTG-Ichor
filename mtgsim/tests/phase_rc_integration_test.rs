@@ -233,21 +233,36 @@ fn test_zero_toughness_creature_survives_because_counters_arrive_with_it() {
     );
 }
 
-/// CR 306.5b's loyalty is the rules' own entry replacement, and RC-2 moved it
-/// onto the proposal. It has to still arrive.
+/// CR 306.5b's loyalty is the rules' own entry replacement — "a planeswalker has
+/// the intrinsic ability 'This permanent enters with a number of loyalty
+/// counters on it equal to its printed loyalty number.' This ability creates a
+/// replacement effect (see rule 614.1c)" — and RC-2 moved it from a direct write
+/// inside the performer onto the proposal, where a counter doubler will be able
+/// to reach it.
+///
+/// A planeswalker *spell*, resolving from the stack, because that is the road
+/// the rule is written about.
+// COVERS: ATOM-209.1-001, ATOM-306.5b-001
 #[test]
-fn test_planeswalker_loyalty_rides_on_the_entry_proposal() {
+fn test_planeswalker_spell_enters_with_its_printed_loyalty() {
     let mut game = setup_two_player_game();
 
     let pw = CardDataBuilder::new("Jace, the Mind Sculptor")
+        // One colored symbol, no generic: see `enters_with`.
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .color(mtgsim::types::colors::Color::Blue)
         .card_type(CardType::Planeswalker)
-        .loyalty(3)
+        .loyalty(4)
         .build();
-    let id = reanimate(&mut game, pw, 0);
+
+    let id = put_in_hand(&mut game, pw, 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    game.cast_spell(0, id, &test_dp()).expect("it is castable");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
 
     assert_eq!(
         game.battlefield.get(&id).unwrap().counter_count(CounterType::Loyalty),
-        3
+        4
     );
 }
 
@@ -389,6 +404,13 @@ fn test_blood_moon_does_not_yet_strip_an_entering_taplands_ability() {
 /// `register_static_effects`, which runs *inside* the performer — so at the
 /// moment the entry is proposed the entering permanent is in no gather hint
 /// set, and only the explicit entering-object source finds it.
+///
+/// Partial on CR 614.12's second clause — "continuous effects from the
+/// permanent's own static abilities that would apply to it once it's on the
+/// battlefield". The clause holds here for a `SourceOnly` ability; the atom's
+/// own scenario is a token copy of Voice of All, which needs copy effects
+/// (Phase CV) and a choice made before entry (RC-4).
+// COVERS-PARTIAL: ATOM-614.12-002
 #[test]
 fn test_entering_permanent_is_gathered_before_it_is_a_source() {
     let mut game = setup_two_player_game();
@@ -521,6 +543,12 @@ fn test_direct_enter_battlefield_action_still_performs() {
 
 /// Both RC-2 cards, checked against their printed text rather than against the
 /// engine's opinion of it.
+///
+/// Partial on CR 614.1c's boundary: the in-set member ("this permanent enters
+/// with …" is a replacement effect) is what both cards are, and the out-of-set
+/// member ("when this permanent enters, put counters on it" is a *triggered*
+/// ability) cannot be built until item 6 gives the engine triggers at all.
+// COVERS-PARTIAL: BOUNDARY-DEF-614.1c-001
 #[test]
 fn test_rc2_cards_read_as_printed() {
     let land = idyllic_beachfront();

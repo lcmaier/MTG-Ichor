@@ -2323,7 +2323,7 @@ accepts that a later PR may fix an earlier one.
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **RC-1 — delete the early stack pop** ✅ | pure deletion, zero new behavior | measured **12**, not 11: `stack.is_empty()` × **6** (the row said 5 — see below) + `GameState::resolving` × 6; deletes one leniency branch | low |
-| **RC-2 — `EnterBattlefield` as an event** | the performer migration, plus enters-tapped as its first consumer | **10** production `place_on_battlefield` sites (4 `resolve.rs`, 1 `zones.rs`, 5 `game_state.rs`) + 4 in `test_support`; **7** `init_zone_state` / `init_etb_counters` sites; 4 new type-surface items | medium |
+| **RC-2 — `EnterBattlefield` as an event** ✅ | the performer migration, plus enters-tapped as its first consumer | predicted **10** production `place_on_battlefield` sites; **two**, and the number that mattered was 92 direct callers with 88 in `#[cfg(test)]`. Shipped **+1,409 / −218 across 25 files** — 611 engine, 207 cards, 591 tests | medium |
 | **RC-3 — the membership gate and the frame's ability list** | §5c's question 1 | **1** site — `compute.rs:623` — inside the hottest path in the engine | **high** |
 | **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **5** concrete-state reads to route through the accessor pair (`compute.rs:180, 242, 408, 623` + the `176/203/389` summary reads) | **highest** |
 
@@ -2418,6 +2418,119 @@ what the permanent would be, so it moves to RC-4.
 has **284** call sites and `place_bare` **73**. Neither should need to change —
 both are `test_support` helpers over `place_on_battlefield` — but that is the
 claim to verify in the first commit, not the last.
+
+**✅ Shipped 2026-09-01.** Eight findings, in the order they cost something.
+
+**1. The site count was a grep count, and the ratio it hid is the lesson.**
+There are **two** production *calls* to `place_on_battlefield` — `zones.rs`'s
+inside `init_zone_state`, and `resolve.rs`'s token path — plus the definition.
+The row's "10" was doc-comment mentions, and the `game_state.rs` figure was six
+of them, not five. What the audit should have counted is what actually drove
+the diff: **92 direct callers in `src/`, of which 88 are inside `#[cfg(test)]`**.
+A performer's signature is owned by its tests, not by its production callers,
+and this is the second RC row in a row whose count was a measurement with a date
+on it (RC-1's `stack.is_empty()` was the first).
+
+**2. `init_zone_state` is gone, not rewritten.** Its whole body was the
+battlefield branch, and the branch was the `BattlefieldEntity` creation — which
+now belongs to the `EnterBattlefield` performer. CR 110.2b's default controller,
+the question RC-1 deliberately left as `GameState::resolving`'s only reader,
+moved out as `GameState::default_enter_controller` and is read at the *proposal*
+instead. The field still has exactly one reader.
+
+**3. The proposal is made after `move_object`, not inside it.** `init_zone_state`
+runs before `move_object` writes `obj.zone`, so proposing from there would have
+announced the entry *before* the `ZoneChange` — a reordering, and the criterion
+for this phase was "the new events and nothing reordered". The proposal is
+instead the statement after `perform_action`'s `ZoneChange` emit, which leaves a
+window one `emit` wide in which the object is in the battlefield *zone* with no
+`BattlefieldEntity`. Both facts are commented at the site; neither is
+comfortable, and the alternative was worse.
+
+**4. The only intended addition to the event stream is one `ETB` per land drop,
+and it closes a hole rather than opening one.** `stack.rs` announced a resolving
+permanent spell, `resolve.rs` announced a token, and `play_land` announced
+nothing at all — so `GameEvent::PermanentEnteredBattlefield` was missing for the
+most frequent entry in the game. The performer is the single emitter now.
+Measured at 40 games / seed 12345 / `--threads 1`, canonicalizing the
+per-process v4 `ObjectId`s to first-seen order and diffing against a same-day
+`main` binary with the two new cards unregistered so the pools match: **708
+added lines on `performance`, 699 on `stress`, every one an `ETB` for a land,
+zero deletions and zero reorderings.** The single `TokenCeasedToExist` swap on
+`stress` is `codebase-state.md` Deferred Migrations item 6 and was reproduced
+against `main` alone.
+
+**5. `EnterWith` had to merge, exactly as §3.2 predicted, and `EnterMods::merge`
+is where CR 616.1f's accumulation lives.** Status is `|=` (CR 110.5b gives a
+permanent one tapped value) and counters are `+` per kind (CR 122.6a is about
+counters being put on it). CR 614.5's applied set is the whole termination
+argument: an `EnterWith` produces an event its own pattern still watches.
+
+**6. `gather` needed a source and `chooser_for` needed a sibling.** The
+battlefield sweep cannot see an entering permanent, and
+`replacement_ability_sources` is written by `register_static_effects` *inside*
+the performer — so without an explicit entering-object source, gated ahead of
+the fast path for `commander_zone_replacement`'s reason, every "this permanent
+enters tapped" is dead text. That is the gate leg `CLAUDE.md` requires of a new
+gather source. Separately, `chooser_for` answers CR 616.1 from the board, and an
+entering permanent has no controller — so it fell through to the *owner*, which
+is the wrong player the moment someone casts a permanent spell they do not own.
+`chooser_for_event` reads the answer off the proposal.
+
+**7. CR 616.1's multi-candidate branch is *not* reachable on an entry, and no
+printed card can make it so at `AffectedSet::SourceOnly`.** Measured
+2026-09-01, and this is RC-2's answer to §3.3's two-card rule rather than an
+evasion of it. Two applicable effects on one entry needs either two
+entry-modifying abilities on one card — the whole printed population is
+Slumbering Trudge, Chocobo Camp, Steel Dromedary, Rotating Fireplace and
+Arixmethes, every one needing {X}, a condition or a trigger — or an
+`AffectedSet::Filter` effect, which cannot match an object that is not on the
+battlefield. **So the branch is RC-3's unlock, not RC-2's**, which is a finding
+about RC-3's value rather than an excuse. The two cards shipped are Idyllic
+Beachfront (CR 110.5b, status) and Chainbreaker (CR 122.6a, counters) — one per
+half of `EnterMods`, which is CR 614.1c's own axis and two genuinely different
+performer paths. Both join `PERFORMANCE_POOL` (57 → 59). The accumulation
+behaviour is covered by a two-ability fixture, labelled as one.
+
+**8. Blood Moon does not strip an entering tapland's ability, and RC-3 is
+exactly one line away from fixing it.** The real ruling is that a tapland under
+Blood Moon enters untapped; `gather` reading the *effective* ability list was
+supposed to deliver that for free. It does not, because Blood Moon's row is an
+`AffectedSet::Filter` and `effect_applies_to`'s battlefield gate returns `false`
+for any filter effect against an object that is not on the battlefield. **No
+`Filter` effect reaches an entry at all** — which is the same statement as RC-3's
+"an entering Clone matches no filter, Dress Down included", now with a
+registered card behind it and a test asserting the wrong answer so RC-3 has to
+flip it.
+
+**Exit met.** Whole suite green (810 tests, 17 of them new), zero warnings,
+`check_module_layout.py` and `check_claude_md.py` both pass. `specdb owed` is
+unchanged over the shipped phases, and RC-2 claims five atoms in full —
+ATOM-110.5b-001/-002, ATOM-122.6a-001, and ATOM-209.1-001 / ATOM-306.5b-001,
+the last two being Phase 5 Pre-Work atoms that had had no test at all until the
+loyalty rewrite gave them one. Two partials: BOUNDARY-DEF-614.1c-001 (the
+out-of-set member is a triggered ability, which item 6 owes) and ATOM-614.12-002
+(its own scenario is a token copy of Voice of All, which needs CV and RC-4).
+
+**Determinism holds and the pipeline is free.** `fuzz_games --games 200 --seed
+12345 --threads 1`, three runs per pool on the shipped binary, byte-identical
+outside `=== Timing ===` on **both** pools. Interleaved A/B in one sitting
+against a same-day `main`, on identical card pools so the delta is the engine
+alone: **104.5 → 103.8 ms/game on `performance`, 108.2 → 106.9 on `stress`**,
+medians of three alternating runs each — flat, and both deltas are smaller than
+the spread within either arm. That is the expected shape: the new gather source
+costs one `compute_characteristics` walk per *entry*, and entries are rare
+against untap steps and SBA sweeps. **RC-3's line is the one on the hot path,
+and this measurement is the control it will be read against.**
+
+**Not changed, and the ticket asked:** `put_on_battlefield_this_turn` (10 call
+sites, absent from the row above) routes through the performer like
+`put_on_battlefield` and `place_bare`, and like them needed no re-pointing. All
+three did need **one line each**, for a reason the "neither should need to
+change" claim did not anticipate: `init_etb_counters` moved off the performer,
+so the two helpers documented as firing ETB counters now pass
+`default_enter_mods` explicitly, and `place_bare`'s promise not to fire them is
+what makes it the right fixture for a test that counts events.
 
 #### RC-3 — the membership gate and the frame's ability list
 
