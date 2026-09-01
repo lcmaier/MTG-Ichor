@@ -26,7 +26,7 @@ jobs:
       run:
         working-directory: mtgsim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Pinned rather than `stable`, because an unpinned toolchain turns a
       # GitHub image bump into a build break with no commit to blame.
