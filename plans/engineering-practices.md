@@ -124,6 +124,111 @@ The performance column is byte-identical to the pre-split baseline, which is the
 acceptance test for the split. The stress column moved where Kalitas predicts:
 fewer creatures die, because opponents' creatures are exiled instead.
 
+### 3.1 The gate: run both pools, and read them differently
+
+Each pool answers a question the other cannot, so a PR runs both. **They are
+different instruments, not a cheap and an expensive version of one.**
+
+```bash
+cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1
+cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1 --pool stress
+```
+
+| Pool | Question | Read | Grows with the card list? |
+|---|---|---|---|
+| **performance** | *Did my change make the engine slower?* | A **delta** against a recorded baseline | No — frozen, which is what keeps a number in `plans/` comparable months later |
+| **stress** | *Is there a card shape that makes the engine fall over?* | An **absolute threshold**: 0 errors, 0 panics, 0 turn-limit hits, and no tail number off its scale | Yes, by design |
+
+**Never A/B a stress number against a baseline recorded before the pool
+changed.** It moves for two reasons at once — the change and the new cards — and
+that conflation is the thing the pool split exists to prevent. A stress run is
+pass/fail against a ceiling; only the frozen pool measures a delta.
+
+**Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
+byte-identical across runs at one seed, so the three-run check in `CLAUDE.md` is
+a diff of two regions rather than a hunt for scattered lines. Strip the block and
+the runs must match exactly:
+
+```bash
+cd mtgsim && for i in 1 2 3; do cargo run --release --bin fuzz_games -- --games 50 --seed 12345 | sed '/^=== Timing ===$/,/^$/d' > run$i.txt; done && diff run1.txt run2.txt && diff run1.txt run3.txt
+```
+
+### 3.2 Reading the tail, and why the mean cannot do this job
+
+`CPU/game` is a mean, and **a mean is the one statistic guaranteed to hide a
+performance cliff**: a card shape that makes the layer walk fall over moves the
+slowest game by orders of magnitude and a 50-game mean by about two percent. The
+`tail` lines report p50 / p99 / max instead, and `Slowest game` prints the seed,
+because every game is a pure function of its own seed and the outlier replays
+alone with `--seed N --games 1`.
+
+**Two tails, and the pair is the point.** `CPU/game` conflates *long* games with
+*slow* ones; `CPU/turn` divides that out. Compare them:
+
+**Baselines, 200 games / seed 12345 / `--threads 1`, recorded 2026-08-31:**
+
+| | performance | stress |
+|---|---|---|
+| CPU/game mean | 86.62 ms | 87.11 ms |
+| CPU/game p50 / p99 / max | 63.36 / 409.86 / 475.81 ms | 59.36 / 409.57 / 498.16 ms |
+| CPU/turn p50 / p99 / max | 2.35 / 6.52 / 7.11 ms | 2.29 / 6.72 / 7.73 ms |
+
+The game-level tail is **6.5x** the median and the turn-level tail is **2.8x**.
+The gap between those two numbers is the finding: most of the game tail is games
+being *longer* (73 and 87 turns against a ~30 average), and the residual 2.8x is
+genuine per-turn growth as the board fills — more permanents, more expensive
+layer walks. Superlinear but modest, and expected.
+
+**What a regression looks like, then.** A turn tail that climbs while the median
+holds is the signal to chase; a game tail that climbs with it is probably just a
+longer game. **The p99 equals the max below 100 games** — nearest-rank on 50
+samples puts rank 50 at the last element — so run 200 when the tail is the thing
+you are reading.
+
+**The mean is still the benchmarking number.** `CPU/game` on the frozen pool at
+`--threads 1` is what an A/B compares; the tail says whether a *new* cost
+appeared, not whether an existing one grew.
+
+### 3.3 How many cards a mechanic owes — ask the rule, not a quota
+
+**The question is "is this rule defined over one object, or over several?"** If
+several, one card leaves the multi-object branch unreachable — not rarely hit,
+*unreachable*, at any game count — and the tests pass because nothing can build
+the scenario. Count is the wrong metric; the axis the rule is defined over is
+the right one.
+
+**Tier 1 — the rule itself requires two, and one card is dead code.** CR 616.1
+applies only among "two or more"; CR 613.7 orders effects *within* a layer, so it
+needs two in one layer on one object; CR 614.5's applied set is keyed on effect
+*instance*; CR 704.7 collapses two actions with the same result. **Worked
+example, measured 2026-08-31:** exactly one registered card produces a
+replacement effect (Kalitas), it is Legendary, and CR 704.5j is enforced — so no
+player can control two, and two opposing copies each apply only to the *other*
+player's creatures. CR 616.1's entire multi-candidate branch has never been
+reachable in a fuzz game. RB's own status line says so from the other side:
+"zero new `DecisionProvider` prompts appeared."
+
+**Tier 2 — two are valuable, and they must differ in shape.** RB's discovered
+hang was "a declined `exempt_from_614_5` optional without a second set" — a bug
+at the *intersection* of two attributes. A card with the ordinary shape never
+reaches it. The axes worth varying are the ones the CR itself names:
+optional/mandatory, self/other (CR 614.15), exempt/not, and which player the
+effect is scoped to (that is who CR 616.1 asks).
+
+**Tier 3 — one is plenty.** A keyword flag, a vanilla body, a one-shot with no
+interaction surface.
+
+**And the counter-pressure, which is equally real.** A second card of the *same
+shape* buys nothing, cards cost authoring plus registration plus a test, and PRs
+are sized 1,500–2,500. This must not become "N cards per phase". The current
+distribution is the argument for shape over count: **11** keyword creatures for a
+boolean flag, **1** card for the whole CR 616.1 pipeline, **1** for Layer 2.
+
+**What makes this cheap now.** `PERFORMANCE_POOL` is frozen, so registering a
+card cannot move a recorded baseline — it only grows the stress pool, which is
+read as a threshold. That is what §3 bought and it is why "register every card
+you write" costs nothing today.
+
 ---
 
 ## 4. Sizing a phase, and splitting it

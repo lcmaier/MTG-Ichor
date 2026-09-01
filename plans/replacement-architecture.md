@@ -2327,6 +2327,18 @@ accepts that a later PR may fix an earlier one.
 | **RC-3 — the membership gate and the frame's ability list** | §5c's question 1 | **1** site — `compute.rs:623` — inside the hottest path in the engine | **high** |
 | **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **5** concrete-state reads to route through the accessor pair (`compute.rs:180, 242, 408, 623` + the `176/203/389` summary reads) | **highest** |
 
+**Every RC PR that ships a card owes a *second* card of a different shape**
+(`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
+consequence, measured 2026-08-31, is that CR 616.1's multi-candidate branch has
+never been reachable in a fuzz game: Kalitas is Legendary, so no player controls
+two, and two opposing copies each apply only to the *other* player's creatures.
+The ordering choice, the applied set across instances, and the APNAP ordering
+among simultaneous choosers are all dead code that tests green. RC-2's
+enters-tapped consumer is the same trap in a friendlier costume — 773 cards
+share one shape, and one of them exercises CR 616.1 exactly as poorly as one of
+them exercises it now. `codebase-state.md` item 35 sizes the two cards that
+close RB's half at zero engine cost; do not let RC open a second such gap.
+
 #### RC-1 — delete the early stack pop
 
 `codebase-state.md` Deferred Migrations item 7, on its own and first. `RC` was

@@ -28,11 +28,24 @@
 // byte-identical at any `--threads` value — that is the acceptance test for
 // this harness, and `--threads 1` is kept as the serial reference.
 //
-// Timing is reported twice. `Time/game` is wall-clock divided by games, so it
-// falls as workers are added; `CPU/game` is the mean of each game's own
-// measured duration, so it *rises* — 89.8ms alone against 191.5ms with 16
+// **Everything outside the `=== Timing ===` block is byte-identical across runs
+// at one seed.** That is what makes the three-run determinism check in
+// `CLAUDE.md` a plain `diff` of two regions rather than a hunt for scattered
+// timing lines, and it is why every duration-derived number — including the
+// slowest game's seed, which is chosen *by* a duration — lives in that block.
+//
+// Timing is reported as a mean and a tail. `Time/game` is wall-clock divided by
+// games, so it falls as workers are added; `CPU/game` is the mean of each game's
+// own measured duration, so it *rises* — 89.8ms alone against 191.5ms with 16
 // games in flight, because the layer walk is allocation-heavy and the workers
 // contend for memory bandwidth rather than for cores.
+//
+// The tail is there because **the mean is the one statistic guaranteed to hide a
+// performance cliff.** A card shape that makes the layer walk fall over moves
+// the slowest game by orders of magnitude and a 50-game mean by about two
+// percent. `CPU/turn` is the sharper of the two tails: the slowest *game* is
+// usually just the longest game, whereas a slow *turn* is an anomaly whatever
+// the game's length.
 //
 // **Which mode to use, measured (200 games / seed 12345, 10 runs each):**
 //
@@ -494,6 +507,33 @@ fn dump_event_log(path: &str, game_num: usize, events: &[String]) {
 /// game order. `event_log` is `None` unless `--dump-events` asked for it — it is
 /// the only large field, and formatting one per game and dropping it was
 /// wasted work in the serial harness too.
+/// One game's timing, kept rather than summed away so the tail can be reported.
+///
+/// `turns` is `None` for a game that errored or panicked: there is no turn count
+/// to divide by, and a crashed game's "cost per turn" would be noise in the one
+/// distribution that exists to surface anomalies.
+struct GameTiming {
+    seed: u64,
+    ms: f64,
+    turns: Option<u32>,
+}
+
+/// Nearest-rank percentile over an ascending slice; `p` is a fraction in `0..=1`.
+///
+/// Nearest rank rather than interpolation, because at the game counts this
+/// harness runs an interpolated p99 would invent precision the sample does not
+/// have. The visible consequence: **p99 equals max below 100 games.** At
+/// `--games 50`, rank `ceil(0.99 * 50)` is 50 — the last element. Two equal
+/// numbers there are not a bug, they are the sample saying it is too small to
+/// separate them; `--games 200` is where p99 starts carrying its own signal.
+fn percentile(ascending: &[f64], p: f64) -> f64 {
+    if ascending.is_empty() {
+        return 0.0;
+    }
+    let rank = ((p * ascending.len() as f64).ceil() as usize).clamp(1, ascending.len());
+    ascending[rank - 1]
+}
+
 enum GameOutcome {
     Completed {
         result: Option<mtgsim::state::game::GameResult>,
@@ -685,9 +725,18 @@ fn main() {
     // Reporting is a serial pass over the games in order, so every line printed
     // and every number accumulated is what the serial harness produced.
     let mut cpu_total = std::time::Duration::ZERO;
+    let mut timings: Vec<GameTiming> = Vec::with_capacity(args.games);
     for (game_num, (outcome, game_time)) in outcomes.into_iter().enumerate() {
         cpu_total += game_time;
         let game_seed = master_seed.wrapping_add(game_num as u64);
+        timings.push(GameTiming {
+            seed: game_seed,
+            ms: game_time.as_secs_f64() * 1000.0,
+            turns: match &outcome {
+                GameOutcome::Completed { turns, .. } => Some(*turns),
+                _ => None,
+            },
+        });
 
         match outcome {
             GameOutcome::Completed { result: game_result, turns, stats, event_log } => {
@@ -769,6 +818,13 @@ fn main() {
     println!("Hit turn limit:  {}", hit_turn_limit);
     println!("Avg turns/game:  {:.1}", avg_turns);
     println!("Max turns seen:  {}", max_turns_seen);
+
+    // Everything above this point is byte-identical across runs at one seed;
+    // everything in this block is not. Keeping the boundary sharp is what lets
+    // the three-run determinism check diff two regions instead of filtering
+    // lines out of one.
+    println!();
+    println!("=== Timing ===");
     println!("Total time:      {:.2}s", elapsed.as_secs_f64());
     println!(
         "Time/game:       {:.2}ms",
@@ -782,6 +838,45 @@ fn main() {
         "CPU/game:        {:.2}ms",
         cpu_total.as_secs_f64() * 1000.0 / args.games as f64
     );
+
+    let mut game_ms: Vec<f64> = timings.iter().map(|t| t.ms).collect();
+    game_ms.sort_by(|a, b| a.total_cmp(b));
+    println!(
+        "CPU/game tail:   {:.2} p50 / {:.2} p99 / {:.2} max  (ms)",
+        percentile(&game_ms, 0.50),
+        percentile(&game_ms, 0.99),
+        percentile(&game_ms, 1.00),
+    );
+
+    // Completed games only, and only those that reached a turn: a game that
+    // errored on turn 0 has no rate, and dividing by zero would put an infinity
+    // at the top of the distribution this line exists to read.
+    let mut turn_ms: Vec<f64> = timings
+        .iter()
+        .filter_map(|t| match t.turns {
+            Some(turns) if turns > 0 => Some(t.ms / turns as f64),
+            _ => None,
+        })
+        .collect();
+    turn_ms.sort_by(|a, b| a.total_cmp(b));
+    println!(
+        "CPU/turn tail:   {:.2} p50 / {:.2} p99 / {:.2} max  (ms)",
+        percentile(&turn_ms, 0.50),
+        percentile(&turn_ms, 0.99),
+        percentile(&turn_ms, 1.00),
+    );
+
+    // The handle that makes a tail number actionable: every game is a pure
+    // function of its own seed, so the outlier replays alone.
+    if let Some(slowest) = timings.iter().max_by(|a, b| a.ms.total_cmp(&b.ms)) {
+        let turns = slowest
+            .turns
+            .map_or_else(|| "no turn count".to_string(), |t| format!("{t} turns"));
+        println!(
+            "Slowest game:    {:.2}ms over {} — repro: --seed {} --games 1",
+            slowest.ms, turns, slowest.seed
+        );
+    }
 
     println!();
     println!("=== Outcomes ===");
@@ -807,5 +902,34 @@ fn main() {
 
     if panics > 0 || errors > 0 {
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percentile;
+
+    #[test]
+    fn percentile_uses_nearest_rank_and_never_indexes_past_the_end() {
+        let xs: Vec<f64> = (1..=100).map(|n| n as f64).collect();
+        assert_eq!(percentile(&xs, 0.50), 50.0);
+        assert_eq!(percentile(&xs, 0.99), 99.0);
+        assert_eq!(percentile(&xs, 1.00), 100.0, "p100 is the max, not an overrun");
+    }
+
+    #[test]
+    fn p99_collapses_onto_max_below_a_hundred_samples() {
+        // Documented in `percentile`'s comment and asserted here so nobody
+        // "fixes" the duplicate reading at --games 50 by interpolating.
+        let xs: Vec<f64> = (1..=50).map(|n| n as f64).collect();
+        assert_eq!(percentile(&xs, 0.99), percentile(&xs, 1.00));
+    }
+
+    #[test]
+    fn percentile_handles_the_degenerate_inputs() {
+        assert_eq!(percentile(&[], 0.99), 0.0, "no games run");
+        assert_eq!(percentile(&[7.0], 0.50), 7.0, "one game is every percentile");
+        // p0 would round rank to 0; the clamp keeps it on the first element.
+        assert_eq!(percentile(&[3.0, 9.0], 0.0), 3.0);
     }
 }
