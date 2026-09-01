@@ -86,6 +86,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::Untap { object } => EventSubject::Object(*object),
         GameAction::Tap { object } => EventSubject::Object(*object),
         GameAction::Destroy { object, .. } => EventSubject::Object(*object),
+        GameAction::EnterBattlefield { object, .. } => EventSubject::Object(*object),
         GameAction::AddCounters { object, .. } => EventSubject::Object(*object),
         GameAction::RemoveCounters { object, .. } => EventSubject::Object(*object),
     }
@@ -96,10 +97,26 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
 ///
 /// A lookup, and therefore already N-player-safe — no `bool`, no "the other
 /// player".
-pub(crate) fn chooser_for(game: &GameState, subject: EventSubject) -> Option<PlayerId> {
-    match subject {
-        EventSubject::Player(pid) => Some(pid),
-        EventSubject::Object(id) => controller_or_owner(game, id),
+/// Takes the whole proposal rather than its [`EventSubject`], because **an
+/// entry's chooser is not a property of the board**. A permanent that has not
+/// entered yet has no controller, so `controller_or_owner` falls through to its
+/// owner — the wrong player the moment someone casts a permanent spell they do
+/// not own, or a token is created under an opponent's control. CR 110.2b's
+/// answer rides on `GameAction::EnterBattlefield` instead, and CR 616.1b's
+/// control-changing bucket is the same reading from the other side: the rules
+/// expect an entering permanent to have a controller to ask, and it is the one
+/// it is *about to* enter under.
+///
+/// That is why this is one function with an entry arm rather than a wrapper
+/// around a subject-shaped one. A subject cannot answer for an entry, and both
+/// callers — the CR 616.1 loop and `apnap_batch_order` — hold the action.
+pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<PlayerId> {
+    match action {
+        GameAction::EnterBattlefield { controller, .. } => Some(*controller),
+        other => match subject_of(other) {
+            EventSubject::Player(pid) => Some(pid),
+            EventSubject::Object(id) => controller_or_owner(game, id),
+        },
     }
 }
 
@@ -126,12 +143,20 @@ pub(crate) fn gather(
         return Vec::new();
     }
 
-    // The fast path, and it is not an optimization — it is the difference
-    // between the pipeline being free and the pipeline tripling the engine's
-    // cost. `get_effective_abilities` is a full `compute_characteristics` walk,
-    // and an ungated sweep would run one per permanent per proposed action:
-    // measured against the untap step alone that is ~6,000 extra layer walks
-    // per `fuzz_games` game.
+    // The board-level fast path, and it is not an optimization — it is the
+    // difference between the pipeline being free and the pipeline tripling the
+    // engine's cost. `get_effective_abilities` is a full
+    // `compute_characteristics` walk, and an ungated sweep would run one per
+    // permanent per proposed action: measured against the untap step alone that
+    // is ~6,000 extra layer walks per `fuzz_games` game.
+    //
+    // **This one only answers "does the sweep run at all", which stopped being
+    // enough when RC-2 put replacement sources in the default card pool.** From
+    // the first tapland onward it is true for the rest of the game, and the
+    // sweep then walked every permanent to find the one or two that could
+    // matter. The per-permanent gate below is the other half; skipping it cost
+    // **10.3% of total game time on `performance` and 9.2% on `stress`**,
+    // interleaved A/B at 200 games (`replacement-architecture.md` §9, RC-2).
     //
     // The gate is *exact*, not a heuristic. An object on the battlefield can
     // only have a static replacement ability if it printed one — recorded in
@@ -152,39 +177,73 @@ pub(crate) fn gather(
         push_if_applicable(game, &mut candidates, instance, action, subject);
     }
 
+    // --- Source 1a: the permanent that is entering (CR 614.12) -------------
+    //
+    // > 614.12. Some replacement effects modify how a permanent enters the
+    // > battlefield. ... Such effects may come from the permanent itself if they
+    // > affect only that permanent.
+    //
+    // The sweep below walks `battlefield_ids_ordered`, and the entering
+    // permanent is not on it — creating its entry is the mutation this pipeline
+    // is deciding about. So this is the **gate leg** `CLAUDE.md` demands of any
+    // new gather source: `replacement_ability_sources` is populated by
+    // `register_static_effects`, which runs *inside* the performer, so without
+    // this block every "this permanent enters tapped" is dead text.
+    //
+    // Ahead of the fast-path gate rather than inside it, for
+    // `commander_zone_replacement`'s reason: it is exact and costs one
+    // `compute_characteristics` walk on an entry, where opening the gate would
+    // cost one per permanent on the board.
+    //
+    // Gathered here for cost and spliced in after the sweep for order: the
+    // entering permanent is about to be the newest object on the battlefield,
+    // so CR 613.7's oldest-first puts it last among the sweep's candidates. It
+    // has no timestamp at all yet — `place_on_battlefield` takes one from the
+    // monotonic `next_timestamp` once the pipeline has decided — and nothing
+    // between here and there re-timestamps anything already on the board.
+    //
+    // **Attachment is the case that looks like a counter-example and is not.**
+    // CR 613.7e re-timestamps *the Aura or Equipment*, never its host, so an
+    // Aura entering and attaching (CR 303.4f) only ends up newer still. The one
+    // real limit is CR 613.7m — objects entering *simultaneously* are ordered by
+    // APNAP rather than by allocation — and every entry today is its own
+    // singleton batch. Both are `codebase-state.md`'s item 4.
+    let mut entering: Vec<ReplacementInstance> = Vec::new();
+    if let GameAction::EnterBattlefield { object, controller, .. } = action {
+        push_static_ability_replacements(game, &mut entering, *object, *controller, action, subject);
+    }
+
     let has_static_source = !game.replacement_ability_sources.is_empty()
         || game.continuous_effects.summary().any_granted_replacement;
     if !has_static_source
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
     {
+        candidates.extend(entering);
         return candidates;
     }
 
     // --- Sources 1 and 5: the battlefield sweep ----------------------------
+    //
+    // The fast path is per *permanent*, not just per board. `has_static_source`
+    // above answers "is anything on this board a static replacement source",
+    // which is what decides whether the sweep runs at all; this decides which
+    // permanents inside it are worth a `compute_characteristics` walk, and it is
+    // the same predicate one object at a time. Exact by the same argument, with
+    // the same over-approximations: a printed ability is recorded at ETB, a
+    // Layer 6 grant is reported by the registry summary but not attributed to an
+    // object, and CR 305.7 or Humility can strip a printed one without touching
+    // the set. Over-approximating costs a walk, never an answer.
+    //
+    // It inherits the global gate's one *under*-approximation and adds none:
+    // `register_static_effects` records printed abilities, so a copied
+    // replacement ability is in neither set and is invisible to both — which is
+    // `codebase-state.md` item 16, and the gate leg Phase CV owes.
+    let any_granted = game.continuous_effects.summary().any_granted_replacement;
     for id in game.battlefield_ids_ordered() {
-        if has_static_source {
+        if any_granted || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
-            for ability in get_effective_abilities(game, id) {
-                if ability.ability_type != AbilityType::Static {
-                    continue;
-                }
-                let Effect::Replacement(def) = &ability.effect else {
-                    continue;
-                };
-                push_if_applicable(
-                    game,
-                    &mut candidates,
-                    ReplacementInstance {
-                        id: ReplacementInstanceId::StaticAbility(id, ability.id),
-                        source: id,
-                        controller,
-                        def: (**def).clone(),
-                    },
-                    action,
-                    subject,
-                );
-            }
+            push_static_ability_replacements(game, &mut candidates, id, controller, action, subject);
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
@@ -204,6 +263,8 @@ pub(crate) fn gather(
         }
     }
 
+    candidates.extend(entering);
+
     // --- Sources 3 and 4: the registry -------------------------------------
     for row in game.replacement_effects.iter() {
         push_if_applicable(
@@ -221,6 +282,52 @@ pub(crate) fn gather(
     }
 
     candidates
+}
+
+/// Every static replacement ability on `id`, as candidate instances.
+///
+/// **The battlefield sweep's loop body, lifted so the entering permanent can
+/// reuse it** — nothing more. It is not a look-ahead view and computes no
+/// hypothetical: it asks one object what replacement abilities it has, and the
+/// caller decides which objects to ask. CR 614.12's "as it would exist on the
+/// battlefield" frame is Phase RC-4's and lives nowhere yet.
+///
+/// Read off the **effective** ability list, which is source 1's whole point:
+/// Humility and Blood Moon strip a replacement ability for free, and CR 614.4's
+/// "must exist before the event" is asked at the one instant that matters.
+///
+/// `controller` is a parameter because the two callers know it differently: on
+/// the battlefield it is `controller_or_owner`, and for an entering permanent it
+/// is CR 110.2b's default off the proposal — the same reason `chooser_for` takes
+/// the action.
+fn push_static_ability_replacements(
+    game: &GameState,
+    out: &mut Vec<ReplacementInstance>,
+    id: ObjectId,
+    controller: PlayerId,
+    action: &GameAction,
+    subject: EventSubject,
+) {
+    for ability in get_effective_abilities(game, id) {
+        if ability.ability_type != AbilityType::Static {
+            continue;
+        }
+        let Effect::Replacement(def) = &ability.effect else {
+            continue;
+        };
+        push_if_applicable(
+            game,
+            out,
+            ReplacementInstance {
+                id: ReplacementInstanceId::StaticAbility(id, ability.id),
+                source: id,
+                controller,
+                def: (**def).clone(),
+            },
+            action,
+            subject,
+        );
+    }
 }
 
 fn push_if_applicable(
@@ -351,6 +458,8 @@ pub(crate) fn pattern_watches(
 
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
         (EventPattern::Tap, GameAction::Tap { .. }) => true,
+
+        (EventPattern::EnterBattlefield, GameAction::EnterBattlefield { .. }) => true,
 
         (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {
             source.map(|p| p.matches(*actual)).unwrap_or(true)

@@ -586,10 +586,14 @@ impl GameState {
             // `CreateTokens { defs: Vec<TokenDef> }` for Phase RE, where the
             // CR 614.16 doublers that replace it live (Doubling Season,
             // Academy Manufactor, Chatterfang). Until one of those exists there
-            // is nothing to replace, and a token's *entering* is not a
-            // proposal either — CR 614.1c's ETB replacements are Phase RC's,
-            // and `place_on_battlefield` is still what a resolving permanent
-            // spell uses too.
+            // is nothing to replace.
+            //
+            // The token's *entering* is a proposal, though, and has been since
+            // RC-2: CR 111.1 makes a token a permanent like any other, so
+            // "enters tapped" and "enters with counters" have to reach it. That
+            // is `propose_entry` below, not a `CreateTokens` action — the
+            // creation and the entry are different events, and only the second
+            // one exists yet.
             //
             // Kalitas's rider is the first customer, and it needs the tokens to
             // exist, not to be replaceable.
@@ -609,11 +613,12 @@ impl GameState {
                     obj.is_token = true;
                     let id = obj.id;
                     self.add_object(obj);
-                    self.place_on_battlefield(id, controller);
-                    self.events.emit(crate::events::event::GameEvent::PermanentEnteredBattlefield {
-                        object_id: id,
-                        controller,
-                    });
+                    // CR 110.2b — a token's controller is the player the
+                    // creating effect gave it to, and it is already its owner
+                    // (CR 111.2), so `default_enter_controller` would answer the
+                    // same thing. Passed explicitly because a token never passed
+                    // through the stack and so is never `GameState::resolving`.
+                    self.propose_entry(id, controller, &ActionContext::resolving(dp, ctx))?;
                 }
                 Ok(())
             }
@@ -1350,6 +1355,7 @@ fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::replacement::EnterMods;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::BattlefieldEntity;
@@ -1546,13 +1552,13 @@ mod tests {
         );
         let creature_id = creature.id;
         game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1);
+        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
 
         // Put the Aura on the battlefield (simulating a non-stack ETB)
         let aura = GameObject::new(make_pacifism(), 0, Zone::Battlefield);
         let aura_id = aura.id;
         game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0);
+        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Script the DP to choose the creature as host
         let dp = crate::ui::decision::ScriptedDecisionProvider::new();
@@ -1592,7 +1598,7 @@ mod tests {
         let aura = GameObject::new(make_pacifism(), 0, Zone::Battlefield);
         let aura_id = aura.id;
         game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0);
+        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // PassiveDP returns empty — no host chosen
         let attached = game.attach_aura_on_etb(aura_id, 0, &test_dp()).unwrap();
@@ -1624,7 +1630,7 @@ mod tests {
         );
         let creature_id = creature.id;
         game.add_object(creature);
-        game.place_on_battlefield(creature_id, 0);
+        game.place_on_battlefield(creature_id, 0, &EnterMods::NONE);
 
         let result = game.attach_aura_on_etb(creature_id, 0, &test_dp()).unwrap();
         assert!(!result);

@@ -13,6 +13,7 @@ pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<Ob
 
 #[cfg(test)]
 mod tests {
+    use crate::types::replacement::EnterMods;
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -33,12 +34,12 @@ mod tests {
         let obj0 = GameObject::new(data.clone(), 0, Zone::Battlefield);
         let id0 = obj0.id;
         game.add_object(obj0);
-        game.place_on_battlefield(id0, 0);
+        game.place_on_battlefield(id0, 0, &EnterMods::NONE);
 
         let obj1 = GameObject::new(data, 1, Zone::Battlefield);
         let id1 = obj1.id;
         game.add_object(obj1);
-        game.place_on_battlefield(id1, 1);
+        game.place_on_battlefield(id1, 1, &EnterMods::NONE);
 
         let p0 = permanents_controlled_by(&game, 0);
         assert_eq!(p0.len(), 1);

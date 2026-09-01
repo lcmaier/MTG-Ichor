@@ -126,18 +126,19 @@ impl GameState {
                 // Permanent spell: it becomes a permanent and enters the
                 // battlefield (CR 608.3a; 608.3c for an Aura, handled below).
                 // It enters under its CR 110.2b *default* controller, which
-                // `init_zone_state` reads off `resolving`; the steal's Layer 2
-                // row continues to apply on top per CR 400.7a, so the effective
-                // controller is still the thief.
+                // `default_enter_controller` reads off `resolving`; the steal's
+                // Layer 2 row continues to apply on top per CR 400.7a, so the
+                // effective controller is still the thief.
+                //
+                // The `PermanentEnteredBattlefield` event is emitted inside
+                // this call, by the `GameAction::EnterBattlefield` performer —
+                // it is the only place that knows what the permanent entered
+                // with, and RC-2 deleted the emit that used to sit here.
                 self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
                 // Carry X value from the stack entry to the permanent (rule 107.3f)
                 if let Some(bf_entry) = self.battlefield.get_mut(&object_id) {
                     bf_entry.x_value = entry.x_value;
                 }
-                self.events.emit(GameEvent::PermanentEnteredBattlefield {
-                    object_id,
-                    controller,
-                });
 
                 // Rule 303.4f: Aura spell resolves → enters attached to its
                 // target.  The fizzle check (608.2b) at the top of this
@@ -245,6 +246,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::replacement::EnterMods;
     use crate::engine::resolve::ResolvedTarget;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::objects::object::GameObject;
@@ -575,7 +577,7 @@ mod tests {
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
         let creature_id = creature.id;
         game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1);
+        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
 
         // Put Pacifism on the stack targeting the creature
         let aura_id = put_permanent_on_stack_with_targets(
@@ -604,7 +606,7 @@ mod tests {
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
         let creature_id = creature.id;
         game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1);
+        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
 
         let aura_id = put_permanent_on_stack_with_targets(
             &mut game,

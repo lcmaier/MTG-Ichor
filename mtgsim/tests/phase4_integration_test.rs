@@ -25,6 +25,7 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,7 +48,7 @@ fn place_creature_sick(
     let obj = GameObject::new(data, owner, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
-    game.place_on_battlefield(id, owner); // entered this turn = summoning sick
+    game.place_on_battlefield(id, owner, &EnterMods::NONE); // entered this turn = summoning sick
     id
 }
 

@@ -70,8 +70,17 @@ impl GameState {
         // Add to new zone's collection
         self.add_to_zone_collection(id, to)?;
 
-        // Initialize zone-specific state for the new zone
-        self.init_zone_state(id, to)?;
+        // No `init_zone_state` counterpart to `cleanup_zone_state` any more.
+        // The one thing it did was create the `BattlefieldEntity`, and RC-2
+        // made *entering the battlefield* a proposed event of its own
+        // (CR 614.1c) — so the entity is created by
+        // `GameAction::EnterBattlefield`'s performer, after the replacement
+        // pipeline has decided what the permanent enters as.
+        //
+        // A permanent is therefore in the battlefield *zone* for the width of
+        // this function's tail before it is on the battlefield. Only
+        // `perform_action`'s `ZoneChange` arm may close that window, and it
+        // does so on the next statement after the event it emits.
 
         // Update the object's zone field, and stamp *when* it moved.
         //
@@ -301,7 +310,9 @@ impl GameState {
                 Ok(())
             }
             Zone::Battlefield => {
-                // BattlefieldEntity is created in init_zone_state
+                // No collection to push onto: `GameState::battlefield` is keyed
+                // by `ObjectId`, and its entry is created by the
+                // `GameAction::EnterBattlefield` performer rather than here.
                 Ok(())
             }
             Zone::Graveyard => {
@@ -322,30 +333,6 @@ impl GameState {
                 Ok(())
             }
         }
-    }
-
-    /// Initialize zone-specific state when entering a zone.
-    /// Default controller is the object's owner (correct for play_land, tokens, etc.).
-    /// Initialize zone-specific state when entering a zone.
-    ///
-    /// The entering permanent's controller is its owner (correct for a land play
-    /// and for tokens) *except* when it is a resolving permanent spell, where
-    /// CR 110.2b makes it the player who put that spell onto the stack.
-    ///
-    /// This is the **default** controller — the value Layer 2 modifies, not the
-    /// answer `get_effective_controller` gives. A stolen permanent spell enters
-    /// under its caster's control here and is moved to the thief by the Layer 2
-    /// row CR 400.7a keeps alive. `GameState::resolving` is where the answer
-    /// survives the `StackEntry` being taken.
-    pub(crate) fn init_zone_state(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
-        if zone == Zone::Battlefield {
-            let controller = match self.resolving {
-                Some(r) if r.id == id => r.default_controller,
-                _ => self.get_object(id)?.owner,
-            };
-            self.place_on_battlefield(id, controller);
-        }
-        Ok(())
     }
 
     /// Clean up zone-specific state when leaving a zone.
@@ -403,6 +390,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::replacement::EnterMods;
     use crate::test_support::test_ctx;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -588,7 +576,7 @@ mod tests {
         // Create a forest on the battlefield
         let forest = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        game.place_on_battlefield(forest_id, 0);
+        game.place_on_battlefield(forest_id, 0, &EnterMods::NONE);
 
         // Move to graveyard
         game.move_object(forest_id, Zone::Graveyard).unwrap();
@@ -605,12 +593,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        game.place_on_battlefield(host_id, 0);
+        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
 
         // Create an "attachment" (e.g. Equipment) on the battlefield
         let equip = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let equip_id = game.add_object(equip);
-        game.place_on_battlefield(equip_id, 0);
+        game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
         game.battlefield.get_mut(&equip_id).unwrap().attach_to(host_id);
@@ -636,12 +624,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        game.place_on_battlefield(host_id, 0);
+        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
 
         // Create an attachment on the battlefield
         let aura = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let aura_id = game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0);
+        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
         game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);

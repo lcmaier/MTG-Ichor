@@ -949,6 +949,7 @@ pub(super) fn apply_modification(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::replacement::EnterMods;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::types::card_types::CardType;
@@ -971,7 +972,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         let chars = compute_characteristics(&game, id).unwrap();
         assert_eq!(chars.name, "Grizzly Bears");
@@ -994,7 +995,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a +3/+0 effect
         let effect = registered(
@@ -1021,7 +1022,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
         game.add_counters(id, CounterType::PlusOnePlusOne, 2);
 
         let chars = compute_characteristics(&game, id).unwrap();
@@ -1040,7 +1041,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
         game.add_counters(id, CounterType::PlusOnePlusOne, 3);
         game.add_counters(id, CounterType::MinusOneMinusOne, 1);
 
@@ -1088,7 +1089,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         let chars = compute_characteristics(&game, id).unwrap();
         assert!(chars.keyword_flags.contains(&KeywordFlag::Flying));
@@ -1108,7 +1109,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a +3/+3 effect targeting this creature
         let effect = registered(
@@ -1135,7 +1136,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a "gains flying" effect
         let effect = registered(
@@ -1164,7 +1165,7 @@ mod tests {
         let bears = GameObject::new(bears_data, 0, Zone::Battlefield);
         let bears_id = bears.id;
         game.add_object(bears);
-        game.place_on_battlefield(bears_id, 0);
+        game.place_on_battlefield(bears_id, 0, &EnterMods::NONE);
 
         let giant_data = CardDataBuilder::new("Hill Giant")
             .card_type(CardType::Creature)
@@ -1173,7 +1174,7 @@ mod tests {
         let giant = GameObject::new(giant_data, 0, Zone::Battlefield);
         let giant_id = giant.id;
         game.add_object(giant);
-        game.place_on_battlefield(giant_id, 0);
+        game.place_on_battlefield(giant_id, 0, &EnterMods::NONE);
 
         // Register an anthem: "Creatures you control get +1/+1"
         let anthem_source = crate::types::ids::new_object_id();
@@ -1217,7 +1218,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a "becomes blue" effect (SetColors)
         let mut blue = std::collections::HashSet::new();
@@ -1248,7 +1249,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register an "also red" effect (AddColor)
         let effect = registered(
@@ -1277,7 +1278,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a "becomes colorless" effect
         let effect = registered(
@@ -1305,7 +1306,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // L5: becomes blue
         let mut blue = std::collections::HashSet::new();
@@ -1351,7 +1352,7 @@ mod tests {
         let bears = GameObject::new(bears_data, 0, Zone::Battlefield);
         let bears_id = bears.id;
         game.add_object(bears);
-        game.place_on_battlefield(bears_id, 0);
+        game.place_on_battlefield(bears_id, 0, &EnterMods::NONE);
 
         // Opponent's creature should NOT be affected
         let opp_data = CardDataBuilder::new("Savannah Lions")
@@ -1362,7 +1363,7 @@ mod tests {
         let opp = GameObject::new(opp_data, 1, Zone::Battlefield);
         let opp_id = opp.id;
         game.add_object(opp);
-        game.place_on_battlefield(opp_id, 1);
+        game.place_on_battlefield(opp_id, 1, &EnterMods::NONE);
 
         let source_id = crate::types::ids::new_object_id();
         let effect = ContinuousEffect {
@@ -1408,7 +1409,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
         game.add_counters(id, CounterType::PlusOnePlusOne, 2);
 
         // Register a switch P/T effect (layer 7d)
@@ -1439,7 +1440,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register "becomes also a creature" effect
         let effect = registered(
@@ -1467,7 +1468,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Remove Creature type
         let effect = registered(
@@ -1498,7 +1499,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // SetSubtypes to just Forest
         let mut forest_set = HashSet::new();
@@ -1530,7 +1531,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Add Swamp subtype ("in addition to")
         let effect = registered(
@@ -1559,7 +1560,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Add Legendary supertype
         let effect = registered(
@@ -1589,7 +1590,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.place_on_battlefield(id, 0);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // L4: Add Creature type
         let l4_effect = registered(

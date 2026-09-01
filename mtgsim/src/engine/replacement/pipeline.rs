@@ -174,7 +174,7 @@ pub(crate) fn apply_replacements(
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player.
         let subject = subject_of(&event);
-        let chooser = chooser_for(game, subject);
+        let chooser = chooser_for(game, &event);
 
         // **Never prompt with fewer than two candidates.** CR-correct (there is
         // no choice to make with one), and it is what keeps every existing
@@ -248,7 +248,7 @@ pub(crate) fn apply_replacements(
             });
         }
 
-        match apply_rewrite(&chosen, &event, subject)? {
+        match apply_rewrite(&chosen, event, subject)? {
             // CR 614.6 — the event does not happen. Queued riders still run.
             None => return Ok(None),
             // CR 616.1f — re-gather against the modified event, which is how
@@ -377,22 +377,50 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
 
 /// Apply the chosen effect's [`Rewrite`] to the event (`replacement-architecture.md`
 /// §3.2b).
+///
+/// **Takes the event by value.** The CR 616.1f loop replaces its `event` with
+/// whatever this returns and never reads the old one again, so borrowing it
+/// would only force `Rewrite::EnterWith` to clone an `EnterMods` it is about to
+/// own. Clone pressure matters here beyond tidiness: a tree search clones
+/// `GameState`, and this loop runs inside every proposal.
 fn apply_rewrite(
     chosen: &ReplacementInstance,
-    event: &GameAction,
+    event: GameAction,
     subject: EventSubject,
 ) -> Result<Option<GameAction>, String> {
     match &chosen.def.rewrite {
         // CR 614.6 / 615.6.
         Rewrite::Prevent => Ok(None),
 
+        // CR 614.1c/d — the event still happens; only *how* changes.
+        //
+        // Merged into the proposal rather than substituted for it, which is
+        // what makes CR 616.1f's re-gather accumulate: a permanent facing an
+        // "enters tapped" and an "enters with two charge counters" comes out
+        // the far side with both, in either application order. CR 614.5 is
+        // what stops the merge from repeating — the pattern still watches the
+        // rewritten event, and the applied set is what makes that terminate
+        // rather than loop.
+        Rewrite::EnterWith(extra) => match event {
+            GameAction::EnterBattlefield { object, controller, mut mods } => {
+                mods.merge(extra);
+                Ok(Some(GameAction::EnterBattlefield { object, controller, mods }))
+            }
+            other => Err(format!(
+                "replacement {:?} modifies how a permanent enters but matched {:?}, \
+                 which is not an entry. Its `EventPattern` and its `Rewrite` \
+                 describe different events.",
+                chosen.id, other
+            )),
+        },
+
         Rewrite::Instead(template) => match (template, event) {
             (
                 GameActionTemplate::ZoneChangeTo { to, cause },
                 GameAction::ZoneChange { object, from, .. },
             ) => Ok(Some(GameAction::ZoneChange {
-                object: *object,
-                from: *from,
+                object,
+                from,
                 to: *to,
                 cause: *cause,
             })),

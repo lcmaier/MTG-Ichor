@@ -252,8 +252,23 @@ damage" family stay blocked.
 
 ### Phase RC — ETB replacements
 
-**The largest single entry this ledger will take (~1,350 cards).** Add it with
-RC.
+**The largest single entry this ledger will take (~1,350 cards).** RC ships as
+four PRs; this table grows one row each.
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| RC-1 | **No cards.** A pure deletion — the early stack pop — with no new behaviour | — | ✅ shipped 2026-09-01 |
+| RC-2 | **"Enters tapped" (CR 110.5b, 773 printed cards) and "enters with counters" (CR 122.6a, 580)**, for the `AffectedSet::SourceOnly` case — the permanent's own ability, about itself, which CR 614.12's first sentence names explicitly. That is the overwhelming majority of both populations | 🃏 **Idyllic Beachfront** and **Chainbreaker** (both in `PERFORMANCE_POOL`), plus 🃏 **Adaptive Shimmerer** in the stress pool — a 0/0, which is the only board state that dies if CR 122.6a's counters arrive after the entry is observable. Also newly correct without card work: every planeswalker (CR 306.5b's loyalty is an entry replacement now) and every token (CR 111.1 makes a token's entry a proposal like any other) | ✅ shipped 2026-09-01 |
+| RC-3 | **The *other* population — an entry-modifying effect that is not on the entering permanent.** Root Maze, Kismet, Loxodon Gatekeeper, Frozen Aether, and every Clone against Dress Down. Blocked today by one gate in `compute.rs`, not by missing vocabulary | Root Maze, Kismet, Dress Down | 📋 designed |
+| RC-4 | CR 614.12's look-ahead frame, 614.12a's choice-before-entry, and the CR 616.1b/c buckets | Grist the Hunger Tide, Master Biomancer, the Theros gods | 📋 designed; unblocked by RS-1 |
+
+**What RC-2 did not unlock, and it is worth naming.** CR 616.1's
+multi-candidate branch is still unreachable in a game — measured 2026-09-01, the
+same way RB's Kalitas gap was. Two applicable effects on one entry needs either
+two entry-modifying abilities on one card (the printed population is five cards,
+each needing {X}, a condition or a trigger) or an `AffectedSet::Filter` effect,
+which cannot match an object that is not on the battlefield yet. **That is
+RC-3's row above**, and it is the strongest argument for doing RC-3 next.
 
 ---
 

@@ -17,6 +17,7 @@ use super::phase_le_cards;
 use super::phase_lf_cards;
 use super::phase_lg_cards;
 use super::phase_rb_cards;
+use super::phase_rc_cards;
 use super::phase_rs_cards;
 
 /// The board an engine change is measured against — **representative, not
@@ -40,7 +41,7 @@ use super::phase_rs_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 57] = [
+const PERFORMANCE_POOL: [&str; 59] = [
     "Plains",
     "Island",
     "Swamp",
@@ -102,6 +103,14 @@ const PERFORMANCE_POOL: [&str; 57] = [
     // the edict is the only resolution that asks her anything.
     "Sigarda, Host of Herons",
     "Diabolic Edict",
+    // RC-2 — the first cards that make entering the battlefield a replaceable
+    // event. A pair, because CR 614.1c's two halves are two code paths: one
+    // writes a status before anything can observe the permanent, the other
+    // allocates a CR 613.7c timestamp per counter kind. The land is also the
+    // pool's first nonbasic whose *own* ability CR 305.7 can strip, which is
+    // what makes Blood Moon's effect on a tapland measurable here.
+    "Idyllic Beachfront",
+    "Chainbreaker",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -256,6 +265,11 @@ impl CardRegistry {
         // the resolution that makes its *absence of a prompt* observable.
         registry.register("Sigarda, Host of Herons", phase_rs_cards::sigarda_host_of_herons);
         registry.register("Diabolic Edict", phase_rs_cards::diabolic_edict);
+
+        // Phase RC-2 — the first cards that modify how a permanent enters
+        // (CR 614.1c/d). One per half of `EnterMods`: status and counters.
+        registry.register("Idyllic Beachfront", phase_rc_cards::idyllic_beachfront);
+        registry.register("Chainbreaker", phase_rc_cards::chainbreaker);
 
         registry
     }

@@ -24,9 +24,10 @@
 //! - [`Rewrite`] is a **closed algebra**. CR 614 and 615 enumerate what a
 //!   replacement effect may do to an event and the list is short; a new arm
 //!   is a claim that those rules permit an operation the list omits, and it
-//!   should arrive with the rule number that says so. It ships **two** —
-//!   `Prevent` and `Instead` — not §3.2's five: an arm the pipeline cannot
-//!   apply is worse than a missing one.
+//!   should arrive with the rule number that says so. It ships **three** —
+//!   `Prevent`, `Instead` and `EnterWith` — not §3.2's five: an arm the
+//!   pipeline cannot apply is worse than a missing one, and `EnterWith` gained
+//!   its performer in Phase RC-2.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
@@ -136,11 +137,11 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # Why six arms and not nine
+/// # Why seven arms and not ten
 ///
-/// `GameAction` ships ten variants and this enum six. `CounterChange` covers
-/// `AddCounters` and `RemoveCounters` through its `adding` field — the one
-/// place the projection is not 1:1, and that arm's own doc says so.
+/// `GameAction` ships eleven variants and this enum seven. `CounterChange`
+/// covers `AddCounters` and `RemoveCounters` through its `adding` field — the
+/// one place the projection is not 1:1, and that arm's own doc says so.
 ///
 /// The three with no arm at all are `DrawCard`, `GainLife`
 /// and `LoseLife`. Each affects a **player**, and `AffectedSet` names only
@@ -200,6 +201,18 @@ pub enum EventPattern {
         source: Option<DestructionSourcePattern>,
     },
 
+    /// CR 614.1c/d — "modify how a permanent enters the battlefield". The
+    /// event's subject is the permanent that is entering.
+    ///
+    /// Fieldless, like [`Self::DealDamage`], and for the same reason: RC-2's
+    /// consumers are `AffectedSet::SourceOnly` self-references — "this land
+    /// enters tapped" — where `affected` already says everything the pattern
+    /// would. A constraint on the entering object beyond that (Root Maze's
+    /// "artifacts and lands", Amulet-shaped cards) is a `PermanentFilter` field
+    /// this arm grows when RC-3 makes an `AffectedSet::Filter` able to match an
+    /// object that is not on the battlefield yet.
+    EnterBattlefield,
+
     /// CR 122.1's counter mutations. No RB customer watches one — the arm
     /// exists because `GameAction::AddCounters`/`RemoveCounters` do, and
     /// CR 614.16's counter doublers (Doubling Season's second ability, Vorinclex)
@@ -255,19 +268,18 @@ impl DestructionSourcePattern {
 /// |---|---|---|
 /// | `Prevent` | 614.6, 615.6 | **RB** |
 /// | `Instead` | 614.1a | **RB** |
-/// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention, 122.6a | RD/RE |
+/// | `EnterWith(..)` | 614.1c/d | **RC-2** |
+/// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention | RD/RE |
 /// | `Retarget(..)` | 614.9 redirection, 616.1b | RD |
-/// | `EnterWith(..)` | 614.1c/d | RC |
 ///
-/// The last three are absent from the enum rather than present and
+/// The last two are absent from the enum rather than present and
 /// unimplemented, because an arm the pipeline cannot apply is a card that
 /// silently does nothing. They are *features* on the codebase's own triage —
 /// a normal diff whenever they land, with no fact lost by waiting. What each
 /// one is *for* is recorded here so the reason it is not `Instead` survives:
-/// `Amount` has to compose (two doublers turn 2 damage into 8, "not just 4"),
-/// `Retarget` has to survive CR 614.9's destination re-check at application
-/// time, and `EnterWith` has to accumulate across CR 616.1f iterations while
-/// the permanent does not yet exist.
+/// `Amount` has to compose (two doublers turn 2 damage into 8, "not just 4")
+/// and `Retarget` has to survive CR 614.9's destination re-check at
+/// application time.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rewrite {
     /// CR 614.6 / 615.6 — the event does not happen.
@@ -285,6 +297,128 @@ pub enum Rewrite {
     /// It costs nothing, because the substitute is a `GameAction`, a
     /// vocabulary that already has to exist.
     Instead(GameActionTemplate),
+
+    /// CR 614.1c/d — modify *how* a permanent enters the battlefield, without
+    /// changing the fact that it enters.
+    ///
+    /// **Not an `Instead`, and the difference is accumulation.** CR 616.1f
+    /// re-runs the loop against the modified event, so a permanent facing two
+    /// applicable effects — "enters tapped" and "enters with two charge
+    /// counters" — has to end up with *both*, not with whichever applied last.
+    /// An `Instead` overwrites the event; this one merges into it, and
+    /// [`EnterMods::merge`] is where the rule that each mod composes lives.
+    ///
+    /// The merge happens while the permanent **does not yet exist**: there is
+    /// no `BattlefieldEntity` to tap and no counter map to write, which is the
+    /// whole reason the modifications ride on the proposal instead of being
+    /// applied as they are chosen.
+    EnterWith(EnterMods),
+}
+
+/// How a permanent enters the battlefield, when something modified it
+/// (CR 614.1c/d).
+///
+/// The payload of both [`Rewrite::EnterWith`] and
+/// `GameAction::EnterBattlefield`: the same type describes what one effect
+/// *adds* and what the permanent will *end up with*, which is what makes
+/// [`Self::merge`] the whole of CR 616.1f's accumulation.
+///
+/// **Two fields, and each is a rule rather than a convenience.** CR 110.5b —
+/// "permanents enter the battlefield untapped … unless a spell or ability says
+/// otherwise" — makes `tapped` the exception to a *default*, so `false` is the
+/// rule speaking rather than a missing value. CR 122.6a covers `counters`:
+/// "an object that's given counters as it enters the battlefield".
+///
+/// # The other two statuses, and what adding one would actually cost
+///
+/// CR 110.5b names four: tapped, flipped, face down, phased in. Phasing is not
+/// something a permanent can enter with (CR 702.26). The other two are absent,
+/// and it is worth being precise about why, because "face down" looks like a
+/// third `bool` and is not one.
+///
+/// **A new status is a field here, not an arm anywhere.** That is the growth
+/// contract working: [`Rewrite`] does not grow, [`EventPattern`] does not grow,
+/// and no reader outside the performer learns a new shape. So the *plumbing*
+/// really is one line.
+///
+/// **What is not one line is what face down means.** CR 707.2 makes a face-down
+/// permanent a 2/2 colorless creature with no name, no mana cost, no creature
+/// types and no abilities — a change to its **copiable values**, which is
+/// Layer 1a. A `face_down: true` that only set a flag would leave every layer
+/// query answering off the printed card, so the field wants Layer 1 (Phase CV)
+/// underneath it and CR 614.12's frame (RC-4) beside it, since the entry is
+/// changing the very characteristics the frame is asked about.
+///
+/// **The printed population says the same thing from the other side.** Nothing
+/// prints "permanents enter the battlefield face down" as an effect over
+/// someone else's permanents (Scryfall, 2026-09-01). Face-down entry is morph,
+/// manifest, disguise and cloak, and those are *how the object gets there* —
+/// CR 701.34a's "put it onto the battlefield face down as a 2/2 creature card"
+/// is an instruction the mover carries, not a replacement effect watching for
+/// an entry. Which is the shape this type already has: `EnterMods` is the
+/// payload of both [`Rewrite::EnterWith`] **and** the proposal's seed
+/// (`GameState::default_enter_mods`), so manifest would set the field at the
+/// proposal, exactly the way CR 306.5b's loyalty does today.
+///
+/// A *hypothetical* "creatures your opponents control enter face down" would
+/// additionally need `AffectedSet::Filter` to reach an entering permanent,
+/// which is Phase RC-3 — the same gate that stops Root Maze and Kismet.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct EnterMods {
+    /// CR 110.5b — the permanent enters tapped.
+    pub tapped: bool,
+
+    /// CR 122.6a — the counters the permanent is given as it enters.
+    ///
+    /// Coalesced by kind at [`Self::merge`], so the performer puts each kind on
+    /// once and CR 613.7c allocates one timestamp per kind. Insertion order,
+    /// which is a `Vec` rather than a `HashMap` for the reason every ordered
+    /// collection in this engine is one: a `HashMap` walk is not reproducible
+    /// across processes, and this list reaches `add_counters`.
+    pub counters: Vec<(CounterType, u32)>,
+}
+
+impl EnterMods {
+    /// Nothing modifies how this permanent enters — CR 110.5b's default.
+    pub const NONE: EnterMods = EnterMods { tapped: false, counters: Vec::new() };
+
+    /// CR 110.5b — "this permanent enters tapped".
+    pub fn tapped() -> Self {
+        EnterMods { tapped: true, counters: Vec::new() }
+    }
+
+    /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
+    pub fn with_counters(counter: CounterType, n: u32) -> Self {
+        EnterMods { tapped: false, counters: vec![(counter, n)] }
+    }
+
+    /// Is this the CR 110.5b default — nothing to apply?
+    pub fn is_none(&self) -> bool {
+        !self.tapped && self.counters.is_empty()
+    }
+
+    /// Fold `other`'s modifications into this one — CR 616.1f's accumulation.
+    ///
+    /// **Tapped is a status, counters are a quantity, and the CR treats them
+    /// differently.** CR 110.5b gives a permanent one tapped/untapped value, so
+    /// two effects that both say "enters tapped" leave it tapped once; CR 122.6a
+    /// is about counters being *put on* it, so two effects that each give it a
+    /// counter give it two. `|=` and addition, and neither is a choice this
+    /// engine is making.
+    pub fn merge(&mut self, other: &EnterMods) {
+        self.tapped |= other.tapped;
+        for (counter, n) in &other.counters {
+            match self.counters.iter_mut().find(|(c, _)| c == counter) {
+                // Plain addition, matching `BattlefieldEntity::add_counters`,
+                // which is where this number ends up. A saturating add here
+                // would be the only place in the engine with a different
+                // overflow story, and clamping at `u32::MAX` is not a rules
+                // answer — it is a width this type has no business choosing.
+                Some((_, existing)) => *existing += *n,
+                None => self.counters.push((*counter, *n)),
+            }
+        }
+    }
 }
 
 /// The substitute event an [`Rewrite::Instead`] produces.

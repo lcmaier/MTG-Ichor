@@ -23,6 +23,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------
 // Phase-specific helpers (operate on Game wrapper, delegate to common)
@@ -377,7 +378,7 @@ fn test_summoning_sick_cannot_attack() {
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
     let bears_id = obj.id;
     game.state.add_object(obj);
-    game.state.place_on_battlefield(bears_id, 0); // entered this turn = summoning sick
+    game.state.place_on_battlefield(bears_id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
