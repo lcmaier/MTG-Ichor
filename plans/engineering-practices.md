@@ -119,47 +119,57 @@ across months buys the timing measurement nothing.
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-02 (performance pool 60 → 61, stress 64 → 65; Root Maze, Phase RC-3):**
+2026-09-02 (performance pool 61 → 62, stress 65 → 68; Keldon Warlord, Containment
+Priest and Dryad Arbor, Phase RC-4):**
 
-| | performance (61 cards) | stress (65 cards) |
+| | performance (62 cards) | stress (68 cards) |
 |---|---|---|
-| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 30 (60.0%) / 20 (40.0%) |
-| Avg turns | 31.7 | 29.8 |
-| Spells cast | 23.0 | 21.8 |
-| Lands played | 19.8 | 18.1 |
-| Combat w/ atk | 12.4 | 11.6 |
-| Creatures died | 7.8 | 4.5 |
-| Damage events | 25.7 | 25.8 |
-| Total damage | 52.2 | 58.8 |
-| Life changes | 17.0 | 16.5 |
-| **Layer walks** | **108,632** | **98,843** |
-| **Layer frames** | **135,449** | **118,256** |
-| **Frames/walk** | **1.25** | **1.20** |
-| **Replacement gathers** | **669** | **618** |
-| **Restriction queries** | **670** | **618** |
+| P0 / P1 | 22 (44.0%) / 28 (56.0%) | 24 (48.0%) / 26 (52.0%) |
+| Avg turns | 28.7 | 27.3 |
+| Spells cast | 21.0 | 19.6 |
+| Lands played | 18.4 | 17.5 |
+| Combat w/ atk | 11.0 | 10.8 |
+| Creatures died | 6.7 | 4.9 |
+| Damage events | 24.2 | 23.6 |
+| Total damage | 50.0 | 56.1 |
+| Life changes | 16.7 | 14.9 |
+| **Layer walks** | **93,854** | **85,738** |
+| **Layer frames** | **136,075** | **112,002** |
+| **Frames/walk** | **1.45** | **1.31** |
+| **Replacement gathers** | **594** | **558** |
+| **Restriction queries** | **596** | **562** |
 
-**Both columns moved for two reasons at once, and only one of them is the pool.**
-Root Maze was added to `PERFORMANCE_POOL` (so §3.1 applies: nothing above is
-comparable to the values below), *and* RC-3 changed what the engine answers for
-a permanent entering under a filter-scoped layer effect. The two were separated
-before this row was recorded, by building a branch binary with the card
-unregistered:
+**Both columns moved, and the engine's share was separated from the pool's
+before this table was recorded** — three binaries in one sitting, medians of
+seven interleaved rounds: `main` (A), RC-4's engine with the pools exactly as
+`main` had them (B), and RC-4 shipped (C).
 
-| | main | RC-3, card unregistered | RC-3 shipped |
+| | A: main | B: engine, pools unchanged | C: shipped |
 |---|---|---|---|
-| performance walks | 99,877 | 100,556 (+0.7%) | 108,632 |
-| performance frames/walk | 1.24 | 1.24 | 1.25 |
-| stress walks | 93,245 | 98,099 (+5.2%) | 98,843 |
-| stress frames/walk | 1.16 | 1.17 | 1.20 |
+| performance walks | 108,632 | 108,709 | 93,854 |
+| performance frames/walk | 1.25 | 1.25 | **1.45** |
+| performance ms / 1,000 walks | 0.912 | 0.940 (+3.1%) | 1.302 |
+| stress walks | 98,843 | 98,889 | 85,738 |
+| stress frames/walk | 1.20 | 1.20 | **1.31** |
+| stress ms / 1,000 walks | 0.775 | 0.787 (+1.6%) | 0.944 |
 
-**`Frames/walk` is the number RC-3 was told to watch, and it barely moved.** The
-worry was that admitting non-battlefield objects to filter matching would let
-`permanent_matches_filter` request other objects' frames; the gate admits only
-objects in the battlefield *zone*, which outside the one-`emit`-wide entry
-window is the same set as before. The +5.2% walk count on `stress` is mostly
-longer games (29.6 → 30.6 turns) — a behaviour change, not per-walk cost.
+**`Frames/walk` is the number RC-4 was told to watch, and it moved for the
+reason the plan gave.** A against B — the frame, with nothing new on the board
+— is flat on every fixture row and inside the spread on time (−2.2% / +1.1% at
+200 games over three interleaved rounds). What moved in C
+is Keldon Warlord: a walk of the Warlord asks every permanent's frame at layer
+7a's ceiling, so it costs 1 + N frames where an ordinary walk costs about 1.25,
+and `Frames/walk` carries it. Games also got shorter (31.7 → 28.7 turns on
+`performance`), so walks per game *fell* while each walk cost more. That is
+`layers-architecture.md` §12's quadratic by design, measured rather than
+assumed, and critical-path item 7's cross-call memoization is still the lever.
 
-*Previous values, 2026-09-01 (performance 59 → 60, Battlegrowth and Adaptive
+*Previous values, 2026-09-02 (performance 60 → 61, Root Maze, RC-3): performance
+23/27, 31.7 turns, 23.0 spells, 19.8 lands, 12.4 combats, 7.8 deaths, 25.7 damage
+events, 52.2 damage, 17.0 life changes, 108,632 walks / 135,449 frames / 1.25
+per walk / 669 gathers / 670 queries; stress 30/20, 29.8, 21.8, 18.1, 11.6, 4.5,
+25.8, 58.8, 16.5, 98,843 / 118,256 / 1.20 / 618 / 618. Before that, 2026-09-01
+(performance 59 → 60, Battlegrowth and Adaptive
 Shimmerer): performance 25/25, 30.4 turns, 22.1 spells, 19.1 lands, 11.9
 combats, 7.6 deaths, 25.0 damage events, 52.3 damage, 17.0 life changes, 99,877
 walks / 123,802 frames / 1.24 per walk / 626 gathers / 627 queries; stress 26/24,

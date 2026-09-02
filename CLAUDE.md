@@ -136,10 +136,10 @@ line for line but the timing lines. → `codebase-state.md`.
 `CRITICAL_PATH` point here. Reasoning and what is *done* live in `codebase-state.md`.
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅
-5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and RC-1–RC-3 are in — an entry is
-   an event, CR 614.12 membership holds both ways. **RC-4 next: the frame; re-count its sites**
+5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and RC-1–RC-4 are in — an entry is
+   an event and CR 614.12's frame is a read-side overlay. **RC-5 next: CR 614.13, batch-scoped frame**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
-   **RS-1 is in, so RC-4 is unblocked**; RS-3 (combat) wants item 7 first
+   **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
 5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **A copy
    row stores values, never a reference** — which is what keeps it off item 7. CV-2 needs RC-2
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes LKI
