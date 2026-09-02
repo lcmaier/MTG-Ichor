@@ -11,7 +11,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
-- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **RC is under way (2026-09-02): RC-1 deleted the early stack pop; RC-2 made entering the battlefield a proposed event (`GameAction::EnterBattlefield`, `Rewrite::EnterWith`, `EnterMods`), with `place_on_battlefield` as its performer and CR 110.5b / 122.6a as its two consumers; RC-3 settled CR 614.12's membership rule in both directions — a filter-scoped layer effect now reaches an entering permanent, and an entering permanent's own filter-scoped replacement no longer reaches itself.** Still ahead: **RC-4** (the look-ahead frame), RD (damage and prevention, CR 615), RE (the remaining event kinds).
+- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **RC is under way (2026-09-02): RC-1 deleted the early stack pop; RC-2 made entering the battlefield a proposed event (`GameAction::EnterBattlefield`, `Rewrite::EnterWith`, `EnterMods`), with `place_on_battlefield` as its performer and CR 110.5b / 122.6a as its two consumers; RC-3 settled CR 614.12's membership rule in both directions — a filter-scoped layer effect now reaches an entering permanent, and an entering permanent's own filter-scoped replacement no longer reaches itself; RC-4 built the frame those effects are evaluated against (`layers::compute_as_entering`, a read-side overlay through `FrameCache`'s accessor pair — never a `GameState` clone), put CR 614.17d and CR 616.1b on it, and stopped CR 616.1 prompting for a choice with one outcome.** Still ahead: **RC-5** (CR 614.13's auxiliary zone changes and the batch-scoped frame), RD (damage and prevention, CR 615), RE (the remaining event kinds).
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (Phases RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. **RS-1**: `RestrictionDef` / `Restriction` (`types/restriction.rs`), the third `DurationRegistry` customer (`state/restrictions.rs`), and `engine::restriction::is_prohibited` — one predicate, a battlefield sweep off *effective* ability lists, and §4.9's candidate filter. Indestructible, "can't be regenerated" and Sigarda all reach it. **The hard join is satisfied: RC-4 is unblocked.** Still ahead on this track: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
@@ -225,11 +225,46 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **RA ships as three PRs (sized 2026-08-25, `replacement-architecture.md` §9).** RA-1 = the `ActionContext` sweep + `ZoneChangeCause`; RA-2 = the six routing tickets; RA-3 = batch form, LKI/cause/batch-id payloads, the three bypass closures, and the death-event demotion. Ticket numbers below are stable and cited by §9.
 
+**Status 2026-09-02: Phase RC-4 ✅ — CR 614.12's look-ahead frame.** `replacement-architecture.md` §9's RC-4 subsection carries the six findings; this is the state ledger. What landed:
+
+- **`layers::compute_as_entering`** — the frame. A `Lookahead` (`engine/layers/lookahead.rs`: the object, its proposed controller, the pending `EnterMods`, and the rows its own static abilities would generate) threaded through `FrameCache`, read by the two accessors every concrete-state read in `compute.rs` now goes through — `entity` for the battlefield-entity facts and `rows_in_layer` for the registry slice. Both answer for the would-be permanent when the object being computed is the entering one and off the real board for everything else, which is how §5b's asymmetry falls out of the structure. A read-side overlay, **no `GameState` clone anywhere** (§11 item 5). It lives on the stack: item 40's test is "drop it and re-derive", and the frame is a pure function of `GameState` and the proposal, so it is bookkeeping.
+- **`replacement::EntryFrame`** — the frame per pipeline iteration (CR 614.12 clause 1), computed only when a filter-scoped `affected` asks. `gather::set_affects` and `restriction::is_prohibited` both read it, for an `EnterBattlefield` and for the `ZoneChange` ahead of one.
+- **CR 614.17d** in its two printed shapes. "Can't enter the battlefield" watches the zone change, because a refused entry would strand the card in the battlefield zone with no permanent (`propose_entry` is still loud about that); "can't have counters put on it" is asked as the `AddCounters` it is (CR 122.6) at the moment an `EnterWith` would add them (`replacement::strip_prohibited_counters`), refusing the counters while the entry goes on — Melira's ruling. `cant-effects-architecture.md` §5.3.
+- **CR 616.1b** — `Rewrite::EnterUnderControlOf(PlayerRef)`, its class derived from the rewrite so a card cannot file it under `Other`. "An opponent of your choice" with several opponents is a prompt to the effect's controller (`ChoiceKind::ChooseEnteringController`), made before the permanent enters — CR 614.12a's timing, claimed partially.
+- **`AmountExpr::CountOf`** — its first static-context evaluator, over `battlefield_ids_ordered` at the current `layer_index`, memoized within the walk. The entering object is invisible to it because it is not on that list: §5a's Thassa boundary, structural.
+- **§11 item 19** — CR 616.1 no longer prompts when every member of the bucket is an `EnterWith` whose applicability no `EnterMods` field can move; item 47 below has the three expiry conditions and the debug-build check. Containment Priest landed first, so the multi-candidate branch is still reached by a registered board.
+- **`GameAction::EnterBattlefield` carries the zone change that brought the object** (`None` for a token), because CR 601's "was it cast" is unrecoverable a moment later; `EventPattern::EnterBattlefield { cast }` projects it.
+- **Three cards.** Containment Priest and Dryad Arbor (stress pool), Keldon Warlord (`PERFORMANCE_POOL` 61 → 62). Wall of Stone gains the Wall subtype it always printed. Two fixes rode along: CR 205.1a in `land_types::apply_set_subtypes` — Blood Moon made Dryad Arbor a Mountain with no creature type; shown failing first, own commit — and the pool's colour check reading colour indicators (CR 204.1).
+- **`targeting::permanent_matches_filter` takes one layer walk per filter** instead of one per leaf, and only when a leaf reads a characteristic; the entry path matches against the frame through `permanent_matches_filter_in_frame`.
+
+**The measurement, three binaries.** Interleaved in one sitting, 50 games / seed 12345 / `--threads 1`, medians of seven rounds: `main` at 1045b70 (A), RC-4's engine with the pools exactly as `main` had them (B — the three cards unregistered, Keldon Warlord out of `PERFORMANCE_POOL`), and RC-4 shipped (C).
+
+| | A: main | B: engine, pools unchanged | C: shipped |
+|---|---|---|---|
+| performance walks | 108,632 | 108,709 | 93,854 |
+| performance frames/walk | 1.25 | 1.25 | **1.45** |
+| performance ms/game | 99.1 | 102.2 (+3.2%) | 122.2 |
+| performance ms / 1,000 walks | 0.912 | 0.940 (+3.1%) | 1.302 |
+| stress walks | 98,843 | 98,889 | 85,738 |
+| stress frames/walk | 1.20 | 1.20 | **1.31** |
+| stress ms/game | 76.6 | 77.9 (+1.6%) | 80.9 |
+| stress ms / 1,000 walks | 0.775 | 0.787 (+1.6%) | 0.944 |
+
+**The frame is close to free; the count is the quadratic it was said to be.** B against A is the overlay's cost with nothing new on the board. Walks and frames are within 0.1% and 0.6%, and those deltas are game content rather than per-walk cost — the suppressed prompts shift the random agent's stream (below), so B plays slightly different games. On time B read slower at 50 games — +3.2% / +1.6%, slower in 5 of 7 `performance` rounds and 4 of 7 `stress` rounds — which §11 item 5 says to treat as the indirection leaking into the hot walk. Re-run at **200 games, three interleaved rounds**, it reversed on `performance` (B 84.1 ms against A's 86.0, **−2.2%**; per 1,000 walks 0.799 against 0.811) and held at **+1.1%** on `stress` (72.1 against 71.3; per 1,000 walks 0.769 against 0.761). Both are inside the run-to-run spread, so the 50-game number was noise, and inspection of the hot walk finds only what the overlay has to add to every frame — one `Option` check on the look-ahead at the seed, the zone gate and the row iterator, and CR 122.1a's two counts read once per frame rather than only at layer 7c. No leak found by measurement or by reading. What moved in C is **`Frames/walk`** — 1.25 → 1.45 on `performance`, 1.20 → 1.31 on `stress` — and that is Keldon Warlord: a walk of the Warlord asks every permanent's frame at layer 7a's ceiling, memoized within that walk, so it costs 1 + N frames where an ordinary walk costs about 1.25. Per 1,000 walks C is +38% over B on `performance`, which is the pool (the Warlord entered 18 times in 40 games) and not the engine: the walk that got expensive is the one `layers-architecture.md` §12 says gets expensive, and critical-path item 7's cross-call memoization is the lever, exactly as before this phase. Games also got shorter (31.7 → 28.7 turns on `performance`; a 4-mana */* that is usually 3/3 or 4/4 ends games), so `Layer walks` per game fell while each walk cost more.
+
+**Event streams: every divergence is a suppressed prompt.** 40 games / seed 12345, `--dump-events`, canonicalized — both ObjectId spellings, per game — and diffed A against B, with the first divergence per game attributed rather than the whole stream (a behaviour change cascades: `RandomDecisionProvider` draws once per prompt, so one skipped prompt moves every later choice). **33 of 40 `performance` games and 32 of 40 `stress` games are byte-identical**, and every one of the 15 that diverge has, ahead of its first differing event, a CR 616.1 prompt RC-4 no longer asks: a Chainbreaker or Idyllic Beachfront entering under one Root Maze (11 games), or a land entering under two or three Root Mazes (4 games — two of one player's, or one of each player's, both apply to any entering land). No identical game contains a suppressed prompt. A against C differs from the first deck, which is the pool and not evidence of anything.
+
+**Determinism holds.** 200 games / seed 12345 per pool, three `--threads 1` runs each, byte-identical outside `=== Timing ===`; `--threads 8` differs from `--threads 1` only by the header line that names the thread count, with the results and engine-work blocks identical. 0 errors, 0 panics, 0 turn-limit hits on both pools. The known `TokenCeasedToExist` reordering (item 6) did not appear.
+
+**Reachability, counted rather than assumed** (40 `stress` games, C): Containment Priest entered 13 times, Dryad Arbor 7, Keldon Warlord 18, and the Priest exiled a Dryad Arbor twice — the non-commuting bucket, prompting in a fuzz game.
+
+**What RC-4 did not build.** CR 614.13/13a/13b, the batch-scoped frame and a dynamic `EnterWith` amount are **RC-5** (`replacement-architecture.md` §9, sized before code); CR 616.1c is CV-2's. Grist and the Theros gods stay blocked on item 7f, not on the frame. Tests 823 → 853 (25 integration, 5 unit for the overlay, 1 unit for CR 205.1a; one RC-3 prompt test folded into its neighbour). `specdb owed` unchanged; ATOM-616.1b-001 claimed in full, ATOM-614.12a-001 and ATOM-614.17d-001 partially with the reason on the test.
+
 **Status 2026-09-02: Phase RC-3 ✅ — CR 614.12's membership rule, both directions.** `replacement-architecture.md` §9's RC-3 subsection carries the findings; this is the state ledger. What landed:
 
 - **`compute.rs::effect_applies_to` gates on the battlefield *zone*, not on `game.battlefield` membership.** `move_object` writes `obj.zone` before the `EnterBattlefield` performer builds the `BattlefieldEntity` — RC-2's one-`emit`-wide window — so an entering permanent is in the zone with no entry, and the stricter question kept CR 614.12 clause (3)'s "continuous effects that already exist and would apply to the object" away from every entry. Hidden zones are untouched: a card in hand still has `zone == Hand`, so nothing new reaches a library or a graveyard.
 - **`gather`'s source 1a admits `AffectedSet::SourceOnly` only** (`SelfScope::EnteringSelf`). CR 614.12's parenthesis — "if they affect only that permanent (as opposed to a general subset of permanents that includes it)" — is a membership rule, so it is here rather than in RC-4's overlay. Without it an entering Orb of Dreams finds its own "Permanents enter tapped" through `set_affects`, which matches a `Filter` against any object in any zone, and taps itself.
-- **Two known-wrong answers from RC-2 are now right**, and both are reachable in a fuzz game from cards that were already in the pool: a tapland under Blood Moon enters **untapped** (CR 305.7 strips the ability first), and Chainbreaker under Humility enters with **no** -1/-1 counters and survives the SBA sweep as a 1/1.
+- **RC-2's two known-wrong answers are now right.** The first is the one RC-3 named: a tapland under Blood Moon enters **untapped** (CR 305.7 strips the ability first), reachable in a fuzz game from cards already in the pool. The second was *not* Humility + Chainbreaker — that pair is a further consequence of the same line, real and tested, but RC-2 never listed it. RC-2's second was `default_enter_mods` and a filter-scoped Layer 4 effect, and RC-3's ledger misstated which direction changed (corrected 2026-09-02, RC-4): `default_enter_mods` reads *printed* loyalty and gates on the *effective* type, so "a planeswalker made one by a Layer 4 effect" has `loyalty: None` and enters with no counters either way. What the line changed is the inverse — a planeswalker whose type a filter-scoped effect **removes** now enters with **no** loyalty counters, because CR 306.5b gives the ability to "a planeswalker" and on that battlefield it is not one. `phase_rc4_integration_test::test_a_planeswalker_whose_type_a_filter_effect_removes_enters_with_no_loyalty` is the test; RC-4 routed the read through `compute_as_entering` so it is the CR 614.12 frame that answers, not `has_type` on a printed card.
 - **`base_controller` grew a `resolving` leg.** `resolve_top_of_stack` takes the `StackEntry` before it resolves anything, so the battlefield and stack probes both miss for the whole resolution and the owner fallback answered — right for a land drop, wrong for a spell cast by a non-owner (CR 110.2b). RC-3 owns it because RC-3 is what makes `PermanentFilter::ByController` askable of an entering permanent. **It fixes a wrong answer no registered card can produce**: `check_cast_legality` refuses "another player's spell", so the test builds the owner/controller disagreement after an ordinary cast. Confirmed rather than argued — event streams at 40 games are **40/40 identical on both pools** with and without the leg. The trap it removes belongs to whoever relaxes that check — the Commander track and Phase RE both want to.
 - **One card: Root Maze** (`{G}`, "Artifacts and lands enter tapped"), `PERFORMANCE_POOL` 60 → 61, plus `PermanentFilter::Or`. **Not for RC-3's own claim** — that one needed no new card and the argument is in the card's doc comment: Blood Moon and Humility were already in the pool, both are filter-scoped layer effects, and RC-2 had already put two permanents that enter modified in beside them, so the gate change widens a path the pool walks rather than opening one. Root Maze is for the gap RC-2 left by mistake (see the correction under RC-2 above): **CR 616.1's multi-candidate branch, reachable since RB merged and registered by nobody**, which is the identical failure RB shipped with Kalitas.
 
@@ -1425,6 +1460,83 @@ section never asked.
     whether a `GameState` clone for search should inherit the counts or reset
     them — today it inherits, so a branch's cost is a subtraction.
 
+### Found by the look-ahead frame (2026-09-02, RC-4)
+
+46. **The frame is per entry, not per batch, and §5b says it should be per
+    batch.** Two Master Biomancers entering as one event should give each other
+    nothing — every member's look-ahead reads the pre-batch board. Today an
+    entry is proposed *inside* its zone change's performer (RC-2's nested
+    `propose_entry`), so the second member of a `[ZoneChange, ZoneChange]`
+    batch is decided after the first was performed and sees it on the
+    battlefield. **Unreachable rather than wrong**: no caller produces a
+    multi-entry batch (`Primitive::ReturnToBattlefield` is a stub;
+    `CreateToken` loops `propose_entry`). The fix is structural — decide the
+    entry in phase 1 beside its zone change, perform it in phase 2 — and it is
+    the same restructuring CR 613.7m needs ("Before card breadth" item 4), so
+    the two are scheduled together as RC-5 part 2 (`replacement-architecture.md`
+    §9). **Sized:** ~400 additions in `execute_batch_inner` and
+    `perform_action`'s `ZoneChange` arm. The entry hop ("Before Triggered
+    abilities" item 4) is the same restructuring seen from the log's side;
+    fixing either fixes both.
+
+47. **`pipeline::order_invariant_entry_bucket` is a semantics-assuming shortcut,
+    and these are its expiry conditions.** It skips CR 616.1's prompt when every
+    member of the bucket is an `EnterWith` whose applicability no `EnterMods`
+    field can move, which is true today because the only characteristic the
+    mods feed is power (through `+1/+1` and `-1/-1` counters, CR 122.1a) and
+    the only leaf that reads power is `PermanentFilter::PowerLE`, which the
+    predicate excludes. It goes false, silently, the day any of these lands:
+    (a) `EnterMods` gains a field that feeds a characteristic — **face-down**,
+    which is Layer 1 and changes everything (Phase CV); (b) `PermanentFilter`
+    gains a leaf that reads power, toughness, keywords or counters
+    (`ToughnessLE`, `HasKeyword`, `HasCounter` — RS-2/RS-3 candidates); (c)
+    `EventPattern::EnterBattlefield` gains a field that reads `mods`.
+    `filter_is_mods_invariant` is matched exhaustively, so (b) is a compile
+    error rather than a silent default; (a) and (c) are not, and
+    `check_order_invariance` is the debug-build check that computes the theorem
+    the other way — re-gather after the suppressed choice and assert the rest
+    still apply — which catches either on any board a test or a debug fuzz run
+    reaches. **The rule for whoever adds (a) or (c): revisit the predicate in
+    the same commit.**
+
+48. **`default_enter_controller` has three roads and answers a fourth wrongly
+    — and RC-4 stopped standing on it.** The three that exist are exact: a
+    resolving permanent spell (`GameState::resolving`, CR 110.2b's default),
+    a land drop (owner), a token (owner, CR 111.2). The fourth is an effect
+    putting a card onto the battlefield *under a player's control* who is not
+    its owner — Reanimate's "put target creature card from a graveyard onto
+    the battlefield under your control" — where owner is wrong and nothing in
+    the proposal says otherwise. No registered effect takes that road
+    (`Primitive::ReturnToBattlefield` is a stub). **Sized:** the mover has to
+    say under whose control — a `controller: Option<PlayerId>` on the
+    `ZoneChange` proposal, or a `propose_entry` argument the `Returned` arm
+    threads — one field, read in one place. The `base_controller` `resolving`
+    leg RC-3 added was re-checked for this phase as the brief asked: it is
+    consulted for an entering object only by the finished-board
+    `permanent_matches_filter`, which RC-4 no longer uses for an entry (the
+    frame seeds its controller from the proposal), so the frame does not stand
+    on it and it stays as RC-3 left it — right for the three roads, inert in a
+    game.
+
+49. **`is_prohibited` has no source-1a leg.** `gather` asks the entering
+    permanent itself for its `SourceOnly` replacement abilities ahead of the
+    battlefield sweep, because `replacement_ability_sources` is written by the
+    performer; the restriction sweep has no twin, so an entering Tatterkite's
+    "this creature can't have counters put on it" (Melira's Keepers has the same
+    sentence) is invisible to an entry that would give it counters. CR 614.17d's
+    parenthesis licenses the leg. No registered effect gives an entering
+    permanent counters *from outside* — Master Biomancer is RC-5's — so there is
+    no board to fail on yet; add the leg with the first such card, mirroring
+    `gather`'s `SelfScope::EnteringSelf`, ~20 lines.
+
+50. **A count enumerates the battlefield twice per CDA.** `SetPowerToughness`
+    evaluates its two amounts separately, so Keldon Warlord's `CountOf` sorts
+    `battlefield_ids_ordered` and matches every permanent twice per layer-7a
+    application — the second pass hits the frame cache for every frame but
+    repeats the sort and the filter walk. Not measured to matter (see the RC-4
+    block above); recorded so that whoever sees `Frames/walk` climb on a
+    CDA-heavy board knows the factor of two is here and not in the cache.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
@@ -2061,6 +2173,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    - Events are emitted at the correct granularity (e.g., `PermanentEnteredBattlefield` fires per-permanent, not per-batch).
    - Event timing is post-action, not pre-action, so triggers observe the completed state change.
    - Events carry enough context for trigger predicates (controller, source, type filters).
+
+4. **The entry hop: Containment Priest's substitute leaves a permanent's worth of zone changes in the log for a card the CR says never entered (recorded 2026-09-02, RC-4; sharpened in review).** The `ZoneChange` performer moves the card into the battlefield zone and *then* proposes the `EnterBattlefield` (RC-2's one-`emit`-wide window), so "exile it instead" is performed as a `ZoneChange { from: Battlefield, to: Exile }`. Three things observe that: (a) the log holds a `ZoneChange` *into* the battlefield, so an ETB matcher on the zone change would fire — it must key on `PermanentEnteredBattlefield`, the performer's event, which a permanent that never entered does not have; (b) the log holds a `ZoneChange` *out of* it, `from: Battlefield` with a CR 603.10a LKI frame, so a leaves-the-battlefield or "exiled from the battlefield" matcher would fire, and a "leaves your graveyard" matcher would not, because the recorded `from` is wrong; (c) `zone_change_epoch` advances twice, so CR 400.7 sees two new objects. None is reachable today — no trigger matcher exists — but (b) and (c) have no keying rule that fixes them, so this is a bug-in-waiting for item 6, not a convention. **The fix is to reverse the nesting**, and it is the same restructuring as Deferred Migrations item 46: `GameAction::EnterBattlefield` carries `from`, its performer does the move, the placement and both emissions, and the `ZoneChange { to: Battlefield }` arm forwards to it *before* moving anything. Then the Priest's substitute is one `ZoneChange { from: <source zone>, to: Exile }`, the window is gone, `propose_entry`'s "replaced away" error is gone (a dropped entry leaves the card where it was, which is CR 614.6), a CR 614.17d "can't enter" may watch the entry, and a multi-entry batch is decided in phase 1 like any other proposal. The Priest stays in Root Maze's CR 616.1 bucket, which is what §11 item 19 needs reachable — moving the Priest to the zone change instead would split that bucket and force Priest-first. **Sized:** ~300–500 additions in `actions.rs` (two arms, `propose_entry`), `pipeline.rs` (the `Instead` arm), the token path in `resolve.rs` (`from: None`), and the RC-4 Priest tests' log assertions; CLAUDE.md's "one emitter" line is restated to name the entry performer. Schedule with RC-5 part 2 or as its own small phase before item 6.
 
 3. **LKI formalization.** Several dies-handling sites already read `self.objects.get(&id)` *before* `move_object` to capture pre-move state (see `engine/sba.rs` dies handlers). This is ad-hoc LKI. Triggered abilities that reference "the creature that died" need a formalized `LastKnownInformation` snapshot mechanism, especially after layers land (LKI needs *post-layer* characteristics at moment-of-death, per rule 603.10 / 608.2h).
 

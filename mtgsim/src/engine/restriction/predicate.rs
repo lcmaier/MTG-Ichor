@@ -8,7 +8,7 @@
 //! last one is a property of CR 101.2 rather than a simplification.
 
 use crate::engine::actions::GameAction;
-use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EventSubject};
+use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
@@ -36,6 +36,13 @@ pub(crate) enum Query<'a> {
         /// controller. Read off `ActionContext::resolution`, which already
         /// threads it.
         cause: Option<PlayerId>,
+        /// CR 614.17d — the subject's characteristics as it would exist on the
+        /// battlefield, when the caller already holds them: the pipeline's
+        /// per-iteration frame for an entry, or the frame of an entering
+        /// object a synthetic `AddCounters` is about, whose action names no
+        /// `EnterMods`. `None` means derive one from the action, which is
+        /// exact for every event but that synthetic one.
+        lookahead: Option<&'a EntryFrame<'a>>,
     },
     /// CR 701.19c / 615.12 — may this replacement effect be applied?
     ApplyReplacement {
@@ -83,6 +90,19 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
         return false;
     }
 
+    // CR 614.17d's frame for an entry, or the zone change ahead of one. Held
+    // here so the sweep and the registry share one, and computed only if a
+    // `Filter` reaches `set_affects`.
+    let derived;
+    let frame: Option<&EntryFrame<'_>> = match query {
+        Query::Event { lookahead: Some(frame), .. } => Some(*frame),
+        Query::Event { action, lookahead: None, .. } => {
+            derived = EntryFrame::new(game, action);
+            Some(&derived)
+        }
+        Query::ApplyReplacement { .. } => None,
+    };
+
     // --- Source 1: the battlefield sweep ---------------------------------
     if has_static_source {
         for id in game.battlefield_ids_ordered() {
@@ -94,7 +114,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
                 let Effect::Restriction(def) = &ability.effect else {
                     continue;
                 };
-                if matches(game, def, id, controller, query) {
+                if matches(game, def, id, controller, query, frame) {
                     return true;
                 }
             }
@@ -103,7 +123,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 
     // --- Source 4: the registry ------------------------------------------
     for row in game.restrictions.iter() {
-        if matches(game, &row.def, row.source, row.controller, query) {
+        if matches(game, &row.def, row.source, row.controller, query, frame) {
             return true;
         }
     }
@@ -174,18 +194,19 @@ fn matches(
     source: ObjectId,
     controller: PlayerId,
     query: &Query,
+    frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     match (&def.what, query) {
-        (Restriction::Event { pattern, affected, by }, Query::Event { action, cause }) => {
+        (Restriction::Event { pattern, affected, by }, Query::Event { action, cause, .. }) => {
             pattern_watches(game, pattern, action, controller)
-                && set_affects(game, affected, source, controller, subject_of(action))
+                && set_affects(game, affected, source, controller, subject_of(action), frame)
                 && cause_matches(by.as_ref(), *cause, controller)
         }
 
         (
             Restriction::ApplyReplacement { kind, to },
             Query::ApplyReplacement { kind: asked, subject },
-        ) => kind == asked && set_affects(game, to, source, controller, *subject),
+        ) => kind == asked && set_affects(game, to, source, controller, *subject, None),
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })
         | (Restriction::ApplyReplacement { .. }, Query::Event { .. }) => false,
@@ -265,7 +286,9 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
             controller,
             // A keyword's prohibition is unscoped by cause: CR 702.12b does not
             // care who is destroying the permanent.
-            &Query::Event { action, cause: None },
+            &Query::Event { action, cause: None, lookahead: None },
+            // `SourceOnly`, per the assertion above, so no frame is ever read.
+            None,
         ) {
             return true;
         }

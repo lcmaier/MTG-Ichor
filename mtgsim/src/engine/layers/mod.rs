@@ -13,6 +13,8 @@ pub mod types;
 pub mod cda;
 pub mod compute;
 pub mod land_types;
+pub mod lookahead;
 
 pub use compute::compute_characteristics;
+pub use lookahead::compute_as_entering;
 pub use types::*;

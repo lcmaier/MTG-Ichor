@@ -1118,15 +1118,22 @@ pub fn compute_as_entering(
   the frame. Two different questions, one rule number.
 
 - **Build a read-side view, not a `GameState` clone.** `compute.rs` reaches for
-  concrete state in five places, audited 2026-08-24: four battlefield reads
-  (`compute.rs:113` the `control_since_turn` seed, `:180` the counter entry,
-  `:408` `base_controller`, `:623` `effect_applies_to`'s membership gate) and
-  one registry read (`:242`, `effects_in_layer`). Route those through one
-  accessor pair that a caller can perturb. A `GameState` clone would work here on
-  budget grounds — §11 item 5 prices both call sites — but is the wrong
-  instrument: it duplicates the object store and `GameState.rng`, the latter
-  against the determinism doctrine outright, and it produces a second live copy
-  of every `ObjectId`, which is a v4 UUID and therefore *aliased* rather than
+  concrete state in more places than any audit of it counted — five on
+  2026-08-24, eight on 2026-09-02, and **nine when RC-4 was built**: the seed's
+  controller and CR 302.6 clock, the entity's counters, the registry slice,
+  the zone gate, `base_controller`'s four probes, and the two `objects` reads
+  the filter leaves make for tokenness and ownership. The count kept drifting
+  because it was the wrong thing to count. What a hypothetical has to perturb
+  is *kinds* of read, and there are four: the seed, the counters, the rows and
+  the gate. The `objects` reads never change — the entering object exists in
+  the store — and `base_controller` is perturbed only through the seed. RC-4
+  routed exactly those four through one accessor pair on `FrameCache`
+  (`entity` and `rows_in_layer`; `engine/layers/lookahead.rs`) and touched
+  nothing else in the walk. A `GameState` clone would work here on budget
+  grounds — §11 item 5 prices both call sites — but is the wrong instrument:
+  it duplicates the object store and `GameState.rng`, the latter against the
+  determinism doctrine outright, and it produces a second live copy of every
+  `ObjectId`, which is a v4 UUID and therefore *aliased* rather than
   distinguishable.
 
 - **CR 613.8 shares the seam, not the overlay** (corrected 2026-08-24 in
@@ -1208,9 +1215,18 @@ overlay's real content:
 
 The enumeration row is the one the audit in §5's second note missed, because it
 is not in `compute.rs` at all — it is `evaluate_amount` and the ordered sweeps.
-Devotion is not implemented yet (no `AmountExpr` counts mana symbols), so today
-this costs one line and a test; discovered later it would be a silent wrong
-answer on 15 gods plus every `CountOf`-driven ETB replacement.
+
+**And when it was written it named a call site that did not exist** (corrected
+2026-09-02, RC-4). `AmountExpr::CountOf` had no evaluator and no card, and
+`CardTypesAmong`'s one arm reads graveyards; nothing in the layer walk
+enumerated the battlefield, so the "invisible to counts" half of the boundary
+had no behaviour to test. RC-4 gave `CountOf` its static-context evaluator —
+one frame per permanent per query, asked at the current `layer_index` and
+memoized for the walk, §12's quadratic by design — and registered Keldon
+Warlord as its card. The entering object is invisible to it because the count
+runs over `battlefield_ids_ordered`, which it is not on: the boundary is
+structural, with no special case anywhere. Devotion still has no `AmountExpr`
+and is not the cheap way to test this; the Warlord is.
 
 **Grist is the same rule without the confound, and is the cleaner test to write
 first.** Grist, the Hunger Tide reads "As long as Grist isn't on the
@@ -1236,13 +1252,27 @@ object's characteristics* or *a count over the permanents a player controls*.
 CR 614.12 licenses a hypothetical only for the former; the latter reads the
 board as it actually is, which is exactly what the ruling's own justification
 says ("because replacement effects are considered before the God is on the
-battlefield"). Write `test_grist_entering_is_not_a_creature` first: it isolates
-the clause with no devotion arithmetic in the way.
+battlefield").
+
+**Neither is buildable, and not for the reason this section implied**
+(corrected 2026-09-02, before RC-4's first test was written). Grist's "as long
+as Grist isn't on the battlefield" and Thassa's "as long as your devotion to
+blue is less than five" are both `Effect::Conditional` **static** abilities,
+which `register_static_effects` cannot lower and `debug_assert!`s on — Deferred
+Migrations item 7f — and Thassa additionally needs a `Condition` arm for a
+numeric comparison and an `AmountExpr` that counts mana symbols, none of which
+exist. The devotion arithmetic was the cheapest part of the God, not the
+expensive one. RC-4 did not pull 7f in. Clause (2) is tested with a fixture
+instead — a 2/2 whose own "creatures you control get +1/+1" makes it 3/3 to a
+"creatures with power 2 or less enter tapped" — and the count boundary with
+Keldon Warlord, above. When 7f lands, `test_grist_entering_is_not_a_creature`
+is still the right first test of it.
 
 **It also bounds the risk this section opened with.** The gods looked like
 evidence the look-ahead is unboundedly hairy. What they actually produced is a
-single sentence with a table behind it and a test:
-`test_god_entering_does_not_count_itself_for_devotion`. That is the shape to
+single sentence with a table behind it and a test — which shipped as
+`test_an_entering_count_does_not_include_the_entering_object`, on Keldon
+Warlord rather than a God. That is the shape to
 insist on for the rest of RC-4 — an unintuitive ruling that reduces to a
 mechanical rule is fine; one that does not is a signal to stop and re-read the
 CR before writing code.
@@ -1333,7 +1363,9 @@ ability list — enough to ask "what abilities would this object have on the
 battlefield", which is the whole of question 1 — land in **RC-3**, ahead of the
 overlay. **RC-4** keeps clause (1)'s pending `EnterMods`, the filter-based
 *applicability* of other permanents' replacements (Orb of Dreams), and the
-614.13a/b exclusion sets. The earlier half is still the smaller, lower-risk one;
+614.13a/b exclusion sets. (Corrected 2026-09-02: RC-4 shipped without the
+exclusion sets, which need the decision-bearing entry replacement CR 614.13
+describes and are **RC-5**'s — sized in §9.) The earlier half is still the smaller, lower-risk one;
 it is just not overlay-free, and shipping it overlay-free would enter a Dress
 Downed Clone as a copy. Sizing RC after this finding is what turned two parts
 into four — see §9.
@@ -1345,6 +1377,85 @@ overwhelming bulk of the 773 + 580. RC-3 adds the membership gate and the frame'
 ability list per §5c. RC-4 builds the rest of the overlay and turns on
 filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 614.13a/b exclusion sets.
+
+### 5d. The overlay as built (RC-4, 2026-09-02)
+
+`engine/layers/lookahead.rs`'s module docs used to carry this; it lives here so
+the source stays a summary and a pointer.
+
+**A read-side overlay, not a clone** (§11 item 5). A `GameState` clone
+duplicates `GameState.rng` against the determinism doctrine and produces a
+second live copy of every v4 `ObjectId`, aliased rather than distinguishable.
+So the hypothetical is expressed as the *reads* the layer walk makes of
+concrete state. There are two, and each sits behind one accessor in
+`compute.rs`:
+
+| Accessor | Reads | Answers from the overlay when… |
+|---|---|---|
+| `FrameCache::entity` | the `BattlefieldEntity` the walk seeds from — controller, CR 302.6's clock, the counters layers 6 and 7c read | the object being computed is the entering one: `Lookahead::entity`, the entity `place_on_battlefield` would build |
+| `rows_in_layer` | the registry's slice for a layer, in CR 613.7 order | the object being computed is the entering one: the registry's rows, then `Lookahead::rows`, the rows `register_static_effects` would write |
+
+`base_controller` has the matching arm, so the seed and `effective_controller`'s
+gated short-circuit agree by construction. The membership gate in
+`effect_applies_to` (`in_battlefield_zone_or_entering`) admits the entering
+object whether or not it has moved yet, which is what lets a CR 614.17d "can't
+enter" be asked at the zone change.
+
+**CR 614.12's clauses, against the read each perturbs:**
+
+| Clause | Perturbed read |
+|---|---|
+| (1) replacements that already modified how it enters | the counters layers 6 and 7c read come from the pending `EnterMods`, on the would-be entity |
+| (2) its own static abilities | `rows_in_layer` appends the would-be rows, timestamped as the entry would timestamp them |
+| (3) effects that already exist | RC-3 admitted the battlefield *zone* to filter matching; the overlay only widens that to an object not yet in the zone |
+
+Plus the seed: the frame's controller is the proposed one — CR 110.2b's
+default, or a CR 616.1b rewrite of it — and CR 302.6's clock starts this turn.
+`base_controller`'s battlefield probe never finds an entity for an entering
+object, so without the seed a filter's "you control" would read the owner,
+which is wrong for every permanent spell cast by a non-owner.
+
+**Timestamps.** `Lookahead::new` reads `next_timestamp` without advancing it,
+gives the entity that value and each counter kind the next ones, as
+`place_on_battlefield` would. Only the order matters: later than every
+registered row, which is where CR 613.7a puts an object's own static-ability
+effects and CR 613.7c its counters. CR 613.7e's re-timestamp on attachment
+does not disturb this: it fires when an Aura, Equipment or Fortification
+*becomes attached*, which is at or after entry and so later still, and it
+never re-timestamps the host (`gather.rs` makes the same point where it
+splices the entering object's own replacements in last). The engine does not
+model 613.7e's re-timestamp yet; attachment as a layers input is critical-path
+item 6b.
+
+**The gates.** The walk has two fast paths keyed off `RegistryScopeSummary`:
+CR 613.6's "started applying" bookkeeping runs only when some effect occupies
+more than one row, and `effective_controller` walks only when some row can
+change control. The would-be rows are not in the registry, so a frame whose
+own rows would flip either gate — an entering permanent with a two-row static,
+or one that changes control of itself — would be answered wrongly by the
+registry's summary alone. `Lookahead::summary` is the same struct computed by
+the same function (`RegistryScopeSummary::of`) over the would-be rows, and each
+gate reads both.
+
+**One object is hypothetical; nothing else is (§5b).** The would-be rows are
+appended only when computing the entering id, so the entering permanent's
+anthem is in *its* frame and reaches no other object's; and an
+`AmountExpr::CountOf` enumerates `battlefield_ids_ordered`, which the entering
+object is not on. That is §5a's boundary — visible to filters, invisible to
+counts — falling out of the structure rather than being special-cased.
+
+**Where it lives — the decision-site invariant.** On the stack, threaded
+through `FrameCache`. `codebase-state.md` item 40 asks of any state a decision
+is taken against whether it is *outcome-bearing*: drop it and re-derive, and
+does the game reach the same outcome? The frame is a pure function of
+`GameState` and the proposal being decided, so it does — it is bookkeeping,
+and bookkeeping may live off `GameState`. The proposal itself,
+`apply_replacements`' `event`, is the outcome-bearing thing, and it is already
+item 40's first violator.
+
+**What review found after it shipped** is in `handoffs/rc-4-review.md`; the one
+defect is the entry hop (`codebase-state.md`, "Before Triggered abilities"
+item 4), which is not the overlay's but the two-event entry it sits on.
 
 ---
 
@@ -2326,7 +2437,8 @@ accepts that a later PR may fix an earlier one.
 | **RC-1 — delete the early stack pop** ✅ | pure deletion, zero new behavior | measured **12**, not 11: `stack.is_empty()` × **6** (the row said 5 — see below) + `GameState::resolving` × 6; deletes one leniency branch | low |
 | **RC-2 — `EnterBattlefield` as an event** ✅ | the performer migration, plus enters-tapped as its first consumer | predicted **10** production `place_on_battlefield` sites; **two**, and the number that mattered was 92 direct callers with 88 in `#[cfg(test)]`. Shipped **+1,409 / −218 across 25 files** — 611 engine, 207 cards, 591 tests | medium |
 | **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
-| **RC-4 — the overlay** | §5's clauses (1)–(3), 614.13a/b, 616.1b/c | **re-count before building.** Was "5 reads at `compute.rs:180, 242, 408, 623`"; measured 2026-09-02 there are **8** — `98, 187, 431, 434, 442, 609, 660, 721/727` — and the two RC-3 touched (`431`–`442`, `660`) are not the two the row named | **highest** |
+| **RC-4 — the overlay** ✅ | §5's clauses (1)–(3), 614.17d, 616.1b, `CountOf`, §11 item 19. **614.13a/b moved to RC-5** | re-counted a third time at **9** reads and the count was the wrong instrument: **four kinds** of read needed perturbing, and only those moved. Shipped **+2,567 / −279 across 25 files** — 1,447 engine, 223 cards, 897 tests — over the band on tests alone, with RC-5 already split out in the doc before code | **highest** — and the risk that materialised was not the walk: it was item 19's theorem, which the frame falsified (finding 3) |
+| **RC-5 — auxiliary zone changes** | CR 614.13/13a/13b, the batch-scoped frame, a dynamic `EnterWith` amount | sized below: ~1,200 + ~400 + ~150 | medium — a new decision site, and the batch restructuring shares a seam with CR 613.7m |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
 (`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
@@ -2729,36 +2841,166 @@ modified under it. A behaviour change cascades where RC-1's deletion did not, so
 the claim that can be checked is the *first* divergence per game — not the
 whole-stream diff, which is noise past that point.
 
-#### RC-4 — the overlay
+#### RC-4 — the overlay — ✅ landed 2026-09-02
 
-`compute_as_entering`, the read-side accessor pair through `compute.rs`'s five
-concrete-state reads, CR 614.12 clauses (1)–(3), CR 614.17d, CR 614.12a's
-choice-before-entry, CR 614.13/613a/b's auxiliary zone changes and exclusion
-sets, and the CR 616.1b/c buckets.
+`compute_as_entering`, the read-side accessor pair, CR 614.12 clauses (1)–(3),
+CR 614.17d in both its printed shapes, CR 616.1b's producer, the first
+`AmountExpr::CountOf` in the layer walk, and §11 item 19. **Not shipped, and
+sized out in the doc before code**: CR 614.13/13a/13b and the batch-scoped
+frame, which are RC-5 below; CR 616.1c, which is CV-2's.
 
-**Blocked on RS-1** (`cant-effects-architecture.md` §7): CR 614.17d needs a
-restriction to ask, and RS-1 is the Tier-2 spine that provides one. RS-1 is
-small and net-deleting, it does not depend on RC-1–RC-3, and it is the *only*
-part of the "can't" model RC-4 needs — §5.3 there works the whole printed
-population of "can't enter the battlefield" (five cards) and finds that four of
-them read the card in its source zone rather than the look-ahead frame.
+**The shape.** `engine/layers/lookahead.rs` — a `Lookahead` built from the
+proposal (object, proposed controller, pending `EnterMods`), threaded through
+`FrameCache`, and read by the two accessors `compute.rs` now makes its
+concrete-state reads through: `entity` (controller, CR 302.6's clock, counters)
+and `rows_in_layer` (the registry slice, then the entering object's would-be
+rows). Both answer for the would-be permanent when the object being computed
+is the entering one and off the real board otherwise, which is how §5b's
+asymmetry falls out of the structure rather than being enforced: the entering
+permanent's anthem is in its own frame and reaches no other object's, and a
+count over `battlefield_ids_ordered` does not see it. `EntryFrame`
+(`engine/replacement/lookahead.rs`) computes the frame at most once per
+pipeline iteration and only when a filter-scoped `affected` asks; both
+`set_affects` and `is_prohibited` read it, for an `EnterBattlefield` and for
+the `ZoneChange` ahead of one.
 
-**No `GameState` clone at either call site** (§11 item 5, decided): a clone
-duplicates `GameState.rng` against the determinism doctrine and produces a
-second live copy of every v4 `ObjectId`, which is *aliased* rather than
-distinguishable. Record the decision in `layers-architecture.md` §9/§15.2 when
-this lands.
+**Six findings.**
 
-**Its consumers are §5a's and §5b's worked examples**, and they are already
-written as tests: `test_grist_entering_is_not_a_creature` first because it
-isolates clause (2) with no devotion arithmetic in the way, then
-`test_god_entering_does_not_count_itself_for_devotion`, then Elvish Archdruid
-entering under Master Biomancer with **2** counters and not 3, then two
-Biomancers entering as one batch giving each other nothing.
+1. **The frame lives on the stack, and the decision-site invariant says it
+   may.** `codebase-state.md` item 40's test is "drop it and re-derive": the
+   frame is a pure function of `GameState` and the proposal being decided, so
+   it is bookkeeping. The proposal (`apply_replacements`' `event`) is the
+   outcome-bearing thing, and it was already item 40's first violator; RC-4
+   added one decision site to that entry — the N-player "opponent of your
+   choice" — and no new state.
 
-**The rule this phase must not smooth over** (§5b): clause (2) puts the entering
-object's own anthem into *its own* frame, and that anthem reaches no other
-object's frame. One object is hypothetical; nothing else is.
+2. **The re-count was still wrong, and the count was the wrong instrument.**
+   Five sites became eight became nine; what a hypothetical perturbs is four
+   *kinds* of read, and only those four moved (§5's second note).
+
+3. **The frame falsified item 19's theorem, and the suppression shipped
+   narrower.** Once `set_affects` reads the pending `EnterMods`, a `PowerLE`
+   filter can match before a counter lands and not after, so the CR 616.1
+   choice between "creatures with power 1 or less enter tapped" and Adaptive
+   Shimmerer's three counters decides whether it enters tapped. The rule that
+   shipped admits only members whose applicability no `EnterMods` field can
+   move, and carries a debug-build check and three expiry conditions
+   (`codebase-state.md` item 47).
+
+4. **CR 614.17d is two events, not one.** "Can't enter the battlefield" watches
+   the `ZoneChange`, because a refused entry would strand the card in the
+   zone; "can't have counters put on it" is asked as the `AddCounters` it is
+   (CR 122.6) when an `EnterWith` would add them, and refuses the counters
+   while the entry goes on. `pattern.object` reads the source zone (Grafdigger's
+   Cage) and `affected` reads the frame (Worms of the Earth) — one rule, and
+   `cant-effects-architecture.md` §5.3 carries it.
+
+5. **The consumers were not the ones the plan named.** Grist and Thassa are
+   `Effect::Conditional` statics (item 7f) and Master Biomancer needs a dynamic
+   counter amount (RC-5). What was buildable: an anthem creature for clause
+   (2), Keldon Warlord for the count boundary, Containment Priest as the first
+   replacement whose *filter* reads the frame — a Sol Ring returned under March
+   of the Machines is a creature to it — and Dryad Arbor as the only road a
+   fuzz game has to a creature that "wasn't cast". Dryad Arbor also reached a
+   CR 205.1a bug in `apply_set_subtypes` (Blood Moon made it a Mountain with no
+   creature type), fixed in its own commit.
+
+6. **Two engine-cost changes rode along, both attributable.**
+   `targeting::permanent_matches_filter` now takes one layer walk per filter
+   instead of one per leaf, and only when a leaf reads a characteristic — a
+   walk-count *drop* on every targeting sweep. `CountOf` is one frame per
+   permanent per query, a `Frames/walk` *rise* on every board with a Warlord.
+   The measurement separates them (three binaries: `main`, the engine with
+   the pools unchanged, and shipped).
+
+**Measurement.** Three binaries, interleaved in one sitting, 50 games / seed
+12345 / `--threads 1`, medians of seven rounds — `main` (A), the engine with the
+pools unchanged (B), shipped (C); `codebase-state.md`'s RC-4 block carries the
+tables. **The frame is close to free**: B against A is flat on every fixture
+row (walks within 0.1%, frames within 0.6%, both game-content deltas). On
+time it read +3.2% / +1.6% at 50 games and, re-run at 200 games over three
+interleaved rounds, **−2.2% / +1.1%** for `performance` / `stress` — inside
+the spread, so the indirection §11 item 5 said to watch for did not leak into
+the hot walk by any measurement made. **The count is the quadratic §12 predicted**:
+`Frames/walk` 1.25 → 1.45 on `performance` and 1.20 → 1.31 on `stress`, all of
+it Keldon Warlord's 1 + N frames per walk, which is why he is in
+`PERFORMANCE_POOL` and why item 7's cross-call memoization is still the lever.
+
+**Exit met.** Whole suite green (853 tests, 30 of them new), zero warnings,
+both `check_*.py`, `specdb owed` unchanged. Event streams at 40 games against
+`main` with the pools unchanged: 33/40 and 32/40 byte-identical, and every one
+of the 15 divergences attributed to a CR 616.1 prompt that no longer fires —
+Chainbreaker or Idyllic Beachfront under one Root Maze, or any land under two.
+Determinism: three 200-game runs per pool byte-identical outside `=== Timing
+===`; `--threads 1` and `--threads 8` identical in the results and engine-work
+blocks. Reachability counted in 40 `stress` games: the Priest entered 13 times
+and exiled a Dryad Arbor twice.
+
+
+#### RC-5 — auxiliary zone changes and the batch-scoped frame
+
+What RC-4 sized out, in the doc rather than in the moment. Three pieces that
+share a shape — an entry replacement whose *application* is a decision with
+consequences elsewhere on the board — and one that is a field type.
+
+1. **CR 614.13/13a/13b — devour and its kin.** "As this creature enters, you
+   may sacrifice any number of creatures. It enters with N +1/+1 counters for
+   each" is an entry replacement whose application (a) prompts for a set of
+   objects, (b) moves them *while applying* — 614.13's "may cause other objects
+   to change zones" — and (c) sets the `EnterMods` from the count. None of the
+   three exists: a `Rewrite` is a pure function of the event, riders run
+   *after* it (§4.1a), and `EnterMods.counters` carries literals. The shape is
+   a `Rewrite` arm with CR 614.13's cite whose payload is a selection and the
+   mods it yields, applied inside the CR 616.1 loop with its zone changes
+   proposed as a nested batch (§4.2 — they are events of their own and CR 614.5
+   gives them fresh applied sets). The exclusion sets are per *batch*: 614.13a
+   (not the entering object, nor anything entering simultaneously) and 614.13b
+   (no object chosen twice across the replacements applying to one or more
+   simultaneous entries). Printed: devour is ~30 cards, Sutured Ghoul's exile
+   variant a handful, "as ~ enters, choose" with a board consequence ~20 more.
+   **A new decision site**, and item 40 applies in full: the chosen set is
+   outcome-bearing and cannot live on the loop's stack across the prompt
+   without joining that item's list.
+
+2. **The batch-scoped frame (§5b).** Two Master Biomancers entering as one
+   event give each other nothing, because every member's look-ahead reads the
+   pre-batch board. Today an entry is proposed *inside* the zone change's
+   performer (RC-2's nested `propose_entry`), so the second member of a
+   `[ZoneChange, ZoneChange]` batch is decided after the first was performed
+   and sees it on the battlefield. The fix is structural — the entry has to be
+   *decided* in phase 1 beside its zone change and *performed* in phase 2 —
+   and it is the same restructuring CR 613.7m needs (APNAP timestamps for
+   simultaneous entries, `codebase-state.md` "Before card breadth" item 4), so
+   the two land together. No caller produces a multi-entry batch yet
+   (`Primitive::ReturnToBattlefield` is a stub, `CreateToken` loops), so this
+   is unreachable rather than wrong — `codebase-state.md` item 46.
+   The same restructuring closes the entry hop Containment Priest made
+   observable (`codebase-state.md`, "Before Triggered abilities" item 4): an
+   `EnterBattlefield` that carries `from` and whose performer does the move is
+   a phase-1 proposal like any other, and a substituted entry then never
+   touches the battlefield.
+
+3. **A dynamic counter amount in `EnterWith`.** Master Biomancer's "equal to
+   this creature's power" needs `EnterMods.counters` to carry an `AmountExpr`
+   evaluated against the *source's* frame at application. One field type, one
+   evaluator call; §5b's Archdruid-under-Biomancer claim (Biomancer's power
+   read off the real board, without the entering Archdruid's anthem) then falls
+   out of RC-4's asymmetry with no further work.
+
+4. **Choice-carrying mods (CR 614.12a's full form).** "As this enters, choose a
+   color" (Voice of All, Painter's Servant) needs the choice recorded on the
+   permanent for a linked ability to read — CR 607, which is T20's. RC-4 claims
+   614.12a partially through the CR 616.1b prompt, which is made before the
+   entry and whose result the announced entry carries; the general field waits
+   on linked abilities and is listed here so it is findable.
+
+**Sized:** (1) is the phase — the arm, the selection prompt, the nested batch,
+the two exclusion sets on `execute_batch_inner`, and two cards (Thunder-Thrash
+Elder, Sutured Ghoul) — ~1,200 additions. (2) is ~400 in `execute_batch_inner`
+and `perform_action`'s `ZoneChange` arm, with 613.7m. (3) is ~150, and Master
+Biomancer is its card. Together at the top of the band; if (2) runs long it
+splits off with 613.7m rather than the other way round, because (1) and (3)
+have cards waiting and (2) has none.
 
 ### Phase RD — damage (CR 615, 609.7, 614.9)
 
@@ -3006,6 +3248,10 @@ rule number) — confirm the merge at labelling time.
    baseline — a look-ahead that runs a few times per turn should not move the
    number, and if it does, the accessor indirection has leaked into the hot walk
    and that is the bug to find.
+
+   **Built and recorded (RC-4, 2026-09-02).** `engine/layers/lookahead.rs` is
+   the overlay, `FrameCache` carries it, and `layers-architecture.md` §9 /
+   §15.2 item 3 now say so. The measurement is in §9's RC-4 subsection.
 
 6. **CR 614.10's skips are not `execute_action` events.** They replace the
    *beginning of a step/phase/turn*, which happens in `advance_turn`, not in a
@@ -3325,9 +3571,23 @@ there, because all three are about **what a rider can reach**.
     Containment Priest is the printed shape and needs a "wasn't cast" predicate
     `EventPattern` does not have. **Order: card first, suppression second.**
 
-    Lands in **RC-4**, which opens this loop anyway for CR 614.13a/b's exclusion
-    sets and the CR 616.1b/c buckets. Until then the prompt stays, and the tests
-    say what they actually prove.
+    **Landed in RC-4 (2026-09-02), card first** — Containment Priest, the
+    `Instead` beside an `EnterWith` — **and the predicate is narrower than the
+    theorem above, because the frame falsified one premise.** "Neither
+    `EventPattern::EnterBattlefield` nor `set_affects` reads `mods`" stopped
+    being true the moment `set_affects` read the look-ahead: a `PowerLE`
+    filter matches a 0/0 before its +1/+1 counters land and not after, so
+    Adaptive Shimmerer under "creatures with power 1 or less enter tapped" is
+    a real choice — tapped or untapped by the order — and
+    `test_a_power_filter_beside_counters_is_a_real_choice` says so. The rule
+    that shipped (`pipeline::order_invariant_entry_bucket`) admits only members
+    whose applicability no `EnterMods` field can move: `EnterWith`, mandatory,
+    static, under CR 614.5, not counter-derived, no rider, and an `affected`
+    over leaves the counters cannot reach (`filter_is_mods_invariant`). It is
+    a semantics-assuming shortcut in `layers-architecture.md` §12's sense, so
+    it carries its three expiry conditions in code and in `codebase-state.md`
+    and a debug-build check that re-gathers after the suppressed choice and
+    asserts the rest still apply.
 
 ---
 
@@ -3358,10 +3618,10 @@ Update as part of the work that changes them, not in a later pass:
 - `CLAUDE.md` — ✅ through RB. The authority-table row exists; the chokepoint
   invariant is stated, and RA-3 added its one-performer/one-emitter and
   simultaneity sub-rules and struck the `// REPLACEMENT-BYPASS:` exemption.
-- `layers-architecture.md` §9 / §15.2 item 3 — the overlay decision, once made.
-  **Untouched by RA**, correctly: RA-3's LKI frame is a `compute_characteristics`
-  call taken *before* a mutation, not a hypothetical about a perturbed board, so
-  it needed neither the accessor pair nor a clone. The overlay is still RC-4's,
-  and §11 item 5's decision still stands unrecorded there.
+- `layers-architecture.md` §9 / §15.2 item 3 — ✅ the overlay decision,
+  recorded with RC-4 (2026-09-02). RA-3's LKI frame had needed neither the
+  accessor pair nor a clone — a `compute_characteristics` call taken *before* a
+  mutation is not a hypothetical about a perturbed board — and RC-4's frame is
+  the first thing that did.
 - `cards-unlocked-ledger.md` — ✅ RB's entry is in. The ETB unlock is the largest
   single entry the ledger will take; add it with RC.

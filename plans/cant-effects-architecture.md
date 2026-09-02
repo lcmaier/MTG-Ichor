@@ -1163,6 +1163,40 @@ distinction CR 614.12 draws, and `replacement-architecture.md` §5 already
 records that collapsing those variants breaks 614.12 silently. It now breaks
 614.17d silently too. Same rule, second customer.
 
+**Landed 2026-09-02 (RC-4), in two shapes rather than one.** `is_prohibited`
+takes the CR 614.12 frame — `Query::Event::lookahead`, or one derived from the
+action — and `set_affects` matches a `Filter` about an entering permanent
+against it. The population above splits on *which event* the "can't" watches:
+
+- **"Can't enter the battlefield"** (Worms of the Earth) watches the `ZoneChange`
+  onto the battlefield, not the entry. By the time an `EnterBattlefield` is
+  proposed the card is already in the battlefield zone with no entity, so a
+  refused entry would strand it; a refused zone change leaves it where it was.
+  The frame reaches that zone change too, built from what the entry proposal
+  *would* carry (CR 110.2b's default controller, the rules' own `EnterMods`),
+  and a Grizzly Bears returned under "each permanent is a land in addition to
+  its other types" stays in the graveyard — the frame's answer, not the card's.
+  Grafdigger's Cage and its three siblings keep reading the card in its source
+  zone, as their ruling says, through the pattern's `object` filter: **`pattern`
+  reads the source zone, `affected` reads the frame**, and that is the rule.
+- **"Can't have counters put on it"** (Melira, Darksteel Angel, Solemnity,
+  Melira's Keepers, Tatterkite) modifies *how* it enters. CR 122.6 says counters
+  an object "is given as it enters" are *put on* it, so the "can't" is asked as
+  the `AddCounters` it is, at the moment an `EnterWith` would add them, against
+  the frame with everything applied so far — and the counters are refused while
+  the entry goes on (`replacement::strip_prohibited_counters`). Nothing is
+  blocked and CR 614.17c never enters into it. The 2017 rulings on Solemnity
+  and Melira say exactly this.
+- **No printed "can't" refuses a status.** ATOM-614.17d-001's "creatures can't
+  enter the battlefield tapped" is a representative the corpus invented and is
+  claimed for its counters half only.
+
+The source-1a leg `gather` has for the entering permanent's *own* replacement
+abilities has no twin in `is_prohibited`: "this creature can't have counters
+put on it" on an entering Tatterkite is invisible to an entry that would give
+it counters. No registered effect produces that board, so it is recorded in
+`codebase-state.md` rather than built.
+
 ### 5.4 CR 101.2a — where the layer system keeps its own
 
 CR 101.2a takes ability addition and removal *out* of CR 101.2 and hands it to

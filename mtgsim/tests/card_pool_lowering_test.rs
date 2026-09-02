@@ -81,9 +81,10 @@ fn test_every_registered_card_lowers_for_either_controller() {
 /// gets it wrong. The registry has no hybrid card yet, so the error class has
 /// had no chance to appear.
 ///
-/// **If this fails for a card with a colour indicator**, the card is right and
-/// the test is too strict — add it to an exemption list here with its CR 202.2e
-/// citation rather than bending the card to the check.
+/// **A card with a colour indicator is checked against the indicator** (CR
+/// 204.1 / 202.2e), not against its mana cost — Dryad Arbor has no cost and is
+/// green. A card that fails here is wrong about its colour or its cost, never
+/// a case for bending the card to the check.
 #[test]
 fn test_every_registered_cards_color_matches_its_mana_cost() {
     use mtgsim::types::colors::Color;
@@ -138,10 +139,13 @@ fn test_every_registered_cards_color_matches_its_mana_cost() {
         let Ok(card) = registry.create(&name) else { continue };
         let mut declared: Vec<Color> = card.colors.iter().copied().collect();
         // CR 202.2b — no mana cost at all means no coloured symbols, so
-        // colorless. A colour indicator would be the exception; see the doc.
-        let mut expected = match &card.mana_cost {
-            Some(cost) => derived(&cost.symbols),
-            None => Vec::new(),
+        // colorless. CR 204.1 is the exception: a colour indicator defines
+        // the colour outright, whatever the cost says. Dryad Arbor is the
+        // first registered card with one.
+        let mut expected = match (&card.color_indicator, &card.mana_cost) {
+            (Some(indicator), _) => indicator.clone(),
+            (None, Some(cost)) => derived(&cost.symbols),
+            (None, None) => Vec::new(),
         };
         let key = |c: &Color| format!("{c:?}");
         declared.sort_by_key(key);

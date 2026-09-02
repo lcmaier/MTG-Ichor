@@ -63,13 +63,16 @@ use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
-    SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PermanentFilter,
+    PlayerRef, Primitive, SelectionFilter, Selector, TargetCount,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite};
+use crate::types::replacement::{
+    EnterMods, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+};
+use crate::types::zones::{Zone, ZoneChangeCause};
 
 /// Idyllic Beachfront — Land — Plains Island
 ///
@@ -136,7 +139,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::tapped()),
             ))),
@@ -200,7 +203,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::MinusOneMinusOne, 2)),
             ))),
@@ -268,7 +271,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 3)),
             ))),
@@ -351,7 +354,7 @@ pub fn root_maze() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter {
                     filter: PermanentFilter::Or(
                         Box::new(PermanentFilter::ByType(CardType::Artifact)),
@@ -360,6 +363,207 @@ pub fn root_maze() -> Arc<CardData> {
                 },
                 Rewrite::EnterWith(EnterMods::tapped()),
             ))),
+        })
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// Phase RC-4 — the look-ahead frame (CR 614.12)
+// ---------------------------------------------------------------------------
+
+/// Containment Priest — {1}{W}
+/// Creature — Human Cleric, 2/2
+///
+/// Flash
+/// If a nontoken creature would enter and it wasn't cast, exile it instead.
+///
+/// (Oracle text verified on Scryfall, 2026-09-02.)
+///
+/// # The card before the suppression — `replacement-architecture.md` §11 item 19
+///
+/// RC-4 stops asking CR 616.1's question when every member of the bucket is an
+/// `EnterWith` (`pipeline::order_invariant_entry_bucket`): Root Maze beside
+/// Idyllic Beachfront is a choice with one outcome, and the fuzz harness paid a
+/// decision round-trip for it on every land drop. Suppressing that prompt with
+/// nothing else registered would have returned the multi-candidate branch to
+/// dead code in every fuzz game — the Kalitas gap a third time, caused by a
+/// fix. This card is the member that is *not* an `EnterWith`: an `Instead`
+/// beside one is a bucket the rule keeps asking about, because which CR 614.5
+/// slot is spent first is a different event log even when the board is not.
+///
+/// # What it reads, and where
+///
+/// - **"wasn't cast"** is `EventPattern::EnterBattlefield { cast: Some(false) }`
+///   — CR 601's fact projected off the entry's `ZoneChangeCause`. A creature
+///   spell resolving arrives with `Resolved` and is not matched.
+/// - **"nontoken creature"** is an `AffectedSet::Filter`, matched against
+///   CR 614.12's frame: the object *as it would exist on the battlefield*. A
+///   noncreature artifact returned under March of the Machines is a creature to
+///   the Priest and is exiled — the clause (3) case RC-3's gate opened and this
+///   card is the first replacement to read.
+/// - **"exile it instead"** is `Instead(ZoneChangeTo { Exile })` on an entry.
+///   The `ZoneChange` performer has already moved the card into the
+///   battlefield zone when it proposes the entry (RC-2's split), so the
+///   substitute is a move back out, and the card never becomes a permanent.
+///   The event log therefore shows a hop through the battlefield for a card
+///   the CR says never entered; `codebase-state.md`'s "Before Triggered
+///   abilities" item 4 sizes the fix.
+///
+/// # Reachability — why Dryad Arbor is registered beside it
+///
+/// No registered effect puts a creature card onto the battlefield without
+/// casting it (`Primitive::ReturnToBattlefield` is a stub), and the card
+/// excludes tokens. The one road a fuzz game has is a land drop, and a Land
+/// Creature played as a land "wasn't cast": Containment Priest's ruling on
+/// Dryad Arbor is exile. Both are in the stress pool and neither is in
+/// `PERFORMANCE_POOL` — the path they open is the *branch*, not a cost, and
+/// Keldon Warlord is RC-4's deliberate addition there.
+pub fn containment_priest() -> Arc<CardData> {
+    CardDataBuilder::new("Containment Priest")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Cleric))
+        .power_toughness(2, 2)
+        .keyword(KeywordFlag::Flash)
+        .rules_text(
+            "Flash\nIf a nontoken creature would enter and it wasn't cast, exile it instead.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: Some(false) },
+                AffectedSet::Filter {
+                    filter: PermanentFilter::And(
+                        Box::new(PermanentFilter::ByType(CardType::Creature)),
+                        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::Token))),
+                    ),
+                },
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                    to: Zone::Exile,
+                    cause: ZoneChangeCause::Exiled,
+                }),
+            ))),
+        })
+        .build()
+}
+
+/// Dryad Arbor
+/// Land Creature — Forest Dryad, 1/1 (green by colour indicator, CR 204.1)
+///
+/// (This land isn't a spell, it's affected by summoning sickness, and it has
+/// "{T}: Add {G}.")
+///
+/// (Oracle text verified on Scryfall, 2026-09-02. No mana cost, and no rules
+/// text of its own: the parenthetical is reminder text, so `rules_text` is
+/// left to `mana_ability_single`, which writes the intrinsic "{T}: Add {G}.")
+///
+/// # The land drop that "wasn't cast"
+///
+/// Registered for Containment Priest's reachability (see there), and it earns
+/// the stress pool on its own: it is the only registered permanent with two
+/// permanent types, so it is a creature to Doom Blade and Humility, a land to
+/// Root Maze and Blood Moon, summoning-sick for its own mana ability (CR 302.6
+/// — `Cost::Tap` asks, and the reminder text says so), and the land that
+/// CR 305.7 turns into a Mountain *Dryad* rather than a Mountain — the
+/// CR 205.1a case `land_types::apply_set_subtypes` got wrong until this card
+/// made it reachable.
+///
+/// The mana ability is written out, as `basic_lands` and `dual_lands` write
+/// theirs: CR 305.6 makes it intrinsic to the Forest type, and the layer walk
+/// synthesizes the intrinsic one only when a land type is *gained*.
+pub fn dryad_arbor() -> Arc<CardData> {
+    CardDataBuilder::new("Dryad Arbor")
+        .card_type(CardType::Land)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Land(LandType::Forest))
+        .subtype(Subtype::Creature(CreatureType::Dryad))
+        .color(Color::Green)
+        .color_indicator(vec![Color::Green])
+        .power_toughness(1, 1)
+        .mana_ability_single(ManaType::Green)
+        .build()
+}
+
+/// Keldon Warlord — {2}{R}{R}
+/// Creature — Human Barbarian, */*
+///
+/// Keldon Warlord's power and toughness are each equal to the number of
+/// non-Wall creatures you control.
+///
+/// (Oracle text verified on Scryfall, 2026-09-02.)
+///
+/// # §5a's probe — the count that does not see the entering object
+///
+/// A characteristic-defining ability (CR 604.3) whose value is a *count over
+/// the battlefield*, which is the read `replacement-architecture.md` §5a's
+/// enumeration row names and nothing in the layer walk had until RC-4:
+/// `AmountExpr::CountOf` now has a static-context evaluator, and this is its
+/// card. On the battlefield the Warlord counts itself. **In the CR 614.12
+/// frame it does not** — the count runs over `battlefield_ids_ordered`, which
+/// the entering object is not on. So a Warlord entering beside two other
+/// creatures is 2/2 to a *replacement* that reads its power ("creatures with
+/// power 2 or less enter tapped") and 3/3 to a *trigger* that does (Welcoming
+/// Vampire): CR 603.10 checks a trigger against the board after the event,
+/// where the Warlord is one of the creatures it counts. That is the pair of
+/// Thassa rulings — for replacements "the mana symbols in its mana cost won't
+/// be counted", for triggers the devotion "including the mana symbols in the
+/// mana cost of the God itself" — with none of the devotion arithmetic and
+/// none of Deferred Migrations item 7f in the way, which is why this card is
+/// here and the God is not.
+///
+/// # In `PERFORMANCE_POOL`, and why
+///
+/// The evaluator is one frame per permanent per query — `layers-architecture.md`
+/// §12's quadratic by design — and a card that opens a new engine path adds
+/// itself to the measured pool (`engineering-practices.md` §3). Every walk of
+/// the Warlord asks every permanent's frame at layer 7a's ceiling, memoized
+/// within that walk, so `Frames/walk` is the fixture that moves; the
+/// measurement is in RC-4's entry of `codebase-state.md`. Wall of Stone is in
+/// the same pool, which is what makes "non-Wall" live.
+pub fn keldon_warlord() -> Arc<CardData> {
+    // Built once and cloned into the second slot: `SetPowerToughness` takes
+    // its two amounts by value, and this runs at registry construction, not
+    // in a game.
+    let non_wall_creatures_you_control =
+        AmountExpr::CountOf(Selector::PermanentsMatching(PermanentFilter::And(
+            Box::new(PermanentFilter::And(
+                Box::new(PermanentFilter::ByType(CardType::Creature)),
+                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            )),
+            Box::new(PermanentFilter::Not(Box::new(PermanentFilter::BySubtype(
+                Subtype::Creature(CreatureType::Wall),
+            )))),
+        )));
+    CardDataBuilder::new("Keldon Warlord")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Barbarian))
+        // `*/*` — the CDA supplies both numbers, in every zone (CR 208.2a).
+        .power_toughness(0, 0)
+        .rules_text(
+            "Keldon Warlord's power and toughness are each equal to the number of \
+             non-Wall creatures you control.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: true,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::SetPowerToughness(
+                    non_wall_creatures_you_control.clone(),
+                    non_wall_creatures_you_control,
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::Implicit,
+            ),
         })
         .build()
 }

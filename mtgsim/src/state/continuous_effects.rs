@@ -114,6 +114,36 @@ pub struct RegistryScopeSummary {
     pub any_granted_restriction: bool,
 }
 
+impl RegistryScopeSummary {
+    /// The flags for one list of rows, in one pass.
+    ///
+    /// The registry's own rows, or the rows a `layers::lookahead::Lookahead`
+    /// holds *outside* it for an entering object — the walk's gates have to
+    /// answer the same way for both, so one function computes both.
+    pub fn of<'a>(effects: impl IntoIterator<Item = &'a ContinuousEffect>) -> Self {
+        use crate::engine::layers::types::{EffectGroup, EffectModification};
+        use crate::types::effects::Effect;
+
+        let mut seen: std::collections::HashSet<EffectGroup> = std::collections::HashSet::new();
+        let mut summary = RegistryScopeSummary::default();
+        for effect in effects {
+            if !seen.insert(effect.group()) {
+                summary.any_multi_row_group = true;
+            }
+            match &effect.modification {
+                EffectModification::SetController(_) => summary.any_control_changing = true,
+                EffectModification::GrantAbility(def) => match def.effect {
+                    Effect::Replacement(_) => summary.any_granted_replacement = true,
+                    Effect::Restriction(_) => summary.any_granted_restriction = true,
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        summary
+    }
+}
+
 /// Owns all active continuous effects in the game.
 ///
 /// The `Vec`, the id counter and the CR 514.2 expiry hooks live in
@@ -157,31 +187,7 @@ impl ContinuousEffectRegistry {
     /// removes are rare next to reads, and a counter that drifts would show up
     /// as a silently skipped existence check.
     fn recompute_summary(&mut self) {
-        let mut seen: std::collections::HashSet<crate::engine::layers::types::EffectGroup> =
-            std::collections::HashSet::with_capacity(self.effects.len());
-        self.summary.any_multi_row_group = self.effects.iter().any(|e| !seen.insert(e.group()));
-        self.summary.any_control_changing = self.effects.iter().any(|e| {
-            matches!(
-                e.modification,
-                crate::engine::layers::types::EffectModification::SetController(_)
-            )
-        });
-        self.summary.any_granted_replacement = self.effects.iter().any(|e| {
-            match &e.modification {
-                crate::engine::layers::types::EffectModification::GrantAbility(def) => {
-                    matches!(def.effect, crate::types::effects::Effect::Replacement(_))
-                }
-                _ => false,
-            }
-        });
-        self.summary.any_granted_restriction = self.effects.iter().any(|e| {
-            match &e.modification {
-                crate::engine::layers::types::EffectModification::GrantAbility(def) => {
-                    matches!(def.effect, crate::types::effects::Effect::Restriction(_))
-                }
-                _ => false,
-            }
-        });
+        self.summary = RegistryScopeSummary::of(self.effects.iter());
 
         debug_assert!(
             self.effects.is_sorted(),

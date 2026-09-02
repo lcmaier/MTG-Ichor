@@ -73,6 +73,12 @@ pub enum ChoiceKind {
     /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.
     ApplyOptionalReplacement { affected_object: Option<ObjectId>, source: ObjectId },
 
+    /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
+    /// opponent of your choice" and there is more than one opponent to choose
+    /// from. The options are players. With exactly one opponent nothing is
+    /// asked (CR 102.2), and the choice is made before the permanent enters.
+    ChooseEnteringController { object: ObjectId },
+
     // --- Commander (CR 903) ---
     /// CR 704.6d / 903.9a — a commander is in a graveyard or exile and its
     /// owner **may** put it into the command zone. A state-based action with a

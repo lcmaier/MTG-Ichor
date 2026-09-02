@@ -66,7 +66,7 @@ pub(super) fn apply_intrinsic_cdas(
     object_id: ObjectId,
     layer: Layer,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) {
     // Collected first because applying mutates `chars`, which we are reading.
     // Empty `Vec` doesn't allocate, so the common case — an object with no CDA

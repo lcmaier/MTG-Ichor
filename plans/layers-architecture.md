@@ -801,6 +801,8 @@ For each candidate pair (A, B) surviving steps 2+3:
 
 For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep clone. Phase LC decides the snapshot shape. Phase LA just reserves the interface.
 
+**The seam this shares with CR 614.12, recorded 2026-09-02 (RC-4).** The look-ahead frame is built, and it is *not* this snapshot — `replacement-architecture.md` §5 separates the two and §11 item 5 decided the shape: a read-side overlay, never a `GameState` clone. What 613.8 inherits is the accessor pair `compute.rs` now routes its concrete-state reads through — `FrameCache::entity` (controller, CR 302.6's clock, counters) and `rows_in_layer` (the registry slice plus an entering object's would-be rows) — so a step-4 hypothetical never has to re-plumb the walk. The `Lookahead` is threaded through `FrameCache` itself rather than passed beside it, because a frame memoized under one hypothetical must never be served to a walk under another; the step-4 snapshot, when it is built, wants the same discipline.
+
 ---
 
 ## 10. Registry Lifecycle
@@ -1206,6 +1208,8 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
 2. **Copy-effect snapshot shape (Layer 1b).** `CopiableValues` is referenced as a type in §3.5 but not defined. Needs a concrete struct: likely a trimmed `CardData` containing only copiable characteristics (name, mana cost, color indicator, card types, subtypes, supertypes, rules text, power, toughness, loyalty, defense — per CR 707.2). Resolve at Phase LD kickoff.
 
 3. **Dependency hypothetical-check snapshot performance.** Clone vs. CoW overlay for step-4 frame snapshots. Resolve in Phase LC.
+
+   **Half-resolved 2026-09-02 (RC-4), and the resolved half is the one that was actually open.** The *game-state* question — clone the game, or overlay its reads — was decided for CR 614.12 in `replacement-architecture.md` §11 item 5 and is now built (`engine/layers/lookahead.rs`): overlay, on correctness grounds rather than speed (a clone duplicates `GameState.rng` and aliases every v4 `ObjectId`). The *frame* question this item asked is smaller than it looked, because §12 already measured frame construction flat at 0.27–0.37 µs: step 4 clones `chars`, applies one `EffectModification`, re-runs `permanent_matches_filter`, and needs no overlay at all. What it does need is the accessor pair (§9), which exists. Closed when 613.8 lands and confirms the clone is as cheap in situ as it measured in isolation.
 
 4. **`AbilityOrigin` enum variants — CLOSED at Phase LD kickoff: not built, not needed.**
    The premise was that CR 305.7 must strip selectively (rules-text and old-land-type

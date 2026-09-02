@@ -18,8 +18,13 @@
 //! `execute_actions` to a performed `GameEvent`, see
 //! `plans/replacement-architecture.md` §2a.
 
+//! [`EntryFrame`] is the CR 614.12 frame of an entering permanent, computed at
+//! most once per pipeline iteration and only when a filter asks for it; the
+//! restriction sweep (`engine::restriction`) borrows it for CR 614.17d.
+
 mod gather;
 mod instance;
+mod lookahead;
 mod pipeline;
 
 pub(crate) use gather::{
@@ -28,4 +33,5 @@ pub(crate) use gather::{
 pub use gather::CounterEffectKind;
 pub(crate) use instance::{GameRuleReplacement, ReplacementInstanceId};
 pub use instance::ReplacementInstance;
-pub(crate) use pipeline::{apply_replacements, Rider};
+pub(crate) use lookahead::EntryFrame;
+pub(crate) use pipeline::{apply_replacements, strip_prohibited_counters, Rider};

@@ -49,7 +49,7 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
 /// see `RegistryScopeSummary::any_control_changing` for why it is exact.
 pub fn get_effective_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
     if !game.continuous_effects.summary().any_control_changing {
-        return crate::engine::layers::compute::base_controller(game, id);
+        return crate::engine::layers::compute::base_controller(game, id, None);
     }
     compute_characteristics(game, id).map(|chars| chars.controller)
 }

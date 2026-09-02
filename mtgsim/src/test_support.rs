@@ -227,7 +227,7 @@ pub fn put_on_battlefield(
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
-    let mods = game.default_enter_mods(id);
+    let mods = game.default_enter_mods(id, player);
     let entry = game.place_on_battlefield(id, player, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
@@ -496,7 +496,7 @@ pub fn put_on_battlefield_this_turn(
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
-    let mods = game.default_enter_mods(id);
+    let mods = game.default_enter_mods(id, player);
     game.place_on_battlefield(id, player, &mods);
     id
 }

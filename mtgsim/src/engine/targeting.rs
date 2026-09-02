@@ -1,7 +1,7 @@
 use crate::engine::resolve::ResolvedTarget;
-use crate::oracle::characteristics::{
-    get_effective_colors, get_effective_power, has_subtype, has_supertype, has_type,
-};
+use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::effects::{PermanentFilter, EffectRecipient, SelectionFilter, TargetCount};
@@ -219,35 +219,67 @@ impl GameState {
         filter: &PermanentFilter,
         you: PlayerId,
     ) -> Result<bool, String> {
+        self.get_object(id)?;
+        // One layer walk for the whole filter, and only if a leaf reads a
+        // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
+        // Peace's "cards" stays free on every graveyard-bound zone change.
+        // Before RC-4 each leaf took its own full walk.
+        let frame: std::cell::OnceCell<Option<EffectiveCharacteristics>> =
+            std::cell::OnceCell::new();
+        self.permanent_matches_filter_with(id, filter, you, &|| {
+            frame
+                .get_or_init(|| compute_characteristics(self, id))
+                .as_ref()
+                .ok_or_else(|| format!("Object {} not found", id))
+        })
+    }
+
+    /// [`Self::permanent_matches_filter`] against a frame the caller already
+    /// holds — CR 614.12's look-ahead for an entering permanent
+    /// (`engine::replacement::EntryFrame`), where the finished board would
+    /// answer for the card and not for the permanent it is about to become.
+    pub(crate) fn permanent_matches_filter_in_frame(
+        &self,
+        id: ObjectId,
+        filter: &PermanentFilter,
+        you: PlayerId,
+        chars: &EffectiveCharacteristics,
+    ) -> Result<bool, String> {
+        self.permanent_matches_filter_with(id, filter, you, &|| Ok(chars))
+    }
+
+    /// The leaf table, over a frame supplied on demand.
+    ///
+    /// The second of the two `permanent_matches_filter`s in the engine
+    /// (`codebase-state.md` item 14): `compute::permanent_matches_filter` asks
+    /// whether a continuous effect applies mid-layer-walk and resolves
+    /// `PlayerRef` through the effect's source; this one asks whether an
+    /// object is a legal selection, or inside a replacement's or restriction's
+    /// `AffectedSet`, and resolves it against `you`.
+    fn permanent_matches_filter_with<'f>(
+        &self,
+        id: ObjectId,
+        filter: &PermanentFilter,
+        you: PlayerId,
+        frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, String>,
+    ) -> Result<bool, String> {
         let obj = self.get_object(id)?;
         match filter {
             PermanentFilter::All => Ok(true),
-            PermanentFilter::ByType(card_type) => {
-                Ok(has_type(self, obj.id, *card_type))
-            }
-            PermanentFilter::BySubtype(subtype) => {
-                Ok(has_subtype(self, obj.id, subtype))
-            }
+            PermanentFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
+            PermanentFilter::BySubtype(subtype) => Ok(frame()?.subtypes.contains(subtype)),
             PermanentFilter::BySupertype(supertype) => {
-                Ok(has_supertype(self, obj.id, *supertype))
+                Ok(frame()?.supertypes.contains(supertype))
             }
-            PermanentFilter::ByColor(color) => {
-                Ok(get_effective_colors(self, obj.id).contains(color))
-            }
+            PermanentFilter::ByColor(color) => Ok(frame()?.colors.contains(color)),
             PermanentFilter::ByController(player_ref) => {
                 use crate::types::effects::PlayerRef;
-                let Some(controller) =
-                    crate::oracle::characteristics::get_effective_controller(self, id)
-                else {
-                    return Err(format!("Object {} has no controller", id));
-                };
+                let controller = frame()?.controller;
                 Ok(match player_ref {
                     PlayerRef::You => controller == you,
                     PlayerRef::Opponent => controller != you,
                     PlayerRef::Player(pid) => controller == *pid,
-                    PlayerRef::Owner => {
-                        Some(controller) == self.objects.get(&id).map(|obj| obj.owner)
-                    }
+                    PlayerRef::Owner => controller == obj.owner,
                 })
             }
             // CR 111.1 / 707.2 — being a token is a property of the *object*,
@@ -277,14 +309,13 @@ impl GameState {
                     PlayerRef::Player(pid) => obj.owner == *pid,
                 })
             }
-            PermanentFilter::PowerLE(max_power) => {
-                get_effective_power(self, id)
-                    .map(|p| p <= *max_power)
-                    .ok_or_else(|| format!("Object {} has no power", id))
-            }
+            PermanentFilter::PowerLE(max_power) => frame()?
+                .power
+                .map(|p| p <= *max_power)
+                .ok_or_else(|| format!("Object {} has no power", id)),
             PermanentFilter::And(a, b) => {
-                let matches_a = self.permanent_matches_filter(id, a, you)?;
-                let matches_b = self.permanent_matches_filter(id, b, you)?;
+                let matches_a = self.permanent_matches_filter_with(id, a, you, frame)?;
+                let matches_b = self.permanent_matches_filter_with(id, b, you, frame)?;
                 Ok(matches_a && matches_b)
             }
             // Short-circuits, where `And` above does not, and the asymmetry is
@@ -294,13 +325,13 @@ impl GameState {
             // irrelevant. Evaluating it anyway would turn a true `Or` into a
             // silent `false`.
             PermanentFilter::Or(a, b) => {
-                if self.permanent_matches_filter(id, a, you)? {
+                if self.permanent_matches_filter_with(id, a, you, frame)? {
                     return Ok(true);
                 }
-                self.permanent_matches_filter(id, b, you)
+                self.permanent_matches_filter_with(id, b, you, frame)
             }
             PermanentFilter::Not(inner) => {
-                let matches = self.permanent_matches_filter(id, inner, you)?;
+                let matches = self.permanent_matches_filter_with(id, inner, you, frame)?;
                 Ok(!matches)
             }
         }

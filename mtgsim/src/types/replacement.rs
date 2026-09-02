@@ -24,15 +24,16 @@
 //! - [`Rewrite`] is a **closed algebra**. CR 614 and 615 enumerate what a
 //!   replacement effect may do to an event and the list is short; a new arm
 //!   is a claim that those rules permit an operation the list omits, and it
-//!   should arrive with the rule number that says so. It ships **three** —
-//!   `Prevent`, `Instead` and `EnterWith` — not §3.2's five: an arm the
-//!   pipeline cannot apply is worse than a missing one, and `EnterWith` gained
-//!   its performer in Phase RC-2.
+//!   should arrive with the rule number that says so. It ships **four** —
+//!   `Prevent`, `Instead`, `EnterWith` and `EnterUnderControlOf` — not §3.2's
+//!   five plus one: an arm the pipeline cannot apply is worse than a missing
+//!   one. `EnterWith` gained its performer in Phase RC-2 and
+//!   `EnterUnderControlOf` its CR 616.1b bucket in RC-4.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
 
-use crate::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter};
+use crate::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter, PlayerRef};
 use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
@@ -204,14 +205,36 @@ pub enum EventPattern {
     /// CR 614.1c/d — "modify how a permanent enters the battlefield". The
     /// event's subject is the permanent that is entering.
     ///
-    /// Fieldless, like [`Self::DealDamage`], and for the same reason: RC-2's
-    /// consumers are `AffectedSet::SourceOnly` self-references — "this land
-    /// enters tapped" — where `affected` already says everything the pattern
-    /// would. A constraint on the entering object beyond that (Root Maze's
-    /// "artifacts and lands", Amulet-shaped cards) is a `PermanentFilter` field
-    /// this arm grows when RC-3 makes an `AffectedSet::Filter` able to match an
-    /// object that is not on the battlefield yet.
-    EnterBattlefield,
+    /// **`affected` does the object-side work, and it reads the CR 614.12
+    /// frame.** Root Maze's "artifacts and lands" is an `AffectedSet::Filter`,
+    /// matched against the permanent *as it would exist on the battlefield*
+    /// (`layers::compute_as_entering`), never against the card where it came
+    /// from. So this arm carries no object filter of its own; its one
+    /// constraint is about the *event*.
+    ///
+    /// `cast` is CR 601's fact, projected off the entry's [`ZoneChangeCause`]:
+    /// `Some(true)` matches a permanent spell that resolved (`Resolved`),
+    /// `Some(false)` everything else — a land drop, an effect putting a card
+    /// onto the battlefield, a token. Containment Priest and Hallowed
+    /// Moonlight read "and it wasn't cast", and a `ZoneChangeCause` field
+    /// could not say *wasn't*. `None` matches either.
+    ///
+    /// One field today, and the axis it grows along is CR 400.7d: a permanent's
+    /// abilities may reference facts about the spell it was — whether it was
+    /// kicked (Gnarlid Pack's "enters with a +1/+1 counter" is a CR 614.1c
+    /// effect reading one), what was spent on it, where it was cast from. A
+    /// fact about *how the object arrived* lands here as a field; a fact about
+    /// the card where it is stays on [`Self::ZoneChange`]'s `object`.
+    ///
+    /// **A prohibition on entering does not watch this event.** By the time an
+    /// `EnterBattlefield` is proposed the object is already in the battlefield
+    /// zone, so "Lands can't enter the battlefield" (Worms of the Earth) is a
+    /// `Restriction::Event` over `ZoneChange { to: Some(Battlefield), .. }`,
+    /// where stopping the event leaves the card where it was. CR 614.17d's
+    /// frame reaches that zone change too — `engine::replacement::EntryFrame`.
+    EnterBattlefield {
+        cast: Option<bool>,
+    },
 
     /// CR 122.1's counter mutations. No RB customer watches one — the arm
     /// exists because `GameAction::AddCounters`/`RemoveCounters` do, and
@@ -269,6 +292,7 @@ impl DestructionSourcePattern {
 /// | `Prevent` | 614.6, 615.6 | **RB** |
 /// | `Instead` | 614.1a | **RB** |
 /// | `EnterWith(..)` | 614.1c/d | **RC-2** |
+/// | `EnterUnderControlOf(..)` | 616.1b, 614.1c | **RC-4** |
 /// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention | RD/RE |
 /// | `Retarget(..)` | 614.9 redirection, 616.1b | RD |
 ///
@@ -313,6 +337,29 @@ pub enum Rewrite {
     /// whole reason the modifications ride on the proposal instead of being
     /// applied as they are chosen.
     EnterWith(EnterMods),
+
+    /// CR 616.1b — modify *under whose control* a permanent enters.
+    ///
+    /// The rule names this class by what the effect does — "would modify
+    /// under whose control an object would enter the battlefield" — and
+    /// orders it ahead of every other entry replacement, because the
+    /// controller is what the rest of them read: Kismet's "your opponents",
+    /// Master Biomancer's "you control", the CR 616.1 chooser itself. Applying
+    /// it first is what lets those questions be answered once.
+    ///
+    /// The `PlayerRef` is resolved when the effect is *applied*, relative to
+    /// the effect's controller: `You` is Gather Specimens' "under your
+    /// control", `Opponent` is Xantcha's "an opponent of your choice". With one
+    /// opponent nothing is chosen (CR 102.2); with more, that player is asked
+    /// — and CR 614.12a's "that choice is made before the permanent enters the
+    /// battlefield" holds by construction, since the CR 616.1 loop runs ahead
+    /// of the performer.
+    ///
+    /// Rewrites the proposal's `controller` field and nothing else. Not an
+    /// `Instead`, because the entry still happens; not an `EnterWith`, because
+    /// the controller is a field of the *event* rather than of what the
+    /// permanent arrives with, so `EnterMods::merge` has nothing to merge.
+    EnterUnderControlOf(PlayerRef),
 }
 
 /// How a permanent enters the battlefield, when something modified it
@@ -459,8 +506,9 @@ pub enum GameActionTemplate {
 ///
 /// All five arms ship in Phase RB even though only `Other` has a producer,
 /// because the *ordering* is what item 3 implements and a bucket that does not
-/// exist cannot be ordered. `SelfReplacement` gets its producer with the first
-/// CR 614.15 card, `ControlChanging` and `CopyOnEnter` in Phase RC-B.
+/// exist cannot be ordered. `ControlChanging` gained its producer in RC-4
+/// ([`Rewrite::EnterUnderControlOf`]); `SelfReplacement` gets one with the
+/// first CR 614.15 card and `CopyOnEnter` with Phase CV-2's copy spine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReplacementClass {
     /// CR 616.1a / 614.15.
@@ -473,6 +521,27 @@ pub enum ReplacementClass {
     BackFaceUp,
     /// CR 616.1e — free choice.
     Other,
+}
+
+impl ReplacementClass {
+    /// The CR 616.1 bucket a rewrite belongs to, read off the rewrite.
+    ///
+    /// Derived rather than authored. CR 616.1b and 616.1c name their classes
+    /// by what the effect *does*, so a field a card could set is a field a
+    /// card could forget, and a control-changing effect filed under `Other`
+    /// would be chosen in the wrong order silently. `SelfReplacement` is the
+    /// one class no rewrite implies — CR 614.15 is about where the effect
+    /// *came from* — and it lands with `ActionContext::resolution`'s field
+    /// (`replacement-architecture.md` §11 item 3). `BackFaceUp` waits on
+    /// transform.
+    pub fn from_rewrite(rewrite: &Rewrite) -> Self {
+        match rewrite {
+            Rewrite::EnterUnderControlOf(_) => ReplacementClass::ControlChanging,
+            Rewrite::Prevent | Rewrite::Instead(_) | Rewrite::EnterWith(_) => {
+                ReplacementClass::Other
+            }
+        }
+    }
 }
 
 /// How many times a replacement effect can fire.
@@ -499,12 +568,13 @@ impl ReplacementDef {
     /// `exempt_from_614_5` are the two fields where a wrong default is a rules
     /// bug rather than a style choice.
     pub fn new(pattern: EventPattern, affected: AffectedSet, rewrite: Rewrite) -> Self {
+        let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,
             affected,
             rewrite,
             then: None,
-            class: ReplacementClass::Other,
+            class,
             uses: Uses::Static,
             is_regeneration: false,
             exempt_from_614_5: false,

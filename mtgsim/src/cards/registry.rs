@@ -42,7 +42,7 @@ use super::phase_sba_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 61] = [
+const PERFORMANCE_POOL: [&str; 62] = [
     "Plains",
     "Island",
     "Swamp",
@@ -123,6 +123,12 @@ const PERFORMANCE_POOL: [&str; 61] = [
     // also what makes CR 704.5q's annihilation sweep run in a measured game
     // rather than only in a fixture.
     "Battlegrowth",
+    // RC-4 — the first `AmountExpr::CountOf` in the layer walk: a CDA that
+    // enumerates the battlefield, one frame per permanent per query. The
+    // look-ahead frame itself needs no card here — Root Maze already routes
+    // every land drop through it — but this is the quadratic §5a's enumeration
+    // row warned about, and it is measured rather than assumed.
+    "Keldon Warlord",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -292,6 +298,15 @@ impl CardRegistry {
         // a fuzz game. RC-2 recorded that branch as blocked on RC-3's gate; it
         // was blocked on nothing (`phase_rc_cards::root_maze`).
         registry.register("Root Maze", phase_rc_cards::root_maze);
+        // RC-4. Containment Priest is the entry replacement that does *not*
+        // commute with an `EnterWith`, so CR 616.1's multi-candidate branch
+        // stays reachable now that the commuting case no longer prompts; Dryad
+        // Arbor is the only road a fuzz game has to a creature that "wasn't
+        // cast". Keldon Warlord counts the battlefield, and does not count
+        // itself while entering (`phase_rc_cards`).
+        registry.register("Containment Priest", phase_rc_cards::containment_priest);
+        registry.register("Dryad Arbor", phase_rc_cards::dryad_arbor);
+        registry.register("Keldon Warlord", phase_rc_cards::keldon_warlord);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation sweep had never run in a fuzz

@@ -195,10 +195,18 @@ pub enum GameAction {
     /// (`GameState::default_enter_mods`) and accumulates through
     /// [`Rewrite::EnterWith`](crate::types::replacement::Rewrite::EnterWith)
     /// as CR 616.1f iterates.
+    ///
+    /// `cause` is the zone change that brought the object here, or `None` for
+    /// a token created on the battlefield. A fact about the event rather than
+    /// about the object, recorded because CR 601's "was it cast" is
+    /// unrecoverable a moment later: `Resolved` is a permanent spell that was
+    /// cast, and everything else — a land drop, `Returned`, a token — was not.
+    /// Read by `EventPattern::EnterBattlefield { cast }` and nothing else.
     EnterBattlefield {
         object: ObjectId,
         controller: PlayerId,
         mods: EnterMods,
+        cause: Option<ZoneChangeCause>,
     },
 
     // === Phase 3+ actions — add variants here as primitives are implemented ===
@@ -617,7 +625,7 @@ impl GameState {
                 // between these two statements.
                 if to == Zone::Battlefield {
                     let controller = self.default_enter_controller(object)?;
-                    self.propose_entry(object, controller, _ctx)?;
+                    self.propose_entry(object, controller, Some(cause), _ctx)?;
                 }
                 Ok(())
             }
@@ -739,7 +747,7 @@ impl GameState {
             // CR 614.1c/d's event. The performer is `place_on_battlefield`,
             // which is also the only emitter of
             // `GameEvent::PermanentEnteredBattlefield`.
-            GameAction::EnterBattlefield { object, controller, mods } => {
+            GameAction::EnterBattlefield { object, controller, mods, cause: _ } => {
                 self.place_on_battlefield(object, controller, &mods);
                 Ok(())
             }
@@ -749,22 +757,35 @@ impl GameState {
     /// Propose CR 614.1c's entry for an object that is already in the
     /// battlefield zone but has no `BattlefieldEntity` yet.
     ///
-    /// **Loud if the entry is dropped.** Nothing in RC-2 can drop one — only
-    /// `Rewrite::EnterWith` matches an `EnterBattlefield`, and no card writes a
-    /// CR 614.17d prohibition on entering — but a dropped entry would leave the
-    /// object in `Zone::Battlefield` with nothing on the battlefield, a state no
-    /// rule describes and no query survives. CR 614.17d belongs to Phase RC-4
-    /// and has to stop the *zone change*; this error is what makes an attempt to
-    /// do it here fail at the attempt rather than three queries later.
+    /// **Loud if the entry is dropped with nothing in its place.** An entry
+    /// that is *replaced* by a zone change — Containment Priest's "exile it
+    /// instead" rewrites the `EnterBattlefield` into a `ZoneChange` out of the
+    /// zone, which is performed and so counts — is fine. A dropped entry with
+    /// nothing performed would leave the object in `Zone::Battlefield` with
+    /// nothing on the battlefield, a state no rule describes and no query
+    /// survives. That is why a CR 614.17d prohibition on *entering* watches
+    /// the zone change, where refusing the event leaves the card where it was
+    /// (`EventPattern::EnterBattlefield`); this error is what makes an attempt
+    /// to write one against the entry fail at the attempt rather than three
+    /// queries later.
+    ///
+    /// The seed's counters (CR 306.5b's loyalty) go through the same CR 101.2
+    /// door as a replacement's: a "can't have counters put on it" that would
+    /// stop them later stops them here (CR 614.17d), with no cause, because a
+    /// rule put them there.
     pub(crate) fn propose_entry(
         &mut self,
         object: ObjectId,
         controller: PlayerId,
+        cause: Option<ZoneChangeCause>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        let mods = self.default_enter_mods(object);
+        let seed = self.default_enter_mods(object, controller);
+        let mods = crate::engine::replacement::strip_prohibited_counters(
+            self, object, controller, &EnterMods::NONE, &seed, None,
+        );
         let performed = self.execute_actions(
-            vec![GameAction::EnterBattlefield { object, controller, mods }],
+            vec![GameAction::EnterBattlefield { object, controller, mods, cause }],
             ctx,
         )?;
         if performed.is_empty() {

@@ -691,12 +691,17 @@ impl GameState {
     /// says it enters with loyalty counters, the same way nothing on a
     /// commander card says CR 903.9b.
     ///
-    /// Reads the *effective* type, so a Layer 4 effect that made something a
-    /// planeswalker is accounted for — including a filter-scoped one, since
-    /// RC-3 made `compute.rs`'s membership gate read the battlefield *zone*
-    /// rather than `game.battlefield`, and an entering permanent is already in
-    /// the zone.
-    pub(crate) fn default_enter_mods(&self, id: ObjectId) -> EnterMods {
+    /// **Reads the CR 614.12 frame, not the printed card.** CR 306.5b gives
+    /// the ability to "a planeswalker", so the question is whether the object
+    /// is one *as it would exist on the battlefield* under `controller` —
+    /// `layers::compute_as_entering` with no mods yet. The direction that
+    /// observably differs from a printed read is a planeswalker card whose
+    /// type a filter-scoped Layer 4 effect removes: it is not a planeswalker
+    /// on the battlefield, has no such ability, and enters with no loyalty
+    /// counters. (The other direction — a non-planeswalker made one by a
+    /// Layer 4 effect — reads the *printed* loyalty, which is `None`, and so
+    /// enters with none either way; CR 306.5b says "printed" and means it.)
+    pub(crate) fn default_enter_mods(&self, id: ObjectId, controller: PlayerId) -> EnterMods {
         let mut mods = EnterMods::NONE;
 
         // CR 306.5b — "a planeswalker enters the battlefield with a number of
@@ -706,14 +711,16 @@ impl GameState {
             None => return mods,
         };
         if let Some(loyalty) = loyalty {
-            if loyalty > 0
-                && crate::oracle::characteristics::has_type(
-                    self,
-                    id,
-                    crate::types::card_types::CardType::Planeswalker,
+            if loyalty > 0 {
+                let is_planeswalker = crate::engine::layers::compute_as_entering(
+                    self, id, controller, &EnterMods::NONE,
                 )
-            {
-                mods.counters.push((CounterType::Loyalty, loyalty as u32));
+                .is_some_and(|chars| {
+                    chars.types.contains(&crate::types::card_types::CardType::Planeswalker)
+                });
+                if is_planeswalker {
+                    mods.counters.push((CounterType::Loyalty, loyalty as u32));
+                }
             }
         }
 
