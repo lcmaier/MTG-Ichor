@@ -122,10 +122,10 @@ impl<'l> FrameCache<'l> {
     /// Is `id` in the battlefield zone, or is it the object entering it?
     ///
     /// The gate `effect_applies_to` asks before matching a filter. RC-3 made
-    /// it the *zone* rather than `game.battlefield` membership, which admits
-    /// an entering object that has already moved; the look-ahead admits one
-    /// that has not yet — a CR 614.17d "can't enter" asked at the zone change
-    /// — and nothing else.
+    /// it the *zone* rather than `game.battlefield` membership, which admits a
+    /// token created in the zone with no entity yet; the look-ahead admits the
+    /// entering object, which is still in its source zone while its entry is
+    /// decided (RC-4b) — and nothing else.
     fn in_battlefield_zone_or_entering(&self, game: &GameState, id: ObjectId) -> bool {
         self.entering(id).is_some()
             || matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield)
@@ -795,14 +795,13 @@ fn effect_applies_to(
             // computation for the source.
             //
             // The zone, not `game.battlefield` membership, and that is CR
-            // 614.12's clause (3) in one predicate: `move_object` writes
-            // `obj.zone` before the `EnterBattlefield` performer builds the
-            // `BattlefieldEntity`, so an entering permanent is in the zone with
-            // no entry. Asking the stricter question here is what kept Blood
-            // Moon, Humility and Dress Down away from an entry — the effects
-            // that "already exist and would apply to the object" are exactly
-            // the ones a filter has to be allowed to match. The look-ahead
-            // widens it by one object that has not moved yet, and no more.
+            // 614.12's clause (3) in one predicate: the effects that "already
+            // exist and would apply to the object" are exactly the ones a
+            // filter has to be allowed to match, and asking the stricter
+            // question here is what kept Blood Moon, Humility and Dress Down
+            // away from an entry. The zone admits a token created in it with
+            // no entity yet; the look-ahead admits the one object entering
+            // from elsewhere, and no more.
             if !cache.in_battlefield_zone_or_entering(game, id) {
                 return false;
             }

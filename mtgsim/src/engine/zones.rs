@@ -44,12 +44,12 @@ impl GameState {
     /// here is now the only one and finds the object where CR 608.2 says it is.
     ///
     /// **This function performs the move and announces nothing.** The
-    /// `GameEvent::ZoneChange` is emitted by `perform_action`'s own arm, which
-    /// is the only place that knows the [`ZoneChangeCause`] and the only place
-    /// that can capture the CR 603.10a LKI frame before the object stops being
-    /// a permanent. Splitting it that way is also what finally makes the
-    /// `// CAST-ROLLBACK:` tag true: a rewind now really is unobservable,
-    /// where before it still pushed a Stack→Hand event into the log.
+    /// `GameEvent::ZoneChange` is emitted by `GameState::announce_zone_change`,
+    /// whose callers know the [`ZoneChangeCause`] and, for the two performer
+    /// arms, capture the CR 603.10a LKI frame before the object stops being a
+    /// permanent. Splitting it that way is also what makes the
+    /// `// CAST-ROLLBACK:` tag true: a rewind really is unobservable, and so is
+    /// the 601.2a move it undoes.
     pub(crate) fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
         let from = {
             let obj = self.get_object(id)?;
@@ -78,9 +78,9 @@ impl GameState {
         // pipeline has decided what the permanent enters as.
         //
         // A permanent is therefore in the battlefield *zone* for the width of
-        // this function's tail before it is on the battlefield. Only
-        // `perform_action`'s `ZoneChange` arm may close that window, and it
-        // does so on the next statement after the event it emits.
+        // this function's tail before it is on the battlefield. Only the
+        // `EnterBattlefield` performer moves anything here, and it builds the
+        // entity on the statement after the announcement.
 
         // Update the object's zone field, and stamp *when* it moved.
         //

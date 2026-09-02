@@ -23,7 +23,7 @@
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::events::event::DamageTarget;
-use crate::objects::card_data::AbilityType;
+use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -218,9 +218,20 @@ pub(crate) fn gather(
     // singleton batch. Both are `codebase-state.md`'s item 4.
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
-        push_static_ability_replacements(
-            game, &mut entering, *object, *controller, action, subject, SelfScope::EnteringSelf, frame,
-        );
+        // Its abilities as it would exist on the battlefield — the frame, not
+        // a plain walk. The card is still in its source zone while the entry
+        // is decided (RC-4b), where the walk's membership gate lets no
+        // filter-scoped effect reach it, and CR 614.12 clause (3) is what
+        // lets Humility strip an entering permanent's "enters with" before it
+        // can apply to itself. Computed once per iteration and shared with
+        // `set_affects`. (Until RC-4b a plain walk answered the same, only
+        // because the card had already been moved into the zone.)
+        if let Some(chars) = frame.frame_of(*object) {
+            push_static_ability_replacements(
+                game, &mut entering, *object, *controller, &chars.abilities, action, subject,
+                SelfScope::EnteringSelf, frame,
+            );
+        }
     }
 
     let has_static_source = !game.replacement_ability_sources.is_empty()
@@ -253,8 +264,10 @@ pub(crate) fn gather(
     for id in game.battlefield_ids_ordered() {
         if any_granted || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
+            let abilities = get_effective_abilities(game, id);
             push_static_ability_replacements(
-                game, &mut candidates, id, controller, action, subject, SelfScope::OnBattlefield, frame,
+                game, &mut candidates, id, controller, &abilities, action, subject,
+                SelfScope::OnBattlefield, frame,
             );
         }
 
@@ -329,14 +342,14 @@ enum SelfScope {
 /// Every static replacement ability on `id`, as candidate instances.
 ///
 /// **The battlefield sweep's loop body, lifted so the entering permanent can
-/// reuse it** — nothing more. It is not a look-ahead view and computes no
-/// hypothetical: it asks one object what replacement abilities it has, and the
-/// caller decides which objects to ask. CR 614.12's "as it would exist on the
-/// battlefield" frame is Phase RC-4's and lives nowhere yet.
+/// reuse it** — nothing more. It computes nothing: the caller decides which
+/// object to ask and hands over that object's ability list, read off the
+/// board for the sweep and off CR 614.12's frame for the entering permanent.
 ///
-/// Read off the **effective** ability list, which is source 1's whole point:
-/// Humility and Blood Moon strip a replacement ability for free, and CR 614.4's
-/// "must exist before the event" is asked at the one instant that matters.
+/// `abilities` is the **effective** list either way, which is source 1's whole
+/// point: Humility and Blood Moon strip a replacement ability for free, and
+/// CR 614.4's "must exist before the event" is asked at the one instant that
+/// matters.
 ///
 /// `controller` is a parameter because the two callers know it differently: on
 /// the battlefield it is `controller_or_owner`, and for an entering permanent it
@@ -351,12 +364,13 @@ fn push_static_ability_replacements(
     out: &mut Vec<ReplacementInstance>,
     id: ObjectId,
     controller: PlayerId,
+    abilities: &[AbilityDef],
     action: &GameAction,
     subject: EventSubject,
     scope: SelfScope,
     frame: &EntryFrame<'_>,
 ) {
-    for ability in get_effective_abilities(game, id) {
+    for ability in abilities {
         if ability.ability_type != AbilityType::Static {
             continue;
         }
@@ -514,6 +528,31 @@ pub(crate) fn pattern_watches(
             from.map(|z| z == *actual_from).unwrap_or(true)
                 && to.map(|z| z == *actual_to).unwrap_or(true)
                 && cause.map(|c| c == *actual_cause).unwrap_or(true)
+                && object
+                    .as_ref()
+                    .map(|f| game.permanent_matches_filter(*moving, f, you).unwrap_or(false))
+                    .unwrap_or(true)
+        }
+
+        // Entering is the zone change onto the battlefield (CR 614.1c), so a
+        // zone-change-shaped pattern that admits that destination watches an
+        // entry too — Worms of the Earth's "can't enter", Grafdigger's Cage's
+        // "from graveyards" — with `from` and `cause` compared exactly as
+        // above. `object` reads the card in its source zone, as the Cage's
+        // ruling says; the frame is `affected`'s. A token's entry has neither
+        // `from` nor `cause`, so a pattern that names either does not match.
+        (
+            EventPattern::ZoneChange { from, to, cause, object },
+            GameAction::EnterBattlefield {
+                object: moving,
+                from: actual_from,
+                cause: actual_cause,
+                ..
+            },
+        ) => {
+            to.map(|z| z == Zone::Battlefield).unwrap_or(true)
+                && from.map(|z| Some(z) == *actual_from).unwrap_or(true)
+                && cause.map(|c| Some(c) == *actual_cause).unwrap_or(true)
                 && object
                     .as_ref()
                     .map(|f| game.permanent_matches_filter(*moving, f, you).unwrap_or(false))

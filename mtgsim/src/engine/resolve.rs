@@ -613,12 +613,29 @@ impl GameState {
                     obj.is_token = true;
                     let id = obj.id;
                     self.add_object(obj);
-                    // CR 110.2b — a token's controller is the player the
-                    // creating effect gave it to, and it is already its owner
-                    // (CR 111.2), so `default_enter_controller` would answer the
-                    // same thing. Passed explicitly because a token never passed
-                    // through the stack and so is never `GameState::resolving`.
-                    self.propose_entry(id, controller, None, &ActionContext::resolving(dp, ctx))?;
+                    // In the battlefield zone, in no collection and with no
+                    // entity until its entry is decided: created *in* the zone
+                    // rather than moved into it, so the entry has no `from` and
+                    // no cause. CR 110.2b — a token's controller is the player
+                    // the creating effect gave it to, and it is already its
+                    // owner (CR 111.2), so `default_enter_controller` would
+                    // answer the same thing. Passed explicitly because a token
+                    // never passed through the stack and so is never
+                    // `GameState::resolving`.
+                    let performed = self.propose_entry(
+                        id, None, controller, None, &ActionContext::resolving(dp, ctx),
+                    )?;
+                    // CR 111.5 — "if a spell or ability would create a token,
+                    // but a rule or effect states that a permanent with one or
+                    // more of that token's characteristics can't enter the
+                    // battlefield, the token is not created." A dropped entry
+                    // leaves the object where `add_object` put it, which is
+                    // nowhere observable, and un-creating it is no more an
+                    // event than creating it was. A *substituted* entry moved
+                    // it — to exile, say — and CR 704.5d takes it from there.
+                    if !performed {
+                        self.objects.remove(&id);
+                    }
                 }
                 Ok(())
             }

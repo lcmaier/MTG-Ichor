@@ -402,12 +402,10 @@ pub fn root_maze() -> Arc<CardData> {
 ///   the Priest and is exiled — the clause (3) case RC-3's gate opened and this
 ///   card is the first replacement to read.
 /// - **"exile it instead"** is `Instead(ZoneChangeTo { Exile })` on an entry.
-///   The `ZoneChange` performer has already moved the card into the
-///   battlefield zone when it proposes the entry (RC-2's split), so the
-///   substitute is a move back out, and the card never becomes a permanent.
-///   The event log therefore shows a hop through the battlefield for a card
-///   the CR says never entered; `codebase-state.md`'s "Before Triggered
-///   abilities" item 4 sizes the fix.
+///   The entry is the zone change (RC-4b), so the substitute is one move from
+///   where the card is — its graveyard, or the hand for a Dryad Arbor played
+///   as a land — and the card never becomes a permanent. The log holds that
+///   one zone change and no entry.
 ///
 /// # Reachability — why Dryad Arbor is registered beside it
 ///

@@ -1,25 +1,22 @@
 //! The CR 614.12 frame of the object a proposed event is about.
 //!
-//! Computed at most once per pipeline iteration, and only when a
-//! filter-scoped `AffectedSet` actually asks — `SourceOnly` and `Fixed` match
-//! by id and never need it. CR 616.1(1)'s "replacement effects that have
-//! already modified how it enters" is why the frame is per *iteration*: the
-//! loop rewrites the proposal between iterations, and the next gather reads
-//! the rewritten `EnterMods` and controller.
+//! Computed at most once per pipeline iteration, and only when something asks
+//! — a filter-scoped `AffectedSet`, or `gather`'s source 1a reading the
+//! entering permanent's own abilities. `SourceOnly` and `Fixed` match by id
+//! and never need it. CR 616.1(1)'s "replacement effects that have already
+//! modified how it enters" is why the frame is per *iteration*: the loop
+//! rewrites the proposal between iterations, and the next gather reads the
+//! rewritten `EnterMods` and controller.
 //!
-//! Two events have a frame. `EnterBattlefield` is the obvious one. The
-//! `ZoneChange` onto the battlefield that precedes it has one too, for
-//! CR 614.17d: "Lands can't enter the battlefield" (Worms of the Earth) has to
-//! stop the *move*, since a stopped entry would leave the card in the
-//! battlefield zone with no permanent (`GameState::propose_entry`) — and the
-//! rule says the "can't" is decided against the characteristics the permanent
-//! would have, so the frame is built from what the entry proposal would carry
-//! (CR 110.2b's default controller, the rules' own `EnterMods`).
+//! One event has a frame: `EnterBattlefield`, which is also the zone change
+//! onto the battlefield (RC-4b), so a CR 614.17d "can't enter" — Worms of the
+//! Earth — is decided against the same frame, before anything has moved.
 //!
-//! **Only `affected` reads it.** An `EventPattern`'s object filter — Grafdigger's
-//! Cage's "creature cards in graveyards" — is a question about the card where
-//! it is, and its ruling says so: "look at the card as it exists in your
-//! graveyard". `pattern_watches` keeps reading the source zone.
+//! **Only `affected` and source 1a read it.** An `EventPattern`'s object
+//! filter — Grafdigger's Cage's "creature cards in graveyards" — is a question
+//! about the card where it is, and its ruling says so: "look at the card as
+//! it exists in your graveyard". `pattern_watches` keeps reading the source
+//! zone.
 
 use std::cell::OnceCell;
 
@@ -29,18 +26,14 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
-use crate::types::zones::Zone;
 
-/// What the frame is computed from, when the event has one.
+/// What the frame is computed from: the entry proposal itself, or an entering
+/// object a synthetic query is about. Everything is known.
 #[derive(Debug)]
-enum FrameBasis {
-    /// The entry proposal itself, or an entering object a synthetic query is
-    /// about: everything is known.
-    Proposed { object: ObjectId, controller: PlayerId, mods: EnterMods },
-    /// The zone change ahead of an entry: the proposal that will follow, as far
-    /// as it is knowable now. Derived lazily, because the rules' own
-    /// `EnterMods` are a frame question themselves.
-    Pending { object: ObjectId },
+struct FrameBasis {
+    object: ObjectId,
+    controller: PlayerId,
+    mods: EnterMods,
 }
 
 #[derive(Debug)]
@@ -52,19 +45,14 @@ pub(crate) struct EntryFrame<'g> {
 
 impl<'g> EntryFrame<'g> {
     /// The frame for a proposed event — empty for any event that is not an
-    /// entry or the zone change ahead of one.
+    /// entry.
     pub(crate) fn new(game: &'g GameState, action: &GameAction) -> Self {
         let basis = match action {
-            GameAction::EnterBattlefield { object, controller, mods, .. } => {
-                Some(FrameBasis::Proposed {
-                    object: *object,
-                    controller: *controller,
-                    mods: mods.clone(),
-                })
-            }
-            GameAction::ZoneChange { object, to: Zone::Battlefield, .. } => {
-                Some(FrameBasis::Pending { object: *object })
-            }
+            GameAction::EnterBattlefield { object, controller, mods, .. } => Some(FrameBasis {
+                object: *object,
+                controller: *controller,
+                mods: mods.clone(),
+            }),
             _ => None,
         };
         EntryFrame { game, basis, frame: OnceCell::new() }
@@ -81,7 +69,7 @@ impl<'g> EntryFrame<'g> {
     ) -> Self {
         EntryFrame {
             game,
-            basis: Some(FrameBasis::Proposed { object, controller, mods: mods.clone() }),
+            basis: Some(FrameBasis { object, controller, mods: mods.clone() }),
             frame: OnceCell::new(),
         }
     }
@@ -89,24 +77,13 @@ impl<'g> EntryFrame<'g> {
     /// The frame, if `id` is the object this event is about and the event has
     /// one. Computed on first use.
     pub(crate) fn frame_of(&self, id: ObjectId) -> Option<&EffectiveCharacteristics> {
-        let object = match &self.basis {
-            Some(FrameBasis::Proposed { object, .. }) | Some(FrameBasis::Pending { object }) => *object,
-            None => return None,
-        };
-        if object != id {
+        let basis = self.basis.as_ref()?;
+        if basis.object != id {
             return None;
         }
         self.frame
-            .get_or_init(|| match &self.basis {
-                Some(FrameBasis::Proposed { object, controller, mods }) => {
-                    compute_as_entering(self.game, *object, *controller, mods)
-                }
-                Some(FrameBasis::Pending { object }) => {
-                    let controller = self.game.default_enter_controller(*object).ok()?;
-                    let mods = self.game.default_enter_mods(*object, controller);
-                    compute_as_entering(self.game, *object, controller, &mods)
-                }
-                None => None,
+            .get_or_init(|| {
+                compute_as_entering(self.game, basis.object, basis.controller, &basis.mods)
             })
             .as_ref()
     }

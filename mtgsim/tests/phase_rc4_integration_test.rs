@@ -195,9 +195,11 @@ fn static_restriction(name: &str, what: Restriction) -> Arc<CardData> {
         .build()
 }
 
-/// "Lands can't enter the battlefield." — Worms of the Earth's second sentence.
-/// Watches the zone change, because a stopped entry would leave the card in
-/// the battlefield zone with no permanent (`EventPattern::EnterBattlefield`).
+/// "Lands can't enter the battlefield." — Worms of the Earth's second sentence,
+/// in the zone-change shape. The entry is the zone change (RC-4b), so this is
+/// asked of the entry proposal, before anything moves;
+/// `phase_rc4b_integration_test` writes the same restriction against
+/// `EventPattern::EnterBattlefield` directly.
 fn lands_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::ZoneChange {
@@ -508,7 +510,13 @@ fn test_containment_priest_ignores_tokens() {
     let id = token.id;
     game.add_object(token);
     game.execute_action(
-        GameAction::EnterBattlefield { object: id, controller: 0, mods: EnterMods::NONE, cause: None },
+        GameAction::EnterBattlefield {
+            object: id,
+            from: None,
+            controller: 0,
+            mods: EnterMods::NONE,
+            cause: None,
+        },
         &ActionContext::new(&test_dp()),
     )
     .unwrap();
@@ -709,7 +717,8 @@ fn test_three_player_opponent_of_your_choice_is_asked_before_the_entry() {
 // ---------------------------------------------------------------------------
 
 /// Worms of the Earth's shape without the frame: a Forest returned from the
-/// graveyard stays there. Asked at the zone change, so the card never leaves.
+/// graveyard stays there. Asked at the entry, before anything moves, so the
+/// card never leaves.
 #[test]
 fn test_lands_cant_enter_keeps_a_returned_forest_in_the_graveyard() {
     let mut game = setup_two_player_game();
@@ -729,7 +738,7 @@ fn test_lands_cant_enter_keeps_a_returned_forest_in_the_graveyard() {
 /// checked against. It stays in the graveyard; without the land-maker it enters.
 // COVERS-PARTIAL: ATOM-614.17d-001
 #[test]
-fn test_a_cant_enter_is_decided_on_the_frame_at_the_zone_change() {
+fn test_a_cant_enter_is_decided_on_the_frame_at_the_entry() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, static_restriction("Lands can't enter", lands_cant_enter()), 1);
     put_on_battlefield(&mut game, everything_is_a_land(), 1);
