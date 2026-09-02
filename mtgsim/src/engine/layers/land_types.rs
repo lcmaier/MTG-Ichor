@@ -152,8 +152,21 @@ pub(crate) fn apply_set_subtypes(
     let is_land = chars.types.contains(&CardType::Land);
     let new_basics = basic_land_types_sorted(new_subtypes);
 
-    // Set semantics: always replace, for lands and non-lands alike.
-    chars.subtypes = new_subtypes.clone();
+    // CR 205.1a — "when an effect sets one or more of an object's subtypes,
+    // the new subtype(s) replaces any existing subtypes from the appropriate
+    // set (creature types, land types, ...)". A set of land types replaces
+    // the land types and nothing else: Blood Moon makes Dryad Arbor a
+    // Mountain Dryad, not a Mountain. An empty set is a plain clear.
+    if new_subtypes.is_empty() {
+        chars.subtypes.clear();
+    } else {
+        chars.subtypes.retain(|old| {
+            !new_subtypes
+                .iter()
+                .any(|new| std::mem::discriminant(old) == std::mem::discriminant(new))
+        });
+        chars.subtypes.extend(new_subtypes.iter().cloned());
+    }
 
     if !is_land || new_basics.is_empty() {
         // Non-land, or set to non-basic land types only: no 305.7 side effects.
@@ -446,5 +459,29 @@ mod tests {
         apply_add_subtype(&mut chars, &Subtype::Land(LandType::Swamp), id);
 
         assert!(chars.abilities.len() == 1, "305.6 requires the land card type");
+    }
+
+    /// CR 205.1a — a set of land types replaces the *land* types. Dryad Arbor
+    /// under Blood Moon is a Mountain Dryad, not a Mountain that stopped being
+    /// a Dryad. Shown failing against the pre-fix tree through
+    /// `phase_rc4_integration_test::test_blood_moon_makes_dryad_arbor_a_mountain_dryad`.
+    #[test]
+    fn set_land_subtypes_keeps_the_creature_types() {
+        use crate::types::card_types::CreatureType;
+
+        let id = new_object_id();
+        let mut chars = land_frame(&[LandType::Forest]);
+        chars.types.insert(CardType::Creature);
+        chars.subtypes.insert(Subtype::Creature(CreatureType::Dryad));
+
+        apply_set_subtypes(&mut chars, &subtype_set(&[LandType::Mountain]), id);
+
+        assert!(chars.subtypes.contains(&Subtype::Land(LandType::Mountain)));
+        assert!(!chars.subtypes.contains(&Subtype::Land(LandType::Forest)));
+        assert!(
+            chars.subtypes.contains(&Subtype::Creature(CreatureType::Dryad)),
+            "only the land types were set"
+        );
+        assert!(chars.types.contains(&CardType::Creature));
     }
 }
