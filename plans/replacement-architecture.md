@@ -2438,6 +2438,7 @@ accepts that a later PR may fix an earlier one.
 | **RC-2 — `EnterBattlefield` as an event** ✅ | the performer migration, plus enters-tapped as its first consumer | predicted **10** production `place_on_battlefield` sites; **two**, and the number that mattered was 92 direct callers with 88 in `#[cfg(test)]`. Shipped **+1,409 / −218 across 25 files** — 611 engine, 207 cards, 591 tests | medium |
 | **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
 | **RC-4 — the overlay** ✅ | §5's clauses (1)–(3), 614.17d, 616.1b, `CountOf`, §11 item 19. **614.13a/b moved to RC-5** | re-counted a third time at **9** reads and the count was the wrong instrument: **four kinds** of read needed perturbing, and only those moved. Shipped **+2,567 / −279 across 25 files** — 1,447 engine, 223 cards, 897 tests — over the band on tests alone, with RC-5 already split out in the doc before code | **highest** — and the risk that materialised was not the walk: it was item 19's theorem, which the frame falsified (finding 3) |
+| **RC-4b — one proposal per entry, none per cast step** | The entry hop RC-4's review found (`EnterBattlefield` carries `from` and its performer moves), tokens, CR 608.3e, and the cast rewind's phantom zone change (`codebase-state.md` item 51) — one bundle under one rule, §11 item 20 | sized below: ~450–650, own PR ahead of RC-5 | low — the frame, gather and choice code are untouched; one performer moves, one pattern arm is added, one move goes silent |
 | **RC-5 — auxiliary zone changes** | CR 614.13/13a/13b, the batch-scoped frame, a dynamic `EnterWith` amount | sized below: ~1,200 + ~400 + ~150 | medium — a new decision site, and the batch restructuring shares a seam with CR 613.7m |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
@@ -2936,6 +2937,116 @@ Determinism: three 200-game runs per pool byte-identical outside `=== Timing
 blocks. Reachability counted in 40 `stress` games: the Priest entered 13 times
 and exiled a Dryad Arbor twice.
 
+
+#### RC-4b — entering is one event
+
+**The defect** is `codebase-state.md`'s "Before Triggered abilities" item 4,
+found in RC-4's review. An entry is two proposals: the `ZoneChange` that moves
+the card, and the `EnterBattlefield` proposed from *inside* its performer
+(RC-2's one-`emit`-wide window). A replacement that substitutes the entry —
+Containment Priest — therefore runs after the move, and its substitute is a
+second move out of the zone. The log then holds a zone change into the
+battlefield, a zone change out of it with `from: Battlefield` and a CR 603.10a
+LKI frame, and two `zone_change_epoch` bumps, for a card the CR says was exiled
+from its graveyard and never entered. Nothing reads the log for triggers yet,
+so it is unreachable today and a bug-in-waiting for critical-path item 6. The
+review's trace artifact (pinned to 8ac4ad7) is the before-picture.
+
+**The design: the entry is the only proposal for entering.**
+
+1. `change_zone` with a battlefield destination routes to `propose_entry`,
+   which proposes `GameAction::EnterBattlefield { object, from: Option<Zone>,
+   controller, mods, cause }` as an ordinary batch member. Callers do not
+   change — `play_land`, `resolve_top_of_stack`, the `Returned` road, every
+   test. No `ZoneChange { to: Battlefield }` proposal exists any more;
+   constructing one is a debug assertion.
+2. The `EnterBattlefield` performer moves the card, emits the `ZoneChange`
+   event, builds the entity and emits `PermanentEnteredBattlefield`. Both
+   arms call one private move-and-emit function, and the cast path (item 7)
+   calls its emitter half at 601.2i for a move it performed silently at
+   601.2a. CLAUDE.md's one-emitter bullet is reworded to what is then true:
+   one emitter function, three callers, each of which performed the move it
+   announces; and its `CAST-ROLLBACK` exemption widens to both directions of
+   CR 601.2's move, which are not events until 601.2i.
+3. `Rewrite::Instead(ZoneChangeTo)` on an entry yields `ZoneChange { from,
+   to, cause }` with the entry's own `from`, performed as one move by the
+   ordinary arm. No hop, no LKI walk, one event, one epoch.
+4. A dropped entry (CR 614.6) leaves the card where it was, so
+   `propose_entry`'s "replaced away" error is deleted, and a CR 614.17d
+   "can't enter" may watch the entry directly.
+5. `pattern_watches` gains one arm: `EventPattern::ZoneChange { to:
+   Some(Battlefield), .. }` also matches an `EnterBattlefield { from, .. }`
+   proposal, with `from` and `cause` compared as today. That keeps Worms of
+   the Earth's restriction and any zone-change-shaped replacement working,
+   and it puts them in the same CR 616.1 bucket as the `EnterWith`s — one
+   event, which is what the CR says entering is.
+6. `EntryFrame`'s `Pending` basis is deleted. Every entry proposal carries
+   its controller and mods, so there is one basis, and `is_prohibited`'s
+   derived-frame block shrinks to one arm.
+7. **The cast rewind, bundled here because it is the same bug from the
+   other side** (`codebase-state.md` item 51). `cast_spell`'s CR 601.2a move
+   goes through `change_zone` and emits; the rewind sites move the card back
+   with the silent `CAST-ROLLBACK` mover, so a cast that fails at 601.2b,
+   601.2c or 601.2h leaves a `ZoneChange { Hand → Stack, Cast }` with no
+   counterpart. Nothing in the CR replaces a card being put onto the stack —
+   RS-2's "can't cast" is a CR 601.3 question asked of the *player*, ahead
+   of 601.2a (`cant-effects-architecture.md` §4.3), and its Tier 1b/1e exits
+   are more rewind sites, so the phantom gets more reachable with RS-2, not
+   less. The 601.2a move therefore uses the silent mover in both directions,
+   tagged, and the zone change is emitted at 601.2i beside `SpellCast` — the
+   moment CR 601.2i says the spell becomes cast. Mana abilities activated in
+   601.2g stay performed and stay in the log (CR 727.1). The RA test that
+   asserts the cast's zone change precedes its resolution's still passes,
+   because it still does.
+
+**Two consequences to decide up front, not discover.**
+
+- **Tokens.** `Primitive::CreateToken` creates the object in the battlefield
+  zone and then proposes its entry — the same hop, with no source zone. The
+  fix decides where a token object lives between creation and its entry's
+  decision: the cheap answer keeps `Zone::Battlefield` on the object and
+  relies on the entry performer being the only thing that builds an entity;
+  the honest one is a `GameObject` with no zone until it enters. Either way
+  an exiled-instead token is created in exile and CR 704.5d removes it, which
+  is Hallowed Moonlight's printed ruling.
+- **CR 608.3e.** A resolved permanent spell whose entry does not happen goes
+  to its owner's graveyard. Today the error fires first; after the fix the
+  card would sit on the stack. `resolve_top_of_stack` gets the leg: if
+  `propose_entry` performed nothing, `change_zone(Stack → Graveyard,
+  Resolved)`. Phase RE's list loses the item.
+
+**The rule the audit produced** is §11 item 20: a performer may propose a
+contained event only when the outer event is real whether or not the
+contained one survives replacement. Entering fails it because the entry *is*
+the zone change; casting fails it for a different reason, and its fix is
+design item 7 above.
+
+**What changes in the review's traces.** Trace A loses its outer zone-change
+decision (steps 3–5), keeps steps 7–18 verbatim — the frame, both filters,
+the bucket and the prompt — and ends in one move from the hand with no LKI.
+Trace B is unchanged: the membership gate's "or entering" arm already admits
+an object that has not moved. Trace C asks the same restriction at the entry
+proposal, with the same controller and mods, and loses only its closing
+caveat. The after-picture of A is the first page worth checking in under
+`plans/traces/`.
+
+**Verification.** `fuzz_games --dump-events` against main: every Containment
+Priest exile shrinks from two zone changes to one, and nothing else moves.
+Determinism unchanged. The RC-4 Priest tests' log assertions flip to one
+event; the "replaced away" test goes; a token exiled instead ceases to exist;
+a resolved spell whose entry is refused is in the graveyard. A cast rewound
+at 601.2b, 601.2c or 601.2h leaves no `ZoneChange` in the log, and the
+mana-ability taps it made stay.
+
+**Sized:** ~400–600 additions and a similar deletion count across
+`actions.rs` (the two arms, `propose_entry`, the shared mover),
+`pipeline.rs` (the `Instead` arm), `gather.rs` (the `pattern_watches` arm),
+`replacement/lookahead.rs` and `restriction/predicate.rs` (deletions),
+`resolve.rs` (tokens, CR 608.3e), `stack.rs`, `cast.rs` (the silent 601.2a
+move and the 601.2i emission, ~30), and tests. One PR, ahead of
+RC-5, because RC-5 part 2 needs entries to be first-class batch members and
+this is that half of it; and ahead of the trace sink, whose emit points sit
+in the same performer.
 
 #### RC-5 — auxiliary zone changes and the batch-scoped frame
 
@@ -3590,6 +3701,31 @@ there, because all three are about **what a rider can reach**.
     asserts the rest still apply.
 
 ---
+
+20. **The replaceable event must be the outermost proposal** (found by the
+    RC-4 review's nesting audit, 2026-09-02). A performer may propose a
+    contained event only when the outer event is real whether or not the
+    contained one survives replacement — otherwise the log records the outer
+    half of something the CR says never happened, and no keying rule for a
+    trigger matcher can repair a wrong `from`. Every nesting in
+    `perform_action` and its callers, audited against that test:
+
+    | Nesting | Is the outer event real on its own? | Verdict |
+    |---|---|---|
+    | `ZoneChange { to: Battlefield }` → `EnterBattlefield` | **No** — entering *is* the zone change (CR 614.1c, 603.6a) | the entry hop; **RC-4b** |
+    | `CreateToken` → `EnterBattlefield` | **No** — the token is created in the zone before its entry is decided | RC-4b, with the token decision |
+    | `cast_spell`'s 601.2a move → the rest of casting | **No** — CR 601.2 rewinds it, and four rewind sites do, silently | **RC-4b**, design item 7 (`codebase-state.md` item 51) |
+    | `Destroy` → `ZoneChange { Destroyed }` | Yes — CR 701.8b; regeneration replaces the outer, a finality counter the inner | fine |
+    | `DrawCard` → `ZoneChange { Drawn }` | Yes — CR 121.1; a draw replacement (RE) replaces the outer and the move never proposes | fine |
+    | `DealDamage` → `LoseLife` | Yes — CR 120.3's results of damage | fine |
+    | lifelink → `GainLife` | Yes — CR 702.15 | fine |
+    | cost payment → `Tap` / `Sacrificed` | Yes — paid after 601.2h's can-pay check, and no rewind site exists after payment begins | fine |
+
+    The test to apply to any new performer: if the contained proposal were
+    replaced with nothing, would the CR still say the outer event happened?
+    Destroying a regenerated creature, drawing from an empty library and
+    dealing prevented damage all answer yes. Entering and casting answer no,
+    and both have to be one proposal or none.
 
 ## 12. Explicitly out of scope
 
