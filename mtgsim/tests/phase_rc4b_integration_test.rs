@@ -327,7 +327,7 @@ fn test_worms_of_the_earth_still_refuses_a_returned_forest() {
 /// "If a permanent spell resolves but its controller can't put it onto the
 /// battlefield, that player puts it into its owner's graveyard." The spell
 /// resolved, so the graveyard trip carries `Resolved`.
-// COVERS: ATOM-608.3e-001
+// COVERS-PARTIAL: ATOM-608.3e-001
 #[test]
 fn test_a_resolved_spell_whose_entry_is_refused_goes_to_the_graveyard() {
     let mut game = setup_two_player_game();

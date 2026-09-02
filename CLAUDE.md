@@ -82,12 +82,12 @@ the event. Propose with `execute_action` / `change_zone`.
 - **Routing a sweep makes its order observable** — it needs `battlefield_ids_ordered` even
   where the old direct-write loop did not.
 - **One performer, one emitter, and they are different functions.** `move_object` performs and
-  announces nothing; `perform_action`'s `ZoneChange` arm is the only production emitter, because
-  it alone knows the `cause` and can capture the CR 603.10a LKI frame.
+  announces nothing; `announce_zone_change` is the only emitter, and each caller performed the move
+  it announces. A performer nests a proposal only if the outer event is real without it → §11 item 20.
 - **A simultaneous rule needs `execute_actions`, not a loop.** CR 704.3's single event, 704.7's
   collapse and 615.7's shield allocation are unreachable from a loop; a *nested* call joins the
-  enclosing batch. One permanent exemption, tagged in `move_object`'s doc: `// CAST-ROLLBACK:`
-  — CR 601.2 rewinds are not events. → `replacement-architecture.md` §2; `codebase-state.md`.
+  enclosing batch. One permanent exemption, tagged `// CAST-ROLLBACK:`: CR 601.2a's move is silent
+  both ways and announced at 601.2i, when the spell is cast. → `replacement-architecture.md` §2.
 - **A decision site may not hold outcome-bearing state off `GameState`.** → `codebase-state.md` item 40.
 
 ## The replacement pipeline (CR 614–616)
@@ -136,8 +136,8 @@ line for line but the timing lines. → `codebase-state.md`.
 `CRITICAL_PATH` point here. Reasoning and what is *done* live in `codebase-state.md`.
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅
-5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and RC-1–RC-4 are in — an entry is
-   an event and CR 614.12's frame is a read-side overlay. **RC-4b next: entering is one event; then RC-5**
+5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and RC-1–RC-4b are in — an entry is
+   one event, its own zone change, and CR 614.12's frame is a read-side overlay. **RC-5 next**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
 5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **A copy
