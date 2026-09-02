@@ -7,7 +7,8 @@ were fetched from Scryfall on 2026-09-02.
 
 *Update, after #85 merged:* the entry hop is planned as **RC-4b** —
 `replacement-architecture.md` §9 — and the nesting audit it prompted is §11
-item 20; the cast-rewind cousin it found is `codebase-state.md` item 51.
+item 20; the cast-rewind cousin it found is `codebase-state.md` item 51,
+bundled into RC-4b.
 
 ## `engine/layers/lookahead.rs`
 
