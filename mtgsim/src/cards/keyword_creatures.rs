@@ -19,7 +19,7 @@
 use std::sync::Arc;
 
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -68,9 +68,13 @@ pub fn raging_cougar() -> Arc<CardData> {
 /// Wall of Stone — {1}{R}{R}
 /// Creature — Wall
 /// 0/8 Defender
+///
+/// The Wall subtype was missing until RC-4 registered Keldon Warlord, whose
+/// "non-Wall creatures you control" is the first thing in the crate to read it.
 pub fn wall_of_stone() -> Arc<CardData> {
     CardDataBuilder::new("Wall of Stone")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Wall))
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 1))
         .power_toughness(0, 8)
