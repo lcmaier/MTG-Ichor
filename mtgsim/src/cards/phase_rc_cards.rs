@@ -402,8 +402,12 @@ pub fn root_maze() -> Arc<CardData> {
 ///   the Priest and is exiled — the clause (3) case RC-3's gate opened and this
 ///   card is the first replacement to read.
 /// - **"exile it instead"** is `Instead(ZoneChangeTo { Exile })` on an entry.
-///   The object is already in the battlefield zone with no entity, so the
-///   substitute is a move out of it, and it never becomes a permanent.
+///   The `ZoneChange` performer has already moved the card into the
+///   battlefield zone when it proposes the entry (RC-2's split), so the
+///   substitute is a move back out, and the card never becomes a permanent.
+///   The event log therefore shows a hop through the battlefield for a card
+///   the CR says never entered; `codebase-state.md`'s "Before Triggered
+///   abilities" item 4 sizes the fix.
 ///
 /// # Reachability — why Dryad Arbor is registered beside it
 ///
@@ -454,7 +458,9 @@ pub fn containment_priest() -> Arc<CardData> {
 /// (This land isn't a spell, it's affected by summoning sickness, and it has
 /// "{T}: Add {G}.")
 ///
-/// (Oracle text verified on Scryfall, 2026-09-02. No mana cost.)
+/// (Oracle text verified on Scryfall, 2026-09-02. No mana cost, and no rules
+/// text of its own: the parenthetical is reminder text, so `rules_text` is
+/// left to `mana_ability_single`, which writes the intrinsic "{T}: Add {G}.")
 ///
 /// # The land drop that "wasn't cast"
 ///
@@ -479,10 +485,6 @@ pub fn dryad_arbor() -> Arc<CardData> {
         .color(Color::Green)
         .color_indicator(vec![Color::Green])
         .power_toughness(1, 1)
-        .rules_text(
-            "(This land isn't a spell, it's affected by summoning sickness, and it has \
-             \"{T}: Add {G}.\")",
-        )
         .mana_ability_single(ManaType::Green)
         .build()
 }
@@ -501,13 +503,18 @@ pub fn dryad_arbor() -> Arc<CardData> {
 /// the battlefield*, which is the read `replacement-architecture.md` §5a's
 /// enumeration row names and nothing in the layer walk had until RC-4:
 /// `AmountExpr::CountOf` now has a static-context evaluator, and this is its
-/// card. On the battlefield the Warlord counts itself. **As it enters it does
-/// not** — the count runs over `battlefield_ids_ordered`, which the entering
-/// object is not on — so a Warlord entering beside two other creatures is 2/2
-/// to a replacement that reads its power and 3/3 a moment later. That is
-/// Thassa's ruling with none of the devotion arithmetic and none of Deferred
-/// Migrations item 7f in the way, which is why this card is here and the God
-/// is not.
+/// card. On the battlefield the Warlord counts itself. **In the CR 614.12
+/// frame it does not** — the count runs over `battlefield_ids_ordered`, which
+/// the entering object is not on. So a Warlord entering beside two other
+/// creatures is 2/2 to a *replacement* that reads its power ("creatures with
+/// power 2 or less enter tapped") and 3/3 to a *trigger* that does (Welcoming
+/// Vampire): CR 603.10 checks a trigger against the board after the event,
+/// where the Warlord is one of the creatures it counts. That is the pair of
+/// Thassa rulings — for replacements "the mana symbols in its mana cost won't
+/// be counted", for triggers the devotion "including the mana symbols in the
+/// mana cost of the God itself" — with none of the devotion arithmetic and
+/// none of Deferred Migrations item 7f in the way, which is why this card is
+/// here and the God is not.
 ///
 /// # In `PERFORMANCE_POOL`, and why
 ///
@@ -519,7 +526,10 @@ pub fn dryad_arbor() -> Arc<CardData> {
 /// measurement is in RC-4's entry of `codebase-state.md`. Wall of Stone is in
 /// the same pool, which is what makes "non-Wall" live.
 pub fn keldon_warlord() -> Arc<CardData> {
-    let non_wall_creatures_you_control = || {
+    // Built once and cloned into the second slot: `SetPowerToughness` takes
+    // its two amounts by value, and this runs at registry construction, not
+    // in a game.
+    let non_wall_creatures_you_control =
         AmountExpr::CountOf(Selector::PermanentsMatching(PermanentFilter::And(
             Box::new(PermanentFilter::And(
                 Box::new(PermanentFilter::ByType(CardType::Creature)),
@@ -528,8 +538,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
             Box::new(PermanentFilter::Not(Box::new(PermanentFilter::BySubtype(
                 Subtype::Creature(CreatureType::Wall),
             )))),
-        )))
-    };
+        )));
     CardDataBuilder::new("Keldon Warlord")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
         .color(Color::Red)
@@ -549,8 +558,8 @@ pub fn keldon_warlord() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::SetPowerToughness(
-                    non_wall_creatures_you_control(),
-                    non_wall_creatures_you_control(),
+                    non_wall_creatures_you_control.clone(),
+                    non_wall_creatures_you_control,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::Implicit,

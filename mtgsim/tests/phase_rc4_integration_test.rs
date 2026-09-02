@@ -405,18 +405,23 @@ fn test_compute_as_entering_seeds_the_proposed_controller() {
 #[test]
 fn test_keldon_warlord_counts_non_wall_creatures_you_control() {
     let mut game = setup_two_player_game();
-    let warlord = put_on_battlefield(&mut game, keldon_warlord(), 0);
+    let (you, opponent) = (0, 1);
+    let warlord = put_on_battlefield(&mut game, keldon_warlord(), you);
     assert_eq!(get_effective_power(&game, warlord), Some(1), "it counts itself");
 
-    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    put_on_battlefield(&mut game, wall_of_stone(), 0);
-    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), you);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), you);
+    put_on_battlefield(&mut game, wall_of_stone(), you);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), opponent);
 
-    assert_eq!(get_effective_power(&game, warlord), Some(3), "two bears and itself; not the Wall, not the opponent's");
+    assert_eq!(
+        get_effective_power(&game, warlord),
+        Some(3),
+        "itself and your two bears; not your Wall, not the opponent's bear"
+    );
     assert_eq!(get_effective_toughness(&game, warlord), Some(3));
 
-    put_on_battlefield(&mut game, humility(), 1);
+    put_on_battlefield(&mut game, humility(), opponent);
     assert_eq!(
         get_effective_power(&game, warlord),
         Some(1),

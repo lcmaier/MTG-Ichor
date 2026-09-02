@@ -529,7 +529,7 @@ pub(crate) fn pattern_watches(
             EventPattern::EnterBattlefield { cast },
             GameAction::EnterBattlefield { cause, .. },
         ) => cast
-            .map(|wanted| (*cause == Some(ZoneChangeCause::Resolved)) == wanted)
+            .map(|required| (*cause == Some(ZoneChangeCause::Resolved)) == required)
             .unwrap_or(true),
 
         (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {

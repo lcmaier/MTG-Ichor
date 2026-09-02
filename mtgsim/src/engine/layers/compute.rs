@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
-use crate::state::battlefield::CounterStack;
+use crate::state::battlefield::{BattlefieldEntity, CounterStack};
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -82,15 +82,6 @@ pub(super) struct FrameCache<'l> {
     lookahead: Option<&'l Lookahead>,
 }
 
-/// The battlefield-entity facts the walk seeds from and reads counters off —
-/// accessor 1 of the pair. Real for a permanent, the look-ahead's for the one
-/// entering object.
-struct EntityFacts<'a> {
-    controller: PlayerId,
-    controller_since_turn: u32,
-    counters: &'a HashMap<CounterType, CounterStack>,
-}
-
 impl<'l> FrameCache<'l> {
     pub(super) fn new(lookahead: Option<&'l Lookahead>) -> Self {
         FrameCache { frames: HashMap::new(), lookahead }
@@ -109,38 +100,33 @@ impl<'l> FrameCache<'l> {
         self.lookahead.filter(|l| l.object == id)
     }
 
-    /// **Accessor 1**: `id`'s battlefield-entity facts. `None` for anything
-    /// that is neither a permanent nor the entering object.
+    /// **Accessor 1**: the battlefield entity the walk seeds from and reads
+    /// counters off — the real one for a permanent, the one the performer
+    /// would build for the entering object (`Lookahead::entity`). `None` for
+    /// anything that is neither.
     ///
-    /// The look-ahead wins over a real entity, because a hypothetical about an
-    /// object is about that object. Borrows `game` or the look-ahead and never
-    /// `self`, so a caller can hold the facts across mutable uses of the cache.
-    fn entity<'a>(&self, game: &'a GameState, id: ObjectId) -> Option<EntityFacts<'a>>
+    /// The look-ahead answers first even when a real entity exists for the
+    /// same id: the caller asked what the object would be under the proposal,
+    /// not what it is on the board. Borrows `game` or the look-ahead and never
+    /// `self`, so a caller can hold the entity across mutable uses of the cache.
+    fn entity<'a>(&self, game: &'a GameState, id: ObjectId) -> Option<&'a BattlefieldEntity>
     where
         'l: 'a,
     {
         if let Some(l) = self.entering(id) {
-            return Some(EntityFacts {
-                controller: l.controller,
-                controller_since_turn: l.controller_since_turn,
-                counters: &l.counters,
-            });
+            return Some(&l.entity);
         }
-        game.battlefield.get(&id).map(|entry| EntityFacts {
-            controller: entry.controller,
-            controller_since_turn: entry.controller_since_turn,
-            counters: &entry.counters,
-        })
+        game.battlefield.get(&id)
     }
 
-    /// Is `id` in the battlefield zone, or would it be?
+    /// Is `id` in the battlefield zone, or is it the object entering it?
     ///
     /// The gate `effect_applies_to` asks before matching a filter. RC-3 made
     /// it the *zone* rather than `game.battlefield` membership, which admits
     /// an entering object that has already moved; the look-ahead admits one
     /// that has not yet — a CR 614.17d "can't enter" asked at the zone change
     /// — and nothing else.
-    fn in_battlefield_zone(&self, game: &GameState, id: ObjectId) -> bool {
+    fn in_battlefield_zone_or_entering(&self, game: &GameState, id: ObjectId) -> bool {
         self.entering(id).is_some()
             || matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield)
     }
@@ -175,19 +161,6 @@ fn rows_in_layer<'a>(
         .effects_in_layer(layer)
         .iter()
         .chain(own.iter().filter(move |row| row.layer == layer))
-}
-
-/// `base_controller`, with the look-ahead's answer for the entering object.
-///
-/// The seed and `effective_controller`'s gated arm both read this, as they
-/// both used to read `base_controller`, so they still agree by construction —
-/// and a filter's "you" on the entering permanent's own row is the proposed
-/// controller rather than the owner (`Lookahead`'s module docs).
-fn seed_controller(game: &GameState, id: ObjectId, cache: &FrameCache<'_>) -> Option<PlayerId> {
-    if let Some(l) = cache.entering(id) {
-        return Some(l.controller);
-    }
-    base_controller(game, id)
 }
 
 /// The CR 122.1a count of one counter kind, off either accessor-1 source.
@@ -231,13 +204,13 @@ pub(super) fn compute_to_ceiling(
 
     // Start from printed (base) characteristics.
     //
-    // The controller seed and CR 302.6's clock come from the entity facts —
+    // The controller seed and CR 302.6's clock come from the entity —
     // accessor 1 — for a permanent or the entering object, and from CR 108.4's
     // other arms (`base_controller`) with the pregame sentinel for anything
     // else. Layer 2 overwrites both when it actually moves control.
     let (chars_controller, control_since_turn) = match cache.entity(game, id) {
-        Some(facts) => (facts.controller, facts.controller_since_turn),
-        None => (base_controller(game, id).unwrap_or(obj.owner), 0),
+        Some(entity) => (entity.controller, entity.controller_since_turn),
+        None => (base_controller(game, id, cache.lookahead).unwrap_or(obj.owner), 0),
     };
     let mut chars = EffectiveCharacteristics {
         name: card.name.clone(),
@@ -318,10 +291,11 @@ fn apply_effects(
     // Looked up once and reused by layers 6 and 7c. Both need it every call,
     // and a second `HashMap` probe per `compute_characteristics` is not free —
     // this function is the inner loop of mana enumeration and targeting.
-    // Through accessor 1, so the entering object reads its pending `EnterMods`
-    // (CR 614.12 clause 1) where a permanent reads its entity.
-    let facts = cache.entity(game, id);
-    let on_battlefield = facts.is_some();
+    // Through accessor 1, so the entering object reads the entity it would
+    // have — its pending `EnterMods`, CR 614.12 clause (1) — where a permanent
+    // reads its own.
+    let entity = cache.entity(game, id);
+    let on_battlefield = entity.is_some();
 
     // CR 613.6 — "if an effect starts to apply in one layer, it will continue
     // to be applied to the same set of objects in each other applicable layer".
@@ -344,7 +318,7 @@ fn apply_effects(
     // over a pair of UUIDs, per effect, per layer. That was 70% of the layer
     // walk on a static-heavy board before this check existed.
     let track_started = game.continuous_effects.summary().any_multi_row_group
-        || entering.is_some_and(|l| l.any_multi_row_group);
+        || entering.is_some_and(|l| l.summary.any_multi_row_group);
 
     // Fast path: nothing to apply.
     //
@@ -364,14 +338,13 @@ fn apply_effects(
     // Built once per call rather than per layer, and empty for every permanent
     // carrying no keyword counter — which is nearly all of them. Held descending
     // so `pop()` yields the earliest.
-    let mut pending_counters = collect_keyword_counters(facts.as_ref().map(|f| f.counters));
+    let mut pending_counters = collect_keyword_counters(entity.map(|e| &e.counters));
     // Layer 7c's CR 122.1a counts, read once here for the same reason.
-    let (plus_counters, minus_counters) = facts
-        .as_ref()
-        .map(|f| {
+    let (plus_counters, minus_counters) = entity
+        .map(|e| {
             (
-                count_of(f.counters, CounterType::PlusOnePlusOne),
-                count_of(f.counters, CounterType::MinusOneMinusOne),
+                count_of(&e.counters, CounterType::PlusOnePlusOne),
+                count_of(&e.counters, CounterType::MinusOneMinusOne),
             )
         })
         .unwrap_or((0, 0));
@@ -536,16 +509,17 @@ fn effective_controller(
     cache: &mut FrameCache<'_>,
 ) -> Option<PlayerId> {
     let control_changing = game.continuous_effects.summary().any_control_changing
-        || cache.lookahead.is_some_and(|l| l.any_control_changing);
+        || cache.lookahead.is_some_and(|l| l.summary.any_control_changing);
     if !control_changing {
-        return seed_controller(game, id, cache);
+        return base_controller(game, id, cache.lookahead);
     }
     compute_to_ceiling(game, id, layer_index, cache).map(|frame| frame.controller)
 }
 
-/// The controller an object has before Layer 2 touches it — CR 110.2's default.
+/// The controller an object has before Layer 2 touches it — CR 110.2's default,
+/// or the one CR 614.12's entering object would enter under.
 ///
-/// The arms are CR 108.4's sentence in order: a permanent reads
+/// Past the look-ahead arm, the arms are CR 108.4's sentence in order: a permanent reads
 /// `BattlefieldEntity`, a spell reads its `StackEntry`, and a card in a hand or
 /// graveyard has no controller at all — owner is what this reports for it,
 /// because `EffectiveCharacteristics.controller` is not an `Option`.
@@ -570,7 +544,18 @@ fn effective_controller(
 /// battlefield boundary, so `PermanentFilter::ByController` now reads this
 /// value for every entry. It was already wrong on the replacement path, where
 /// `set_affects` has never had a gate.
-pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
+pub(crate) fn base_controller(
+    game: &GameState,
+    id: ObjectId,
+    lookahead: Option<&Lookahead>,
+) -> Option<PlayerId> {
+    // CR 614.12's entering object answers with the controller it would enter
+    // under — the proposal's, or a CR 616.1b rewrite of it. Ahead of the
+    // battlefield probe, which never finds an entity for it, and of the owner
+    // fallback, which is wrong for every permanent spell cast by a non-owner.
+    if let Some(l) = lookahead.filter(|l| l.object == id) {
+        return Some(l.entity.controller);
+    }
     // Battlefield first, so the common case is one probe rather than three.
     if let Some(entry) = game.battlefield.get(&id) {
         return Some(entry.controller);
@@ -818,7 +803,7 @@ fn effect_applies_to(
             // that "already exist and would apply to the object" are exactly
             // the ones a filter has to be allowed to match. The look-ahead
             // widens it by one object that has not moved yet, and no more.
-            if !cache.in_battlefield_zone(game, id) {
+            if !cache.in_battlefield_zone_or_entering(game, id) {
                 return false;
             }
             let mut players = FilterPlayers {

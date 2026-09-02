@@ -31,9 +31,9 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
 
-/// What the frame would be computed from, when the event has one.
+/// What the frame is computed from, when the event has one.
 #[derive(Debug)]
-enum Subject {
+enum FrameBasis {
     /// The entry proposal itself, or an entering object a synthetic query is
     /// about: everything is known.
     Proposed { object: ObjectId, controller: PlayerId, mods: EnterMods },
@@ -46,7 +46,7 @@ enum Subject {
 #[derive(Debug)]
 pub(crate) struct EntryFrame<'g> {
     game: &'g GameState,
-    subject: Option<Subject>,
+    basis: Option<FrameBasis>,
     frame: OnceCell<Option<EffectiveCharacteristics>>,
 }
 
@@ -54,20 +54,20 @@ impl<'g> EntryFrame<'g> {
     /// The frame for a proposed event — empty for any event that is not an
     /// entry or the zone change ahead of one.
     pub(crate) fn new(game: &'g GameState, action: &GameAction) -> Self {
-        let subject = match action {
+        let basis = match action {
             GameAction::EnterBattlefield { object, controller, mods, .. } => {
-                Some(Subject::Proposed {
+                Some(FrameBasis::Proposed {
                     object: *object,
                     controller: *controller,
                     mods: mods.clone(),
                 })
             }
             GameAction::ZoneChange { object, to: Zone::Battlefield, .. } => {
-                Some(Subject::Pending { object: *object })
+                Some(FrameBasis::Pending { object: *object })
             }
             _ => None,
         };
-        EntryFrame { game, subject, frame: OnceCell::new() }
+        EntryFrame { game, basis, frame: OnceCell::new() }
     }
 
     /// The frame for an entering object a *synthetic* event is about — the
@@ -81,7 +81,7 @@ impl<'g> EntryFrame<'g> {
     ) -> Self {
         EntryFrame {
             game,
-            subject: Some(Subject::Proposed { object, controller, mods: mods.clone() }),
+            basis: Some(FrameBasis::Proposed { object, controller, mods: mods.clone() }),
             frame: OnceCell::new(),
         }
     }
@@ -89,19 +89,19 @@ impl<'g> EntryFrame<'g> {
     /// The frame, if `id` is the object this event is about and the event has
     /// one. Computed on first use.
     pub(crate) fn frame_of(&self, id: ObjectId) -> Option<&EffectiveCharacteristics> {
-        let object = match &self.subject {
-            Some(Subject::Proposed { object, .. }) | Some(Subject::Pending { object }) => *object,
+        let object = match &self.basis {
+            Some(FrameBasis::Proposed { object, .. }) | Some(FrameBasis::Pending { object }) => *object,
             None => return None,
         };
         if object != id {
             return None;
         }
         self.frame
-            .get_or_init(|| match &self.subject {
-                Some(Subject::Proposed { object, controller, mods }) => {
+            .get_or_init(|| match &self.basis {
+                Some(FrameBasis::Proposed { object, controller, mods }) => {
                     compute_as_entering(self.game, *object, *controller, mods)
                 }
-                Some(Subject::Pending { object }) => {
+                Some(FrameBasis::Pending { object }) => {
                     let controller = self.game.default_enter_controller(*object).ok()?;
                     let mods = self.game.default_enter_mods(*object, controller);
                     compute_as_entering(self.game, *object, controller, &mods)

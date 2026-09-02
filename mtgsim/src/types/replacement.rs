@@ -219,6 +219,13 @@ pub enum EventPattern {
     /// Moonlight read "and it wasn't cast", and a `ZoneChangeCause` field
     /// could not say *wasn't*. `None` matches either.
     ///
+    /// One field today, and the axis it grows along is CR 400.7d: a permanent's
+    /// abilities may reference facts about the spell it was — whether it was
+    /// kicked (Gnarlid Pack's "enters with a +1/+1 counter" is a CR 614.1c
+    /// effect reading one), what was spent on it, where it was cast from. A
+    /// fact about *how the object arrived* lands here as a field; a fact about
+    /// the card where it is stays on [`Self::ZoneChange`]'s `object`.
+    ///
     /// **A prohibition on entering does not watch this event.** By the time an
     /// `EnterBattlefield` is proposed the object is already in the battlefield
     /// zone, so "Lands can't enter the battlefield" (Worms of the Earth) is a
@@ -527,7 +534,7 @@ impl ReplacementClass {
     /// *came from* — and it lands with `ActionContext::resolution`'s field
     /// (`replacement-architecture.md` §11 item 3). `BackFaceUp` waits on
     /// transform.
-    pub fn of(rewrite: &Rewrite) -> Self {
+    pub fn from_rewrite(rewrite: &Rewrite) -> Self {
         match rewrite {
             Rewrite::EnterUnderControlOf(_) => ReplacementClass::ControlChanging,
             Rewrite::Prevent | Rewrite::Instead(_) | Rewrite::EnterWith(_) => {
@@ -561,7 +568,7 @@ impl ReplacementDef {
     /// `exempt_from_614_5` are the two fields where a wrong default is a rules
     /// bug rather than a style choice.
     pub fn new(pattern: EventPattern, affected: AffectedSet, rewrite: Rewrite) -> Self {
-        let class = ReplacementClass::of(&rewrite);
+        let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,
             affected,
