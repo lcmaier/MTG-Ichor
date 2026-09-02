@@ -30,10 +30,13 @@ impl GameState {
     /// call it.
     ///
     /// **One documented class of exception, and it is permanent:**
-    /// `// CAST-ROLLBACK:` — `cast_spell`'s failure paths, via
-    /// `rollback_cast_to_hand`. These are **not** zone changes at all: CR 601.2
-    /// rewinds the casting process, so no object legally moved and nothing may
-    /// observe it. They must never be routed through the chokepoint.
+    /// `// CAST-ROLLBACK:` — `cast_spell`'s CR 601.2a move onto the stack and
+    /// the rewind that undoes it. Neither is an event when it happens: the
+    /// spell is not cast until 601.2i, and a cast that rewinds (CR 732.1) was
+    /// never cast at all, so no object legally moved and nothing may observe
+    /// it. Both directions move through here silently, and `cast_spell`
+    /// announces the forward move at 601.2i, once it is an event. Neither may
+    /// be routed through the chokepoint.
     ///
     /// The `// REPLACEMENT-BYPASS:` class is gone. Its three sites in
     /// `engine/stack.rs` *were* real zone changes the pipeline had to see; they
