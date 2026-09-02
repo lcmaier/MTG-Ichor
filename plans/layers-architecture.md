@@ -61,11 +61,11 @@ All definitions are Rust-like pseudocode. Final syntax may differ in trivial way
 /// `Ord::cmp` so a sorted `Vec<ContinuousEffect>` applies in rules order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Layer {
-    /// Layer 1a — face-down effects (CR 613.2a).
-    /// Turns objects face-down (morph, manifest, cloak, disguise).
-    Layer1aFaceDown,
-    /// Layer 1b — copy effects (CR 613.2b).
-    Layer1bCopy,
+    /// Layer 1a — copiable effects (CR 613.2a): copy effects (CR 707) and
+    /// CR 729.2a's merged-permanent characteristics.
+    Layer1aCopy,
+    /// Layer 1b — face-down (CR 613.2b), applied after copy.
+    Layer1bFaceDown,
     /// Layer 2 — control-changing effects (CR 613.3).
     Layer2Control,
     /// Layer 3 — text-changing effects.
@@ -553,11 +553,13 @@ compute_characteristics(game, object_id) -> EffectiveCharacteristics:
      // Printed values. For zones where the pipeline is a no-op (hand,
      // library, etc.), we return frame directly. See §5.1.
 
-  2. Apply Layer 1a (face-down synthesis) derived from
-     BattlefieldEntity.face_down, plus any registered TurnFaceDown
-     effects (for objects not on battlefield).
+  2. (This step was Layer 1a as face-down synthesis. It is not: 1a is
+     copy and 1b is face-down (see §7), and neither is special-cased
+     ahead of the walk — 1a is an ordinary registry slice carrying
+     CopyFrom rows, and 1b will read BattlefieldEntity.face_down from
+     inside the loop the way 7c reads counters.)
 
-  3. For layer in [Layer1bCopy, Layer2Control, Layer3Text,
+  3. For layer in [Layer1aCopy, Layer1bFaceDown, Layer2Control, Layer3Text,
                    Layer4Type, Layer5Color, Layer6Ability,
                    Layer7aCdaPT, Layer7bSetPT, Layer7cModifyPT,
                    Layer7dSwitchPT]:
@@ -727,12 +729,18 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 
 ## 7. Layer 1 Sublayers
 
-CR 613.2 splits layer 1 into:
+**Corrected 2026-09-02 (CV-1); this section had the two backwards.** `tmnt.txt`:
 
-- **1a — face-down effects.** Morph, manifest, cloak, disguise. The *action* that turns an object face-down registers an effect here; the resulting face-down state overrides most characteristics (2/2 colorless creature, no name, no abilities, no mana cost) per CR 708.
-- **1b — copy effects.** Clone, Phantasmal Image, etc. Copy effects apply after face-down is resolved, so a Clone entering as a copy of a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2).
+- **1a — copiable effects (CR 613.2a).** Copy effects (CR 707) and the merged-permanent characteristics of CR 729.2a. **`EffectModification::CopyFrom(Box<CopiableValues>)`, the phase's one new arm**, applied at `LAYER_ORDER[0]`, replacing every characteristic channel at once — which is what layer 1 means, and why a second layer-1 arm would be a claim that CR 613.2 has a third sublayer.
+- **1b — face-down (CR 613.2b).** Morph, manifest, cloak, disguise, applied **after** copy. `BattlefieldEntity.face_down: bool` is the canonical state and the sublayer synthesizes CR 708.2a's characteristics from it — derived from state already owned, the way 7c reads counters, rather than duplicated into the registry. Phase CV-6.
 
-Phase LA ships both variants in the `Layer` enum. Phase LD implements them.
+**The 2/2 answer does not come from the order.** All three sites that had these backwards justified it with *"a Clone copying a face-down creature must copy the 2/2 colorless characteristics, not the printed card"* — a correct conclusion from a wrong premise. The 2/2 is CR 708.2's own sentence, "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly.
+
+**Where the order does bite is one integer.** CR 613.2c makes copiable values the state at the end of layer 1, and `layers::copy::END_OF_LAYER_1` is the ceiling the capture takes. A reader who believed 1b was copy would stop one sublayer early, and the bug would appear only on a board with a face-down creature being copied — i.e. not before Phase 8. `copiable_values` carries a `debug_assert` that `LAYER_ORDER[END_OF_LAYER_1]` is `Layer2Control`, so CV-6's split is a test failure rather than a silent read.
+
+`Layer1Copy` still collapses both sublayers in the `Layer` enum: 1a has a producer as of CV-1, 1b has none until CV-6. Splitting the variant then just lengthens `LAYER_ORDER`, since the frame-cache ceiling is a runtime index into it.
+
+—> `copy-effects-architecture.md` §5.4 (the finding), §3.2 (`CopiableValues`), §4.6 (why face-down is derived rather than registered).
 
 **Implementation note (face-down):** `BattlefieldEntity.face_down: bool` is the canonical state. In Layer 1a, `compute_characteristics` reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Actual `TurnFaceDown` effects (from morph etc.) flip the flag when they apply; they don't store separate per-object state. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
 

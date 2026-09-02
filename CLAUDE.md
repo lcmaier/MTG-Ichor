@@ -101,8 +101,8 @@ rules, each of which has already cost something. → `replacement-architecture.m
 - **A "can't" is not a replacement effect (CR 614.17).** Checked ahead of the pipeline, and it
   wins (CR 101.2) — `engine::replacement::is_blocked`, never a `ReplacementDef`.
 - **A static replacement ability is discovered off the *effective* ability list, never a
-  registry.** `replacement_ability_sources` gates the sweep and is sound only until Layer 1/3
-  exist: **a new gather source, or a new route to that list, needs a gate leg** or it is dead.
+  registry.** Two gates, three legs each — printed, granted, copied; Layer 3 is the route left.
+  **A new gather source, or a new route to that list, needs a leg on every gate** or it is dead.
 - **Declining an optional is tracked separately from CR 614.5's applied set.** CR 903.9b is
   exempt *and* optional, so a decline recorded in the applied set is a hang.
 - **Deciding is separated from performing (CR 704.3).** A batch decides every member against
@@ -140,8 +140,8 @@ line for line but the timing lines. → `codebase-state.md`.
    one event, its own zone change, and CR 614.12's frame is a read-side overlay. **RC-5 next**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
-5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **A copy
-   row stores values, never a reference** — which is what keeps it off item 7. CV-2 needs RC-2
+5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **CV-1 is
+   in** — a copy row stores values, never a reference, which keeps it off item 7. CV-2 needs RC-2
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`. Takes LKI
    formalization and conditional static abilities with it
 6b. Attachment as a layers input — CR 613.7e's field split + an Aura-host `AffectedSet`, phase LH. **Before 7**: two new memo-key inputs. → `layers-architecture.md` §13a

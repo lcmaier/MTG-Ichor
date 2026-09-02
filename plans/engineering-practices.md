@@ -119,25 +119,38 @@ across months buys the timing measurement nothing.
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-02 (performance pool 61 → 62, stress 65 → 68; Keldon Warlord, Containment
-Priest and Dryad Arbor, Phase RC-4):**
+2026-09-02 (performance pool 62 → 63, stress 68 → 70; Cytoshape and
+Mirrorweave, Phase CV-1):**
 
-| | performance (62 cards) | stress (68 cards) |
+| | performance (63 cards) | stress (70 cards) |
 |---|---|---|
-| P0 / P1 | 22 (44.0%) / 28 (56.0%) | 24 (48.0%) / 26 (52.0%) |
-| Avg turns | 28.7 | 27.3 |
-| Spells cast | 21.0 | 19.6 |
+| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 24 (48.0%) / 26 (52.0%) |
+| Avg turns | 28.8 | 27.4 |
+| Spells cast | 21.0 | 19.5 |
 | Lands played | 18.4 | 17.5 |
-| Combat w/ atk | 11.0 | 10.8 |
-| Creatures died | 6.7 | 4.9 |
-| Damage events | 24.2 | 23.6 |
-| Total damage | 50.0 | 56.1 |
-| Life changes | 16.7 | 14.9 |
-| **Layer walks** | **93,854** | **85,738** |
-| **Layer frames** | **136,075** | **112,002** |
-| **Frames/walk** | **1.45** | **1.31** |
-| **Replacement gathers** | **594** | **558** |
-| **Restriction queries** | **596** | **562** |
+| Combat w/ atk | 11.0 | 10.9 |
+| Creatures died | 6.7 | 4.8 |
+| Damage events | 24.2 | 23.9 |
+| Total damage | 49.8 | 57.5 |
+| Life changes | 16.8 | 15.2 |
+| **Layer walks** | **93,914** | **85,816** |
+| **Layer frames** | **136,338** | **111,957** |
+| **Frames/walk** | **1.45** | **1.30** |
+| **Replacement gathers** | **531** | **500** |
+| **Restriction queries** | **533** | **504** |
+
+**Most of the movement in this table is not CV-1's, and the previous version was
+already stale when CV-1 read it.** `main` at 103acf1 answers 93,717 walks / 530
+gathers on `performance`, against the 93,854 / 594 the table printed — so the
+gather column had fallen ~11% before this phase touched anything. The cause is
+**RC-4b**, which made entering the battlefield one proposal instead of two and
+merged without re-recording here. CV-1's own contribution is the small half:
++197 walks and +1 gather on `performance`, +249 walks and +3 on `stress`. **The
+rule the miss argues for is the one already written above** — re-record the
+table in the PR that moves it — and the reason it is cheap to forget is that
+nothing fails when you don't. Worth one line in a phase's exit checklist rather
+than a check: the numbers are seed-deterministic, so a stale row is silently
+wrong rather than noisily so.
 
 **Both columns moved, and the engine's share was separated from the pool's
 before this table was recorded** — three binaries in one sitting, medians of
