@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1 of the plan on
+  this page). Pinned to a commit and the frozen CR; regenerate by hand at the
+  next phase that changes these paths. Self-contained: fonts from Google Fonts,
+  mermaid from jsDelivr, nothing else.
+-->
+<title>Look-Ahead Frame Traces — RC-4b</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B;
+      --surface: #1C2326;
+      --surface-2: #232C30;
+      --ink: #E4E9E8;
+      --muted: #93A0A5;
+      --line: #2E393D;
+      --real: #58B7BF;
+      --real-tint: #163338;
+      --frame: #E1A64A;
+      --frame-tint: #3A2C12;
+      --new: #B39DE0;
+      --new-tint: #2B2340;
+      --changed: #6FC08F;
+      --changed-tint: #173325;
+      --decide: #E08A97;
+      --decide-tint: #3D1F25;
+      --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B;
+    --surface: #1C2326;
+    --surface-2: #232C30;
+    --ink: #E4E9E8;
+    --muted: #93A0A5;
+    --line: #2E393D;
+    --real: #58B7BF;
+    --real-tint: #163338;
+    --frame: #E1A64A;
+    --frame-tint: #3A2C12;
+    --new: #B39DE0;
+    --new-tint: #2B2340;
+    --changed: #6FC08F;
+    --changed-tint: #173325;
+    --decide: #E08A97;
+    --decide-tint: #3D1F25;
+    --code-bg: #232C30;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0 0; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 1.15rem; color: var(--ink); margin-top: 1rem; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+  html, body { overflow-x: hidden; }
+  a { color: var(--real); }
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--frame); outline-offset: 2px; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.95rem; }
+  nav.toc a { text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
+  nav.toc a:hover { border-bottom-color: var(--ink); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); font-size: 0.92rem; }
+  .legend label { display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; margin-left: auto; }
+
+  .chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.real { color: var(--real); border-color: var(--real); background: var(--real-tint); }
+  .chip.frame { color: var(--frame); border-color: var(--frame); background: var(--frame-tint); }
+  .chip.none { color: var(--muted); border-color: var(--line); background: transparent; }
+  .chip.decide { color: var(--decide); border-color: var(--decide); background: var(--decide-tint); }
+  .chip.new { color: var(--new); border-color: var(--new); background: var(--new-tint); }
+  .chip.changed { color: var(--changed); border-color: var(--changed); background: var(--changed-tint); }
+
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); padding: 0.9rem 1rem; }
+  .card .who { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card .name { font-family: var(--display); font-size: 1.2rem; margin-top: 0.2rem; }
+  .card .text { font-size: 0.92rem; color: var(--muted); margin-top: 0.3rem; }
+  .card.moving { border-color: var(--frame); }
+
+  .trace { list-style: none; margin: 1.25rem 0 0; padding: 0; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
+  .step { display: grid; grid-template-columns: 2.6rem minmax(18rem, 1.1fr) 5.4rem minmax(20rem, 1.4fr); gap: 0 1rem; align-items: start; padding: 0.55rem 0.9rem; border-top: 1px solid var(--line); min-width: 52rem; }
+  .step:first-child { border-top: 0; }
+  .step .n { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .step .call { padding-left: calc(var(--d, 0) * 1.1rem); position: relative; }
+  .step .call code { background: transparent; padding: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .step .call .loc { display: block; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .call .sub { display: block; font-size: 0.88rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .what { margin: 0; font-size: 0.95rem; }
+  .step .what em { color: var(--ink); }
+  .step[data-era="new"] { box-shadow: inset 3px 0 0 var(--new); }
+  .step[data-era="rc4b"] { box-shadow: inset 3px 0 0 var(--changed); }
+  .step.phase { background: var(--surface-2); }
+  .step.phase .call code { font-weight: 600; letter-spacing: 0.02em; }
+  body.dim-old .step:not([data-era="rc4b"]):not(.phase) { opacity: 0.42; }
+  .step .tags { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; padding-top: 0.15rem; }
+
+  .branch { margin-top: 1.25rem; }
+  .branch .switch { display: inline-flex; border: 1px solid var(--line); background: var(--surface); }
+  .branch button { font: inherit; font-size: 0.92rem; padding: 0.45rem 0.9rem; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+  .branch button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .branch .trace { margin-top: 0.75rem; }
+
+  .log { font-family: var(--mono); font-size: 0.82rem; background: var(--code-bg); border: 1px solid var(--line); padding: 0.8rem 1rem; margin-top: 1rem; overflow-x: auto; white-space: pre; line-height: 1.6; }
+  .note { border-left: 3px solid var(--frame); padding: 0.2rem 0 0.2rem 1rem; margin-top: 1.25rem; max-width: 66ch; }
+  .note.real { border-left-color: var(--real); }
+  .note.changed { border-left-color: var(--changed); }
+
+  details.before { margin-top: 1rem; border: 1px dashed var(--line); padding: 0.4rem 1rem 0.8rem; background: var(--surface); }
+  details.before summary { cursor: pointer; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 0.3rem 0; }
+  details.before .trace { margin-top: 0.6rem; }
+  details.before .step { opacity: 0.85; }
+
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.93rem; background: var(--surface); }
+  .tablewrap { overflow-x: auto; margin-top: 1rem; border: 1px solid var(--line); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-top: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 0; background: var(--surface-2); font-weight: 600; }
+  td code { white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+
+  .mermaid { background: var(--surface); border: 1px solid var(--line); padding: 1rem; margin-top: 1.25rem; overflow-x: auto; }
+
+  .plan-when { font-family: var(--mono); font-size: 0.8rem; min-width: 11rem; }
+  ol.plain { padding-left: 1.2rem; }
+  ol.plain li { margin-top: 0.5rem; }
+  @media (prefers-reduced-motion: no-preference) {
+    .branch button { transition: background 120ms ease, color 120ms ease; }
+  }
+</style>
+
+<div class="page">
+  <div class="eyebrow">MTG-Ichor · Phase RC-4 → RC-4b · CR 614.12, 614.1c, 601.2 · main at 6541d0b (PR #87) · CR tmnt</div>
+  <h1>Look-Ahead Frame Traces</h1>
+  <p class="lede prose">Three real entries and one cast, walked through the code as merged, one call at a time, with every read of game state labelled by what it reads: the board as it is, or the permanent as it would be. This is the after-picture. The page's earlier version, pinned to 8ac4ad7, was RC-4's review and the before-picture RC-4b was built toward; what it changed is marked on every step, and the steps that no longer exist are kept under each trace for comparison.</p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#map">The map</a>
+    <a href="#a">A · Dryad Arbor, Root Maze, Priest</a>
+    <a href="#b">B · Anthem Bear and the Warlord</a>
+    <a href="#c">C · A Forest that can't enter</a>
+    <a href="#d">D · A cast, paid for and rewound</a>
+    <a href="#reads">Where the reads differ</a>
+    <a href="#delta">What RC-4b changed</a>
+    <a href="#plan">Tracing the rest of the engine</a>
+  </nav>
+
+  <div class="legend">
+    <span><span class="chip real">board</span> reads the real game state</span>
+    <span><span class="chip frame">frame</span> reads the hypothetical permanent</span>
+    <span><span class="chip decide">decide</span> a player is asked</span>
+    <span><span class="chip new">RC-4</span> the frame, added by RC-4</span>
+    <span><span class="chip changed">RC-4b</span> changed by RC-4b</span>
+    <label><input type="checkbox" id="dim"> dim steps RC-4b did not change</label>
+  </div>
+
+  <h2 id="map">The map</h2>
+  <p class="prose">Every entry is <em>one</em> proposal through one chokepoint. <code>change_zone</code> with a battlefield destination proposes an <code>EnterBattlefield</code> that carries where the card is coming from; no <code>ZoneChange</code> onto the battlefield is proposed any more, and building one is a debug assertion. The entry performer moves the card, announces the zone change, builds the entity and announces the entry. The frame the decide phase reads is unchanged from RC-4 and is now reached from two places: a filter-scoped <code>AffectedSet</code> asking whether the entering object matches, and <code>gather</code>'s source 1a asking what abilities it has.</p>
+
+  <pre class="mermaid">
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"JetBrains Mono, Consolas, monospace","fontSize":"12px","primaryColor":"#FFFFFF","primaryTextColor":"#1B2226","primaryBorderColor":"#5B6770","lineColor":"#5B6770","secondaryColor":"#E3F0F1","tertiaryColor":"#F3F6F6","clusterBkg":"#F3F6F6","clusterBorder":"#D5DCDD","edgeLabelBackground":"#FFFFFF"}}}%%
+flowchart TD
+  A["play_land · resolve_top_of_stack · reanimate"] --> B["change_zone"]
+  B -- "to == Battlefield" --> K["propose_entry<br/>default_enter_mods · strip_prohibited_counters<br/>→ EnterBattlefield { object, from, controller, mods, cause }"]:::rc4b
+  B -- "anywhere else" --> Z["ZoneChange { object, from, to, cause }"]
+  K --> X["execute_actions<br/>one batch in the event log"]
+  Z --> X
+  subgraph P1["Phase 1 · decide  (apply_replacements, one loop per proposal)"]
+    C["EntryFrame::new<br/>one basis: the proposal's object, controller, mods"]:::rc4b
+    D["is_prohibited · CR 614.17<br/>a 'can't' wins and ends the loop — and may now watch the entry"]
+    E["gather<br/>1a: the entering object's abilities, read off the frame<br/>then the battlefield sweep · registry · counters"]:::rc4b
+    F{"candidates?"}
+    G["order_invariant_entry_bucket<br/>§11 item 19"]:::new
+    H["ask_choose_replacement<br/>CR 616.1, the affected object's controller"]:::decide
+    I["apply_rewrite<br/>EnterWith · EnterUnderControlOf · Instead — from the entry's own from"]:::rc4b
+  end
+  subgraph FR["The frame · layers/lookahead.rs"]
+    N["compute_as_entering"]:::new
+    O["Lookahead::new<br/>entity · would_be_rows · summary"]:::new
+    P["compute_to_ceiling → apply_effects<br/>entity() · rows_in_layer() · base_controller's first arm"]:::new
+  end
+  subgraph P2["Phase 2 · perform"]
+    J["EnterBattlefield arm<br/>perform_zone_change: stale check · LKI · move_object · announce_zone_change<br/>then place_on_battlefield: entity · counters · register_static_effects · emit PermanentEnteredBattlefield"]:::rc4b
+    Y["ZoneChange arm<br/>perform_zone_change, the same function"]:::rc4b
+  end
+  subgraph CS["cast_spell · CR 601.2"]
+    S1["601.2a: move_object, silent · CAST-ROLLBACK"]:::rc4b
+    S2["601.2g: mana abilities → Tapped, in the log"]
+    S3["601.2i: announce_zone_change(Hand → Stack, Cast) · SpellCast"]:::rc4b
+    S4["a rewind: move_object back, silent · no event"]:::rc4b
+  end
+  X --> C --> D --> E --> F
+  F -- "none" --> J
+  F -- "one" --> I
+  F -- "two or more" --> G
+  G -- "provably one outcome" --> I
+  G -- "a real choice" --> H --> I
+  I -- "re-gather against the rewritten proposal" --> C
+  E -. "1a asks frame_of" .-> N
+  D -. "a Filter asks set_affects" .-> N
+  N --> O --> P
+  I -- "Instead: a ZoneChange from the entry's from" --> Y
+  S1 --> S2 --> S3
+  S2 -. "601.2h cannot pay" .-> S4
+  classDef new fill:#FBF1DF,stroke:#B0701A,color:#1B2226
+  classDef rc4b fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226
+  classDef decide fill:#F8E8EA,stroke:#8A2F3B,color:#1B2226
+  </pre>
+
+  <p class="prose">Two things the map cannot show and the traces will: the frame is built per <em>iteration</em> of the loop, not per event, because CR 614.12 clause (1) says it accounts for the replacements already applied; and the frame is lazy and shared, so a loop whose filters never ask pays exactly one walk for source 1a and nothing more.</p>
+
+  <h2 id="a">A · Dryad Arbor is played while Root Maze and Containment Priest are out</h2>
+  <p class="prose">The path with the most going on: a land drop that is also a creature that wasn't cast, two replacement effects that both apply, a CR 616.1 choice that the suppression rule refuses to skip, and the substitute that never becomes a permanent. It is <code>test_a_non_commuting_entry_replacement_keeps_cr_616_1_asking</code> and its sibling in <code>phase_rc4_integration_test.rs</code>; the log shape is <code>test_containment_priest_exiles_from_the_graveyard_in_one_move</code> in <code>phase_rc4b_integration_test.rs</code>, on the graveyard road.</p>
+
+  <div class="board">
+    <div class="card"><div class="who">Opponent controls</div><div class="name">Root Maze</div><div class="text">Artifacts and lands enter tapped. An <code>EnterWith</code> over a filter.</div></div>
+    <div class="card"><div class="who">Opponent controls</div><div class="name">Containment Priest</div><div class="text">If a nontoken creature would enter and it wasn't cast, exile it instead. An <code>Instead</code> over a filter, watching <code>cast: Some(false)</code>.</div></div>
+    <div class="card moving"><div class="who">You play, from hand</div><div class="name">Dryad Arbor</div><div class="text">Land Creature — Forest Dryad, 1/1. Not a spell, so it "wasn't cast".</div></div>
+  </div>
+
+  <ol class="trace" aria-label="Trace A, up to the choice">
+    <li class="step"><span class="n">1</span><div class="call"><code>GameState::play_land</code><span class="loc">engine/zones.rs:170</span><span class="sub">Active player, main phase, empty stack, printed Land type (a tagged pre-layer read), a land drop left.</span></div><span class="chip real">board</span><p class="what">Legality only. Then <code>change_zone(arbor, Battlefield, PlayedAsLand)</code>.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">2</span><div class="call" style="--d:1"><code>change_zone</code><span class="loc">engine/actions.rs:451</span><span class="sub">Reads the card's zone: <code>Hand</code>. The destination is the battlefield, so this is an entry, not a zone-change proposal.</span></div><span class="chip real">board</span><p class="what"><code>default_enter_controller</code> answers the owner, you. Routes to <code>propose_entry(arbor, from: Some(Hand), you, Some(PlayedAsLand))</code>. No <code>ZoneChange { to: Battlefield }</code> is built, here or anywhere.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">3</span><div class="call" style="--d:1"><code>propose_entry</code><span class="loc">engine/actions.rs:843</span><span class="sub"><code>default_enter_mods</code> (no loyalty, so no frame walk) → <code>strip_prohibited_counters</code> (nothing to strip).</span></div><span class="chip real">board</span><p class="what">Proposes <code>EnterBattlefield { arbor, from: Hand, controller: you, mods: NONE, cause: PlayedAsLand }</code> through <code>execute_actions</code> — one batch, one proposal, decided before anything moves.</p></li>
+    <li class="step phase"><span class="n"></span><div class="call" style="--d:1"><code>Phase 1 · decide the EnterBattlefield — iteration 1</code></div><span class="chip none"></span><p class="what"></p></li>
+    <li class="step" data-era="rc4b"><span class="n">4</span><div class="call" style="--d:2"><code>EntryFrame::new</code><span class="loc">engine/replacement/lookahead.rs:49</span></div><span class="chip none">lazy</span><p class="what">One basis: <code>{ arbor, you, NONE }</code>, all of it on the proposal. The <code>Pending</code> basis that derived these for a zone change ahead of an entry is gone with the zone change. Nothing is computed until something asks.</p></li>
+    <li class="step"><span class="n">5</span><div class="call" style="--d:2"><code>is_prohibited</code><span class="loc">engine/restriction/predicate.rs:59</span></div><span class="chip real">board</span><p class="what">Keyword check, then the gate: no restriction sources on this board, so <em>false</em> without touching the frame. (A "can't enter" would be asked here, of the entry itself — Trace C.)</p></li>
+    <li class="step" data-era="rc4b"><span class="n">6</span><div class="call" style="--d:2"><code>gather</code> · source 1a<span class="loc">engine/replacement/gather.rs:188</span><span class="sub"><code>frame.frame_of(arbor)</code>: the entering object's abilities <em>as it would exist on the battlefield</em>. First use of the frame this iteration, so <code>compute_as_entering(arbor, you, NONE)</code> runs; steps 7 and 8 are inside it.</span></div><span class="chip frame">frame</span><p class="what">Its one ability is the mana ability, not a replacement. Nothing from the entering object itself. Until RC-4b this leg was a plain walk that worked only because the card had already been moved into the zone; with the card still in the hand the plain walk admits it to no filter-scoped effect, so Humility could no longer strip an entering permanent's own "enters with" — two RC-2 tests fail with the plain walk kept.</p></li>
+    <li class="step" data-era="new"><span class="n">7</span><div class="call" style="--d:3"><code>Lookahead::new</code><span class="loc">engine/layers/lookahead.rs:48</span><span class="sub">Entity: controller you, clock started this turn, timestamp read off <code>next_timestamp</code> without advancing it, no counters. <code>would_be_rows</code>: the mana ability is activated, so no rows. Summary: all false.</span></div><span class="chip frame">frame</span><p class="what">The entity <code>place_on_battlefield</code> would build, and no rows, because the card has no static ability.</p></li>
+    <li class="step" data-era="new"><span class="n">8</span><div class="call" style="--d:3"><code>compute_to_ceiling → apply_effects</code><span class="loc">engine/layers/compute.rs:182, 280</span><span class="sub">Seed via <code>cache.entity(arbor)</code>: the look-ahead's entity, so <code>controller = you</code>. The card is in the hand, so <code>in_battlefield_zone_or_entering</code> admits it through the look-ahead arm, never the zone arm. No registry rows, no own rows, no CDA.</span></div><span class="chip frame">frame</span><p class="what">The frame is the printed card under the proposed controller: Land Creature — Forest Dryad 1/1, green.</p></li>
+    <li class="step" data-era="new"><span class="n">9</span><div class="call" style="--d:2"><code>gather</code> · sweep · Root Maze<span class="loc">engine/replacement/gather.rs:264 → 475</span><span class="sub"><code>pattern_watches(EnterBattlefield { cast: None })</code> is true. <code>set_affects</code> holds a <code>Filter</code>, so it asks <code>frame.frame_of(arbor)</code>.</span></div><span class="chip frame">frame</span><p class="what">The <code>OnceCell</code> hit: the frame source 1a computed is reused, no second walk. <code>ByType(Land)</code> on the frame: true. Root Maze is candidate one, <code>StaticAbility(root_maze, ability)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">10</span><div class="call" style="--d:2"><code>gather</code> · sweep · Containment Priest<span class="loc">engine/replacement/gather.rs:510</span><span class="sub"><code>cast: Some(false)</code> against <code>cause: Some(PlayedAsLand)</code>: not <code>Resolved</code>, so "wasn't cast" holds. <code>set_affects</code> asks <code>frame_of(arbor)</code> again.</span></div><span class="chip frame">frame</span><p class="what">Another hit. Creature, and <code>is_token</code> is false. The Priest is candidate two.</p></li>
+    <li class="step"><span class="n">11</span><div class="call" style="--d:2"><code>forced_bucket · chooser_for</code><span class="loc">engine/replacement/gather.rs:113</span></div><span class="chip none">—</span><p class="what">Both rewrites are class <code>Other</code> (CR 616.1e), so the bucket is both of them. The chooser is the entry's controller: you.</p></li>
+    <li class="step" data-era="new"><span class="n">12</span><div class="call" style="--d:2"><code>order_invariant_entry_bucket</code><span class="loc">engine/replacement/pipeline.rs:328</span></div><span class="chip none">—</span><p class="what">The Priest's rewrite is an <code>Instead</code>, not an <code>EnterWith</code>, so the theorem does not apply and the prompt is real.</p></li>
+    <li class="step"><span class="n">13</span><div class="call" style="--d:2"><code>ask_choose_replacement</code><span class="loc">ui/ask.rs:630</span></div><span class="chip decide">decide</span><p class="what"><code>ChoiceKind::ChooseReplacementEffect { affected_object: Some(arbor) }</code>, two candidates in sweep order: Root Maze at index 0, the Priest at index 1. The rest of the trace depends on the answer.</p></li>
+  </ol>
+
+  <div class="branch" data-switch>
+    <div class="switch" role="group" aria-label="Which candidate the player picks">
+      <button type="button" data-pick="0" aria-pressed="true">Root Maze first (index 0)</button>
+      <button type="button" data-pick="1" aria-pressed="false">Priest first (index 1)</button>
+    </div>
+
+    <ol class="trace" data-branch="0" aria-label="Trace A, Root Maze chosen first">
+      <li class="step"><span class="n">14</span><div class="call" style="--d:2"><code>apply_rewrite · EnterWith</code><span class="loc">engine/replacement/pipeline.rs:535</span><span class="sub">Root Maze goes into the CR 614.5 applied set. <code>strip_prohibited_counters</code> has nothing to ask about.</span></div><span class="chip none">—</span><p class="what">The proposal becomes <code>EnterBattlefield { from: Hand, mods: tapped, … }</code> — the <code>from</code> rides through every rewrite. Nothing was suppressed, so <code>check_order_invariance</code> has nothing to verify.</p></li>
+      <li class="step phase"><span class="n"></span><div class="call" style="--d:1"><code>Phase 1 · iteration 2, against the rewritten proposal</code></div><span class="chip none"></span><p class="what"></p></li>
+      <li class="step" data-era="new"><span class="n">15</span><div class="call" style="--d:2"><code>EntryFrame::new · is_prohibited · gather</code><span class="loc">engine/replacement/pipeline.rs:146–171</span><span class="sub">A fresh frame with <code>mods: tapped</code>, computed once by source 1a and read by both filters. Root Maze still applies, then the applied-set filter removes it.</span></div><span class="chip frame">frame</span><p class="what">The Priest is the only candidate left. One candidate, no prompt.</p></li>
+      <li class="step" data-era="rc4b"><span class="n">16</span><div class="call" style="--d:2"><code>apply_rewrite · Instead(ZoneChangeTo)</code> on an entry<span class="loc">engine/replacement/pipeline.rs:589, 617</span></div><span class="chip none">—</span><p class="what">The proposal becomes <code>ZoneChange { arbor, from: Hand, to: Exile, cause: Exiled }</code>: the entry's own <code>from</code>, because the card is still in the hand. Until RC-4b this was <code>from: Battlefield</code>, the card having already been moved.</p></li>
+      <li class="step"><span class="n">17</span><div class="call" style="--d:2"><code>iteration 3</code><span class="loc">engine/replacement/pipeline.rs:134</span></div><span class="chip real">board</span><p class="what">A zone change to exile has no frame (basis <code>None</code>); neither pattern watches it; the loop returns the substitute. The tapped status Root Maze added is gone with the entry it modified.</p></li>
+    </ol>
+
+    <ol class="trace" data-branch="1" hidden aria-label="Trace A, Priest chosen first">
+      <li class="step" data-era="rc4b"><span class="n">14</span><div class="call" style="--d:2"><code>apply_rewrite · Instead(ZoneChangeTo)</code> on an entry<span class="loc">engine/replacement/pipeline.rs:589, 617</span><span class="sub">The Priest goes into the applied set.</span></div><span class="chip none">—</span><p class="what">The proposal becomes <code>ZoneChange { arbor, from: Hand, to: Exile, cause: Exiled }</code> at once.</p></li>
+      <li class="step phase"><span class="n"></span><div class="call" style="--d:1"><code>Phase 1 · iteration 2, against the substitute</code></div><span class="chip none"></span><p class="what"></p></li>
+      <li class="step"><span class="n">15</span><div class="call" style="--d:2"><code>EntryFrame::new · is_prohibited · gather</code><span class="loc">engine/replacement/pipeline.rs:146–171</span></div><span class="chip real">board</span><p class="what">Basis <code>None</code>. Root Maze watches entries, and this is no longer one: no candidates. Its CR 614.5 slot is never spent, which is the only difference between the two answers, and it is a difference only the pipeline's own bookkeeping can see.</p></li>
+    </ol>
+  </div>
+
+  <ol class="trace" aria-label="Trace A, after the loop">
+    <li class="step phase"><span class="n"></span><div class="call" style="--d:1"><code>Phase 2 · perform the substitute</code></div><span class="chip none"></span><p class="what"></p></li>
+    <li class="step" data-era="rc4b"><span class="n">18</span><div class="call" style="--d:2"><code>perform_action</code>, ZoneChange arm → <code>perform_zone_change</code><span class="loc">engine/actions.rs:604, 770</span><span class="sub">Stale check: the Arbor is in the hand, as the proposal says. <code>from != Battlefield</code>, so no CR 603.10a frame and no layer walk. <code>move_object(Hand → Exile)</code>: one epoch bump. Then <code>announce_zone_change</code>.</span></div><span class="chip real">board</span><p class="what">Emits <code>ZoneChange { Hand → Exile, Exiled, lki: None }</code>. The Arbor is in exile and was never in the battlefield zone.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">19</span><div class="call" style="--d:1"><code>propose_entry</code> returns <code>Ok(true)</code><span class="loc">engine/actions.rs:843</span></div><span class="chip none">—</span><p class="what">Something was performed. The entry performer never ran: no <code>BattlefieldEntity</code>, no <code>register_static_effects</code>, no <code>PermanentEnteredBattlefield</code>. There is no "replaced away" error path any more: a dropped entry would return <code>false</code> and leave the card where it was.</p></li>
+    <li class="step"><span class="n">20</span><div class="call" style="--d:0"><code>play_land</code> returns<span class="loc">engine/zones.rs:170</span></div><span class="chip real">board</span><p class="what"><code>lands_played_this_turn</code> becomes 1. The land was played; it just never arrived.</p></li>
+  </ol>
+
+  <div class="log">events, one batch:
+  ZoneChange   { Dryad Arbor, Hand → Exile, cause: Exiled, lki: None }
+  (no PermanentEnteredBattlefield; one epoch)</div>
+
+  <details class="before">
+    <summary>The before-picture at 8ac4ad7 — the steps that no longer exist</summary>
+    <ol class="trace" aria-label="Trace A before RC-4b, removed steps">
+      <li class="step phase"><span class="n"></span><div class="call" style="--d:1"><code>Phase 1 · decide the ZoneChange</code></div><span class="chip none"></span><p class="what">An outer proposal, <code>ZoneChange { Hand → Battlefield }</code>, decided first.</p></li>
+      <li class="step"><span class="n">3</span><div class="call" style="--d:2"><code>EntryFrame::new</code></div><span class="chip none">lazy</span><p class="what">Basis <code>Pending { arbor }</code>: the entry proposal that <em>would</em> follow, derived from the zone change.</p></li>
+      <li class="step"><span class="n">4–5</span><div class="call" style="--d:2"><code>is_prohibited · gather</code></div><span class="chip real">board</span><p class="what">A whole gather on the zone change — one layer walk per source on the board — that matched nothing, because both patterns watch entries. This is the gather per entry that RC-4b's measurement shows gone: −10.4% and −10.6% gathers per game.</p></li>
+      <li class="step phase"><span class="n"></span><div class="call" style="--d:1"><code>Phase 2 · perform the ZoneChange</code></div><span class="chip none"></span><p class="what"></p></li>
+      <li class="step"><span class="n">6</span><div class="call" style="--d:2"><code>perform_action</code>, ZoneChange arm</div><span class="chip real">board</span><p class="what"><code>move_object</code> wrote <code>zone = Battlefield</code> and bumped the epoch; emitted <code>ZoneChange { Hand → Battlefield }</code>; then proposed the entry from inside the performer — RC-2's one-<code>emit</code>-wide window, the card in the zone with no entity.</p></li>
+      <li class="step"><span class="n">10</span><div class="call" style="--d:3"><code>gather</code> · source 1a</div><span class="chip real">board</span><p class="what"><code>get_effective_abilities(arbor)</code>: a plain walk of the entity-less Arbor, admitted to filters by its zone. Right by accident.</p></li>
+      <li class="step"><span class="n">21</span><div class="call" style="--d:3"><code>apply_rewrite · Instead</code></div><span class="chip none">—</span><p class="what">The substitute was <code>ZoneChange { from: Battlefield, to: Exile }</code> — a move back out of a zone the CR says the card never reached.</p></li>
+      <li class="step"><span class="n">23</span><div class="call" style="--d:3"><code>perform_action</code>, ZoneChange arm, again</div><span class="chip real">board</span><p class="what"><code>from == Battlefield</code>, so a full <code>compute_characteristics</code> walk captured an LKI frame for an object that was never a permanent; a second epoch bump; <code>ZoneChange { Battlefield → Exile, lki: Some(…) }</code>.</p></li>
+      <li class="step"><span class="n">24</span><div class="call" style="--d:2"><code>propose_entry</code> returns</div><span class="chip none">—</span><p class="what">Checked that <em>something</em> was performed, else the "replaced away" error — which is why a "can't enter" could not watch the entry.</p></li>
+    </ol>
+    <div class="log">events, one batch, before:
+  ZoneChange   { Dryad Arbor, Hand → Battlefield, cause: PlayedAsLand }
+  ZoneChange   { Dryad Arbor, Battlefield → Exile, cause: Exiled, lki: Some(…) }
+  (two epochs; a leaves-the-battlefield matcher would fire)</div>
+  </details>
+
+  <div class="note changed">
+    <p><strong>What this trace makes visible now.</strong> The frame costs one walk per iteration and is shared three ways — source 1a computes it, both filters hit the cell. The sweep is unchanged. What is gone is everything the outer zone change cost: its own gather and restriction query on every entry, the LKI walk on every substituted one, and the second epoch. Measured at 200 games per pool against <code>main</code>: gathers −10.4% / −10.6%, layer walks −0.14% / −0.21%, turn counts identical, and the event streams differ from <code>main</code>'s in exactly three designed ways.</p>
+  </div>
+
+  <h2 id="b">B · An anthem creature and Keldon Warlord, each under the same power filter</h2>
+  <p class="prose"><strong>Unchanged by RC-4b</strong>, and worth saying why: the membership gate's look-ahead arm already admitted an object that had not moved, so RC-4's overlay never depended on the card being in the zone. The only difference now is that <em>every</em> entering object takes that arm, since none has moved when its entry is decided. The same replacement on the board both times: a Kismet-shaped "creatures with power 2 or less enter tapped", an <code>EnterWith</code> over <code>Filter { creature ∧ PowerLE(2) }</code>. Two 2/2-ish creatures enter. The frame answers 3/3 for one and 2/2 for the other, and the reason is which of CR 614.12's reads each card's own ability makes. These are <code>test_an_entering_creatures_own_anthem_is_in_its_own_frame</code> and <code>test_an_entering_count_does_not_include_the_entering_object</code>.</p>
+
+  <div class="board">
+    <div class="card"><div class="who">Opponent controls</div><div class="name">"Small creatures enter tapped"</div><div class="text">Creatures with power 2 or less enter tapped. The filter reads power, so it reads the frame.</div></div>
+    <div class="card moving"><div class="who">Enters first (B1)</div><div class="name">Anthem Bear</div><div class="text">2/2, "creatures you control get +1/+1". A static ability that becomes a Layer 7c row.</div></div>
+    <div class="card moving"><div class="who">Enters beside two 2/2s (B2)</div><div class="name">Keldon Warlord</div><div class="text">*/* equal to the number of non-Wall creatures you control. A CDA whose value is a count.</div></div>
+  </div>
+
+  <p class="prose">Both entries share steps 1 to 6 of Trace A in shape. The trace below starts where they differ: inside <code>compute_as_entering</code>, first called from source 1a and then read by the tapper's <code>set_affects</code>.</p>
+
+  <h3>B1 · Anthem Bear: clause (2), its own row is in its own frame</h3>
+  <ol class="trace" aria-label="Trace B1">
+    <li class="step" data-era="new"><span class="n">1</span><div class="call" style="--d:0"><code>Lookahead::new → would_be_rows</code><span class="loc">engine/layers/lookahead.rs:48, 84</span><span class="sub">The anthem lowers exactly as <code>register_static_effects</code> would lower it: <code>static_ability_atoms</code> → <code>static_affected_set</code> → <code>static_primitive_rows</code>.</span></div><span class="chip frame">frame</span><p class="what">One row: Layer 7c, <code>ModifyPT(+1/+1)</code>, affected <code>Filter { creature ∧ ByController(You) }</code>, controller you, timestamp the entry would take. Summary: one row, so neither gate opens.</p></li>
+    <li class="step" data-era="new"><span class="n">2</span><div class="call" style="--d:0"><code>compute_to_ceiling(bear, 10)</code><span class="loc">engine/layers/compute.rs:182</span></div><span class="chip frame">frame</span><p class="what">Seed from the look-ahead entity: controller you. Printed 2/2 with the anthem in its ability list.</p></li>
+    <li class="step"><span class="n">3</span><div class="call" style="--d:1"><code>apply_effects</code>, layers 1 to 6<span class="loc">engine/layers/compute.rs:280</span><span class="sub"><code>rows_in_layer</code> yields the registry's slice, then the own rows in that layer. The tapper is a replacement ability and has no registry row.</span></div><span class="chip real">board</span><p class="what">Nothing applies. The ability list still holds the anthem at the end of layer 6.</p></li>
+    <li class="step" data-era="new"><span class="n">4</span><div class="call" style="--d:1"><code>rows_in_layer</code>, Layer 7c<span class="loc">engine/layers/compute.rs:150</span></div><span class="chip frame">frame</span><p class="what">Registry rows first (none), then the bear's own would-be row. This is accessor 2 answering from the overlay.</p></li>
+    <li class="step" data-era="new"><span class="n">5</span><div class="call" style="--d:2"><code>effect_applies_to</code><span class="loc">engine/layers/compute.rs:781</span><span class="sub"><code>in_battlefield_zone_or_entering(bear)</code> admits it through the look-ahead — the bear is in the graveyard. The filter's <code>ByController(You)</code> resolves "you" through CR 109.5: <code>effective_controller(bear)</code> → gate closed → <code>base_controller(bear, lookahead)</code> → its first arm.</span></div><span class="chip frame">frame</span><p class="what">Creature, controlled by you: the row applies to the object that carries it.</p></li>
+    <li class="step"><span class="n">6</span><div class="call" style="--d:2"><code>static_ability_still_exists</code><span class="loc">engine/layers/compute.rs:258</span><span class="sub"><code>compute_to_ceiling(bear, 8)</code>: a sub-frame as of the end of layer 6, memoized in the same cache, seeded from the same look-ahead entity.</span></div><span class="chip frame">frame</span><p class="what">The anthem is still in the ability list at ceiling 8, so the row exists. Apply +1/+1.</p></li>
+    <li class="step"><span class="n">7</span><div class="call" style="--d:0"><code>set_affects → PowerLE(2)</code><span class="loc">engine/replacement/gather.rs:475</span></div><span class="chip frame">frame</span><p class="what">The frame says 3/3. The filter does not match, the tapper is not a candidate, and the bear enters untapped. <code>place_on_battlefield</code> then allocates the same timestamp the frame assumed and registers the row for real.</p></li>
+  </ol>
+  <div class="note real"><p><strong>Variant.</strong> With Humility on the board, step 3 changes: Humility's registered Layer 6 row strips the bear's abilities in the frame, so at step 6 the sub-frame at ceiling 8 has no anthem, the own row does not exist, Layer 7b sets 1/1, and the tapper applies. That is <code>test_humility_strips_the_entering_creatures_own_anthem_before_it_applies</code>, and it is CR 613.7a treating a would-be row exactly like a registered one. It is also the read source 1a now makes for the entering object's <em>replacement</em> abilities, which is why Humility strips those too.</p></div>
+
+  <h3>B2 · Keldon Warlord: a count over the board does not see the entering object</h3>
+  <ol class="trace" aria-label="Trace B2">
+    <li class="step" data-era="new"><span class="n">1</span><div class="call" style="--d:0"><code>Lookahead::new → would_be_rows</code><span class="loc">engine/layers/lookahead.rs:84</span></div><span class="chip frame">frame</span><p class="what">The Warlord's ability is characteristic-defining, and a CDA is never a registry row (CR 604.3a), so no rows. Its entity: controller you, no counters.</p></li>
+    <li class="step"><span class="n">2</span><div class="call" style="--d:1"><code>apply_intrinsic_cdas</code>, Layer 7a<span class="loc">engine/layers/cda.rs:63</span></div><span class="chip none">—</span><p class="what">Collected off the frame's own ability list: <code>SetPowerToughness(CountOf(…), CountOf(…))</code>, evaluated twice (once per number, Deferred item 50).</p></li>
+    <li class="step" data-era="new"><span class="n">3</span><div class="call" style="--d:2"><code>evaluate_amount · CountOf</code><span class="loc">engine/layers/compute.rs:981</span><span class="sub">"You" is the frame's own controller (CR 109.5 for a CDA). Enumerates <code>battlefield_ids_ordered()</code>: the two bears and the tapper. Each member's frame is asked at ceiling 6 and memoized in this walk's cache.</span></div><span class="chip real">board</span><p class="what">The Warlord is not in the enumeration because it has no <code>BattlefieldEntity</code> — and, since RC-4b, is not even in the zone. Two bears match creature ∧ you ∧ not-Wall; the enchantment does not. Count: 2.</p></li>
+    <li class="step" data-era="new"><span class="n">4</span><div class="call" style="--d:0"><code>set_affects → PowerLE(2)</code><span class="loc">engine/replacement/gather.rs:475</span></div><span class="chip frame">frame</span><p class="what">The frame says 2/2. The tapper matches, it is the only candidate, no prompt, <code>EnterWith(tapped)</code> applies. The Warlord enters tapped.</p></li>
+    <li class="step"><span class="n">5</span><div class="call" style="--d:0"><code>get_effective_power(warlord)</code>, afterwards<span class="loc">oracle/characteristics.rs</span></div><span class="chip real">board</span><p class="what">Now a permanent, now enumerated by its own count: 3/3. Same object, two answers one instant apart, which is the pair of Thassa rulings with no devotion arithmetic.</p></li>
+  </ol>
+
+  <div class="two">
+    <div class="note"><p><strong>Why B1 and B2 differ.</strong> The anthem's row is a read <em>about the entering object's own characteristics</em>, which CR 614.12 clause (2) makes hypothetical. The Warlord's count is a read <em>about which permanents exist</em>, which nothing in CR 614.12 perturbs. The overlay makes the first hypothetical by appending rows only when computing the entering id; it leaves the second alone because <code>CountOf</code> enumerates the real board. Neither is special-cased.</p></div>
+    <div class="note real"><p><strong>What it costs.</strong> B1's frame is one walk with one memoized sub-frame. B2's frame is one walk plus one memoized frame per permanent on the board, which is the quadratic <code>layers-architecture.md</code> §12 predicts and the measurement in <code>codebase-state.md</code> shows: frames per walk rose from 1.25 to 1.45 on the performance pool the moment the Warlord joined it. RC-4b moved it not at all: 1.36 → 1.36.</p></div>
+  </div>
+
+  <h2 id="c">C · A Forest that can't enter</h2>
+  <p class="prose">CR 614.17d says a "can't enter" is judged against the characteristics the permanent would have, and a refused entry must leave the card where it was. Since RC-4b the entry <em>is</em> the only proposal and nothing has moved when it is decided, so the same restriction is asked of the entry itself, with the same controller and mods, and the closing caveat the before-picture needed is gone. This is <code>test_lands_cant_enter_keeps_a_returned_forest_in_the_graveyard</code>; its sibling in <code>phase_rc4b_integration_test.rs</code> writes the same restriction against <code>EventPattern::EnterBattlefield</code> directly and gets the same answer.</p>
+
+  <div class="board">
+    <div class="card"><div class="who">Anyone controls</div><div class="name">"Lands can't enter the battlefield"</div><div class="text">Worms of the Earth's second sentence. A <code>Restriction::Event</code> over <code>ZoneChange { to: Battlefield }</code> with <code>Filter { land }</code> — the zone-change shape, which now watches an entry too.</div></div>
+    <div class="card moving"><div class="who">Returned from a graveyard</div><div class="name">Forest</div><div class="text"><code>change_zone(forest, Battlefield, Returned)</code>.</div></div>
+  </div>
+
+  <ol class="trace" aria-label="Trace C">
+    <li class="step" data-era="rc4b"><span class="n">1</span><div class="call" style="--d:0"><code>change_zone → propose_entry</code><span class="loc">engine/actions.rs:451, 843</span></div><span class="chip real">board</span><p class="what">Proposes <code>EnterBattlefield { forest, from: Graveyard, controller: owner, mods: NONE, cause: Returned }</code>. There is no zone change ahead of it to ask instead.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">2</span><div class="call" style="--d:1"><code>EntryFrame::new</code><span class="loc">engine/replacement/lookahead.rs:49</span></div><span class="chip none">lazy</span><p class="what">Basis <code>{ forest, owner, NONE }</code> off the proposal. Nothing is derived: the controller and mods the before-picture's <code>Pending</code> arm computed on demand are simply fields now.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">3</span><div class="call" style="--d:1"><code>is_prohibited</code>, with <code>lookahead: Some(&amp;frame)</code><span class="loc">engine/restriction/predicate.rs:59</span><span class="sub">The gate is open: <code>restriction_ability_sources</code> holds the enchantment. The sweep finds its <code>Restriction::Event</code>. <code>pattern_watches</code>: the new arm — a zone-change-shaped pattern watches an entry when its <code>to</code> admits the battlefield, with <code>from</code> and <code>cause</code> compared exactly as for a zone change. <code>to == Battlefield</code> ✓, <code>from: None</code> ✓, <code>cause: None</code> ✓. <code>set_affects</code> holds a <code>Filter</code>.</span></div><span class="chip real">board</span><p class="what">The filter asks <code>frame_of(forest)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">4</span><div class="call" style="--d:2"><code>frame_of</code><span class="loc">engine/replacement/lookahead.rs:79</span><span class="sub"><code>compute_as_entering(forest, owner, NONE)</code>.</span></div><span class="chip frame">frame</span><p class="what">The frame is a Forest under its owner. <code>ByType(Land)</code>: true. Prohibited.</p></li>
+    <li class="step"><span class="n">5</span><div class="call" style="--d:1"><code>gather</code>, blocked<span class="loc">engine/replacement/gather.rs:150</span></div><span class="chip none">—</span><p class="what">Returns no candidates at the door, so <code>apply_replacements</code> returns <code>None</code>: the event does not happen.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">6</span><div class="call" style="--d:0"><code>Phase 2 · propose_entry returns Ok(false)</code><span class="loc">engine/actions.rs:315, 843</span></div><span class="chip real">board</span><p class="what">Nothing to perform. The Forest is still in the graveyard, no event was emitted, and the epoch did not move. That is CR 614.6 with no caveat: a dropped entry leaves the card where it was, whichever door the "can't" came through.</p></li>
+  </ol>
+
+  <div class="note changed"><p><strong>The variant RC-4b added: CR 608.3e.</strong> Put "each permanent is a land in addition to its other types" beside Worms and cast a creature spell. It resolves, <code>resolve_top_of_stack</code> calls <code>change_zone(Stack → Battlefield, Resolved)</code>, the entry is refused on the frame — a land as it would exist on the battlefield — and the card is still on the stack afterward. The new leg at <code>engine/stack.rs:138</code> asks exactly that and moves it <code>Stack → Graveyard</code> with cause <code>Resolved</code>, the rule's own wording: "if a permanent spell resolves but its controller can't put it onto the battlefield, that player puts it into its owner's graveyard." <code>test_cr_608_3e_through_worms_of_the_earth_and_the_frame</code>.</p></div>
+
+  <h2 id="d">D · A cast, paid for and rewound</h2>
+  <p class="prose">The other half of §11 item 20, from the other side. A cast's CR 601.2a move used to go through <code>change_zone</code> and be announced at once, while a cast that failed at 601.2b, 601.2c or 601.2h rewound it with the silent mover — so the log held a <code>Hand → Stack</code> for a spell that was never cast. Now the move is silent in both directions and announced at 601.2i, the moment the spell becomes cast. These are <code>test_a_cast_is_announced_at_601_2i_after_its_mana_abilities</code> and <code>test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change</code>.</p>
+
+  <div class="board">
+    <div class="card"><div class="who">You control, untapped</div><div class="name">Forest</div><div class="text">{T}: Add {G}. The one mana ability the 601.2g window can offer.</div></div>
+    <div class="card moving"><div class="who">You cast, from hand</div><div class="name">Bear, {G}</div><div class="text">A 2/2 the Forest pays for. Branch one.</div></div>
+    <div class="card moving"><div class="who">You cast, from hand</div><div class="name">Bear, {1}{G}</div><div class="text">A 2/2 the Forest cannot pay for. Branch two: the cast rewinds at 601.2h.</div></div>
+  </div>
+
+  <ol class="trace" aria-label="Trace D, the shared prefix">
+    <li class="step"><span class="n">1</span><div class="call" style="--d:0"><code>cast_spell → check_cast_legality</code><span class="loc">engine/cast.rs:41, 556</span><span class="sub">CR 601.3, a tagged pre-layer read: main phase, empty stack, the card in hand.</span></div><span class="chip real">board</span><p class="what">Legality only.</p></li>
+    <li class="step" data-era="rc4b"><span class="n">2</span><div class="call" style="--d:1"><code>601.2a · move_object(card, Stack)</code><span class="loc">engine/cast.rs:102 · engine/zones.rs:56</span><span class="sub">Tagged <code>CAST-ROLLBACK</code>. The card leaves the hand's collection, joins the stack's, its zone reads <code>Stack</code>, the epoch bumps. Nothing is emitted.</span></div><span class="chip real">board</span><p class="what">The <em>state</em> is the CR's: the card is on the stack from here on. The <em>event</em> is not: nothing in the CR replaces a card being put onto the stack, and whether this cast completes is not knowable yet.</p></li>
+    <li class="step"><span class="n">3</span><div class="call" style="--d:1"><code>601.2b–e</code><span class="loc">engine/cast.rs:104–200</span><span class="sub">Alternative and additional costs, X, targets; the <code>StackEntry</code> is inserted.</span></div><span class="chip real">board</span><p class="what">Nothing to choose for a vanilla creature. Each of these is a rewind site if it fails.</p></li>
+    <li class="step"><span class="n">4</span><div class="call" style="--d:1"><code>601.2g · run_mana_ability_window → ask_activate_mana_ability</code><span class="loc">engine/cast.rs:450 · ui/ask.rs:486</span><span class="sub">The pool does not cover the cost, so the window asks: <code>ChoiceKind::ManaAbilityWindow</code>, one candidate, the Forest.</span></div><span class="chip decide">decide</span><p class="what">The player picks index 0.</p></li>
+    <li class="step"><span class="n">5</span><div class="call" style="--d:2"><code>activate_mana_ability → execute_action(Tap)</code><span class="loc">engine/mana.rs:24</span><span class="sub">Through the chokepoint: a <code>Tap</code> proposal, the pipeline (nothing watches it), the performer.</span></div><span class="chip real">board</span><p class="what">Emits <code>Tapped { Forest }</code>; {G} is in the pool. This is an event when it happens, and the card is already on the stack while it does — a mana ability that looked at the stack would find the spell there.</p></li>
+    <li class="step"><span class="n">6</span><div class="call" style="--d:1"><code>601.2h · can_pay_costs</code><span class="loc">engine/cast.rs:228</span></div><span class="chip real">board</span><p class="what">The branch point.</p></li>
+  </ol>
+
+  <div class="branch" data-switch>
+    <div class="switch" role="group" aria-label="Which bear was cast">
+      <button type="button" data-pick="0" aria-pressed="true">{G} — the Forest pays</button>
+      <button type="button" data-pick="1" aria-pressed="false">{1}{G} — the cast rewinds</button>
+    </div>
+
+    <ol class="trace" data-branch="0" aria-label="Trace D, the cast completes">
+      <li class="step"><span class="n">7</span><div class="call" style="--d:1"><code>pay_costs</code><span class="loc">engine/costs.rs:117</span></div><span class="chip real">board</span><p class="what">{G} leaves the pool. No rewind site exists after payment begins, so nothing paid is ever un-paid.</p></li>
+      <li class="step" data-era="rc4b"><span class="n">8</span><div class="call" style="--d:1"><code>601.2i · announce_zone_change(card, Hand → Stack, Cast, lki: None)</code><span class="loc">engine/cast.rs:262 · engine/actions.rs:815</span><span class="sub">The emitter half of the mover, called by the one function that performed this move silently. No LKI: nothing is cast from the battlefield.</span></div><span class="chip none">—</span><p class="what">Emits <code>ZoneChange { Hand → Stack, Cast }</code> — the moment CR 601.2i says the spell becomes cast, and the first moment the move is an event.</p></li>
+      <li class="step"><span class="n">9</span><div class="call" style="--d:1"><code>emit SpellCast</code><span class="loc">engine/cast.rs:263</span></div><span class="chip none">—</span><p class="what">Beside the zone change, so the log reads as the CR does: put onto the stack, then cast.</p></li>
+    </ol>
+
+    <ol class="trace" data-branch="1" hidden aria-label="Trace D, the cast rewinds">
+      <li class="step" data-era="rc4b"><span class="n">7</span><div class="call" style="--d:1"><code>rollback_cast_to_hand → move_object(card, Hand)</code><span class="loc">engine/cast.rs:529 · engine/zones.rs:56</span><span class="sub">Tagged <code>CAST-ROLLBACK</code>, the other direction. The <code>StackEntry</code> is cleared with the stack removal; the epoch bumps again. Nothing is emitted.</span></div><span class="chip real">board</span><p class="what">CR 732.1: the action is reversed and the spell returns to the zone it came from. <code>cast_spell</code> returns <code>Err</code>.</p></li>
+      <li class="step"><span class="n">8</span><div class="call" style="--d:0"><code>afterwards</code></div><span class="chip real">board</span><p class="what">The Forest stays tapped and {G} stays in the pool — 732.1's default, "each player <em>may</em> also reverse any legal mana abilities", and the engine takes the may-not branch unasked. The reversal it permits is a <code>DecisionProvider</code> question the rewind site does not ask yet (<code>backlog.md</code> §2.18). The random agent hit this branch 303 times in 40 <code>performance</code> games.</p></li>
+    </ol>
+  </div>
+
+  <div class="two">
+    <div class="log">events, the {G} branch:
+  Tapped       { Forest }
+  ZoneChange   { Bear, Hand → Stack, cause: Cast, lki: None }
+  SpellCast    { Bear, P0 }</div>
+    <div class="log">events, the {1}{G} branch:
+  Tapped       { Forest }
+  (nothing else — the move is not in the log in either direction)</div>
+  </div>
+
+  <div class="note changed"><p><strong>Two orders, on purpose.</strong> The state order is the CR's — stack from 601.2a, taps at 601.2g, cast at 601.2i — and the engine follows it. The log order is tap, move, cast, because the move is an event only once the cast is real. No ruling can tell them apart: a tap trigger and a cast trigger are both placed the next time a player would receive priority (CR 603.3), after the cast completes, in their controller's order (603.3b). What a reader cannot do is replay the state order from the log; the log is the trigger record, and the state is the state. Every completed cast in a fuzz game reorders this way — 703 in 40 <code>performance</code> games — which the phase plan's expected-divergence list did not anticipate.</p></div>
+
+  <h2 id="reads">Where the reads differ</h2>
+  <p class="prose">The whole overlay is four reads that answer differently for one object, plus the one leg RC-4b moved onto it. Everything else in the layer walk is unchanged, and every read about any other object comes from the real board.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Read</th><th>Real permanent</th><th>Entering object</th><th>Who asks</th></tr></thead>
+    <tbody>
+      <tr><td>Seed: controller and CR 302.6 clock</td><td><code>BattlefieldEntity</code></td><td><span class="chip frame">frame</span> the proposal's controller, clock started this turn</td><td><code>compute_to_ceiling</code> via <code>FrameCache::entity</code>; <code>base_controller</code>'s first arm</td></tr>
+      <tr><td>Counters, layers 6 and 7c</td><td><code>BattlefieldEntity.counters</code></td><td><span class="chip frame">frame</span> the pending <code>EnterMods</code>, clause (1)</td><td><code>apply_effects</code> via <code>FrameCache::entity</code></td></tr>
+      <tr><td>Rows in a layer</td><td>the registry's slice</td><td><span class="chip frame">frame</span> the registry's slice, then its own would-be rows, clause (2)</td><td><code>rows_in_layer</code></td></tr>
+      <tr><td>Membership for a filter</td><td>in the battlefield zone</td><td><span class="chip frame">frame</span> admitted while still in its source zone, clause (3)</td><td><code>effect_applies_to</code> via <code>in_battlefield_zone_or_entering</code></td></tr>
+      <tr><td>Its own replacement abilities, for gather's source 1a <span class="chip changed">RC-4b</span></td><td><code>get_effective_abilities</code>, a plain walk</td><td><span class="chip frame">frame</span> <code>frame_of(object).abilities</code>, shared with every filter in the iteration</td><td><code>gather</code>, source 1a</td></tr>
+      <tr><td>Which permanents exist</td><td><code>battlefield_ids_ordered</code></td><td><span class="chip real">board</span> not included</td><td><code>CountOf</code>, every sweep</td></tr>
+      <tr><td>Any other object's frame</td><td>real board</td><td><span class="chip real">board</span> real board, no own rows appended</td><td>every sub-walk</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="delta">What RC-4b changed, trace by trace</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Trace</th><th>Before, at 8ac4ad7</th><th>After, at 6541d0b</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A</strong> · a substituted entry</td><td>Two proposals: a <code>ZoneChange</code> decided and performed, then the entry proposed from inside its performer. Source 1a a plain walk. The substitute <code>from: Battlefield</code>, with an LKI walk and a second epoch. A "replaced away" error guarding the return.</td><td>One proposal carrying <code>from: Hand</code>. Source 1a reads the frame, which the filters then share. The substitute <code>from: Hand</code>, no LKI, one epoch. <code>propose_entry</code> returns whether anything was performed.</td></tr>
+      <tr><td><strong>B</strong> · the frame's reads</td><td colspan="2">Unchanged. The look-ahead arm of the membership gate already admitted an object that had not moved.</td></tr>
+      <tr><td><strong>C</strong> · a refused entry</td><td>The "can't" watched the zone change ahead of the entry, because a refused entry would have stranded the card in the zone; the frame's <code>Pending</code> basis derived what the entry would carry.</td><td>The same restriction, asked of the entry proposal with the proposal's own controller and mods; the <code>EnterBattlefield</code> door is open to a "can't" too. A refused resolved spell takes CR 608.3e's leg to the graveyard.</td></tr>
+      <tr><td><strong>D</strong> · a cast</td><td><code>Hand → Stack [Cast]</code> announced at 601.2a; a rewind left it in the log with no counterpart; the taps followed it.</td><td>Silent at 601.2a in both directions; announced at 601.2i beside <code>SpellCast</code>, after the taps; a rewind leaves nothing.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Measured, 200 games / seed 12345 / <code>--threads 1</code>, medians of 3</th><th class="num">performance</th><th class="num">stress</th></tr></thead>
+    <tbody>
+      <tr><td>Replacement gathers per game</td><td class="num">633 → 567 (−10.4%)</td><td class="num">602 → 538 (−10.6%)</td></tr>
+      <tr><td>Layer walks per game</td><td class="num">100,641 → 100,496 (−0.14%)</td><td class="num">92,331 → 92,139 (−0.21%)</td></tr>
+      <tr><td>Frames per walk</td><td class="num">1.36 → 1.36</td><td class="num">1.31 → 1.31</td></tr>
+      <tr><td>Average turns per game</td><td class="num">30.7 → 30.7</td><td class="num">29.4 → 29.4</td></tr>
+      <tr><td>Event-stream divergences from <code>main</code>, 40 games</td><td class="num">703 cast reorders · 303 rewinds · 0 Priest</td><td class="num">693 cast reorders · 289 rewinds · 2 Priest</td></tr>
+    </tbody>
+  </table></div>
+  <p class="prose">The gathers row is the phase's own claim measured: an entry was two pipeline passes and is one. Identical turn counts are the prompt count not moving. The divergences are exactly the three designed ones, and nothing else.</p>
+
+  <h2 id="plan">Tracing the rest of the engine</h2>
+  <p class="prose">This page was built by reading the code and the phase's tests and writing the walk down by hand — twice now. That is the right cost for a phase's close, and the wrong cost for a question asked mid-debugging. The plan has three tiers, each with a point on the critical path where it pays for itself; the first has started and the third is now unblocked.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Tier</th><th>What it is</th><th>How</th><th>When</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>1 · Trace pages</strong> <span class="chip changed">started</span></td>
+        <td>One page like this per phase: two or three real entries from the phase's integration tests, walked call by call, with every read labelled. The examples are the ones the phase's §9 findings name, so the page explains the finding, not the feature list.</td>
+        <td>Hand-authored at phase close, checked in as a self-contained HTML file under <code>plans/traces/</code> and linked from the phase's §9 entry, so the plans directory stays the authority. This page is the first: <code>plans/traces/rc-4b-entering-is-one-event.html</code>. The trace list format is the template.</td>
+        <td class="plan-when">RC-4 ✓ · RC-4b ✓ · RC-5 · RS-2 · CV-1 · item 6 · item 7</td>
+        <td>2–3 hours per phase</td>
+      </tr>
+      <tr>
+        <td><strong>2 · Engine-emitted traces</strong></td>
+        <td>A <code>TraceSink</code> on <code>GameState</code>, off by default, recording what this page recorded by hand: each proposal entering a batch, each pipeline iteration (candidates gathered with their verdicts, whether the frame was computed, the bucket, the chooser, the choice or the suppression, the rewrite), each top-level layer walk with its frame count, and the performed events the log already holds. JSON lines. A generator script turns a trace into a page in this format, so tier 1 becomes generated rather than written.</td>
+        <td>Emit points in <code>execute_batch_inner</code>, <code>apply_replacements</code>, <code>compute_characteristics</code> and <code>compute_as_entering</code>, gated the way <code>EngineCounters</code> is. Reachable three ways: <code>cli_play --trace</code>, <code>fuzz_games --trace-game N</code>, and a test-support helper so any <code>// COVERS:</code> test can write its trace, which is how a phase's page is regenerated after a refactor.</td>
+        <td class="plan-when">before item 6 (triggers) — the entry-hop half of its seam is used; item 46's batch half is RC-5 part 2</td>
+        <td>~300–400 lines Rust, ~300 viewer, ~100 script; one small phase</td>
+      </tr>
+      <tr>
+        <td><strong>3 · The codebase map</strong> <span class="chip changed">unblocked</span></td>
+        <td>One structural page: the twelve modules and what each owns, the chokepoint's arms, the three gate legs a new source must extend, the two <code>permanent_matches_filter</code>s, the accessor pair, and the decision sites item 40 tracks. Everything CLAUDE.md states as an invariant, drawn once.</td>
+        <td>Hand-authored from <code>check_module_layout.py</code>'s output and the CLAUDE.md invariants, with a ten-line check that its list of <code>perform_action</code> arms matches the enum so it cannot rot silently. Refreshed on any merge that adds a module or an arm.</td>
+        <td class="plan-when">now — the entry-hop fix landed 2026-09-02 and the chokepoint has the shape it will keep</td>
+        <td>a day, then minutes per refresh</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <h3>Why those points on the critical path</h3>
+  <ol class="plain prose">
+    <li><strong>Tier 2 before item 6, not after.</strong> Trigger detection reads the performed-action stream, and the first question anyone will ask of the dispatcher is "why did this trigger, or not", which is a trace question about proposals, events and the frames they were judged against. Building the sink first means the trigger phase ships with its own explanation. Its seam with the entry-hop fix has now been used — <code>execute_batch_inner</code> and the entry performer are where RC-4b's emit points would go — and the remaining half of that seam, item 46's multi-entry batch, is RC-5 part 2, which is where the sink most naturally rides.</li>
+    <li><strong>Tier 3 after the entry-hop fix — which is to say, now.</strong> The fix changed the chokepoint's shape as predicted: the entry's move is in the entry performer, one emitter has three callers, and CLAUDE.md's bullets were restated. A map drawn against 6541d0b will stay true through RC-5, whose batch restructuring adds no arm.</li>
+    <li><strong>Tier 1 keeps going regardless.</strong> RC-5's page should show the batch-scoped frame deciding two entries against one board, which is the thing item 46 says is unreachable today. Item 7's page should show the dependency ordering choosing a non-timestamp order, which is the change that phase exists for. A page per phase whose examples are its findings is a better handoff than a findings list.</li>
+  </ol>
+
+  <h3>What not to do</h3>
+  <p class="prose">Do not generate a page from every test: the point of a trace page is the two examples that carry the phase's idea, and eight hundred traces are a log, not an explanation. Do not draw diagrams of code that is about to change; the map waited for the hop fix for that reason. And keep every page pinned to a commit and the frozen CR version, as this one is, so a stale page says so on its first line.</p>
+</div>
+
+<script>
+  (function () {
+    var dim = document.getElementById('dim');
+    try {
+      if (localStorage.getItem('rc4b-dim') === '1') { dim.checked = true; document.body.classList.add('dim-old'); }
+    } catch (e) {}
+    dim.addEventListener('change', function () {
+      document.body.classList.toggle('dim-old', dim.checked);
+      try { localStorage.setItem('rc4b-dim', dim.checked ? '1' : '0'); } catch (e) {}
+    });
+    var groups = document.querySelectorAll('[data-switch]');
+    Array.prototype.forEach.call(groups, function (group) {
+      var buttons = group.querySelectorAll('button[data-pick]');
+      var traces = group.querySelectorAll('[data-branch]');
+      function pick(which) {
+        Array.prototype.forEach.call(traces, function (t) { t.hidden = t.getAttribute('data-branch') !== which; });
+        Array.prototype.forEach.call(buttons, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-pick') === which ? 'true' : 'false'); });
+      }
+      Array.prototype.forEach.call(buttons, function (b) {
+        b.addEventListener('click', function () { pick(b.getAttribute('data-pick')); });
+      });
+    });
+  })();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) { mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'strict' }); }
+</script>
+</body>
+</html>

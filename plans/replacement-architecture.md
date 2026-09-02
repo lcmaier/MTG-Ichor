@@ -3164,7 +3164,10 @@ free (−2.2% / +1.1%) and was not re-run.
 
 **Exit met.** 865 tests (12 new), zero warnings, both `check_*.py`, `specdb
 owed` unchanged for RC. Trace A's after-picture is the first two tests in
-`phase_rc4b_integration_test`; no `plans/traces/` page was started.
+`phase_rc4b_integration_test`, and the phase's trace page — the first under
+`plans/traces/` — is `plans/traces/rc-4b-entering-is-one-event.html`: Traces A
+and C from RC-4's review as they run now, B unchanged, and a fourth for the
+cast, with every read labelled board or frame.
 
 #### RC-5 — auxiliary zone changes and the batch-scoped frame
 
