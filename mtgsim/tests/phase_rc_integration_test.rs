@@ -67,7 +67,7 @@ fn enters_with(name: &str, power: i32, toughness: i32, mods: EnterMods) -> Arc<C
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(mods),
             ))),
@@ -287,7 +287,7 @@ fn test_two_entry_replacements_accumulate() {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::tapped()),
             ))),
@@ -298,7 +298,7 @@ fn test_two_entry_replacements_accumulate() {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::Charge, 2)),
             ))),
@@ -370,7 +370,7 @@ fn orb_shaped() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter { filter: PermanentFilter::All },
                 Rewrite::EnterWith(EnterMods::tapped()),
             ))),
@@ -609,6 +609,7 @@ fn test_direct_enter_battlefield_action_still_performs() {
             object: id,
             controller: 0,
             mods: EnterMods::NONE,
+            cause: None,
         },
         &ActionContext::new(&test_dp()),
     )
@@ -816,7 +817,7 @@ fn kismet_shaped() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter {
                     filter: PermanentFilter::ByController(
                         mtgsim::types::effects::PlayerRef::Opponent,

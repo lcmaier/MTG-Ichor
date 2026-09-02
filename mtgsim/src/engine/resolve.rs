@@ -618,7 +618,7 @@ impl GameState {
                     // (CR 111.2), so `default_enter_controller` would answer the
                     // same thing. Passed explicitly because a token never passed
                     // through the stack and so is never `GameState::resolving`.
-                    self.propose_entry(id, controller, &ActionContext::resolving(dp, ctx))?;
+                    self.propose_entry(id, controller, None, &ActionContext::resolving(dp, ctx))?;
                 }
                 Ok(())
             }
@@ -1144,6 +1144,7 @@ impl GameState {
             &crate::engine::restriction::Query::Event {
                 action: &action,
                 cause: Some(cause),
+                lookahead: None,
             },
         )
     }

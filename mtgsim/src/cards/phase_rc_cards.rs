@@ -136,7 +136,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::tapped()),
             ))),
@@ -200,7 +200,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::MinusOneMinusOne, 2)),
             ))),
@@ -268,7 +268,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
                 Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 3)),
             ))),
@@ -351,7 +351,7 @@ pub fn root_maze() -> Arc<CardData> {
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
-                EventPattern::EnterBattlefield,
+                EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter {
                     filter: PermanentFilter::Or(
                         Box::new(PermanentFilter::ByType(CardType::Artifact)),

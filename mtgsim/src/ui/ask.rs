@@ -677,6 +677,35 @@ pub fn ask_apply_optional_replacement(
     !picked.is_empty()
 }
 
+/// Choose which of several opponents a permanent enters under (CR 616.1b's
+/// `Rewrite::EnterUnderControlOf(PlayerRef::Opponent)` — Xantcha's "an opponent
+/// of your choice").
+///
+/// **Two or more candidates, like [`ask_choose_replacement`]**: with one
+/// opponent CR 102.2 leaves nothing to choose and the caller does not ask.
+/// CR 614.12a puts the choice before the permanent enters, which holds here
+/// because the CR 616.1 loop that asks runs ahead of the performer.
+pub fn ask_choose_entering_controller(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    object: ObjectId,
+    candidates: &[PlayerId],
+) -> PlayerId {
+    assert!(
+        candidates.len() >= 2,
+        "ask_choose_entering_controller: a choice needs two or more opponents; called with {}",
+        candidates.len(),
+    );
+    let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ChooseEnteringController { object },
+    };
+    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
+    validate_pick_n(&index, options.len(), (1, 1), "choose_entering_controller");
+    candidates[index[0]]
+}
+
 /// Choose which legendary permanent to keep (rule 704.5j legend rule).
 pub fn ask_choose_legend_to_keep(
     dp: &dyn DecisionProvider,

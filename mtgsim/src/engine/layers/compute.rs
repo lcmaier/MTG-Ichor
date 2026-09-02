@@ -7,9 +7,12 @@
 //! Reads base characteristics from CardData, then applies all continuous
 //! effects in layer order (1→2→3→4→5→6→7b→7c→7d).
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
+use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
+use crate::state::battlefield::CounterStack;
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -33,7 +36,7 @@ use crate::types::zones::Zone;
 /// Not reachable today: nothing produces a layer 1 effect. Splitting it later
 /// just lengthens this array — the ceiling is an index into it, computed at
 /// runtime, so nothing else moves.
-const LAYER_ORDER: [Layer; 10] = [
+pub(super) const LAYER_ORDER: [Layer; 10] = [
     Layer::Layer1Copy,
     Layer::Layer2Control,
     Layer::Layer3Text,
@@ -62,7 +65,135 @@ const LAYER_ORDER: [Layer; 10] = [
 ///
 /// Discarded when the top-level call returns, so it never has to be
 /// invalidated.
-pub(super) type FrameCache = HashMap<(ObjectId, usize), EffectiveCharacteristics>;
+///
+/// **It also carries the one perturbation a caller may ask for** — CR 614.12's
+/// look-ahead for an entering object (`lookahead::Lookahead`). The walk's two
+/// reads of concrete state go through the accessor pair below rather than
+/// through `game.battlefield` and the registry directly, so a caller can say
+/// "compute this object as it *would* exist on the battlefield" without
+/// cloning the game (`replacement-architecture.md` §11 item 5). Threading it
+/// through the cache rather than as a parameter of its own keeps every
+/// signature in this file stable, and it is exact rather than convenient: a
+/// frame memoized under one hypothetical must never be served to a walk under
+/// another, so the memo and the hypothetical sharing a lifetime is the
+/// invariant, not a shortcut.
+pub(super) struct FrameCache<'l> {
+    frames: HashMap<(ObjectId, usize), EffectiveCharacteristics>,
+    lookahead: Option<&'l Lookahead>,
+}
+
+/// The battlefield-entity facts the walk seeds from and reads counters off —
+/// accessor 1 of the pair. Real for a permanent, the look-ahead's for the one
+/// entering object.
+struct EntityFacts<'a> {
+    controller: PlayerId,
+    controller_since_turn: u32,
+    counters: &'a HashMap<CounterType, CounterStack>,
+}
+
+impl<'l> FrameCache<'l> {
+    pub(super) fn new(lookahead: Option<&'l Lookahead>) -> Self {
+        FrameCache { frames: HashMap::new(), lookahead }
+    }
+
+    fn get(&self, key: &(ObjectId, usize)) -> Option<&EffectiveCharacteristics> {
+        self.frames.get(key)
+    }
+
+    fn insert(&mut self, key: (ObjectId, usize), frame: EffectiveCharacteristics) {
+        self.frames.insert(key, frame);
+    }
+
+    /// The look-ahead, if `id` is the object it is about.
+    fn entering(&self, id: ObjectId) -> Option<&'l Lookahead> {
+        self.lookahead.filter(|l| l.object == id)
+    }
+
+    /// **Accessor 1**: `id`'s battlefield-entity facts. `None` for anything
+    /// that is neither a permanent nor the entering object.
+    ///
+    /// The look-ahead wins over a real entity, because a hypothetical about an
+    /// object is about that object. Borrows `game` or the look-ahead and never
+    /// `self`, so a caller can hold the facts across mutable uses of the cache.
+    fn entity<'a>(&self, game: &'a GameState, id: ObjectId) -> Option<EntityFacts<'a>>
+    where
+        'l: 'a,
+    {
+        if let Some(l) = self.entering(id) {
+            return Some(EntityFacts {
+                controller: l.controller,
+                controller_since_turn: l.controller_since_turn,
+                counters: &l.counters,
+            });
+        }
+        game.battlefield.get(&id).map(|entry| EntityFacts {
+            controller: entry.controller,
+            controller_since_turn: entry.controller_since_turn,
+            counters: &entry.counters,
+        })
+    }
+
+    /// Is `id` in the battlefield zone, or would it be?
+    ///
+    /// The gate `effect_applies_to` asks before matching a filter. RC-3 made
+    /// it the *zone* rather than `game.battlefield` membership, which admits
+    /// an entering object that has already moved; the look-ahead admits one
+    /// that has not yet — a CR 614.17d "can't enter" asked at the zone change
+    /// — and nothing else.
+    fn in_battlefield_zone(&self, game: &GameState, id: ObjectId) -> bool {
+        self.entering(id).is_some()
+            || matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield)
+    }
+}
+
+/// **Accessor 2**: the rows that apply in `layer` when computing `id` — the
+/// registry's slice in CR 613.7 order, then the entering object's own would-be
+/// rows when `id` is it (CR 614.12 clause 2).
+///
+/// Those rows sort last by construction: they carry the timestamp the object
+/// would get, later than every registered row's, which is where CR 613.7a
+/// would put them once it had entered. A free function over the look-ahead
+/// reference rather than a method on the cache, so the iterator borrows
+/// neither the cache nor the frame being built — the loop body needs both
+/// mutably.
+///
+/// Nothing is appended for any other object. That is §5b's asymmetry
+/// (`replacement-architecture.md`): the entering permanent's anthem is in its
+/// own frame and reaches no other object's, because it is not on the
+/// battlefield yet and CR 604.3 makes its static abilities function there.
+fn rows_in_layer<'a>(
+    game: &'a GameState,
+    lookahead: Option<&'a Lookahead>,
+    layer: Layer,
+    id: ObjectId,
+) -> impl Iterator<Item = &'a ContinuousEffect> + 'a {
+    let own: &'a [ContinuousEffect] = lookahead
+        .filter(|l| l.object == id)
+        .map(|l| l.rows.as_slice())
+        .unwrap_or(&[]);
+    game.continuous_effects
+        .effects_in_layer(layer)
+        .iter()
+        .chain(own.iter().filter(move |row| row.layer == layer))
+}
+
+/// `base_controller`, with the look-ahead's answer for the entering object.
+///
+/// The seed and `effective_controller`'s gated arm both read this, as they
+/// both used to read `base_controller`, so they still agree by construction —
+/// and a filter's "you" on the entering permanent's own row is the proposed
+/// controller rather than the owner (`Lookahead`'s module docs).
+fn seed_controller(game: &GameState, id: ObjectId, cache: &FrameCache<'_>) -> Option<PlayerId> {
+    if let Some(l) = cache.entering(id) {
+        return Some(l.controller);
+    }
+    base_controller(game, id)
+}
+
+/// The CR 122.1a count of one counter kind, off either accessor-1 source.
+fn count_of(counters: &HashMap<CounterType, CounterStack>, kind: CounterType) -> i32 {
+    counters.get(&kind).map(|stack| stack.count as i32).unwrap_or(0)
+}
 
 /// Compute the effective characteristics of a game object after applying
 /// all active continuous effects in layer order.
@@ -70,7 +201,7 @@ pub(super) type FrameCache = HashMap<(ObjectId, usize), EffectiveCharacteristics
 /// Returns `None` if the object doesn't exist.
 pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
     game.counters.record_layer_walk();
-    let mut cache = FrameCache::new();
+    let mut cache = FrameCache::new(None);
     compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)
 }
 
@@ -79,7 +210,7 @@ pub(super) fn compute_to_ceiling(
     game: &GameState,
     id: ObjectId,
     ceiling: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) -> Option<EffectiveCharacteristics> {
     // Only sub-computations are worth memoizing. The top-level frame is
     // requested exactly once per call, so caching it would be a pure clone.
@@ -98,8 +229,16 @@ pub(super) fn compute_to_ceiling(
     let obj = game.objects.get(&id)?;
     let card = &obj.card_data;
 
-    // Start from printed (base) characteristics
-    let chars_controller = base_controller(game, id).unwrap_or(obj.owner);
+    // Start from printed (base) characteristics.
+    //
+    // The controller seed and CR 302.6's clock come from the entity facts —
+    // accessor 1 — for a permanent or the entering object, and from CR 108.4's
+    // other arms (`base_controller`) with the pregame sentinel for anything
+    // else. Layer 2 overwrites both when it actually moves control.
+    let (chars_controller, control_since_turn) = match cache.entity(game, id) {
+        Some(facts) => (facts.controller, facts.controller_since_turn),
+        None => (base_controller(game, id).unwrap_or(obj.owner), 0),
+    };
     let mut chars = EffectiveCharacteristics {
         name: card.name.clone(),
         mana_cost: card.mana_cost.clone(),
@@ -112,15 +251,7 @@ pub(super) fn compute_to_ceiling(
         power: card.power,
         toughness: card.toughness,
         controller: chars_controller,
-        // CR 302.6's "continuously since their most recent turn began". Seeded
-        // from the battlefield entry because that is what a control change
-        // *outside* Layer 2 writes (entering the battlefield, today the only
-        // one); Layer 2 overwrites it when it actually changes the controller.
-        control_since_turn: game
-            .battlefield
-            .get(&id)
-            .map(|entry| entry.controller_since_turn)
-            .unwrap_or(0),
+        control_since_turn,
     };
 
     // Walk layers in order, applying all effects (registered + counters)
@@ -155,7 +286,7 @@ fn static_ability_still_exists(
     game: &GameState,
     effect: &ContinuousEffect,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) -> bool {
     let ability_id = match effect.origin {
         EffectOrigin::Resolution => return true,
@@ -178,14 +309,19 @@ fn apply_effects(
     id: ObjectId,
     chars: &mut EffectiveCharacteristics,
     ceiling: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) {
-    let has_registered = !game.continuous_effects.is_empty();
+    let lookahead = cache.lookahead;
+    let entering = cache.entering(id);
+    let has_registered = !game.continuous_effects.is_empty()
+        || entering.is_some_and(|l| !l.rows.is_empty());
     // Looked up once and reused by layers 6 and 7c. Both need it every call,
     // and a second `HashMap` probe per `compute_characteristics` is not free —
     // this function is the inner loop of mana enumeration and targeting.
-    let bf_entry = game.battlefield.get(&id);
-    let on_battlefield = bf_entry.is_some();
+    // Through accessor 1, so the entering object reads its pending `EnterMods`
+    // (CR 614.12 clause 1) where a permanent reads its entity.
+    let facts = cache.entity(game, id);
+    let on_battlefield = facts.is_some();
 
     // CR 613.6 — "if an effect starts to apply in one layer, it will continue
     // to be applied to the same set of objects in each other applicable layer".
@@ -207,7 +343,8 @@ fn apply_effects(
     // applies and never read, so maintaining it is pure cost — two SipHashes
     // over a pair of UUIDs, per effect, per layer. That was 70% of the layer
     // walk on a static-heavy board before this check existed.
-    let track_started = game.continuous_effects.summary().any_multi_row_group;
+    let track_started = game.continuous_effects.summary().any_multi_row_group
+        || entering.is_some_and(|l| l.any_multi_row_group);
 
     // Fast path: nothing to apply.
     //
@@ -227,7 +364,17 @@ fn apply_effects(
     // Built once per call rather than per layer, and empty for every permanent
     // carrying no keyword counter — which is nearly all of them. Held descending
     // so `pop()` yields the earliest.
-    let mut pending_counters = collect_keyword_counters(bf_entry);
+    let mut pending_counters = collect_keyword_counters(facts.as_ref().map(|f| f.counters));
+    // Layer 7c's CR 122.1a counts, read once here for the same reason.
+    let (plus_counters, minus_counters) = facts
+        .as_ref()
+        .map(|f| {
+            (
+                count_of(f.counters, CounterType::PlusOnePlusOne),
+                count_of(f.counters, CounterType::MinusOneMinusOne),
+            )
+        })
+        .unwrap_or((0, 0));
 
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate() {
         if layer_index >= ceiling {
@@ -244,10 +391,10 @@ fn apply_effects(
             );
         }
 
-        // Apply registered effects in this layer
+        // Apply registered effects in this layer — accessor 2, so the entering
+        // object's own would-be rows follow the registry's (CR 614.12 clause 2).
         if has_registered {
-            let effects = game.continuous_effects.effects_in_layer(layer);
-            for effect in effects {
+            for effect in rows_in_layer(game, lookahead, layer, id) {
                 // Every keyword counter older than this row goes first (CR
                 // 613.7). Done before the filter and existence checks below,
                 // because those `continue` and would skip the drain.
@@ -296,21 +443,17 @@ fn apply_effects(
         // leaf and a timestamp merge like the one above (codebase-state.md,
         // "Before card breadth").
         if layer == Layer::Layer7cModifyPT {
-            if let Some(entry) = bf_entry {
-                let plus = entry.counter_count(CounterType::PlusOnePlusOne) as i32;
-                if plus != 0 {
-                    if let Some(ref mut p) = chars.power { *p += plus; }
-                    if let Some(ref mut t) = chars.toughness { *t += plus; }
-                }
-                let minus = entry.counter_count(CounterType::MinusOneMinusOne) as i32;
-                if minus != 0 {
-                    if let Some(ref mut p) = chars.power { *p -= minus; }
-                    if let Some(ref mut t) = chars.toughness { *t -= minus; }
-                }
-                // TODO: handle other P/T-modifying counter types (+2/+2, +0/+1, etc.)
-                // when they are added to CounterType. Scheduled with named counters
-                // — codebase-state.md, "Before card breadth" item 3.
+            if plus_counters != 0 {
+                if let Some(ref mut p) = chars.power { *p += plus_counters; }
+                if let Some(ref mut t) = chars.toughness { *t += plus_counters; }
             }
+            if minus_counters != 0 {
+                if let Some(ref mut p) = chars.power { *p -= minus_counters; }
+                if let Some(ref mut t) = chars.toughness { *t -= minus_counters; }
+            }
+            // TODO: handle other P/T-modifying counter types (+2/+2, +0/+1, etc.)
+            // when they are added to CounterType. Scheduled with named counters
+            // — codebase-state.md, "Before card breadth" item 3.
         }
     }
 }
@@ -322,19 +465,18 @@ fn apply_effects(
 /// counter — which is the overwhelming majority, and an empty `Vec` does not
 /// allocate.
 fn collect_keyword_counters(
-    entry: Option<&crate::state::battlefield::BattlefieldEntity>,
+    counters: Option<&HashMap<CounterType, CounterStack>>,
 ) -> Vec<(Timestamp, crate::types::keywords::KeywordFlag)> {
-    let Some(entry) = entry else {
+    let Some(counters) = counters else {
         return Vec::new();
     };
     // The overwhelmingly common case, and worth its own exit: no counters at
     // all means no iteration and no `Vec`.
-    if entry.counters.is_empty() {
+    if counters.is_empty() {
         return Vec::new();
     }
 
-    let mut out: Vec<(Timestamp, crate::types::keywords::KeywordFlag)> = entry
-        .counters
+    let mut out: Vec<(Timestamp, crate::types::keywords::KeywordFlag)> = counters
         .iter()
         .filter(|(_, stack)| stack.count > 0)
         .filter_map(|(counter_type, stack)| {
@@ -391,10 +533,12 @@ fn effective_controller(
     game: &GameState,
     id: ObjectId,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) -> Option<PlayerId> {
-    if !game.continuous_effects.summary().any_control_changing {
-        return base_controller(game, id);
+    let control_changing = game.continuous_effects.summary().any_control_changing
+        || cache.lookahead.is_some_and(|l| l.any_control_changing);
+    if !control_changing {
+        return seed_controller(game, id, cache);
     }
     compute_to_ceiling(game, id, layer_index, cache).map(|frame| frame.controller)
 }
@@ -502,30 +646,43 @@ pub(crate) fn base_controller(game: &GameState, id: ObjectId) -> Option<PlayerId
 /// waits on (`resolve::register_granted_static_effects`), and scheduled with
 /// 613.8 for that reason. Nothing here needs redoing when it arrives; only the
 /// ceiling this asks at.
-struct FilterPlayers<'a, 'c> {
-    effect: &'a ContinuousEffect,
+///
+/// # Two ways to build one
+///
+/// A registry row supplies `effect`, and the two players are derived from it
+/// lazily as above. A CDA has no row (CR 604.3a(3)) and its "you" is the
+/// object's own controller as of this layer — `chars.controller`, CR 109.5 —
+/// so `AmountExpr::CountOf` inside one builds a `FilterPlayers` with both
+/// players already resolved and no row. The `Option` is that second
+/// constructor; a row-less `FilterPlayers` with an unresolved player is a
+/// construction error, and `expect`s.
+struct FilterPlayers<'a, 'c, 'l> {
+    effect: Option<&'a ContinuousEffect>,
     game: &'a GameState,
     layer_index: usize,
-    cache: &'c mut FrameCache,
+    cache: &'c mut FrameCache<'l>,
     you: Option<PlayerId>,
     owner: Option<PlayerId>,
 }
 
-impl FilterPlayers<'_, '_> {
+impl FilterPlayers<'_, '_, '_> {
     /// CR 109.5's "you".
     fn you(&mut self) -> PlayerId {
         if let Some(you) = self.you {
             return you;
         }
-        let you = match self.effect.origin {
-            EffectOrigin::Resolution => self.effect.controller,
+        let effect = self
+            .effect
+            .expect("a FilterPlayers built without a row is built with both players resolved");
+        let you = match effect.origin {
+            EffectOrigin::Resolution => effect.controller,
             EffectOrigin::StaticAbility { .. } => effective_controller(
                 self.game,
-                self.effect.source,
+                effect.source,
                 self.layer_index,
                 self.cache,
             )
-            .unwrap_or(self.effect.controller),
+            .unwrap_or(effect.controller),
         };
         self.you = Some(you);
         you
@@ -536,12 +693,15 @@ impl FilterPlayers<'_, '_> {
         if let Some(owner) = self.owner {
             return owner;
         }
+        let effect = self
+            .effect
+            .expect("a FilterPlayers built without a row is built with both players resolved");
         let owner = self
             .game
             .objects
-            .get(&self.effect.source)
+            .get(&effect.source)
             .map(|obj| obj.owner)
-            .unwrap_or(self.effect.controller);
+            .unwrap_or(effect.controller);
         self.owner = Some(owner);
         owner
     }
@@ -590,12 +750,12 @@ fn resolve_set_controller(
     effect: &ContinuousEffect,
     game: &GameState,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) -> Option<PlayerId> {
     use crate::types::effects::PlayerRef;
 
     let mut players = FilterPlayers {
-        effect,
+        effect: Some(effect),
         game,
         layer_index,
         cache,
@@ -639,7 +799,7 @@ fn effect_applies_to(
     chars: &EffectiveCharacteristics,
     game: &GameState,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
 ) -> bool {
     match &effect.affected {
         AffectedSet::SourceOnly => effect.source == id,
@@ -656,12 +816,13 @@ fn effect_applies_to(
             // no entry. Asking the stricter question here is what kept Blood
             // Moon, Humility and Dress Down away from an entry — the effects
             // that "already exist and would apply to the object" are exactly
-            // the ones a filter has to be allowed to match.
-            if !matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield) {
+            // the ones a filter has to be allowed to match. The look-ahead
+            // widens it by one object that has not moved yet, and no more.
+            if !cache.in_battlefield_zone(game, id) {
                 return false;
             }
             let mut players = FilterPlayers {
-                effect,
+                effect: Some(effect),
                 game,
                 layer_index,
                 cache,
@@ -689,7 +850,7 @@ fn permanent_matches_filter(
     filter: &crate::types::effects::PermanentFilter,
     id: ObjectId,
     chars: &EffectiveCharacteristics,
-    players: &mut FilterPlayers<'_, '_>,
+    players: &mut FilterPlayers<'_, '_, '_>,
 ) -> bool {
     use crate::types::effects::{PermanentFilter, PlayerRef};
     match filter {
@@ -758,16 +919,24 @@ fn permanent_matches_filter(
 /// to apply in release rather than inventing a number.
 ///
 /// Evaluated fresh at every layer: that is the point of `PtValue::Dynamic`.
+///
+/// `object_id` is the object `chars` describes and `origin` the registry row
+/// the value came from, or `None` for a CDA — `AmountExpr::CountOf` needs both
+/// to resolve "you" (CR 109.5) the way the filter leaves do.
 pub(super) fn evaluate_pt_value(
     value: &PtValue,
     game: &GameState,
     chars: &EffectiveCharacteristics,
+    object_id: ObjectId,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
+    origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
     match value {
         PtValue::Fixed(n) => Some(*n),
-        PtValue::Dynamic(expr) => evaluate_amount(expr, game, chars, layer_index, cache),
+        PtValue::Dynamic(expr) => {
+            evaluate_amount(expr, game, chars, object_id, layer_index, cache, origin)
+        }
     }
 }
 
@@ -784,10 +953,12 @@ fn evaluate_amount(
     expr: &crate::types::effects::AmountExpr,
     game: &GameState,
     chars: &EffectiveCharacteristics,
+    object_id: ObjectId,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
+    origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
-    use crate::types::effects::{AmountExpr, Selector};
+    use crate::types::effects::{AmountExpr, PermanentFilter, PlayerRef, Selector};
 
     match expr {
         AmountExpr::Fixed(n) => Some(*n as i32),
@@ -798,7 +969,67 @@ fn evaluate_amount(
         }
 
         AmountExpr::Plus(inner, n) => {
-            evaluate_amount(inner, game, chars, layer_index, cache).map(|v| v + *n as i32)
+            evaluate_amount(inner, game, chars, object_id, layer_index, cache, origin)
+                .map(|v| v + *n as i32)
+        }
+
+        // A count over the battlefield, taken at this layer — Keldon Warlord's
+        // "the number of non-Wall creatures you control".
+        //
+        // **Enumerates the real board**, `battlefield_ids_ordered`, which a
+        // permanent that is only *entering* is not on. That is §5a's boundary
+        // (`replacement-architecture.md`) falling out of the structure rather
+        // than being special-cased: the entering object is visible to filters
+        // — the frame this count runs inside is its own — and invisible to
+        // counts. Thassa's ruling says exactly that: "the mana symbols in its
+        // mana cost won't be counted", because replacement effects are
+        // considered before the God is on the battlefield.
+        //
+        // Each member's frame is asked at `layer_index`, strictly below this
+        // walk's ceiling (§5.2's termination argument), and memoized in `cache`
+        // for the rest of the walk. One frame per permanent per query is
+        // `layers-architecture.md` §12's quadratic by design, and Keldon
+        // Warlord is the card that measures it.
+        //
+        // "You" is the affected object's own controller for a CDA (CR 109.5,
+        // read off `chars` as of this layer) and the row's controller for a
+        // registry row, exactly as a filter leaf resolves it.
+        AmountExpr::CountOf(selector) => {
+            let filter: Cow<'_, PermanentFilter> = match selector {
+                Selector::PermanentsMatching(filter) => Cow::Borrowed(filter),
+                Selector::ControlledCreatures => Cow::Owned(PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(crate::types::card_types::CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                )),
+                other => {
+                    debug_assert!(
+                        false,
+                        "CountOf({:?}) has no static-context evaluator yet (on '{}')",
+                        other, chars.name
+                    );
+                    return None;
+                }
+            };
+            let (you, owner) = match origin {
+                Some(_) => (None, None),
+                None => (
+                    Some(chars.controller),
+                    Some(game.objects.get(&object_id).map(|obj| obj.owner).unwrap_or(chars.controller)),
+                ),
+            };
+            let mut players = FilterPlayers { effect: origin, game, layer_index, cache, you, owner };
+            let mut count = 0;
+            for other in game.battlefield_ids_ordered() {
+                let Some(other_chars) =
+                    compute_to_ceiling(game, other, layer_index, players.cache)
+                else {
+                    continue;
+                };
+                if permanent_matches_filter(&filter, other, &other_chars, &mut players) {
+                    count += 1;
+                }
+            }
+            Some(count)
         }
 
         // Card *types*, not cards: ten artifact creatures in a graveyard are
@@ -863,7 +1094,7 @@ pub(super) fn apply_modification(
     object_id: ObjectId,
     game: &GameState,
     layer_index: usize,
-    cache: &mut FrameCache,
+    cache: &mut FrameCache<'_>,
     origin: Option<&ContinuousEffect>,
 ) {
     match modification {
@@ -954,8 +1185,9 @@ pub(super) fn apply_modification(
         EffectModification::SetPowerToughness { power, toughness } => {
             // Evaluated before mutating: `AffectedManaValue` reads `chars`, and
             // setting power first would let it observe a half-applied frame.
-            let p = evaluate_pt_value(power, game, chars, layer_index, cache);
-            let t = evaluate_pt_value(toughness, game, chars, layer_index, cache);
+            let p = evaluate_pt_value(power, game, chars, object_id, layer_index, cache, origin);
+            let t =
+                evaluate_pt_value(toughness, game, chars, object_id, layer_index, cache, origin);
             if let (Some(p), Some(t)) = (p, t) {
                 chars.power = Some(p);
                 chars.toughness = Some(t);
@@ -964,8 +1196,9 @@ pub(super) fn apply_modification(
 
         // Layer 7c
         EffectModification::ModifyPowerToughness { power, toughness } => {
-            let dp = evaluate_pt_value(power, game, chars, layer_index, cache);
-            let dt = evaluate_pt_value(toughness, game, chars, layer_index, cache);
+            let dp = evaluate_pt_value(power, game, chars, object_id, layer_index, cache, origin);
+            let dt =
+                evaluate_pt_value(toughness, game, chars, object_id, layer_index, cache, origin);
             if let Some(dp) = dp {
                 if let Some(ref mut p) = chars.power {
                     *p += dp;
@@ -1666,5 +1899,169 @@ mod tests {
         assert!(chars.types.contains(&CardType::Creature));
         // Should be Red (L5 filter sees the L4-modified type = Creature)
         assert!(chars.colors.contains(&Color::Red));
+    }
+
+    // -----------------------------------------------------------------------
+    // CR 614.12 — the look-ahead overlay (Phase RC-4)
+    //
+    // What the accessor pair perturbs, and — the one that matters — what it
+    // does not: §5b's "one object is hypothetical; nothing else is".
+    // -----------------------------------------------------------------------
+
+    use crate::engine::layers::lookahead::{compute_as_entering, Lookahead};
+    use crate::objects::card_data::CardData;
+    use crate::test_support::{creature_with_ability, put_on_battlefield, static_ability};
+    use crate::types::effects::{
+        AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, Primitive,
+    };
+    use std::sync::Arc;
+
+    /// A 2/2 with "Creatures you control get +1/+1", itself included.
+    fn anthem_bear() -> Arc<CardData> {
+        creature_with_ability(
+            "Anthem Bear",
+            2,
+            2,
+            static_ability(Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(1),
+                    AmountExpr::Fixed(1),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                )),
+            )),
+        )
+    }
+
+    fn in_graveyard(game: &mut GameState, data: Arc<CardData>, owner: PlayerId) -> ObjectId {
+        let obj = GameObject::new(data, owner, Zone::Graveyard);
+        let id = obj.id;
+        game.add_object(obj);
+        game.players[owner].graveyard.push(id);
+        id
+    }
+
+    #[test]
+    fn test_look_ahead_seeds_the_proposed_controller_and_the_clock() {
+        let mut game = GameState::new(2, 20);
+        game.turn_number = 7;
+        let bears = in_graveyard(
+            &mut game,
+            CardDataBuilder::new("Bears").card_type(CardType::Creature).power_toughness(2, 2).build(),
+            0,
+        );
+
+        let frame = compute_as_entering(&game, bears, 1, &EnterMods::NONE).unwrap();
+        assert_eq!(frame.controller, 1, "the proposed controller, not the owner");
+        assert_eq!(frame.control_since_turn, 7, "CR 302.6's clock starts with the entry");
+
+        let real = compute_characteristics(&game, bears).unwrap();
+        assert_eq!(real.controller, 0);
+        assert_eq!(real.control_since_turn, 0);
+    }
+
+    #[test]
+    fn test_look_ahead_counters_feed_layers_6_and_7c() {
+        let mut game = GameState::new(2, 20);
+        let bears = in_graveyard(
+            &mut game,
+            CardDataBuilder::new("Bears").card_type(CardType::Creature).power_toughness(2, 2).build(),
+            0,
+        );
+        let mods = EnterMods {
+            tapped: false,
+            counters: vec![(CounterType::PlusOnePlusOne, 2), (CounterType::Flying, 1)],
+        };
+
+        let frame = compute_as_entering(&game, bears, 0, &mods).unwrap();
+        assert_eq!(frame.power, Some(4), "CR 122.1a counters it would enter with, at 7c");
+        assert!(frame.keyword_flags.contains(&KeywordFlag::Flying), "CR 122.1b, at layer 6");
+
+        let real = compute_characteristics(&game, bears).unwrap();
+        assert_eq!(real.power, Some(2));
+        assert!(!real.keyword_flags.contains(&KeywordFlag::Flying));
+    }
+
+    /// Clause (3) for an object that has not moved yet: the zone gate admits it
+    /// under the look-ahead and nowhere else.
+    #[test]
+    fn test_look_ahead_admits_an_object_not_yet_in_the_zone_to_filters() {
+        use crate::types::effects::Duration;
+
+        let mut game = GameState::new(2, 20);
+        let bears = in_graveyard(
+            &mut game,
+            CardDataBuilder::new("Bears").card_type(CardType::Creature).power_toughness(2, 2).build(),
+            0,
+        );
+        game.continuous_effects.add(ContinuousEffect {
+            id: 0,
+            source: crate::types::ids::new_object_id(),
+            origin: EffectOrigin::Resolution,
+            layer: Layer::Layer7cModifyPT,
+            duration: Duration::Indefinite,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp: 1,
+            affected: AffectedSet::Filter {
+                filter: PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                ),
+            },
+            modification: EffectModification::ModifyPowerToughness {
+                power: PtValue::Fixed(1),
+                toughness: PtValue::Fixed(1),
+            },
+        });
+
+        assert_eq!(compute_characteristics(&game, bears).unwrap().power, Some(2), "in a graveyard, no filter reaches it");
+        assert_eq!(compute_as_entering(&game, bears, 0, &EnterMods::NONE).unwrap().power, Some(3), "as it would exist on the battlefield, the anthem does");
+        assert_eq!(compute_as_entering(&game, bears, 1, &EnterMods::NONE).unwrap().power, Some(2), "under the other player it is not \"you control\"");
+    }
+
+    /// §5b — the asymmetry that must not be smoothed over. The entering Anthem
+    /// Bear's own row is in *its* frame (clause 2) and in no other object's
+    /// frame computed under the same look-ahead; once it has actually entered,
+    /// the other object gets the anthem like everything else.
+    #[test]
+    fn test_look_ahead_rows_reach_only_the_entering_object() {
+        let mut game = GameState::new(2, 20);
+        let other = put_on_battlefield(
+            &mut game,
+            CardDataBuilder::new("Other Bears").card_type(CardType::Creature).power_toughness(2, 2).build(),
+            0,
+        );
+        let anthem = in_graveyard(&mut game, anthem_bear(), 0);
+
+        assert_eq!(
+            compute_as_entering(&game, anthem, 0, &EnterMods::NONE).unwrap().power,
+            Some(3),
+            "CR 614.12 clause (2): its own anthem, in its own frame"
+        );
+
+        let lookahead = Lookahead::new(&game, anthem, 0, &EnterMods::NONE);
+        let mut cache = FrameCache::new(Some(&lookahead));
+        let other_frame = compute_to_ceiling(&game, other, LAYER_ORDER.len(), &mut cache).unwrap();
+        assert_eq!(other_frame.power, Some(2), "nothing else is hypothetical");
+
+        game.move_object(anthem, Zone::Battlefield).unwrap();
+        game.place_on_battlefield(anthem, 0, &EnterMods::NONE);
+        assert_eq!(compute_characteristics(&game, other).unwrap().power, Some(3), "and after the entry it is a plain registered row");
+    }
+
+    /// A would-be row is subject to CR 613.7a exactly like a registered one.
+    #[test]
+    fn test_look_ahead_row_is_stripped_by_humility_before_it_applies() {
+        let mut game = GameState::new(2, 20);
+        put_on_battlefield(&mut game, crate::cards::phase_lf_cards::humility(), 1);
+        let anthem = in_graveyard(&mut game, anthem_bear(), 0);
+
+        let frame = compute_as_entering(&game, anthem, 0, &EnterMods::NONE).unwrap();
+        assert_eq!(frame.power, Some(1), "Humility's 1/1 at 7b, and no anthem at 7c: the ability was gone at layer 6");
+        assert!(frame.abilities.is_empty());
     }
 }

@@ -1120,7 +1120,7 @@ mod tests {
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id);
+        let mods = game.default_enter_mods(pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         // Verify ETB set loyalty counters
@@ -1161,7 +1161,7 @@ mod tests {
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id);
+        let mods = game.default_enter_mods(pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1191,7 +1191,7 @@ mod tests {
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id);
+        let mods = game.default_enter_mods(pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         let entry = game.battlefield.get(&pw_id).unwrap();
@@ -1215,7 +1215,7 @@ mod tests {
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id);
+        let mods = game.default_enter_mods(pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         // Should have 0 loyalty counters (loyalty(0) → guard skips adding)

@@ -39,7 +39,7 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::types::restriction::ReplacementKindFilter;
 
-use super::{ReplacementInstance, ReplacementInstanceId};
+use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
 
 /// Which of CR 122.1c's two effects a counter-derived instance is.
 ///
@@ -130,11 +130,17 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
 /// by a self-replacement effect". When set, everything outside
 /// `ReplacementClass::SelfReplacement` is discarded — which today means the
 /// list is empty, since nothing produces one yet.
+///
+/// `frame` is CR 614.12's look-ahead for this event's subject, built by the
+/// caller once per pipeline iteration and computed only if a filter-scoped
+/// `affected` asks (`EntryFrame`). For an event that is not an entry it is
+/// empty and every read falls through to the finished board.
 pub(crate) fn gather(
     game: &GameState,
     action: &GameAction,
     _ctx: &ActionContext,
     blocked: bool,
+    frame: &EntryFrame<'_>,
 ) -> Vec<ReplacementInstance> {
     game.counters.record_replacement_gather();
 
@@ -176,7 +182,7 @@ pub(crate) fn gather(
     // `HashMap` lookup and is exact: 903.9b only ever applies to the object the
     // event is already about.
     if let Some(instance) = commander_zone_replacement(game, action) {
-        push_if_applicable(game, &mut candidates, instance, action, subject);
+        push_if_applicable(game, &mut candidates, instance, action, subject, frame);
     }
 
     // --- Source 1a: the permanent that is entering (CR 614.12) -------------
@@ -213,7 +219,7 @@ pub(crate) fn gather(
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
         push_static_ability_replacements(
-            game, &mut entering, *object, *controller, action, subject, SelfScope::EnteringSelf,
+            game, &mut entering, *object, *controller, action, subject, SelfScope::EnteringSelf, frame,
         );
     }
 
@@ -248,7 +254,7 @@ pub(crate) fn gather(
         if any_granted || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             push_static_ability_replacements(
-                game, &mut candidates, id, controller, action, subject, SelfScope::OnBattlefield,
+                game, &mut candidates, id, controller, action, subject, SelfScope::OnBattlefield, frame,
             );
         }
 
@@ -265,6 +271,7 @@ pub(crate) fn gather(
                 },
                 action,
                 subject,
+                frame,
             );
         }
     }
@@ -284,6 +291,7 @@ pub(crate) fn gather(
             },
             action,
             subject,
+            frame,
         );
     }
 
@@ -346,6 +354,7 @@ fn push_static_ability_replacements(
     action: &GameAction,
     subject: EventSubject,
     scope: SelfScope,
+    frame: &EntryFrame<'_>,
 ) {
     for ability in get_effective_abilities(game, id) {
         if ability.ability_type != AbilityType::Static {
@@ -368,6 +377,7 @@ fn push_static_ability_replacements(
             },
             action,
             subject,
+            frame,
         );
     }
 }
@@ -378,6 +388,7 @@ fn push_if_applicable(
     instance: ReplacementInstance,
     action: &GameAction,
     subject: EventSubject,
+    frame: &EntryFrame<'_>,
 ) {
     // CR 701.19c — "can't be regenerated" causes shields "to not be applied",
     // so this withholds one at the door rather than spending it. The shield
@@ -402,7 +413,7 @@ fn push_if_applicable(
     {
         return;
     }
-    if applies_to(game, &instance, action, subject) {
+    if applies_to(game, &instance, action, subject, Some(frame)) {
         out.push(instance);
     }
 }
@@ -421,6 +432,7 @@ pub(super) fn applies_to(
     instance: &ReplacementInstance,
     action: &GameAction,
     subject: EventSubject,
+    frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     pattern_watches(game, &instance.def.pattern, action, instance.controller)
         && set_affects(
@@ -429,6 +441,7 @@ pub(super) fn applies_to(
             instance.source,
             instance.controller,
             subject,
+            frame,
         )
 }
 
@@ -440,12 +453,18 @@ pub(super) fn applies_to(
 /// and has no instance to offer (`cant-effects-architecture.md` §3.1: a
 /// restriction is discovered exactly the way a replacement effect is, and
 /// differs only in what it is asked at).
+///
+/// `frame` is where CR 614.12 and 614.17d land on the object side: a `Filter`
+/// about an entering permanent is matched against the permanent *as it would
+/// exist on the battlefield*, not against the card. `SourceOnly` and `Fixed`
+/// match by id and never look.
 pub(crate) fn set_affects(
     game: &GameState,
     affected: &AffectedSet,
     source: ObjectId,
     controller: PlayerId,
     subject: EventSubject,
+    frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     let id = match subject {
         EventSubject::Object(id) => id,
@@ -460,9 +479,12 @@ pub(crate) fn set_affects(
     match affected {
         AffectedSet::SourceOnly => source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
-        AffectedSet::Filter { filter } => game
-            .permanent_matches_filter(id, filter, controller)
-            .unwrap_or(false),
+        AffectedSet::Filter { filter } => match frame.and_then(|f| f.frame_of(id)) {
+            Some(chars) => game
+                .permanent_matches_filter_in_frame(id, filter, controller, chars)
+                .unwrap_or(false),
+            None => game.permanent_matches_filter(id, filter, controller).unwrap_or(false),
+        },
     }
 }
 
@@ -501,7 +523,14 @@ pub(crate) fn pattern_watches(
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
         (EventPattern::Tap, GameAction::Tap { .. }) => true,
 
-        (EventPattern::EnterBattlefield, GameAction::EnterBattlefield { .. }) => true,
+        // CR 601's fact off the entry's cause: `Resolved` is a permanent spell
+        // that was cast, everything else was not.
+        (
+            EventPattern::EnterBattlefield { cast },
+            GameAction::EnterBattlefield { cause, .. },
+        ) => cast
+            .map(|wanted| (*cause == Some(ZoneChangeCause::Resolved)) == wanted)
+            .unwrap_or(true),
 
         (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {
             source.map(|p| p.matches(*actual)).unwrap_or(true)
