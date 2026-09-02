@@ -24,18 +24,20 @@ use crate::types::zones::Zone;
 /// layer `n - 1`.
 ///
 /// This mirrors the `Layer` enum exactly, and the enum is **not** the CR's full
-/// list. One sublayer split is still missing, tracked as Deferred Migrations
-/// item 10:
+/// list. One sublayer split is still missing:
 ///
-/// - **1a / 1b.** CR 613.2 splits layer 1 into face-down effects (1a) and copy
-///   effects (1b); `Layer1Copy` collapses them, even though
-///   `layers-architecture.md` §7 specifies both and says Phase LA ships them.
-///   The order matters — a Clone copying a face-down creature must copy the
-///   2/2 colorless characteristics, not the printed card (CR 707.2).
+/// - **1a / 1b.** CR 613.2a is copy effects (1a); CR 613.2b is face-down (1b),
+///   and it applies **after** copy. `Layer1Copy` collapses the two.
+///   `copy-effects-architecture.md` §5.4 found this stated backwards here and
+///   in two plan documents, all three justifying the order with the same
+///   correct conclusion from a wrong premise: a copy of a face-down creature
+///   gets CR 708.2a's 2/2 because 708.2 calls those the *copiable values*, not
+///   because face-down applied first.
 ///
-/// Not reachable today: nothing produces a layer 1 effect. Splitting it later
-/// just lengthens this array — the ceiling is an index into it, computed at
-/// runtime, so nothing else moves.
+/// CV-1 gives 1a a producer (`EffectModification::CopyFrom`); 1b arrives with
+/// CV-6. Splitting the slot later just lengthens this array — the ceiling is
+/// an index into it, computed at runtime, so nothing else moves except
+/// `layers::copy::END_OF_LAYER_1`, which a `debug_assert` there pins.
 pub(super) const LAYER_ORDER: [Layer; 10] = [
     Layer::Layer1Copy,
     Layer::Layer2Control,
@@ -1082,6 +1084,11 @@ pub(super) fn apply_modification(
     origin: Option<&ContinuousEffect>,
 ) {
     match modification {
+        // Layer 1a — CR 707.2's captured values replace every characteristic
+        // channel at once. Everything after this point in the walk modifies the
+        // copy, which is CR 613.2c read forwards.
+        EffectModification::CopyFrom(values) => values.apply_to(chars),
+
         // Layer 2
         EffectModification::SetController(player_ref) => {
             let Some(effect) = origin else {

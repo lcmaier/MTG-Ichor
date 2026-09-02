@@ -8,8 +8,8 @@ use crate::objects::object::GameObject;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, Primitive, EffectRecipient, PlayerRef, SelectionFilter,
-    TargetCount,
+    AmountExpr, CopyRoles, Duration, Effect, Primitive, EffectRecipient, PlayerRef,
+    SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -381,6 +381,11 @@ impl GameState {
                 };
                 self.continuous_effects.add(effect);
                 Ok(())
+            }
+
+            // === Phase CV-1: copy effects (CR 707, layer 1a) ===
+            Primitive::Copy(roles, duration) => {
+                self.apply_copy(roles, *duration, ctx, dp)
             }
 
             Primitive::SwitchPowerToughness(duration) => {
@@ -1086,6 +1091,118 @@ impl GameState {
     /// `Effect::Conditional`, and that split is safe in one direction only:
     /// suppressing a prompt with no fallback is a resolved effect that does
     /// nothing, which is 101.3's own answer.
+    /// CR 707.4 — "[objects] become a copy of [object] [for a duration]".
+    ///
+    /// Three steps, in this order and for CR reasons rather than convenience:
+    /// resolve the two roles (which is where the CR 707.4 choice is made),
+    /// capture (CR 707.2, once — 707.2b/2c), register one layer 1a row whose
+    /// affected set is `Fixed` (CR 611.2c).
+    ///
+    /// **CR 707.4's three free clauses.** "The change doesn't cause
+    /// enters-the-battlefield or leaves-the-battlefield abilities to trigger.
+    /// This also doesn't change any noncopy effects presently affecting the
+    /// permanent." Both fall out of the carrier: registering a row is not a zone
+    /// change, and layers 2—7 are not touched. That is the clearest single
+    /// piece of evidence that a row is the right carrier and a `CardData` swap
+    /// is not.
+    fn apply_copy(
+        &mut self,
+        roles: &CopyRoles,
+        duration: Duration,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        use crate::engine::layers::types::{
+            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+        };
+
+        // --- 1. The two roles -------------------------------------------
+        let (donor, affected): (ObjectId, Vec<ObjectId>) = match roles {
+            CopyRoles::RecipientsCopyChosen(filter) => {
+                // CR 608.2b — a target that has left the battlefield is simply
+                // skipped, and with nothing left to affect there is no effect
+                // and so no choice to make. Asking first would prompt for a
+                // decision that changes nothing.
+                let recipients = self.collect_battlefield_targets(ctx);
+                if recipients.is_empty() {
+                    return Ok(());
+                }
+                let candidates: Vec<ObjectId> = crate::oracle::legality::
+                    enumerate_legal_selections(self, filter, None, ctx.controller)
+                    .into_iter()
+                    .filter_map(|t| match t {
+                        ResolvedTarget::Object(id) => Some(id),
+                        ResolvedTarget::Player(_) => None,
+                    })
+                    .collect();
+                // CR 102.2 — one candidate is not a choice, none is CR 101.3's
+                // impossible instruction and the whole effect does nothing.
+                let donor = match candidates.len() {
+                    0 => return Ok(()),
+                    1 => candidates[0],
+                    _ => crate::ui::ask::ask_choose_copy_source(
+                        dp, self, ctx.controller, ctx.source, &candidates,
+                    ),
+                };
+                (donor, recipients)
+            }
+            CopyRoles::OthersCopyRecipient(filter) => {
+                let Some(&donor) = self.collect_battlefield_targets(ctx).first() else {
+                    return Ok(());
+                };
+                // Ordered, because the row's `Fixed` set is read back by
+                // `battlefield_ids_ordered`'s consumers and reaches a log and a
+                // count. CR 613.7's timestamp order is the key either way.
+                let affected: Vec<ObjectId> = self
+                    .battlefield_ids_ordered()
+                    .into_iter()
+                    .filter(|&id| id != donor)
+                    .filter(|&id| {
+                        self.permanent_matches_filter(id, filter, ctx.controller)
+                            .unwrap_or(false)
+                    })
+                    .collect();
+                (donor, affected)
+            }
+        };
+        if affected.is_empty() {
+            return Ok(());
+        }
+
+        // --- 2. The capture (CR 707.2) ----------------------------------
+        //
+        // Once, here, and never re-derived: CR 707.2b for the general case and
+        // CR 611.2c for a resolution's. This is the opposite of how every other
+        // continuous effect in this engine works — a Layer 6 grant is
+        // re-evaluated at every walk — and it is the whole reason `CopyFrom`
+        // carries values rather than an `ObjectId`.
+        let Some(values) = crate::engine::layers::copiable_values(self, donor) else {
+            return Ok(());
+        };
+
+        // --- 3. The row (CR 613.2a) -------------------------------------
+        let timestamp = self.allocate_timestamp();
+        self.continuous_effects.add(ContinuousEffect {
+            id: 0,
+            source: ctx.source,
+            origin: EffectOrigin::Resolution,
+            layer: Layer::Layer1Copy,
+            duration,
+            controller: ctx.controller,
+            created_on_turn: self.turn_number,
+            timestamp,
+            affected: AffectedSet::Fixed(affected.clone()),
+            modification: EffectModification::CopyFrom(Box::new(values.clone())),
+        });
+
+        // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes the
+        // copy *have* the ability; it does not make the ability *do* anything.
+        self.register_copied_static_effects(
+            &values, &affected, timestamp, duration,
+        );
+        Ok(())
+    }
+
     fn sacrifice_of_choice(
         &mut self,
         player: PlayerId,

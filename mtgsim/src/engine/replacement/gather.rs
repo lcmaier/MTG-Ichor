@@ -235,7 +235,8 @@ pub(crate) fn gather(
     }
 
     let has_static_source = !game.replacement_ability_sources.is_empty()
-        || game.continuous_effects.summary().any_granted_replacement;
+        || game.continuous_effects.summary().any_granted_replacement
+        || game.continuous_effects.summary().any_copied_replacement;
     if !has_static_source
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
@@ -256,13 +257,17 @@ pub(crate) fn gather(
     // object, and CR 305.7 or Humility can strip a printed one without touching
     // the set. Over-approximating costs a walk, never an answer.
     //
-    // It inherits the global gate's one *under*-approximation and adds none:
-    // `register_static_effects` records printed abilities, so a copied
-    // replacement ability is in neither set and is invisible to both — which is
-    // `codebase-state.md` item 16, and the gate leg Phase CV owes.
-    let any_granted = game.continuous_effects.summary().any_granted_replacement;
+    // It has no *under*-approximation left. CV-1 closed the one it had: a
+    // copied replacement ability is on the effective ability list and in neither
+    // ETB-recorded set, so `any_copied_replacement` is its leg here as well as
+    // on the global gate. It is not attributed to an object, exactly as
+    // `any_granted_replacement` is not — a copy row's `AffectedSet` names the
+    // copies, but the summary is registry-wide, and narrowing it to an object
+    // would mean resolving a filter per permanent per gate check.
+    let summary = game.continuous_effects.summary();
+    let any_unattributed = summary.any_granted_replacement || summary.any_copied_replacement;
     for id in game.battlefield_ids_ordered() {
-        if any_granted || game.replacement_ability_sources.contains(&id) {
+        if any_unattributed || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             let abilities = get_effective_abilities(game, id);
             push_static_ability_replacements(

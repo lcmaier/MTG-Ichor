@@ -418,6 +418,33 @@ pub struct TypeChange {
     pub set_supertypes: Option<std::collections::HashSet<crate::types::card_types::Supertype>>,
 }
 
+/// Which role a `Primitive::Copy`'s own recipients play, and where the other
+/// role comes from (CR 707.4).
+///
+/// **One arm per role binding, not per card**, and the two shipped cards need
+/// both because they bind the atom's target to opposite ends of the same
+/// sentence: Cytoshape targets the permanent that *becomes* a copy, Mirrorweave
+/// targets the one being copied.
+///
+/// Rejected: a `{ from, to }` product of two enums. Two of its four
+/// combinations are nonsense — a recipient copying itself, and "each other"
+/// with no donor to be other than — and an unreachable state is how an arm
+/// eventually gets written for one.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CopyRoles {
+    /// The recipients become copies of a permanent **chosen** as the effect
+    /// resolves (CR 707.4). A choice, not a target: hexproof and shroud do not
+    /// apply, and nothing fizzles if it leaves. Cytoshape, Polymorphous Rush.
+    RecipientsCopyChosen(SelectionFilter),
+    /// The recipient supplies the values, and every **other** permanent
+    /// matching the filter becomes a copy of it. Mirrorweave.
+    ///
+    /// The exclusion is structural rather than a filter leaf: "each other" can
+    /// only mean "other than the donor", so no card should have to spell it and
+    /// none can get it wrong.
+    OthersCopyRecipient(PermanentFilter),
+}
+
 // ---------------------------------------------------------------------------
 // Primitives — atomic game actions (rule 610, 701)
 // ---------------------------------------------------------------------------
@@ -605,6 +632,22 @@ pub enum Primitive {
     ChangeType(TypeChange, Duration),
     /// Gain control (layer 2)
     GainControl(Duration),
+
+    // === Copy effects (CR 707, layer 1a) ===
+    /// One or more permanents become a copy of another (CR 707.4).
+    ///
+    /// The `Duration` is authored for the reason [`Self::Restrict`]'s is: CR
+    /// 611.2's scope comes from the card's English, not from the mechanism. CV-1
+    /// ships the turn-bounded shapes only — `Duration::Indefinite` needs CR
+    /// 400.7 first, because a row reachable by neither expiry nor
+    /// `remove_by_source` outlives its subject without bound
+    /// (`copy-effects-architecture.md` §5.3).
+    ///
+    /// The affected set is `AffectedSet::Fixed`, locked as the effect begins
+    /// (CR 611.2c), and the captured values are locked with it (CR 707.2b/2c) —
+    /// which is what makes a copy row independent of every other layer 1 effect
+    /// and so keeps this off critical-path item 7.
+    Copy(CopyRoles, Duration),
 
     // === Counter spells/abilities (rule 701.6) ===
     /// Counter a spell on the stack (rule 701.6a).

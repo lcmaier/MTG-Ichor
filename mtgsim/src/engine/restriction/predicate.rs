@@ -81,11 +81,12 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     // without touching the set — and over-approximating costs a layer walk,
     // never an answer.
     //
-    // Sound only until Layer 1 or Layer 3 exists: each is a route to an object's
-    // effective ability list that neither leg can see (`codebase-state.md` item
-    // 16, and CV-1 owns the third leg).
+    // CV-1 added the third leg the comment here used to promise: CR 707.2a puts
+    // a copied ability on the effective list through neither of the other two.
+    // Sound until **Layer 3** exists, which is the one remaining route.
     let has_static_source = !game.restriction_ability_sources.is_empty()
-        || game.continuous_effects.summary().any_granted_restriction;
+        || game.continuous_effects.summary().any_granted_restriction
+        || game.continuous_effects.summary().any_copied_restriction;
     if !has_static_source && game.restrictions.is_empty() {
         return false;
     }

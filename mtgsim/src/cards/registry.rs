@@ -18,6 +18,7 @@ use super::phase_lf_cards;
 use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
+use super::phase_cv_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
 
@@ -42,7 +43,7 @@ use super::phase_sba_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 62] = [
+const PERFORMANCE_POOL: [&str; 63] = [
     "Plains",
     "Island",
     "Swamp",
@@ -129,6 +130,11 @@ const PERFORMANCE_POOL: [&str; 62] = [
     // every land drop through it — but this is the quadratic §5a's enumeration
     // row warned about, and it is measured rather than assumed.
     "Keldon Warlord",
+    // CV-1 — the pool's only route to a layer 1 row, and so to the two gate
+    // legs and the static re-registration path the phase adds. Mirrorweave is
+    // registered but stays out: it opens the same engine path, and a second
+    // copy of one path buys a slower fuzz run rather than a wider one.
+    "Cytoshape",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -307,6 +313,13 @@ impl CardRegistry {
         registry.register("Containment Priest", phase_rc_cards::containment_priest);
         registry.register("Dryad Arbor", phase_rc_cards::dryad_arbor);
         registry.register("Keldon Warlord", phase_rc_cards::keldon_warlord);
+
+        // Phase CV-1 — the first cards that put a row in layer 1. A pair,
+        // because `CopyRoles` has two arms and each card is one of them:
+        // Cytoshape targets the permanent that becomes a copy and *chooses* its
+        // donor, Mirrorweave targets the donor and affects everything else.
+        registry.register("Cytoshape", phase_cv_cards::cytoshape);
+        registry.register("Mirrorweave", phase_cv_cards::mirrorweave);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation sweep had never run in a fuzz

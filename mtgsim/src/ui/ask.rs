@@ -706,6 +706,35 @@ pub fn ask_choose_entering_controller(
     candidates[index[0]]
 }
 
+/// CR 707.4 — choose the permanent a copy effect captures its values from.
+///
+/// **Two or more candidates, always.** With one the choice is forced and the
+/// caller takes it without a prompt (CR 102.2's shape, as
+/// `ask_choose_entering_controller` uses it). The assert is what keeps that a
+/// caller obligation rather than a convention, and it is why registering
+/// Cytoshape adds no prompt to any existing scripted test.
+pub fn ask_choose_copy_source(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    spell_id: ObjectId,
+    candidates: &[ObjectId],
+) -> ObjectId {
+    assert!(
+        candidates.len() >= 2,
+        "ask_choose_copy_source: a choice needs two or more candidates; called with {}",
+        candidates.len(),
+    );
+    let options: Vec<ChoiceOption> =
+        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ChooseCopySource { spell_id },
+    };
+    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
+    validate_pick_n(&index, options.len(), (1, 1), "choose_copy_source");
+    candidates[index[0]]
+}
+
 /// Choose which legendary permanent to keep (rule 704.5j legend rule).
 pub fn ask_choose_legend_to_keep(
     dp: &dyn DecisionProvider,

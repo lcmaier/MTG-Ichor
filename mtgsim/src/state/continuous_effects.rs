@@ -112,6 +112,38 @@ pub struct RegistryScopeSummary {
     /// bodies, so a shared flag would turn each one's fast path on for the
     /// other's cards.
     pub any_granted_restriction: bool,
+
+    /// True iff some `EffectModification::CopyFrom` row's captured values carry
+    /// a static replacement ability — i.e. some object on the battlefield may
+    /// have a replacement ability it neither printed nor was granted.
+    ///
+    /// The **third** leg of `engine::replacement::gather`'s gate, and the one
+    /// `copy-effects-architecture.md` §4.7 was written to predict: `gather`
+    /// reads the *effective* ability list, and CR 707.2a puts a copied ability
+    /// on that list through neither of the other two legs. Without it a copied
+    /// replacement effect is silently dead on every board the gate skips.
+    ///
+    /// A summary flag rather than an insert into
+    /// `GameState::replacement_ability_sources`, and the reason is that set's
+    /// own doc comment: it is "a set rather than a count, so it cannot drift",
+    /// and it is cleared only at `cleanup_zone_state`. A copy row can **expire**
+    /// with no zone change, so the set would drift high. Drifting high costs a
+    /// wasted walk and never an answer — but quietly falsifying that sentence
+    /// is worse than one more field, and the summary is recomputed from the rows
+    /// on every mutation, so it cannot drift at all.
+    pub any_copied_replacement: bool,
+
+    /// True iff some `EffectModification::CopyFrom` row's captured values carry
+    /// a static restriction ability.
+    ///
+    /// The same leg on the *other* gate. `copy-effects-architecture.md` §4.7
+    /// counted one; RS-1 had already built a second to the same recipe
+    /// (`engine::restriction::predicate`), whose own comment names this phase as
+    /// the owner. Split from `any_copied_replacement` for the reason
+    /// `any_granted_restriction` is split from `any_granted_replacement`: the two
+    /// sweeps read different ability bodies, so a shared flag would turn each
+    /// one's fast path on for the other's cards.
+    pub any_copied_restriction: bool,
 }
 
 impl RegistryScopeSummary {
@@ -137,6 +169,18 @@ impl RegistryScopeSummary {
                     Effect::Restriction(_) => summary.any_granted_restriction = true,
                     _ => {}
                 },
+                // CR 707.2a — the captured list is scanned rather than counted,
+                // because both gates ask about a *body*, not about a copy. A
+                // copy of a vanilla creature must not turn either fast path on.
+                EffectModification::CopyFrom(values) => {
+                    for ability in &values.abilities {
+                        match ability.effect {
+                            Effect::Replacement(_) => summary.any_copied_replacement = true,
+                            Effect::Restriction(_) => summary.any_copied_restriction = true,
+                            _ => {}
+                        }
+                    }
+                }
                 _ => {}
             }
         }
