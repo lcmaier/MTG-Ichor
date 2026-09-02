@@ -2999,21 +2999,33 @@ review's trace artifact (pinned to 8ac4ad7) is the before-picture.
    asserts the cast's zone change precedes its resolution's still passes,
    because it still does.
 
-**Two consequences to decide up front, not discover.**
+**Two consequences, decided before code (2026-09-02).**
 
-- **Tokens.** `Primitive::CreateToken` creates the object in the battlefield
-  zone and then proposes its entry — the same hop, with no source zone. The
-  fix decides where a token object lives between creation and its entry's
-  decision: the cheap answer keeps `Zone::Battlefield` on the object and
-  relies on the entry performer being the only thing that builds an entity;
-  the honest one is a `GameObject` with no zone until it enters. Either way
-  an exiled-instead token is created in exile and CR 704.5d removes it, which
-  is Hallowed Moonlight's printed ruling.
-- **CR 608.3e.** A resolved permanent spell whose entry does not happen goes
-  to its owner's graveyard. Today the error fires first; after the fix the
-  card would sit on the stack. `resolve_top_of_stack` gets the leg: if
-  `propose_entry` performed nothing, `change_zone(Stack → Graveyard,
-  Resolved)`. Phase RE's list loses the item.
+- **Tokens: the cheap answer, and where the honest one lives.** A token is
+  created in `Zone::Battlefield` with no entity and in no collection — the
+  state the walk's membership gate already reads as "entering" and CR 704.5d
+  reads as "on the battlefield" — and its entry carries `from: None`. An
+  `Instead(ZoneChangeTo)` on it is performed as `ZoneChange { from:
+  Battlefield, to }` with no LKI (no permanent ever existed to look back at),
+  which is the shape tokens have today: the log says `from: Battlefield` for
+  a token CR 111 says was created in exile, and CR 704.5d removes it. A
+  dropped token entry is CR 111.5's "the token is not created", so
+  `CreateToken` un-creates the object it made — `add_object` was not an event
+  and neither is its reversal. **Why cheap:** the honest state is a token in
+  no zone, and the honest *event* is a creation whose destination the entry's
+  decision sets — which is Phase RE's `CreateTokens` proposal (CR 614.16's
+  doublers need it anyway), not an `Option<Zone>` threaded through
+  `GameObject.zone`'s 38 readers for a shape no registered card reaches:
+  Containment Priest excludes tokens and Hallowed Moonlight is not registered.
+  Recorded as a Deferred Migrations line under RE.
+- **CR 608.3e.** A resolved permanent spell whose entry does not happen — a
+  "can't enter" refused it, or a replacement dropped it — is still on the
+  stack afterward, and `resolve_top_of_stack` moves it `Stack → Graveyard`
+  with cause `Resolved`: the spell resolved, which is the rule's own wording.
+  An entry *substituted* by a zone change (exile instead) leaves the card
+  elsewhere and takes no leg. The Aura attachment that follows the entry is
+  guarded the same way, since a host must not list an Aura that never
+  arrived. Phase RE's list loses the item.
 
 **The rule the audit produced** is §11 item 20: a performer may propose a
 contained event only when the outer event is real whether or not the
