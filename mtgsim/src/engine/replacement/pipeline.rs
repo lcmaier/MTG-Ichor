@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::state::game_state::GameState;
-use crate::types::effects::{Effect, PlayerRef};
+use crate::types::effects::{AffectedSet, Effect, PermanentFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{EnterMods, GameActionTemplate, Rewrite, Uses};
 use crate::types::zones::Zone;
@@ -195,8 +195,19 @@ pub(crate) fn apply_replacements(
         // loop. If a phase finds itself relaxing this to make something work,
         // it has found a design error, not a test problem
         // (`replacement-architecture.md` §11 item 7).
+        //
+        // **And never prompt for a choice with one outcome** — §11 item 19.
+        // `order_invariant_entry_bucket` is the provable form of that rule,
+        // and `unsuppressed` is what the debug build checks it against after
+        // the rewrite below.
+        let mut unsuppressed: Vec<ReplacementInstanceId> = Vec::new();
         let chosen = if bucket.len() == 1 {
             bucket.into_iter().next().expect("len checked")
+        } else if order_invariant_entry_bucket(&bucket) {
+            let mut members = bucket.into_iter();
+            let first = members.next().expect("len checked");
+            unsuppressed = members.map(|c| c.id).collect();
+            first
         } else {
             let Some(chooser) = chooser else {
                 // Nobody to ask. An object with neither controller nor owner is
@@ -268,9 +279,130 @@ pub(crate) fn apply_replacements(
             // result of another" works without any special case.
             Some(next) => {
                 check_exempt_terminates(game, &chosen, &next, &mut exempt_applied)?;
+                check_order_invariance(game, ctx, &next, &unsuppressed);
                 event = next;
             }
         }
+    }
+}
+
+/// §11 item 19 — is this CR 616.1 bucket one whose ordering choice provably
+/// cannot change the outcome, so the prompt is noise?
+///
+/// The theorem, and every clause of the predicate is a premise of it:
+///
+/// - **`EnterWith` only.** `EnterMods::merge` is `|=` and `+`, commutative and
+///   associative, so the mods a member adds land the same whatever went
+///   before. A `Prevent` or an `Instead` drops or replaces the event, and
+///   whether the members after it ever apply is then a real question.
+/// - **No rider.** Riders queue in choice order and run in queue order
+///   (CR 615.5), so two members that both carry one make the order observable
+///   in the event log even when the board is identical.
+/// - **Mandatory, static, under CR 614.5, not counter-derived.** An optional
+///   is a second prompt whose answer can differ per order; a `Uses::Once`
+///   spends a registry row; an exempt effect may re-apply; a counter-derived
+///   instance is re-synthesized per gather. Each is excluded so the argument
+///   has nothing to say about it.
+/// - **Applicability cannot depend on what the others add.** This is the
+///   clause the CR 614.12 frame made necessary: `set_affects` now reads the
+///   pending `EnterMods` through the look-ahead, so a `PowerLE` filter can
+///   match before a `-1/-1` counter lands and stop matching after. Adaptive
+///   Shimmerer under "creatures with power 1 or less enter tapped" enters
+///   tapped or untapped depending on which applies first, and *that* prompt
+///   is real. `affected_is_mods_invariant` admits only leaves no `EnterMods`
+///   field can move.
+///
+/// With every member's applicability fixed and every application commuting,
+/// each member applies exactly once in any order (CR 614.5) and the final
+/// `EnterMods` is the merge of all of them. Root Maze beside Idyllic
+/// Beachfront — the fuzz harness's every land drop under Root Maze — is the
+/// case this exists for.
+///
+/// **A semantics-assuming shortcut, and it carries its expiry conditions**
+/// (`layers-architecture.md` §12 item 3). It goes false the day
+/// `EnterMods` gains a field that feeds a characteristic — face-down, which
+/// is Layer 1 and changes everything — or `PermanentFilter` gains a leaf that
+/// reads P/T, keywords or counters, or `EventPattern::EnterBattlefield` reads
+/// `mods`. `check_order_invariance` is the debug-build check that computes it
+/// the other way, and `codebase-state.md` records the three conditions.
+fn order_invariant_entry_bucket(bucket: &[ReplacementInstance]) -> bool {
+    bucket.iter().all(|c| {
+        matches!(c.def.rewrite, Rewrite::EnterWith(_))
+            && !c.def.optional
+            && c.def.then.is_none()
+            && matches!(c.def.uses, Uses::Static)
+            && !c.def.exempt_from_614_5
+            && !matches!(c.id, ReplacementInstanceId::Counter(..))
+            && affected_is_mods_invariant(&c.def.affected)
+    })
+}
+
+/// Can no `EnterMods` field change whether this set matches the entering
+/// object? `SourceOnly` and `Fixed` match by id; a `Filter` is invariant iff
+/// every leaf is.
+fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
+    match affected {
+        AffectedSet::SourceOnly | AffectedSet::Fixed(_) => true,
+        AffectedSet::Filter { filter } => filter_is_mods_invariant(filter),
+    }
+}
+
+/// The leaf table for [`order_invariant_entry_bucket`]'s last premise. Types,
+/// subtypes, supertypes, colors, controller, ownership and tokenness are fed
+/// by no `EnterMods` field; power is fed by `+1/+1` and `-1/-1` counters
+/// (CR 122.1a) and so `PowerLE` is not invariant. Matched exhaustively, so a
+/// new leaf has to be classified rather than defaulting to "safe".
+fn filter_is_mods_invariant(filter: &PermanentFilter) -> bool {
+    match filter {
+        PermanentFilter::All
+        | PermanentFilter::ByType(_)
+        | PermanentFilter::BySubtype(_)
+        | PermanentFilter::BySupertype(_)
+        | PermanentFilter::ByColor(_)
+        | PermanentFilter::ByController(_)
+        | PermanentFilter::Token
+        | PermanentFilter::ByOwner(_) => true,
+        PermanentFilter::PowerLE(_) => false,
+        PermanentFilter::And(a, b) | PermanentFilter::Or(a, b) => {
+            filter_is_mods_invariant(a) && filter_is_mods_invariant(b)
+        }
+        PermanentFilter::Not(inner) => filter_is_mods_invariant(inner),
+    }
+}
+
+/// The debug-build check on [`order_invariant_entry_bucket`]: after the
+/// suppressed choice applied, every member it was chosen over must still be
+/// applicable to the rewritten event, or the predicate admitted a leaf that
+/// reads `EnterMods` and the prompt it skipped was real.
+///
+/// Computes the theorem's premise the other way, as `layers-architecture.md`
+/// §12 item 3 asks of any semantics-assuming shortcut. Debug builds only,
+/// because it is a second gather per suppressed prompt and its
+/// `record_replacement_gather` would move the fixtures table; the release
+/// binary trusts the leaf table.
+fn check_order_invariance(
+    game: &GameState,
+    ctx: &ActionContext,
+    next: &GameAction,
+    unsuppressed: &[ReplacementInstanceId],
+) {
+    if !cfg!(debug_assertions) || unsuppressed.is_empty() {
+        return;
+    }
+    let frame = EntryFrame::new(game, next);
+    let still: Vec<ReplacementInstanceId> = gather(game, next, ctx, false, &frame)
+        .into_iter()
+        .map(|c| c.id)
+        .collect();
+    for id in unsuppressed {
+        debug_assert!(
+            still.contains(id),
+            "the CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped \
+             applying to {:?} after the chosen member applied. A `PermanentFilter` leaf \
+             or an `EnterMods` field reads something `filter_is_mods_invariant` calls \
+             invariant — see `order_invariant_entry_bucket`.",
+            id, next
+        );
     }
 }
 

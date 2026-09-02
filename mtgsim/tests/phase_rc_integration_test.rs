@@ -26,7 +26,6 @@ use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -269,7 +268,9 @@ fn test_planeswalker_spell_enters_with_its_printed_loyalty() {
 
 /// Two entry-modifying abilities on one permanent, which is the shape
 /// `Rewrite::EnterWith` exists for: the second application merges into the
-/// first rather than replacing it, and the order does not matter.
+/// first rather than replacing it, and the order does not matter — provably,
+/// which is why RC-4 stopped asking (`replacement-architecture.md` §11 item
+/// 19). Both apply, one iteration each, with no prompt.
 ///
 /// **No printed card can build this yet** — the whole population needs {X}, a
 /// condition or a trigger — so it is a fixture, and
@@ -305,18 +306,13 @@ fn test_two_entry_replacements_accumulate() {
         })
         .build();
 
-    // Two candidates, so CR 616.1 has a genuine choice to offer — and this is
-    // the **first prompt an entry has ever produced**. One prompt, not two: the
-    // 616.1f re-gather finds a single candidate left and the pipeline never
-    // asks with fewer than two.
-    let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![0],
-    );
-
+    // Two candidates, so CR 616.1 applies — and until RC-4 this was the first
+    // prompt an entry ever produced. It no longer asks: every member is an
+    // `EnterWith` over its own source, so no order can change the outcome, and
+    // `pipeline::order_invariant_entry_bucket` says so. A provider with nothing
+    // scripted is the witness — a prompt would fail this test.
     let id = put_in_graveyard(&mut game, data, 0);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
         .expect("it enters");
 
     let entry = game.battlefield.get(&id).unwrap();
@@ -699,92 +695,52 @@ fn test_root_maze_taps_an_entering_land() {
     );
 }
 
-/// **The multi-candidate branch, from two registered cards** — and this test
-/// proves the prompt fires, not that the answer matters.
+/// **Two registered cards, one entry, and no prompt — §11 item 19 landed.**
 ///
 /// Root Maze's filter and Idyllic Beachfront's own `SourceOnly` ability both
-/// rewrite the same `EnterBattlefield` into `EnterWith(tapped)`, so CR 616.1
-/// makes the affected object's controller choose which applies first. **No
-/// assertion can distinguish the two orders, and that is structural rather than
-/// a weakness of this board**: `EnterMods::merge` is `|=` and `+`, and neither
-/// `EventPattern::EnterBattlefield` nor `set_affects` reads `mods`, so an
-/// `EnterWith` cannot change which effects apply on the next CR 616.1f
-/// iteration. Every `EnterWith` bucket is order-invariant.
+/// rewrite the same `EnterBattlefield` into `EnterWith(tapped)`. CR 616.1 makes
+/// the land's controller choose which applies first, and RC-3 proved both that
+/// the choice was asked and that no assertion could tell the two orders apart:
+/// `EnterMods::merge` is `|=` and `+`, and neither rewrite reads the other's
+/// output. RC-4 turned that theorem into `pipeline::order_invariant_entry_bucket`,
+/// the pipeline no longer asks, and the CLI harness stops paying a decision
+/// round-trip on every land drop under Root Maze.
 ///
-/// So `dp.is_empty()` is the whole assertion, and it is worth having for one
-/// reason: RB left this branch dead with Kalitas and RC-2 recorded it as
-/// blocked on RC-3's gate when it was blocked on nothing, so *that a registered
-/// board reaches the prompt at all* is the claim. What both effects **applying**
-/// looks like is [`test_root_maze_and_chainbreaker_modify_one_entry_together`],
-/// where the two rewrites touch different fields of `EnterMods` and the board
-/// shows both.
-///
-/// That the engine prompts here at all is a real cost the CLI harness pays per
-/// entry, and it is open — `replacement-architecture.md` §11 item 19 has the
-/// theorem, the narrow rule that follows from it, and why suppressing the
-/// prompt before a non-commuting entry card is registered would re-kill this
-/// branch.
+/// The branch is not dead. The same board with Containment Priest on it asks,
+/// because an `Instead` beside an `EnterWith` is a bucket whose order is a
+/// different event log — `phase_rc4_integration_test`.
 // COVERS-PARTIAL: ATOM-616.1-001
 #[test]
-fn test_two_registered_cards_make_cr_616_1_ask() {
+fn test_two_commuting_entry_replacements_do_not_ask() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, root_maze(), 1);
 
-    let dp = ScriptedDecisionProvider::new();
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(land) },
-        vec![0],
+    // A provider with nothing scripted: a prompt here fails the test.
+    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+
+    assert!(
+        game.battlefield.get(&land).unwrap().tapped,
+        "both applied, and it does not matter which went first"
     );
-    game.play_land(0, land, Zone::Hand, &ActionContext::new(&dp)).unwrap();
-
-    assert!(dp.is_empty(), "CR 616.1 asked, and the answer was consumed");
-    assert!(game.battlefield.get(&land).unwrap().tapped, "either order taps it");
-}
-
-/// The other index. `phase_rb_integration_test`'s pair does this to show the
-/// choice *changes the outcome*; here it cannot, per the note above, so this
-/// test makes the weaker claim that is still worth making: **index 1 is a real
-/// candidate and not an out-of-range accident.** Root Maze's row is gathered by
-/// the battlefield sweep and Idyllic Beachfront's by source 1a, spliced in
-/// after it (CR 613.7 — the entering permanent is the newest object), so the
-/// bucket genuinely holds two distinct effects rather than one listed twice.
-#[test]
-fn test_the_other_cr_616_1_order_is_available() {
-    let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, root_maze(), 1);
-
-    let dp = ScriptedDecisionProvider::new();
-    let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(land) },
-        vec![1],
-    );
-    game.play_land(0, land, Zone::Hand, &ActionContext::new(&dp)).unwrap();
-
-    assert!(dp.is_empty(), "the second candidate is a real one");
-    assert!(game.battlefield.get(&land).unwrap().tapped);
 }
 
 /// Root Maze matches **artifacts** too, which is what puts it on a board with
 /// Chainbreaker: one entry, one filter-scoped status rewrite and one
 /// `SourceOnly` counters rewrite, and they are not the same half of `EnterMods`.
 ///
-/// CR 616.1 still asks — two effects apply to one event — but the two rewrites
-/// touch different fields, so this is the accumulation case (CR 616.1f) rather
-/// than the commuting one above.
+/// CR 616.1 still applies — two effects, one event — but the two rewrites
+/// touch different fields of `EnterMods`, so this is the accumulation case
+/// (CR 616.1f) rather than the commuting one above, and since RC-4 it is not a
+/// prompt either: both are `EnterWith`s over filters no `EnterMods` field can
+/// move (`pipeline::filter_is_mods_invariant`).
 #[test]
 fn test_root_maze_and_chainbreaker_modify_one_entry_together() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, root_maze(), 1);
 
-    let dp = ScriptedDecisionProvider::new();
     let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(scarecrow) },
-        vec![0],
-    );
-    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
         .unwrap();
 
     let entry = game.battlefield.get(&scarecrow).unwrap();
