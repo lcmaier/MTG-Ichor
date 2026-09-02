@@ -2212,9 +2212,9 @@ first.
 
 6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs:146`: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1c ignored. Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
 
-8. **A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52 (recorded 2026-09-02).** Dour Port-Mage and Aang, Airbending Master — "leave the battlefield without dying" — read exactly that line and would draw a card or grant an experience counter for a token Hallowed Moonlight created in exile. The fix is Phase RE's `CreateTokens` proposal, whose destination the entry's decision sets, and it lands before any pool pairs a token-exiling replacement with a leaves-without-dying trigger. A hard back-stop, not an RE nicety.
-
 7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs:302`, `TODO` tagged T22 (with matching notes at :39 and :293). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
+
+8. **A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52 (recorded 2026-09-02).** Dour Port-Mage and Aang, Airbending Master — "leave the battlefield without dying" — read exactly that line and would draw a card or grant an experience counter for a token Hallowed Moonlight created in exile. The fix is Phase RE's `CreateTokens` proposal, whose destination the entry's decision sets, and it lands before any pool pairs a token-exiling replacement with a leaves-without-dying trigger. A hard back-stop, not an RE nicety.
 
 ### Before Triggered abilities (CR 603)
 
