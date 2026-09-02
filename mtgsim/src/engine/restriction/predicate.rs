@@ -90,9 +90,8 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
         return false;
     }
 
-    // CR 614.17d's frame for an entry, or the zone change ahead of one. Held
-    // here so the sweep and the registry share one, and computed only if a
-    // `Filter` reaches `set_affects`.
+    // CR 614.17d's frame for an entry. Held here so the sweep and the registry
+    // share one, and computed only if a `Filter` reaches `set_affects`.
     let derived;
     let frame: Option<&EntryFrame<'_>> = match query {
         Query::Event { lookahead: Some(frame), .. } => Some(*frame),

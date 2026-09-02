@@ -544,9 +544,10 @@ fn test_entry_is_announced_exactly_once_per_permanent() {
     assert_eq!(entries(&game), vec![(a, 0), (b, 1), (land, 0)]);
 }
 
-/// The entry rides inside the zone change's batch (CR 603.2c), and it is
-/// announced after it — a permanent is in the battlefield zone before it is a
-/// permanent, and the log has to say so in that order.
+/// The entry is the zone change (CR 614.1c): one proposal, one batch
+/// (CR 603.2c), and the move is announced before the arrival — a permanent
+/// is in the battlefield zone before it is a permanent, and the log says so
+/// in that order.
 #[test]
 fn test_zone_change_is_announced_before_the_entry() {
     let mut game = setup_two_player_game();
@@ -582,12 +583,12 @@ fn test_zone_change_is_announced_before_the_entry() {
         .map(|r| r.stamp.batch)
         .collect();
     assert_eq!(batches.len(), 2);
-    assert_eq!(batches[0], batches[1], "a nested call joins the enclosing batch");
+    assert_eq!(batches[0], batches[1], "one event, one batch");
 }
 
-/// The performer refuses to run off the chokepoint's own path: proposing an
-/// entry for something that is not in the battlefield zone is a caller bug, and
-/// `EnterBattlefield` is only ever proposed from inside the `ZoneChange` arm.
+/// A token's entry, built by hand: no `from`, because the object was created
+/// in the battlefield zone — the shape `Primitive::CreateToken` proposes
+/// through `propose_entry`.
 #[test]
 fn test_direct_enter_battlefield_action_still_performs() {
     let mut game = setup_two_player_game();
@@ -603,6 +604,7 @@ fn test_direct_enter_battlefield_action_still_performs() {
     game.execute_action(
         GameAction::EnterBattlefield {
             object: id,
+            from: None,
             controller: 0,
             mods: EnterMods::NONE,
             cause: None,

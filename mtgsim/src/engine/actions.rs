@@ -1,4 +1,5 @@
 use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
 use crate::state::game_state::GameState;
@@ -174,17 +175,25 @@ pub enum GameAction {
         source: DestructionSource,
     },
 
-    /// A permanent enters the battlefield (CR 614.1c/d).
+    /// A permanent enters the battlefield (CR 614.1c/d) — **the one proposal
+    /// for entering, and it is the zone change.**
     ///
-    /// **A separate event from the `ZoneChange` that carries it**, proposed
-    /// after it rather than folded into it. The CR asks two different questions
-    /// at two different instants: a zone-change replacement rewrites *where the
-    /// object goes* (CR 614.8's "would be put into a graveyard" — Kalitas, a
-    /// finality counter), while an entry replacement rewrites *how it arrives*
-    /// once the destination is settled (CR 614.12's "check the characteristics
-    /// of the permanent as it would exist on the battlefield"). One action for
-    /// both would let an ETB replacement see a destination a later zone-change
-    /// replacement then changed.
+    /// Entering *is* the move onto the battlefield (CR 614.1c, 603.6a), so no
+    /// `ZoneChange { to: Battlefield }` is ever proposed: `change_zone` routes
+    /// a battlefield destination here, and the performer moves the card,
+    /// announces that `ZoneChange`, builds the entity and announces the entry.
+    /// Two questions are still asked of the one event — a zone-change-shaped
+    /// pattern watches it as the move (Worms of the Earth, Grafdigger's Cage)
+    /// and an entry-shaped one as the arrival (Root Maze) — and they share one
+    /// CR 616.1 bucket, which is what the rule says entering is. RC-2 proposed
+    /// this from *inside* the zone change's performer, and the log then held
+    /// half of an event the CR says never happened whenever a replacement
+    /// substituted the entry (`replacement-architecture.md` §11 item 20).
+    ///
+    /// `from` is the zone the card is coming from, or `None` for a token,
+    /// which is created in the battlefield zone rather than moved into it
+    /// (`Primitive::CreateToken`). Its performer moves only when there is a
+    /// `from`.
     ///
     /// `controller` is CR 110.2b's **default**: the owner for a land drop or a
     /// token, the player who put the spell on the stack for a resolving
@@ -196,14 +205,15 @@ pub enum GameAction {
     /// [`Rewrite::EnterWith`](crate::types::replacement::Rewrite::EnterWith)
     /// as CR 616.1f iterates.
     ///
-    /// `cause` is the zone change that brought the object here, or `None` for
-    /// a token created on the battlefield. A fact about the event rather than
-    /// about the object, recorded because CR 601's "was it cast" is
-    /// unrecoverable a moment later: `Resolved` is a permanent spell that was
-    /// cast, and everything else — a land drop, `Returned`, a token — was not.
-    /// Read by `EventPattern::EnterBattlefield { cast }` and nothing else.
+    /// `cause` is the zone change's, or `None` for the same token. A fact about
+    /// the event rather than about the object, recorded because CR 601's "was
+    /// it cast" is unrecoverable a moment later: `Resolved` is a permanent
+    /// spell that was cast, and everything else — a land drop, `Returned`, a
+    /// token — was not. Read by `EventPattern::EnterBattlefield { cast }`, and
+    /// by `EventPattern::ZoneChange`'s `cause` when it watches an entry.
     EnterBattlefield {
         object: ObjectId,
+        from: Option<Zone>,
         controller: PlayerId,
         mods: EnterMods,
         cause: Option<ZoneChangeCause>,
@@ -308,6 +318,18 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, Rider};
+
+        // Entering is the zone change, and `EnterBattlefield` is its only
+        // proposal: a `ZoneChange` onto the battlefield here has bypassed
+        // `change_zone`'s routing and would be performed with no entity.
+        debug_assert!(
+            !batch
+                .iter()
+                .any(|a| matches!(a, GameAction::ZoneChange { to: Zone::Battlefield, .. })),
+            "a ZoneChange onto the battlefield is not a proposal: entering is proposed as \
+             GameAction::EnterBattlefield, which change_zone routes to \
+             (replacement-architecture.md section 9, RC-4b)"
+        );
 
         // --- Phase 1: decide (CR 616.1), in APNAP order of chooser ----------
         //
@@ -416,15 +438,16 @@ impl GameState {
     /// Convenience wrapper for the most common zone change: caller knows the
     /// destination but doesn't want to hand-roll the `from` lookup.
     ///
-    /// This is the intended public path for zone changes. Routes through
-    /// `execute_action(GameAction::ZoneChange)` so the replacement pipeline
-    /// (CR 614) sees every movement. `draw_card` and `play_land` route through
-    /// here too, which is why the one-emitter invariant holds and why a draw
-    /// from an empty library reaches the pipeline at all (CR 121.6a). Two
-    /// production callers sit below the chokepoint and no more:
-    /// `perform_action`'s own `ZoneChange` arm, and `rollback_cast_to_hand` —
-    /// the permanent `// CAST-ROLLBACK:` exemption, because a CR 601.2 rewind
-    /// is not an event.
+    /// This is the intended public path for zone changes. A battlefield
+    /// destination is routed to [`Self::propose_entry`], because entering is
+    /// the zone change (`GameAction::EnterBattlefield`); every other
+    /// destination proposes `GameAction::ZoneChange`. Either way the
+    /// replacement pipeline (CR 614) sees the movement. `draw_card` and
+    /// `play_land` route through here too, which is why a draw from an empty
+    /// library reaches the pipeline at all (CR 121.6a). One production mover
+    /// sits below the chokepoint and no more: `cast_spell`'s CR 601.2a move,
+    /// in both directions — the permanent `// CAST-ROLLBACK:` exemption, which
+    /// is announced at 601.2i once the spell is cast.
     pub fn change_zone(
         &mut self,
         object: ObjectId,
@@ -433,6 +456,16 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<(), String> {
         let from = self.get_object(object)?.zone;
+        if to == Zone::Battlefield {
+            if from == Zone::Battlefield {
+                // Already there: nothing moves and nothing enters — the same
+                // no-op `perform_zone_change` makes of any `from == to`.
+                return Ok(());
+            }
+            let controller = self.default_enter_controller(object)?;
+            self.propose_entry(object, Some(from), controller, Some(cause), ctx)?;
+            return Ok(());
+        }
         self.execute_action(GameAction::ZoneChange { object, from, to, cause }, ctx)
     }
 
@@ -565,69 +598,20 @@ impl GameState {
                 Ok(())
             }
 
-            // **The only production emitter of `GameEvent::ZoneChange`.**
-            // `move_object` performs the move and says nothing; the cause and
-            // the CR 603.10a look-back frame are known here and nowhere else,
-            // and an event assembled anywhere else would be missing them.
+            // The move and its announcement are `perform_zone_change`'s, which
+            // the `EnterBattlefield` arm shares — the log cannot tell which arm
+            // moved a card, and must not be able to.
             GameAction::ZoneChange { object, from, to, cause } => {
-                // Loud: the proposal describes a board, and performing it
-                // against a different one is a caller bug. The pipeline (RB)
-                // matches on `from`, so a stale value is a wrong match, not a
-                // cosmetic mismatch.
-                let actual = self.get_object(object)?.zone;
-                if actual != from {
+                // Loud: entering is `EnterBattlefield`'s, and a move into the
+                // zone here would leave an object with no entity.
+                if to == Zone::Battlefield {
                     return Err(format!(
-                        "ZoneChange proposed {:?}→{:?} for {}, which is in {:?}",
-                        from, to, object, actual
+                        "ZoneChange {:?}→Battlefield for {} reached the performer; entering is \
+                         proposed as EnterBattlefield, which change_zone routes to",
+                        from, object
                     ));
                 }
-                if from == to {
-                    // Nothing moved, so nothing is announced — the same
-                    // no-op `move_object` has always performed, made visible.
-                    return Ok(());
-                }
-
-                // CR 603.10a — capture the frame while the object is still a
-                // permanent. A moment later `cleanup_zone_state` has retired
-                // the continuous effects its static abilities generated
-                // (CR 611.2a) and the answer is unrecoverable. This is the one
-                // place in the engine that has to run the layer walk *before* a
-                // mutation rather than after.
-                let lki = if from == Zone::Battlefield {
-                    crate::engine::layers::compute::compute_characteristics(self, object)
-                        .map(Box::new)
-                } else {
-                    None
-                };
-                let owner = self.get_object(object)?.owner;
-
-                self.move_object(object, to)?;
-
-                self.events.emit(GameEvent::ZoneChange {
-                    object_id: object,
-                    owner,
-                    from,
-                    to,
-                    cause,
-                    lki,
-                });
-
-                // CR 614.1c — arriving on the battlefield is its own proposed
-                // event, so that "this permanent enters tapped" has something to
-                // replace. Nested rather than performed inline: a nested
-                // `execute_actions` joins the enclosing batch, which keeps
-                // CR 603.2c's boundary around the whole zone change.
-                //
-                // `move_object` has already written `obj.zone`, so between here
-                // and the `EnterBattlefield` performer the object is *in* the
-                // battlefield zone with no `BattlefieldEntity`. That window is
-                // one `emit` wide, and it is why nothing may be inserted
-                // between these two statements.
-                if to == Zone::Battlefield {
-                    let controller = self.default_enter_controller(object)?;
-                    self.propose_entry(object, controller, Some(cause), _ctx)?;
-                }
-                Ok(())
+                self.perform_zone_change(object, from, to, cause)
             }
 
             GameAction::Untap { object } => {
@@ -744,30 +728,113 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 614.1c/d's event. The performer is `place_on_battlefield`,
-            // which is also the only emitter of
+            // CR 614.1c/d's event, and the zone change that entering is. The
+            // move is `perform_zone_change`'s; the entity and the entry's
+            // announcement are `place_on_battlefield`'s, the only emitter of
             // `GameEvent::PermanentEnteredBattlefield`.
-            GameAction::EnterBattlefield { object, controller, mods, cause: _ } => {
+            GameAction::EnterBattlefield { object, from, controller, mods, cause } => {
+                match (from, cause) {
+                    (Some(Zone::Battlefield), _) => {
+                        return Err(format!(
+                            "entry of {} from the battlefield: it is already a permanent",
+                            object
+                        ));
+                    }
+                    (Some(from), Some(cause)) => {
+                        self.perform_zone_change(object, from, Zone::Battlefield, cause)?;
+                    }
+                    // A token: created in the zone, so there is no move to
+                    // perform and none to announce (`Primitive::CreateToken`).
+                    (None, None) => {}
+                    (from, cause) => {
+                        return Err(format!(
+                            "entry of {} names from={:?} and cause={:?}; a move has both and a \
+                             token has neither",
+                            object, from, cause
+                        ));
+                    }
+                }
                 self.place_on_battlefield(object, controller, &mods);
                 Ok(())
             }
         }
     }
 
-    /// Propose CR 614.1c's entry for an object that is already in the
-    /// battlefield zone but has no `BattlefieldEntity` yet.
+    /// The one performer of a move between zones: the stale check, the
+    /// CR 603.10a frame, `move_object`, and the announcement.
     ///
-    /// **Loud if the entry is dropped with nothing in its place.** An entry
-    /// that is *replaced* by a zone change — Containment Priest's "exile it
-    /// instead" rewrites the `EnterBattlefield` into a `ZoneChange` out of the
-    /// zone, which is performed and so counts — is fine. A dropped entry with
-    /// nothing performed would leave the object in `Zone::Battlefield` with
-    /// nothing on the battlefield, a state no rule describes and no query
-    /// survives. That is why a CR 614.17d prohibition on *entering* watches
-    /// the zone change, where refusing the event leaves the card where it was
-    /// (`EventPattern::EnterBattlefield`); this error is what makes an attempt
-    /// to write one against the entry fail at the attempt rather than three
-    /// queries later.
+    /// Shared by the `ZoneChange` arm and the `EnterBattlefield` arm rather
+    /// than being the first one's body, because entering is a zone change and
+    /// the log must not be able to tell which arm moved a card. `from == to`
+    /// performs and announces nothing.
+    fn perform_zone_change(
+        &mut self,
+        object: ObjectId,
+        from: Zone,
+        to: Zone,
+        cause: ZoneChangeCause,
+    ) -> Result<(), String> {
+        // Loud: the proposal describes a board, and performing it against a
+        // different one is a caller bug. The pipeline matches on `from`, so a
+        // stale value is a wrong match, not a cosmetic mismatch.
+        let actual = self.get_object(object)?.zone;
+        if actual != from {
+            return Err(format!(
+                "ZoneChange proposed {:?}→{:?} for {}, which is in {:?}",
+                from, to, object, actual
+            ));
+        }
+        if from == to {
+            return Ok(());
+        }
+
+        // CR 603.10a — capture the frame while the object is still a
+        // permanent. A moment later `cleanup_zone_state` has retired the
+        // continuous effects its static abilities generated (CR 611.2a) and
+        // the answer is unrecoverable. This is the one place in the engine that
+        // has to run the layer walk *before* a mutation rather than after.
+        //
+        // A permanent, not merely an object in the zone: a token whose entry
+        // was substituted is in the battlefield zone with no entity, and there
+        // is nothing to look back at (`Primitive::CreateToken`).
+        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
+            crate::engine::layers::compute::compute_characteristics(self, object).map(Box::new)
+        } else {
+            None
+        };
+
+        self.move_object(object, to)?;
+        self.announce_zone_change(object, from, to, cause, lki)
+    }
+
+    /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
+    /// which performed the move it announces: [`Self::perform_zone_change`] for
+    /// the `ZoneChange` and `EnterBattlefield` arms, and `cast_spell` at
+    /// CR 601.2i for the move it made silently at 601.2a — the moment the spell
+    /// becomes cast, which is the first moment that move is an event.
+    pub(crate) fn announce_zone_change(
+        &mut self,
+        object: ObjectId,
+        from: Zone,
+        to: Zone,
+        cause: ZoneChangeCause,
+        lki: Option<Box<EffectiveCharacteristics>>,
+    ) -> Result<(), String> {
+        let owner = self.get_object(object)?.owner;
+        self.events.emit(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });
+        Ok(())
+    }
+
+    /// Propose CR 614.1c's entry — the one proposal for an object entering the
+    /// battlefield, from `from`, or from nowhere for a token.
+    ///
+    /// Returns whether the entry was performed. `false` means the pipeline
+    /// dropped it — CR 614.6, or a CR 614.17d "can't enter" — and the object is
+    /// where it was, with nothing moved and nothing announced. An entry
+    /// *substituted* by a zone change (Containment Priest's "exile it instead")
+    /// was performed as that zone change and is `true`; a caller that needs to
+    /// know where the card ended up asks the card (`resolve_top_of_stack`,
+    /// CR 608.3e).
     ///
     /// The seed's counters (CR 306.5b's loyalty) go through the same CR 101.2
     /// door as a replacement's: a "can't have counters put on it" that would
@@ -776,28 +843,20 @@ impl GameState {
     pub(crate) fn propose_entry(
         &mut self,
         object: ObjectId,
+        from: Option<Zone>,
         controller: PlayerId,
         cause: Option<ZoneChangeCause>,
         ctx: &ActionContext,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let seed = self.default_enter_mods(object, controller);
         let mods = crate::engine::replacement::strip_prohibited_counters(
             self, object, controller, &EnterMods::NONE, &seed, None,
         );
         let performed = self.execute_actions(
-            vec![GameAction::EnterBattlefield { object, controller, mods, cause }],
+            vec![GameAction::EnterBattlefield { object, from, controller, mods, cause }],
             ctx,
         )?;
-        if performed.is_empty() {
-            return Err(format!(
-                "the entry of {} onto the battlefield was replaced away, which leaves \
-                 it in the battlefield zone with no permanent. A CR 614.17d \
-                 prohibition on entering has to stop the zone change, not the entry \
-                 - see `replacement-architecture.md` section 9, RC-4.",
-                object
-            ));
-        }
-        Ok(())
+        Ok(!performed.is_empty())
     }
 }
 

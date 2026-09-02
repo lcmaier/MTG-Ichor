@@ -281,21 +281,14 @@ fn test_a_failed_cast_announces_nothing() {
         "the rewind itself is not a zone change and may not be announced",
     );
 
-    // **The forward half is still announced, and that is a known gap.** CR
-    // 601.2a really does put the card on the stack before costs are paid, so
-    // the state change is right; what is wrong is that its `ZoneChange` is
-    // emitted at 601.2a, when whether the cast rewinds is not yet knowable. A
-    // replay of this log therefore sees a Hand -> Stack move that CR 601.2 says
-    // never happened. Fixing it means deferring the announcement to 601.2i
-    // without deferring the move, which is its own piece of work -- recorded in
-    // codebase-state.md's Deferred Migrations.
-    assert_eq!(
-        zone_changes(&game)
-            .iter()
-            .filter(|(_, from, to, _)| *from == Zone::Hand && *to == Zone::Stack)
-            .count(),
-        1,
-        "documenting the gap, not endorsing it",
+    // And neither is the forward half (RC-4b). CR 601.2a really does put the
+    // card on the stack before costs are paid, but the spell is not cast until
+    // 601.2i, so the move is announced there — and a cast that rewinds never
+    // gets there. A replay of this log sees no move at all, which is what
+    // CR 601.2 says happened.
+    assert!(
+        zone_changes(&game).is_empty(),
+        "the 601.2a move is announced at 601.2i, which a rewound cast never reaches",
     );
 }
 

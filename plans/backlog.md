@@ -443,6 +443,32 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
 - **Atoms** — CR 500's atoms cover 500.1–500.5; 500.7 is thin — see §5.
 - **Owner** — none yet.
 
+### 2.18 Mana payment — CR 732.1's reversal, and an auto-payment oracle
+
+- **Rules** — CR 732.1 (reversing mana abilities activated during an illegal
+  action); CR 601.2g–h.
+- **Verdict** — the rewind site in `cast_spell` takes 732.1's "may not
+  reverse" branch unasked: no `DecisionProvider` question exists for "reverse
+  the mana abilities you activated while casting", which is the undo Arena
+  offers and the GUI will be expected to. Separately, nothing helps a player
+  or an agent *choose* the taps — the 601.2g window asks one ability at a
+  time, and the agent either assembles a covering set or rewinds. Measured
+  (RC-4b, 40 `performance` games, seed 12345): the random agent rewound 303
+  casts, ~7.5 per game, each a decision round-trip spent on nothing.
+- **Size** — small for the reversal: one prompt at the rewind site, and the
+  taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
+  not an untap event and nothing may observe it. The oracle is harness-side:
+  for one cost it is a bipartite matching between pips and the colors each
+  ability can make, polynomial over `enumerate_activatable_mana_abilities` and
+  `remaining_cost_after_pool`; the lookahead across the rest of the hand — the
+  part Arena's auto-tapper gets wrong — is a policy for the AI harness and the
+  GUI assistant, not an engine rule.
+- **Blocks** — nothing rules-wise; both v1 use cases ergonomically. The AI
+  harness pays the rewind rate above in every game; a human pays it in clicks.
+- **Atoms** — ATOM-601.2h-002 is claimed partial by RC-4b's rewind test;
+  732.1 has none.
+- **Owner** — none yet.
+
 ---
 
 ## 3. Dispositioned — sections that need no entry of their own

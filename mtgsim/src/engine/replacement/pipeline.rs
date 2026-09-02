@@ -557,12 +557,12 @@ fn apply_rewrite(
         // counters this rewrite would add (CR 614.17d), and the entry goes on
         // without them.
         Rewrite::EnterWith(extra) => match event {
-            GameAction::EnterBattlefield { object, controller, mut mods, cause } => {
+            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
                 let extra = strip_prohibited_counters(
                     game, object, controller, &mods, extra, Some(chosen.controller),
                 );
                 mods.merge(&extra);
-                Ok(Some(GameAction::EnterBattlefield { object, controller, mods, cause }))
+                Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
             }
             other => Err(format!(
                 "replacement {:?} modifies how a permanent enters but matched {:?}, \
@@ -574,9 +574,9 @@ fn apply_rewrite(
 
         // CR 616.1b — the controller field of the proposal, and only that.
         Rewrite::EnterUnderControlOf(player_ref) => match event {
-            GameAction::EnterBattlefield { object, mods, cause, .. } => {
+            GameAction::EnterBattlefield { object, from, mods, cause, .. } => {
                 let controller = entering_controller(game, ctx, chosen, object, player_ref)?;
-                Ok(Some(GameAction::EnterBattlefield { object, controller, mods, cause }))
+                Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
             }
             other => Err(format!(
                 "replacement {:?} modifies under whose control a permanent enters but \
@@ -598,21 +598,26 @@ fn apply_rewrite(
             })),
 
             // Containment Priest: "if a nontoken creature would enter … exile
-            // it instead". The object is already in the battlefield zone with
-            // no entity — RC-2's one-`emit`-wide window — so the substitute is
-            // a move out of it, which `move_object` performs on an entity-less
-            // object without complaint and which the outer `ZoneChange` arm
-            // finds already performed. It never becomes a permanent:
-            // `PermanentEnteredBattlefield` is the performer's to emit and the
-            // performer never runs. (The `ZoneChange` *into* the zone is in the
-            // log, though, which is why an ETB trigger must key on the
-            // performer's event — `codebase-state.md`.)
+            // it instead". The entry is the zone change (CR 614.1c), so the
+            // substitute is a zone change from where the card is — one move,
+            // no hop through the battlefield — and the card never becomes a
+            // permanent: `PermanentEnteredBattlefield` is the entry
+            // performer's to emit, and it never runs.
+            //
+            // A token has no `from`. It is created in the battlefield zone and
+            // sits there with no entity until its entry is decided
+            // (`Primitive::CreateToken`), so the substitute moves it out of
+            // that zone, and the log says `from: Battlefield` for a token
+            // CR 111 says was created in exile. That is the cheap answer, on
+            // record under Phase RE, whose `CreateTokens` proposal is where a
+            // creation's destination belongs (`replacement-architecture.md`
+            // §9, RC-4b).
             (
                 GameActionTemplate::ZoneChangeTo { to, cause },
-                GameAction::EnterBattlefield { object, .. },
+                GameAction::EnterBattlefield { object, from, .. },
             ) => Ok(Some(GameAction::ZoneChange {
                 object,
-                from: Zone::Battlefield,
+                from: from.unwrap_or(Zone::Battlefield),
                 to: *to,
                 cause: *cause,
             })),

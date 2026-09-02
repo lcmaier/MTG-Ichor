@@ -11,7 +11,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
-- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **RC is under way (2026-09-02): RC-1 deleted the early stack pop; RC-2 made entering the battlefield a proposed event (`GameAction::EnterBattlefield`, `Rewrite::EnterWith`, `EnterMods`), with `place_on_battlefield` as its performer and CR 110.5b / 122.6a as its two consumers; RC-3 settled CR 614.12's membership rule in both directions — a filter-scoped layer effect now reaches an entering permanent, and an entering permanent's own filter-scoped replacement no longer reaches itself; RC-4 built the frame those effects are evaluated against (`layers::compute_as_entering`, a read-side overlay through `FrameCache`'s accessor pair — never a `GameState` clone), put CR 614.17d and CR 616.1b on it, and stopped CR 616.1 prompting for a choice with one outcome.** Still ahead: **RC-4b** (one proposal per entry and none per cast step — the entry hop and the cast-rewind phantom RC-4's review found, items 4 and 51, §9), **RC-5** (CR 614.13's auxiliary zone changes and the batch-scoped frame), RD (damage and prevention, CR 615), RE (the remaining event kinds).
+- **Replacement effects (CR 614–616) — the pipeline is live (Phases RA–RB, 2026-08-25 → 2026-08-26).** RA made every observable mutation a proposal; RB put CR 616.1's loop between the proposal and the mutation, with counters (CR 122.1c/d/h), regeneration (CR 701.19) and Kalitas as its three consumers, and Commander's CR 704.6d / 903.9b pair alongside. **RC is under way (2026-09-02): RC-1 deleted the early stack pop; RC-2 made entering the battlefield a proposed event (`GameAction::EnterBattlefield`, `Rewrite::EnterWith`, `EnterMods`), with `place_on_battlefield` as its performer and CR 110.5b / 122.6a as its two consumers; RC-3 settled CR 614.12's membership rule in both directions — a filter-scoped layer effect now reaches an entering permanent, and an entering permanent's own filter-scoped replacement no longer reaches itself; RC-4 built the frame those effects are evaluated against (`layers::compute_as_entering`, a read-side overlay through `FrameCache`'s accessor pair — never a `GameState` clone), put CR 614.17d and CR 616.1b on it, and stopped CR 616.1 prompting for a choice with one outcome.** **RC-4b (2026-09-02) made entering one event: `GameAction::EnterBattlefield` carries `from` and its performer moves the card, so no `ZoneChange` onto the battlefield is ever proposed, a substituted entry is one move with no LKI walk, a refused entry leaves the card where it was (CR 608.3e for a resolved spell), and `cast_spell`'s 601.2a move is silent in both directions until 601.2i.** Still ahead: **RC-5** (CR 614.13's auxiliary zone changes and the batch-scoped frame), RD (damage and prevention, CR 615), RE (the remaining event kinds).
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (Phases RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. **RS-1**: `RestrictionDef` / `Restriction` (`types/restriction.rs`), the third `DurationRegistry` customer (`state/restrictions.rs`), and `engine::restriction::is_prohibited` — one predicate, a battlefield sweep off *effective* ability lists, and §4.9's candidate filter. Indestructible, "can't be regenerated" and Sigarda all reach it. **The hard join is satisfied: RC-4 is unblocked.** Still ahead on this track: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
@@ -228,7 +228,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 **Status 2026-09-02: Phase RC-4 ✅ — CR 614.12's look-ahead frame.** `replacement-architecture.md` §9's RC-4 subsection carries the six findings; this is the state ledger. What landed:
 
 - **`layers::compute_as_entering`** — the frame. A `Lookahead` (`engine/layers/lookahead.rs`: the object, its proposed controller, the pending `EnterMods`, and the rows its own static abilities would generate) threaded through `FrameCache`, read by the two accessors every concrete-state read in `compute.rs` now goes through — `entity` for the battlefield-entity facts and `rows_in_layer` for the registry slice. Both answer for the would-be permanent when the object being computed is the entering one and off the real board for everything else, which is how §5b's asymmetry falls out of the structure. A read-side overlay, **no `GameState` clone anywhere** (§11 item 5). It lives on the stack: item 40's test is "drop it and re-derive", and the frame is a pure function of `GameState` and the proposal, so it is bookkeeping.
-- **`replacement::EntryFrame`** — the frame per pipeline iteration (CR 614.12 clause 1), computed only when a filter-scoped `affected` asks. `gather::set_affects` and `restriction::is_prohibited` both read it, for an `EnterBattlefield` and for the `ZoneChange` ahead of one.
+- **`replacement::EntryFrame`** — the frame per pipeline iteration (CR 614.12 clause 1), computed only when a filter-scoped `affected` asks. `gather::set_affects` and `restriction::is_prohibited` both read it, for an `EnterBattlefield` — which since RC-4b is also the zone change onto the battlefield, so the frame has one basis.
 - **CR 614.17d** in its two printed shapes. "Can't enter the battlefield" watches the zone change, because a refused entry would strand the card in the battlefield zone with no permanent (`propose_entry` is still loud about that); "can't have counters put on it" is asked as the `AddCounters` it is (CR 122.6) at the moment an `EnterWith` would add them (`replacement::strip_prohibited_counters`), refusing the counters while the entry goes on — Melira's ruling. `cant-effects-architecture.md` §5.3.
 - **CR 616.1b** — `Rewrite::EnterUnderControlOf(PlayerRef)`, its class derived from the rewrite so a card cannot file it under `Other`. "An opponent of your choice" with several opponents is a prompt to the effect's controller (`ChoiceKind::ChooseEnteringController`), made before the permanent enters — CR 614.12a's timing, claimed partially.
 - **`AmountExpr::CountOf`** — its first static-context evaluator, over `battlefield_ids_ordered` at the current `layer_index`, memoized within the walk. The entering object is invisible to it because it is not on that list: §5a's Thassa boundary, structural.
@@ -1476,8 +1476,12 @@ section never asked.
     the two are scheduled together as RC-5 part 2 (`replacement-architecture.md`
     §9). **Sized:** ~400 additions in `execute_batch_inner` and
     `perform_action`'s `ZoneChange` arm. The entry hop ("Before Triggered
-    abilities" item 4) is the same restructuring seen from the log's side;
-    fixing either fixes both.
+    abilities" item 4) was the same restructuring seen from the log's side,
+    and **RC-4b closed it (2026-09-02)**: an entry is a phase-1 proposal that
+    carries `from`, so a multi-entry batch would now decide every member
+    against the pre-batch board. What is left here is producing one —
+    `CreateToken` still loops `propose_entry` one token per batch — and
+    CR 613.7m's APNAP timestamps.
 
 47. **`pipeline::order_invariant_entry_bucket` is a semantics-assuming shortcut,
     and these are its expiry conditions.** It skips CR 616.1's prompt when every
@@ -1539,7 +1543,7 @@ section never asked.
 
 ### Found by the RC-4 review's nesting audit (2026-09-02)
 
-51. **A rewound cast leaves its CR 601.2a move in the log.** `cast_spell`
+51. **~~A rewound cast leaves its CR 601.2a move in the log.~~ — ✅ CLOSED 2026-09-02 (RC-4b).** `cast_spell`
     moves the card to the stack through `change_zone` with cause `Cast`, which
     emits, and the four rewind sites — 601.2b's cost choices, 601.2c's
     targets, 601.2h's can-pay check — move it back with the silent
@@ -1552,12 +1556,40 @@ section never asked.
     replaceable event and should use the silent mover in both directions, with
     the `ZoneChange` recorded at 601.2i beside `SpellCast` — the moment CR
     601.2i says the spell becomes cast. Mana abilities activated in 601.2g stay
-    performed and stay in the log, which is CR 727.1. No rewind site exists
+    performed and stay in the log, which is CR 732.1. No rewind site exists
     after cost payment begins, so nothing paid is ever un-paid. **Bundled
     into RC-4b** (`replacement-architecture.md` §9, design item 7): ~30
     lines in `cast.rs`, and RS-2's Tier 1b/1e exits are more rewind sites,
     so it gets more reachable with time, not less. The rule both fixes
-    follow is `replacement-architecture.md` §11 item 20.
+    follow is `replacement-architecture.md` §11 item 20. **Closed as
+    designed:** the 601.2a move is `move_object` in both directions, tagged
+    `CAST-ROLLBACK`, and `announce_zone_change` records it at 601.2i beside
+    `SpellCast`; a rewound cast leaves no `ZoneChange` and keeps its 601.2g
+    taps (`phase_rc4b_integration_test`).
+
+### Found by RC-4b — entering is one event (2026-09-02)
+
+52. **A token whose entry is exiled instead records `from: Battlefield`.** A
+    token is created in `Zone::Battlefield` with no entity and in no
+    collection until its entry is decided (`Primitive::CreateToken`), and its
+    `EnterBattlefield` carries `from: None`. `Instead(ZoneChangeTo)` on it is
+    performed as `ZoneChange { from: Battlefield, to }` with no LKI, so the
+    log says the token left the battlefield where CR 111 says it was created
+    in exile (Hallowed Moonlight's ruling); CR 704.5d then removes it. A
+    *dropped* token entry un-creates the object (CR 111.5). **Unreachable
+    today**: Containment Priest excludes tokens and no registered card is
+    Hallowed Moonlight. The honest fix is Phase RE's `CreateTokens` proposal
+    (CR 614.16's doublers need it anyway), where the creation is the event and
+    the entry's decision sets its destination —
+    `replacement-architecture.md` §9, RC-4b's token decision. **Sized:** the
+    `CreateTokens` arm of `GameAction` and `EventPattern`, ~150, inside RE.
+    **Not optional before Phase 8 (owner, RC-4b review):** Dour Port-Mage
+    ("Whenever one or more other creatures you control leave the battlefield
+    without dying, draw a card.") and Aang, Airbending Master ("... you get an
+    experience counter.") are the matcher that reads this line — a
+    leaves-the-battlefield trigger keyed on `ZoneChange { from: Battlefield }`
+    — and both would fire for a token that was created in exile and never left
+    anything. Cross-listed as "Before card breadth" item 8.
 
 ### Was the critical path complete? — audited 2026-08-27
 
@@ -2182,6 +2214,8 @@ first.
 
 7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs:302`, `TODO` tagged T22 (with matching notes at :39 and :293). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
 
+8. **A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52 (recorded 2026-09-02).** Dour Port-Mage and Aang, Airbending Master — "leave the battlefield without dying" — read exactly that line and would draw a card or grant an experience counter for a token Hallowed Moonlight created in exile. The fix is Phase RE's `CreateTokens` proposal, whose destination the entry's decision sets, and it lands before any pool pairs a token-exiling replacement with a leaves-without-dying trigger. A hard back-stop, not an RE nicety.
+
 ### Before Triggered abilities (CR 603)
 
 The trigger dispatcher's designated insertion point is `engine/priority.rs:234-240`. Today's gaps:
@@ -2196,7 +2230,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    - Event timing is post-action, not pre-action, so triggers observe the completed state change.
    - Events carry enough context for trigger predicates (controller, source, type filters).
 
-4. **The entry hop: Containment Priest's substitute leaves a permanent's worth of zone changes in the log for a card the CR says never entered (recorded 2026-09-02, RC-4; sharpened in review).** The `ZoneChange` performer moves the card into the battlefield zone and *then* proposes the `EnterBattlefield` (RC-2's one-`emit`-wide window), so "exile it instead" is performed as a `ZoneChange { from: Battlefield, to: Exile }`. Three things observe that: (a) the log holds a `ZoneChange` *into* the battlefield, so an ETB matcher on the zone change would fire — it must key on `PermanentEnteredBattlefield`, the performer's event, which a permanent that never entered does not have; (b) the log holds a `ZoneChange` *out of* it, `from: Battlefield` with a CR 603.10a LKI frame, so a leaves-the-battlefield or "exiled from the battlefield" matcher would fire, and a "leaves your graveyard" matcher would not, because the recorded `from` is wrong; (c) `zone_change_epoch` advances twice, so CR 400.7 sees two new objects. None is reachable today — no trigger matcher exists — but (b) and (c) have no keying rule that fixes them, so this is a bug-in-waiting for item 6, not a convention. **The fix is to reverse the nesting**, and it is the same restructuring as Deferred Migrations item 46: `GameAction::EnterBattlefield` carries `from`, its performer does the move, the placement and both emissions, and the `ZoneChange { to: Battlefield }` arm forwards to it *before* moving anything. Then the Priest's substitute is one `ZoneChange { from: <source zone>, to: Exile }`, the window is gone, `propose_entry`'s "replaced away" error is gone (a dropped entry leaves the card where it was, which is CR 614.6), a CR 614.17d "can't enter" may watch the entry, and a multi-entry batch is decided in phase 1 like any other proposal. The Priest stays in Root Maze's CR 616.1 bucket, which is what §11 item 19 needs reachable — moving the Priest to the zone change instead would split that bucket and force Priest-first. **Sized:** ~300–500 additions in `actions.rs` (two arms, `propose_entry`), `pipeline.rs` (the `Instead` arm), the token path in `resolve.rs` (`from: None`), and the RC-4 Priest tests' log assertions; CLAUDE.md's "one emitter" line is restated to name the entry performer. **Planned as RC-4b** — `replacement-architecture.md` §9 has the design, the token and CR 608.3e decisions, and the sizing — as its own PR ahead of RC-5, which needs entries to be batch members anyway.
+4. **~~The entry hop: Containment Priest's substitute leaves a permanent's worth of zone changes in the log for a card the CR says never entered~~ — ✅ CLOSED 2026-09-02 (RC-4b).** Entering is one proposal: `GameAction::EnterBattlefield` carries `from`, `change_zone` routes a battlefield destination to it, and its performer moves the card, announces the zone change, builds the entity and announces the entry. The Priest's substitute is one `ZoneChange { Graveyard → Exile }` with no LKI and one epoch, a dropped entry leaves the card where it was, and a "can't enter" may watch the entry (`phase_rc4b_integration_test`; `replacement-architecture.md` §9, RC-4b). The token residual is item 52. The record as found (2026-09-02, RC-4; sharpened in review): The `ZoneChange` performer moves the card into the battlefield zone and *then* proposes the `EnterBattlefield` (RC-2's one-`emit`-wide window), so "exile it instead" is performed as a `ZoneChange { from: Battlefield, to: Exile }`. Three things observe that: (a) the log holds a `ZoneChange` *into* the battlefield, so an ETB matcher on the zone change would fire — it must key on `PermanentEnteredBattlefield`, the performer's event, which a permanent that never entered does not have; (b) the log holds a `ZoneChange` *out of* it, `from: Battlefield` with a CR 603.10a LKI frame, so a leaves-the-battlefield or "exiled from the battlefield" matcher would fire, and a "leaves your graveyard" matcher would not, because the recorded `from` is wrong; (c) `zone_change_epoch` advances twice, so CR 400.7 sees two new objects. None is reachable today — no trigger matcher exists — but (b) and (c) have no keying rule that fixes them, so this is a bug-in-waiting for item 6, not a convention. **The fix is to reverse the nesting**, and it is the same restructuring as Deferred Migrations item 46: `GameAction::EnterBattlefield` carries `from`, its performer does the move, the placement and both emissions, and the `ZoneChange { to: Battlefield }` arm forwards to it *before* moving anything. Then the Priest's substitute is one `ZoneChange { from: <source zone>, to: Exile }`, the window is gone, `propose_entry`'s "replaced away" error is gone (a dropped entry leaves the card where it was, which is CR 614.6), a CR 614.17d "can't enter" may watch the entry, and a multi-entry batch is decided in phase 1 like any other proposal. The Priest stays in Root Maze's CR 616.1 bucket, which is what §11 item 19 needs reachable — moving the Priest to the zone change instead would split that bucket and force Priest-first. **Sized:** ~300–500 additions in `actions.rs` (two arms, `propose_entry`), `pipeline.rs` (the `Instead` arm), the token path in `resolve.rs` (`from: None`), and the RC-4 Priest tests' log assertions; CLAUDE.md's "one emitter" line is restated to name the entry performer. **Planned as RC-4b** — `replacement-architecture.md` §9 has the design, the token and CR 608.3e decisions, and the sizing — as its own PR ahead of RC-5, which needs entries to be batch members anyway.
 
 3. **LKI formalization.** Several dies-handling sites already read `self.objects.get(&id)` *before* `move_object` to capture pre-move state (see `engine/sba.rs` dies handlers). This is ad-hoc LKI. Triggered abilities that reference "the creature that died" need a formalized `LastKnownInformation` snapshot mechanism, especially after layers land (LKI needs *post-layer* characteristics at moment-of-death, per rule 603.10 / 608.2h).
 

@@ -170,6 +170,13 @@ pub enum EventPattern {
     DealDamage,
 
     /// CR 400.6. `None` on a field means "any".
+    ///
+    /// **Watches an entry too, when `to` admits the battlefield.** Entering is
+    /// the zone change onto it (CR 614.1c), proposed as
+    /// `GameAction::EnterBattlefield` and nothing else, and `pattern_watches`
+    /// compares `from` and `cause` against the entry's. That is Worms of the
+    /// Earth's and Grafdigger's Cage's shape, and it shares CR 616.1's bucket
+    /// with [`Self::EnterBattlefield`] — one event.
     ZoneChange {
         from: Option<Zone>,
         to: Option<Zone>,
@@ -226,12 +233,12 @@ pub enum EventPattern {
     /// fact about *how the object arrived* lands here as a field; a fact about
     /// the card where it is stays on [`Self::ZoneChange`]'s `object`.
     ///
-    /// **A prohibition on entering does not watch this event.** By the time an
-    /// `EnterBattlefield` is proposed the object is already in the battlefield
-    /// zone, so "Lands can't enter the battlefield" (Worms of the Earth) is a
-    /// `Restriction::Event` over `ZoneChange { to: Some(Battlefield), .. }`,
-    /// where stopping the event leaves the card where it was. CR 614.17d's
-    /// frame reaches that zone change too — `engine::replacement::EntryFrame`.
+    /// **A prohibition on entering may watch this event** (CR 614.17d). The
+    /// entry is the zone change, decided before anything moves, so refusing it
+    /// leaves the card where it was. The printed family — Worms of the Earth,
+    /// Grafdigger's Cage — is registered in [`Self::ZoneChange`]'s shape, which
+    /// watches an entry too; both doors open onto one CR 616.1 bucket, and the
+    /// frame (`engine::replacement::EntryFrame`) answers at either.
     EnterBattlefield {
         cast: Option<bool>,
     },

@@ -29,7 +29,7 @@ impl GameState {
     ///
     /// Steps follow CR 601.2a–i:
     /// 1. Pre-proposal legality check (rule 601.3)
-    /// 2. Move to stack (601.2a)
+    /// 2. Move to stack (601.2a) — silently; the move is announced at 601.2i
     /// 3. Choose alternative cost, additional costs, X value (601.2b)
     /// 4. Choose targets (601.2c)
     /// 5. Distribution placeholder (601.2d — T18c)
@@ -37,7 +37,7 @@ impl GameState {
     /// 7. Assemble total cost (601.2f)
     /// 8. Mana ability window placeholder (601.2g)
     /// 9. Pay total cost (601.2h)
-    /// 10. Emit SpellCast event (601.2i)
+    /// 10. Announce the 601.2a move and emit SpellCast (601.2i)
     pub fn cast_spell(
         &mut self,
         player_id: PlayerId,
@@ -92,7 +92,14 @@ impl GameState {
         // field says Stack, and CR 903.8 / "cast from exile" both need to know
         // where it came from. See `StackEntry::cast_from`.
         let cast_from = self.get_object(card_id)?.zone;
-        self.change_zone(card_id, Zone::Stack, ZoneChangeCause::Cast, &actx)?;
+        // CAST-ROLLBACK: silent in both directions. Nothing in the CR replaces
+        // a card being put onto the stack — a "can't cast" is CR 601.3's
+        // question, asked of the player ahead of this step — so the move is
+        // not a proposal; and the spell is not cast until 601.2i, so a cast
+        // that rewinds (CR 732.1) must leave no trace of it. Announced at
+        // 601.2i below, once the spell is cast. `rollback_cast_to_hand` is the
+        // other direction.
+        self.move_object(card_id, Zone::Stack)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
@@ -246,7 +253,13 @@ impl GameState {
 
         self.pay_costs(&total_costs, player_id, card_id, &generic_allocation, &actx)?;
 
-        // --- 601.2i: Emit SpellCast event ---
+        // --- 601.2i: the spell becomes cast ---
+        // The move 601.2a made silently is an event from this moment, and it is
+        // announced ahead of `SpellCast` so the log reads as the CR does: put
+        // onto the stack, then cast. No LKI: nothing is cast from the
+        // battlefield. The mana abilities activated at 601.2g are already in
+        // the log, where CR 732.1 leaves them even when a cast rewinds.
+        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeCause::Cast, None)?;
         self.events.emit(GameEvent::SpellCast {
             spell_id: card_id,
             caster: player_id,
@@ -509,9 +522,10 @@ impl GameState {
     /// A site with nothing to say is a site that does not belong on the
     /// chokepoint, not a site that needs an `Other` variant.
     ///
-    /// `move_object` still does the full teardown — `remove_from_zone_collection(Stack)`
-    /// clears the `StackEntry` — so behavior is identical to the `change_zone`
-    /// call this replaces.
+    /// `move_object` does the full teardown — `remove_from_zone_collection(Stack)`
+    /// clears the `StackEntry` — and announces nothing, like the 601.2a move it
+    /// reverses: neither direction is an event, and the forward move is
+    /// announced at 601.2i only once the spell is cast.
     fn rollback_cast_to_hand(&mut self, card_id: ObjectId) -> Result<(), String> {
         // CAST-ROLLBACK: see the doc comment. Do not "fix" this into change_zone.
         self.move_object(card_id, Zone::Hand)

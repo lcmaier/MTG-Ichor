@@ -1168,17 +1168,26 @@ takes the CR 614.12 frame — `Query::Event::lookahead`, or one derived from the
 action — and `set_affects` matches a `Filter` about an entering permanent
 against it. The population above splits on *which event* the "can't" watches:
 
-- **"Can't enter the battlefield"** (Worms of the Earth) watches the `ZoneChange`
-  onto the battlefield, not the entry. By the time an `EnterBattlefield` is
-  proposed the card is already in the battlefield zone with no entity, so a
-  refused entry would strand it; a refused zone change leaves it where it was.
-  The frame reaches that zone change too, built from what the entry proposal
-  *would* carry (CR 110.2b's default controller, the rules' own `EnterMods`),
-  and a Grizzly Bears returned under "each permanent is a land in addition to
-  its other types" stays in the graveyard — the frame's answer, not the card's.
-  Grafdigger's Cage and its three siblings keep reading the card in its source
-  zone, as their ruling says, through the pattern's `object` filter: **`pattern`
-  reads the source zone, `affected` reads the frame**, and that is the rule.
+- **"Can't enter the battlefield"** (Worms of the Earth) is registered in the
+  zone-change shape, `EventPattern::ZoneChange { to: Some(Battlefield) }`, and
+  since RC-4b (2026-09-02) that pattern watches the entry proposal itself:
+  entering *is* the zone change, `GameAction::EnterBattlefield` carries
+  `from`, and nothing has moved when the "can't" is asked, so a refused entry
+  leaves the card where it was. (Until RC-4b the entry was proposed from
+  inside the zone change's performer, after the move, and a refused entry
+  would have stranded the card — which is why the "can't" watched the zone
+  change.) The `EnterBattlefield` door is open to a "can't" now too, and
+  `phase_rc4b_integration_test` writes the same restriction against it;
+  **the fixture does not move**, because the zone-change shape is what the
+  printed family reads (the Cage's `from`) and both doors open onto one
+  CR 616.1 bucket. The frame is built from the entry proposal (CR 110.2b's
+  default controller, the rules' own `EnterMods`), and a Grizzly Bears
+  returned under "each permanent is a land in addition to its other types"
+  stays in the graveyard — the frame's answer, not the card's. Grafdigger's
+  Cage and its three siblings keep reading the card in its source zone, as
+  their ruling says, through the pattern's `object` filter: **`pattern` reads
+  the source zone, `affected` reads the frame**, and that is the rule. A
+  refused entry of a resolved permanent spell is CR 608.3e's graveyard trip.
 - **"Can't have counters put on it"** (Melira, Darksteel Angel, Solemnity,
   Melira's Keepers, Tatterkite) modifies *how* it enters. CR 122.6 says counters
   an object "is given as it enters" are *put on* it, so the "can't" is asked as

@@ -135,6 +135,15 @@ impl GameState {
                 // it is the only place that knows what the permanent entered
                 // with, and RC-2 deleted the emit that used to sit here.
                 self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
+                // CR 608.3e — "if a permanent spell resolves but its controller
+                // can't put it onto the battlefield, that player puts it into
+                // its owner's graveyard." The entry was refused (CR 614.17d) or
+                // dropped (CR 614.6) and the card is still on the stack; an
+                // entry *substituted* by a zone change took it elsewhere and
+                // needs nothing. The spell resolved, so the trip is `Resolved`.
+                if self.get_object(object_id)?.zone == Zone::Stack {
+                    self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
+                }
                 // Carry X value from the stack entry to the permanent (rule 107.3f)
                 if let Some(bf_entry) = self.battlefield.get_mut(&object_id) {
                     bf_entry.x_value = entry.x_value;
@@ -144,8 +153,10 @@ impl GameState {
                 // target.  The fizzle check (608.2b) at the top of this
                 // function guarantees the target is still legal — if it
                 // weren't, the spell would have fizzled before reaching here.
-                let is_aura = has_subtype(
-                    self, object_id, &Subtype::Enchantment(EnchantmentType::Aura));
+                // Only if it arrived: an Aura whose entry did not happen is not
+                // on the battlefield to attach, and its host must not list it.
+                let is_aura = self.battlefield.contains_key(&object_id)
+                    && has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura));
                 if is_aura {
                     let host_id = match entry.chosen_targets.first().copied() {
                         Some(ResolvedTarget::Object(id)) => id,
