@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase. Pinned to a commit and
+  the frozen CR; regenerate by hand at the next phase that changes these paths.
+  Self-contained: fonts from Google Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>A Copy Is a Snapshot — CV-1</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0 0; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 1.15rem; color: var(--ink); margin-top: 1rem; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+  html, body { overflow-x: hidden; }
+  a { color: var(--real); }
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--frame); outline-offset: 2px; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.95rem; }
+  nav.toc a { text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
+  nav.toc a:hover { border-bottom-color: var(--ink); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); font-size: 0.92rem; }
+  .legend label { display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; margin-left: auto; }
+
+  .chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.real { color: var(--real); border-color: var(--real); background: var(--real-tint); }
+  .chip.frame { color: var(--frame); border-color: var(--frame); background: var(--frame-tint); }
+  .chip.none { color: var(--muted); border-color: var(--line); background: transparent; }
+  .chip.decide { color: var(--decide); border-color: var(--decide); background: var(--decide-tint); }
+  .chip.new { color: var(--new); border-color: var(--new); background: var(--new-tint); }
+  .chip.changed { color: var(--changed); border-color: var(--changed); background: var(--changed-tint); }
+
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); padding: 0.9rem 1rem; }
+  .card .who { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card .name { font-family: var(--display); font-size: 1.2rem; margin-top: 0.2rem; }
+  .card .text { font-size: 0.92rem; color: var(--muted); margin-top: 0.3rem; }
+  .card.moving { border-color: var(--frame); }
+
+  .trace { list-style: none; margin: 1.25rem 0 0; padding: 0; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
+  .step { display: grid; grid-template-columns: 2.6rem minmax(18rem, 1.1fr) 5.4rem minmax(20rem, 1.4fr); gap: 0 1rem; align-items: start; padding: 0.55rem 0.9rem; border-top: 1px solid var(--line); min-width: 52rem; }
+  .step:first-child { border-top: 0; }
+  .step .n { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .step .call { padding-left: calc(var(--d, 0) * 1.1rem); position: relative; }
+  .step .call code { background: transparent; padding: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .step .call .loc { display: block; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .call .sub { display: block; font-size: 0.88rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .what { margin: 0; font-size: 0.95rem; }
+  .step .what em { color: var(--ink); }
+  .step[data-era="new"] { box-shadow: inset 3px 0 0 var(--new); }
+  .step.phase { background: var(--surface-2); }
+  .step.phase .call code { font-weight: 600; letter-spacing: 0.02em; }
+  body.dim-old .step:not([data-era="new"]):not(.phase) { opacity: 0.42; }
+  .step .tags { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; padding-top: 0.15rem; }
+
+  .log { font-family: var(--mono); font-size: 0.82rem; background: var(--code-bg); border: 1px solid var(--line); padding: 0.8rem 1rem; margin-top: 1rem; overflow-x: auto; white-space: pre; line-height: 1.6; }
+  .note { border-left: 3px solid var(--frame); padding: 0.2rem 0 0.2rem 1rem; margin-top: 1.25rem; max-width: 66ch; }
+  .note.real { border-left-color: var(--real); }
+  .note.changed { border-left-color: var(--changed); }
+
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.93rem; background: var(--surface); }
+  .tablewrap { overflow-x: auto; margin-top: 1rem; border: 1px solid var(--line); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-top: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 0; background: var(--surface-2); font-weight: 600; }
+  td code { white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+
+  .mermaid { background: var(--surface); border: 1px solid var(--line); padding: 1rem; margin-top: 1.25rem; overflow-x: auto; }
+  ol.plain { padding-left: 1.2rem; }
+  ol.plain li { margin-top: 0.5rem; }
+</style>
+
+<div class="page">
+  <div class="eyebrow">MTG-Ichor · Phase CV-1 · CR 707.2, 613.2a/c, 611.2c, 613.7a · main at 103acf1 (PR #88) · CR tmnt</div>
+  <h1>A Copy Is a Snapshot</h1>
+  <p class="lede prose">One Cytoshape resolution walked through the code as merged, from the CR 707.4 choice to the layer 1a row it registers — then the row read back twice, once for the copy itself and once for a bystander whose power the copy now changes. Every read of game state is labelled by <em>when</em> it reads: the board as it is now, or the frozen values a copy captured at some earlier instant. The whole phase is an argument that those two are different, and the traces are where the difference is visible.</p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#map">The map</a>
+    <a href="#a">A · Cytoshape resolves</a>
+    <a href="#b">B · Reading the copy back</a>
+    <a href="#c">C · Copying an anthem, and leg 2</a>
+    <a href="#d">D · The copy is superseded</a>
+    <a href="#reads">Where the reads differ</a>
+    <a href="#gates">The two gates</a>
+  </nav>
+
+  <div class="legend">
+    <span><span class="chip real">board</span> reads the game as it is now</span>
+    <span><span class="chip frame">capture</span> reads values frozen at an earlier instant</span>
+    <span><span class="chip decide">decide</span> a player is asked</span>
+    <span><span class="chip new">CV-1</span> added by this phase</span>
+    <label><input type="checkbox" id="dim"> dim steps CV-1 did not add</label>
+  </div>
+
+  <h2 id="map">The map</h2>
+  <p class="prose">CR 613.2c is the sentence the whole design hangs on: <em>“After all rules and effects in layer 1 have been applied, the object’s characteristics are its copiable values.”</em> Copiable values are the <em>output</em> of layer 1, not an input to it. So the capture is the existing frame-cache entry point at the existing ceiling, and a copy effect is one row in a layer the walk already visits and that has, until now, never contained anything.</p>
+
+  <pre class="mermaid">
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"JetBrains Mono, Consolas, monospace","fontSize":"12px","primaryColor":"#FFFFFF","primaryTextColor":"#1B2226","primaryBorderColor":"#5B6770","lineColor":"#5B6770","secondaryColor":"#E3F0F1","tertiaryColor":"#F3F6F6","clusterBkg":"#F3F6F6","clusterBorder":"#D5DCDD","edgeLabelBackground":"#FFFFFF"}}}%%
+flowchart TD
+  A["resolve_top_of_stack → resolve_effect → resolve_primitive"] --> B["apply_copy<br/>resolve.rs:1108"]:::new
+  subgraph R1["1 · the two roles (CR 707.4)"]
+    C{"CopyRoles"}:::new
+    D["RecipientsCopyChosen<br/>targets become copies · donor is chosen"]:::new
+    E["OthersCopyRecipient<br/>target is the donor · each other matching permanent copies it"]:::new
+    F["enumerate_legal_selections<br/>then 0 → nothing · 1 → forced · 2+ → ask"]:::new
+    G["ask_choose_copy_source<br/>ChoiceKind::ChooseCopySource"]:::decide
+  end
+  subgraph R2["2 · the capture (CR 707.2)"]
+    H["copiable_values<br/>copy.rs:158"]:::new
+    I["compute_to_ceiling(donor, END_OF_LAYER_1)<br/>the existing frame cache, at ceiling 1"]
+    J["CopiableValues::from_frame<br/>drops controller and control_since_turn"]:::new
+  end
+  subgraph R3["3 · the row (CR 613.2a, 611.2c)"]
+    K["ContinuousEffect { layer: Layer1Copy, affected: Fixed(ids),<br/>modification: CopyFrom(Box&lt;CopiableValues&gt;) }"]:::new
+    L["registry.add → recompute_summary<br/>any_copied_replacement · any_copied_restriction"]:::new
+    M["register_copied_static_effects<br/>game_state.rs:1029 — §4.7 leg 2"]:::new
+  end
+  subgraph W["Later · every characteristics query"]
+    N["compute_to_ceiling → apply_effects"]
+    O["LAYER_ORDER[0] = Layer1Copy<br/>apply_modification → values.apply_to(chars)"]:::new
+    P["layers 2–7 apply to the copy, unchanged"]
+    Q["static_ability_still_exists<br/>CR 613.7a, reads the source's frame at ceiling i"]
+  end
+  B --> C
+  C -- Cytoshape --> D --> F
+  F -- "two or more" --> G --> H
+  F -- "exactly one" --> H
+  C -- Mirrorweave --> E --> H
+  H --> I --> J --> K --> L
+  K --> M
+  N --> O --> P
+  M -. "derived rows re-checked here" .-> Q
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226
+  classDef decide fill:#F8E8EA,stroke:#8A2F3B,color:#1B2226
+  </pre>
+
+  <p class="prose">Two things the map cannot show and the traces will. The capture happens <em>once</em>, at step 12 of trace A, and is never revisited — every later read in traces B, C and D is a clone out of a box, not a recomputation. And the row alone makes the copy <em>have</em> an ability; it takes a second, derived row to make that ability <em>do</em> anything, which is the whole of trace C.</p>
+
+  <h2 id="a">A · Cytoshape resolves</h2>
+  <p class="prose">Player 0 controls a 1/1 Test Creature and a 5/5 flying Colossus; player 1 controls a 2/2 Bear. Cytoshape targets the Test Creature and chooses among the three nonlegendary creatures on the battlefield. This is <code>test_cytoshape_target_becomes_a_copy_of_the_chosen_creature</code> in <code>phase_cv_integration_test.rs</code>.</p>
+
+  <div class="board">
+    <div class="card moving"><div class="who">Player 0 · on the stack</div><div class="name">Cytoshape</div><div class="text">Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn.</div></div>
+    <div class="card"><div class="who">Player 0 · target</div><div class="name">Test Creature</div><div class="text">1/1, no abilities. Becomes the copy.</div></div>
+    <div class="card"><div class="who">Player 0 · chosen</div><div class="name">Colossus</div><div class="text">5/5, flying. The donor.</div></div>
+    <div class="card"><div class="who">Player 1</div><div class="name">Bear</div><div class="text">2/2. A candidate, not chosen.</div></div>
+  </div>
+
+  <ol class="trace">
+    <li class="step phase"><span class="n">—</span><span class="call"><code>1 · the two roles</code></span><span class="tags"></span><p class="what">CR 707.4. Which end of the sentence the atom’s target is.</p></li>
+    <li class="step" data-era="new"><span class="n">1</span><span class="call"><code>resolve_primitive</code><span class="loc">resolve.rs · Primitive::Copy arm</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">One arm, one call. The primitive carries <code>CopyRoles</code> and a <code>Duration</code>; everything else is read from the resolution context.</p></li>
+    <li class="step" data-era="new"><span class="n">2</span><span class="call" style="--d:1"><code>apply_copy</code><span class="loc">resolve.rs:1108</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">Three steps in order, and the order is a CR order rather than a convenience: resolve the roles, capture, register.</p></li>
+    <li class="step"><span class="n">3</span><span class="call" style="--d:2"><code>collect_battlefield_targets</code><span class="loc">resolve.rs</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">CR 608.2b. The Test Creature is still there, so the recipients are <code>[test_creature]</code>. Had it left, the arm returns here — <em>before</em> the prompt, because a choice that cannot change anything should not be asked.</p></li>
+    <li class="step" data-era="new"><span class="n">4</span><span class="call" style="--d:2"><code>enumerate_legal_selections</code><span class="loc">oracle/legality.rs:167</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">The donor’s filter — <code>Permanent(And(ByType(Creature), Not(BySupertype(Legendary))))</code> — over <code>battlefield_ids_ordered</code>. Three candidates. Ordered by CR 613.7 timestamp, so the option list a <code>DecisionProvider</code> sees is the same in every process.</p></li>
+    <li class="step" data-era="new"><span class="n">5</span><span class="call" style="--d:2"><code>match candidates.len()</code><span class="loc">resolve.rs · apply_copy</span></span><span class="tags"><span class="chip none">—</span></span><p class="what"><em>0</em> is CR 101.3’s impossible instruction and the whole effect does nothing. <em>1</em> is forced, and CR 102.2’s shape says nothing is asked. <em>3</em>, here, is a real choice.</p></li>
+    <li class="step" data-era="new"><span class="n">6</span><span class="call" style="--d:3"><code>ask_choose_copy_source</code><span class="loc">ui/ask.rs:716</span></span><span class="tags"><span class="chip decide">decide</span></span><p class="what"><code>ChoiceKind::ChooseCopySource { spell_id }</code>, asked of the spell’s controller. Not <code>SelectRecipients</code>: the donor is the one permanent this effect does <em>not</em> change, and a heuristic keyed on the recipient kind would read it as the victim. Asserts two or more candidates, so the caller owns the CR 102.2 short-circuit rather than the prompt swallowing it.</p></li>
+    <li class="step" data-era="new"><span class="n">7</span><span class="call" style="--d:3"><code>→ colossus_id</code><span class="loc">a local, and nothing else</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">The decision-site invariant (<code>codebase-state.md</code> item 40) holds here <em>by construction</em>: the chosen id lives in one local that never spans a second prompt. Fork at step 6 and both branches re-derive everything they need. That is the property to preserve, not the locality.</p></li>
+
+    <li class="step phase"><span class="n">—</span><span class="call"><code>2 · the capture</code></span><span class="tags"></span><p class="what">CR 707.2, once (707.2b/2c, 611.2c).</p></li>
+    <li class="step" data-era="new"><span class="n">8</span><span class="call" style="--d:2"><code>copiable_values(game, colossus_id)</code><span class="loc">layers/copy.rs:158</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">The one capture point in the engine. Reads <code>game.objects</code>, not <code>game.battlefield</code> — CR 707.2 is not a battlefield rule, and CV-1b’s capture from a graveyard card needs that and costs nothing to allow now.</p></li>
+    <li class="step" data-era="new"><span class="n">9</span><span class="call" style="--d:3"><code>debug_assert_eq!(LAYER_ORDER[END_OF_LAYER_1], Layer2Control)</code><span class="loc">layers/copy.rs</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">The ceiling constant pinned to the array it indexes. CV-6 splits layer 1 into 1a copy and 1b face-down; this assert fires the moment it does, which is what stops every capture silently moving one sublayer too early.</p></li>
+    <li class="step"><span class="n">10</span><span class="call" style="--d:3"><code>compute_to_ceiling(colossus_id, 1, cache)</code><span class="loc">layers/compute.rs:181</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Ceiling 1 means <code>LAYER_ORDER[..1]</code> applied — layer 1 and nothing after. The existing frame-cache entry point, at a ceiling the array already indexes. No new machinery.</p></li>
+    <li class="step"><span class="n">11</span><span class="call" style="--d:4"><code>apply_effects</code> → the layer loop<span class="loc">layers/compute.rs</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Breaks at <code>layer_index &gt;= ceiling</code>, so the Colossus’s own anthems, counters, tapped-ness and controller never enter the frame. <em>The exclusion in CR 707.2’s last sentence is this <code>break</code></em>, not a filter.</p></li>
+    <li class="step" data-era="new"><span class="n">12</span><span class="call" style="--d:3"><code>CopiableValues::from_frame</code><span class="loc">layers/copy.rs:84</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Destructures the frame rather than copying field by field, so adding a characteristic to <code>EffectiveCharacteristics</code> is a compile error here — whether a new characteristic is copiable is a CR 707.2 question and must be answered. <code>controller</code> and <code>control_since_turn</code> are bound to <code>_</code>: the type has no field for them, which is what keeps <code>any_control_changing</code>’s soundness argument true.</p></li>
+
+    <li class="step phase"><span class="n">—</span><span class="call"><code>3 · the row</code></span><span class="tags"></span><p class="what">CR 613.2a, with CR 611.2c’s affected set.</p></li>
+    <li class="step" data-era="new"><span class="n">13</span><span class="call" style="--d:2"><code>continuous_effects.add(...)</code><span class="loc">resolve.rs · apply_copy</span></span><span class="tags"><span class="chip none">—</span></span><p class="what"><code>layer: Layer1Copy</code>, <code>origin: Resolution</code>, <code>duration: UntilEndOfTurn</code>, <code>affected: Fixed([test_creature])</code>, <code>modification: CopyFrom(Box(values))</code>. <code>source</code> is the <em>stack object</em>, which is why <code>remove_by_source</code> never tears a Tier C copy down and why the duration is what ends it.</p></li>
+    <li class="step" data-era="new"><span class="n">14</span><span class="call" style="--d:3"><code>recompute_summary</code><span class="loc">state/continuous_effects.rs:167</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">Scans the captured ability list for <code>Effect::Replacement</code> and <code>Effect::Restriction</code> bodies. The Colossus has neither, so both new flags stay false — the gates are narrower than “a copy exists”.</p></li>
+    <li class="step" data-era="new"><span class="n">15</span><span class="call" style="--d:2"><code>register_copied_static_effects</code><span class="loc">state/game_state.rs:1029</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">No static abilities in the capture, so nothing is registered. Trace C is where this step does work.</p></li>
+  </ol>
+
+  <div class="note">
+    <p><strong>Fifteen steps, one prompt, one capture, one row.</strong> Nothing was mutated outside the registry, no zone changed, and no event was emitted — which is CR 707.4’s three free clauses arriving as an absence rather than as code.</p>
+  </div>
+
+  <h2 id="b">B · Reading the copy back</h2>
+  <p class="prose">The row exists; now something asks what the Test Creature is. Every arrow below is one <code>compute_characteristics</code> call, and the point of the trace is which steps read the board and which read the box.</p>
+
+  <ol class="trace">
+    <li class="step"><span class="n">1</span><span class="call"><code>get_effective_power(test_creature)</code><span class="loc">oracle/characteristics.rs:238</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Every characteristics query routes here. The layer-system invariant, unchanged by this phase.</p></li>
+    <li class="step"><span class="n">2</span><span class="call" style="--d:1"><code>compute_to_ceiling(id, 10, cache)</code><span class="loc">layers/compute.rs:181</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Seeds the frame from <code>card_data</code> — the printed 1/1 Test Creature — plus the entity’s controller and CR 302.6 clock.</p></li>
+    <li class="step"><span class="n">3</span><span class="call" style="--d:2"><code>LAYER_ORDER[0] = Layer1Copy</code><span class="loc">layers/compute.rs · the layer loop</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">A slot the walk has always visited and that has always been empty. This is the first phase in which <code>rows_in_layer</code> returns anything here.</p></li>
+    <li class="step"><span class="n">4</span><span class="call" style="--d:3"><code>effect_applies_to</code><span class="loc">layers/compute.rs</span></span><span class="tags"><span class="chip real">board</span></span><p class="what"><code>AffectedSet::Fixed</code>, so this is an <code>id</code> comparison against the vector CR 611.2c locked at step 13 of trace A. No filter is resolved and no other object’s frame is asked for.</p></li>
+    <li class="step"><span class="n">5</span><span class="call" style="--d:3"><code>static_ability_still_exists</code><span class="loc">layers/compute.rs:240</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">Returns <code>true</code> immediately: <code>EffectOrigin::Resolution</code>. CR 613.7b — a resolution already happened and there is no ability to go looking for. <em>No frame is computed</em>, which is why a copy row costs nothing beyond its own apply.</p></li>
+    <li class="step" data-era="new"><span class="n">6</span><span class="call" style="--d:3"><code>apply_modification → values.apply_to(chars)</code><span class="loc">layers/compute.rs:1090 → copy.rs:123</span></span><span class="tags"><span class="chip frame">capture</span></span><p class="what">The one line this phase adds to the hot path. Ten fields overwritten from the box; <code>controller</code> and <code>control_since_turn</code> untouched, because they are not in it. After this line the frame <em>is</em> a Colossus, and every later layer modifies a Colossus.</p></li>
+    <li class="step"><span class="n">7</span><span class="call" style="--d:2"><code>layers 2–7</code><span class="loc">layers/compute.rs · the same loop</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">A Layer 7c pump registered on the Test Creature <em>before</em> the copy still applies, and applies to 5/5. This is CR 707.4’s “doesn’t change any noncopy effects presently affecting the permanent”, and it is free because layers 2–7 never learned that layer 1 exists.</p></li>
+    <li class="step"><span class="n">8</span><span class="call" style="--d:2"><code>cda::apply_intrinsic_cdas</code><span class="loc">layers/cda.rs</span></span><span class="tags"><span class="chip frame">capture</span></span><p class="what">Reads <code>chars.abilities</code>, which since step 6 is the captured list with each <code>is_characteristic_defining</code> carried verbatim. CR 604.3a(2)’s third clause — a copied CDA is still a CDA — is implemented by <em>not writing anything</em>. A Layer 6 grant is the opposite and must clear the flag.</p></li>
+  </ol>
+
+  <div class="note real">
+    <p><strong>Step 5 is where the performance argument lives.</strong> <code>layers-architecture.md</code> §12 measured the CR 613.7a existence check, ungated, at 5.2× to 8.0× — because a static-ability row makes the walk compute its <em>source’s</em> frame. A copy row is <code>Resolution</code>, so it never does. What CV-1 adds to <code>Frames/walk</code> is not the copy row; it is the derived rows of trace C, which are static-ability rows like any other.</p>
+  </div>
+
+  <h2 id="c">C · Copying an anthem, and leg 2</h2>
+  <p class="prose">The same resolution, with a donor that has a static ability: an Anthem Bear, a 2/2 whose text is Glorious Anthem’s. Before CV-1 the copy would have had the ability and pumped nothing, because <code>register_static_effects</code> reads printed abilities and runs only at ETB (<code>codebase-state.md</code> item 16). This is <code>test_a_copied_anthem_pumps</code>.</p>
+
+  <div class="board">
+    <div class="card"><div class="who">Player 0 · chosen</div><div class="name">Anthem Bear</div><div class="text">2/2. “Creatures you control get +1/+1.”</div></div>
+    <div class="card moving"><div class="who">Player 0 · target</div><div class="name">Test Creature</div><div class="text">1/1. Becomes a second Anthem Bear.</div></div>
+    <div class="card"><div class="who">Player 0</div><div class="name">Bear</div><div class="text">2/2. The bystander whose power is the assertion.</div></div>
+  </div>
+
+  <ol class="trace">
+    <li class="step phase"><span class="n">—</span><span class="call"><code>at resolution · step 15 of trace A</code></span><span class="tags"></span><p class="what">§4.7 leg 2. A missing row, not a wrong gate.</p></li>
+    <li class="step" data-era="new"><span class="n">1</span><span class="call"><code>register_copied_static_effects</code><span class="loc">state/game_state.rs:1029</span></span><span class="tags"><span class="chip frame">capture</span></span><p class="what">Iterates the copy row’s affected ids — here one, the Test Creature — and, per id, the captured ability list.</p></li>
+    <li class="step" data-era="new"><span class="n">2</span><span class="call" style="--d:1"><code>values.registrable_static_abilities()</code><span class="loc">layers/copy.rs:143</span></span><span class="tags"><span class="chip frame">capture</span></span><p class="what"><code>Static</code> and not <code>is_characteristic_defining</code>. CDAs are skipped for the same reason the printed path skips them: <code>layers::cda</code> applies them off the effective ability list, and a row here would apply them twice.</p></li>
+    <li class="step" data-era="new"><span class="n">3</span><span class="call" style="--d:1"><code>controller_or_owner(test_creature)</code><span class="loc">oracle/characteristics.rs:79</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">The <em>copy’s</em> controller, not the spell’s. CR 613.7a’s effect is generated by a static ability of the permanent, and CR 109.5 makes its “you” that permanent’s controller. Mirrorweave is what makes this observable — it copies onto creatures both players control.</p></li>
+    <li class="step"><span class="n">4</span><span class="call" style="--d:1"><code>static_ability_atoms</code> → <code>static_affected_set</code> → <code>static_primitive_rows</code><span class="loc">state/game_state.rs</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">The printed path’s own three helpers, verbatim, including their loud assertions. Identical card text must behave identically whether it was printed, granted or copied; two copies of this lowering drift.</p></li>
+    <li class="step"><span class="n">5</span><span class="call" style="--d:1"><code>static_effect_timestamp(id, ability, Some(copy_ts))</code><span class="loc">state/game_state.rs:800</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">CR 613.7a clause 2 — “or the timestamp of the effect that created the ability, whichever is later”. The copy effect created it, so this is the clause-2 caller the function’s docs describe, beside <code>register_granted_static_effects</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">6</span><span class="call" style="--d:1"><code>ContinuousEffect { layer: Layer7cModifyPT, origin: StaticAbility { ability }, duration: UntilEndOfTurn, affected: Filter { ByController(You) &amp; Creature } }</code><span class="loc">state/game_state.rs</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">The row the copy owed. Its <code>duration</code> is the copy row’s, so both die in the same CR 514.2 sweep; its <code>source</code> is the copy, so <code>remove_by_source</code> takes both if the copy leaves.</p></li>
+
+    <li class="step phase"><span class="n">—</span><span class="call"><code>later · get_effective_power(bystander)</code></span><span class="tags"></span><p class="what">The bystander is a creature player 0 controls, so both anthems reach it.</p></li>
+    <li class="step"><span class="n">7</span><span class="call"><code>LAYER_ORDER[8] = Layer7cModifyPT</code><span class="loc">layers/compute.rs</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Two rows in the slice now: the printed Anthem Bear’s and the copy’s.</p></li>
+    <li class="step"><span class="n">8</span><span class="call" style="--d:1"><code>static_ability_still_exists(copy_row, layer_index = 8)</code><span class="loc">layers/compute.rs:240</span></span><span class="tags"><span class="chip real">board</span></span><p class="what"><code>StaticAbility</code>, so CR 613.7a really asks. Computes the <em>Test Creature’s</em> frame at ceiling 8 — which includes layer 1, so the copy row applies inside that sub-walk and the captured ability is on the list. The check passes because the copy is a copy.</p></li>
+    <li class="step"><span class="n">9</span><span class="call" style="--d:2"><code>compute_to_ceiling(test_creature, 8, cache)</code><span class="loc">layers/compute.rs:181</span></span><span class="tags"><span class="chip frame">capture</span></span><p class="what">The strictly-descending ceiling that is §5.2’s termination argument. Ceiling 8 &lt; 10, so this frame is memoized for the rest of the top-level call; a board of N copied anthems asks for it once, not N times.</p></li>
+    <li class="step"><span class="n">10</span><span class="call" style="--d:1"><code>apply_modification × 2</code><span class="loc">layers/compute.rs:1084</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">2 + 1 + 1 = <strong>4</strong>. Which is the whole assertion the phase existed to make true.</p></li>
+  </ol>
+
+  <div class="note changed">
+    <p><strong>Step 8 is the frames-per-walk cost, and it is the ordinary one.</strong> A copied static ability is a static ability: it pays exactly what a printed anthem pays, and it pays it for the same CR 613.7a reason. Nothing about copying makes it more expensive — which is the finding, because the phase was sized expecting a hot-path risk in the copy row and the copy row turned out to be the cheap half.</p>
+  </div>
+
+  <h2 id="d">D · The copy is superseded</h2>
+  <p class="prose">CR 707.4 lets a permanent copying a permanent copy a different object while remaining on the battlefield. Cytoshape the anthem-copy again, this time onto the Colossus. Nothing is removed from the registry — and the derived anthem row stops working anyway. This is <code>test_a_superseded_copy_stops_its_derived_row_applying</code>.</p>
+
+  <ol class="trace">
+    <li class="step" data-era="new"><span class="n">1</span><span class="call"><code>apply_copy</code> → a second <code>CopyFrom</code> row<span class="loc">resolve.rs:1108</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">Same subject, later timestamp. Both rows are in layer 1; CR 613.2a applies them in timestamp order, so the later capture wins. No zone change, no event, no removal — CR 707.4’s first clause, again as an absence.</p></li>
+    <li class="step"><span class="n">2</span><span class="call"><code>get_effective_power(bystander)</code><span class="loc">the next query, whenever it comes</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">The derived anthem row from the <em>first</em> copy is still registered and still in layer 7c’s slice.</p></li>
+    <li class="step"><span class="n">3</span><span class="call" style="--d:1"><code>static_ability_still_exists(derived_row, 8)</code><span class="loc">layers/compute.rs:240</span></span><span class="tags"><span class="chip frame">capture</span></span><p class="what">Asks the Test Creature’s frame at ceiling 8. Both copy rows apply there in timestamp order, so the frame’s abilities are the <em>Colossus’s</em> — the anthem ability id is not among them. <strong><code>false</code>.</strong> The row is skipped.</p></li>
+    <li class="step"><span class="n">4</span><span class="call"><code>— nothing —</code><span class="loc"></span></span><span class="tags"><span class="chip none">—</span></span><p class="what">Back to 3. Teardown happened without a teardown: “registry membership is not effect existence” is doing the work, and it is why leg 2 needed no removal path and no reconciliation at a mutation chokepoint.</p></li>
+  </ol>
+
+  <div class="note">
+    <p><strong>What this leaves.</strong> The superseded derived row is inert but present until CR 514.2 cleanup. Harmless for a turn-bounded copy, which is all CV-1 ships; with <code>Duration::Indefinite</code> — CV-1b, blocked on CR 400.7 — re-copies would accumulate rows without bound. Recorded in <code>codebase-state.md</code>’s Deferred Migrations as CV-1b’s prerequisite rather than fixed here, because the fix wants the same subject-keyed teardown item 10 owes every pump spell.</p>
+  </div>
+
+  <h2 id="reads">Where the reads differ</h2>
+  <p class="prose">The same question — “what abilities does this permanent have?” — has two answers in this phase, and every bug CV-1 fixed is a place that had been asking the wrong one.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Site</th><th>Reads</th><th>Answer for a copy</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><code>register_static_effects</code><br><span style="color:var(--muted)">game_state.rs, at ETB</span></td><td><code>card_data.abilities</code> — printed</td><td>The <em>copier’s</em> printed text. Never the copied ability.</td><td>Unchanged, deliberately. Circular inside <code>place_on_battlefield</code>; <code>register_copied_static_effects</code> is the path beside it.</td></tr>
+      <tr><td><code>gather</code>’s battlefield sweep<br><span style="color:var(--muted)">replacement/gather.rs</span></td><td><code>get_effective_abilities</code> — the layer walk</td><td>Correct. It always was; the <em>gate</em> in front of it was not.</td><td>Gate gained <code>any_copied_replacement</code>.</td></tr>
+      <tr><td><code>is_prohibited</code>’s sweep<br><span style="color:var(--muted)">restriction/predicate.rs</span></td><td><code>get_effective_abilities</code></td><td>Correct, same story.</td><td>Gate gained <code>any_copied_restriction</code>. §4.7 counted one gate; RS-1 had built a second.</td></tr>
+      <tr><td><code>static_ability_still_exists</code><br><span style="color:var(--muted)">layers/compute.rs:240</span></td><td>the source’s frame at ceiling <code>i</code></td><td>Correct, and it is what makes a superseded derived row inert with no removal path.</td><td>Unchanged. Trace D is it earning its keep.</td></tr>
+      <tr><td><code>cda::apply_intrinsic_cdas</code><br><span style="color:var(--muted)">layers/cda.rs</span></td><td><code>chars.abilities</code> — post-layer-6</td><td>The captured list, flags verbatim. CR 604.3a(2) clause 3.</td><td>Unchanged. Rides along for free.</td></tr>
+      <tr><td>Triggered-ability registration<br><span style="color:var(--muted)">critical-path item 6</span></td><td>—</td><td>—</td><td><strong>Owed.</strong> §4.7 leg 3: whatever ETB scan Phase 6 writes must take the effective list, or a copy’s triggers are dead.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2 id="gates">The two gates</h2>
+  <p class="prose">Both are the same shape, and the shape is the finding worth keeping: <em>a fast-path gate must be derived from the same place its sweep reads.</em> Each sweep reads the effective ability list; each gate reads <em>sources</em> of ability. Every new route to that list is a new leg on every such gate — and the number of gates grows too, which is what CV-1 discovered by finding RS-1’s.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Gate</th><th>Leg 1 · printed</th><th>Leg 2 · granted</th><th>Leg 3 · copied</th><th>Still missing</th></tr></thead>
+    <tbody>
+      <tr><td><code>replacement::gather</code></td><td><code>replacement_ability_sources</code></td><td><code>any_granted_replacement</code></td><td><code>any_copied_replacement</code> <span class="chip new">CV-1</span></td><td>Layer 3 (text-changing)</td></tr>
+      <tr><td><code>restriction::is_prohibited</code></td><td><code>restriction_ability_sources</code></td><td><code>any_granted_restriction</code></td><td><code>any_copied_restriction</code> <span class="chip new">CV-1</span></td><td>Layer 3</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="prose">The copied legs are summary flags rather than inserts into the two <code>*_ability_sources</code> sets, and the reason is those sets’ own doc comments: each is “a set rather than a count, so it cannot drift”, and each is cleared only at <code>cleanup_zone_state</code>. A copy row can expire with no zone change, so an insert would leave the set high. Drifting high is the safe direction — a wasted walk, never a wrong answer — but quietly falsifying that sentence is worse than one more field, and the summary is recomputed from the rows on every mutation, so it cannot drift at all.</p>
+
+  <p class="prose">Both flags scan the captured <em>ability bodies</em>, not the presence of a copy row. A copy of a vanilla creature turns neither on, which is what keeps them worth having: a flag that is permanently true buys nothing.</p>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });
+  const dim = document.getElementById("dim");
+  dim.addEventListener("change", () => document.body.classList.toggle("dim-old", dim.checked));
+</script>
+</body>
+</html>
