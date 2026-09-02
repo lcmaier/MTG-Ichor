@@ -446,10 +446,14 @@ fn test_a_zone_change_onto_the_battlefield_is_not_a_proposal() {
 // nothing
 // ---------------------------------------------------------------------------
 
-/// A cast that pays with a mana ability. The tap happens at 601.2g and the
-/// spell becomes cast at 601.2i, so the log reads tap, then the move onto the
-/// stack, then `SpellCast` — the move is announced when CR 601.2i says the
-/// spell is cast, not when 601.2a put the card there.
+/// A cast that pays with a mana ability. Two orders, and they differ on
+/// purpose. The *state* order is the CR's: the card is on the stack from
+/// 601.2a, the land is tapped at 601.2g against a spell already there, and the
+/// spell becomes cast at 601.2i. The *log* order is tap, then the move, then
+/// `SpellCast`, because the move is not an event until 601.2i — a cast that
+/// rewinds must leave no trace of it (CR 732.1) — while the tap is an event
+/// when it happens. No trigger cares which came first: CR 603.3 places both
+/// after the cast, in their controller's order.
 #[test]
 fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
     let mut game = setup_two_player_game();
@@ -478,10 +482,12 @@ fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
 }
 
 /// A cast that taps a land at 601.2g and then cannot pay at 601.2h. CR 732.1:
-/// the action is reversed and the spell returns to the zone it came from, but
-/// the mana ability was a legal action of its own — the tap stays performed,
-/// stays in the log, and the mana stays in the pool. The move that never
-/// legally happened is not in the log at all.
+/// the action is reversed and the spell returns to the zone it came from, and
+/// the player *may* also reverse the mana abilities activated along the way.
+/// The engine takes the "may not" branch unasked — the tap stays performed,
+/// stays in the log, and the mana stays in the pool — and the other branch is
+/// a `DecisionProvider` question it does not ask yet (`backlog.md` §2.18). The
+/// move that never legally happened is not in the log at all.
 // COVERS-PARTIAL: ATOM-601.2h-002
 #[test]
 fn test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change() {

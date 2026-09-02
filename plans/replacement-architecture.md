@@ -3027,7 +3027,13 @@ review's trace artifact (pinned to 8ac4ad7) is the before-picture.
   doublers need it anyway), not an `Option<Zone>` threaded through
   `GameObject.zone`'s 38 readers for a shape no registered card reaches:
   Containment Priest excludes tokens and Hallowed Moonlight is not registered.
-  Recorded as a Deferred Migrations line under RE.
+  Recorded as `codebase-state.md` item 52 — and **not optional before Phase
+  8** (owner, review): Dour Port-Mage's and Aang, Airbending Master's "leave
+  the battlefield without dying" is a trigger keyed on `ZoneChange { from:
+  Battlefield }`, and it would fire for a token Hallowed Moonlight created in
+  exile. The residual is the same wrong `from` this phase fixed for cards,
+  and RE's `CreateTokens` proposal is where it closes, back-stopped under
+  "Before card breadth" item 8.
 - **CR 608.3e.** A resolved permanent spell whose entry does not happen — a
   "can't enter" refused it, or a replacement dropped it — is still on the
   stack afterward, and `resolve_top_of_stack` moves it `Stack → Graveyard`
@@ -3249,7 +3255,8 @@ Draw replacement (614.11, 614.11a/b, 121.2a's outer event, 121.6a empty
 library), skips (614.10/a/b — per-player consumable `pending_skips` consulted at
 step/phase/turn begin), token and counter doublers (614.16 — `CreateTokens`
 as a proposal, which is also where RC-4b's token residual lands: a creation
-whose destination the entry's decision sets, `codebase-state.md` item 52),
+whose destination the entry's decision sets, `codebase-state.md` item 52 and
+"Before card breadth" item 8 — a Phase 8 back-stop, not a nicety),
 life-gain replacement (119.10), mana replacement (106.6a), and the three kinds
 §8a's audit added: `PlayerLoses` / `PlayerWins` (CR 104, 6 cards) and the discard
 pattern arm (CR 701.9, 17 cards).
