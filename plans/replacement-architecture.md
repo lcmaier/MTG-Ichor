@@ -1378,6 +1378,85 @@ ability list per §5c. RC-4 builds the rest of the overlay and turns on
 filter-based ETB replacements (Orb of Dreams, Blood Moon interactions) and the
 614.13a/b exclusion sets.
 
+### 5d. The overlay as built (RC-4, 2026-09-02)
+
+`engine/layers/lookahead.rs`'s module docs used to carry this; it lives here so
+the source stays a summary and a pointer.
+
+**A read-side overlay, not a clone** (§11 item 5). A `GameState` clone
+duplicates `GameState.rng` against the determinism doctrine and produces a
+second live copy of every v4 `ObjectId`, aliased rather than distinguishable.
+So the hypothetical is expressed as the *reads* the layer walk makes of
+concrete state. There are two, and each sits behind one accessor in
+`compute.rs`:
+
+| Accessor | Reads | Answers from the overlay when… |
+|---|---|---|
+| `FrameCache::entity` | the `BattlefieldEntity` the walk seeds from — controller, CR 302.6's clock, the counters layers 6 and 7c read | the object being computed is the entering one: `Lookahead::entity`, the entity `place_on_battlefield` would build |
+| `rows_in_layer` | the registry's slice for a layer, in CR 613.7 order | the object being computed is the entering one: the registry's rows, then `Lookahead::rows`, the rows `register_static_effects` would write |
+
+`base_controller` has the matching arm, so the seed and `effective_controller`'s
+gated short-circuit agree by construction. The membership gate in
+`effect_applies_to` (`in_battlefield_zone_or_entering`) admits the entering
+object whether or not it has moved yet, which is what lets a CR 614.17d "can't
+enter" be asked at the zone change.
+
+**CR 614.12's clauses, against the read each perturbs:**
+
+| Clause | Perturbed read |
+|---|---|
+| (1) replacements that already modified how it enters | the counters layers 6 and 7c read come from the pending `EnterMods`, on the would-be entity |
+| (2) its own static abilities | `rows_in_layer` appends the would-be rows, timestamped as the entry would timestamp them |
+| (3) effects that already exist | RC-3 admitted the battlefield *zone* to filter matching; the overlay only widens that to an object not yet in the zone |
+
+Plus the seed: the frame's controller is the proposed one — CR 110.2b's
+default, or a CR 616.1b rewrite of it — and CR 302.6's clock starts this turn.
+`base_controller`'s battlefield probe never finds an entity for an entering
+object, so without the seed a filter's "you control" would read the owner,
+which is wrong for every permanent spell cast by a non-owner.
+
+**Timestamps.** `Lookahead::new` reads `next_timestamp` without advancing it,
+gives the entity that value and each counter kind the next ones, as
+`place_on_battlefield` would. Only the order matters: later than every
+registered row, which is where CR 613.7a puts an object's own static-ability
+effects and CR 613.7c its counters. CR 613.7e's re-timestamp on attachment
+does not disturb this: it fires when an Aura, Equipment or Fortification
+*becomes attached*, which is at or after entry and so later still, and it
+never re-timestamps the host (`gather.rs` makes the same point where it
+splices the entering object's own replacements in last). The engine does not
+model 613.7e's re-timestamp yet; attachment as a layers input is critical-path
+item 6b.
+
+**The gates.** The walk has two fast paths keyed off `RegistryScopeSummary`:
+CR 613.6's "started applying" bookkeeping runs only when some effect occupies
+more than one row, and `effective_controller` walks only when some row can
+change control. The would-be rows are not in the registry, so a frame whose
+own rows would flip either gate — an entering permanent with a two-row static,
+or one that changes control of itself — would be answered wrongly by the
+registry's summary alone. `Lookahead::summary` is the same struct computed by
+the same function (`RegistryScopeSummary::of`) over the would-be rows, and each
+gate reads both.
+
+**One object is hypothetical; nothing else is (§5b).** The would-be rows are
+appended only when computing the entering id, so the entering permanent's
+anthem is in *its* frame and reaches no other object's; and an
+`AmountExpr::CountOf` enumerates `battlefield_ids_ordered`, which the entering
+object is not on. That is §5a's boundary — visible to filters, invisible to
+counts — falling out of the structure rather than being special-cased.
+
+**Where it lives — the decision-site invariant.** On the stack, threaded
+through `FrameCache`. `codebase-state.md` item 40 asks of any state a decision
+is taken against whether it is *outcome-bearing*: drop it and re-derive, and
+does the game reach the same outcome? The frame is a pure function of
+`GameState` and the proposal being decided, so it does — it is bookkeeping,
+and bookkeeping may live off `GameState`. The proposal itself,
+`apply_replacements`' `event`, is the outcome-bearing thing, and it is already
+item 40's first violator.
+
+**What review found after it shipped** is in `handoffs/rc-4-review.md`; the one
+defect is the entry hop (`codebase-state.md`, "Before Triggered abilities"
+item 4), which is not the overlay's but the two-event entry it sits on.
+
 ---
 
 ## 6. Engine interaction points
@@ -2895,6 +2974,11 @@ consequences elsewhere on the board — and one that is a field type.
    the two land together. No caller produces a multi-entry batch yet
    (`Primitive::ReturnToBattlefield` is a stub, `CreateToken` loops), so this
    is unreachable rather than wrong — `codebase-state.md` item 46.
+   The same restructuring closes the entry hop Containment Priest made
+   observable (`codebase-state.md`, "Before Triggered abilities" item 4): an
+   `EnterBattlefield` that carries `from` and whose performer does the move is
+   a phase-1 proposal like any other, and a substituted entry then never
+   touches the battlefield.
 
 3. **A dynamic counter amount in `EnterWith`.** Master Biomancer's "equal to
    this creature's power" needs `EnterMods.counters` to carry an `AmountExpr`
