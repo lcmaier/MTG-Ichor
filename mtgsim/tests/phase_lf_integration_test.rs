@@ -228,10 +228,7 @@ fn test_keyword_counters_are_live_and_only_keyword_counters_grant() {
     // fallen through the mapping into some default.
     assert!(!has_keyword(&game, id, KeywordFlag::Flying));
 
-    game.battlefield
-        .get_mut(&id)
-        .unwrap()
-        .remove_counters(CounterType::Menace, 2);
+    game.remove_counters(id, CounterType::Menace, 2);
     assert!(
         !has_keyword(&game, id, KeywordFlag::Menace),
         "the keyword came from the counters, so it leaves with them"

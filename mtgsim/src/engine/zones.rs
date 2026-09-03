@@ -97,6 +97,12 @@ impl GameState {
         obj.zone = to;
         obj.zone_change_epoch = epoch;
 
+        // Every collection touched above and the zone written here are
+        // layer-walk inputs; one bump after the last of them. The
+        // `// CAST-ROLLBACK:` moves come through here too, so a rewound cast
+        // leaves the memo without having been an event.
+        self.bump_layer_epoch();
+
         Ok(())
     }
 

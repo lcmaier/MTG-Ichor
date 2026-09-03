@@ -9,6 +9,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
@@ -170,7 +171,64 @@ fn count_of(counters: &HashMap<CounterType, CounterStack>, kind: CounterType) ->
 /// all active continuous effects in layer order.
 ///
 /// Returns `None` if the object doesn't exist.
-pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
+///
+/// **Memoized across calls** (`layers-architecture.md` §12 "7a"). The frame
+/// for `id` is served from `GameState::layer_memo` while nothing has written
+/// a walk input since it was computed — `GameState::layer_epoch` is that
+/// test — and walked and stored otherwise. Shared rather than owned, so a
+/// hit never clones the ability list. A `None` is never stored: an object
+/// that does not exist costs a probe of the object map, not a walk.
+///
+/// Two readers bypass the memo on purpose. The CR 614.12 look-ahead
+/// (`lookahead::compute_as_entering`) computes a hypothetical board, and the
+/// CR 603.10a LKI capture (`compute_characteristics_uncached`) computes the
+/// frame an event will store. Neither consults nor fills the memo.
+pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
+    let epoch = game.layer_epoch();
+    if let Some(frame) = game.layer_memo.get(id, epoch) {
+        game.counters.record_memo_hit();
+        #[cfg(debug_assertions)]
+        audit_memo_hit(game, id, &frame);
+        return Some(frame);
+    }
+    let frame = Arc::new(compute_characteristics_uncached(game, id)?);
+    game.layer_memo.insert(id, epoch, Arc::clone(&frame));
+    Some(frame)
+}
+
+/// The debug mode §12 required in the same commit as the cache: every hit is
+/// checked against a fresh walk, which makes `cargo test` and a debug
+/// `fuzz_games` run the invalidation-completeness test. A coarse key can be
+/// wrong in exactly one way — a write to a walk input that skipped its epoch
+/// bump — and this turns that into a panic instead of a stale answer.
+///
+/// The fresh walk is not engine work: its counts are rewound, so a debug
+/// build's `Layer walks` and `Layer frames` are the release build's.
+#[cfg(debug_assertions)]
+fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
+    let (walks, frames) = (game.counters.layer_walks(), game.counters.layer_frames());
+    let fresh = compute_characteristics_uncached(game, id);
+    game.counters.rewind_layer_work(walks, frames);
+    debug_assert_eq!(
+        fresh.as_ref(),
+        Some(served),
+        "layer memo served a stale frame for {} at epoch {}: a write to a layer-walk \
+         input skipped `GameState::bump_layer_epoch`",
+        id,
+        game.layer_epoch()
+    );
+}
+
+/// One full layer walk of `id`, owned by the caller — a memo **miss**, and
+/// the walk `EngineCounters::layer_walks` counts.
+///
+/// The CR 603.10a LKI capture reads through here: the frame it takes is about
+/// to be *stored*, on an event, as the record of what the permanent was, and
+/// it is built from a fresh walk rather than from anything shared.
+pub(crate) fn compute_characteristics_uncached(
+    game: &GameState,
+    id: ObjectId,
+) -> Option<EffectiveCharacteristics> {
     game.counters.record_layer_walk();
     let mut cache = FrameCache::new(None);
     compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)

@@ -942,6 +942,22 @@ built, and none of it blocks RC-1 through RC-3.
     made each land walk heavier (+36% per walk, `engineering-practices.md`
     §3), and a memo pays that once per epoch rather than once per query.
 
+    **Closed 2026-09-03 — 7a ✅ (`layers/epoch-memo`).** Walks per game
+    108,626 → 2,663 on `performance` and 111,418 → 2,719 on `stress` at 50
+    games, with every other §3 row reproduced to the digit and 40-game
+    event streams byte-identical to `main`'s; CPU per game 146.8 → 13.8 ms on `performance` (200 games, medians of
+    three interleaved rounds, −90.6%) and 1.47 → 0.139 ms per 1,000
+    questions asked. The epoch is
+    bumped at the write by one funnel per input (three inputs got a funnel
+    for it: `remove_object`, `remove_counters`, `set_stack_entry` /
+    `take_stack_entry`), the registry's half of it moves only when a row
+    arrives or leaves, and every hit is audited against a fresh walk in
+    debug — which caught three tests writing a walk input directly and
+    nothing in the engine. `Layer walks` is the miss count now and `Memo
+    hits` sits beside it. The as-built details, the numbers and the
+    residual are in `layers-architecture.md` §12 "7a"; item 7 decides a
+    finer key against that residual.
+
 ### Found by the #62 pre-merge pass (2026-08-30)
 
 17. **Nothing expires a registry row with a source-scoped duration (found
@@ -2265,6 +2281,20 @@ The layer system's designated single-point change site is `oracle/characteristic
 7e. **Derivation silently drops non-`Fixed` amounts — ✅ done (2026-08-22).** `EffectModification::{SetPowerToughness, ModifyPowerToughness}` now carry a `PtValue`: `Fixed(i32)` for a signed literal, `Dynamic(AmountExpr)` for an expression re-evaluated at every layer by `compute::evaluate_pt_value`. Two variants rather than one because `AmountExpr::Fixed` is `u64` and `ModifyPowerToughness { power: -1 }` needs a sign. Resolution-time effects stay `Fixed` (CR 608.2h locks a resolving spell's value in); it is static abilities that must stay live (CR 604.7). March of the Machines is back to its printed "equal to its mana value" via `AmountExpr::AffectedManaValue`.
 
     Residue, now loud instead of silent: the evaluator returns `Option<i32>` and `debug_assert!`s on an amount with no static-context meaning. `Variable` genuinely cannot appear on a static ability (CR 107.3's X is chosen as a spell is cast), but the `Target*` family points at a real vocabulary gap — see item 3.
+
+7g. **Two epoch bumps the 7a memo is owed (recorded 2026-09-03).** The memo's
+    key is one epoch, and a walk input written without a bump is a stale
+    answer that only the debug audit can see, and only when a hit is served.
+    (1) **LH** makes `attached_to` / `attached_by` and the CR 613.7 timestamp
+    walk inputs; every writer of them — `attach_to` / `detach` and the direct
+    field writes in `resolve.rs`, `sba.rs`, `stack.rs`, `zones.rs`, and
+    `test_support::attach` — calls `GameState::bump_layer_epoch` in the same
+    PR that makes the walk read them, and not before (`layers-architecture.md`
+    §13a). (2) **Item 7's board-wide pass**, if it stores an order into
+    registry rows in place: `ContinuousEffectRegistry::mutating` tells a
+    write from a no-op by `len`, which is exact because no `DurationRegistry`
+    mutator edits a row in place today; an in-place mutator bumps `mutations`
+    itself or the memo serves the pre-pass order.
 
 8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
 

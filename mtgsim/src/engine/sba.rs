@@ -498,10 +498,8 @@ impl GameState {
             .collect();
 
         for (id, pairs) in annihilation_targets {
-            if let Some(entry) = self.battlefield.get_mut(&id) {
-                entry.remove_counters(CounterType::PlusOnePlusOne, pairs);
-                entry.remove_counters(CounterType::MinusOneMinusOne, pairs);
-            }
+            self.remove_counters(id, CounterType::PlusOnePlusOne, pairs);
+            self.remove_counters(id, CounterType::MinusOneMinusOne, pairs);
             self.events.emit(GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs });
             any_performed = true;
         }
@@ -519,7 +517,7 @@ impl GameState {
             // stack_entries cleanup is handled internally)
             self.remove_from_zone_collection(id, zone)?;
             // Remove from central object store
-            self.objects.remove(&id);
+            self.remove_object(id);
             self.events.emit(GameEvent::TokenCeasedToExist { object_id: id });
             any_performed = true;
         }

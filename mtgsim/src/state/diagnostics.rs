@@ -27,7 +27,7 @@
 //! No timers, no allocation counts, no per-call-site breakdown. Each of those is
 //! either machine-dependent (the first two) or a profiler's job (the third), and
 //! a diagnostic that cannot go in the fixtures table is a diagnostic nobody will
-//! look at twice. Four counters, each naming a decision the engine makes a lot.
+//! look at twice. Five counters, each naming a decision the engine makes a lot.
 
 use std::cell::Cell;
 
@@ -48,19 +48,35 @@ use std::cell::Cell;
 #[derive(Debug, Clone, Default)]
 pub struct EngineCounters {
     layer_walks: Cell<u64>,
+    memo_hits: Cell<u64>,
     layer_frames: Cell<u64>,
     replacement_gathers: Cell<u64>,
     restriction_queries: Cell<u64>,
 }
 
 impl EngineCounters {
-    /// A top-level `compute_characteristics` call — one full CR 613 layer walk.
+    /// One full CR 613 layer walk actually performed — a top-level query the
+    /// memo could not answer, or one of the two readers that bypass it.
     ///
     /// **The headline number.** Almost every cost question in this engine
     /// reduces to how many of these a game does, because the walk is the
-    /// expensive thing and everything else is bookkeeping around it.
+    /// expensive thing and everything else is bookkeeping around it. Since
+    /// the epoch memo (critical-path item 7a) it is the *miss* count; read it
+    /// beside [`Self::memo_hits`], whose sum with it is the number of
+    /// questions asked.
     pub fn record_layer_walk(&self) {
         self.layer_walks.set(self.layer_walks.get() + 1);
+    }
+
+    /// A top-level `compute_characteristics` call answered from
+    /// `GameState::layer_memo` without a walk.
+    ///
+    /// A pure function of the seed like the others: which queries repeat an
+    /// untouched object is the game, not the machine. The ratio to
+    /// [`Self::layer_walks`] is what the coarse epoch key recovers; a finer
+    /// key (item 7) would move walks down and this up.
+    pub fn record_memo_hit(&self) {
+        self.memo_hits.set(self.memo_hits.get() + 1);
     }
 
     /// One frame actually computed — a `compute_to_ceiling` body that ran rather
@@ -92,6 +108,20 @@ impl EngineCounters {
 
     pub fn layer_walks(&self) -> u64 {
         self.layer_walks.get()
+    }
+
+    pub fn memo_hits(&self) -> u64 {
+        self.memo_hits.get()
+    }
+
+    /// Un-count a walk that was not engine work: the memo's debug audit
+    /// recomputes every hit to check it, and those walks must not make a
+    /// debug build's counters differ from a release build's. The one setter,
+    /// and it does not exist in release.
+    #[cfg(debug_assertions)]
+    pub(crate) fn rewind_layer_work(&self, walks: u64, frames: u64) {
+        self.layer_walks.set(walks);
+        self.layer_frames.set(frames);
     }
 
     pub fn layer_frames(&self) -> u64 {

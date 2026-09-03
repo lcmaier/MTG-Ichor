@@ -23,7 +23,7 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
 /// Get the effective name of a game object.
 pub fn get_effective_name(game: &GameState, id: ObjectId) -> String {
     compute_characteristics(game, id)
-        .map(|chars| chars.name)
+        .map(|chars| chars.name.clone())
         .unwrap_or_default()
 }
 
@@ -143,7 +143,7 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
 /// (AddColor, SetColors, RemoveAllColors).
 pub fn get_effective_colors(game: &GameState, id: ObjectId) -> std::collections::HashSet<crate::types::colors::Color> {
     compute_characteristics(game, id)
-        .map(|chars| chars.colors)
+        .map(|chars| chars.colors.clone())
         .unwrap_or_default()
 }
 
@@ -151,7 +151,7 @@ pub fn get_effective_colors(game: &GameState, id: ObjectId) -> std::collections:
 /// Routes through the layer system — accounts for type-changing effects.
 pub fn get_effective_types(game: &GameState, id: ObjectId) -> HashSet<CardType> {
     compute_characteristics(game, id)
-        .map(|chars| chars.types)
+        .map(|chars| chars.types.clone())
         .unwrap_or_default()
 }
 
@@ -159,7 +159,7 @@ pub fn get_effective_types(game: &GameState, id: ObjectId) -> HashSet<CardType> 
 /// Routes through the layer system — accounts for type-changing effects.
 pub fn get_effective_subtypes(game: &GameState, id: ObjectId) -> HashSet<Subtype> {
     compute_characteristics(game, id)
-        .map(|chars| chars.subtypes)
+        .map(|chars| chars.subtypes.clone())
         .unwrap_or_default()
 }
 
@@ -201,7 +201,7 @@ pub fn has_permanent_type(game: &GameState, id: ObjectId) -> bool {
 /// Routes through the layer system — accounts for type-changing effects.
 pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Supertype> {
     compute_characteristics(game, id)
-        .map(|chars| chars.supertypes)
+        .map(|chars| chars.supertypes.clone())
         .unwrap_or_default()
 }
 
@@ -215,7 +215,7 @@ pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Super
 /// activation handle across calls — including for synthesized intrinsics.
 pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Vec<AbilityDef> {
     compute_characteristics(game, id)
-        .map(|chars| chars.abilities)
+        .map(|chars| chars.abilities.clone())
         .unwrap_or_default()
 }
 

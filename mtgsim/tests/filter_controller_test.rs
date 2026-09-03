@@ -78,8 +78,10 @@ fn test_anthem_follows_its_source_when_control_changes() {
     assert_eq!(get_effective_toughness(&game, my_bears), Some(3));
     assert_eq!(get_effective_power(&game, opp_bears), Some(2));
 
-    // Player 1 takes the anthem.
+    // Player 1 takes the anthem. A direct write to a layer-walk input, so
+    // the test owes the epoch bump the engine's own writers make.
     game.battlefield.get_mut(&anthem).unwrap().controller = 1;
+    game.bump_layer_epoch();
 
     // "Creatures you control" now means player 1's creatures.
     assert_eq!(get_effective_power(&game, opp_bears), Some(3));
@@ -99,9 +101,11 @@ fn test_anthem_control_change_is_not_one_way() {
     let anthem = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
 
     game.battlefield.get_mut(&anthem).unwrap().controller = 1;
+    game.bump_layer_epoch();
     assert_eq!(get_effective_power(&game, my_bears), Some(2));
 
     game.battlefield.get_mut(&anthem).unwrap().controller = 0;
+    game.bump_layer_epoch();
     assert_eq!(get_effective_power(&game, my_bears), Some(3));
 }
 
@@ -136,6 +140,7 @@ fn test_resolution_effect_keeps_its_you_when_the_source_changes_hands() {
     assert_eq!(get_effective_power(&game, opp_bears), Some(2));
 
     game.battlefield.get_mut(&source).unwrap().controller = 1;
+    game.bump_layer_epoch();
 
     assert_eq!(get_effective_power(&game, my_bears), Some(3));
     assert_eq!(get_effective_power(&game, opp_bears), Some(2));

@@ -456,6 +456,7 @@ struct GameStats {
     life_changes: u32,
     // --- engine work (state/diagnostics.rs), not read off the event log ---
     layer_walks: u64,
+    memo_hits: u64,
     layer_frames: u64,
     replacement_gathers: u64,
     restriction_queries: u64,
@@ -649,6 +650,7 @@ struct AggregateStats {
     total_combat_with_attackers: u64,
     total_life_changes: u64,
     total_layer_walks: u64,
+    total_memo_hits: u64,
     total_layer_frames: u64,
     total_replacement_gathers: u64,
     total_restriction_queries: u64,
@@ -671,6 +673,7 @@ impl AggregateStats {
         self.total_combat_with_attackers += game.combat_phases_with_attackers as u64;
         self.total_life_changes += game.life_changes as u64;
         self.total_layer_walks += game.layer_walks;
+        self.total_memo_hits += game.memo_hits;
         self.total_layer_frames += game.layer_frames;
         self.total_replacement_gathers += game.replacement_gathers;
         self.total_restriction_queries += game.restriction_queries;
@@ -856,6 +859,7 @@ fn run_one_game(
                 // nothing resets them, so the final value *is* the total.
                 let c = &game.state.counters;
                 s.layer_walks = c.layer_walks();
+                s.memo_hits = c.memo_hits();
                 s.layer_frames = c.layer_frames();
                 s.replacement_gathers = c.replacement_gathers();
                 s.restriction_queries = c.restriction_queries();
@@ -1234,10 +1238,12 @@ fn main() {
         //
         // **Read `Frames/walk` first.** It is the CR 613.7a existence re-check's
         // cost per layer walk, and it is the number that moves when the layer
-        // system starts asking about other objects.
+        // system starts asking about other objects. `Layer walks` is the memo
+        // *miss* count since item 7a; walks plus hits is the questions asked.
         println!();
         println!("=== Engine Work (avg per game) ===");
         println!("  Layer walks:      {:>8.0}", agg_stats.avg(agg_stats.total_layer_walks));
+        println!("  Memo hits:        {:>8.0}", agg_stats.avg(agg_stats.total_memo_hits));
         println!("  Layer frames:     {:>8.0}", agg_stats.avg(agg_stats.total_layer_frames));
         println!(
             "  Frames/walk:      {:>8.2}",

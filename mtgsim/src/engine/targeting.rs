@@ -224,12 +224,12 @@ impl GameState {
         // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
         // Peace's "cards" stays free on every graveyard-bound zone change.
         // Before RC-4 each leaf took its own full walk.
-        let frame: std::cell::OnceCell<Option<EffectiveCharacteristics>> =
+        let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
         self.permanent_matches_filter_with(id, filter, you, &|| {
             frame
                 .get_or_init(|| compute_characteristics(self, id))
-                .as_ref()
+                .as_deref()
                 .ok_or_else(|| format!("Object {} not found", id))
         })
     }
