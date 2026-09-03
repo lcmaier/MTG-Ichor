@@ -292,23 +292,20 @@ fn test_a_failed_cast_announces_nothing() {
     );
 }
 
-// COVERS-PARTIAL: ATOM-601.2h-002
-// COVERS-PARTIAL: ATOM-601.2-001
-//
-// Partial on both. 601.2h-002's board is a short pool ({2}{R} against {3}{R}),
-// which `can_pay_costs` refuses ahead of payment; 601.2-001's is a spell with
-// no legal target, which rewinds at 601.2c. This board rewinds at 601.2h
-// *itself*: the pool covers the cost, and the player's own generic split is
-// what makes the payment illegal.
+/// Grizzly Bears {1}{G} against a pool of {R}{G} is payable exactly one way,
+/// and the prompt now offers only that way — this board is
+/// `codebase-state.md` 16c's reproducer, and it used to rewind the cast.
+///
+/// The prompt lists the pool's types in `ManaType` order, Red then Green, and
+/// each bucket's maximum is what its own pips leave over: Red 1, Green 0. So
+/// the generic {1} goes on the Red, the {G} pip keeps its Green, and the cast
+/// completes. See its sibling below for the answer that is no longer offered.
+///
+/// The rewind is still there and still right — `phase_rc4b`'s two rewind tests
+/// pin it, and `fuzz_games` fails any run in which a spell resolves without a
+/// `SpellCast` — it is just no longer reachable this way.
 #[test]
-fn test_a_cast_whose_payment_fails_rewinds_and_keeps_the_mana() {
-    // Grizzly Bears {1}{G} against a pool of {R}{G}: payable, exactly one way.
-    // The split prompt lists the pool's types in `ManaType` order — Red, then
-    // Green — and the player puts the generic mana on Green, which the {G}
-    // pip still needs. `ManaPool::pay` refuses, and CR 601.2 says the whole
-    // cast rewinds. Before this test the card stayed on the stack, was never
-    // announced as cast, and resolved on the next pass with the mana still in
-    // the pool — `codebase-state.md` item 16c.
+fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
     let mut game = setup_two_player_game();
     let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -317,27 +314,42 @@ fn test_a_cast_whose_payment_fails_rewinds_and_keeps_the_mana() {
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_allocation(
         ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-        vec![0, 1], // [Red, Green]: the generic {1} paid with the only Green
+        vec![1, 0], // [Red, Green]: the generic {1} on the Red
     );
-    let before = game.events.len();
-    assert!(game.cast_spell(0, bear, &decisions).is_err(), "the split is unpayable");
+    game.cast_spell(0, bear, &decisions).expect("the only legal split pays");
     assert!(decisions.is_empty(), "the split prompt was asked");
 
-    // Four assertions, and each is a different way the old tree was wrong.
-    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Hand, "back in hand");
-    assert!(game.players[0].hand.contains(&bear));
-    assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1, "mana untouched");
-    assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Stack);
+    assert!(game.stack.contains(&bear));
+    assert_eq!(game.players[0].mana_pool.total(), 0, "both mana paid the cost");
     assert!(
-        !game.events.events().any(|e| matches!(
+        game.events.events().any(|e| matches!(
             e,
             GameEvent::SpellCast { spell_id, .. } if *spell_id == bear
         )),
-        "never announced as cast",
+        "announced as cast at 601.2i",
     );
-    assert!(game.stack.is_empty(), "not on the stack, where it would resolve unpaid");
-    assert!(!game.stack_entries.contains_key(&bear));
-    assert_eq!(game.events.len(), before, "a rewind is not an event");
+}
+
+/// The same board, and the split that used to cost the whole cast: the generic
+/// {1} on the Green the {G} pip still needs. Before the clamp it passed the
+/// prompt's own validation, `ManaPool::pay` refused it, and CR 601.2 rewound
+/// everything — for a choice the engine should never have offered. The Green
+/// bucket's maximum is 0 now, and the panic names it.
+#[test]
+#[should_panic(expected = "DP allocated 1 to bucket 1 but maximum is 0")]
+fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
+    let mut game = setup_two_player_game();
+    let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+        vec![0, 1], // [Red, Green]: bucket 1 is the Green, and the {G} pip has it
+    );
+    let _ = game.cast_spell(0, bear, &decisions);
 }
 
 // ---------------------------------------------------------------------------

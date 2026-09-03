@@ -460,13 +460,17 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   so a split that spends a color a pip still needs passes the prompt's own
   validation and fails at `ManaPool::pay`. About five casts per game did that,
   and until `codebase-state.md` 16c closed they *resolved unpaid*; now they
-  rewind, on top of the 7.5 above. Clamping each bucket to `available − pips
-  of that type` removes the class — 16c's closing entry says yes, sizes it at
-  ten lines, and says why it is its own PR. **The DP-side half landed
-  2026-09-03** (`ui/random.rs`): the random agent taps for the pip it still
-  owes and splits the generic part only from the surplus, which took its
-  land taps per cast from 7.66 to 3.18 on an any-color mana base. The
-  engine-side clamp is still what makes *every* DP safe, and is still owed.
+  rewind, on top of the 7.5 above. **Closed 2026-09-03, in two halves.** The
+  DP-side one (`ui/random.rs`): the random agent taps for the pip it still
+  owes, which took its land taps per cast from 7.66 to 3.18 on an any-color
+  mana base. Then the engine-side clamp (`mana/generic-split-clamp`):
+  `ask_choose_generic_mana_allocation` caps each bucket at `available − pips
+  of that type`, so no DP can name an unpayable split and none needs payment
+  law to avoid one. The agent's own copy of the clamp came out with it —
+  keeping it would have subtracted the pips a second time — and the fuzz A/B
+  is identical on every counter and byte-identical in the event streams, which
+  is what proves the prompt now computes what the agent was computing. **What
+  is left of this entry is the reversal prompt and the oracle.**
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:
@@ -477,8 +481,9 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   GUI assistant, not an engine rule.
 - **Blocks** — nothing rules-wise; both v1 use cases ergonomically. The AI
   harness pays the rewind rate above in every game; a human pays it in clicks.
-- **Atoms** — ATOM-601.2h-002 is claimed partial by RC-4b's rewind test;
-  732.1 has none.
+  The split's ~5 per game are gone; the window's ~7.5 are not.
+- **Atoms** — ATOM-601.2h-002 and ATOM-601.2-001 are claimed partial by
+  RC-4b's rewind test; 732.1 has none.
 - **Owner** — none yet.
 
 ### 2.19 Any-color mana — "Add one mana of any color"

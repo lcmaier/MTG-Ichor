@@ -19,7 +19,7 @@ use crate::state::game_state::GameState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use super::decision::{DecisionProvider, PriorityAction};
@@ -516,8 +516,38 @@ pub fn ask_activate_mana_ability(
     }
 }
 
+/// How many of `mana_cost`'s symbols must be paid with `mana_type` specifically.
+///
+/// `ManaCost::build` writes `{C}` as `ManaSymbol::Colorless`, but
+/// `from_symbols` admits `Colored(ManaType::Colorless)` for the same pip, so
+/// both spellings count.
+fn pips_owed(mana_cost: &ManaCost, mana_type: ManaType) -> u64 {
+    mana_cost
+        .symbols
+        .iter()
+        .filter(|s| match s {
+            ManaSymbol::Colored(t) => *t == mana_type,
+            ManaSymbol::Colorless => mana_type == ManaType::Colorless,
+            _ => false,
+        })
+        .count() as u64
+}
+
 /// Choose how to allocate mana from the pool to pay generic mana.
 /// Returns a map of ManaType → amount.
+///
+/// Each bucket's maximum is `available − pips of that type`, not the pool's
+/// amount: the generic part is paid out of the same pool the specific pips are
+/// (CR 601.2h), so a bucket capped at the pool's amount lets a DP name a split
+/// that `ManaPool::pay` then refuses, and CR 601.2 rewinds the whole cast for
+/// it. Every other `ask_*` offers only legal choices, and a DP should not have
+/// to know payment law to answer "which mana" — `codebase-state.md` 16c,
+/// `backlog.md` §2.18.
+///
+/// Only `Colored`, `Colorless` and `Generic` symbols reach here — `can_pay`
+/// refuses a cost containing any other — so no mode question arises. When
+/// hybrid payment lands, a twobrid or hybrid whose chosen mode is a colored
+/// half is one more pip of that type and folds into the same tally.
 pub fn ask_choose_generic_mana_allocation(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -539,7 +569,23 @@ pub fn ask_choose_generic_mana_allocation(
         },
     };
     let mins = vec![0u64; buckets.len()];
-    let maxs: Vec<u64> = available_types.iter().map(|(_, amt)| *amt).collect();
+    let maxs: Vec<u64> = available_types
+        .iter()
+        .map(|(mt, amt)| amt.saturating_sub(pips_owed(mana_cost, *mt)))
+        .collect();
+    // `can_pay` has passed by the time this is asked, and it checked both
+    // halves of the same inequality: every type covers its own pips, and what
+    // is left over covers the generic count. So the clamped maxima always sum
+    // to at least `generic_count` and a feasible answer exists — asserted
+    // rather than trusted, because a caller that skipped the check would
+    // otherwise reach `validate_allocation` with no legal answer to give.
+    debug_assert!(
+        maxs.iter().sum::<u64>() >= generic_count,
+        "generic split of {}: clamped maxima {:?} cannot reach {} — caller skipped can_pay",
+        mana_cost,
+        maxs,
+        generic_count,
+    );
     let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
     validate_allocation(
         &alloc,
@@ -550,8 +596,8 @@ pub fn ask_choose_generic_mana_allocation(
         "choose_generic_mana_allocation",
     );
 
-    // per_bucket_maxs already enforces that each allocation doesn't exceed
-    // the available amount — no post-hoc check needed.
+    // per_bucket_maxs already enforces that each allocation leaves every pip
+    // its own mana — no post-hoc check needed.
 
     available_types
         .iter()
@@ -875,6 +921,90 @@ mod tests {
             &[2], // blocker needs at least 2
             None,
         );
+    }
+
+    // --- the generic split's clamped maxima ---
+    //
+    // The clamp is pinned from both sides, because subtracting the pips *twice*
+    // would be as wrong as not subtracting them at all. Below: a color whose
+    // pips claim all of it is offered zero, and a color with surplus beyond its
+    // pips is still offered the surplus. `validate_allocation` names the number
+    // in its panic, so the first half needs no instrumentation — the DP tries
+    // the split the old prompt allowed, and the message says what the max was.
+
+    /// `{1}{G}{U}` against one Green, one Blue and one Red: the Green is spoken
+    /// for by the `{G}` pip, so putting the generic mana there is not on the
+    /// menu. The old prompt offered the pool's amounts — [1, 1, 1] — which is
+    /// exactly how a DP named a split `ManaPool::pay` refused and CR 601.2
+    /// rewound the cast for (`codebase-state.md` 16c).
+    #[test]
+    #[should_panic(expected = "DP allocated 1 to bucket 2 but maximum is 0")]
+    fn test_generic_split_refuses_a_color_its_own_pips_need() {
+        let dp = ScriptedDecisionProvider::new();
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        // Buckets are `ManaType`-ordered: Blue, Red, Green. Bucket 2 is the Green.
+        let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
+        dp.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![0, 0, 1],
+        );
+        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+    }
+
+    /// The same cost from `{G}{G}{U}`: the second Green is surplus, so it is
+    /// still offered and still pays. This is the other side of the clamp — it
+    /// subtracts the pips once, not to zero.
+    #[test]
+    fn test_generic_split_offers_a_color_s_surplus_beyond_its_pips() {
+        let dp = ScriptedDecisionProvider::new();
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let available = [(ManaType::Blue, 1), (ManaType::Green, 2)];
+        dp.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![0, 1],
+        );
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(alloc, HashMap::from([(ManaType::Green, 1)]));
+    }
+
+    /// A `{C}` pip is clamped the same way a colored one is — `ManaPool::pay`
+    /// makes no distinction, and `ManaCost::build` writes it as
+    /// `ManaSymbol::Colorless` rather than `Colored(ManaType::Colorless)`.
+    #[test]
+    #[should_panic(expected = "DP allocated 1 to bucket 1 but maximum is 0")]
+    fn test_generic_split_clamps_a_colorless_pip() {
+        let dp = ScriptedDecisionProvider::new();
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Colorless], 1);
+        // Red, then Colorless. Bucket 1 is the Colorless, and the {C} pip has it.
+        let available = [(ManaType::Red, 1), (ManaType::Colorless, 1)];
+        dp.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![0, 1],
+        );
+        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+    }
+
+    /// The random agent no longer clamps for itself (it did, as policy, until
+    /// the prompt did it), so this is the statement that the engine's maxima
+    /// are what keeps every split payable: over 50 seeds against a board where
+    /// exactly one type has surplus, the generic mana is always that type.
+    #[test]
+    fn test_random_dp_generic_split_spends_only_the_surplus() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
+        for seed in 0..50u64 {
+            let dp = RandomDecisionProvider::seeded(seed);
+            let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+            assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]), "seed {seed}");
+        }
     }
 
     // TODO: Add choose_ordering test when the first effect that needs it

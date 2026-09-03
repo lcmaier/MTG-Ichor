@@ -489,6 +489,14 @@ fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
 /// a `DecisionProvider` question it does not ask yet (`backlog.md` §2.18). The
 /// move that never legally happened is not in the log at all.
 // COVERS-PARTIAL: ATOM-601.2h-002
+// COVERS-PARTIAL: ATOM-601.2-001
+//
+// 601.2-001 moved here from `phase_ra`'s payment-failure test, which the
+// generic-split clamp retired (`codebase-state.md` 16c). Partial in the same
+// way it was there: the atom's board is a spell with no legal target and
+// rewinds at 601.2c, and this one rewinds at 601.2h. What it does prove is the
+// rest of the atom, and the half no other test has — the card is back in hand,
+// the stack is unchanged, and the mana the player did have is still in the pool.
 #[test]
 fn test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change() {
     let mut game = setup_two_player_game();
