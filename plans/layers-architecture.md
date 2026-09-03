@@ -926,6 +926,94 @@ If profiling later shows this is hot:
 
 This is the explicit correctness-first stance discussed in design review.
 
+### 7a — epoch memoization, scheduled 2026-09-03, before triggered abilities
+
+**Measured, not projected.** A temporary probe on `pool/everywhere-land` keyed every
+top-level `compute_characteristics` call on `(ObjectId, mutation batch)` — the batch
+counter bumped at `execute_actions`, the chokepoint every mutation passes through —
+and counted distinct keys against walks, 50 games / seed 12345 / `--threads 1`:
+
+| | performance | stress |
+|---|---:|---:|
+| layer walks per game | 108,626 | 111,418 |
+| distinct `(object, batch)` per game | 4,030 | 4,183 |
+| mutation batches per game | 313 | 312 |
+| walks repeating an untouched object | **96.3%** | **96.2%** |
+
+Twenty-seven of every twenty-eight walks recompute something nothing has changed. The
+probe measured against the *coarsest* possible key, so this is the floor of what any
+cache recovers: "the quadratic is repetition", above, was right, and this is its size.
+
+**Coarse and fine, and why the coarse one comes first.** A *coarse* (epoch) cache is one
+counter on `GameState`. Every write to a walk input increments it, the cache stores
+`(epoch, characteristics)` per object, and a hit needs only `stored epoch == current
+epoch`. Any mutation anywhere kills the whole cache, and the next sweep recomputes each
+object once. A *fine* cache records, per object, the inputs its answer depended on — its
+own entity, the registry rows that applied to it, and, because CR 613.7a re-checks
+existence on the *source*, the sources of those rows, transitively — and invalidates
+only the entries whose recorded inputs changed, so a land tapping does not cost a
+creature its answer. The fine key has to enumerate every input, a missed one is a
+silently wrong answer, and under CR 613.8 the inputs become other objects' *answers*.
+That is why the 2026-08-23 note deferred the memo until the board-wide sequential pass
+existed, and why LH (§13a) lists its two new state fields as "memo-key inputs": every
+one of those reasons is about the fine key. The coarse key has no inputs. LH's fields,
+item 6's conditional statics and item 7's dependency pass are all mutations, and a
+mutation bumps the counter. What a fine key can add over a coarse one is reuse *across*
+mutations — the 4,000 distinct keys per game, about 4 ms of walking at today's cost —
+so whether that is worth a key at all is item 7's question, answered against 7a's
+residual rather than in advance.
+
+**Design.**
+
+- `GameState.layer_memo: RefCell<HashMap<ObjectId, (u64, Arc<EffectiveCharacteristics>)>>`
+  and `layer_epoch: Cell<u64>`, cloned with the state as the counters are.
+  `compute_characteristics` consults it first and fills it on a miss; the returned
+  value becomes an `Arc`, so a hit does not pay the deep clone that the "eliding the
+  per-frame `Vec<AbilityDef>` clone" row above measured at ~30%.
+- **The bump is at the write, not at the batch.** A batch performs its members and then
+  runs riders, and a performer announces after it mutates, so "bump on entry" leaves a
+  window inside every arm where a query after the write would read the answer from
+  before it. The writers of walk inputs are a short list, and most already sit behind
+  one method:
+  - the registry — `ContinuousEffectRegistry::mutating` is the single funnel for `add`,
+    `remove`, `remove_by_source` and both expiry paths, so one bump covers
+    `register_static_effects`, resolution, the CDA rows and cleanup;
+  - `place_on_battlefield` and `move_object` (`battlefield` insert and remove,
+    `obj.zone`); `BattlefieldEntity::add_counters` / `remove_counters` and its
+    timestamp write; the `objects` map, written in `cast.rs` (ability objects),
+    `resolve.rs` (tokens, ceasing to exist), `sba.rs`, `stack.rs` and `game_state.rs`;
+    `stack_entries` and `resolving` in `stack.rs` and `cast.rs`, because a stack
+    object's controller is read off its entry; the base controller, set at placement;
+  - the `// CAST-ROLLBACK:` exemption, which moves a card without a zone change.
+  Status the walk does not read — `tapped`, damage, the mana pool — does not bump. LH's
+  `attached_to` and mutable timestamps join the list when they land; conditional
+  statics are registry rows and are covered already.
+- **Bypasses.** The CR 614.12 look-ahead overlay (`lookahead.rs`) computes a hypothetical
+  and the CR 603.10a LKI frame computes the past; neither consults or fills the memo.
+  The per-call frame cache of §5.2 is untouched: it is the termination argument, not a
+  cache.
+- **The debug mode in the same commit, as this section has always required.** On every
+  hit, `debug_assert_eq!` against a fresh walk. That turns `cargo test` and a debug
+  fuzz run into the invalidation-completeness test, which is the one thing a coarse
+  cache can get wrong.
+
+**Acceptance.** Byte-identical `--dump-events` and identical §3 fixture rows against the
+unmemoized binary on both pools; `Layer walks` becomes the miss count and gains a
+`Memo hits` row beside it; `plans/fuzz_ab.py` for the time. Expected: walks per game
+from ~108k to ~4–6k and game time down by most of an order of magnitude — the residual
+is everything that is not a walk, which nobody has measured because the walk hid it.
+
+**Size.** 600–1,000 additions: the cache, the funnel bumps, the `Arc` at the call sites
+that keep a frame, the debug mode, one invalidation test per writer class, and the §3
+re-record. Its own PR, before item 6: trigger matching is a walk per permanent per
+event at ~700 events a game today, and the trigger phase's own A/B would be the first
+sitting that hurt.
+
+**What it is not.** Not the CR 613.8 dependency algorithm and not the board-wide
+sequential pass — those stay item 7, and the epoch memo is what that pass's output
+will be stored in. Not a semantics-assuming shortcut in item 3's sense: a missed bump
+is testable, a wrong shortcut is not.
+
 ---
 
 ## 13. Work-Phase Plan

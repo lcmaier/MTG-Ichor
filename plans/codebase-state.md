@@ -927,6 +927,21 @@ built, and none of it blocks RC-1 through RC-3.
     **Still owed in §2.18:** the engine-side split clamp, which makes every
     DP safe rather than this one, and the CR 732.1 reversal prompt.
 
+16e. **96% of layer walks repeat an object nothing has touched, so item 7's
+    memoization half is split out as 7a and moved ahead of triggers
+    (2026-09-03, owner's call, on the Everywhere PR).** A temporary probe keyed
+    every walk on `(ObjectId, execute_actions batch)`: 108,626 walks and 4,030
+    distinct keys per `performance` game, 111,418 and 4,183 on `stress`, at
+    313 batches a game. The 2026-08-23 reasons for deferring the memo ("Before
+    Layers", the Layer 2 phase's "cross-call memoization deliberately did NOT
+    land here") are all about a key that enumerates its inputs; an epoch key
+    has none, and it is what the 613.8 board-wide pass will store into. Design,
+    the bump-site census, the bypasses and the acceptance test are in
+    `layers-architecture.md` §12 "7a"; `CLAUDE.md`'s critical path carries the
+    order. This PR sharpened the motive as well as measuring it: Everywhere
+    made each land walk heavier (+36% per walk, `engineering-practices.md`
+    §3), and a memo pays that once per epoch rather than once per query.
+
 ### Found by the #62 pre-merge pass (2026-08-30)
 
 17. **Nothing expires a registry row with a source-scoped duration (found
