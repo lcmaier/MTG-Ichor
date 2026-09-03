@@ -123,43 +123,106 @@ across months buys the timing measurement nothing.
   never varied costs a field, structure that has to vary costs an enum arm and
   every match on it. The census cannot catch this — it partitions by
   *mechanism*, and a one-word difference lives inside one bucket.
+- **A fixture may be invented. It must not wear a real card's name while
+  behaving differently, and it must not be cited in the spec corpus or the
+  plans as evidence about printed Magic.** Written down 2026-09-03; the rule
+  being applied until then — "no invented cards" — was written nowhere, and
+  this is the narrower one that actually earned the scars. Both scars are
+  about the *name*, not the invention: `phase5_pre_cards::inside_out` stays
+  unregistered because it simplifies a hybrid cost the engine cannot express
+  while wearing Inside Out's name, and `codebase-state.md` item 15's "Mind
+  Snare" was an invented name that reached the corpus and `roadmap.md` as a
+  printed card. A fixture with its own name, or a token with its real text
+  (Everywhere, `cards/token_lands.rs`, is the first admitted under this rule
+  as written), misleads nobody; a doc that cites either as a fact about Magic
+  does.
 - **`PERFORMANCE_POOL` measures cost; `--require` measures coverage. Do not
   read either off the other.** Adding a card to the pool does *not* mean its path
   gets walked: CV-1 put Cytoshape in and it resolved **16 times in 200 games**,
-  because a 63-card pool builds colour-appropriate 60-card decks and any one
-  card is rare — and rarer with every phase that adds one. `fuzz_games
-  --require "Card A,Card B"` forces a copy of each into every deck **and seeds
-  the deck's colours from theirs** (forcing a `{1}{G}{U}` instant into a
-  mono-red deck reports the same thin number), then prints casts, resolutions
-  and the share of games each reached. Cytoshape goes 16 → **401** resolutions
-  under it. **An empty `--require` changes nothing** — every RNG draw is guarded,
-  so a reachability run and a timing run come from one binary without the first
-  contaminating the second. **Run it once per phase that adds a card**, and put
-  the resolution count in the phase's ledger entry.
+  because any one card competes with the whole pool for 36 slots — and that
+  ratio worsens with every card added, forever. **The unforced number is not a
+  target**; `--require` is the answer to "was the path walked", and the pool
+  measures cost. `fuzz_games --require "Card A,Card B"` forces a copy of each
+  into every deck, then prints casts, resolutions, the share of games each
+  reached, and **board diversity** — the share of games in which a permanent of
+  a colour no required card has entered the battlefield. **An empty `--require`
+  changes nothing** — every RNG draw is guarded, so a reachability run and a
+  timing run come from one binary without the first contaminating the second.
+  **Run it once per phase that adds a card**, and put the resolution count in
+  the phase's ledger entry.
+
+  **It no longer seeds the deck's colours from the required card's
+  (2026-09-03).** It had to, because nothing in the registry made more than two
+  colours, and the price was the board: `--require Cytoshape` put every game on
+  a G/U pair, so the card resolved **390** times in 200 games and met a white,
+  black or red permanent in **none** of them. Everywhere — the five-colour land
+  token, now the fill tier of every deck's mana base (`random_deck`) — is what
+  let the seeding go. Same 200 games / seed 12345 / `--threads 1`, `performance`:
+
+  | `--require Cytoshape` | cast | resolved | games | games with a non-G/U permanent |
+  |---|---:|---:|---:|---:|
+  | with colour seeding (`main`, 6dedaf8) | 400 | 390 | 177 (88%) | 0 — by construction |
+  | without | 216 | 212 | 126 (63%) | **198 (99%)** |
+  | without, plus `,Everywhere` forced | 217 | 214 | 126 (63%) | 198 (99%) |
+
+  **The resolution count halves, and that is the agent, not the deck.** Every
+  deck can pay `{1}{G}{U}` — fourteen or more of its 24 lands tap for any
+  colour — but the random agent picks a (land, ability) pair uniformly in the
+  601.2g window, so each Everywhere tap is a five-sided die. Three uniform taps
+  hold both a G and a U about one time in five (1 − 2·(4/5)³ + (3/5)³ ≈ 0.19;
+  four taps ≈ 0.31, five ≈ 0.42), where a seeded deck's Forests and Islands
+  could not tap wrong. A failed payment rewinds silently and leaves the lands
+  tapped (`backlog.md` §2.18), so the turn's mana is spent on nothing: land
+  taps per spell cast go 3.86 → 7.66 on `performance` (40-game
+  dumps). That is §2.18's auto-payment oracle measured from the other side —
+  the harness now has the mana base a Commander deck has, and an agent that
+  cannot use it. Forcing Everywhere on top changes nothing, because the deck
+  already holds a dozen.
 - **Say which pool a number came from.** `fuzz_games` prints it in the header
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-02 (pools unchanged at 63 / 71; a cast whose payment fails now rewinds
-instead of resolving unpaid — `codebase-state.md` 16c):**
+2026-09-03 (performance 63 → 64, stress 71 → 72; Everywhere, and with it a new
+mana base and no colour filter in `random_deck` — a pool *and* deck-construction
+change, so nothing here is comparable across it):**
 
-| | performance (63 cards) | stress (71 cards) |
+| | performance (64 cards) | stress (72 cards) |
 |---|---|---|
-| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 25 (50.0%) / 25 (50.0%) |
-| Avg turns | 30.6 | 30.8 |
-| Spells cast | 26.4 | 25.1 |
-| Lands played | 19.2 | 18.8 |
-| Combat w/ atk | 11.8 | 11.8 |
-| Creatures died | 6.7 | 5.6 |
-| Damage events | 24.9 | 25.2 |
-| Total damage | 50.9 | 58.9 |
-| Life changes | 16.8 | 16.9 |
-| **Layer walks** | **104,622** | **100,674** |
-| **Layer frames** | **146,052** | **137,318** |
-| **Frames/walk** | **1.40** | **1.36** |
-| **Replacement gathers** | **588** | **578** |
-| **Restriction queries** | **590** | **582** |
+| P0 / P1 | 30 (60.0%) / 20 (40.0%) | 31 (62.0%) / 19 (38.0%) |
+| Avg turns | 36.0 | 36.6 |
+| Spells cast | 22.2 | 21.7 |
+| Lands played | 20.6 | 20.7 |
+| Combat w/ atk | 11.2 | 11.0 |
+| Creatures died | 5.2 | 3.2 |
+| Damage events | 22.3 | 22.2 |
+| Total damage | 50.8 | 48.2 |
+| Life changes | 16.5 | 17.9 |
+| **Layer walks** | **108,423** | **114,839** |
+| **Layer frames** | **158,203** | **148,874** |
+| **Frames/walk** | **1.46** | **1.30** |
+| **Replacement gathers** | **650** | **694** |
+| **Restriction queries** | **651** | **696** |
+
+**Both columns moved, and the engine's share was separated from the pool's
+before this table was recorded (2026-09-03).** Three binaries, one sitting,
+200 games / seed 12345 / `--threads 1`, three interleaved rounds: `main`
+(6dedaf8), Everywhere registered but not pooled and `random_deck` untouched
+(1ad5797), and shipped (eb9efb8). **The middle arm reproduces `main` byte for
+byte outside `=== Timing ===` on `performance`** — registering a card is still
+not the same act as adding one — and on `stress` it differs only by the
+registered card being drawn.
+
+| | A: `main` | B: registered, not pooled | C: shipped |
+|---|---|---|---|
+| performance turns / spells / deaths | 33.3 / 27.9 / 7.8 | 33.3 / 27.9 / 7.8 | 37.4 / 22.6 / 5.6 |
+| performance walks / frames per walk | 116,233 / 1.33 | 116,233 / 1.33 | 117,031 / 1.41 |
+| performance ms / 1,000 walks (median of 3) | 1.064 | 1.121 | 1.476 |
+| stress turns / spells / deaths | 30.9 / 24.8 / 4.6 | 31.2 / 24.9 / 5.1 | 38.7 / 22.6 / 3.8 |
+| stress walks / frames per walk | 100,619 / 1.29 | 99,938 / 1.28 | 123,868 / 1.32 |
+| stress ms / 1,000 walks (median of 3) | 0.992 | 0.961 | 1.328 |
+
+**Read it as two changes, and they pull in different directions.** A against B is the registration: identical counters on `performance`, and per-walk time inside the spread (+5% / −3%). B against C is the deck construction, and every behavioural row moved the way an any-colour mana base under a random agent should move it: games run four to seven turns longer (33.3 → 37.4 and 31.2 → 38.7), spells cast per game fall (27.9 → 22.6 and 24.9 → 22.6) because the agent taps Everywhere for random colours and rewinds (`codebase-state.md` 16d), and fewer creatures die because fewer are cast. Walks per game are flat on `performance` (+0.7%) and +24% on `stress`, where the longer games and the whole-pool statics show up. **The row to read is the cost row: +34% / +39% per 1,000 walks, far outside the ±4–6% spread — and it is the objects, not the engine.** A fourth binary settled that in the same sitting: **D** is C with the any-colour fill tier replaced by basics (`BASIC_LANDS_PER_DECK` 5 → 19, nothing else), and it reads **0.977** ms per 1,000 walks against 1.060 for `main` and 1.421 for C, both re-run beside it in its own three interleaved rounds (`performance`; the table's 1.064 / 1.476 are the earlier rounds, and the gap between the two sittings is the usual ~4%). So drawing nonlands from the whole pool costs nothing per walk, and the fill tier costs a third: a five-ability, five-subtype land is the object the 601.2g window walks most, and every walk of one clones five abilities and five subtypes into its frame where a dual clones two. That is a fact about `compute_characteristics` seeding each frame from `CardData`, and critical-path item 7's cross-call memoization is still the lever — no engine line changed between A and C, so it is a heavier board, not a regression. The number the timing arm carries from here is C's, and an A/B is still a delta within one sitting on one pool. (Two things seen and not chased: D casts more spells than C, 24.5 against 22.6, and Blood Moon is the likely reason — it turns an Everywhere mana base entirely red and leaves basics alone; and the first player's share of wins rises from 104/96 to 122/78 at 200 games, a tempo effect of a mana base that always has the colour.)
 
 **The first re-record where the pool did not move, so every row is the
 engine's (2026-09-02, 16c).** The row to read is `Spells cast`, and it went
@@ -217,7 +280,14 @@ and `Frames/walk` carries it. Games also got shorter (31.7 → 28.7 turns on
 `layers-architecture.md` §12's quadratic by design, measured rather than
 assumed, and critical-path item 7's cross-call memoization is still the lever.
 
-*Previous values, 2026-09-02 (performance 62 → 63, stress 68 → 71; Cytoshape,
+*Previous values, 2026-09-02 (pools unchanged at 63 / 71; a cast whose payment
+fails now rewinds instead of resolving unpaid, 16c): performance 25/25, 30.6
+turns, 26.4 spells, 19.2 lands, 11.8 combats, 6.7 deaths, 24.9 damage events,
+50.9 damage, 16.8 life changes, 104,622 walks / 146,052 frames / 1.40 per walk /
+588 gathers / 590 queries; stress 25/25, 30.8, 25.1, 18.8, 11.8, 5.6, 25.2,
+58.9, 16.9, 100,674 / 137,318 / 1.36 / 578 / 582 — reproduced to the digit on
+`main` at 6dedaf8 before the Everywhere re-record. Before that, 2026-09-02
+(performance 62 → 63, stress 68 → 71; Cytoshape,
 Mirrorweave and Mirrorform, CV-1): performance 23/27, 28.8 turns, 21.0 spells,
 18.4 lands, 11.0 combats, 6.7 deaths, 24.2 damage events, 49.8 damage, 16.8 life
 changes, 93,914 walks / 136,338 frames / 1.45 per walk / 531 gathers / 533

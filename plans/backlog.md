@@ -477,6 +477,43 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   732.1 has none.
 - **Owner** — none yet.
 
+### 2.19 Any-colour mana — "Add one mana of any color"
+
+- **Rules** — CR 106.1b (the six types of mana; "any color" is a choice among
+  five of them), 605.1a; CR 111.10a and 111.10c (Treasure and Gold print the
+  text).
+- **Verdict** — `ManaType` has no any-colour variant and `ManaOutput.mana` is
+  `Vec<(ManaType, AmountExpr)>`, so the ability cannot be written; and
+  `engine/mana.rs::resolve_mana_effect` accepts only `ProduceMana` atoms with
+  `Fixed` amounts and never asks a `DecisionProvider` anything, so a new atom
+  would still resolve without the colour being chosen. The choice belongs at
+  resolution, not at activation — `ChoiceKind::ManaAbilityWindow`'s docs
+  already anticipate a Cavern of Souls whose second mode is "add one mana of
+  any color", and today that mode would have to be five abilities. **The
+  fuzz pool sidestepped it on 2026-09-03** with Everywhere
+  (`cards/token_lands.rs`): five one-colour abilities, so the colour *is*
+  the ability picked in the 601.2g window. That is faithful for a five-type
+  land and wrong for everything below, which prints one ability and a choice.
+- **Size** — small-to-medium. A `ManaOutput` arm (or a `ManaAtom`) for "one
+  mana of any color", one `ChoiceKind` asked in `resolve_mana_effect`, and
+  `fuzz_games::land_mana_colors` learning to read it. Riders are separate
+  and already carriable: City of Brass's damage and Mana Confluence's life
+  loss are a mana ability with a non-mana effect, which the `Sequence` arm
+  can hold once the primitive exists. Command Tower needs colour identity on
+  top, which is the Commander track's, not this one's.
+- **Blocks** — Command Tower, Birds of Paradise, Chromatic Lantern, City of
+  Brass, Mana Confluence, Gemstone Mine, Exotic Orchard; every Treasure and
+  Gold token; Cavern of Souls' second mode; every mana filter ("{1}: Add one
+  mana of any color"). Any Commander-viable mana base.
+- **Atoms** — ATOM-111.10-001's expected result prints the text; ATOM-605.3c-001's
+  board is a mana filter that adds "one mana of any color". Neither is about
+  this mechanic and neither is claimed. The spending-side rules — CR 609.4b's
+  "as though it were mana of any color", ATOM-609.4b-001..003 — are a
+  different surface (`ManaPool::pay`) and stay where they are.
+- **Owner** — none yet. (Recorded here on 2026-09-03 when
+  `plans/handoffs/pool-five-colour-land.md` was closed; its City of Brass
+  recommendation is this entry.)
+
 ---
 
 ## 3. Dispositioned — sections that need no entry of their own

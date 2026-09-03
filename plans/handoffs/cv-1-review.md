@@ -300,13 +300,18 @@ pair and never meets a black, red or green card. The mode answers *"can the path
 be walked"*, not *"what does it meet"*, and a phase must not read interaction
 coverage off it. The seeding is a workaround for the missing five-colour land,
 not a design choice — with the land, forced insertion alone suffices and the
-seeding can go. That is deliverable 2 of the land's handoff.
+seeding can go. That is deliverable 2 of the land's handoff. **Done,
+2026-09-03 (`pool/everywhere-land`):** the seeding is gone, every deck's mana
+base taps for any colour, and `--require` prints board diversity beside the
+resolution count — `engineering-practices.md` §3 has the three numbers.
 
-**Still owed, and it has its own handoff:** a five-colour land in the pool, so
-the *unforced* number rises too — `--require` answers "was the path walked" at a
-phase's exit, and does not make the everyday timing run play multicolour cards.
-`plans/handoffs/pool-five-colour-land.md` has the brief, the trap (it moves game
-content, so it must not ride along inside a phase) and the acceptance test.
+**~~Still owed, and it has its own handoff:~~ landed 2026-09-03 as its own PR,
+not inside a phase, for the reason the handoff gave (it moves game content).**
+The land is Everywhere rather than City of Brass — "add one mana of any color"
+is not expressible, `backlog.md` §2.19 — and the handoff file is deleted. Note
+what it was *not* asked to do: raise the unforced number. A card competes with
+the whole pool for 36 slots and that ratio worsens with every card added;
+`--require` answers "was the path walked", and the pool measures cost.
 
 **Rejected: weighting new cards up in `random_deck`.** It makes the pool
 unrepresentative in a way that silently distorts the timing arm, which is the
