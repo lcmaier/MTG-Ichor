@@ -14,10 +14,12 @@
 // nothing: every RNG draw it adds is guarded, so a `--require` run and a timing
 // run come from the same binary without the first perturbing the second.
 //
-// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events,
-// and `codebase-state.md` item 16c records that some spells resolve without
-// emitting one — which is how that defect was found. Until it is fixed,
-// `resolved > cast` is expected rather than a paradox.
+// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events
+// and `resolved` counts departures from the stack, and a countered spell has
+// the first without the second. The other direction is impossible — a spell
+// cannot resolve without having been cast — and the harness checks it in
+// every game, flag or no flag: see `uncast_resolutions`. `resolved > cast` in
+// this table was how `codebase-state.md` item 16c was found.
 //
 // `--pool` picks the card pool. `performance` is the frozen 55 every recorded
 // baseline was measured on and is the default, because an A/B against a pool
@@ -92,7 +94,9 @@ use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
+use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaSymbol;
+use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::random::RandomDecisionProvider;
 
 /// CLI arguments (simple manual parsing, no external deps).
@@ -613,6 +617,54 @@ fn extract_stats<'a>(
     stats
 }
 
+/// CR 601.2i — nothing leaves the stack by resolving unless it was cast.
+///
+/// A spell reaches the stack at CR 601.2a and is announced at 601.2i, so every
+/// object leaving the stack with `ZoneChangeCause::Resolved` has a `SpellCast`
+/// behind it; an ability ceases to exist instead and emits no zone change. An
+/// object with none was stranded on the stack by a cast that failed after
+/// 601.2a and did not rewind — item 16c, which resolved about five spells per
+/// game unpaid, in every fuzz run, because nothing asserted this. Reported the
+/// way a panic is, since it is a wrong answer rather than a slow one.
+///
+/// Counted per object, not remembered per object: a card cast twice (bounced
+/// and recast) owes two announcements, and `ObjectId` survives the round trip.
+/// The event index rather than the id in the report, because ids are v4 UUIDs
+/// and this line sits in the region that must be byte-identical across runs.
+fn uncast_resolutions<'a>(
+    events: impl Iterator<Item = &'a GameEvent>,
+    game: &mtgsim::state::game_state::GameState,
+) -> Vec<String> {
+    let mut casts: HashMap<ObjectId, u32> = HashMap::new();
+    let mut violations = Vec::new();
+    for (index, event) in events.enumerate() {
+        match event {
+            GameEvent::SpellCast { spell_id, .. } => {
+                *casts.entry(*spell_id).or_insert(0) += 1;
+            }
+            GameEvent::ZoneChange {
+                object_id,
+                from: Zone::Stack,
+                cause: ZoneChangeCause::Resolved,
+                ..
+            } => {
+                let owed = casts.entry(*object_id).or_insert(0);
+                if *owed == 0 {
+                    let name = game
+                        .objects
+                        .get(object_id)
+                        .map_or("<unknown>", |o| o.card_data.name.as_str());
+                    violations.push(format!("{name} at event {index}"));
+                } else {
+                    *owed -= 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    violations
+}
+
 /// Aggregate statistics across all games.
 #[derive(Debug, Default)]
 struct AggregateStats {
@@ -728,6 +780,10 @@ enum GameOutcome {
         turns: u32,
         stats: GameStats,
         event_log: Option<Vec<String>>,
+        /// `uncast_resolutions`' findings. The game still completed and still
+        /// counts in every fixture row; this is reported beside it, as an
+        /// error is, and fails the run the same way.
+        violations: Vec<String>,
     },
     Error {
         message: String,
@@ -789,6 +845,7 @@ fn run_one_game(
             game.result.clone(),
             turns,
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
+            uncast_resolutions(game.state.events.events(), &game.state),
             {
                 let mut s =
                     extract_stats(game.state.events.events(), &game.state, require_names);
@@ -807,11 +864,12 @@ fn run_one_game(
     let elapsed = started.elapsed();
 
     let outcome = match result {
-        Ok(Ok((result, turns, event_log, stats))) => GameOutcome::Completed {
+        Ok(Ok((result, turns, event_log, violations, stats))) => GameOutcome::Completed {
             result,
             turns,
             stats,
             event_log,
+            violations,
         },
         Ok(Err((message, event_log))) => GameOutcome::Error { message, event_log },
         Err(panic_info) => GameOutcome::Panic {
@@ -960,6 +1018,7 @@ fn main() {
     let mut completed = 0u64;
     let mut panics = 0u64;
     let mut errors = 0u64;
+    let mut uncast = 0u64;
     let mut total_turns = 0u64;
     let mut max_turns_seen = 0u32;
     let mut hit_turn_limit = 0u64;
@@ -994,8 +1053,18 @@ fn main() {
         });
 
         match outcome {
-            GameOutcome::Completed { result: game_result, turns, stats, event_log } => {
+            GameOutcome::Completed { result: game_result, turns, stats, event_log, violations } => {
                 completed += 1;
+                if !violations.is_empty() {
+                    uncast += violations.len() as u64;
+                    println!(
+                        "Game {:>4} (seed {:>12}): INVARIANT — {} resolved without a SpellCast: {}",
+                        game_num + 1,
+                        game_seed,
+                        violations.len(),
+                        violations.join(", ")
+                    );
+                }
                 total_turns += turns as u64;
                 if turns > max_turns_seen {
                     max_turns_seen = turns;
@@ -1070,6 +1139,7 @@ fn main() {
     println!("Completed:       {}", completed);
     println!("Errors:          {}", errors);
     println!("Panics:          {}", panics);
+    println!("Uncast resolved: {}", uncast);
     println!("Hit turn limit:  {}", hit_turn_limit);
     println!("Avg turns/game:  {:.1}", avg_turns);
     println!("Max turns seen:  {}", max_turns_seen);
@@ -1211,7 +1281,7 @@ fn main() {
         }
     }
 
-    if panics > 0 || errors > 0 {
+    if panics > 0 || errors > 0 || uncast > 0 {
         std::process::exit(1);
     }
 }
