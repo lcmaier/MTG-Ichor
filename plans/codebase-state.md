@@ -255,15 +255,24 @@ measurement; this is the state ledger. What landed:
   no existing scripted test gained a prompt.
 - **Both legs of item 16**, and there were three ETB scans rather than the two
   that item recorded — see it, above.
-- **Two cards.** Cytoshape (`PERFORMANCE_POOL` 62 → 63) and Mirrorweave, which
-  is the crate's **first registered card with a simplified hybrid cost**:
-  `{2}{W/U}{W/U}` is registered as `{2}{W}{U}`, a strict *subset* of the real
-  card's legal payments, because `ManaSymbol::Hybrid` exists and no payment path
-  handles it — a verbatim cost would make the card silently uncastable.
-  `phase5_pre_cards::inside_out` set the opposite precedent (2026-08-24) and it
-  was right there and wrong here: Inside Out had a registered substitute for its
-  engine path, and Mirrorweave is the only consumer of `CopyRoles`'
-  `OthersCopyRecipient` arm. **The first real hybrid payment path should delete
+- **Three cards.** Cytoshape (`PERFORMANCE_POOL` 62 → 63); **Mirrorform**,
+  added in review as the card that turned the donor exclusion from structure
+  into a field — it prints Mirrorweave's shape without the word "other", so its
+  affected set includes the target, and `CopyRoles::OthersCopyRecipient` could
+  not express it (`plans/handoffs/cv-1-review.md` A1); and Mirrorweave, which
+  is the crate's **first registered card with a simplified hybrid cost** —
+  audited, not assumed: of the 70 registered cards, checked against Scryfall,
+  Mirrorweave is the only one whose printed cost carries a hybrid or Phyrexian
+  symbol. **`inside_out` is a fixture and has never been registered**, which is
+  the whole of the 2026-08-24 precedent: it prints `{1}{U/R}`, the crate spells
+  it `{1}{U}`, and it stayed out of `registry.rs` rather than misrepresent the
+  card. Mirrorweave is registered as `{2}{W}{U}` — a strict *subset* of the real
+  card's legal payments — because `ManaSymbol::Hybrid` exists and no payment
+  path handles it, so a verbatim cost would make the card *silently uncastable*.
+  The precedent was right there and is wrong here for a reason about the pool
+  rather than the card: Inside Out's engine path (Layer 7d) had a registered
+  substitute in Merfolk Thaumaturgist, and Mirrorweave and Mirrorform are the
+  only consumers of `CopyRoles::FilteredCopyRecipient`. **The first real hybrid payment path should delete
   the approximation and this paragraph together.**
 - **The CR 613.2 sublayer inversion, fixed in the last two places it lived** —
   `compute.rs`'s `LAYER_ORDER` doc and `layers-architecture.md` §7 with its
@@ -278,8 +287,17 @@ measurement; this is the state ledger. What landed:
 pool unchanged) matches A (`main` at 103acf1) to the digit on every counter** —
 100,496 walks, 136,402 frames, 1.36 frames/walk, 567 gathers — and their event
 streams are **40/40 byte-identical**. What moved is the pool: `Frames/walk`
-1.36 → 1.37, which is Citanul Hierophants being copiable, i.e. a copied static
-ability paying exactly what a printed one pays. **The timing column separates
+1.36 → 1.37 — **and that is game content, not a mechanism.** The first draft
+of this entry attributed it to Citanul Hierophants being copiable, which was a
+guess stated as a fact and does not survive arithmetic: Cytoshape resolves **16
+times in 200 games** (counted, `--dump-events`), each row lives for the rest of
+one turn, so copy rows exist during ~16 of ~6,160 turns and could account for at
+most ~0.2 of the 0.7 percentage points even if every one had copied a static
+ability. C also plays *different games* — a 63-card pool, not 62 — and its
+walk count moved —0.5% and its turns +0.3% in the same run. The ratio shift is
+inside that. **The mechanism that would raise `Frames/walk` is real** (a copied
+static ability is an `EffectOrigin::StaticAbility` row and pays what a printed
+anthem pays); this sample cannot see it. **The timing column separates
 nothing** and the phase says so: run-to-run spread for one binary at 200 games
 was —4% to +6% here, and B read *faster* than A while playing identical games.
 `layers-architecture.md` §12's 5.2—8.0→ figure is the CR 613.7a check
@@ -741,14 +759,35 @@ built, and none of it blocks RC-1 through RC-3.
 
     **It stops being harmless at `Duration::Indefinite`**, which is CV-1b: a
     permanent re-copying itself every turn would accumulate derived rows without
-    bound, and nothing would ever remove them. **So this is CV-1b's prerequisite,
-    not a bug in CV-1** — and it wants the same fix item 10 owes every pump
-    spell, a teardown keyed on the *affected* object rather than the source.
-    Sized: one `retain` over the registry keyed on `(source, EffectGroup)` at the
-    moment a `CopyFrom` row is replaced, plus the decision of what "replaced"
-    means when two copy rows legitimately coexist (they do — CR 613.2a orders
-    them by timestamp and the later wins, which is not the same as the earlier
-    being gone).
+    bound, and nothing would remove them. **So this is CV-1b's prerequisite, not
+    a bug in CV-1.**
+
+    **Three things this is not, because an earlier draft of this entry ran them
+    together** (corrected 2026-09-02 in review):
+
+    - **It is not item 10's problem.** Item 10 is CR 400.7: `move_object`
+      preserves `ObjectId`, so a row keyed on a *leaving* object's id
+      re-attaches to whatever comes back. A derived row's `source` is the
+      copying permanent, so `remove_by_source` already reaches it on a zone
+      change. What is unreachable is "the ability that justified this row is
+      gone", which is a different question with a different fix.
+    - **It is not solved by updating the row in place.** A re-copy must
+      **add** a `CopyFrom` row, never overwrite the existing one's payload:
+      CR 613.2a orders layer 1 by timestamp and each row carries its own
+      `Duration`, so an `UntilEndOfTurn` copy laid over an `Indefinite` one has
+      to expire *back* to the indefinite values. Overwriting would delete an
+      effect that is still running. Two rows is the correct model and the
+      litter is the price of it.
+    - **It is not the pump-spell shape either.** A pump row is inert-but-present
+      for a different reason (its subject left and returned); this one's subject
+      never moved.
+
+    **Sized:** at the moment `apply_copy` registers a `CopyFrom` for a subject
+    that already has one, `retain` out the derived rows whose
+    `EffectGroup::StaticAbility(subject, ability)` names an ability id that the
+    *new* capture does not carry — and only those, because the subject may also
+    **print** the same ability, which no copy row justifies or removes. One
+    `retain` and one set difference; the care is entirely in the second clause.
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 

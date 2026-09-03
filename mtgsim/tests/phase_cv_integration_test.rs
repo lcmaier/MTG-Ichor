@@ -14,11 +14,10 @@
 //! 4. That none of it prompts a `DecisionProvider` when there is nothing to
 //!    choose.
 
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
-use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorweave};
+use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
@@ -32,6 +31,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -51,82 +51,6 @@ use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// A `DecisionProvider` that records every `ChoiceKind` it is asked about and
-/// picks a nominated option.
-///
-/// Recording the *kind* rather than only counting is what lets a test say "one
-/// prompt, and it was `ChooseCopySource`" — the assertion CV-1's new decision
-/// site actually owes. `ScriptedDecisionProvider` with an empty queue proves the
-/// absence of prompts and is used for that half.
-struct RecordingDp {
-    pick: usize,
-    seen: RefCell<Vec<String>>,
-}
-
-impl RecordingDp {
-    fn picking(pick: usize) -> Self {
-        RecordingDp { pick, seen: RefCell::new(Vec::new()) }
-    }
-    fn kinds(&self) -> Vec<String> {
-        self.seen.borrow().clone()
-    }
-}
-
-impl DecisionProvider for RecordingDp {
-    fn pick_n(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        ctx: &ChoiceContext,
-        options: &[ChoiceOption],
-        _bounds: (usize, usize),
-    ) -> Vec<usize> {
-        self.seen.borrow_mut().push(format!("{:?}", ctx.kind));
-        vec![self.pick.min(options.len().saturating_sub(1))]
-    }
-
-    fn pick_number(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _ctx: &ChoiceContext,
-        min: u64,
-        _max: u64,
-    ) -> u64 {
-        self.seen.borrow_mut().push("pick_number".to_string());
-        min
-    }
-
-    fn allocate(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _ctx: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        _per_bucket_mins: &[u64],
-        _per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        self.seen.borrow_mut().push("allocate".to_string());
-        let mut out = vec![0; buckets.len()];
-        if !out.is_empty() {
-            out[0] = total;
-        }
-        out
-    }
-
-    fn choose_ordering(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _ctx: &ChoiceContext,
-        items: &[ChoiceOption],
-    ) -> Vec<usize> {
-        self.seen.borrow_mut().push("choose_ordering".to_string());
-        (0..items.len()).collect()
-    }
-}
 
 /// Resolve a card's one spell ability with the given targets.
 fn resolve_spell(
@@ -214,7 +138,7 @@ fn test_cytoshape_target_becomes_a_copy_of_the_chosen_creature() {
     let target = put_on_battlefield(&mut game, bear(), 0);
     let donor = put_on_battlefield(&mut game, colossus(), 0);
 
-    let dp = RecordingDp::picking(1); // index 1 of the ordered candidates
+    let dp = RecordingDecisionProvider::picking(1); // index 1 of the ordered candidates
     resolve_spell(&mut game, cytoshape(), 0, vec![target], &dp);
 
     // The donor is whichever of the two the DP picked; assert on the one that
@@ -559,8 +483,8 @@ fn test_a_copy_of_a_vanilla_creature_lights_neither_gate() {
 // ---------------------------------------------------------------------------
 
 /// CR 707.4 — "each other creature becomes a copy of target nonlegendary
-/// creature". The target is the **donor**, and it is excluded from the affected
-/// set structurally.
+/// creature". The target is the **donor**, and `exclude_donor: true` is the
+/// word "other".
 #[test]
 fn test_mirrorweave_copies_the_target_onto_every_other_creature() {
     let mut game = setup_two_player_game();
@@ -588,6 +512,56 @@ fn test_mirrorweave_copies_the_target_onto_every_other_creature() {
     );
     // Control is not copiable: the opponent's creature stays theirs.
     assert_eq!(get_effective_controller(&game, theirs), Some(1));
+}
+
+/// CR 707.4 — Mirrorform prints Mirrorweave's shape **without** the word
+/// "other": "each nonland permanent you control becomes a copy of target
+/// non-Aura permanent". The donor is in the affected set whenever its controller
+/// casts the spell, and the first version of `CopyRoles` could not say so.
+///
+/// The assertion that matters is the *lands*: they are excluded by the filter
+/// while the donor is not, so a test that only checked "everything became a
+/// Colossus" would pass with the filter ignored.
+#[test]
+fn test_mirrorform_includes_the_donor_and_excludes_lands() {
+    let mut game = setup_two_player_game();
+    let donor = put_on_battlefield(&mut game, colossus(), 0);
+    let mine = put_on_battlefield(&mut game, bear(), 0);
+    let land = put_on_battlefield(&mut game, mtgsim::test_support::forest(), 0);
+    let theirs = put_on_battlefield(&mut game, bear(), 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    resolve_spell(&mut game, mirrorform(), 0, vec![donor], &dp);
+
+    assert_eq!(get_effective_name(&game, mine), "Colossus");
+    assert_eq!(
+        get_effective_name(&game, land),
+        "Forest",
+        "nonland permanents only"
+    );
+    assert_eq!(
+        get_effective_name(&game, theirs),
+        "Bear",
+        "permanents *you* control only"
+    );
+
+    // The donor is in its own affected set — `exclude_donor: false` — and
+    // copying itself changes nothing about it, which is the point.
+    let row = game
+        .continuous_effects
+        .iter()
+        .find(|e| matches!(e.modification, EffectModification::CopyFrom(_)))
+        .expect("one copy row");
+    match &row.affected {
+        mtgsim::engine::layers::types::AffectedSet::Fixed(ids) => assert!(
+            ids.contains(&donor),
+            "CR 707.4 — Mirrorform says 'each nonland permanent you control', \
+             not 'each other', so the donor is affected"
+        ),
+        other => panic!("expected Fixed, got {other:?}"),
+    }
+    assert_eq!(get_effective_name(&game, donor), "Colossus");
+    assert_eq!(get_effective_power(&game, donor), Some(5));
 }
 
 /// One row for the whole class, which is `copy-effects-architecture.md` §9 item

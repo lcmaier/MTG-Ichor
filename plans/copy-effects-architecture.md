@@ -532,31 +532,50 @@ role the atom's own recipients play, and where the other role comes from:
 
 ```rust
 /// Which role the atom's recipients play, and where the other role comes from.
-/// One arm per *role binding*, not per card - Tier C splits into these two, and
+/// One arm per *role binding*, not per card — Tier C splits into these two, and
 /// Polymorphous Rush's Strive targets are the first arm with n > 1.
 pub enum CopyRoles {
     /// The recipients become copies of a permanent **chosen** as the effect
     /// resolves (CR 707.4; not targeted). Cytoshape, Polymorphous Rush.
     RecipientsCopyChosen(SelectionFilter),
-    /// The recipient supplies the values and every **other** permanent matching
-    /// the filter becomes a copy of it. Mirrorweave. The exclusion is
-    /// structural rather than a filter leaf, because "other" always means
-    /// "other than the donor" and no card should have to spell it.
-    OthersCopyRecipient(PermanentFilter),
+    /// The recipient supplies the values and every permanent matching the
+    /// filter becomes a copy of it. Mirrorweave, Mirrorform.
+    FilteredCopyRecipient { filter: PermanentFilter, exclude_donor: bool },
 }
 
 Copy(CopyRoles, Duration)
 ```
 
 Rejected: a `{ from: .., to: .. }` product of two enums. Two of its four
-combinations are nonsense - a recipient copying itself, and "each other" with no
-donor to be other than - and encoding unreachable states is how an arm
+combinations are nonsense — a recipient copying itself, and "each other" with no
+donor to be other than — and encoding unreachable states is how an arm
 eventually gets written for one.
+
+> **`exclude_donor` is a field because review found the card that needs it
+> `false`.** The arm shipped as `OthersCopyRecipient(PermanentFilter)`, with the
+> exclusion **structural**, on the reading that a class-scoped copy always says
+> "each *other*". **Mirrorform** — "Each nonland permanent you control becomes a
+> copy of target non-Aura permanent" — prints the same shape without the word,
+> so its affected set includes the target, and the structural arm could not
+> express it at all.
+>
+> **The census could not have caught this**, and that is the transferable part:
+> `copy-census.py` partitions by *mechanism*, and Mirrorweave and Mirrorform are
+> one mechanism. A one-word difference lives **inside** a bucket, which is §9
+> item 8's finding in a second costume. Reading three cards from the bucket
+> catches it; a partition never will. Now a practice line in
+> `engineering-practices.md` §3: before making a word in a card's text
+> structural, find two more cards in the bucket and check they print it.
+>
+> A permanent copying *itself* is very nearly a no-op — the capture is its own
+> post-layer-1 state — but not exactly one, and CR-correctly so: the row carries
+> its own `Duration`, so it holds those values past the expiry of an earlier copy
+> row that put them there.
 
 **The choice site, and what carries the chosen id (`codebase-state.md` item
 40).** Cytoshape's donor is a CR 707.4 *choice* made on resolution, so it gets
 its own decision site and its own `ChoiceKind::ChooseCopySource { spell_id }`.
-**Not `SelectRecipients`, which `sacrifice_of_choice` reuses** - there the
+**Not `SelectRecipients`, which `sacrifice_of_choice` reuses** — there the
 chosen permanent *is* what the primitive acts on, and here it is the exact
 opposite: the donor is the one permanent a copy effect does **not** change. A
 `DecisionProvider` heuristic keyed on `SelectRecipients` would read the donor as
@@ -565,16 +584,16 @@ lying to it.
 
 What carries the chosen id between the prompt and the row is **a local that
 never spans a second decision**: `ask_choose_copy_source` returns it, the
-capture runs, the row is registered, and the arm returns - one prompt, nothing
+capture runs, the row is registered, and the arm returns — one prompt, nothing
 consulted across it. Item 40's invariant therefore holds by construction rather
 than by care, and *that* is the property to preserve, not the locality: the
 violator it contrasts with (`apply_replacements`) is a violator precisely
 because it prompts repeatedly and reads its sets between prompts. A later phase
-that splits this into two prompts - donor, then affected set - puts
+that splits this into two prompts — donor, then affected set — puts
 outcome-bearing state on the stack and has to move it onto `GameState`.
 
 **Prompting only with two or more candidates.** With exactly one nonlegendary
-creature the choice is forced, and CV-1 takes it without asking - CR 102.2's
+creature the choice is forced, and CV-1 takes it without asking — CR 102.2's
 shape, the same one `ChooseEnteringController` already uses. This is *not* CR
 616.1's rule (that one is about which of several effects applies); it is the
 same conclusion reached separately, and it is what keeps every scripted test at
@@ -1055,7 +1074,11 @@ entry producer. `owed` clean; suite green; zero warnings.
 3. **`Primitive::Copy` needs a role binding the sketch did not have** (§4.2).
    Cytoshape and Mirrorweave attach the atom's target to opposite ends of the
    same sentence, so `CopyRoles` has two arms and a phase that shipped one card
-   would have found the second binding in CV-2.
+   would have found the second binding in CV-2. **Review found a third thing:**
+   the arm's donor exclusion was structural and Mirrorform prints the same shape
+   without the word "other", so it is now `exclude_donor: bool` with Mirrorform
+   registered as its consumer. The census cannot see a one-word difference
+   inside one mechanism — `plans/handoffs/cv-1-review.md` A1.
 4. **`--dump-events` is blind to a copy.** Registering a row is not an observable
    action, so the event stream sees a Cytoshape reach the graveyard and nothing
    else — in both arms. First-divergence attribution, which was RC-3 and RC-4's

@@ -27,17 +27,13 @@ use crate::types::zones::Zone;
 /// list. One sublayer split is still missing:
 ///
 /// - **1a / 1b.** CR 613.2a is copy effects (1a); CR 613.2b is face-down (1b),
-///   and it applies **after** copy. `Layer1Copy` collapses the two.
-///   `copy-effects-architecture.md` §5.4 found this stated backwards here and
-///   in two plan documents, all three justifying the order with the same
-///   correct conclusion from a wrong premise: a copy of a face-down creature
-///   gets CR 708.2a's 2/2 because 708.2 calls those the *copiable values*, not
-///   because face-down applied first.
+///   applied after copy. `Layer1Copy` collapses the two. CV-1 gives 1a a
+///   producer (`EffectModification::CopyFrom`); 1b arrives with CV-6.
 ///
-/// CV-1 gives 1a a producer (`EffectModification::CopyFrom`); 1b arrives with
-/// CV-6. Splitting the slot later just lengthens this array — the ceiling is
-/// an index into it, computed at runtime, so nothing else moves except
+/// Splitting the slot later just lengthens this array — the ceiling is an
+/// index into it, computed at runtime, so nothing else moves except
 /// `layers::copy::END_OF_LAYER_1`, which a `debug_assert` there pins.
+/// → `layers-architecture.md` §7.
 pub(super) const LAYER_ORDER: [Layer; 10] = [
     Layer::Layer1Copy,
     Layer::Layer2Control,

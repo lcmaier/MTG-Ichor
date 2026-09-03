@@ -44,6 +44,15 @@ pub const END_OF_LAYER_1: usize = 1;
 /// layer 1 effect under CR 613.8a(b) — and so what keeps copy work off
 /// critical-path item 7 (`copy-effects-architecture.md` §5.2).
 ///
+/// **Not the whole of a CR 707.10 spell copy, and deliberately not.** A copy of
+/// a *spell* keeps its modes, targets, X and the objects paid as costs — none
+/// of which are characteristics, and none of which belong here. CR 707.10 makes
+/// a spell copy a new object on the stack with **no row and no layer**
+/// (`copy-effects-architecture.md` §3.3, producer 4), so it needs this type for
+/// the characteristics half and a `StackEntry` half for the rest. The second is
+/// CV-4's to build; putting its fields here now would be a payload no producer
+/// writes and no reader reads.
+///
 /// **Deliberately not `EffectiveCharacteristics` reused.** That type carries
 /// `controller` and `control_since_turn`, and `compute.rs`'s
 /// `any_control_changing` fast path proves its own correctness on the claim

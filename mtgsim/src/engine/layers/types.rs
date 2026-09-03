@@ -122,8 +122,14 @@ pub enum EffectModification {
     // --- Layer 1a (CR 613.2a) ---
     /// CR 707 — the affected object becomes a copy of the captured values.
     ///
-    /// Boxed for the reason `GrantAbility` is: this is the largest payload in
-    /// the enum and the enum is matched at every layer.
+    /// **Boxed, and the numbers say why.** `CopiableValues` is 328 bytes (a
+    /// `String`, five `HashSet`s, a `Vec<AbilityDef>` and two `Option<i32>`);
+    /// boxed it is 8. Inline, this arm would take `EffectModification` from 72
+    /// bytes to ~336 and `ContinuousEffect` from 168 to ~432 — paid by *every*
+    /// row, including the thousands that carry two `i32`s, because
+    /// `effects_in_layer` hands the walk a contiguous slice it re-iterates per
+    /// layer per object. Row size is the layer walk's memory traffic. Same
+    /// reason `GrantAbility` is boxed.
     ///
     /// **Growth contract.** `EffectModification` grows one arm per
     /// *characteristic channel*, and this one replaces every channel at once,

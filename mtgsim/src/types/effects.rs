@@ -421,10 +421,10 @@ pub struct TypeChange {
 /// Which role a `Primitive::Copy`'s own recipients play, and where the other
 /// role comes from (CR 707.4).
 ///
-/// **One arm per role binding, not per card**, and the two shipped cards need
-/// both because they bind the atom's target to opposite ends of the same
+/// **One arm per role binding, not per card**, and the printed corpus needs
+/// both because cards bind the atom's target to opposite ends of the same
 /// sentence: Cytoshape targets the permanent that *becomes* a copy, Mirrorweave
-/// targets the one being copied.
+/// and Mirrorform target the one being copied.
 ///
 /// Rejected: a `{ from, to }` product of two enums. Two of its four
 /// combinations are nonsense — a recipient copying itself, and "each other"
@@ -436,13 +436,28 @@ pub enum CopyRoles {
     /// resolves (CR 707.4). A choice, not a target: hexproof and shroud do not
     /// apply, and nothing fizzles if it leaves. Cytoshape, Polymorphous Rush.
     RecipientsCopyChosen(SelectionFilter),
-    /// The recipient supplies the values, and every **other** permanent
-    /// matching the filter becomes a copy of it. Mirrorweave.
-    ///
-    /// The exclusion is structural rather than a filter leaf: "each other" can
-    /// only mean "other than the donor", so no card should have to spell it and
-    /// none can get it wrong.
-    OthersCopyRecipient(PermanentFilter),
+    /// The atom's target supplies the values, and every permanent matching
+    /// `filter` becomes a copy of it. Mirrorweave, Mirrorform.
+    FilteredCopyRecipient {
+        /// Which permanents become copies, evaluated as the effect begins to
+        /// apply and then locked (CR 611.2c).
+        filter: PermanentFilter,
+        /// **Whether the donor is excluded, and it is data because the cards
+        /// disagree.** Mirrorweave says "each **other** creature"; Mirrorform
+        /// says "each nonland permanent you control", which *includes* the
+        /// target whenever you control it. An earlier draft made the exclusion
+        /// structural on the reading that "each other" is the only phrasing
+        /// — Mirrorform is the counter-example, and it was found in review
+        /// rather than by the census, which is the argument for checking the
+        /// printed corpus before deciding a word is redundant.
+        ///
+        /// A permanent copying *itself* is very nearly a no-op — the capture
+        /// is its own post-layer-1 state, so applying it changes nothing at the
+        /// instant it is made. Not exactly one, and CR-correctly so: the row
+        /// has its own `Duration`, so it holds those values after an earlier
+        /// copy row would have expired.
+        exclude_donor: bool,
+    },
 }
 
 // ---------------------------------------------------------------------------

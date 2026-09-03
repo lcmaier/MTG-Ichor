@@ -158,7 +158,7 @@ flowchart TD
   subgraph R1["1 · the two roles (CR 707.4)"]
     C{"CopyRoles"}:::new
     D["RecipientsCopyChosen<br/>targets become copies · donor is chosen"]:::new
-    E["OthersCopyRecipient<br/>target is the donor · each other matching permanent copies it"]:::new
+    E["FilteredCopyRecipient<br/>target is the donor · each matching permanent copies it<br/>exclude_donor: the word "other""]:::new
     F["enumerate_legal_selections<br/>then 0 → nothing · 1 → forced · 2+ → ask"]:::new
     G["ask_choose_copy_source<br/>ChoiceKind::ChooseCopySource"]:::decide
   end

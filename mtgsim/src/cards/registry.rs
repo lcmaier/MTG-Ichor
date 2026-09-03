@@ -320,6 +320,9 @@ impl CardRegistry {
         // donor, Mirrorweave targets the donor and affects everything else.
         registry.register("Cytoshape", phase_cv_cards::cytoshape);
         registry.register("Mirrorweave", phase_cv_cards::mirrorweave);
+        // The third arm-consumer: Mirrorform prints Mirrorweave's shape without
+        // the word "other", which is why `exclude_donor` is a field.
+        registry.register("Mirrorform", phase_cv_cards::mirrorform);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation sweep had never run in a fuzz

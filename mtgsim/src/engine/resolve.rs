@@ -1146,7 +1146,7 @@ impl GameState {
                 };
                 (donor, recipients)
             }
-            CopyRoles::OthersCopyRecipient(filter) => {
+            CopyRoles::FilteredCopyRecipient { filter, exclude_donor } => {
                 let Some(&donor) = self.collect_battlefield_targets(ctx).first() else {
                     return Ok(());
                 };
@@ -1156,7 +1156,7 @@ impl GameState {
                 let affected: Vec<ObjectId> = self
                     .battlefield_ids_ordered()
                     .into_iter()
-                    .filter(|&id| id != donor)
+                    .filter(|&id| !(*exclude_donor && id == donor))
                     .filter(|&id| {
                         self.permanent_matches_filter(id, filter, ctx.controller)
                             .unwrap_or(false)

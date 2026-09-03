@@ -114,30 +114,39 @@ across months buys the timing measurement nothing.
   same act as registering. `performance_pool()` panics on a name that is no
   longer registered, which is the guard against a rename shrinking the pool
   silently — the one failure a deliberate addition does not have.
+- **Before making a word in a card's text *structural*, find two more cards in
+  the same bucket and check they print it.** CV-1 made "each **other** creature"
+  structural — a copy arm that excluded the donor with no way to say otherwise
+  — on the reading that a class-scoped copy always says "other". Mirrorform
+  prints the same shape without the word, and the arm could not express it at
+  all. **Structure is the expensive direction to be wrong in:** data that is
+  never varied costs a field, structure that has to vary costs an enum arm and
+  every match on it. The census cannot catch this — it partitions by
+  *mechanism*, and a one-word difference lives inside one bucket.
 - **Say which pool a number came from.** `fuzz_games` prints it in the header
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-02 (performance pool 62 → 63, stress 68 → 70; Cytoshape and
-Mirrorweave, Phase CV-1):**
+2026-09-02 (performance pool 62 → 63, stress 68 → 71; Cytoshape,
+Mirrorweave and Mirrorform, Phase CV-1):**
 
-| | performance (63 cards) | stress (70 cards) |
+| | performance (63 cards) | stress (71 cards) |
 |---|---|---|
-| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 24 (48.0%) / 26 (52.0%) |
-| Avg turns | 28.8 | 27.4 |
-| Spells cast | 21.0 | 19.5 |
-| Lands played | 18.4 | 17.5 |
-| Combat w/ atk | 11.0 | 10.9 |
-| Creatures died | 6.7 | 4.8 |
-| Damage events | 24.2 | 23.9 |
-| Total damage | 49.8 | 57.5 |
-| Life changes | 16.8 | 15.2 |
-| **Layer walks** | **93,914** | **85,816** |
-| **Layer frames** | **136,338** | **111,957** |
-| **Frames/walk** | **1.45** | **1.30** |
-| **Replacement gathers** | **531** | **500** |
-| **Restriction queries** | **533** | **504** |
+| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 27 (54.0%) / 23 (46.0%) |
+| Avg turns | 28.8 | 28.3 |
+| Spells cast | 21.0 | 19.6 |
+| Lands played | 18.4 | 17.6 |
+| Combat w/ atk | 11.0 | 10.5 |
+| Creatures died | 6.7 | 4.4 |
+| Damage events | 24.2 | 23.4 |
+| Total damage | 49.8 | 55.3 |
+| Life changes | 16.8 | 15.7 |
+| **Layer walks** | **93,914** | **88,252** |
+| **Layer frames** | **136,338** | **117,612** |
+| **Frames/walk** | **1.45** | **1.33** |
+| **Replacement gathers** | **531** | **514** |
+| **Restriction queries** | **533** | **517** |
 
 **Most of the movement in this table is not CV-1's, and the previous version was
 already stale when CV-1 read it.** `main` at 103acf1 answers 93,717 walks / 530

@@ -48,7 +48,7 @@ use crate::engine::layers::types::{
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
-use crate::ui::decision::ScriptedDecisionProvider;
+use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
 // Game setup
@@ -196,6 +196,102 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 // ---------------------------------------------------------------------------
 // Placement
 // ---------------------------------------------------------------------------
+
+/// A `DecisionProvider` that records the `ChoiceKind` of every prompt and
+/// answers each one with a nominated index.
+///
+/// **The complement of `ScriptedDecisionProvider`, not a replacement for it.**
+/// A scripted provider with an empty queue panics on the first prompt, which is
+/// the sharpest possible assertion that a path asks *nothing* — but it can
+/// only say "none", never "exactly one, and it was this kind". Tests that own a
+/// new decision site need the second half: RS-1 wanted it and grew a private
+/// `CountingDp`, CV-1 wanted it and grew a private `RecordingDp`, and a third
+/// copy is where a helper stops being premature.
+///
+/// Recording the *kind* rather than a count is the part worth sharing. A test
+/// that asserts "one prompt" passes just as well when the prompt was the wrong
+/// one.
+pub struct RecordingDecisionProvider {
+    pick: usize,
+    seen: std::cell::RefCell<Vec<String>>,
+}
+
+impl RecordingDecisionProvider {
+    /// Answer every `pick_n` with `index`, clamped to the options offered.
+    pub fn picking(index: usize) -> Self {
+        RecordingDecisionProvider { pick: index, seen: std::cell::RefCell::new(Vec::new()) }
+    }
+
+    /// The `ChoiceKind`s seen so far, `Debug`-formatted, in prompt order.
+    ///
+    /// A `String` rather than the `ChoiceKind` itself because `ChoiceKind` is
+    /// not `PartialEq` (it carries `EffectRecipient`, which carries filters) and
+    /// making it so for a test helper would be the tail wagging the dog.
+    /// `starts_with("ChooseCopySource")` is the idiom.
+    pub fn kinds(&self) -> Vec<String> {
+        self.seen.borrow().clone()
+    }
+
+    /// How many prompts have been asked.
+    pub fn prompts(&self) -> usize {
+        self.seen.borrow().len()
+    }
+}
+
+impl DecisionProvider for RecordingDecisionProvider {
+    fn pick_n(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        ctx: &crate::ui::choice_types::ChoiceContext,
+        options: &[crate::ui::choice_types::ChoiceOption],
+        _bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.seen.borrow_mut().push(format!("{:?}", ctx.kind));
+        vec![self.pick.min(options.len().saturating_sub(1))]
+    }
+
+    fn pick_number(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _ctx: &crate::ui::choice_types::ChoiceContext,
+        min: u64,
+        _max: u64,
+    ) -> u64 {
+        self.seen.borrow_mut().push("pick_number".to_string());
+        min
+    }
+
+    fn allocate(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _ctx: &crate::ui::choice_types::ChoiceContext,
+        total: u64,
+        buckets: &[crate::ui::choice_types::ChoiceOption],
+        _per_bucket_mins: &[u64],
+        _per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.seen.borrow_mut().push("allocate".to_string());
+        let mut out = vec![0; buckets.len()];
+        if !out.is_empty() {
+            out[0] = total;
+        }
+        out
+    }
+
+    fn choose_ordering(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _ctx: &crate::ui::choice_types::ChoiceContext,
+        items: &[crate::ui::choice_types::ChoiceOption],
+    ) -> Vec<usize> {
+        self.seen.borrow_mut().push("choose_ordering".to_string());
+        (0..items.len()).collect()
+    }
+}
 
 /// Put a card into a player's hand and register it in the game.
 pub fn put_in_hand(game: &mut GameState, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {

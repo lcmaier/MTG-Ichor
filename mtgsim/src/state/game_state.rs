@@ -1042,8 +1042,24 @@ impl GameState {
             if !self.battlefield.contains_key(&id) {
                 continue;
             }
-            let controller = crate::oracle::characteristics::controller_or_owner(self, id)
-                .unwrap_or_else(|| self.objects.get(&id).map(|o| o.owner).unwrap_or(0));
+            // **Never `unwrap_or(0)` here.** The two static sweeps take that
+            // default and document why it is unreachable, but they spend the
+            // value on one predicate evaluation; this one *writes* it into a
+            // registry row that outlives the call and resolves `PlayerRef::You`
+            // for as long as the row lives. Guessing P0 would be a silently
+            // wrong board rather than a wasted walk. `controller_or_owner`
+            // already falls back to CR 108.3's owner, so `None` means the object
+            // is not in `game.objects` at all — unreachable after the
+            // battlefield check above, and a skip if it ever is.
+            let Some(controller) = crate::oracle::characteristics::controller_or_owner(self, id)
+            else {
+                debug_assert!(
+                    false,
+                    "copied static ability on {id}, which is on the battlefield but has no \
+                     object entry; no controller can be derived and none may be invented"
+                );
+                continue;
+            };
 
             for ability in values.registrable_static_abilities() {
                 let context = format!("copied ability {:?} on {}", ability.id, values.name);
