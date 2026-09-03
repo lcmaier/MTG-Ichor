@@ -284,10 +284,15 @@ which is impossible for a card that resolves once. Diagnosed the same session:
 `cast.rs`'s `pay_costs(...)?` is the one fallible step after CR 601.2a with no
 `rollback_cast_to_hand`, so a failed payment strands the card **on the stack**,
 where it later resolves — unpaid, ~5 times per game. `codebase-state.md` item
-**16c** has the evidence (206 in 40 games, identical on `main`; every ghost card
-has a generic cost component and no zero-generic card is ever one, which is the
+**16c** has the evidence (206 in 40 games at 103acf1; every ghost card has a
+generic cost component and no zero-generic card is ever one, which is the
 allocation prompt's own gate) and the one-line fix. **Its own PR, and it should
-precede everything** — it is a wrong answer in every fuzz run today.
+precede everything** — and it did: `fix/cast-rollback-on-payment-failure`
+(2026-09-02) closed it with the rollback, a regression test shown failing on the
+pre-fix tree, and a harness invariant — `fuzz_games` now fails a run in which
+anything leaves the stack by resolving without a `SpellCast` behind it, and
+prints `Uncast resolved: 0` in every clean one. 16c's closing entry carries what
+the free spells were worth in game content and answers the prompt-shape question.
 
 **Known limitation, and it is the price of the colour seeding.** `--require
 Mirrorweave` makes every deck W/U, so the card is exercised against one colour

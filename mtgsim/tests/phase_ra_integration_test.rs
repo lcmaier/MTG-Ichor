@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::{alpha, basic_lands, phase5_pre_cards};
+use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::events::event::{BatchId, GameEvent, ResolutionStamp};
@@ -290,6 +290,54 @@ fn test_a_failed_cast_announces_nothing() {
         zone_changes(&game).is_empty(),
         "the 601.2a move is announced at 601.2i, which a rewound cast never reaches",
     );
+}
+
+// COVERS-PARTIAL: ATOM-601.2h-002
+// COVERS-PARTIAL: ATOM-601.2-001
+//
+// Partial on both. 601.2h-002's board is a short pool ({2}{R} against {3}{R}),
+// which `can_pay_costs` refuses ahead of payment; 601.2-001's is a spell with
+// no legal target, which rewinds at 601.2c. This board rewinds at 601.2h
+// *itself*: the pool covers the cost, and the player's own generic split is
+// what makes the payment illegal.
+#[test]
+fn test_a_cast_whose_payment_fails_rewinds_and_keeps_the_mana() {
+    // Grizzly Bears {1}{G} against a pool of {R}{G}: payable, exactly one way.
+    // The split prompt lists the pool's types in `ManaType` order — Red, then
+    // Green — and the player puts the generic mana on Green, which the {G}
+    // pip still needs. `ManaPool::pay` refuses, and CR 601.2 says the whole
+    // cast rewinds. Before this test the card stayed on the stack, was never
+    // announced as cast, and resolved on the next pass with the mana still in
+    // the pool — `codebase-state.md` item 16c.
+    let mut game = setup_two_player_game();
+    let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+        vec![0, 1], // [Red, Green]: the generic {1} paid with the only Green
+    );
+    let before = game.events.len();
+    assert!(game.cast_spell(0, bear, &decisions).is_err(), "the split is unpayable");
+    assert!(decisions.is_empty(), "the split prompt was asked");
+
+    // Four assertions, and each is a different way the old tree was wrong.
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Hand, "back in hand");
+    assert!(game.players[0].hand.contains(&bear));
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1, "mana untouched");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
+    assert!(
+        !game.events.events().any(|e| matches!(
+            e,
+            GameEvent::SpellCast { spell_id, .. } if *spell_id == bear
+        )),
+        "never announced as cast",
+    );
+    assert!(game.stack.is_empty(), "not on the stack, where it would resolve unpaid");
+    assert!(!game.stack_entries.contains_key(&bear));
+    assert_eq!(game.events.len(), before, "a rewind is not an event");
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 789 tests, 0 warnings, fuzz harness runs 250-game batches.
+- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 888 tests, 0 warnings, fuzz harness runs 200-game batches and fails a run in which any spell resolves unpaid (16c).
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
@@ -791,58 +791,106 @@ built, and none of it blocks RC-1 through RC-3.
 
 ### Found by CV-1's reachability mode (2026-09-02)
 
-16c. **Spells resolve without being paid for, and `cast_spell` is one missing
-    `rollback_cast_to_hand` away from correct (found 2026-09-02, CV-1's
-    `--require`; diagnosed the same session).**
+16c. ~~**Spells resolve without being paid for, and `cast_spell` is one missing
+    `rollback_cast_to_hand` away from correct**~~ ✅ **closed 2026-09-02,
+    `fix/cast-rollback-on-payment-failure`** (found 2026-09-02 by CV-1's
+    `--require`; diagnosed the same session; fixed the next).
 
-    **The defect.** `cast.rs` has five fallible steps between CR 601.2a's
-    silent move to the stack and CR 601.2i's announcement. Four of them call
-    `rollback_cast_to_hand` before returning `Err`. The fifth {D} `pay_costs`,
-    the last statement before 601.2i {D} is a bare `?`. When it fails, the card
-    is **left on the stack**, never announced as cast, and the next stack
-    resolution resolves it. The player keeps the mana and gets the spell.
-    `priority.rs:99`'s comment ("game state clean ... see `cast_spell`
-    rollback") states the contract this line breaks.
+    **The defect, as diagnosed.** `cast.rs` had five fallible steps between CR
+    601.2a's silent move to the stack and CR 601.2i's announcement. Four called
+    `rollback_cast_to_hand` before returning `Err`; the fifth — `pay_costs`,
+    the last statement before 601.2i — was a bare `?`. When it failed the card
+    stayed on the stack, was never announced as cast, and resolved on the next
+    pass with the mana still in the pool. `activate_ability` had handled the
+    identical failure correctly the whole time, and `priority.rs`'s "leave game
+    state clean" contract named the one that did not.
 
-    **What makes it fire.** `can_pay_costs` passes, then
-    `ask_choose_generic_mana_allocation` lets the player split generic mana,
-    and a random allocation can spend a colour a coloured pip still needs {D} so
-    `pay_costs` fails on a cost that *was* payable. The prompt only runs when
-    `generic_count() > 0`, which is the smoking gun below.
+    **The mechanism, confirmed by the failing test rather than inferred.**
+    `can_pay_costs` passes; then `ask_choose_generic_mana_allocation` lets the
+    player split the generic part across every type in the pool, capped only by
+    each type's amount, so a split that spends a colour a pip still needs
+    passes the prompt's own validation and `ManaPool::pay` refuses it. Grizzly
+    Bears `{1}{G}` against `{R}{G}` with the generic put on Green is the whole
+    reproducer, and on the pre-fix tree it fails at "back in hand: left
+    `Stack`". The prompt only runs when `generic_count() > 0`, which is why
+    every ghost had a generic component and no zero-generic card ever was one.
+    Census of the **199** in 40 `performance` games on `main` at 650a263:
+    Merfolk Thaumaturgist 17, Blood Moon 15, Volcanic Upheaval 13, Serra Angel
+    10, March of the Machines 10, … and never Lightning Bolt, Counterspell,
+    Dark Ritual or Giant Growth. (The 206 the first draft cited was at 103acf1,
+    before CV-1 grew the pool.)
 
-    **Evidence, on `main` at 103acf1 with no CV-1 code involved.**
-    `fuzz_games --games 40 --seed 12345 --threads 1 --dump-events x.log`:
-    **814 announced casts against 1,020 stack departures {D} 206 unannounced**,
-    identical on CV-1's tree. Game 1, object `f0c682c2` (Volcanic Upheaval) is
-    drawn at event 14 and emits `Stack {A} Graveyard [Resolved]` at event 178
-    with no `Hand {A} Stack [Cast]` and no `SpellCast` anywhere between; the
-    other copy does the full correct sequence four events later. **Every ghost
-    card has a generic component in its cost** (Merfolk Thaumaturgist `{2}{U}`,
-    Blood Moon `{2}{R}`, Grizzly Bears `{1}{G}`, …) and **no zero-generic card
-    is ever one** (Lightning Bolt `{R}`, Counterspell `{U}{U}`, Dark Ritual
-    `{B}`, Giant Growth `{G}`), which is the allocation prompt's own gate.
+    **What landed.** (1) The rollback, in the shape of its four siblings.
+    (2) `test_a_cast_whose_payment_fails_rewinds_and_keeps_the_mana`
+    (`phase_ra_integration_test.rs`), shown failing with `mtgsim/src` stashed:
+    back in hand, both mana still in the pool, no `SpellCast`, stack and
+    `stack_entries` empty, event log unchanged. (3) **The durable half:
+    `fuzz_games` checks, in every game and every mode, that every object
+    leaving the stack with `ZoneChangeCause::Resolved` has a prior `SpellCast`
+    for that object** — counted per object, so a recast owes a second one; an
+    ability ceases to exist and emits no zone change, so it never trips it. A
+    violation prints beside errors and panics with the card and the event
+    index, sums as `Uncast resolved:` in the results block, and fails the run.
+    By the same rule `main`'s dumps read **199 / 188** (`performance` /
+    `stress`, 40 games) and the fixed tree reads **0** in every run — three
+    rounds of 200 games per pool, plus the 40- and 50-game runs. It would have
+    caught this on the first fuzz run after the cast pipeline landed.
 
-    **Not a logging gap {D} an earlier draft of this entry said it was.**
-    `ui::display::format_event_log` maps every event with no filter, so the
-    events are genuinely absent; and the consequence is not that a trigger
-    would miss a cast, it is that **the spell resolves unpaid**, roughly five
-    times per game in the `performance` pool. That the event stream also
-    records nothing is the *second* problem: `CLAUDE.md` resolves the delta-log
-    fork by making trigger detection the performed-action stream, so CR 603.2's
-    "whenever a player casts a spell" would miss these too once item 6 exists.
+    **What the free spells were worth — 200 games / seed 12345 / `--threads
+    1`, medians of three interleaved rounds, both binaries in one sitting.**
+    `main` resolved **5.5** spells per `performance` game and **5.0** per
+    `stress` game that it never announced — 1,104 and 991 in 200 games — on
+    top of the 21.7 / 20.4 it did. The fixed tree announces **27.9 / 24.8**, so
+    *about the same number of spells reach the battlefield*; they are now paid
+    for, and the mana they cost is not spent on something else. That is what
+    moved everything else: turns 30.8 → 33.3 and 30.0 → 30.9, and the cost
+    rows with them — walks 99,952 → 116,233 and 95,855 → 100,619, of which
+    walks *per turn* are +7.5% / +2%. Per-walk time is flat-to-down, 1.125 →
+    1.081 and 1.056 → 0.988 ms per 1,000 walks (−4% / −6%, interleaved), and
+    `Frames/walk` fell on both pools (1.37 → 1.33, 1.33 → 1.29): the ghosts
+    were disproportionately three- and four-mana statics — Humility, Blood
+    Moon, March of the Machines and Glorious Anthem are 37 of the 199 — which
+    are exactly the permanents that put a sub-frame under every walk. Creatures
+    died is flat (7.9 → 7.8, 4.9 → 4.6). `engineering-practices.md` §3 carries
+    the 50-game table, re-recorded: the first re-record where the pool did not
+    move, so every row in it is the engine's.
 
-    **Nothing reads `GameEvent::SpellCast` in the engine today** {D} only
-    `fuzz_games`' stats and one integration test {D} which is why 206 free spells
-    per 40 games have gone unnoticed: no test asserts a spell was paid for, and
-    the fuzz harness measures cost and determinism, not legality.
+    **Attributed, not assumed:** 40 `--dump-events` games per pool, ids
+    masked, first divergence per game. `performance`: all 40 diverge, and
+    every first divergence lies inside its game's first ghost's window — after
+    the card was drawn, at or before the event where `main` resolved it unpaid
+    — none outside, none in a game without a ghost. `stress`: 39 of 40 the
+    same way, and the one game with no ghost on `main` is byte-identical after
+    masking. In 30 of the 40 `performance` games the logs are identical *up to*
+    the unpaid resolution itself: the failed cast is silent on both trees, the
+    random agent's next decisions do not depend on where the card went, and the
+    trees part at the pass-pass that resolves a spell on one and nothing on the
+    other.
 
-    **Sized: one line plus a regression test.** Give `pay_costs`'s `?` the
-    rollback its four siblings have. The test is the harder half and the
-    valuable one: construct a generic allocation that `can_pay_costs` accepts
-    and `pay_costs` rejects, then assert the card is back in hand, the mana is
-    still in the pool, and no `SpellCast` was emitted. **Its own PR** {D} it is
-    the cast path, it is pre-existing, and it wants a bugfix's discipline
-    (shown failing against the pre-fix tree first).
+    **Should an illegal split be refused at the prompt instead? Yes; it is
+    small; and it is its own PR, deliberately.** Every other `ask_*` offers a
+    `DecisionProvider` only legal choices — targets are enumerated legal,
+    priority actions are, CR 616.1 asks only among applicable effects — and a
+    DP should not need payment law to answer "which mana". The clamp is exact
+    and about ten lines: each bucket's max becomes `available − pips of that
+    type`, and whenever `can_pay` passed the clamped maxima still sum to at
+    least the generic count, so a feasible answer always exists. Two reasons it
+    is not here, both consequences of the fix landing first: it moves game
+    content a second time — every one of those ~5 rewinds per game becomes a
+    cast — and the measurement above is readable only with one change per
+    binary (RC-4's A/B/C table is the shape for the follow-up); and this PR's
+    regression test drives the rollback *through* the bad split, which the
+    clamp turns into a `validate_allocation` panic before payment. The
+    follow-up replaces that test with a prompt-shape one and leaves the
+    rollback as the CR 601.2 backstop the fuzz guard watches. `backlog.md`
+    §2.18 owns it beside the CR 732.1 reversal; note that after this PR the
+    random agent's rewind rate is §2.18's ~7.5 per game *plus* these ~5.
+
+    **A second route to the same hole, unreachable today:** "Before card
+    breadth" item 9 — `can_pay_costs` checks each `Cost::Mana` entry against
+    the whole pool, so a kicker's mana is double-counted and `pay_costs` fails
+    with the base already spent. The rollback returns the card; it does not
+    return the mana.
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 
@@ -2424,6 +2472,22 @@ first.
 7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs:302`, `TODO` tagged T22 (with matching notes at :39 and :293). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
 
 8. **A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52 (recorded 2026-09-02).** Dour Port-Mage and Aang, Airbending Master — "leave the battlefield without dying" — read exactly that line and would draw a card or grant an experience counter for a token Hallowed Moonlight created in exile. The fix is Phase RE's `CreateTokens` proposal, whose destination the entry's decision sets, and it lands before any pool pairs a token-exiling replacement with a leaves-without-dying trigger. A hard back-stop, not an RE nicety.
+
+9. **`can_pay_costs` checks each `Cost::Mana` against the whole pool, and
+   `pay_costs` is not atomic across them (found 2026-09-02, closing 16c).**
+   `assemble_total_cost` appends an additional cost's mana as its *own*
+   `Cost::Mana` entry, and `check_cost_resource` asks "can the pool pay this
+   one" per entry — so `{1}{R}` with kicker `{R}` passes against a pool of
+   `{R}{R}`, the 601.2g window stops tapping the moment it passes, `pay_costs`
+   pays the base and fails on the kicker, and CR 601.2's rewind returns the
+   card with the base **already spent**. It is the second route to the hole
+   16c closed, and the rollback closes only the stranding half of it.
+   Unreachable today: no registered card carries an additional mana cost
+   (`grep additional_cost src/cards` finds one comment), so no pool can build
+   the board. Reachable with the first kicker card, which `backlog.md` §2.1
+   owns. **Sized:** sum the `Cost::Mana` entries before checking and pay the
+   sum once — that is also what CR 601.2h's "total cost" means — rather than
+   snapshotting the pool around each entry.
 
 ### Before Triggered abilities (CR 603)
 
