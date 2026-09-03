@@ -5,6 +5,7 @@ use crate::objects::card_data::CardData;
 
 use super::basic_lands;
 use super::dual_lands;
+use super::token_lands;
 use super::alpha;
 use super::artifacts;
 use super::creatures;
@@ -276,6 +277,11 @@ impl CardRegistry {
         registry.register("Bayou", dual_lands::bayou);
         registry.register("Plateau", dual_lands::plateau);
         registry.register("Tropical Island", dual_lands::tropical_island);
+        // The eleventh mana-base land, and a token rather than a card: the
+        // registry's only source of every colour, which is what lets
+        // `fuzz_games --require` stop seeding a deck's colours from the
+        // required card's (`token_lands`).
+        registry.register("Everywhere", token_lands::everywhere);
 
         // Phase RB — the first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", phase_rb_cards::kalitas_traitor_of_ghet);
