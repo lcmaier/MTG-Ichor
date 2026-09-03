@@ -9,6 +9,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
@@ -170,7 +171,23 @@ fn count_of(counters: &HashMap<CounterType, CounterStack>, kind: CounterType) ->
 /// all active continuous effects in layer order.
 ///
 /// Returns `None` if the object doesn't exist.
-pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
+///
+/// Shared rather than owned: a frame is immutable once built, and handing it
+/// out behind an `Arc` is what lets every caller of one query share it rather
+/// than each paying the deep clone of its ability list.
+pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
+    compute_characteristics_uncached(game, id).map(Arc::new)
+}
+
+/// One full layer walk of `id`, owned by the caller.
+///
+/// The CR 603.10a LKI capture reads through here: the frame it takes is about
+/// to be *stored*, on an event, as the record of what the permanent was, and
+/// it is built from a fresh walk rather than from anything shared.
+pub(crate) fn compute_characteristics_uncached(
+    game: &GameState,
+    id: ObjectId,
+) -> Option<EffectiveCharacteristics> {
     game.counters.record_layer_walk();
     let mut cache = FrameCache::new(None);
     compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)

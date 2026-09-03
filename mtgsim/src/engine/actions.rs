@@ -798,7 +798,8 @@ impl GameState {
         // was substituted is in the battlefield zone with no entity, and there
         // is nothing to look back at (`Primitive::CreateToken`).
         let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
-            crate::engine::layers::compute::compute_characteristics(self, object).map(Box::new)
+            crate::engine::layers::compute::compute_characteristics_uncached(self, object)
+                .map(Box::new)
         } else {
             None
         };
