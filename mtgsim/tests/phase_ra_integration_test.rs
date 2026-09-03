@@ -7,7 +7,6 @@
 //! resolved. These tests pin the *record*, which is the part that has no other
 //! consumer until Phase RB and would otherwise rot unwatched.
 
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
@@ -27,11 +26,11 @@ use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -293,76 +292,18 @@ fn test_a_failed_cast_announces_nothing() {
     );
 }
 
-/// A `DecisionProvider` that records the per-bucket maxima it was offered and
-/// answers with a fixed allocation.
+/// Grizzly Bears {1}{G} against a pool of {R}{G} is payable exactly one way,
+/// and the prompt now offers only that way — this board is
+/// `codebase-state.md` 16c's reproducer, and it used to rewind the cast.
 ///
-/// `ScriptedDecisionProvider` validates the `ChoiceKind` and nothing about the
-/// bounds; the bounds are the subject here.
-struct RecordingSplitDp {
-    maxs: RefCell<Option<Vec<u64>>>,
-    answer: Vec<u64>,
-}
-
-impl DecisionProvider for RecordingSplitDp {
-    fn pick_n(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        context: &ChoiceContext,
-        _options: &[ChoiceOption],
-        _bounds: (usize, usize),
-    ) -> Vec<usize> {
-        unreachable!("this cast asks only for the generic split, not {:?}", context.kind)
-    }
-    fn pick_number(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        _min: u64,
-        _max: u64,
-    ) -> u64 {
-        unreachable!("this cast asks only for the generic split")
-    }
-    fn allocate(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        _total: u64,
-        _buckets: &[ChoiceOption],
-        _per_bucket_mins: &[u64],
-        per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        *self.maxs.borrow_mut() = per_bucket_maxs.map(|m| m.to_vec());
-        self.answer.clone()
-    }
-    fn choose_ordering(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &ChoiceContext,
-        _items: &[ChoiceOption],
-    ) -> Vec<usize> {
-        unreachable!("this cast asks only for the generic split")
-    }
-}
-
-/// The generic split is offered clamped, so the illegal answer is not on the
-/// menu — the shape this board used to take is `codebase-state.md` 16c's
-/// reproducer, and it rewound the whole cast.
+/// The prompt lists the pool's types in `ManaType` order, Red then Green, and
+/// each bucket's maximum is what its own pips leave over: Red 1, Green 0. So
+/// the generic {1} goes on the Red, the {G} pip keeps its Green, and the cast
+/// completes. See its sibling below for the answer that is no longer offered.
 ///
-/// Grizzly Bears {1}{G} against a pool of {R}{G} is payable exactly one way.
-/// The prompt lists the pool's types in `ManaType` order — Red, then Green —
-/// and each bucket's maximum is what its own pips leave over: Red 1, Green 0.
-/// Putting the generic mana on the Green, which the {G} pip still needs, is no
-/// longer expressible; before the clamp it passed the prompt's own validation
-/// and `ManaPool::pay` refused it, and CR 601.2 rewound the cast for a choice
-/// the engine should never have offered.
-///
-/// The rewind itself is still there and still right — `phase_rc4b`'s two
-/// rewind tests pin it, and `fuzz_games` fails any run in which a spell
-/// resolves without a `SpellCast` — it is just no longer reachable this way.
+/// The rewind is still there and still right — `phase_rc4b`'s two rewind tests
+/// pin it, and `fuzz_games` fails any run in which a spell resolves without a
+/// `SpellCast` — it is just no longer reachable this way.
 #[test]
 fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
     let mut game = setup_two_player_game();
@@ -370,17 +311,14 @@ fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    // [Red, Green]: the generic {1} paid with the Red, the only legal split.
-    let decisions = RecordingSplitDp { maxs: RefCell::new(None), answer: vec![1, 0] };
-    game.cast_spell(0, bear, &decisions).expect("the only legal split pays");
-
-    assert_eq!(
-        decisions.maxs.borrow().as_deref(),
-        Some(&[1, 0][..]),
-        "Red is surplus and Green is spoken for by the {{G}} pip",
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+        vec![1, 0], // [Red, Green]: the generic {1} on the Red
     );
+    game.cast_spell(0, bear, &decisions).expect("the only legal split pays");
+    assert!(decisions.is_empty(), "the split prompt was asked");
 
-    // And the cast completed: nothing rewound, and both mana were spent.
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Stack);
     assert!(game.stack.contains(&bear));
     assert_eq!(game.players[0].mana_pool.total(), 0, "both mana paid the cost");
@@ -391,6 +329,27 @@ fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
         )),
         "announced as cast at 601.2i",
     );
+}
+
+/// The same board, and the split that used to cost the whole cast: the generic
+/// {1} on the Green the {G} pip still needs. Before the clamp it passed the
+/// prompt's own validation, `ManaPool::pay` refused it, and CR 601.2 rewound
+/// everything — for a choice the engine should never have offered. The Green
+/// bucket's maximum is 0 now, and the panic names it.
+#[test]
+#[should_panic(expected = "DP allocated 1 to bucket 1 but maximum is 0")]
+fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
+    let mut game = setup_two_player_game();
+    let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+        vec![0, 1], // [Red, Green]: bucket 1 is the Green, and the {G} pip has it
+    );
+    let _ = game.cast_spell(0, bear, &decisions);
 }
 
 // ---------------------------------------------------------------------------

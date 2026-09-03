@@ -7,7 +7,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 913 tests, 0 warnings, fuzz harness runs 200-game batches and fails a run in which any spell resolves unpaid (16c).
+- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 914 tests, 0 warnings, fuzz harness runs 200-game batches and fails a run in which any spell resolves unpaid (16c).
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
@@ -915,10 +915,14 @@ built, and none of it blocks RC-1 through RC-3.
     kicker double-count is the other route to it and is not reachable yet — and
     `fuzz_games`' "no spell resolves without a `SpellCast`" guard is what
     watches it. The regression test that drove the rollback *through* the bad
-    split is replaced by `test_the_generic_split_is_offered_clamped_and_the_only_answer_pays`
-    (`phase_ra_integration_test.rs`), which asserts the maxima Grizzly Bears
-    `{1}{G}` against `{R}{G}` offers — Red 1, Green 0 — and that the only legal
-    answer pays. Its `ATOM-601.2-001` partial claim moved to `phase_rc4b`'s
+    split is replaced by a pair on the same board — Grizzly Bears `{1}{G}`
+    against `{R}{G}`, 16c's own reproducer: the legal split pays and the cast
+    completes, and the split that used to cost the cast is a `should_panic`
+    naming the clamped number (`DP allocated 1 to bucket 1 but maximum is 0`).
+    **`validate_allocation` printing the max is what makes the maxima testable
+    without instrumentation** — the first draft of this PR carried two ~50-line
+    recording `DecisionProvider`s to read the bounds, and the panic message says
+    the same thing in one line. Its `ATOM-601.2-001` partial claim moved to `phase_rc4b`'s
     `test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change`,
     which proves the same half (card in hand, stack unchanged, mana still in
     the pool); `ATOM-601.2h-002` was already claimed there and in
