@@ -465,7 +465,8 @@ struct GameStats {
     /// **Resolved, not cast, is the number that answers the question.** A cast
     /// spell that is countered never runs the engine path the phase built; the
     /// point of this mode is "was the path walked", so both are reported and
-    /// the gap between them is itself information.
+    /// the gap between them is itself information. A required land has no
+    /// cast; its land drops fill both columns.
     reach: Vec<(String, u32, u32)>,
     /// `--require` board diversity: a permanent of a colour no required card
     /// has entered the battlefield this game. False unless the flag is set.
@@ -552,6 +553,13 @@ fn extract_stats<'a>(
                 if *from == Zone::Hand && *to == Zone::Battlefield {
                     // This counts land plays (spells go Hand→Stack→Battlefield)
                     stats.lands_played += 1;
+                    // A required *land* is played, not cast, so its play is
+                    // its `cast` and its arrival its `resolved` — otherwise a
+                    // land the flag named reads as never resolved.
+                    if !watch.is_empty() {
+                        bump(&mut stats, named(*object_id), true);
+                        bump(&mut stats, named(*object_id), false);
+                    }
                 }
                 // Deaths, read off the zone change rather than a type-specific
                 // event. **This is why the number moved** (5.3 → 6.2 at
