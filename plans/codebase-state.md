@@ -2666,6 +2666,29 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
 4. **~~The entry hop: Containment Priest's substitute leaves a permanent's worth of zone changes in the log for a card the CR says never entered~~ — ✅ CLOSED 2026-09-02 (RC-4b).** Entering is one proposal: `GameAction::EnterBattlefield` carries `from`, `change_zone` routes a battlefield destination to it, and its performer moves the card, announces the zone change, builds the entity and announces the entry. The Priest's substitute is one `ZoneChange { Graveyard → Exile }` with no LKI and one epoch, a dropped entry leaves the card where it was, and a "can't enter" may watch the entry (`phase_rc4b_integration_test`; `replacement-architecture.md` §9, RC-4b). The token residual is item 52. The record as found (2026-09-02, RC-4; sharpened in review): The `ZoneChange` performer moves the card into the battlefield zone and *then* proposes the `EnterBattlefield` (RC-2's one-`emit`-wide window), so "exile it instead" is performed as a `ZoneChange { from: Battlefield, to: Exile }`. Three things observe that: (a) the log holds a `ZoneChange` *into* the battlefield, so an ETB matcher on the zone change would fire — it must key on `PermanentEnteredBattlefield`, the performer's event, which a permanent that never entered does not have; (b) the log holds a `ZoneChange` *out of* it, `from: Battlefield` with a CR 603.10a LKI frame, so a leaves-the-battlefield or "exiled from the battlefield" matcher would fire, and a "leaves your graveyard" matcher would not, because the recorded `from` is wrong; (c) `zone_change_epoch` advances twice, so CR 400.7 sees two new objects. None is reachable today — no trigger matcher exists — but (b) and (c) have no keying rule that fixes them, so this is a bug-in-waiting for item 6, not a convention. **The fix is to reverse the nesting**, and it is the same restructuring as Deferred Migrations item 46: `GameAction::EnterBattlefield` carries `from`, its performer does the move, the placement and both emissions, and the `ZoneChange { to: Battlefield }` arm forwards to it *before* moving anything. Then the Priest's substitute is one `ZoneChange { from: <source zone>, to: Exile }`, the window is gone, `propose_entry`'s "replaced away" error is gone (a dropped entry leaves the card where it was, which is CR 614.6), a CR 614.17d "can't enter" may watch the entry, and a multi-entry batch is decided in phase 1 like any other proposal. The Priest stays in Root Maze's CR 616.1 bucket, which is what §11 item 19 needs reachable — moving the Priest to the zone change instead would split that bucket and force Priest-first. **Sized:** ~300–500 additions in `actions.rs` (two arms, `propose_entry`), `pipeline.rs` (the `Instead` arm), the token path in `resolve.rs` (`from: None`), and the RC-4 Priest tests' log assertions; CLAUDE.md's "one emitter" line is restated to name the entry performer. **Planned as RC-4b** — `replacement-architecture.md` §9 has the design, the token and CR 608.3e decisions, and the sizing — as its own PR ahead of RC-5, which needs entries to be batch members anyway.
 
+5. **Tier 2 of the trace plan — a `TraceSink` on `GameState`, owed before the
+   dispatcher.** Trace pages are hand-authored today (`engineering-practices.md`
+   §7): two to three hours per phase, which is the right cost at a phase's close
+   and the wrong cost for a question asked mid-debugging. A sink recording what
+   those pages record by hand — each proposal entering a batch, each
+   `apply_replacements` iteration (candidates and their verdicts, whether the
+   frame was computed, the bucket, the chooser, the choice or the suppression,
+   the rewrite), each top-level layer walk with its frame count, and the
+   performed events the log already holds — makes the page generated rather
+   than written, and makes the same question answerable at a breakpoint. JSON
+   lines, off by default, gated the way `EngineCounters` is. Emit points:
+   `execute_batch_inner`, `apply_replacements`, `compute_characteristics`,
+   `compute_as_entering`. Reachable three ways: `cli_play --trace`,
+   `fuzz_games --trace-game N`, and a `test_support` helper so any `// COVERS:`
+   test can write its own trace, which is how a page is regenerated after a
+   refactor. **Before item 6, not after:** trigger detection reads the
+   performed-action stream, and the first question anyone asks the dispatcher is
+   "why did this fire, or not" — a trace question about proposals, events and
+   the frames they were judged against, so the trigger phase should ship with
+   its own explanation. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
+   script; one small phase. The seam it rides is `execute_batch_inner` and the
+   entry performer, which RC-4b gave the shape they will keep.
+
 3. **LKI formalization.** Several dies-handling sites already read `self.objects.get(&id)` *before* `move_object` to capture pre-move state (see `engine/sba.rs` dies handlers). This is ad-hoc LKI. Triggered abilities that reference "the creature that died" need a formalized `LastKnownInformation` snapshot mechanism, especially after layers land (LKI needs *post-layer* characteristics at moment-of-death, per rule 603.10 / 608.2h).
 
 ### Before Commander (CR 903)
