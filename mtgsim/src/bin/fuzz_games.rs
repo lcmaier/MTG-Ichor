@@ -5,6 +5,19 @@
 //        cargo run --bin fuzz_games -- --seed 12345 --games 1 --verbose
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
+//        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
+//
+// `--require` is the *coverage* instrument, as `--pool` is the *cost* one. It
+// forces one copy of each named card into every deck, seeds the deck's colours
+// from theirs so the cards are actually castable, and reports casts,
+// resolutions and the share of games each reached. An empty list changes
+// nothing: every RNG draw it adds is guarded, so a `--require` run and a timing
+// run come from the same binary without the first perturbing the second.
+//
+// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events,
+// and `codebase-state.md` item 16c records that some spells resolve without
+// emitting one — which is how that defect was found. Until it is fixed,
+// `resolved > cast` is expected rather than a paradox.
 //
 // `--pool` picks the card pool. `performance` is the frozen 55 every recorded
 // baseline was measured on and is the default, because an A/B against a pool
@@ -95,6 +108,10 @@ struct Args {
     threads: usize,
     /// Which card pool to play.
     pool: CardPool,
+    /// Card names every generated deck must contain, and whose casts and
+    /// resolutions are counted and reported. Empty by default, and an empty
+    /// list must change nothing — see `random_deck`.
+    require: Vec<String>,
 }
 
 /// The two pools, and the reason there are two.
@@ -135,6 +152,7 @@ fn parse_args() -> Args {
             .map(|n| n.get())
             .unwrap_or(1),
         pool: CardPool::Performance,
+        require: Vec::new(),
     };
 
     let mut i = 1;
@@ -171,6 +189,16 @@ fn parse_args() -> Args {
                 i += 1;
                 if i < args.len() {
                     result.threads = args[i].parse().unwrap_or(1).max(1);
+                }
+            }
+            "--require" | "-r" => {
+                i += 1;
+                if i < args.len() {
+                    result.require = args[i]
+                        .split(',')
+                        .map(|n| n.trim().to_string())
+                        .filter(|n| !n.is_empty())
+                        .collect();
                 }
             }
             "--pool" | "-p" => {
@@ -271,12 +299,38 @@ const NONBASIC_LANDS_PER_DECK: usize = 5;
 ///
 /// Deck construction is deliberately crude — this is a fuzz harness, not a
 /// deckbuilder. It exists to produce a legal 60 that casts spells and attacks.
-fn random_deck(registry: &CardRegistry, rng: &mut StdRng) -> Vec<Arc<CardData>> {
+/// Build one 60-card deck.
+///
+/// `required` is `--require`'s list, and **an empty list must leave this
+/// function exactly as it was**: every RNG draw below is guarded so that the
+/// stream, the deck and therefore every recorded number are unchanged when the
+/// flag is absent. That is the property that lets a reachability run and a
+/// timing run come from the same binary without the first contaminating the
+/// second.
+fn random_deck(
+    registry: &CardRegistry,
+    rng: &mut StdRng,
+    required: &[Arc<CardData>],
+) -> Vec<Arc<CardData>> {
     let all_colors = [Color::White, Color::Blue, Color::Black, Color::Red, Color::Green];
 
     // Pick 1-2 colors
     let num_colors = if rng.random_bool(0.6) { 2 } else { 1 };
     let mut deck_colors: Vec<Color> = Vec::new();
+
+    // **A required card's colours come first, and this is the half that makes
+    // the mode worth having.** Forcing a `{1}{G}{U}` instant into a mono-red
+    // deck includes it and never casts it, which reports the same thin number
+    // the mode exists to fix. Seeding the deck's colours from the required
+    // cards is what makes "guaranteed inclusion" mean "guaranteed castable".
+    for card in required {
+        for c in card_colors(card) {
+            if !deck_colors.contains(&c) {
+                deck_colors.push(c);
+            }
+        }
+    }
+
     while deck_colors.len() < num_colors {
         let &c = all_colors.choose(rng).unwrap();
         if !deck_colors.contains(&c) {
@@ -313,6 +367,19 @@ fn random_deck(registry: &CardRegistry, rng: &mut StdRng) -> Vec<Arc<CardData>> 
         let name = nonland_names.choose(rng).unwrap();
         if let Ok(card) = registry.create(name) {
             deck.push(card);
+        }
+    }
+
+    // One copy of each required card, replacing a nonland slot rather than
+    // adding to the deck — 60 cards stays 60, so mana density and the draw
+    // curve are untouched. Deterministic (the first slots, no RNG draw) because
+    // the library is shuffled in-game anyway, and because a draw here would
+    // move the stream for every later card.
+    for (slot, card) in required.iter().enumerate() {
+        if slot < deck.len() {
+            deck[slot] = card.clone();
+        } else {
+            deck.push(card.clone());
         }
     }
 
@@ -409,14 +476,52 @@ struct GameStats {
     layer_frames: u64,
     replacement_gathers: u64,
     restriction_queries: u64,
+    /// `--require` reachability: `(name, cast, resolved)`, in the order the
+    /// flag listed them. Empty unless the flag is set.
+    ///
+    /// **Resolved, not cast, is the number that answers the question.** A cast
+    /// spell that is countered never runs the engine path the phase built; the
+    /// point of this mode is "was the path walked", so both are reported and
+    /// the gap between them is itself information.
+    reach: Vec<(String, u32, u32)>,
 }
 
 /// Extract action statistics from raw GameEvents.
-fn extract_stats<'a>(events: impl Iterator<Item = &'a GameEvent>) -> GameStats {
+///
+/// `game` and `watch` are only read when `--require` named cards: resolving an
+/// `ObjectId` to a card name needs the object store, and doing it per event on
+/// every run would be a `HashMap` probe the default path does not owe.
+fn extract_stats<'a>(
+    events: impl Iterator<Item = &'a GameEvent>,
+    game: &mtgsim::state::game_state::GameState,
+    watch: &[String],
+) -> GameStats {
     let mut stats = GameStats::default();
+    stats.reach = watch.iter().map(|n| (n.clone(), 0, 0)).collect();
+
+    // Printed name, not the effective one: this asks "did the card the flag
+    // named get cast", which is a question about the card, and CV-1 is the
+    // phase that makes a permanent's effective name something else entirely.
+    let named = |id: mtgsim::types::ids::ObjectId| -> Option<&str> {
+        game.objects.get(&id).map(|o| o.card_data.name.as_str())
+    };
+    let bump = |stats: &mut GameStats, name: Option<&str>, cast: bool| {
+        let Some(name) = name else { return };
+        for row in stats.reach.iter_mut() {
+            if row.0 == name {
+                if cast { row.1 += 1 } else { row.2 += 1 }
+            }
+        }
+    };
+
     for event in events {
         match event {
-            GameEvent::SpellCast { .. } => stats.spells_cast += 1,
+            GameEvent::SpellCast { spell_id, .. } => {
+                stats.spells_cast += 1;
+                if !watch.is_empty() {
+                    bump(&mut stats, named(*spell_id), true);
+                }
+            }
 
             GameEvent::DamageDealt { amount, .. } => {
                 stats.damage_events += 1;
@@ -426,8 +531,20 @@ fn extract_stats<'a>(events: impl Iterator<Item = &'a GameEvent>) -> GameStats {
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
                 stats.combat_phases_with_attackers += 1;
             }
-            GameEvent::ZoneChange { from, to, lki, .. } => {
+            GameEvent::ZoneChange { object_id, from, to, cause, lki, .. } => {
                 use mtgsim::types::zones::Zone;
+                // CR 608 — a spell finishes resolving by leaving the stack.
+                // An instant or sorcery goes to the graveyard; a permanent
+                // spell goes to the battlefield. Both are the path having run.
+                if !watch.is_empty()
+                    && *from == Zone::Stack
+                    && matches!(
+                        cause,
+                        mtgsim::types::zones::ZoneChangeCause::Resolved
+                    )
+                {
+                    bump(&mut stats, named(*object_id), false);
+                }
                 if *from == Zone::Hand && *to == Zone::Battlefield {
                     // This counts land plays (spells go Hand→Stack→Battlefield)
                     stats.lands_played += 1;
@@ -467,6 +584,8 @@ struct AggregateStats {
     total_replacement_gathers: u64,
     total_restriction_queries: u64,
     games_counted: u64,
+    /// `(name, cast, resolved, games_in_which_it_resolved)`.
+    reach: Vec<(String, u64, u64, u64)>,
 }
 
 impl AggregateStats {
@@ -482,6 +601,18 @@ impl AggregateStats {
         self.total_layer_frames += game.layer_frames;
         self.total_replacement_gathers += game.replacement_gathers;
         self.total_restriction_queries += game.restriction_queries;
+        if self.reach.is_empty() {
+            self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
+        }
+        for (i, (_, cast, resolved)) in game.reach.iter().enumerate() {
+            if let Some(row) = self.reach.get_mut(i) {
+                row.1 += *cast as u64;
+                row.2 += *resolved as u64;
+                if *resolved > 0 {
+                    row.3 += 1;
+                }
+            }
+        }
         self.games_counted += 1;
     }
 
@@ -573,6 +704,8 @@ fn run_one_game(
     game_num: usize,
     max_turns: u32,
     keep_event_log: bool,
+    required: &[Arc<CardData>],
+    require_names: &[String],
 ) -> (GameOutcome, std::time::Duration) {
     // Derive per-game seed from master seed for reproducibility
     let game_seed = master_seed.wrapping_add(game_num as u64);
@@ -585,8 +718,8 @@ fn run_one_game(
     let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
     let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
 
-    let deck1 = random_deck(registry, &mut deck_rng);
-    let deck2 = random_deck(registry, &mut deck_rng);
+    let deck1 = random_deck(registry, &mut deck_rng, required);
+    let deck2 = random_deck(registry, &mut deck_rng, required);
 
     let started = Instant::now();
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
@@ -613,7 +746,8 @@ fn run_one_game(
             turns,
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
             {
-                let mut s = extract_stats(game.state.events.events());
+                let mut s =
+                    extract_stats(game.state.events.events(), &game.state, require_names);
                 // Read once at the end of the game rather than accumulated per
                 // turn: the counters are monotonic for the game's lifetime and
                 // nothing resets them, so the final value *is* the total.
@@ -656,6 +790,7 @@ fn run_one_game(
 /// results and they are merged and sorted at the end — no locking on the hot
 /// path, and the sort is what guarantees the output is thread-count
 /// independent.
+#[allow(clippy::too_many_arguments)]
 fn run_games(
     registry: &CardRegistry,
     master_seed: u64,
@@ -663,10 +798,16 @@ fn run_games(
     max_turns: u32,
     keep_event_log: bool,
     threads: usize,
+    required: &[Arc<CardData>],
+    require_names: &[String],
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
-            .map(|n| run_one_game(registry, master_seed, n, max_turns, keep_event_log))
+            .map(|n| {
+                run_one_game(
+                    registry, master_seed, n, max_turns, keep_event_log, required, require_names,
+                )
+            })
             .collect();
     }
 
@@ -685,7 +826,15 @@ fn run_games(
                             }
                             mine.push((
                                 n,
-                                run_one_game(registry, master_seed, n, max_turns, keep_event_log),
+                                run_one_game(
+                                    registry,
+                                    master_seed,
+                                    n,
+                                    max_turns,
+                                    keep_event_log,
+                                    required,
+                                    require_names,
+                                ),
                             ));
                         }
                         mine
@@ -725,6 +874,31 @@ fn main() {
     // mean nothing without it — the two pools are not comparable to each other.
     let registry = args.pool.registry();
     println!("Card pool: {} ({} cards)", args.pool.name(), registry.card_names().len());
+
+    // Resolved once, up front, and **fatal on a miss**. A typo that silently
+    // required nothing would report the same thin reachability the mode exists
+    // to fix, which is the failure this whole flag is a response to.
+    let required: Vec<Arc<CardData>> = args
+        .require
+        .iter()
+        .map(|name| {
+            registry.create(name).unwrap_or_else(|_| {
+                eprintln!(
+                    "--require: '{}' is not in the {} pool. Registered but unpooled cards \
+                     need --pool stress.",
+                    name,
+                    args.pool.name()
+                );
+                std::process::exit(2);
+            })
+        })
+        .collect();
+    if !required.is_empty() {
+        println!(
+            "Required in every deck: {}  (deck colours are seeded from theirs)",
+            args.require.join(", ")
+        );
+    }
     println!();
     let start = Instant::now();
 
@@ -744,6 +918,8 @@ fn main() {
         args.max_turns,
         args.dump_events.is_some(),
         args.threads,
+        &required,
+        &args.require,
     );
 
     // Reporting is a serial pass over the games in order, so every line printed
@@ -948,6 +1124,38 @@ fn main() {
         println!("  Restriction queries: {:>5.0}", agg_stats.avg(agg_stats.total_restriction_queries));
     }
 
+    // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`
+    // is a *timing* instrument that had been asked to double as a coverage one.
+    // These numbers say whether a path was walked; the ones above say what it
+    // cost. Reading either off the other is how "the path is open" and "the
+    // path is exercised" got confused in the first place.
+    if !agg_stats.reach.is_empty() {
+        println!();
+        println!("=== Reachability (--require, {} games) ===", agg_stats.games_counted);
+        for (name, cast, resolved, games) in &agg_stats.reach {
+            let pct = if agg_stats.games_counted == 0 {
+                0.0
+            } else {
+                *games as f64 * 100.0 / agg_stats.games_counted as f64
+            };
+            println!(
+                "  {:<26} cast {:>4}  resolved {:>4}  in {:>4} games ({:.0}%)",
+                name, cast, resolved, games, pct
+            );
+        }
+        // Cast-but-not-resolved is a countered or fizzled spell, so the path the
+        // phase built never ran. Called out rather than left to arithmetic.
+        let dead: Vec<&str> = agg_stats
+            .reach
+            .iter()
+            .filter(|(_, _, resolved, _)| *resolved == 0)
+            .map(|(n, _, _, _)| n.as_str())
+            .collect();
+        if !dead.is_empty() {
+            println!("  NEVER RESOLVED: {}", dead.join(", "));
+        }
+    }
+
     if panics > 0 || errors > 0 {
         std::process::exit(1);
     }
@@ -955,7 +1163,57 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::percentile;
+    use super::{percentile, random_deck};
+    use mtgsim::cards::registry::CardRegistry;
+    use rand::{rngs::StdRng, SeedableRng};
+
+    /// **The property the whole `--require` design rests on.** A reachability run
+    /// and a timing run come from one binary, so an empty list has to leave the
+    /// RNG stream and therefore the deck exactly as it was — otherwise every
+    /// recorded number silently depends on whether the flag exists.
+    #[test]
+    fn an_empty_require_list_changes_no_deck() {
+        let registry = CardRegistry::performance_pool();
+        for seed in [1u64, 12345, 999] {
+            let mut a = StdRng::seed_from_u64(seed);
+            let mut b = StdRng::seed_from_u64(seed);
+            // Two decks per game, so the check has to survive the second draw:
+            // a stray RNG call in the first deck moves the second one too.
+            for _ in 0..2 {
+                let deck = random_deck(&registry, &mut a, &[]);
+                let same = random_deck(&registry, &mut b, &[]);
+                let names: Vec<&str> = deck.iter().map(|c| c.name.as_str()).collect();
+                let same_names: Vec<&str> = same.iter().map(|c| c.name.as_str()).collect();
+                assert_eq!(names, same_names, "seed {seed}");
+                assert_eq!(deck.len(), 60);
+            }
+        }
+    }
+
+    /// A required card is in every deck, whatever the deck's colours rolled,
+    /// and the deck is still 60 cards — it replaces a nonland slot rather than
+    /// adding one, so mana density is untouched.
+    #[test]
+    fn a_required_card_is_in_every_deck_and_the_deck_stays_sixty() {
+        let registry = CardRegistry::performance_pool();
+        let cytoshape = registry.create("Cytoshape").expect("in the performance pool");
+        let mut rng = StdRng::seed_from_u64(7);
+        for _ in 0..25 {
+            let deck = random_deck(&registry, &mut rng, std::slice::from_ref(&cytoshape));
+            assert_eq!(deck.len(), 60);
+            assert!(
+                deck.iter().any(|c| c.name == "Cytoshape"),
+                "every deck contains the required card"
+            );
+            // The colours are seeded from the required card, which is what makes
+            // inclusion mean *castable* rather than merely present.
+            assert!(
+                deck.iter().any(|c| c.name == "Forest"),
+                "a green requirement puts green sources in the deck"
+            );
+            assert!(deck.iter().any(|c| c.name == "Island"), "and blue ones");
+        }
+    }
 
     #[test]
     fn percentile_uses_nearest_rank_and_never_indexes_past_the_end() {

@@ -250,35 +250,50 @@ mistake, not adding one.** `SelectRecipients` would have fit Cytoshape's prompt
 mechanically and lied about it semantically — there the chosen object is what the
 effect acts on, here it is the one permanent the effect does *not* change.
 
-### C4. Reachability is thin, and it is the pool getting big rather than a bug
+### C4. Reachability is thin — `--require` built here; the pool land is next
 
-Counted: Cytoshape resolves **16 times in 200 `performance` games**; Mirrorweave
-twice in 40 `stress` games. A 63-card pool, a 60-card deck built from
-colour-appropriate subsets, and a three-mana two-colour instant: any one card is
-rare, and it gets rarer with every phase that adds one. **This is structural, and
-it is the second time a phase has had to say "the path is open but barely" — the
-first was RS-1.**
+Counted: Cytoshape resolved **16 times in 200 `performance` games**. A 63-card
+pool, a 60-card deck built from colour-appropriate subsets, and a three-mana
+two-colour instant: any one card is rare, and it gets rarer with every phase
+that adds one. **The second time a phase has had to say "the path is open but
+barely"** — the first was RS-1.
 
-Three candidate fixes, and they are not alternatives; the first two compose:
+**Built in this PR: `fuzz_games --require "A,B"`.** Forces one copy of each named
+card into every deck, **seeds the deck's colours from theirs** so the cards are
+actually castable, and prints casts, resolutions and the share of games each
+reached. It fixes the confusion rather than the pool: `PERFORMANCE_POOL` is a
+*cost* instrument that had been asked to double as a *coverage* one, and these
+are now two flags answering two questions.
 
-1. **A guaranteed-inclusion reachability mode.** Build decks that contain N
-   copies of a named card list, run once per phase, and report "the path was
-   walked K times". **Decouples "is the path exercised" from "what does it
-   cost"**, which is the actual confusion — `PERFORMANCE_POOL` is a *timing*
-   instrument and has been asked to double as a coverage one. Cheapest, and it
-   changes no recorded number.
-2. **A five-colour no-downside land in the pool.** Removes the colour screw that
-   makes a `{1}{G}{U}` instant hard to cast in a random deck, and helps every
-   multicolour card ever added. Changes the pool, so it invalidates the fixture
-   table — acceptable under "representative, not frozen", but it is its own PR
-   with its own A/B.
-3. **Weighting new cards up in `random_deck`.** Rejected: it makes the pool
-   unrepresentative in a way that silently distorts the *timing* arm, which is
-   the one thing `PERFORMANCE_POOL` exists to protect.
+**Measured, 200 games / seed 12345 / `--threads 1`:**
 
-**Recommend 1, then 2.** Owner: whoever takes the next phase that adds a card to
-`PERFORMANCE_POOL` — the cost of not having it is that every phase from here
-reports a reachability number it cannot act on.
+| | without `--require` | with |
+|---|---:|---:|
+| Cytoshape resolutions (`performance`) | **16** | **401**, in 90% of games |
+| Cytoshape (`stress`) | 0 in 40 games | 206, in 58% |
+| Mirrorweave (`stress`) | 2 in 40 games | 211, in 61% |
+| Mirrorform (`stress`) | — | 220, in 58% |
+
+**An empty `--require` changes nothing**, and that is the property that makes it
+safe to ship in the same binary as the timing arm: every RNG draw it adds is
+guarded, and the default run reproduces the recorded fixture table to the digit
+(93,914 walks / 1.45 frames-per-walk / 28.8 turns / 531 gathers).
+
+**It found a defect on its first run.** Resolutions exceeded casts, which is
+impossible for a card that resolves once — because some spells resolve emitting
+no `SpellCast` at all. Pre-existing, 206 of them in 40 games, identical on
+`main`. `codebase-state.md` item **16c**, and it is a critical-path item 6
+blocker rather than a CV finding: CR 603.2's triggers read that stream.
+
+**Still owed, and it has its own handoff:** a five-colour land in the pool, so
+the *unforced* number rises too — `--require` answers "was the path walked" at a
+phase's exit, and does not make the everyday timing run play multicolour cards.
+`plans/handoffs/pool-five-colour-land.md` has the brief, the trap (it moves game
+content, so it must not ride along inside a phase) and the acceptance test.
+
+**Rejected: weighting new cards up in `random_deck`.** It makes the pool
+unrepresentative in a way that silently distorts the timing arm, which is the
+one thing `PERFORMANCE_POOL` exists to protect.
 
 ### C5. `apply_to`'s clone is the cost `layers-architecture.md` §12 already sized
 
@@ -300,3 +315,46 @@ already next in §12's ordering** — CV-1 raises its value, it does not create 
 Explicitly *not* measured here: CV-1's reachability is too thin for a fuzz run to
 see this, which is C4's point restated. The board that would show it is
 synthetic, and `layers-architecture.md` §12 is where synthetic boards live.
+
+### C6. Should CR 400.7 (item 10) be promoted on the critical path? No — it should be CV-1b's first commit
+
+Asked directly, because CV-1b is blocked on it. **The answer is no, and the
+reason is what the critical path is for.**
+
+`CLAUDE.md`'s critical path orders **systems by what they unblock**. Item 10 is
+not a system; it is one bounded fix — a teardown keyed on the *affected* object
+alongside the existing `remove_by_source`. Check what it actually gates:
+
+| Critical-path item | Blocked on item 10? |
+|---|---|
+| 5 (RC-5), 5b (RS-2), 5c (CV-2), 6, 6b, 7 | **No.** Every one is startable today |
+| **CV-1b** (the indefinite 25) | **Yes**, and only this |
+
+Promoting it would add a row to a file at its 200-line budget to schedule work
+that exactly one sub-phase needs, ahead of five that do not.
+
+**But it should stop being an unsized Deferred Migrations entry**, because two
+things have changed since it was written:
+
+1. **It has a second customer.** It was recorded as a pump-spell bug; copy rows
+   are now a second class with the same shape, and CV-2's Tier B rows are *not*
+   (those are torn down by source, structurally — `copy-effects-architecture.md`
+   §5.3). So the customer list is closed and short: pumps, and Tier C copies.
+2. **It is a live wrong answer, not a future one.** Giant Growth is in
+   `PERFORMANCE_POOL`. A creature that dies and returns in the same turn still
+   wears the pump. That is reachable in a fuzz game today and nothing detects it,
+   because the harness compares event streams and this is a *state* error — C1's
+   `--dump-state` is what would catch it, which is a second customer for that
+   flag.
+
+**The scheduling that follows: item 10 is CV-1b's first commit, not a phase of
+its own.** CV-1b is "the indefinite 25", it cannot ship without item 10, and
+item 10 is too small to be a phase. Writing it that way puts the fix behind a
+consumer that tests it — which is the same rule every other phase follows, and
+the reason `Duration::Indefinite` was held back from CV-1 in the first place.
+
+**One thing that sizing must not skip**, and item 10 already says it: CR
+400.7a—c's *exception* list currently works **by accident**, because the engine
+never breaks the object relation at all. Implementing the default without the
+exceptions would regress the control case and Xu-Ifit's rider. So "item 10" is
+two pieces of work, and only the first is small.

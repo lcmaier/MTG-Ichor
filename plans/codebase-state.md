@@ -789,6 +789,42 @@ built, and none of it blocks RC-1 through RC-3.
     **print** the same ability, which no copy row justifies or removes. One
     `retain` and one set difference; the care is entirely in the second clause.
 
+### Found by CV-1's reachability mode (2026-09-02)
+
+16c. **Some spells resolve having emitted no `SpellCast` and no `Hand → Stack`
+    zone change, and CR 603.2's triggers read that stream.** Found by
+    `fuzz_games --require`, which counts a named card's casts and resolutions
+    and reported *more resolutions than casts* — arithmetically impossible for a
+    card that can only resolve once.
+
+    **Reproduction, on `main` at 103acf1 with no CV-1 code involved:**
+    `fuzz_games --games 40 --seed 12345 --threads 1 --dump-events x.log`, game 1.
+    Object `f0c682c2` (Volcanic Upheaval) is drawn at event 14 and emits
+    `Stack → Graveyard [Resolved]` at event 178 with **no `Hand → Stack [Cast]`
+    and no `SpellCast` anywhere between**. The other copy in the same game,
+    `9c409bd4`, does the full correct sequence four events later. Across 40
+    games, **814 announced casts against 1,020 stack departures — 206
+    unannounced**, and the count is *identical* on `main` and on CV-1's tree, so
+    nothing in this phase causes or hides it.
+
+    **Why it matters more than a log cosmetic.** `CLAUDE.md`'s resolution of the
+    delta-log fork is that *trigger detection is the performed-action event
+    stream*. A spell that resolves without a `SpellCast` in that stream is
+    invisible to "whenever a player casts a spell" (CR 603.2) — 1,300+ printed
+    cards, and the failure mode is a card that silently does nothing, which is
+    this project's named worst outcome. **Critical-path item 6 must not start
+    before this is understood.**
+
+    **Not diagnosed here, and deliberately not.** It is in the cast path, it is
+    pre-existing, and CV-1 has no business rewriting `cast.rs`. Two things a
+    diagnosis should not have to rediscover: `cast.rs:263` is the *only*
+    `SpellCast` emitter and it is unconditional once `pay_costs` returns `Ok`;
+    and abilities are **not** the explanation — `stack.rs:181` removes a resolved
+    ability from `objects` with no zone change at all, and the ghost count (206)
+    does not match `AbilityResolved` (192). One caveat on the evidence: this was
+    read off `--dump-events`' *formatted* log, not the raw `GameEvent` stream, so
+    the first step is confirming the events are absent rather than unprinted.
+
 ### Found by the #62 pre-merge pass (2026-08-30)
 
 17. **Nothing expires a registry row with a source-scoped duration (found

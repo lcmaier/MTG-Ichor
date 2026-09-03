@@ -123,6 +123,19 @@ across months buys the timing measurement nothing.
   never varied costs a field, structure that has to vary costs an enum arm and
   every match on it. The census cannot catch this — it partitions by
   *mechanism*, and a one-word difference lives inside one bucket.
+- **`PERFORMANCE_POOL` measures cost; `--require` measures coverage. Do not
+  read either off the other.** Adding a card to the pool does *not* mean its path
+  gets walked: CV-1 put Cytoshape in and it resolved **16 times in 200 games**,
+  because a 63-card pool builds colour-appropriate 60-card decks and any one
+  card is rare — and rarer with every phase that adds one. `fuzz_games
+  --require "Card A,Card B"` forces a copy of each into every deck **and seeds
+  the deck's colours from theirs** (forcing a `{1}{G}{U}` instant into a
+  mono-red deck reports the same thin number), then prints casts, resolutions
+  and the share of games each reached. Cytoshape goes 16 → **401** resolutions
+  under it. **An empty `--require` changes nothing** — every RNG draw is guarded,
+  so a reachability run and a timing run come from one binary without the first
+  contaminating the second. **Run it once per phase that adds a card**, and put
+  the resolution count in the phase's ledger entry.
 - **Say which pool a number came from.** `fuzz_games` prints it in the header
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
