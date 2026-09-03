@@ -7,6 +7,7 @@
 //! resolved. These tests pin the *record*, which is the part that has no other
 //! consumer until Phase RB and would otherwise rot unwatched.
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
@@ -26,11 +27,11 @@ use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{new_ability_id, ObjectId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -292,52 +293,104 @@ fn test_a_failed_cast_announces_nothing() {
     );
 }
 
-// COVERS-PARTIAL: ATOM-601.2h-002
-// COVERS-PARTIAL: ATOM-601.2-001
-//
-// Partial on both. 601.2h-002's board is a short pool ({2}{R} against {3}{R}),
-// which `can_pay_costs` refuses ahead of payment; 601.2-001's is a spell with
-// no legal target, which rewinds at 601.2c. This board rewinds at 601.2h
-// *itself*: the pool covers the cost, and the player's own generic split is
-// what makes the payment illegal.
+/// A `DecisionProvider` that records the per-bucket maxima it was offered and
+/// answers with a fixed allocation.
+///
+/// `ScriptedDecisionProvider` validates the `ChoiceKind` and nothing about the
+/// bounds; the bounds are the subject here.
+struct RecordingSplitDp {
+    maxs: RefCell<Option<Vec<u64>>>,
+    answer: Vec<u64>,
+}
+
+impl DecisionProvider for RecordingSplitDp {
+    fn pick_n(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        context: &ChoiceContext,
+        _options: &[ChoiceOption],
+        _bounds: (usize, usize),
+    ) -> Vec<usize> {
+        unreachable!("this cast asks only for the generic split, not {:?}", context.kind)
+    }
+    fn pick_number(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        _min: u64,
+        _max: u64,
+    ) -> u64 {
+        unreachable!("this cast asks only for the generic split")
+    }
+    fn allocate(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        _total: u64,
+        _buckets: &[ChoiceOption],
+        _per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        *self.maxs.borrow_mut() = per_bucket_maxs.map(|m| m.to_vec());
+        self.answer.clone()
+    }
+    fn choose_ordering(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
+        _items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        unreachable!("this cast asks only for the generic split")
+    }
+}
+
+/// The generic split is offered clamped, so the illegal answer is not on the
+/// menu — the shape this board used to take is `codebase-state.md` 16c's
+/// reproducer, and it rewound the whole cast.
+///
+/// Grizzly Bears {1}{G} against a pool of {R}{G} is payable exactly one way.
+/// The prompt lists the pool's types in `ManaType` order — Red, then Green —
+/// and each bucket's maximum is what its own pips leave over: Red 1, Green 0.
+/// Putting the generic mana on the Green, which the {G} pip still needs, is no
+/// longer expressible; before the clamp it passed the prompt's own validation
+/// and `ManaPool::pay` refused it, and CR 601.2 rewound the cast for a choice
+/// the engine should never have offered.
+///
+/// The rewind itself is still there and still right — `phase_rc4b`'s two
+/// rewind tests pin it, and `fuzz_games` fails any run in which a spell
+/// resolves without a `SpellCast` — it is just no longer reachable this way.
 #[test]
-fn test_a_cast_whose_payment_fails_rewinds_and_keeps_the_mana() {
-    // Grizzly Bears {1}{G} against a pool of {R}{G}: payable, exactly one way.
-    // The split prompt lists the pool's types in `ManaType` order — Red, then
-    // Green — and the player puts the generic mana on Green, which the {G}
-    // pip still needs. `ManaPool::pay` refuses, and CR 601.2 says the whole
-    // cast rewinds. Before this test the card stayed on the stack, was never
-    // announced as cast, and resolved on the next pass with the mana still in
-    // the pool — `codebase-state.md` item 16c.
+fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
     let mut game = setup_two_player_game();
     let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-        vec![0, 1], // [Red, Green]: the generic {1} paid with the only Green
-    );
-    let before = game.events.len();
-    assert!(game.cast_spell(0, bear, &decisions).is_err(), "the split is unpayable");
-    assert!(decisions.is_empty(), "the split prompt was asked");
+    // [Red, Green]: the generic {1} paid with the Red, the only legal split.
+    let decisions = RecordingSplitDp { maxs: RefCell::new(None), answer: vec![1, 0] };
+    game.cast_spell(0, bear, &decisions).expect("the only legal split pays");
 
-    // Four assertions, and each is a different way the old tree was wrong.
-    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Hand, "back in hand");
-    assert!(game.players[0].hand.contains(&bear));
-    assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1, "mana untouched");
-    assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
+    assert_eq!(
+        decisions.maxs.borrow().as_deref(),
+        Some(&[1, 0][..]),
+        "Red is surplus and Green is spoken for by the {{G}} pip",
+    );
+
+    // And the cast completed: nothing rewound, and both mana were spent.
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Stack);
+    assert!(game.stack.contains(&bear));
+    assert_eq!(game.players[0].mana_pool.total(), 0, "both mana paid the cost");
     assert!(
-        !game.events.events().any(|e| matches!(
+        game.events.events().any(|e| matches!(
             e,
             GameEvent::SpellCast { spell_id, .. } if *spell_id == bear
         )),
-        "never announced as cast",
+        "announced as cast at 601.2i",
     );
-    assert!(game.stack.is_empty(), "not on the stack, where it would resolve unpaid");
-    assert!(!game.stack_entries.contains_key(&bear));
-    assert_eq!(game.events.len(), before, "a rewind is not an event");
 }
 
 // ---------------------------------------------------------------------------

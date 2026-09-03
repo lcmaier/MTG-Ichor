@@ -177,10 +177,10 @@ across months buys the timing measurement nothing.
   rows: the seeding was worth about 5%, the agent's fix none of it, and the
   rest was copies. What the uniform tap *did* cost was real: with an any-color
   land a tap was a five-sided die, and land taps per spell cast went 3.86 →
-  7.66. `RandomDecisionProvider` now taps for the pip it still owes and splits
-  the generic part from the surplus (`ui/random.rs`), which brings taps per
-  cast to **3.18** — below `main` — and the pool's spells per game from 22.6
-  back to 25.0. It does not raise a forced card's count, because that count is
+  7.66. `RandomDecisionProvider` now taps for the pip it still owes, and the
+  generic split comes back from the prompt already clamped to what the pips
+  leave over (`ui/ask.rs`, 2026-09-03), which brings taps per cast to **3.18**
+  — below `main` — and the pool's spells per game from 22.6 back to 25.0. It does not raise a forced card's count, because that count is
   bounded by drawing the copy and choosing it among everything else castable,
   not by paying for it; and forcing Everywhere on top changes nothing either,
   the deck already holding fourteen.
@@ -195,7 +195,10 @@ both sweep counts reproduce the Everywhere row (the first trail entry below)
 to the digit, which was the acceptance test — the memoized binary plays the
 same games. `Layer walks` is the *miss* count now; walks plus hits is the
 number of questions asked, and it equals the previous walk count exactly
-(2,663 + 105,963 = 108,626; 2,719 + 108,699 = 111,418):**
+(2,663 + 105,963 = 108,626; 2,719 + 108,699 = 111,418). Re-run 2026-09-03 for
+the generic-split clamp (`backlog.md` §2.18) and reproduced to the digit — the
+clamp is the engine computing what the random agent had been computing for
+itself, so it is confirmed here rather than re-recorded:**
 
 | | performance (64 cards) | stress (72 cards) |
 |---|---|---|

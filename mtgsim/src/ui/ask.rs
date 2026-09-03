@@ -19,7 +19,7 @@ use crate::state::game_state::GameState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use super::decision::{DecisionProvider, PriorityAction};
@@ -516,8 +516,38 @@ pub fn ask_activate_mana_ability(
     }
 }
 
+/// How many of `mana_cost`'s symbols must be paid with `mana_type` specifically.
+///
+/// `ManaCost::build` writes `{C}` as `ManaSymbol::Colorless`, but
+/// `from_symbols` admits `Colored(ManaType::Colorless)` for the same pip, so
+/// both spellings count.
+fn pips_owed(mana_cost: &ManaCost, mana_type: ManaType) -> u64 {
+    mana_cost
+        .symbols
+        .iter()
+        .filter(|s| match s {
+            ManaSymbol::Colored(t) => *t == mana_type,
+            ManaSymbol::Colorless => mana_type == ManaType::Colorless,
+            _ => false,
+        })
+        .count() as u64
+}
+
 /// Choose how to allocate mana from the pool to pay generic mana.
 /// Returns a map of ManaType → amount.
+///
+/// Each bucket's maximum is `available − pips of that type`, not the pool's
+/// amount: the generic part is paid out of the same pool the specific pips are
+/// (CR 601.2h), so a bucket capped at the pool's amount lets a DP name a split
+/// that `ManaPool::pay` then refuses, and CR 601.2 rewinds the whole cast for
+/// it. Every other `ask_*` offers only legal choices, and a DP should not have
+/// to know payment law to answer "which mana" — `codebase-state.md` 16c,
+/// `backlog.md` §2.18.
+///
+/// Only `Colored`, `Colorless` and `Generic` symbols reach here — `can_pay`
+/// refuses a cost containing any other — so no mode question arises. When
+/// hybrid payment lands, a twobrid or hybrid whose chosen mode is a colored
+/// half is one more pip of that type and folds into the same tally.
 pub fn ask_choose_generic_mana_allocation(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -539,7 +569,23 @@ pub fn ask_choose_generic_mana_allocation(
         },
     };
     let mins = vec![0u64; buckets.len()];
-    let maxs: Vec<u64> = available_types.iter().map(|(_, amt)| *amt).collect();
+    let maxs: Vec<u64> = available_types
+        .iter()
+        .map(|(mt, amt)| amt.saturating_sub(pips_owed(mana_cost, *mt)))
+        .collect();
+    // `can_pay` has passed by the time this is asked, and it checked both
+    // halves of the same inequality: every type covers its own pips, and what
+    // is left over covers the generic count. So the clamped maxima always sum
+    // to at least `generic_count` and a feasible answer exists — asserted
+    // rather than trusted, because a caller that skipped the check would
+    // otherwise reach `validate_allocation` with no legal answer to give.
+    debug_assert!(
+        maxs.iter().sum::<u64>() >= generic_count,
+        "generic split of {}: clamped maxima {:?} cannot reach {} — caller skipped can_pay",
+        mana_cost,
+        maxs,
+        generic_count,
+    );
     let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
     validate_allocation(
         &alloc,
@@ -550,8 +596,8 @@ pub fn ask_choose_generic_mana_allocation(
         "choose_generic_mana_allocation",
     );
 
-    // per_bucket_maxs already enforces that each allocation doesn't exceed
-    // the available amount — no post-hoc check needed.
+    // per_bucket_maxs already enforces that each allocation leaves every pip
+    // its own mana — no post-hoc check needed.
 
     available_types
         .iter()
@@ -767,6 +813,8 @@ pub fn ask_choose_legend_to_keep(
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use super::*;
     use crate::state::game_state::GameState;
     use crate::ui::decision::ScriptedDecisionProvider;
@@ -875,6 +923,127 @@ mod tests {
             &[2], // blocker needs at least 2
             None,
         );
+    }
+
+    // --- the generic split's clamped maxima ---
+
+    /// A `DecisionProvider` that records the maxima it was offered and hands
+    /// back a fixed allocation. `ScriptedDecisionProvider` cannot do this half:
+    /// it validates the `ChoiceKind` and nothing about the bounds, and the
+    /// bounds are the whole subject here.
+    struct RecordingAllocator {
+        maxs: RefCell<Option<Vec<u64>>>,
+        answer: Vec<u64>,
+    }
+
+    impl DecisionProvider for RecordingAllocator {
+        fn pick_n(
+            &self,
+            _game: &GameState,
+            _player: PlayerId,
+            _context: &ChoiceContext,
+            _options: &[ChoiceOption],
+            _bounds: (usize, usize),
+        ) -> Vec<usize> {
+            unreachable!("the generic split asks only for an allocation")
+        }
+        fn pick_number(
+            &self,
+            _game: &GameState,
+            _player: PlayerId,
+            _context: &ChoiceContext,
+            _min: u64,
+            _max: u64,
+        ) -> u64 {
+            unreachable!("the generic split asks only for an allocation")
+        }
+        fn allocate(
+            &self,
+            _game: &GameState,
+            _player: PlayerId,
+            _context: &ChoiceContext,
+            _total: u64,
+            _buckets: &[ChoiceOption],
+            _per_bucket_mins: &[u64],
+            per_bucket_maxs: Option<&[u64]>,
+        ) -> Vec<u64> {
+            *self.maxs.borrow_mut() = per_bucket_maxs.map(|m| m.to_vec());
+            self.answer.clone()
+        }
+        fn choose_ordering(
+            &self,
+            _game: &GameState,
+            _player: PlayerId,
+            _context: &ChoiceContext,
+            _items: &[ChoiceOption],
+        ) -> Vec<usize> {
+            unreachable!("the generic split asks only for an allocation")
+        }
+    }
+
+    /// `{1}{G}{U}` against a pool of one Green, one Blue and one Red: the only
+    /// bucket with any room is the Red, because the other two are spoken for by
+    /// their own pips. Offering the pool's amounts instead — [1, 1, 1] — is what
+    /// let a DP name a split `ManaPool::pay` refused and CR 601.2 rewound.
+    #[test]
+    fn test_generic_split_offers_only_what_the_pips_leave_over() {
+        let dp = RecordingAllocator { maxs: RefCell::new(None), answer: vec![0, 1, 0] };
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(dp.maxs.borrow().as_deref(), Some(&[0, 1, 0][..]), "Blue, Red, Green");
+        assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
+    }
+
+    /// The same cost from `{G}{G}{U}`: a color's surplus beyond its own pips is
+    /// still offered, so the clamp narrows the choice without removing it.
+    #[test]
+    fn test_generic_split_offers_a_color_s_surplus_beyond_its_pips() {
+        let dp = RecordingAllocator { maxs: RefCell::new(None), answer: vec![0, 1] };
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let available = [(ManaType::Blue, 1), (ManaType::Green, 2)];
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(dp.maxs.borrow().as_deref(), Some(&[0, 1][..]), "Blue, Green");
+        assert_eq!(alloc, HashMap::from([(ManaType::Green, 1)]));
+    }
+
+    /// A `{C}` pip is clamped the same way a colored one is — `ManaPool::pay`
+    /// makes no distinction, and `ManaCost::build` writes it as
+    /// `ManaSymbol::Colorless` rather than `Colored(ManaType::Colorless)`.
+    #[test]
+    fn test_generic_split_clamps_a_colorless_pip() {
+        let dp = RecordingAllocator { maxs: RefCell::new(None), answer: vec![1, 0] };
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Colorless], 1);
+        let available = [(ManaType::Red, 1), (ManaType::Colorless, 1)];
+
+        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(dp.maxs.borrow().as_deref(), Some(&[1, 0][..]), "Red, Colorless");
+    }
+
+    /// The random agent no longer clamps for itself (it did, as policy, until
+    /// the prompt did it), so this is the statement that the engine's maxima
+    /// are what keeps every split payable: over 50 seeds against a board where
+    /// exactly one type has surplus, the generic mana is always that type.
+    #[test]
+    fn test_random_dp_generic_split_spends_only_the_surplus() {
+        use crate::ui::random::RandomDecisionProvider;
+
+        let game = test_game_state();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
+        for seed in 0..50u64 {
+            let dp = RandomDecisionProvider::seeded(seed);
+            let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+            assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]), "seed {seed}");
+        }
     }
 
     // TODO: Add choose_ordering test when the first effect that needs it

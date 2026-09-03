@@ -7,7 +7,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 ## TL;DR
 
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped.
-- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 888 tests, 0 warnings, fuzz harness runs 200-game batches and fails a run in which any spell resolves unpaid (16c).
+- **Code size:** ~34,100 lines of Rust across 89 `.rs` source files (~45,200 with the integration tests). 913 tests, 0 warnings, fuzz harness runs 200-game batches and fails a run in which any spell resolves unpaid (16c).
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 (casting: pipeline skeleton + X/alt/additional-cost landed, mode choice + distribution + activation restrictions pending). CR 1 mulligan is a stub. Equip and Bestow (CR 702.6, 702.103) not started.
 - **Not started:** **triggered abilities (CR 603)** beyond an enum variant, though RA built the record they will match against; CR 800 multiplayer priority/turn rotation.
@@ -886,6 +886,44 @@ built, and none of it blocks RC-1 through RC-3.
     §2.18 owns it beside the CR 732.1 reversal; note that after this PR the
     random agent's rewind rate is §2.18's ~7.5 per game *plus* these ~5.
 
+    **The clamp landed 2026-09-03 (`mana/generic-split-clamp`), and it moved no
+    game content at all — which is the finding.** `ask_choose_generic_mana_allocation`
+    now caps each bucket at `available − pips of that type`, with a `debug_assert`
+    that the clamped maxima still reach the generic count (they do whenever
+    `can_pay` passed, which is the same inequality). What the paragraph above
+    did not know is that **16d had already fixed this for the one DP that
+    plays**: `RandomDecisionProvider` clamped for itself, as policy, when it
+    learned to tap for the pip it owes. So the ~5 rewinds per game were gone
+    before this PR started, and the honest expectation was not "every rewind
+    becomes a cast" but "nothing changes and the DP stops needing payment law".
+    Leaving the DP's copy in place would have *created* a delta — it subtracts
+    the pips a second time from maxima that already exclude them, narrowing the
+    split to the surplus beyond twice the pips — so it came out with the clamp,
+    and the random agent now takes the prompt's maxima at face value. Measured
+    both ways: `fuzz_ab.py` reads **IDENTICAL** on every counter, both pools,
+    200 games, and the 40-game `--dump-events` streams are byte-identical after
+    masking ids. Land taps per spell cast is unchanged at 3.11 (40-game
+    `performance` dumps, `Tapped:` lines naming a land over `SpellCast:` lines);
+    16d's 3.18 is the same quantity counted a slightly different way and is not
+    a movement. `engineering-practices.md` §3's fixture rows reproduce to the
+    digit, so the table is not re-recorded — it is confirmed.
+
+    **What the payment-failure arm is now.** Nothing reachable through
+    `cast_spell` can fail `pay_costs` after `can_pay_costs` passed: the prompt
+    cannot offer an unpayable split, and a DP that ignores the maxima trips
+    `validate_allocation` first. The rollback stays as the backstop — item 9's
+    kicker double-count is the other route to it and is not reachable yet — and
+    `fuzz_games`' "no spell resolves without a `SpellCast`" guard is what
+    watches it. The regression test that drove the rollback *through* the bad
+    split is replaced by `test_the_generic_split_is_offered_clamped_and_the_only_answer_pays`
+    (`phase_ra_integration_test.rs`), which asserts the maxima Grizzly Bears
+    `{1}{G}` against `{R}{G}` offers — Red 1, Green 0 — and that the only legal
+    answer pays. Its `ATOM-601.2-001` partial claim moved to `phase_rc4b`'s
+    `test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change`,
+    which proves the same half (card in hand, stack unchanged, mana still in
+    the pool); `ATOM-601.2h-002` was already claimed there and in
+    `test_a_failed_cast_announces_nothing`. `specdb owed` is unchanged at 9.
+
     **A second route to the same hole, unreachable today:** "Before card
     breadth" item 9 — `can_pay_costs` checks each `Cost::Mana` entry against
     the whole pool, so a kicker's mana is double-counted and `pay_costs` fails
@@ -924,8 +962,12 @@ built, and none of it blocks RC-1 through RC-3.
     `copies/deck` beside every count so the next reader cannot make the same
     comparison.
 
-    **Still owed in §2.18:** the engine-side split clamp, which makes every
-    DP safe rather than this one, and the CR 732.1 reversal prompt.
+    **Still owed in §2.18:** the CR 732.1 reversal prompt. The engine-side
+    split clamp landed 2026-09-03 and took this entry's DP-side clamp with it
+    — the prompt's maxima are now what they were computing, so the agent takes
+    them at face value and the games are byte-identical (16c's closing entry).
+    The tap preference above is untouched: choosing *which land to tap* is
+    policy, and only the split was payment law.
 
 16e. **96% of layer walks repeat an object nothing has touched, so item 7's
     memoization half is split out as 7a and moved ahead of triggers

@@ -335,7 +335,7 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        context: &ChoiceContext,
+        _context: &ChoiceContext,
         total: u64,
         buckets: &[ChoiceOption],
         per_bucket_mins: &[u64],
@@ -346,35 +346,10 @@ impl DecisionProvider for RandomDecisionProvider {
             return Vec::new();
         }
 
-        let mut caps: Vec<u64> = per_bucket_maxs.map_or(vec![u64::MAX; n], |m| m.to_vec());
-
-        // A generic split spends from the pool the same payment pays its pips
-        // from (CR 601.2h), and the prompt's caps are the pool's amounts, so
-        // a split that spends a color a pip still needs passes the prompt
-        // and fails at `ManaPool::pay` — which rewinds the cast with the
-        // lands tapped. Cap each type at what is left after its own pips.
-        // If that leaves less than `total` (it cannot, once `can_pay_costs`
-        // passed), keep the prompt's caps so the answer is at least valid.
-        if let ChoiceKind::GenericManaAllocation { mana_cost } = &context.kind {
-            let mut clamped = caps.clone();
-            for (i, bucket) in buckets.iter().enumerate() {
-                if let ChoiceOption::ManaType(mt) = bucket {
-                    let owed = match mt {
-                        ManaType::Colorless => mana_cost
-                            .symbols
-                            .iter()
-                            .filter(|s| matches!(s, ManaSymbol::Colorless))
-                            .count() as u64,
-                        t => mana_cost.colored_count(*t) as u64,
-                    };
-                    clamped[i] = clamped[i].saturating_sub(owed);
-                }
-            }
-            let reach: u64 = clamped.iter().fold(0u64, |acc, c| acc.saturating_add(*c));
-            if reach >= total {
-                caps = clamped;
-            }
-        }
+        // The prompt's caps already leave every pip of the cost its own mana
+        // (`ask_choose_generic_mana_allocation`), so a generic split needs no
+        // payment law here — taking them at face value is what a DP is owed.
+        let caps: Vec<u64> = per_bucket_maxs.map_or(vec![u64::MAX; n], |m| m.to_vec());
 
         // Start with minimums
         let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
@@ -513,39 +488,6 @@ mod tests {
         let dp = RandomDecisionProvider::seeded(1);
         let ctx = window(ManaCost::build(&[ManaType::Blue], 0));
         assert!(dp.pick_n(&game, 0, &ctx, &options, (0, 1)).is_empty());
-    }
-
-    /// `{1}{G}{U}` from a pool of one each of G, U and R: the generic mana is
-    /// the red, every time — the prompt's caps would have let it be the green
-    /// or the blue, and `ManaPool::pay` would then have refused the payment.
-    #[test]
-    fn generic_split_spends_only_what_the_pips_leave_over() {
-        let game = setup_basic_game();
-        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
-        let ctx = ChoiceContext { kind: ChoiceKind::GenericManaAllocation { mana_cost: cost } };
-        let buckets = vec![
-            ChoiceOption::ManaType(ManaType::Green),
-            ChoiceOption::ManaType(ManaType::Blue),
-            ChoiceOption::ManaType(ManaType::Red),
-        ];
-        for seed in 0..20u64 {
-            let dp = RandomDecisionProvider::seeded(seed);
-            let alloc = dp.allocate(&game, 0, &ctx, 1, &buckets, &[0, 0, 0], Some(&[1, 1, 1]));
-            assert_eq!(alloc, vec![0, 0, 1], "seed {seed}");
-        }
-    }
-
-    /// The same cost from `{G}{G}{U}`: the surplus green pays the generic.
-    #[test]
-    fn generic_split_uses_a_color_s_surplus_beyond_its_pips() {
-        let game = setup_basic_game();
-        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
-        let ctx = ChoiceContext { kind: ChoiceKind::GenericManaAllocation { mana_cost: cost } };
-        let buckets =
-            vec![ChoiceOption::ManaType(ManaType::Green), ChoiceOption::ManaType(ManaType::Blue)];
-        let dp = RandomDecisionProvider::seeded(3);
-        let alloc = dp.allocate(&game, 0, &ctx, 1, &buckets, &[0, 0], Some(&[2, 1]));
-        assert_eq!(alloc, vec![1, 0]);
     }
 
     #[test]
