@@ -468,6 +468,15 @@ struct GameStats {
     /// the gap between them is itself information. A required land has no
     /// cast; its land drops fill both columns.
     reach: Vec<(String, u32, u32)>,
+    /// Copies of each required card across the game's decks, in `reach`'s
+    /// order. **The number `reach` has to be read against.** The flag puts
+    /// one copy in every deck and the 36 draws can add more, and how many
+    /// depends on the pool they came from: 1.7 extra Cytoshapes per deck
+    /// when the deck was seeded to its two colors, 0.7 from the whole pool.
+    /// A resolution count compared across two pools without this is
+    /// counting copies, not reachability — which is how "the halving is the
+    /// agent" was first written (`codebase-state.md` 16d).
+    copies: Vec<u32>,
     /// `--require` board diversity: a permanent of a color no required card
     /// has entered the battlefield this game. False unless the flag is set.
     ///
@@ -648,6 +657,8 @@ struct AggregateStats {
     reach: Vec<(String, u64, u64, u64)>,
     /// Games in which `GameStats::met_another_color` was set.
     games_met_another_color: u64,
+    /// Copies of each required card summed over every deck, in `reach`'s order.
+    copies: Vec<u64>,
 }
 
 impl AggregateStats {
@@ -677,6 +688,12 @@ impl AggregateStats {
         }
         if game.met_another_color {
             self.games_met_another_color += 1;
+        }
+        if self.copies.is_empty() {
+            self.copies = vec![0; game.copies.len()];
+        }
+        for (total, n) in self.copies.iter_mut().zip(&game.copies) {
+            *total += *n as u64;
         }
         self.games_counted += 1;
     }
@@ -789,6 +806,12 @@ fn run_one_game(
 
     let deck1 = random_deck(registry, &mut deck_rng, required);
     let deck2 = random_deck(registry, &mut deck_rng, required);
+    let copies: Vec<u32> = require_names
+        .iter()
+        .map(|name| {
+            deck1.iter().chain(deck2.iter()).filter(|c| c.name == *name).count() as u32
+        })
+        .collect();
 
     // The colors the required cards have between them, for the diversity
     // line: a permanent outside this set is one the seeding used to exclude.
@@ -827,6 +850,7 @@ fn run_one_game(
                     require_names,
                     &required_colors,
                 );
+                s.copies = copies.clone();
                 // Read once at the end of the game rather than accumulated per
                 // turn: the counters are monotonic for the game's lifetime and
                 // nothing resets them, so the final value *is* the total.
@@ -1235,15 +1259,19 @@ fn main() {
     if !agg_stats.reach.is_empty() {
         println!();
         println!("=== Reachability (--require, {} games) ===", agg_stats.games_counted);
-        for (name, cast, resolved, games) in &agg_stats.reach {
+        for (i, (name, cast, resolved, games)) in agg_stats.reach.iter().enumerate() {
             let pct = if agg_stats.games_counted == 0 {
                 0.0
             } else {
                 *games as f64 * 100.0 / agg_stats.games_counted as f64
             };
+            // Copies per deck beside the count, because the count is only
+            // readable against it — see `GameStats::copies`.
+            let per_deck = agg_stats.copies.get(i).copied().unwrap_or(0) as f64
+                / (2.0 * agg_stats.games_counted.max(1) as f64);
             println!(
-                "  {:<26} cast {:>4}  resolved {:>4}  in {:>4} games ({:.0}%)",
-                name, cast, resolved, games, pct
+                "  {:<26} cast {:>4}  resolved {:>4}  in {:>4} games ({:.0}%)  copies/deck {:.2}",
+                name, cast, resolved, games, pct, per_deck
             );
         }
         // Cast-but-not-resolved is a countered or fizzled spell, so the path the
