@@ -454,7 +454,15 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   or an agent *choose* the taps — the 601.2g window asks one ability at a
   time, and the agent either assembles a covering set or rewinds. Measured
   (RC-4b, 40 `performance` games, seed 12345): the random agent rewound 303
-  casts, ~7.5 per game, each a decision round-trip spent on nothing.
+  casts, ~7.5 per game, each a decision round-trip spent on nothing. **A third
+  gap, and this one is engine-side (2026-09-02):** the generic-split prompt
+  offers every type in the pool as a bucket with the pool's amount as its max,
+  so a split that spends a colour a pip still needs passes the prompt's own
+  validation and fails at `ManaPool::pay`. About five casts per game did that,
+  and until `codebase-state.md` 16c closed they *resolved unpaid*; now they
+  rewind, on top of the 7.5 above. Clamping each bucket to `available − pips
+  of that type` removes the class — 16c's closing entry says yes, sizes it at
+  ten lines, and says why it is its own PR.
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:

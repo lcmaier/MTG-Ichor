@@ -141,28 +141,46 @@ across months buys the timing measurement nothing.
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-02 (performance pool 62 → 63, stress 68 → 71; Cytoshape,
-Mirrorweave and Mirrorform, Phase CV-1):**
+2026-09-02 (pools unchanged at 63 / 71; a cast whose payment fails now rewinds
+instead of resolving unpaid — `codebase-state.md` 16c):**
 
 | | performance (63 cards) | stress (71 cards) |
 |---|---|---|
-| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 27 (54.0%) / 23 (46.0%) |
-| Avg turns | 28.8 | 28.3 |
-| Spells cast | 21.0 | 19.6 |
-| Lands played | 18.4 | 17.6 |
-| Combat w/ atk | 11.0 | 10.5 |
-| Creatures died | 6.7 | 4.4 |
-| Damage events | 24.2 | 23.4 |
-| Total damage | 49.8 | 55.3 |
-| Life changes | 16.8 | 15.7 |
-| **Layer walks** | **93,914** | **88,252** |
-| **Layer frames** | **136,338** | **117,612** |
-| **Frames/walk** | **1.45** | **1.33** |
-| **Replacement gathers** | **531** | **514** |
-| **Restriction queries** | **533** | **517** |
+| P0 / P1 | 25 (50.0%) / 25 (50.0%) | 25 (50.0%) / 25 (50.0%) |
+| Avg turns | 30.6 | 30.8 |
+| Spells cast | 26.4 | 25.1 |
+| Lands played | 19.2 | 18.8 |
+| Combat w/ atk | 11.8 | 11.8 |
+| Creatures died | 6.7 | 5.6 |
+| Damage events | 24.9 | 25.2 |
+| Total damage | 50.9 | 58.9 |
+| Life changes | 16.8 | 16.9 |
+| Uncast resolved | 0 | 0 |
+| **Layer walks** | **104,622** | **100,674** |
+| **Layer frames** | **146,052** | **137,318** |
+| **Frames/walk** | **1.40** | **1.36** |
+| **Replacement gathers** | **588** | **578** |
+| **Restriction queries** | **590** | **582** |
 
-**Most of the movement in this table is not CV-1's, and the previous version was
-already stale when CV-1 read it.** `main` at 103acf1 answers 93,717 walks / 530
+**The first re-record where the pool did not move, so every row is the
+engine's (2026-09-02, 16c).** The row to read is `Spells cast`, and it went
+*up* — 21.0 → 26.4 and 19.6 → 25.1 — without five more spells per game being
+cast: they are the same spells, now announced. The old tree resolved ~5.5
+spells per game without a `SpellCast`, so the row never counted them, and the
+200-game dumps put `main` at 27.2 resolutions per `performance` game against
+21.7 announced. Every other row moved because those spells are now paid for:
+games run about two turns longer, and the cost rows follow the length (walks
++11% / +14%, walks per turn +5% / +5%). Per-walk *time* did not move — −4% /
+−6% at 200 games, interleaved, inside a sitting — and the ghosts were
+disproportionately the statics that put a sub-frame under every walk, which is
+where the small `Frames/walk` movement comes from. **`Uncast resolved` is the
+row the fix added, and it is a threshold, not a fixture:** like the stress
+column's errors and panics, any value but 0 fails the run. It is here so that
+the table says the invariant is being checked, not merely that it held.
+
+**Most of the movement in the CV-1 re-record (the first entry under *Previous
+values*) was not CV-1's, and the version before it was already stale when CV-1
+read it.** `main` at 103acf1 answers 93,717 walks / 530
 gathers on `performance`, against the 93,854 / 594 the table printed — so the
 gather column had fallen ~11% before this phase touched anything. The cause is
 **RC-4b**, which made entering the battlefield one proposal instead of two and
@@ -199,7 +217,14 @@ and `Frames/walk` carries it. Games also got shorter (31.7 → 28.7 turns on
 `layers-architecture.md` §12's quadratic by design, measured rather than
 assumed, and critical-path item 7's cross-call memoization is still the lever.
 
-*Previous values, 2026-09-02 (performance 60 → 61, Root Maze, RC-3): performance
+*Previous values, 2026-09-02 (performance 62 → 63, stress 68 → 71; Cytoshape,
+Mirrorweave and Mirrorform, CV-1): performance 23/27, 28.8 turns, 21.0 spells,
+18.4 lands, 11.0 combats, 6.7 deaths, 24.2 damage events, 49.8 damage, 16.8 life
+changes, 93,914 walks / 136,338 frames / 1.45 per walk / 531 gathers / 533
+queries; stress 27/23, 28.3, 19.6, 17.6, 10.5, 4.4, 23.4, 55.3, 15.7, 88,252 /
+117,612 / 1.33 / 514 / 517 — reproduced to the digit on `main` at 650a263
+before the 16c re-record. Before that, 2026-09-02 (performance 60 → 61, Root
+Maze, RC-3): performance
 23/27, 31.7 turns, 23.0 spells, 19.8 lands, 12.4 combats, 7.8 deaths, 25.7 damage
 events, 52.2 damage, 17.0 life changes, 108,632 walks / 135,449 frames / 1.25
 per walk / 669 gathers / 670 queries; stress 30/20, 29.8, 21.8, 18.1, 11.6, 4.5,
