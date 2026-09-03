@@ -742,3 +742,100 @@ goes, because the module no longer has a shape to match.
 `engine/restriction/` is `mod.rs` plus `predicate.rs`, and `predicate.rs` is
 allowed to be the whole module. What is not fine is that file being called
 `mod.rs`.
+
+---
+
+## 7. Trace pages
+
+A **trace page** is a hand-authored HTML file under `plans/traces/` that walks
+two or three real board states through the engine call by call, with every read
+labelled by what it consulted — the board, a hypothetical frame, a registry, a
+player. It ends in a table of where those reads differ.
+
+It is not a design doc and not a test. A design doc says what the engine should
+do; a test asserts one outcome; the page shows the **path between them**, which
+is the thing a diff cannot show and a reviewer cannot reconstruct. Both existing
+pages were written because a review asked a question the diff could not answer.
+
+Two exist, and they are the template:
+
+| Page | Phase | What it proves |
+|---|---|---|
+| `rc-4b-entering-is-one-event.html` | RC-4b | four entries through the CR 614.12 look-ahead frame, each read labelled board or frame, and what RC-4b changed trace by trace |
+| `cv-1-a-copy-is-a-snapshot.html` | CV-1 | a Cytoshape resolution from the choice to the copy row and back, and CR 707.4's re-copy tearing that row down through the existence check |
+
+**When to write one: at phase close, for a phase that changes *how* a read is
+answered rather than what the answer is.** That is the property the two above
+share, and it is why a phase that adds a card, an enum arm or a pool entry does
+not get one. The phases that qualify were listed when the practice started:
+RC-4 ✓, RC-4b ✓, CV-1 ✓, **RC-5, RS-2, critical-path item 6, item 7**. Budget
+two to three hours; that is the right cost for a phase's close and the wrong
+cost for a question asked mid-debugging, which is what tier 2 below is for.
+
+**Its examples are the phase's findings, not its feature list.** A page that
+walks the happy path explains the feature; a page that walks the board the
+review argued about explains the phase.
+
+**Naming: `<phase>-<claim>.html`**, kebab-case, where the claim is the sentence
+the page proves — `rc-4b-entering-is-one-event`, not `rc-4b-traces`. The file
+name is the first thing the next reader sees, and a phase code alone tells them
+nothing.
+
+**Structure**, in this order:
+
+1. **The map** — the boards, the cards, and which trace answers which question.
+   A mermaid flowchart of the path, with the phase's new nodes coloured.
+2. **Lettered traces** — A, B, C…, each a numbered walk. Every step names the
+   function and what it read.
+3. **Where the reads differ** — the comparison table. This is the payload.
+4. **A closing section that ties it to the phase** — what changed, trace by
+   trace, or what is still open.
+
+**Pinned, never maintained.** The first line of the file is an HTML comment
+naming the commit and the frozen CR version. A page records the engine *at that
+commit*; when a later phase changes a path, it gets **its own page**, and the
+old one is left alone. That is what makes it safe to write in this much detail
+— nothing has to be kept true — and it is why the pin is not optional: a stale
+page has to say so on its own first line.
+
+**Self-contained**, and only the CDNs the artifact sandbox allows: fonts from
+Google Fonts, mermaid from jsDelivr, nothing else. **Linked from two places** —
+the owning architecture doc's phase entry and the phase's `codebase-state.md`
+entry — because the `plans/` markdown stays the authority and a page nothing
+links is a page nobody finds.
+
+**What not to do.** Do not generate a page from every test: the point is the two
+examples that carry the phase's idea, and eight hundred traces are a log, not an
+explanation. Do not diagram code that is about to change — the codebase map
+below waited for the entry-hop fix for exactly that reason.
+
+### 7.1 The two tiers this does not cover
+
+Tier 1 is the practice above. Two more were planned with it, and both are
+schedulable rather than done:
+
+- **Tier 2 — engine-emitted traces.** A `TraceSink` on `GameState`, off by
+  default and gated the way `EngineCounters` is, recording what tier 1 records
+  by hand: each proposal entering a batch, each pipeline iteration, each
+  top-level layer walk, and the performed events. JSON lines, plus a script
+  that turns one into a page in this format, so tier 1 becomes generated.
+  **Owed before critical-path item 6** — the first question anyone asks a
+  trigger dispatcher is "why did this fire, or not", which is a trace question.
+  Sized and scheduled at `codebase-state.md`, "Before Triggered abilities"
+  item 5.
+- **Tier 3 — the codebase map.** One structural page: the modules and what each
+  owns, the chokepoint's arms, the three gate legs a new replacement source
+  must extend, the two `permanent_matches_filter`s, the accessor pair, and the
+  decision sites item 40 tracks — everything `CLAUDE.md` states as an
+  invariant, drawn once. Unblocked since the entry-hop fix landed
+  (2026-09-02); a day to draw, then minutes per refresh. It wants a ten-line
+  check that its list of `perform_action` arms matches the enum, so it cannot
+  rot silently.
+
+**Where this was written down before, and why that was wrong.** All of the
+above lived in a section of `rc-4b-entering-is-one-event.html` itself — a
+plan for the practice, inside one instance of the practice. It was invisible
+to `grep`, unreachable from `CLAUDE.md`'s authority table, and pinned to a
+commit like the trace around it, so the convention aged like a snapshot when
+it is the one part that must not. Lifted here 2026-09-03. The page keeps its
+section as the historical record; **this is the authority.**
