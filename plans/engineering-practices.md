@@ -155,7 +155,6 @@ instead of resolving unpaid — `codebase-state.md` 16c):**
 | Damage events | 24.9 | 25.2 |
 | Total damage | 50.9 | 58.9 |
 | Life changes | 16.8 | 16.9 |
-| Uncast resolved | 0 | 0 |
 | **Layer walks** | **104,622** | **100,674** |
 | **Layer frames** | **146,052** | **137,318** |
 | **Frames/walk** | **1.40** | **1.36** |
@@ -173,10 +172,11 @@ games run about two turns longer, and the cost rows follow the length (walks
 +11% / +14%, walks per turn +5% / +5%). Per-walk *time* did not move — −4% /
 −6% at 200 games, interleaved, inside a sitting — and the ghosts were
 disproportionately the statics that put a sub-frame under every walk, which is
-where the small `Frames/walk` movement comes from. **`Uncast resolved` is the
-row the fix added, and it is a threshold, not a fixture:** like the stress
-column's errors and panics, any value but 0 fails the run. It is here so that
-the table says the invariant is being checked, not merely that it held.
+where the small `Frames/walk` movement comes from. **The check the fix added
+is deliberately not a row here.** `fuzz_games` prints `Uncast resolved:` beside
+`Errors:` and `Panics:` and fails the run on any value but 0; that is a
+threshold, like the stress column's, and a threshold in a fixture table would
+be read as a number that can drift. Both runs above read 0.
 
 **Most of the movement in the CV-1 re-record (the first entry under *Previous
 values*) was not CV-1's, and the version before it was already stale when CV-1
