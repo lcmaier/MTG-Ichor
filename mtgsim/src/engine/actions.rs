@@ -672,16 +672,16 @@ impl GameState {
                 if n == 0 {
                     return Ok(());
                 }
-                let Some(entry) = self.battlefield.get_mut(&object) else {
+                if !self.battlefield.contains_key(&object) {
                     return Err(format!(
                         "Cannot remove counters from {}: not on the battlefield", object
                     ));
-                };
+                }
                 // CR 701.2 — do as much as possible. `remove_counters` reports
                 // how many were actually there, and a removal of nothing is not
                 // an event: CR 603.2e's transition rule is the same shape the
                 // `Tap`/`Untap` arms follow.
-                let removed = entry.remove_counters(counter, n);
+                let removed = self.remove_counters(object, counter, n);
                 if removed == 0 {
                     return Ok(());
                 }

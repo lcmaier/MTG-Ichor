@@ -198,6 +198,10 @@ impl RegistryScopeSummary {
 pub struct ContinuousEffectRegistry {
     effects: DurationRegistry<ContinuousEffect>,
     summary: RegistryScopeSummary,
+    /// How many times the rows have changed. One half of
+    /// `GameState::layer_epoch`, kept here because `mutating` is the one route
+    /// to the rows and cannot reach the state that owns the other half.
+    mutations: u64,
 }
 
 impl ContinuousEffectRegistry {
@@ -205,12 +209,18 @@ impl ContinuousEffectRegistry {
         ContinuousEffectRegistry {
             effects: DurationRegistry::new(),
             summary: RegistryScopeSummary::default(),
+            mutations: 0,
         }
     }
 
     /// Registry-wide summary flags. See `RegistryScopeSummary`.
     pub fn summary(&self) -> &RegistryScopeSummary {
         &self.summary
+    }
+
+    /// How many times the rows have changed — see `GameState::layer_epoch`.
+    pub fn mutations(&self) -> u64 {
+        self.mutations
     }
 
     /// Run a mutation against the rows, then rebuild the summary.
@@ -220,7 +230,17 @@ impl ContinuousEffectRegistry {
     /// skipped existence check — the exact class of bug the Layer 2 phase
     /// existed to remove.
     fn mutating<R>(&mut self, f: impl FnOnce(&mut DurationRegistry<ContinuousEffect>) -> R) -> R {
+        let before = self.effects.len();
         let out = f(&mut self.effects);
+        // The rows are a layer-walk input, and this is their bump. `len` tells
+        // a write from a no-op exactly: every `DurationRegistry` mutator adds
+        // or removes rows and none edits one in place, and each closure here
+        // makes one call. Exactness matters because both CR 514.2 expiry paths
+        // run every turn and usually remove nothing — a bump for nothing would
+        // cost every memoized frame at each turn boundary.
+        if self.effects.len() != before {
+            self.mutations += 1;
+        }
         self.recompute_summary();
         out
     }

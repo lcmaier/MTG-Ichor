@@ -247,10 +247,10 @@ impl GameState {
                         if let Some(pos) = self.stack.iter().position(|s| s == id) {
                             let removed_id = self.stack.remove(pos);
                             // Clean up the StackEntry for the countered ability
-                            self.stack_entries.remove(&removed_id);
+                            self.take_stack_entry(removed_id);
                             // Remove the object entirely — abilities on the
                             // stack are not cards and have no destination zone.
-                            self.objects.remove(&removed_id);
+                            self.remove_object(removed_id);
                             self.events.emit(crate::events::event::GameEvent::AbilityCountered {
                                 ability_id: removed_id,
                                 countered_by: ctx.source,
@@ -639,7 +639,7 @@ impl GameState {
                     // event than creating it was. A *substituted* entry moved
                     // it — to exile, say — and CR 704.5d takes it from there.
                     if !performed {
-                        self.objects.remove(&id);
+                        self.remove_object(id);
                     }
                 }
                 Ok(())

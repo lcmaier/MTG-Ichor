@@ -57,7 +57,7 @@ impl GameState {
             crate::oracle::characteristics::get_effective_controller(self, object_id)
                 .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 
-        let entry = self.stack_entries.remove(&object_id)
+        let entry = self.take_stack_entry(object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
         // CR 110.2b's default. `StackEntry.controller` is written once at
@@ -74,8 +74,12 @@ impl GameState {
             id: object_id,
             default_controller,
         });
+        // `resolving` is a layer-walk input (`compute::base_controller`'s
+        // third arm), so both writes bump.
+        self.bump_layer_epoch();
         let result = self.resolve_taken(object_id, entry, effective_controller, dp);
         self.resolving = None;
+        self.bump_layer_epoch();
         result
     }
 
@@ -184,7 +188,7 @@ impl GameState {
             // removal is explicit here: every other exit from this function is a
             // zone change, and `move_object` does it for them.
             self.stack.retain(|&x| x != object_id);
-            self.objects.remove(&object_id);
+            self.remove_object(object_id);
         }
 
         // --- Emit event ---
@@ -227,7 +231,7 @@ impl GameState {
             // Ability: no destination zone, so the stack removal is explicit —
             // same reason as the completed-ability arm in `resolve_taken`.
             self.stack.retain(|&x| x != object_id);
-            self.objects.remove(&object_id);
+            self.remove_object(object_id);
         }
 
         self.events.emit(GameEvent::SpellFizzled {

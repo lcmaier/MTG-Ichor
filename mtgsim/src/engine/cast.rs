@@ -187,7 +187,7 @@ impl GameState {
             cast_from: Some(cast_from),
             ability_identity: None,
         };
-        self.stack_entries.insert(card_id, entry);
+        self.set_stack_entry(entry);
 
         // --- 601.2e: Post-proposal legality check ---
         // At this point the only mutations are: card moved to stack + StackEntry created.
@@ -350,7 +350,7 @@ impl GameState {
         // We create a minimal GameObject to track it.
         let ability_obj = GameObject::new(card_data.clone(), player_id, Zone::Stack);
         let ability_obj_id = ability_obj.id;
-        self.objects.insert(ability_obj_id, ability_obj);
+        self.add_object(ability_obj);
         self.stack.push(ability_obj_id);
 
         // From here on, any Err path must call `rollback_ability_activation`
@@ -393,7 +393,7 @@ impl GameState {
             cast_from: None,
             ability_identity: Some(identity),
         };
-        self.stack_entries.insert(ability_obj_id, stack_entry);
+        self.set_stack_entry(stack_entry);
 
         // CR 602.2a — the ability is on the stack. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
@@ -543,8 +543,8 @@ impl GameState {
     /// validation or cost payment fails mid-activation (see D26 / SPECIAL-2).
     fn rollback_ability_activation(&mut self, ability_obj_id: ObjectId) {
         self.stack.retain(|&id| id != ability_obj_id);
-        self.stack_entries.remove(&ability_obj_id);
-        self.objects.remove(&ability_obj_id);
+        self.take_stack_entry(ability_obj_id);
+        self.remove_object(ability_obj_id);
     }
 
     /// Check whether a player can legally begin casting a spell (rule 601.3).

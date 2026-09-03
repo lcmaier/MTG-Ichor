@@ -8,6 +8,7 @@ use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
+use crate::state::layer_memo::LayerMemo;
 use crate::state::replacement_effects::ReplacementEffectRegistry;
 use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
@@ -166,6 +167,14 @@ pub struct GameState {
     /// unmeasurable, which is why every accessor is read-only and no engine
     /// module imports them.
     pub counters: crate::state::diagnostics::EngineCounters,
+    /// One counter every write to a layer-walk input bumps — the coarse key
+    /// of [`LayerMemo`]. Read through [`GameState::layer_epoch`], which folds
+    /// in the registry's own count; written through
+    /// [`GameState::bump_layer_epoch`]. → `layers-architecture.md` §12 "7a".
+    layer_epoch: u64,
+    /// The frames the walk has already computed at the current epoch. Read
+    /// and filled by `compute_characteristics` and nothing else.
+    pub(crate) layer_memo: LayerMemo,
     /// Exile zone
     pub exile: Vec<ObjectId>,
     /// Command zone
@@ -434,6 +443,8 @@ impl GameState {
             resolving: None,
             battlefield: HashMap::new(),
             counters: Default::default(),
+            layer_epoch: 0,
+            layer_memo: LayerMemo::default(),
             exile: Vec::new(),
             command: Vec::new(),
             turn_number: 1,
@@ -593,6 +604,42 @@ impl GameState {
         ts
     }
 
+    // --- Layer memo epoch (layers-architecture.md §12 "7a") ---
+
+    /// The epoch the layer memo keys on: a number that changes at every write
+    /// to a layer-walk input, and only then.
+    ///
+    /// Two monotone parts. `layer_epoch` is bumped by the writers listed on
+    /// [`GameState::bump_layer_epoch`]; `ContinuousEffectRegistry::mutations`
+    /// is bumped by the registry's own funnel, which is the one route to its
+    /// rows and cannot see this struct. Both only ever grow, so their sum
+    /// strictly increases at every write and two reads are equal exactly when
+    /// nothing was written between them.
+    pub fn layer_epoch(&self) -> u64 {
+        self.layer_epoch + self.continuous_effects.mutations()
+    }
+
+    /// A layer-walk input was written; every memoized frame is now stale.
+    ///
+    /// **After the write, never before it.** A performer may query between
+    /// the two — `place_on_battlefield` asks for the effective controller after
+    /// inserting the entity — and a bump on entry would hand that query a frame
+    /// from before the write.
+    ///
+    /// The inputs, and the one writer of each: `battlefield`, `objects[id].zone`
+    /// and the players' graveyards in `move_object`; the entity in
+    /// `place_on_battlefield`; its counters in `add_counters` /
+    /// `remove_counters`; the `objects` map in `add_object` / `remove_object`;
+    /// `stack_entries` in `set_stack_entry` / `take_stack_entry`; `resolving`
+    /// in `resolve_top_of_stack`; the registry's rows through its own
+    /// `mutating`. Status the walk never reads — `tapped`, damage, combat,
+    /// attachment, the mana pool — has no bump, and must not get one: every
+    /// bump costs one walk per queried object. `&mut self` on purpose, so a
+    /// read path cannot call this.
+    pub fn bump_layer_epoch(&mut self) {
+        self.layer_epoch += 1;
+    }
+
     // --- Battlefield convenience ---
 
     /// **The performer for `GameAction::EnterBattlefield`** (CR 614.1c/d).
@@ -627,6 +674,7 @@ impl GameState {
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
         self.battlefield.insert(id, entry);
+        self.bump_layer_epoch();
 
         // CR 122.6a. Deliberately not a nested `AddCounters` proposal: these
         // counters are part of the entry event rather than a separate "counters
@@ -742,6 +790,25 @@ impl GameState {
         if let Some(entry) = self.battlefield.get_mut(&id) {
             entry.add_counters(counter_type, n, timestamp);
         }
+        self.bump_layer_epoch();
+    }
+
+    /// Remove up to `n` counters of `counter_type` from a permanent; the number
+    /// actually removed.
+    ///
+    /// The counterpart of [`GameState::add_counters`] and, like it, the one
+    /// route to the entity's method: a counter is a layer-walk input (CR
+    /// 122.1a/b), so the write bumps the epoch — when it is a write. Removing
+    /// nothing from a permanent carrying nothing writes nothing.
+    pub fn remove_counters(&mut self, id: ObjectId, counter_type: CounterType, n: u32) -> u32 {
+        let Some(entry) = self.battlefield.get_mut(&id) else {
+            return 0;
+        };
+        let removed = entry.remove_counters(counter_type, n);
+        if removed > 0 {
+            self.bump_layer_epoch();
+        }
+        removed
     }
 
     /// Remove a permanent from combat (CR 506.4).
@@ -1374,7 +1441,41 @@ impl GameState {
     pub fn add_object(&mut self, obj: GameObject) -> ObjectId {
         let id = obj.id;
         self.objects.insert(id, obj);
+        self.bump_layer_epoch();
         id
+    }
+
+    /// Take an object out of the store: an ability that resolved, fizzled or
+    /// was countered (CR 608.2n, 701.6b), a token that ceased to exist (CR
+    /// 704.5d) or was never created (CR 111.5), an activation rewound.
+    ///
+    /// Not a zone change — none of those has a destination zone, which is why
+    /// `move_object` cannot do it — but a layer-walk input all the same: a
+    /// memo still answering for a deleted object would say it existed.
+    pub fn remove_object(&mut self, id: ObjectId) -> Option<GameObject> {
+        let removed = self.objects.remove(&id);
+        self.bump_layer_epoch();
+        removed
+    }
+
+    /// Record the `StackEntry` of a spell or ability on the stack (CR 601.2a,
+    /// 602.2a).
+    ///
+    /// A stack object's controller is read off its entry (CR 108.4, through
+    /// `compute::base_controller`), which makes the entry a layer-walk input.
+    pub fn set_stack_entry(&mut self, entry: StackEntry) {
+        self.stack_entries.insert(entry.object_id, entry);
+        self.bump_layer_epoch();
+    }
+
+    /// Take the `StackEntry` of `id` — at resolution, when countered, or on
+    /// a rewind. Taking nothing writes nothing.
+    pub fn take_stack_entry(&mut self, id: ObjectId) -> Option<StackEntry> {
+        let entry = self.stack_entries.remove(&id);
+        if entry.is_some() {
+            self.bump_layer_epoch();
+        }
+        entry
     }
 
     /// Get an immutable reference to a game object

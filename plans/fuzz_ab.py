@@ -32,8 +32,9 @@ arm is the baseline; every other arm's counters are diffed against it, so a
 construction.
 
 Reads the counters, not the milliseconds: the timing table prints ms per
-1,000 walks beside the median, because "the game got longer" and "the walk
-got slower" are different findings.
+1,000 walks and per 1,000 queries (walks plus memo hits) beside the median,
+because "the game got longer", "the walk got slower" and "fewer questions
+walked" are three different findings.
 """
 
 import argparse
@@ -63,6 +64,7 @@ ROWS = [
     ("Total damage", r"^\s+Total damage:\s+([\d.]+)"),
     ("Life changes", r"^\s+Life changes:\s+([\d.]+)"),
     ("Layer walks", r"^\s+Layer walks:\s+(\d+)"),
+    ("Memo hits", r"^\s+Memo hits:\s+(\d+)"),
     ("Layer frames", r"^\s+Layer frames:\s+(\d+)"),
     ("Frames/walk", r"^\s+Frames/walk:\s+([\d.]+)"),
     ("Replacement gathers", r"^\s+Replacement gathers:\s+(\d+)"),
@@ -71,7 +73,7 @@ ROWS = [
 THRESHOLDS = ["Errors", "Panics", "Uncast resolved", "Hit turn limit"]
 # The §3 table's rows, in its order; the four thresholds stay out of it.
 FIXTURE_ROWS = [r for r, _ in ROWS if r not in THRESHOLDS and r != "Max turns"]
-BOLD = {"Layer walks", "Layer frames", "Frames/walk", "Replacement gathers", "Restriction queries"}
+BOLD = {"Layer walks", "Memo hits", "Layer frames", "Frames/walk", "Replacement gathers", "Restriction queries"}
 
 
 def run(binary, args, out_path):
@@ -114,7 +116,7 @@ def counters(text):
 
 
 def fmt(name, value):
-    if name in ("Layer walks", "Layer frames") and value.isdigit():
+    if name in ("Layer walks", "Memo hits", "Layer frames") and value.isdigit():
         return f"{int(value):,}"
     return value
 
@@ -222,14 +224,21 @@ def main():
                 turn_p50[label].append(float(grab(text, r"^CPU/turn tail:\s+([\d.]+) p50")))
                 print(f"  round {r} {label:<12} CPU/game {cpu[label][-1]:8.2f} ms")
         walks = {a: float(counted[(a, "performance")][0]["Layer walks"]) for a in labels}
+        # Questions asked: walks plus memo hits. A binary from before the
+        # epoch memo prints no hits row, and every question it asked walked.
+        hits = {a: counted[(a, "performance")][0]["Memo hits"] for a in labels}
+        queries = {a: walks[a] + (float(hits[a]) if hits[a].isdigit() else 0.0) for a in labels}
         med = {a: statistics.median(cpu[a]) for a in labels}
         per_walk = {a: med[a] / walks[a] * 1000 for a in labels}
+        per_query = {a: med[a] / queries[a] * 1000 for a in labels}
         base = labels[0]
         print(f"\n{'':<22}" + "".join(f"{a:>18}" for a in labels))
         print(f"{'CPU/game median':<22}" + "".join(f"{med[a]:>18.2f}" for a in labels))
         print(f"{'  vs ' + base:<22}" + "".join(f"{(med[a] / med[base] - 1) * 100:>+17.1f}%" for a in labels))
         print(f"{'ms / 1,000 walks':<22}" + "".join(f"{per_walk[a]:>18.3f}" for a in labels))
         print(f"{'  vs ' + base:<22}" + "".join(f"{(per_walk[a] / per_walk[base] - 1) * 100:>+17.1f}%" for a in labels))
+        print(f"{'ms / 1,000 queries':<22}" + "".join(f"{per_query[a]:>18.3f}" for a in labels))
+        print(f"{'  vs ' + base:<22}" + "".join(f"{(per_query[a] / per_query[base] - 1) * 100:>+17.1f}%" for a in labels))
         print(f"{'CPU/game p50 median':<22}" + "".join(f"{statistics.median(p50[a]):>18.2f}" for a in labels))
         print(f"{'CPU/game p99 median':<22}" + "".join(f"{statistics.median(p99[a]):>18.2f}" for a in labels))
         print(f"{'CPU/turn p50 median':<22}" + "".join(f"{statistics.median(turn_p50[a]):>18.3f}" for a in labels))
