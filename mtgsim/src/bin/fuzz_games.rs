@@ -8,11 +8,14 @@
 //        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
 //
 // `--require` is the *coverage* instrument, as `--pool` is the *cost* one. It
-// forces one copy of each named card into every deck, seeds the deck's colours
-// from theirs so the cards are actually castable, and reports casts,
-// resolutions and the share of games each reached. An empty list changes
-// nothing: every RNG draw it adds is guarded, so a `--require` run and a timing
-// run come from the same binary without the first perturbing the second.
+// forces one copy of each named card into every deck and reports casts,
+// resolutions, the share of games each reached, and whether the board it met
+// was a random one. Nothing about the deck is bent toward the required card:
+// every deck's mana base can pay for anything (`random_deck`), which is what
+// let the mode stop seeding a deck's colours from the card's (2026-09-03). An
+// empty list changes nothing: every RNG draw it adds is guarded, so a
+// `--require` run and a timing run come from the same binary without the
+// first perturbing the second.
 //
 // **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events
 // and `resolved` counts departures from the stack, and a countered spell has
@@ -95,7 +98,6 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::ObjectId;
-use mtgsim::types::mana::ManaSymbol;
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -248,41 +250,6 @@ fn color_to_land(color: Color) -> &'static str {
     }
 }
 
-/// Extract the set of colors required by a card's mana cost.
-fn card_colors(card: &CardData) -> Vec<Color> {
-    let mut colors = Vec::new();
-    if let Some(ref cost) = card.mana_cost {
-        for sym in &cost.symbols {
-            match sym {
-                ManaSymbol::Colored(mt) => {
-                    if let Some(c) = mana_type_to_color(*mt) {
-                        if !colors.contains(&c) {
-                            colors.push(c);
-                        }
-                    }
-                }
-                ManaSymbol::Hybrid(a, b) => {
-                    for mt in [a, b] {
-                        if let Some(c) = mana_type_to_color(*mt) {
-                            if !colors.contains(&c) {
-                                colors.push(c);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    // Also use card's color identity
-    for c in &card.colors {
-        if !colors.contains(c) {
-            colors.push(*c);
-        }
-    }
-    colors
-}
-
 fn mana_type_to_color(mt: mtgsim::types::mana::ManaType) -> Option<Color> {
     match mt {
         mtgsim::types::mana::ManaType::White => Some(Color::White),
@@ -294,25 +261,40 @@ fn mana_type_to_color(mt: mtgsim::types::mana::ManaType) -> Option<Color> {
     }
 }
 
-/// How many of a deck's land slots are filled with nonbasic lands.
+/// How many of a deck's land slots are basic lands — one of each type.
+///
+/// Basics are what CR 305.7's "nonbasic" leaves alone, so a deck keeps one of
+/// each for the contrast: under Blood Moon they are the only lands still making
+/// anything but red. Every other land slot is nonbasic, below.
+const BASIC_LANDS_PER_DECK: usize = 5;
+
+/// How many of a deck's land slots are drawn from the registry's nonbasic
+/// lands — the ten original duals and Everywhere, uniformly.
 ///
 /// A flat constant over a static pool, not a mana-base model. Replace it with a
-/// real picker when card breadth (Phase 8) gives it something to choose between;
-/// today the entire nonbasic pool is the ten original duals.
+/// real picker when card breadth (Phase 8) gives it something to choose between.
 const NONBASIC_LANDS_PER_DECK: usize = 5;
 
-/// Generate a color-coherent 60-card deck.
+/// Build one 60-card deck.
 ///
-/// 1. Pick 1-2 colors randomly.
-/// 2. Select all nonland cards whose color requirements are a subset of the
-///    chosen colors.
-/// 3. Fill 36 nonland slots from that pool (with repeats).
-/// 4. Fill up to `NONBASIC_LANDS_PER_DECK` land slots from the registry's
-///    nonbasic lands, then the rest with basics.
+/// 1. 36 nonland slots, drawn uniformly with repeats from **every** nonland the
+///    registry holds. There is no colour filter (dropped 2026-09-03): the mana
+///    base below can pay for anything, so a filter would only decide which
+///    slice of the pool a card gets to meet.
+/// 2. `NONBASIC_LANDS_PER_DECK` slots from the registry's nonbasic lands.
+/// 3. `BASIC_LANDS_PER_DECK` basics, one of each type.
+/// 4. Every remaining land slot is a land that taps for all five colours —
+///    Everywhere, today. A pool with no such land falls back to basics.
+///
+/// Until 2026-09-03 a deck rolled one or two colours and drew only the nonlands
+/// castable in them, because every land in the registry made one or two
+/// colours and a random 36 over random basics would have cast nothing. That is
+/// also why `--require` seeded a deck's colours from the required card's — which
+/// put a forced `{1}{G}{U}` against a G/U board in every game and never against
+/// a black, red or green card. An any-colour mana base removes both.
 ///
 /// Deck construction is deliberately crude — this is a fuzz harness, not a
 /// deckbuilder. It exists to produce a legal 60 that casts spells and attacks.
-/// Build one 60-card deck.
 ///
 /// `required` is `--require`'s list, and **an empty list must leave this
 /// function exactly as it was**: every RNG draw below is guarded so that the
@@ -325,65 +307,13 @@ fn random_deck(
     rng: &mut StdRng,
     required: &[Arc<CardData>],
 ) -> Vec<Arc<CardData>> {
-    let all_colors = [Color::White, Color::Blue, Color::Black, Color::Red, Color::Green];
+    let build = |name: &str| registry.create(name).ok();
+    let is_land = |card: &CardData| card.types.contains(&CardType::Land);
 
-    // Pick 1-2 colors
-    let num_colors = if rng.random_bool(0.6) { 2 } else { 1 };
-    let mut deck_colors: Vec<Color> = Vec::new();
-
-    // **A required card's colours come first, and this is the half that makes
-    // the mode worth having.** Forcing a `{1}{G}{U}` instant into a mono-red
-    // deck includes it and never casts it, which reports the same thin number
-    // the mode exists to fix. Seeding the deck's colours from the required
-    // cards is what makes "guaranteed inclusion" mean "guaranteed castable".
-    //
-    // **And it narrows the board, which is the price and is worth stating.**
-    // `--require Mirrorweave` makes every deck W/U, so nothing black, red or
-    // green is in any game — the required card is exercised against one
-    // colour pair rather than against the pool. So this measures *"can the
-    // path be walked"*, not *"what does it meet"*, and a phase should not read
-    // interaction coverage off it.
-    //
-    // **The seeding is a workaround for a missing land, not a design choice.**
-    // `random_deck` filters the nonland pool by deck colours *before* drawing,
-    // so a WU card is not a candidate for a mono-red deck even if the mana
-    // existed. `--require` bypasses that filter by force-inserting; what it
-    // cannot bypass is the deck having no white or blue sources. A
-    // five-colour land removes that second problem, and then the seeding can
-    // go — forced insertion plus any-colour mana gives a *diverse* board that
-    // still casts the card. `plans/handoffs/pool-five-colour-land.md`.
-    for card in required {
-        for c in card_colors(card) {
-            if !deck_colors.contains(&c) {
-                deck_colors.push(c);
-            }
-        }
-    }
-
-    while deck_colors.len() < num_colors {
-        let &c = all_colors.choose(rng).unwrap();
-        if !deck_colors.contains(&c) {
-            deck_colors.push(c);
-        }
-    }
-
-    // Find nonland cards castable in these colors
-    let nonland_names: Vec<String> = registry
+    let nonland_names: Vec<&str> = registry
         .card_names()
         .into_iter()
-        .filter(|name| {
-            if let Ok(card) = registry.create(name) {
-                if card.types.contains(&CardType::Land) {
-                    return false;
-                }
-                let required = card_colors(&card);
-                // All required colors must be in our deck colors
-                required.iter().all(|c| deck_colors.contains(c))
-            } else {
-                false
-            }
-        })
-        .map(|s| s.to_string())
+        .filter(|name| build(name).is_some_and(|card| !is_land(&card)))
         .collect();
 
     let mut deck: Vec<Arc<CardData>> = Vec::with_capacity(60);
@@ -394,7 +324,7 @@ fn random_deck(
             break;
         }
         let name = nonland_names.choose(rng).unwrap();
-        if let Ok(card) = registry.create(name) {
+        if let Some(card) = build(name) {
             deck.push(card);
         }
     }
@@ -411,7 +341,7 @@ fn random_deck(
     let mut required_lands: Vec<&Arc<CardData>> = Vec::new();
     let mut slot = 0usize;
     for card in required {
-        if card.types.contains(&CardType::Land) {
+        if is_land(card) {
             required_lands.push(card);
             continue;
         }
@@ -427,58 +357,63 @@ fn random_deck(
     let nonland_count = deck.len();
     let land_count = 60 - nonland_count;
 
-    // Nonbasic lands first, then basics for whatever is left.
-    //
-    // Without these every land in every deck was a basic, which made Blood Moon
-    // inert and left CR 305.7 with no random-play coverage at all. A land
-    // qualifies if it produces at least one of the deck's colours — not a subset
-    // test, deliberately: a two-colour deck's duals are all off by one colour
-    // under a subset rule, and a mono-colour deck would get none at all. An
-    // unusable second colour on a land costs nothing here.
-    let nonbasic_names: Vec<String> = registry
+    let nonbasic_names: Vec<&str> = registry
         .card_names()
         .into_iter()
         .filter(|name| {
-            let Ok(card) = registry.create(name) else { return false };
-            if !card.types.contains(&CardType::Land) {
-                return false;
-            }
-            if card.supertypes.contains(&Supertype::Basic) {
-                return false;
-            }
-            let produced = land_mana_colors(&card);
-            produced.iter().any(|c| deck_colors.contains(c))
+            build(name)
+                .is_some_and(|card| is_land(&card) && !card.supertypes.contains(&Supertype::Basic))
         })
-        .map(|s| s.to_string())
         .collect();
 
-    let nonbasic_slots = NONBASIC_LANDS_PER_DECK.min(land_count);
-    let mut nonbasics_added = 0;
-    // Required lands come out of the nonbasic budget, so the land count is
-    // unchanged and only *which* nonbasics were drawn moves.
+    // Nonbasic lands first: `NONBASIC_LANDS_PER_DECK` draws whatever `required`
+    // holds, so the RNG stream does not depend on the flag. A required land goes
+    // in ahead of them and takes its slot from the any-colour fill at the end,
+    // so the land count does not depend on it either.
+    let mut lands_added = 0usize;
     for card in &required_lands {
-        if nonbasics_added < nonbasic_slots {
+        if lands_added < land_count {
             deck.push((*card).clone());
-            nonbasics_added += 1;
+            lands_added += 1;
         }
     }
     if !nonbasic_names.is_empty() {
-        for _ in 0..nonbasic_slots {
+        for _ in 0..NONBASIC_LANDS_PER_DECK.min(land_count) {
             let name = nonbasic_names.choose(rng).unwrap();
-            if let Ok(card) = registry.create(name) {
+            if let Some(card) = build(name) {
                 deck.push(card);
-                nonbasics_added += 1;
+                lands_added += 1;
             }
         }
     }
 
-    // Basics fill the rest, split evenly among colors.
-    let basic_names: Vec<&str> = deck_colors.iter().map(|c| color_to_land(*c)).collect();
-    for i in 0..(land_count - nonbasics_added) {
-        let land_name = basic_names[i % basic_names.len()];
-        if let Ok(card) = registry.create(land_name) {
+    // One basic of each type.
+    let basics = [Color::White, Color::Blue, Color::Black, Color::Red, Color::Green];
+    for i in 0..BASIC_LANDS_PER_DECK.min(land_count.saturating_sub(lands_added)) {
+        if let Some(card) = build(color_to_land(basics[i % basics.len()])) {
+            deck.push(card);
+            lands_added += 1;
+        }
+    }
+
+    // Everything else taps for any colour.
+    let any_colour: Vec<&str> = nonbasic_names
+        .iter()
+        .copied()
+        .filter(|name| build(name).is_some_and(|card| land_mana_colors(&card).len() == 5))
+        .collect();
+    let mut i = 0usize;
+    while lands_added < land_count {
+        let name = if any_colour.is_empty() {
+            color_to_land(basics[i % basics.len()])
+        } else {
+            any_colour[i % any_colour.len()]
+        };
+        if let Some(card) = build(name) {
             deck.push(card);
         }
+        lands_added += 1;
+        i += 1;
     }
 
     deck
@@ -532,17 +467,27 @@ struct GameStats {
     /// point of this mode is "was the path walked", so both are reported and
     /// the gap between them is itself information.
     reach: Vec<(String, u32, u32)>,
+    /// `--require` board diversity: a permanent of a colour no required card
+    /// has entered the battlefield this game. False unless the flag is set.
+    ///
+    /// **This is what dropping the colour seeding bought, and the resolution
+    /// count cannot see it.** A forced card that resolves 390 times against
+    /// the same colour pair has walked its path and met nothing; this says
+    /// whether the board it met was the pool's or a hand-picked slice of it.
+    met_another_colour: bool,
 }
 
 /// Extract action statistics from raw GameEvents.
 ///
-/// `game` and `watch` are only read when `--require` named cards: resolving an
-/// `ObjectId` to a card name needs the object store, and doing it per event on
-/// every run would be a `HashMap` probe the default path does not owe.
+/// `game`, `watch` and `required_colours` are only read when `--require` named
+/// cards: resolving an `ObjectId` to a card name needs the object store, and
+/// doing it per event on every run would be a `HashMap` probe the default path
+/// does not owe.
 fn extract_stats<'a>(
     events: impl Iterator<Item = &'a GameEvent>,
     game: &mtgsim::state::game_state::GameState,
     watch: &[String],
+    required_colours: &std::collections::HashSet<Color>,
 ) -> GameStats {
     let mut stats = GameStats::default();
     stats.reach = watch.iter().map(|n| (n.clone(), 0, 0)).collect();
@@ -578,6 +523,17 @@ fn extract_stats<'a>(
             GameEvent::LifeChanged { .. } => stats.life_changes += 1,
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
                 stats.combat_phases_with_attackers += 1;
+            }
+            GameEvent::PermanentEnteredBattlefield { object_id, .. } => {
+                // Printed colours, deliberately, for the reason `named` reads
+                // the printed name: the question is which *cards* the required
+                // one met, and a copy's effective colour is its donor's.
+                if !watch.is_empty() && !stats.met_another_colour {
+                    let printed = game.objects.get(object_id).map(|o| &o.card_data.colors);
+                    if printed.is_some_and(|cs| cs.iter().any(|c| !required_colours.contains(c))) {
+                        stats.met_another_colour = true;
+                    }
+                }
             }
             GameEvent::ZoneChange { object_id, from, to, cause, lki, .. } => {
                 use mtgsim::types::zones::Zone;
@@ -682,6 +638,8 @@ struct AggregateStats {
     games_counted: u64,
     /// `(name, cast, resolved, games_in_which_it_resolved)`.
     reach: Vec<(String, u64, u64, u64)>,
+    /// Games in which `GameStats::met_another_colour` was set.
+    games_met_another_colour: u64,
 }
 
 impl AggregateStats {
@@ -708,6 +666,9 @@ impl AggregateStats {
                     row.3 += 1;
                 }
             }
+        }
+        if game.met_another_colour {
+            self.games_met_another_colour += 1;
         }
         self.games_counted += 1;
     }
@@ -821,6 +782,11 @@ fn run_one_game(
     let deck1 = random_deck(registry, &mut deck_rng, required);
     let deck2 = random_deck(registry, &mut deck_rng, required);
 
+    // The colours the required cards have between them, for the diversity
+    // line: a permanent outside this set is one the seeding used to exclude.
+    let required_colours: std::collections::HashSet<Color> =
+        required.iter().flat_map(|c| c.colors.iter().copied()).collect();
+
     let started = Instant::now();
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         let config = GameConfig::test();
@@ -847,8 +813,12 @@ fn run_one_game(
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
             uncast_resolutions(game.state.events.events(), &game.state),
             {
-                let mut s =
-                    extract_stats(game.state.events.events(), &game.state, require_names);
+                let mut s = extract_stats(
+                    game.state.events.events(),
+                    &game.state,
+                    require_names,
+                    &required_colours,
+                );
                 // Read once at the end of the game rather than accumulated per
                 // turn: the counters are monotonic for the game's lifetime and
                 // nothing resets them, so the final value *is* the total.
@@ -1008,7 +978,7 @@ fn main() {
         .collect();
     if !required.is_empty() {
         println!(
-            "Required in every deck: {}  (deck colours are seeded from theirs)",
+            "Required in every deck: {}  (one copy each, in a nonland slot; the deck is otherwise random)",
             args.require.join(", ")
         );
     }
@@ -1279,6 +1249,36 @@ fn main() {
         if !dead.is_empty() {
             println!("  NEVER RESOLVED: {}", dead.join(", "));
         }
+        // What the required cards met. Their colours are what the deck used to
+        // be seeded with, so this is the share of games that would have had no
+        // such permanent under the old mode — and the number the resolution
+        // count cannot see.
+        let required_colours: std::collections::HashSet<Color> =
+            required.iter().flat_map(|c| c.colors.iter().copied()).collect();
+        let mut letters: Vec<&str> = Vec::new();
+        for (colour, letter) in [
+            (Color::White, "W"),
+            (Color::Blue, "U"),
+            (Color::Black, "B"),
+            (Color::Red, "R"),
+            (Color::Green, "G"),
+        ] {
+            if required_colours.contains(&colour) {
+                letters.push(letter);
+            }
+        }
+        let pct = if agg_stats.games_counted == 0 {
+            0.0
+        } else {
+            agg_stats.games_met_another_colour as f64 * 100.0 / agg_stats.games_counted as f64
+        };
+        println!(
+            "  Board diversity: {} of {} games ({:.0}%) saw a permanent of a colour outside {{{}}}",
+            agg_stats.games_met_another_colour,
+            agg_stats.games_counted,
+            pct,
+            letters.join(""),
+        );
     }
 
     if panics > 0 || errors > 0 || uncast > 0 {
@@ -1288,9 +1288,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{percentile, random_deck};
+    use super::{
+        land_mana_colors, percentile, random_deck, BASIC_LANDS_PER_DECK,
+        NONBASIC_LANDS_PER_DECK,
+    };
     use mtgsim::cards::registry::CardRegistry;
+    use mtgsim::objects::card_data::CardData;
+    use mtgsim::types::card_types::{CardType, Supertype};
     use rand::{rngs::StdRng, SeedableRng};
+
+    fn is_land(card: &CardData) -> bool {
+        card.types.contains(&CardType::Land)
+    }
 
     /// **The property the whole `--require` design rests on.** A reachability run
     /// and a timing run come from one binary, so an empty list has to leave the
@@ -1337,9 +1346,10 @@ mod tests {
         }
     }
 
-    /// A required card is in every deck, whatever the deck's colours rolled,
-    /// and the deck is still 60 cards — it replaces a nonland slot rather than
-    /// adding one, so mana density is untouched.
+    /// A required card is in every deck and the deck is still 60 cards — it
+    /// replaces a nonland slot rather than adding one, so mana density is
+    /// untouched. Nothing else about the deck bends toward it: the mana base
+    /// below is what makes inclusion mean *castable*.
     #[test]
     fn a_required_card_is_in_every_deck_and_the_deck_stays_sixty() {
         let registry = CardRegistry::performance_pool();
@@ -1352,13 +1362,56 @@ mod tests {
                 deck.iter().any(|c| c.name == "Cytoshape"),
                 "every deck contains the required card"
             );
-            // The colours are seeded from the required card, which is what makes
-            // inclusion mean *castable* rather than merely present.
-            assert!(
-                deck.iter().any(|c| c.name == "Forest"),
-                "a green requirement puts green sources in the deck"
-            );
-            assert!(deck.iter().any(|c| c.name == "Island"), "and blue ones");
+        }
+    }
+
+    /// The mana base: one basic of each type, `NONBASIC_LANDS_PER_DECK` draws,
+    /// and every other land slot taps for all five colours. That last tier is
+    /// what lets a forced `{1}{G}{U}` be cast in a deck that never rolled green
+    /// or blue — there is no roll any more — and it holds in both pools.
+    #[test]
+    fn every_deck_can_make_every_colour_and_keeps_a_basic_of_each_type() {
+        for registry in [CardRegistry::performance_pool(), CardRegistry::default_registry()] {
+            let mut rng = StdRng::seed_from_u64(11);
+            for _ in 0..10 {
+                let deck = random_deck(&registry, &mut rng, &[]);
+                let lands: Vec<&CardData> =
+                    deck.iter().map(|c| c.as_ref()).filter(|c| is_land(c)).collect();
+                assert_eq!(lands.len(), 24, "36 nonlands, 24 lands");
+
+                let basics: Vec<&str> = lands
+                    .iter()
+                    .filter(|c| c.supertypes.contains(&Supertype::Basic))
+                    .map(|c| c.name.as_str())
+                    .collect();
+                assert_eq!(basics.len(), BASIC_LANDS_PER_DECK);
+                for basic in ["Plains", "Island", "Swamp", "Mountain", "Forest"] {
+                    assert!(basics.contains(&basic), "one {basic} in every deck");
+                }
+
+                let any_colour = lands.iter().filter(|c| land_mana_colors(c).len() == 5).count();
+                assert!(
+                    any_colour >= 24 - BASIC_LANDS_PER_DECK - NONBASIC_LANDS_PER_DECK,
+                    "the fill tier taps for any colour; got {any_colour}"
+                );
+            }
+        }
+    }
+
+    /// Nonlands are drawn from the whole pool, not a colour-filtered slice of
+    /// it: a deck holds cards of more colours than any two-colour roll allowed.
+    #[test]
+    fn nonlands_are_drawn_from_the_whole_pool() {
+        let registry = CardRegistry::performance_pool();
+        let mut rng = StdRng::seed_from_u64(5);
+        for _ in 0..10 {
+            let deck = random_deck(&registry, &mut rng, &[]);
+            let colours: std::collections::HashSet<_> = deck
+                .iter()
+                .filter(|c| !is_land(c))
+                .flat_map(|c| c.colors.iter().copied())
+                .collect();
+            assert!(colours.len() >= 3, "36 draws from the whole pool span colours; got {colours:?}");
         }
     }
 

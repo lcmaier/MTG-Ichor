@@ -44,7 +44,7 @@ use super::phase_sba_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 63] = [
+const PERFORMANCE_POOL: [&str; 64] = [
     "Plains",
     "Island",
     "Swamp",
@@ -136,6 +136,14 @@ const PERFORMANCE_POOL: [&str; 63] = [
     // registered but stays out: it opens the same engine path, and a second
     // copy of one path buys a slower fuzz run rather than a wider one.
     "Cytoshape",
+    // The mana base (2026-09-03). Not a new engine path — five printed mana
+    // abilities and five basic land types, the same shape as the duals — but
+    // the land `random_deck` fills every unassigned land slot with, so the
+    // pool cannot build a deck without it. With it, every deck can pay for
+    // anything, the nonland draw stopped filtering by colour, and `--require`
+    // stopped seeding a deck's colours from the required card's. The widest
+    // board CR 305.7 has: Blood Moon strips five abilities here, not two.
+    "Everywhere",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
