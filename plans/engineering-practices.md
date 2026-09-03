@@ -133,7 +133,7 @@ across months buys the timing measurement nothing.
   while wearing Inside Out's name, and `codebase-state.md` item 15's "Mind
   Snare" was an invented name that reached the corpus and `roadmap.md` as a
   printed card. A fixture with its own name, or a token with its real text
-  (Everywhere, `cards/token_lands.rs`, is the first admitted under this rule
+  (Everywhere, `cards/dual_lands.rs::everywhere`, is the first admitted under this rule
   as written), misleads nobody; a doc that cites either as a fact about Magic
   does.
 - **`PERFORMANCE_POOL` measures cost; `--require` measures coverage. Do not

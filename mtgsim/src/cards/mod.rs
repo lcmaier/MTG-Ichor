@@ -1,7 +1,6 @@
 pub mod registry;
 pub mod basic_lands;
 pub mod dual_lands;
-pub mod token_lands;
 pub mod alpha;
 pub mod artifacts;
 pub mod creatures;

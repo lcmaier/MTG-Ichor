@@ -1,4 +1,5 @@
-//! The ten original dual lands (Alpha).
+//! The lands `fuzz_games` builds a mana base from: the ten original dual
+//! lands (Alpha), and Everywhere.
 //!
 //! Registered so `fuzz_games` has nonbasic lands to build a mana base from. Until
 //! they existed, `random_deck` filled every land slot from a colour→basic table,
@@ -105,6 +106,44 @@ pub fn plateau() -> Arc<CardData> {
 /// Tropical Island — Land — Forest Island
 pub fn tropical_island() -> Arc<CardData> {
     dual("Tropical Island", LandType::Forest, LandType::Island)
+}
+
+/// Everywhere
+/// Token Land — Plains Island Swamp Mountain Forest
+/// ({T}: Add {W}, {U}, {B}, {R}, or {G}.)
+///
+/// (Scryfall, 2026-09-03.) **A token in the real game, not a card** — the one
+/// Overlord of the Hauntwoods creates. It is in the registry because it is the
+/// only source of every color, which is what let `fuzz_games --require` stop
+/// seeding a deck's colors from the required card's; real "add one mana of any
+/// color" is not expressible yet (`backlog.md` §2.19). Test-only, like the
+/// rest of this module.
+///
+/// **Its text box is reminder text, not rules text** (CR 207.2). The type line
+/// is the whole object and the five mana abilities are CR 305.6's intrinsics,
+/// written out for the reason in this module's doc; `rules_text` carries the
+/// reminder text so the display shows what the token shows, and not the
+/// `{T}: Add {W}.` the builder would otherwise invent from the first ability.
+///
+/// **It does not enter tapped.** "Create a *tapped* Everywhere token" is the
+/// Overlord's instruction, not the token's text, so there is no `EnterWith` —
+/// which is also what makes it a no-downside source where a tapland pushes
+/// every deck's curve back a turn.
+pub fn everywhere() -> Arc<CardData> {
+    CardDataBuilder::new("Everywhere")
+        .card_type(CardType::Land)
+        .subtype(Subtype::Land(LandType::Plains))
+        .subtype(Subtype::Land(LandType::Island))
+        .subtype(Subtype::Land(LandType::Swamp))
+        .subtype(Subtype::Land(LandType::Mountain))
+        .subtype(Subtype::Land(LandType::Forest))
+        .rules_text("({T}: Add {W}, {U}, {B}, {R}, or {G}.)")
+        .mana_ability_single(ManaType::White)
+        .mana_ability_single(ManaType::Blue)
+        .mana_ability_single(ManaType::Black)
+        .mana_ability_single(ManaType::Red)
+        .mana_ability_single(ManaType::Green)
+        .build()
 }
 
 #[cfg(test)]

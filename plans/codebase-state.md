@@ -913,6 +913,18 @@ built, and none of it blocks RC-1 through RC-3.
     Not chased here: the fix is agent-side and moves game content a third
     time, and this PR already moves it once.
 
+    **The cheap first step is in the DP, not the engine (owner's question,
+    2026-09-03).** In the 601.2g window `RandomDecisionProvider` can prefer
+    an ability that produces a color the `remaining_cost` still has a pip
+    of, and take anything only once the pips are covered — about twenty
+    lines against `available_mana_sources`, a *policy* rather than payment
+    law, which a DP may hold (the prompt still offers every legal ability).
+    It pairs with §2.18's ten-line split clamp: the guard puts the right
+    colors in the pool and the clamp stops the generic part spending one of
+    them, and either alone leaves the other's failures. Its own PR with a
+    re-record, and the halving above is its acceptance test; every
+    multicolor card added makes it worth more.
+
     **What the pool change did to the fixtures** is in
     `engineering-practices.md` §3, separated into the registration (nothing:
     the middle arm reproduces `main` byte for byte on `performance`) and the
@@ -2578,7 +2590,7 @@ Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giv
 
 Still crude, and knowingly so: a flat constant over a static pool is not a mana-base model. Replace it with a real picker when card breadth (Phase 8) gives it something to choose between.
 
-**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colours, which is why a deck rolled one or two colours and filtered its nonlands to them, and why `--require` had to seed those colours from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land is **Everywhere** (`cards/token_lands.rs`), the five-type token: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the colour roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (198 of 200 games with a non-G/U permanent, from 0) at half the resolutions, and the half is the random agent's tapping, not the deck.
+**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colours, which is why a deck rolled one or two colours and filtered its nonlands to them, and why `--require` had to seed those colours from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land is **Everywhere** (`cards/dual_lands.rs::everywhere`), the five-type token: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the colour roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (198 of 200 games with a non-G/U permanent, from 0) at half the resolutions, and the half is the random agent's tapping, not the deck.
 
 **~~Still open — no artifact exists anywhere in `CardRegistry`~~ — ✅ fixed 2026-08-24, together with the Layer 7d hole.** March of the Machines was registered and inert for the same reason Blood Moon had been: nothing in the crate outside the `phase_l*` fixtures was an artifact, so Layer 7b had zero random-play coverage. Layer 7d had none either — no registered card switched P/T, and the one fixture that does (`phase5_pre_cards::inside_out`) simplifies a hybrid cost the engine cannot express, so it cannot be registered without misrepresenting the card.
 

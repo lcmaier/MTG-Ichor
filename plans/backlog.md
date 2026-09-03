@@ -491,7 +491,7 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   already anticipate a Cavern of Souls whose second mode is "add one mana of
   any color", and today that mode would have to be five abilities. **The
   fuzz pool sidestepped it on 2026-09-03** with Everywhere
-  (`cards/token_lands.rs`): five one-colour abilities, so the colour *is*
+  (`cards/dual_lands.rs::everywhere`): five one-colour abilities, so the colour *is*
   the ability picked in the 601.2g window. That is faithful for a five-type
   land and wrong for everything below, which prints one ability and a choice.
 - **Size** — small-to-medium. A `ManaOutput` arm (or a `ManaAtom`) for "one

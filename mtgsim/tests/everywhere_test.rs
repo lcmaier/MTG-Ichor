@@ -1,7 +1,7 @@
-//! Everywhere — the registry's five-colour land — behaves as its text says.
+//! Everywhere — the registry's five-color land — behaves as its text says.
 //!
 //! Three claims, each one a game can falsify: it taps for any one of the five
-//! colours and only once; it enters untapped, because "tapped" is Overlord of
+//! colors and only once; it enters untapped, because "tapped" is Overlord of
 //! the Hauntwoods' creation instruction rather than the token's own text; and
 //! CR 305.7 strips all five printed abilities under Blood Moon exactly as it
 //! strips a dual's two. The last is the one that makes the land safe in the
@@ -9,7 +9,7 @@
 //! widest board CR 305.7's carve-out has had.
 
 use mtgsim::cards::phase_ld_cards::blood_moon;
-use mtgsim::cards::token_lands::everywhere;
+use mtgsim::cards::dual_lands::everywhere;
 use mtgsim::oracle::characteristics::get_effective_subtypes;
 use mtgsim::oracle::mana_helpers::available_mana_sources;
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx};
@@ -31,7 +31,7 @@ fn offered(game: &mtgsim::state::game_state::GameState, land: mtgsim::types::ids
 }
 
 #[test]
-fn test_everywhere_offers_each_of_the_five_colours_and_taps_for_one() {
+fn test_everywhere_offers_each_of_the_five_colors_and_taps_for_one() {
     let mut game = setup_two_player_game();
     let land = put_on_battlefield(&mut game, everywhere(), 0);
 
