@@ -523,6 +523,82 @@ Three things this must get right, each with a rule behind it:
   ability in the engine. Worth a comment at the capture site; it is not
   recoverable from the code.
 
+**The producer's type surface, decided in CV-1.** `Primitive::Copy` needs one
+bit the `{ source, target, duration }` sketch above does not have: **the two
+cards CV-1 ships bind the atom's target to opposite roles.** Cytoshape targets
+the permanent that *becomes* a copy and chooses the donor; Mirrorweave targets
+the *donor* and affects every other creature. So the primitive carries which
+role the atom's own recipients play, and where the other role comes from:
+
+```rust
+/// Which role the atom's recipients play, and where the other role comes from.
+/// One arm per *role binding*, not per card — Tier C splits into these two, and
+/// Polymorphous Rush's Strive targets are the first arm with n > 1.
+pub enum CopyRoles {
+    /// The recipients become copies of a permanent **chosen** as the effect
+    /// resolves (CR 707.4; not targeted). Cytoshape, Polymorphous Rush.
+    RecipientsCopyChosen(SelectionFilter),
+    /// The recipient supplies the values and every permanent matching the
+    /// filter becomes a copy of it. Mirrorweave, Mirrorform.
+    FilteredCopyRecipient { filter: PermanentFilter, exclude_donor: bool },
+}
+
+Copy(CopyRoles, Duration)
+```
+
+Rejected: a `{ from: .., to: .. }` product of two enums. Two of its four
+combinations are nonsense — a recipient copying itself, and "each other" with no
+donor to be other than — and encoding unreachable states is how an arm
+eventually gets written for one.
+
+> **`exclude_donor` is a field because review found the card that needs it
+> `false`.** The arm shipped as `OthersCopyRecipient(PermanentFilter)`, with the
+> exclusion **structural**, on the reading that a class-scoped copy always says
+> "each *other*". **Mirrorform** — "Each nonland permanent you control becomes a
+> copy of target non-Aura permanent" — prints the same shape without the word,
+> so its affected set includes the target, and the structural arm could not
+> express it at all.
+>
+> **The census could not have caught this**, and that is the transferable part:
+> `copy-census.py` partitions by *mechanism*, and Mirrorweave and Mirrorform are
+> one mechanism. A one-word difference lives **inside** a bucket, which is §9
+> item 8's finding in a second costume. Reading three cards from the bucket
+> catches it; a partition never will. Now a practice line in
+> `engineering-practices.md` §3: before making a word in a card's text
+> structural, find two more cards in the bucket and check they print it.
+>
+> A permanent copying *itself* is very nearly a no-op — the capture is its own
+> post-layer-1 state — but not exactly one, and CR-correctly so: the row carries
+> its own `Duration`, so it holds those values past the expiry of an earlier copy
+> row that put them there.
+
+**The choice site, and what carries the chosen id (`codebase-state.md` item
+40).** Cytoshape's donor is a CR 707.4 *choice* made on resolution, so it gets
+its own decision site and its own `ChoiceKind::ChooseCopySource { spell_id }`.
+**Not `SelectRecipients`, which `sacrifice_of_choice` reuses** — there the
+chosen permanent *is* what the primitive acts on, and here it is the exact
+opposite: the donor is the one permanent a copy effect does **not** change. A
+`DecisionProvider` heuristic keyed on `SelectRecipients` would read the donor as
+the victim, which is backwards, and the `EffectRecipient` field is what would be
+lying to it.
+
+What carries the chosen id between the prompt and the row is **a local that
+never spans a second decision**: `ask_choose_copy_source` returns it, the
+capture runs, the row is registered, and the arm returns — one prompt, nothing
+consulted across it. Item 40's invariant therefore holds by construction rather
+than by care, and *that* is the property to preserve, not the locality: the
+violator it contrasts with (`apply_replacements`) is a violator precisely
+because it prompts repeatedly and reads its sets between prompts. A later phase
+that splits this into two prompts — donor, then affected set — puts
+outcome-bearing state on the stack and has to move it onto `GameState`.
+
+**Prompting only with two or more candidates.** With exactly one nonlegendary
+creature the choice is forced, and CV-1 takes it without asking — CR 102.2's
+shape, the same one `ChooseEnteringController` already uses. This is *not* CR
+616.1's rule (that one is about which of several effects applies); it is the
+same conclusion reached separately, and it is what keeps every scripted test at
+zero new prompts.
+
 **CR 707.4's re-copy**: "Some effects cause a permanent that's copying a
 permanent to copy a different object while remaining on the battlefield. The
 change doesn't cause enters-the-battlefield or leaves-the-battlefield abilities
@@ -623,6 +699,17 @@ second instance of the same bug, in the layer system rather than the pipeline.
 > every such gate. Layer 1 (copy) and Layer 3 (text-change) are the two that do
 > not exist yet, and **both must add a leg to every gate below.**
 
+> **Correction, CV-1: there are two gates, not one.** This section was
+> written before RS-1 shipped, and RS-1 built a second one to the same recipe -
+> `restriction_ability_sources` + `RegistryScopeSummary::any_granted_restriction`,
+> read at `restriction/predicate.rs:87`, under a comment that already named CV-1
+> as the owner of its third leg. A copied "can't" is dead on every board that
+> gate short-circuits, exactly as a copied replacement is. **CV-1 adds both
+> legs.** The general rule below is unchanged and is what predicted the second
+> one; recorded as a finding rather than quietly fixed, because the count is the
+> point. The rule generates one leg per gate per new route to the effective
+> ability list, and *the number of gates* is the term that grows.
+
 **Leg 1 — `gather`'s gate (I9).** `game_state.rs:249` claims "between them the
 gate is sound", resting on `replacement_ability_sources` (printed abilities,
 inserted at ETB, `game_state.rs:760`) and
@@ -665,6 +752,17 @@ rather than a gate being wrong. CV-1 must re-run static registration against the
 captured ability list at the moment a `CopyFrom` row is created or replaced, and
 remove those rows when it expires. Sized in §7; it is the reason CV-1 is not a
 one-arm PR.
+
+> **As built (CV-1): `register_copied_static_effects`, and the "remove" half
+> turned out to be free.** These rows are `EffectOrigin::StaticAbility`, so CR
+> 613.7a re-checks at every layer whether the source still *has* the ability —
+> against a frame that includes layer 1. A copy that expired, or that a CR 707.4
+> re-copy superseded, takes the ability off that frame and the derived row stops
+> applying on the very next walk, whatever the registry still holds. Hygiene is
+> bought by giving each derived row the copy row's own `Duration`, so both expire
+> in one CR 514.2 sweep and `remove_by_source` takes both on a zone change. The
+> residue is a re-copy inside one turn: Deferred Migrations, and CV-1b's
+> prerequisite rather than CV-1's bug.
 
 **Leg 3 — anything Phase 6 adds.** Triggered-ability registration will want the
 same ETB scan and must take the effective list or a copy's triggers will be
@@ -946,6 +1044,124 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | **CV-6 — face-down (CR 708)** | Layer 1b, `BattlefieldEntity.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `cast.rs`'s alternative-cost sites before anyone commits a number |
 | **CV-7 — merging + meld (CR 729, 712.4)** | A multi-component `BattlefieldEntity`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
 
+### 7a. CV-1 — shipped 2026-09-02
+
+**What landed**, against the row above: `CopiableValues` and one capture point
+(`engine/layers/copy.rs`, with `END_OF_LAYER_1` and its `debug_assert`);
+`EffectModification::CopyFrom(Box<CopiableValues>)` applied at `LAYER_ORDER[0]`;
+`Primitive::Copy(CopyRoles, Duration)`; `ChoiceKind::ChooseCopySource` and
+`ask_choose_copy_source`; **both** gate legs; `register_copied_static_effects`;
+Cytoshape and Mirrorweave, with Cytoshape in `PERFORMANCE_POOL` (62 → 63).
+1,711 additions — inside §4's 1,500—2,500 band, sized before the first line.
+18 integration tests; the CR 707 / 613.2 slice goes 0 → **6 atoms partially
+covered** (613.2a-001, 613.2c-001, 707.2-001, 707.2-003, 707.2b-001, 707.4-001),
+all partial because every one of their boards is a Clone entering and CV-1 has no
+entry producer. `owed` clean; suite green; zero warnings.
+
+**Five findings.**
+
+1. **There are two gates, not one** (§4.7's correction). RS-1 built a second to
+   the same recipe and its own comment named CV-1 as the owner of its third leg.
+   The rule generates a leg per gate per new route to the effective ability list,
+   and the *number of gates* is the term that grows.
+2. **Leg 2 needs no teardown path, and that is CR 613.7a paying for itself.** A
+   derived row whose copy expired or was superseded stops applying on the next
+   walk, because the existence check reads the source's frame and the frame
+   includes layer 1. Removal is hygiene, bought by giving each derived row the
+   copy row's own `Duration`. What is left is a re-copy within one turn, whose
+   superseded rows sit inert until CR 514.2 — recorded in Deferred Migrations,
+   because with `Duration::Indefinite` (CV-1b) they would accumulate unbounded.
+3. **`Primitive::Copy` needs a role binding the sketch did not have** (§4.2).
+   Cytoshape and Mirrorweave attach the atom's target to opposite ends of the
+   same sentence, so `CopyRoles` has two arms and a phase that shipped one card
+   would have found the second binding in CV-2. **Review found a third thing:**
+   the arm's donor exclusion was structural and Mirrorform prints the same shape
+   without the word "other", so it is now `exclude_donor: bool` with Mirrorform
+   registered as its consumer. The census cannot see a one-word difference
+   inside one mechanism — `plans/handoffs/cv-1-review.md` A1.
+4. **`--dump-events` is blind to a copy.** Registering a row is not an observable
+   action, so the event stream sees a Cytoshape reach the graveyard and nothing
+   else — in both arms. First-divergence attribution, which was RC-3 and RC-4's
+   sharpest instrument, is a **weak** one for every CV phase: it can only see a
+   copy's downstream consequences, and only if they change an outcome before the
+   game ends. The counters (`Frames/walk`) are the instrument that works here.
+5. **The `PERFORMANCE_POOL` fixture table in `engineering-practices.md` §3 was
+   already stale**, by ~11% on the gather column, and the cause is RC-4b rather
+   than this phase. Re-recorded; the miss is recorded there.
+
+**The measurement.** Three release binaries, interleaved in one sitting, 200
+games / seed 12345 / `--threads 1`, medians of five rounds: `main` at 103acf1
+(A), CV-1's engine with `PERFORMANCE_POOL` exactly as `main` had it (B), and CV-1
+shipped (C). On `stress` B and C are the same binary by construction, which the
+event streams confirm.
+
+| | A: main | B: engine, pool unchanged | C: shipped |
+|---|---|---|---|
+| performance walks | 100,496 | **100,496** | 99,952 |
+| performance frames | 136,402 | **136,402** | 136,726 |
+| performance frames/walk | 1.36 | **1.36** | **1.37** |
+| performance ms/game | 117.5 | 113.2 | 118.1 |
+| performance ms / 1,000 walks | 1.169 | 1.126 | 1.181 |
+| stress walks | 92,139 | 97,230 | 97,230 |
+| stress frames/walk | 1.31 | 1.31 | 1.31 |
+| stress ms/game | 98.3 | 99.8 | 102.6 |
+| stress ms / 1,000 walks | 1.067 | 1.026 | 1.055 |
+
+**B against A is exact, not approximate.** Every counter is identical to the
+digit — walks, frames, frames/walk, turns, spells cast, gathers, restriction
+queries — and the event streams are **40/40 byte-identical** on `performance`.
+The engine adds an `EffectModification` arm to a `match`, two flags to a summary
+recomputed on mutation, and a leg to each of two gates; on a board with no copy
+row none of it runs, and the measurement says so rather than arguing it.
+
+**The timing column separates nothing, and the honest thing is to say so.** The
+run-to-run spread on this machine is about —4% to +6% for one binary at 200
+games (`main` read 115.2 to 124.3 ms across five rounds), and B reads *faster*
+than A on both pools while playing byte-identical games. Anything inside that
+band is jitter. **This is what `layers-architecture.md` §12's 5.2—8.0→ figure
+predicts, read correctly**: that multiplier is the CR 613.7a existence check
+*without its gate*, and a copy row never pays it — `EffectOrigin::Resolution`
+returns `true` before any frame is computed. The phase was sized expecting its
+risk in the copy row on the hot path, and the copy row is the cheap half.
+
+**What did move is `Frames/walk`, 1.36 → 1.37 on `performance`**, and it is the
+*derived* rows, not the copy row: a copied static ability is an
+`EffectOrigin::StaticAbility` row like any other and pays exactly what a printed
+anthem pays. Citanul Hierophants is the pool's only creature carrying one, so the
++0.7% is one card's worth. On `stress` `Frames/walk` is flat at 1.31 while walks
+rise 5.5% — that is two more cards in a 70-card pool, i.e. game content.
+
+**Reachability, counted rather than assumed** (40 games, `--dump-events`):
+Cytoshape resolved **once** on `performance`, Mirrorweave **twice** on `stress`.
+Thin, and worth naming as thin — a 3-mana instant in a 63-card random pool is
+not Keldon Warlord. It is enough to open the path (the `Frames/walk` delta is
+the evidence) and not enough for the pool to be where a copy regression would be
+caught; the tests are.
+
+**Event streams.** 40 games / seed 12345 per pool, canonicalized — and the
+canonicalizer needed a **third** mask, because `SpellFizzled` and the ETB
+fallback print a full UUID rather than the 8-hex prefix every other line uses.
+Without it two identical games read as divergent at the first fizzle.
+`performance` A vs B: **40/40 identical**. `stress` B vs C: **40/40 identical**,
+which is the pool separation checking itself. `performance` A vs C: 38/40, and
+both divergences are the first differing *draw* — the pool grew 62 → 63, so
+`random_deck` builds a different deck. `stress` A vs B: 33/40, all seven at a
+draw (68 → 70). **No divergence anywhere traces to a copy resolving**, for
+finding 4's reason.
+
+**Determinism holds.** 200 games / seed 12345 per pool, three `--threads 1` runs
+each, byte-identical outside `=== Timing ===`. 0 errors, 0 panics, 0 turn-limit
+hits on both pools.
+
+**What CV-1 did not build**, deliberately: `Duration::Indefinite` (CV-1b, blocked
+on item 10); the entry producer and CR 707.9's exceptions (CV-2); tokens (CV-3);
+`is_copy` (§9 item 5, decided in CV-4); `CopiableValues.back_face`, which §3.2
+specifies and which CV-1 **omitted** — a field no producer writes and no reader
+reads is a Deferred Migrations line bought for nothing, and CV-5 adds it in the
+same commit that populates it.
+
+---
+
 **The spine, named.** **CV-1 is this track's RS-1**: small, one arm, and it is
 what every other phase is a consumer of. Unlike RS-1 it does not delete anything
 — there is no bespoke mechanism to fold in, because nothing produces a layer 1
@@ -1087,6 +1303,24 @@ Four things to act on rather than read past:
    CV-1 does not accidentally foreclose it — which it would, if `CopiableValues`
    were made mutable-in-place.
 
+   > **Answered in CV-1: `Box`, and the measurement says the discriminating
+   > case is not CV-1's.** `CopiableValues` is immutable after capture, so `Arc`
+   > stays open. But the case this item named does not test it:
+   > **Mirrorweave produces one row, not one per creature.** CR 611.2c locks the
+   > affected set as the effect begins, so the row is a single
+   > `AffectedSet::Fixed(ids)` carrying a single capture — one allocation under
+   > `Box` or `Arc` alike. The producers that would discriminate are the ones
+   > that create a row *per object*: CV-2's entry replacements (Mystic
+   > Reflection's batch) and the class-scoped static abilities (Infinite
+   > Reflection, Essence of the Wild). **Re-open it in the first phase that has
+   > one**; CV-1's numbers cannot see it.
+   >
+   > What CV-1 did measure is the other half — the per-walk cost of *applying* a
+   > `CopyFrom`, which deep-clones the captured `Vec<AbilityDef>` into the frame
+   > and is paid under `Arc` too, because the frame owns its abilities. That is
+   > `layers-architecture.md` Section 12's `Arc<Vec<AbilityDef>>` probe, a
+   > different question with a different customer.
+
 5. **Open: what should `is_copy` mean?** CR 707.10a's cease-to-exist SBA needs
    "is a copy of a card" and "is a copy of a spell", which are different
    questions, and CR 707.11 ("an effect that refers to a permanent by name still
@@ -1103,6 +1337,15 @@ Four things to act on rather than read past:
    third property ("status, counters and non-copy effects are not captured") one
    place to assert itself. Weakly recommend the named function; it is a naming
    call and CV-1's author should make it.
+
+   > **Answered in CV-1: the named function**, `layers::copy::copiable_values`,
+   > and the reason turned out to be stronger than documentation. The ceiling is
+   > `END_OF_LAYER_1`, a `const` beside it, with a `debug_assert` pinning what
+   > the constant asserts — that it names layer 1's slot in `LAYER_ORDER` and
+   > moves when that array does. Spelled at each call site instead, a later
+   > sublayer split (CV-6 adds 1b) would silently take every capture one
+   > sublayer too early, which is Section 5.4's failure mode: visible only on a
+   > board with a face-down creature being copied, i.e. not before Phase 8.
 
 7. **CR 707.10b's ability copies are a CR 603.7h identity question, not a
    copy question.** "The copy is considered to be the same ability by effects

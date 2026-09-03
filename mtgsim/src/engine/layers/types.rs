@@ -38,8 +38,14 @@ pub type Timestamp = u64;
 /// within the same layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Layer {
-    /// Layer 1 — copy effects (CR 613.2). Face-down and copy.
-    /// Still a stub: the variant exists, nothing produces an effect in it.
+    /// Layer 1 — copiable effects (CR 613.2a) and face-down (CR 613.2b).
+    ///
+    /// One slot for both sublayers. CR 613.2a is **1a, copy**; CR 613.2b is
+    /// **1b, face-down** — in that order, which three docs and this file used
+    /// to state backwards (`copy-effects-architecture.md` §5.4). Only 1a has a
+    /// producer: `EffectModification::CopyFrom`, from `Primitive::Copy`. CV-6
+    /// splits the slot when face-down arrives, and
+    /// `layers::copy::END_OF_LAYER_1` is what the split has to move.
     Layer1Copy,
     /// Layer 2 — control-changing effects (CR 613.3).
     Layer2Control,
@@ -113,6 +119,26 @@ impl PtValue {
 /// Each variant belongs to exactly one layer.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectModification {
+    // --- Layer 1a (CR 613.2a) ---
+    /// CR 707 — the affected object becomes a copy of the captured values.
+    ///
+    /// **Boxed, and the numbers say why.** `CopiableValues` is 328 bytes (a
+    /// `String`, five `HashSet`s, a `Vec<AbilityDef>` and two `Option<i32>`);
+    /// boxed it is 8. Inline, this arm would take `EffectModification` from 72
+    /// bytes to ~336 and `ContinuousEffect` from 168 to ~432 — paid by *every*
+    /// row, including the thousands that carry two `i32`s, because
+    /// `effects_in_layer` hands the walk a contiguous slice it re-iterates per
+    /// layer per object. Row size is the layer walk's memory traffic. Same
+    /// reason `GrantAbility` is boxed.
+    ///
+    /// **Growth contract.** `EffectModification` grows one arm per
+    /// *characteristic channel*, and this one replaces every channel at once,
+    /// which is what layer 1 means. A second layer-1 arm is a claim that CR
+    /// 613.2 has a third sublayer; it has two, and the other is face-down,
+    /// which CV-6 derives from `BattlefieldEntity` state rather than from a row
+    /// (`copy-effects-architecture.md` §4.6).
+    CopyFrom(Box<crate::engine::layers::copy::CopiableValues>),
+
     // --- Layer 2 ---
     /// CR 613.1b. A `PlayerRef` rather than a resolved `PlayerId`, for the
     /// reason `AffectedSet::Filter` stores its filter unresolved: CR 109.5 makes

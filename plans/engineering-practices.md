@@ -114,30 +114,65 @@ across months buys the timing measurement nothing.
   same act as registering. `performance_pool()` panics on a name that is no
   longer registered, which is the guard against a rename shrinking the pool
   silently — the one failure a deliberate addition does not have.
+- **Before making a word in a card's text *structural*, find two more cards in
+  the same bucket and check they print it.** CV-1 made "each **other** creature"
+  structural — a copy arm that excluded the donor with no way to say otherwise
+  — on the reading that a class-scoped copy always says "other". Mirrorform
+  prints the same shape without the word, and the arm could not express it at
+  all. **Structure is the expensive direction to be wrong in:** data that is
+  never varied costs a field, structure that has to vary costs an enum arm and
+  every match on it. The census cannot catch this — it partitions by
+  *mechanism*, and a one-word difference lives inside one bucket.
+- **`PERFORMANCE_POOL` measures cost; `--require` measures coverage. Do not
+  read either off the other.** Adding a card to the pool does *not* mean its path
+  gets walked: CV-1 put Cytoshape in and it resolved **16 times in 200 games**,
+  because a 63-card pool builds colour-appropriate 60-card decks and any one
+  card is rare — and rarer with every phase that adds one. `fuzz_games
+  --require "Card A,Card B"` forces a copy of each into every deck **and seeds
+  the deck's colours from theirs** (forcing a `{1}{G}{U}` instant into a
+  mono-red deck reports the same thin number), then prints casts, resolutions
+  and the share of games each reached. Cytoshape goes 16 → **401** resolutions
+  under it. **An empty `--require` changes nothing** — every RNG draw is guarded,
+  so a reachability run and a timing run come from one binary without the first
+  contaminating the second. **Run it once per phase that adds a card**, and put
+  the resolution count in the phase's ledger entry.
 - **Say which pool a number came from.** `fuzz_games` prints it in the header
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
-2026-09-02 (performance pool 61 → 62, stress 65 → 68; Keldon Warlord, Containment
-Priest and Dryad Arbor, Phase RC-4):**
+2026-09-02 (performance pool 62 → 63, stress 68 → 71; Cytoshape,
+Mirrorweave and Mirrorform, Phase CV-1):**
 
-| | performance (62 cards) | stress (68 cards) |
+| | performance (63 cards) | stress (71 cards) |
 |---|---|---|
-| P0 / P1 | 22 (44.0%) / 28 (56.0%) | 24 (48.0%) / 26 (52.0%) |
-| Avg turns | 28.7 | 27.3 |
+| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 27 (54.0%) / 23 (46.0%) |
+| Avg turns | 28.8 | 28.3 |
 | Spells cast | 21.0 | 19.6 |
-| Lands played | 18.4 | 17.5 |
-| Combat w/ atk | 11.0 | 10.8 |
-| Creatures died | 6.7 | 4.9 |
-| Damage events | 24.2 | 23.6 |
-| Total damage | 50.0 | 56.1 |
-| Life changes | 16.7 | 14.9 |
-| **Layer walks** | **93,854** | **85,738** |
-| **Layer frames** | **136,075** | **112,002** |
-| **Frames/walk** | **1.45** | **1.31** |
-| **Replacement gathers** | **594** | **558** |
-| **Restriction queries** | **596** | **562** |
+| Lands played | 18.4 | 17.6 |
+| Combat w/ atk | 11.0 | 10.5 |
+| Creatures died | 6.7 | 4.4 |
+| Damage events | 24.2 | 23.4 |
+| Total damage | 49.8 | 55.3 |
+| Life changes | 16.8 | 15.7 |
+| **Layer walks** | **93,914** | **88,252** |
+| **Layer frames** | **136,338** | **117,612** |
+| **Frames/walk** | **1.45** | **1.33** |
+| **Replacement gathers** | **531** | **514** |
+| **Restriction queries** | **533** | **517** |
+
+**Most of the movement in this table is not CV-1's, and the previous version was
+already stale when CV-1 read it.** `main` at 103acf1 answers 93,717 walks / 530
+gathers on `performance`, against the 93,854 / 594 the table printed — so the
+gather column had fallen ~11% before this phase touched anything. The cause is
+**RC-4b**, which made entering the battlefield one proposal instead of two and
+merged without re-recording here. CV-1's own contribution is the small half:
++197 walks and +1 gather on `performance`, +249 walks and +3 on `stress`. **The
+rule the miss argues for is the one already written above** — re-record the
+table in the PR that moves it — and the reason it is cheap to forget is that
+nothing fails when you don't. Worth one line in a phase's exit checklist rather
+than a check: the numbers are seed-deterministic, so a stale row is silently
+wrong rather than noisily so.
 
 **Both columns moved, and the engine's share was separated from the pool's
 before this table was recorded** — three binaries in one sitting, medians of

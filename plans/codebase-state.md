@@ -15,7 +15,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (Phases RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative for phases RS-0–RS-4 and §7.1 carries the interleaved Track R / Track S order. **RS-0**: `state/duration_registry.rs` is the `DurationRegistry<T>` both effect registries own and delegate to, so the CR 514.2 expiry rules exist once instead of twice. **RS-1**: `RestrictionDef` / `Restriction` (`types/restriction.rs`), the third `DurationRegistry` customer (`state/restrictions.rs`), and `engine::restriction::is_prohibited` — one predicate, a battlefield sweep off *effective* ability lists, and §4.9's candidate filter. Indestructible, "can't be regenerated" and Sigarda all reach it. **The hard join is satisfied: RC-4 is unblocked.** Still ahead on this track: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
-  - **Still stubbed:** Layer 3 (text) and Layer 1 (copy) are enum variants only. Nothing produces an effect in either.
+  - **Still stubbed:** Layer 3 (text) is an enum variant only. Layer 1 has a producer as of CV-1 (2026-09-02) — `EffectModification::CopyFrom`, from `Primitive::Copy`; its face-down sublayer (CR 613.2b) waits on CV-6.
   - **Dependency algorithm (CR 613.8) not implemented.** Ordering is timestamp-only, which is sufficient for the layers landed so far in isolation but will not survive Layer 6 + Layer 4 interaction (Humility/Opalescence).
   - **CR 305.7 / 305.6 — ✅ done (Phase LD Part B).** Blood Moon strips a nonbasic land's printed abilities and grants the intrinsic `{T}: Add {R}`; Urborg adds a basic land type and its mana ability without stripping. Lives in `engine/layers/land_types.rs`. `AbilityOrigin` was evaluated at Part B kickoff and **not built** — layer ordering makes it unnecessary; see `layers-architecture.md` §15.2 item 4.
 - **Commander (CR 903) — in scope, skeleton only:** command zone ✅ as a `Zone` variant + `GameState.command` field; commander damage loss SBA ✅; commander damage **increment on combat damage now wired** (2026-04-18) via `GameObject.is_commander` flag + per-source accumulation in `execute_action(DealDamage)`. **903.9a (CR 704.6d) and 903.9b both landed with Phase RB, 2026-08-26.** Still missing: commander tax, `GameConfig::commander()`, and a commander designation/setup hook — nothing outside tests sets `is_commander = true`, so neither 903.9 half is reachable in a real game yet.
@@ -224,6 +224,103 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 **The phase has an architecture doc as of 2026-08-24: `plans/replacement-architecture.md`.** It is authoritative for the type shapes, the CR 616.1 pipeline, the ETB look-ahead frame, and the RA–RE sequencing; item 3 below *is* its Phase RA. This section stays the status ledger.
 
 **RA ships as three PRs (sized 2026-08-25, `replacement-architecture.md` §9).** RA-1 = the `ActionContext` sweep + `ZoneChangeCause`; RA-2 = the six routing tickets; RA-3 = batch form, LKI/cause/batch-id payloads, the three bypass closures, and the death-event demotion. Ticket numbers below are stable and cited by §9.
+
+**Status 2026-09-02: Phase CV-1 ✅ — the copy spine (CR 707, layer 1a).**
+`copy-effects-architecture.md` §7a carries the five findings and the
+measurement; this is the state ledger. What landed:
+
+- **`layers::copy`** — `CopiableValues`, and `copiable_values(game, id)` as the
+  engine's one capture point. CR 613.2c makes copiable values the *output* of
+  layer 1, so the capture is `compute_to_ceiling` at `END_OF_LAYER_1`: an
+  existing entry point at a ceiling the existing array already indexes, with a
+  `debug_assert` pinning the constant to `LAYER_ORDER` so CV-6's sublayer split
+  is a test failure rather than a silent read one sublayer early. Deliberately
+  **not** `EffectiveCharacteristics` reused — that type carries `controller`,
+  and `compute.rs`'s `any_control_changing` fast path proves itself on the claim
+  that Layer 2 is the only channel that writes one.
+- **`EffectModification::CopyFrom(Box<CopiableValues>)`**, applied at
+  `LAYER_ORDER[0]`, replacing every characteristic channel at once. Layer 1 had
+  been a slot the walk always visited and nothing ever occupied.
+- **`Primitive::Copy(CopyRoles, Duration)`.** `CopyRoles` has two arms because
+  the two cards bind the atom's target to opposite roles: Cytoshape targets what
+  *becomes* a copy and chooses its donor; Mirrorweave targets the donor. The
+  `{ from, to }` product was rejected — two of its four combinations are
+  unreachable states.
+- **`ChoiceKind::ChooseCopySource`**, its own decision site rather than
+  `SelectRecipients`, which `sacrifice_of_choice` reuses. There the chosen object
+  is what the primitive acts on; here it is the opposite, and a DP heuristic
+  keyed on the recipient kind would read the donor as the victim. Item 40 holds
+  by construction: one prompt, and the chosen id is a local that never spans a
+  second decision. Asked only with two or more candidates (CR 102.2's shape), so
+  no existing scripted test gained a prompt.
+- **Both legs of item 16**, and there were three ETB scans rather than the two
+  that item recorded — see it, above.
+- **Three cards.** Cytoshape (`PERFORMANCE_POOL` 62 → 63); **Mirrorform**,
+  added in review as the card that turned the donor exclusion from structure
+  into a field — it prints Mirrorweave's shape without the word "other", so its
+  affected set includes the target, and `CopyRoles::OthersCopyRecipient` could
+  not express it (`plans/handoffs/cv-1-review.md` A1); and Mirrorweave, which
+  is the crate's **first registered card with a simplified hybrid cost** —
+  audited, not assumed: of the 70 registered cards, checked against Scryfall,
+  Mirrorweave is the only one whose printed cost carries a hybrid or Phyrexian
+  symbol. **`inside_out` is a fixture and has never been registered**, which is
+  the whole of the 2026-08-24 precedent: it prints `{1}{U/R}`, the crate spells
+  it `{1}{U}`, and it stayed out of `registry.rs` rather than misrepresent the
+  card. Mirrorweave is registered as `{2}{W}{U}` — a strict *subset* of the real
+  card's legal payments — because `ManaSymbol::Hybrid` exists and no payment
+  path handles it, so a verbatim cost would make the card *silently uncastable*.
+  The precedent was right there and is wrong here for a reason about the pool
+  rather than the card: Inside Out's engine path (Layer 7d) had a registered
+  substitute in Merfolk Thaumaturgist, and Mirrorweave and Mirrorform are the
+  only consumers of `CopyRoles::FilteredCopyRecipient`. **The first real hybrid payment path should delete
+  the approximation and this paragraph together.**
+- **The CR 613.2 sublayer inversion, fixed in the last two places it lived** —
+  `compute.rs`'s `LAYER_ORDER` doc and `layers-architecture.md` §7 with its
+  `Layer` code block and its algorithm sketch. 1a is copy, 1b is face-down.
+- **A trace page**, `plans/traces/cv-1-a-copy-is-a-snapshot.html`: a Cytoshape
+  resolution from the choice to the row, the row read back, the copied anthem and
+  its leg-2 row, and CR 707.4's re-copy tearing that row down through the
+  existence check rather than through a removal path.
+
+**The measurement says the engine is exactly free.** Three binaries, interleaved,
+200 games / seed 12345 / `--threads 1`, medians of five: **B (CV-1's engine,
+pool unchanged) matches A (`main` at 103acf1) to the digit on every counter** —
+100,496 walks, 136,402 frames, 1.36 frames/walk, 567 gathers — and their event
+streams are **40/40 byte-identical**. What moved is the pool: `Frames/walk`
+1.36 → 1.37 — **and that is game content, not a mechanism.** The first draft
+of this entry attributed it to Citanul Hierophants being copiable, which was a
+guess stated as a fact and does not survive arithmetic: Cytoshape resolves **16
+times in 200 games** (counted, `--dump-events`), each row lives for the rest of
+one turn, so copy rows exist during ~16 of ~6,160 turns and could account for at
+most ~0.2 of the 0.7 percentage points even if every one had copied a static
+ability. C also plays *different games* — a 63-card pool, not 62 — and its
+walk count moved —0.5% and its turns +0.3% in the same run. The ratio shift is
+inside that. **The mechanism that would raise `Frames/walk` is real** (a copied
+static ability is an `EffectOrigin::StaticAbility` row and pays what a printed
+anthem pays); this sample cannot see it. **The timing column separates
+nothing** and the phase says so: run-to-run spread for one binary at 200 games
+was —4% to +6% here, and B read *faster* than A while playing identical games.
+`layers-architecture.md` §12's 5.2—8.0→ figure is the CR 613.7a check
+*without its gate*, and a copy row never pays it — `EffectOrigin::Resolution`
+short-circuits before any frame is computed. The phase was sized expecting its
+risk in the copy row; the copy row is the cheap half.
+
+**`--dump-events` is a weak instrument for this track**, which is worth knowing
+before CV-2. Registering a row is not an observable action, so the event stream
+sees a Cytoshape reach the graveyard and nothing else, in both arms. Every
+divergence found (2 on `performance` A vs C, 7 on `stress` A vs B) is the first
+differing *draw*, i.e. the pool changed size. **Reachability, counted:**
+Cytoshape resolved once in 40 `performance` games, Mirrorweave twice in 40
+`stress` games — thin, and named as thin. Determinism holds: three
+`--threads 1` runs per pool, byte-identical outside `=== Timing ===`, 0 errors,
+0 panics, 0 turn-limit hits.
+
+**What CV-1 did not build**, deliberately: `Duration::Indefinite` (CV-1b, blocked
+on item 10); the ETB path, CR 708 and CR 729, untouched; `is_copy`, still with no
+writer; and `CopiableValues.back_face`, which
+`copy-effects-architecture.md` §3.2 specifies and which was **omitted** — a
+field no producer writes and no reader reads is a Deferred Migrations line bought
+for nothing, and CV-5 adds it in the commit that populates it.
 
 **Status 2026-09-02: Phase RC-4 ✅ — CR 614.12's look-ahead frame.** `replacement-architecture.md` §9's RC-4 subsection carries the six findings; this is the state ledger. What landed:
 
@@ -621,10 +718,21 @@ built, and none of it blocks RC-1 through RC-3.
       `rb-review.md` I9: a copied replacement ability is invisible to `gather`'s
       fast-path gate (`gather.rs:143`) and silently never applies.
 
-    Neither is reachable today — nothing produces a Layer 1 effect — and both are
-    CV-1's to fix (a third `RegistryScopeSummary` flag for the second; static
-    re-registration off the captured ability list for the first). Recorded here
-    because the general rule outlives the instance and Phase 6 will meet it
+    **→ Both fixed, CV-1, 2026-09-02** — and there were **three** scans, not
+    two. `restriction::is_prohibited`'s gate (`restriction/predicate.rs:87`) is a
+    third instance of the same shape, built by RS-1 after this item was written,
+    under a comment that already named CV-1 as the owner of its third leg. What
+    shipped: `RegistryScopeSummary::any_copied_replacement` and
+    `any_copied_restriction`, each recomputed from the rows on every mutation and
+    each scanning the *captured ability bodies* rather than counting copy rows, so
+    a copy of a vanilla creature turns neither on; and
+    `GameState::register_copied_static_effects`, beside `register_static_effects`
+    rather than changing its read, since that read is correct for the case it was
+    written for. Removing the derived rows needed no path: they are
+    `EffectOrigin::StaticAbility`, so CR 613.7a stops applying them as soon as the
+    copy expires or a CR 707.4 re-copy supersedes it, and matching their
+    `Duration` to the copy row's retires them in one CR 514.2 sweep. Recorded
+    here because the general rule outlives the instance and Phase 6 will meet it
     next: **a fast-path gate must be derived from the same place its sweep
     reads.** `gather` reads the *effective* ability list; the gate reads two
     *sources* of ability. Layer 1 and Layer 3 are the two routes to that list
@@ -633,7 +741,108 @@ built, and none of it blocks RC-1 through RC-3.
 
     `game_state.rs:249`'s "between them the gate is sound" is now scoped to
     "sound only until Layer 1 or Layer 3 exists", with the §4.7 pointer
-    (2026-08-30, `rb-review.md` I9).
+    (2026-08-30, `rb-review.md` I9). **Layer 3 is the only route left**, on both
+    gates; the comments at `gather.rs` and `predicate.rs` say so.
+
+### Found by CV-1 (2026-09-02)
+
+16b. **A re-copy inside one turn leaves its superseded derived rows in the
+    registry, inert, until CR 514.2 (found 2026-09-02, CV-1).**
+    `register_copied_static_effects` registers a CR 613.7a row per static ability
+    in a `CopyFrom` capture. When a CR 707.4 re-copy replaces the copy row, the
+    old derived rows stop *applying* immediately — the existence check reads the
+    subject's frame, which now carries the new capture — but they stay
+    registered until their `Duration` retires them with the copy row they came
+    from. **Harmless for everything CV-1 ships**, which is turn-bounded only: one
+    cleanup step retires the lot, and an inert row costs a `HashSet` lookup in
+    `effects_in_layer`'s slice.
+
+    **It stops being harmless at `Duration::Indefinite`**, which is CV-1b: a
+    permanent re-copying itself every turn would accumulate derived rows without
+    bound, and nothing would remove them. **So this is CV-1b's prerequisite, not
+    a bug in CV-1.**
+
+    **Three things this is not, because an earlier draft of this entry ran them
+    together** (corrected 2026-09-02 in review):
+
+    - **It is not item 10's problem.** Item 10 is CR 400.7: `move_object`
+      preserves `ObjectId`, so a row keyed on a *leaving* object's id
+      re-attaches to whatever comes back. A derived row's `source` is the
+      copying permanent, so `remove_by_source` already reaches it on a zone
+      change. What is unreachable is "the ability that justified this row is
+      gone", which is a different question with a different fix.
+    - **It is not solved by updating the row in place.** A re-copy must
+      **add** a `CopyFrom` row, never overwrite the existing one's payload:
+      CR 613.2a orders layer 1 by timestamp and each row carries its own
+      `Duration`, so an `UntilEndOfTurn` copy laid over an `Indefinite` one has
+      to expire *back* to the indefinite values. Overwriting would delete an
+      effect that is still running. Two rows is the correct model and the
+      litter is the price of it.
+    - **It is not the pump-spell shape either.** A pump row is inert-but-present
+      for a different reason (its subject left and returned); this one's subject
+      never moved.
+
+    **Sized:** at the moment `apply_copy` registers a `CopyFrom` for a subject
+    that already has one, `retain` out the derived rows whose
+    `EffectGroup::StaticAbility(subject, ability)` names an ability id that the
+    *new* capture does not carry — and only those, because the subject may also
+    **print** the same ability, which no copy row justifies or removes. One
+    `retain` and one set difference; the care is entirely in the second clause.
+
+### Found by CV-1's reachability mode (2026-09-02)
+
+16c. **Spells resolve without being paid for, and `cast_spell` is one missing
+    `rollback_cast_to_hand` away from correct (found 2026-09-02, CV-1's
+    `--require`; diagnosed the same session).**
+
+    **The defect.** `cast.rs` has five fallible steps between CR 601.2a's
+    silent move to the stack and CR 601.2i's announcement. Four of them call
+    `rollback_cast_to_hand` before returning `Err`. The fifth {D} `pay_costs`,
+    the last statement before 601.2i {D} is a bare `?`. When it fails, the card
+    is **left on the stack**, never announced as cast, and the next stack
+    resolution resolves it. The player keeps the mana and gets the spell.
+    `priority.rs:99`'s comment ("game state clean ... see `cast_spell`
+    rollback") states the contract this line breaks.
+
+    **What makes it fire.** `can_pay_costs` passes, then
+    `ask_choose_generic_mana_allocation` lets the player split generic mana,
+    and a random allocation can spend a colour a coloured pip still needs {D} so
+    `pay_costs` fails on a cost that *was* payable. The prompt only runs when
+    `generic_count() > 0`, which is the smoking gun below.
+
+    **Evidence, on `main` at 103acf1 with no CV-1 code involved.**
+    `fuzz_games --games 40 --seed 12345 --threads 1 --dump-events x.log`:
+    **814 announced casts against 1,020 stack departures {D} 206 unannounced**,
+    identical on CV-1's tree. Game 1, object `f0c682c2` (Volcanic Upheaval) is
+    drawn at event 14 and emits `Stack {A} Graveyard [Resolved]` at event 178
+    with no `Hand {A} Stack [Cast]` and no `SpellCast` anywhere between; the
+    other copy does the full correct sequence four events later. **Every ghost
+    card has a generic component in its cost** (Merfolk Thaumaturgist `{2}{U}`,
+    Blood Moon `{2}{R}`, Grizzly Bears `{1}{G}`, …) and **no zero-generic card
+    is ever one** (Lightning Bolt `{R}`, Counterspell `{U}{U}`, Dark Ritual
+    `{B}`, Giant Growth `{G}`), which is the allocation prompt's own gate.
+
+    **Not a logging gap {D} an earlier draft of this entry said it was.**
+    `ui::display::format_event_log` maps every event with no filter, so the
+    events are genuinely absent; and the consequence is not that a trigger
+    would miss a cast, it is that **the spell resolves unpaid**, roughly five
+    times per game in the `performance` pool. That the event stream also
+    records nothing is the *second* problem: `CLAUDE.md` resolves the delta-log
+    fork by making trigger detection the performed-action stream, so CR 603.2's
+    "whenever a player casts a spell" would miss these too once item 6 exists.
+
+    **Nothing reads `GameEvent::SpellCast` in the engine today** {D} only
+    `fuzz_games`' stats and one integration test {D} which is why 206 free spells
+    per 40 games have gone unnoticed: no test asserts a spell was paid for, and
+    the fuzz harness measures cost and determinism, not legality.
+
+    **Sized: one line plus a regression test.** Give `pay_costs`'s `?` the
+    rollback its four siblings have. The test is the harder half and the
+    valuable one: construct a generic allocation that `can_pay_costs` accepts
+    and `pay_costs` rejects, then assert the card is back in hand, the mana is
+    still in the pool, and no `SpellCast` was emitted. **Its own PR** {D} it is
+    the cast path, it is pre-existing, and it wants a bugfix's discipline
+    (shown failing against the pre-fix tree first).
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 
@@ -2015,7 +2224,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **Layer 1a / 1b — and this entry had the two backwards until 2026-08-29.** `tmnt.txt` says **613.2a Layer 1a: Copiable effects** (copy effects, CR 707, and merging, CR 729) and **613.2b Layer 1b: Face-down**, i.e. copy *then* face-down. The enum has a single `Layer1Copy`. Not reachable today — nothing produces a layer 1 effect. `LAYER_ORDER` in `engine/layers/compute.rs` mirrors the enum, so splitting it later just lengthens that array; the frame-cache ceiling is an index into it, computed at runtime.
 
-    The inversion is still live in **`layers-architecture.md` §7** and **`compute.rs:27`**, and all three sites shared one wrong derivation: *"a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2)"* is a **correct conclusion from a wrong premise**. The 2/2 does not come from face-down applying first; it is CR 708.2's own "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly. Where it bites is exactly one integer: `copy-effects-architecture.md` §4.6 captures copiable values at the end of layer 1, and a reader who believes 1b is copy takes the ceiling one sublayer too early — a bug that appears only on boards with a face-down creature being copied.
+    **Both remaining sites corrected 2026-09-02 (CV-1): `compute.rs`'s `LAYER_ORDER` doc and `layers-architecture.md` §7 with its `Layer` code block.** `Layer1Copy` still collapses the two, and now has a producer in 1a; CV-6 splits it, and `layers::copy::END_OF_LAYER_1` is the one integer the split moves — pinned by a `debug_assert` that fires the moment `LAYER_ORDER[1]` stops being `Layer2Control`. The three sites had shared one wrong derivation: *"a Clone copying a face-down creature copies the 2/2 colorless characteristics, not the printed card (CR 707.2)"* is a **correct conclusion from a wrong premise**. The 2/2 does not come from face-down applying first; it is CR 708.2's own "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly. Where it bites is exactly one integer: `copy-effects-architecture.md` §4.6 captures copiable values at the end of layer 1, and a reader who believes 1b is copy takes the ceiling one sublayer too early — a bug that appears only on boards with a face-down creature being copied.
 
     **~~Keywords are abilities, and we model some of them as markers.~~ ✅ resolved (2026-08-23, Layer 6 phase).** The old entry framed this as "`Primitive::GrantKeyword(Equip)` would set a flag and grant no ability", which understated it. CR 702 has 189 keyword abilities and they do not want one representation. The axis is **does the engine branch on the keyword, or execute it**, crossed with whether it takes a parameter: ① branch/no-param is a flag (flying, trample, vigilance); ② branch/param is a set of *values* (protection from [quality], [type]walk); ③ execute/no-param is a plain `AbilityDef` (storm, prowess, **devoid** — already modelled this way in `phase_le_cards`); ④ execute/param is an `AbilityDef` with args (equip [cost], ward [cost], cycling [cost]).
 

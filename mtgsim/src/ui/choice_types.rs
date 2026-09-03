@@ -79,6 +79,20 @@ pub enum ChoiceKind {
     /// asked (CR 102.2), and the choice is made before the permanent enters.
     ChooseEnteringController { object: ObjectId },
 
+    // --- Copy effects (CR 707) ---
+    /// CR 707.4 — a resolving copy effect must **choose** the permanent whose
+    /// copiable values it captures. Cytoshape's "Choose a nonlegendary creature
+    /// on the battlefield". The options are permanents.
+    ///
+    /// **Not `SelectRecipients`.** There the chosen object is what the effect
+    /// acts on; here it is the exact opposite — the donor is the one permanent
+    /// a copy effect does not change — so a heuristic keyed on
+    /// `SelectRecipients` would read the donor as the victim.
+    ///
+    /// Asked only with two or more candidates. With one the choice is forced and
+    /// nothing is asked, which is `ChooseEnteringController`'s CR 102.2 shape.
+    ChooseCopySource { spell_id: ObjectId },
+
     // --- Commander (CR 903) ---
     /// CR 704.6d / 903.9a — a commander is in a graveyard or exile and its
     /// owner **may** put it into the command zone. A state-based action with a

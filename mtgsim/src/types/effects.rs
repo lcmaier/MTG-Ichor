@@ -418,6 +418,48 @@ pub struct TypeChange {
     pub set_supertypes: Option<std::collections::HashSet<crate::types::card_types::Supertype>>,
 }
 
+/// Which role a `Primitive::Copy`'s own recipients play, and where the other
+/// role comes from (CR 707.4).
+///
+/// **One arm per role binding, not per card**, and the printed corpus needs
+/// both because cards bind the atom's target to opposite ends of the same
+/// sentence: Cytoshape targets the permanent that *becomes* a copy, Mirrorweave
+/// and Mirrorform target the one being copied.
+///
+/// Rejected: a `{ from, to }` product of two enums. Two of its four
+/// combinations are nonsense — a recipient copying itself, and "each other"
+/// with no donor to be other than — and an unreachable state is how an arm
+/// eventually gets written for one.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CopyRoles {
+    /// The recipients become copies of a permanent **chosen** as the effect
+    /// resolves (CR 707.4). A choice, not a target: hexproof and shroud do not
+    /// apply, and nothing fizzles if it leaves. Cytoshape, Polymorphous Rush.
+    RecipientsCopyChosen(SelectionFilter),
+    /// The atom's target supplies the values, and every permanent matching
+    /// `filter` becomes a copy of it. Mirrorweave, Mirrorform.
+    FilteredCopyRecipient {
+        /// Which permanents become copies, evaluated as the effect begins to
+        /// apply and then locked (CR 611.2c).
+        filter: PermanentFilter,
+        /// **Whether the donor is excluded, and it is data because the cards
+        /// disagree.** Mirrorweave says "each **other** creature"; Mirrorform
+        /// says "each nonland permanent you control", which *includes* the
+        /// target whenever you control it. An earlier draft made the exclusion
+        /// structural on the reading that "each other" is the only phrasing
+        /// — Mirrorform is the counter-example, and it was found in review
+        /// rather than by the census, which is the argument for checking the
+        /// printed corpus before deciding a word is redundant.
+        ///
+        /// A permanent copying *itself* is very nearly a no-op — the capture
+        /// is its own post-layer-1 state, so applying it changes nothing at the
+        /// instant it is made. Not exactly one, and CR-correctly so: the row
+        /// has its own `Duration`, so it holds those values after an earlier
+        /// copy row would have expired.
+        exclude_donor: bool,
+    },
+}
+
 // ---------------------------------------------------------------------------
 // Primitives — atomic game actions (rule 610, 701)
 // ---------------------------------------------------------------------------
@@ -605,6 +647,22 @@ pub enum Primitive {
     ChangeType(TypeChange, Duration),
     /// Gain control (layer 2)
     GainControl(Duration),
+
+    // === Copy effects (CR 707, layer 1a) ===
+    /// One or more permanents become a copy of another (CR 707.4).
+    ///
+    /// The `Duration` is authored for the reason [`Self::Restrict`]'s is: CR
+    /// 611.2's scope comes from the card's English, not from the mechanism. CV-1
+    /// ships the turn-bounded shapes only — `Duration::Indefinite` needs CR
+    /// 400.7 first, because a row reachable by neither expiry nor
+    /// `remove_by_source` outlives its subject without bound
+    /// (`copy-effects-architecture.md` §5.3).
+    ///
+    /// The affected set is `AffectedSet::Fixed`, locked as the effect begins
+    /// (CR 611.2c), and the captured values are locked with it (CR 707.2b/2c) —
+    /// which is what makes a copy row independent of every other layer 1 effect
+    /// and so keeps this off critical-path item 7.
+    Copy(CopyRoles, Duration),
 
     // === Counter spells/abilities (rule 701.6) ===
     /// Counter a spell on the stack (rule 701.6a).
