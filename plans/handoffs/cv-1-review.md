@@ -279,11 +279,23 @@ safe to ship in the same binary as the timing arm: every RNG draw it adds is
 guarded, and the default run reproduces the recorded fixture table to the digit
 (93,914 walks / 1.45 frames-per-walk / 28.8 turns / 531 gathers).
 
-**It found a defect on its first run.** Resolutions exceeded casts, which is
-impossible for a card that resolves once — because some spells resolve emitting
-no `SpellCast` at all. Pre-existing, 206 of them in 40 games, identical on
-`main`. `codebase-state.md` item **16c**, and it is a critical-path item 6
-blocker rather than a CV finding: CR 603.2's triggers read that stream.
+**It found a live rules defect on its first run.** Resolutions exceeded casts,
+which is impossible for a card that resolves once. Diagnosed the same session:
+`cast.rs`'s `pay_costs(...)?` is the one fallible step after CR 601.2a with no
+`rollback_cast_to_hand`, so a failed payment strands the card **on the stack**,
+where it later resolves — unpaid, ~5 times per game. `codebase-state.md` item
+**16c** has the evidence (206 in 40 games, identical on `main`; every ghost card
+has a generic cost component and no zero-generic card is ever one, which is the
+allocation prompt's own gate) and the one-line fix. **Its own PR, and it should
+precede everything** — it is a wrong answer in every fuzz run today.
+
+**Known limitation, and it is the price of the colour seeding.** `--require
+Mirrorweave` makes every deck W/U, so the card is exercised against one colour
+pair and never meets a black, red or green card. The mode answers *"can the path
+be walked"*, not *"what does it meet"*, and a phase must not read interaction
+coverage off it. The seeding is a workaround for the missing five-colour land,
+not a design choice — with the land, forced insertion alone suffices and the
+seeding can go. That is deliverable 2 of the land's handoff.
 
 **Still owed, and it has its own handoff:** a five-colour land in the pool, so
 the *unforced* number rises too — `--require` answers "was the path walked" at a

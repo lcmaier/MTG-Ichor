@@ -194,11 +194,20 @@ fn parse_args() -> Args {
             "--require" | "-r" => {
                 i += 1;
                 if i < args.len() {
-                    result.require = args[i]
-                        .split(',')
-                        .map(|n| n.trim().to_string())
-                        .filter(|n| !n.is_empty())
-                        .collect();
+                    // Deduplicated, order preserved. A repeated name used to
+                    // produce two report rows counting the same events, which
+                    // double-counts anything summed off them, and forced two
+                    // copies into the deck while the flag's own docs promise
+                    // one. Names are matched exactly — `registry.create` is
+                    // case-sensitive, and a near-miss is fatal below rather
+                    // than silently required-nothing.
+                    let mut names: Vec<String> = Vec::new();
+                    for n in args[i].split(',').map(|n| n.trim()) {
+                        if !n.is_empty() && !names.iter().any(|s| s == n) {
+                            names.push(n.to_string());
+                        }
+                    }
+                    result.require = names;
                 }
             }
             "--pool" | "-p" => {
@@ -323,6 +332,22 @@ fn random_deck(
     // deck includes it and never casts it, which reports the same thin number
     // the mode exists to fix. Seeding the deck's colours from the required
     // cards is what makes "guaranteed inclusion" mean "guaranteed castable".
+    //
+    // **And it narrows the board, which is the price and is worth stating.**
+    // `--require Mirrorweave` makes every deck W/U, so nothing black, red or
+    // green is in any game — the required card is exercised against one
+    // colour pair rather than against the pool. So this measures *"can the
+    // path be walked"*, not *"what does it meet"*, and a phase should not read
+    // interaction coverage off it.
+    //
+    // **The seeding is a workaround for a missing land, not a design choice.**
+    // `random_deck` filters the nonland pool by deck colours *before* drawing,
+    // so a WU card is not a candidate for a mono-red deck even if the mana
+    // existed. `--require` bypasses that filter by force-inserting; what it
+    // cannot bypass is the deck having no white or blue sources. A
+    // five-colour land removes that second problem, and then the seeding can
+    // go — forced insertion plus any-colour mana gives a *diverse* board that
+    // still casts the card. `plans/handoffs/pool-five-colour-land.md`.
     for card in required {
         for c in card_colors(card) {
             if !deck_colors.contains(&c) {
@@ -370,17 +395,28 @@ fn random_deck(
         }
     }
 
-    // One copy of each required card, replacing a nonland slot rather than
-    // adding to the deck — 60 cards stays 60, so mana density and the draw
-    // curve are untouched. Deterministic (the first slots, no RNG draw) because
-    // the library is shuffled in-game anyway, and because a draw here would
-    // move the stream for every later card.
-    for (slot, card) in required.iter().enumerate() {
+    // One copy of each required **nonland** card, replacing a nonland slot
+    // rather than adding to the deck — 60 cards stays 60, so mana density and
+    // the draw curve are untouched. Deterministic (the first slots, no RNG
+    // draw) because the library is shuffled in-game anyway, and because a draw
+    // here would move the stream for every later card.
+    //
+    // A required *land* is held back to the land section below, for the same
+    // reason: spending a nonland slot on it would quietly make the deck
+    // 35/25 and move every number the pool exists to measure.
+    let mut required_lands: Vec<&Arc<CardData>> = Vec::new();
+    let mut slot = 0usize;
+    for card in required {
+        if card.types.contains(&CardType::Land) {
+            required_lands.push(card);
+            continue;
+        }
         if slot < deck.len() {
             deck[slot] = card.clone();
         } else {
             deck.push(card.clone());
         }
+        slot += 1;
     }
 
     // Pad remaining nonland slots with lands if card pool is too small
@@ -414,6 +450,14 @@ fn random_deck(
 
     let nonbasic_slots = NONBASIC_LANDS_PER_DECK.min(land_count);
     let mut nonbasics_added = 0;
+    // Required lands come out of the nonbasic budget, so the land count is
+    // unchanged and only *which* nonbasics were drawn moves.
+    for card in &required_lands {
+        if nonbasics_added < nonbasic_slots {
+            deck.push((*card).clone());
+            nonbasics_added += 1;
+        }
+    }
     if !nonbasic_names.is_empty() {
         for _ in 0..nonbasic_slots {
             let name = nonbasic_names.choose(rng).unwrap();
@@ -883,12 +927,23 @@ fn main() {
         .iter()
         .map(|name| {
             registry.create(name).unwrap_or_else(|_| {
-                eprintln!(
-                    "--require: '{}' is not in the {} pool. Registered but unpooled cards \
-                     need --pool stress.",
-                    name,
-                    args.pool.name()
-                );
+                // Two different mistakes want two different fixes: a typo
+                // wants spelling, an unpooled card wants `--pool stress`.
+                // One message for both sends the typo the wrong way.
+                if CardRegistry::default_registry().create(name).is_ok() {
+                    eprintln!(
+                        "--require: '{}' is registered but not in the {} pool. \
+                         Use --pool stress.",
+                        name,
+                        args.pool.name()
+                    );
+                } else {
+                    eprintln!(
+                        "--require: no registered card is named '{}' (matching is \
+                         exact and case-sensitive).",
+                        name
+                    );
+                }
                 std::process::exit(2);
             })
         })
@@ -1187,6 +1242,28 @@ mod tests {
                 assert_eq!(names, same_names, "seed {seed}");
                 assert_eq!(deck.len(), 60);
             }
+        }
+    }
+
+    /// A required **land** comes out of the nonbasic-land budget, not a nonland
+    /// slot — otherwise requiring one would quietly make the deck 35/25 and move
+    /// every number `PERFORMANCE_POOL` exists to measure.
+    #[test]
+    fn a_required_land_does_not_change_the_land_count() {
+        use mtgsim::types::card_types::CardType;
+        let registry = CardRegistry::performance_pool();
+        let tundra = registry.create("Tundra").expect("in the performance pool");
+        let mut with = StdRng::seed_from_u64(3);
+        let mut without = StdRng::seed_from_u64(3);
+        for _ in 0..10 {
+            let a = random_deck(&registry, &mut with, std::slice::from_ref(&tundra));
+            let b = random_deck(&registry, &mut without, &[]);
+            let lands = |d: &[std::sync::Arc<mtgsim::objects::card_data::CardData>]| {
+                d.iter().filter(|c| c.types.contains(&CardType::Land)).count()
+            };
+            assert_eq!(a.len(), 60);
+            assert_eq!(lands(&a), lands(&b), "the land count is untouched");
+            assert!(a.iter().any(|c| c.name == "Tundra"));
         }
     }
 

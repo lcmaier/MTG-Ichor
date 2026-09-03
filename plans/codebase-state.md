@@ -791,39 +791,58 @@ built, and none of it blocks RC-1 through RC-3.
 
 ### Found by CV-1's reachability mode (2026-09-02)
 
-16c. **Some spells resolve having emitted no `SpellCast` and no `Hand → Stack`
-    zone change, and CR 603.2's triggers read that stream.** Found by
-    `fuzz_games --require`, which counts a named card's casts and resolutions
-    and reported *more resolutions than casts* — arithmetically impossible for a
-    card that can only resolve once.
+16c. **Spells resolve without being paid for, and `cast_spell` is one missing
+    `rollback_cast_to_hand` away from correct (found 2026-09-02, CV-1's
+    `--require`; diagnosed the same session).**
 
-    **Reproduction, on `main` at 103acf1 with no CV-1 code involved:**
-    `fuzz_games --games 40 --seed 12345 --threads 1 --dump-events x.log`, game 1.
-    Object `f0c682c2` (Volcanic Upheaval) is drawn at event 14 and emits
-    `Stack → Graveyard [Resolved]` at event 178 with **no `Hand → Stack [Cast]`
-    and no `SpellCast` anywhere between**. The other copy in the same game,
-    `9c409bd4`, does the full correct sequence four events later. Across 40
-    games, **814 announced casts against 1,020 stack departures — 206
-    unannounced**, and the count is *identical* on `main` and on CV-1's tree, so
-    nothing in this phase causes or hides it.
+    **The defect.** `cast.rs` has five fallible steps between CR 601.2a's
+    silent move to the stack and CR 601.2i's announcement. Four of them call
+    `rollback_cast_to_hand` before returning `Err`. The fifth {D} `pay_costs`,
+    the last statement before 601.2i {D} is a bare `?`. When it fails, the card
+    is **left on the stack**, never announced as cast, and the next stack
+    resolution resolves it. The player keeps the mana and gets the spell.
+    `priority.rs:99`'s comment ("game state clean ... see `cast_spell`
+    rollback") states the contract this line breaks.
 
-    **Why it matters more than a log cosmetic.** `CLAUDE.md`'s resolution of the
-    delta-log fork is that *trigger detection is the performed-action event
-    stream*. A spell that resolves without a `SpellCast` in that stream is
-    invisible to "whenever a player casts a spell" (CR 603.2) — 1,300+ printed
-    cards, and the failure mode is a card that silently does nothing, which is
-    this project's named worst outcome. **Critical-path item 6 must not start
-    before this is understood.**
+    **What makes it fire.** `can_pay_costs` passes, then
+    `ask_choose_generic_mana_allocation` lets the player split generic mana,
+    and a random allocation can spend a colour a coloured pip still needs {D} so
+    `pay_costs` fails on a cost that *was* payable. The prompt only runs when
+    `generic_count() > 0`, which is the smoking gun below.
 
-    **Not diagnosed here, and deliberately not.** It is in the cast path, it is
-    pre-existing, and CV-1 has no business rewriting `cast.rs`. Two things a
-    diagnosis should not have to rediscover: `cast.rs:263` is the *only*
-    `SpellCast` emitter and it is unconditional once `pay_costs` returns `Ok`;
-    and abilities are **not** the explanation — `stack.rs:181` removes a resolved
-    ability from `objects` with no zone change at all, and the ghost count (206)
-    does not match `AbilityResolved` (192). One caveat on the evidence: this was
-    read off `--dump-events`' *formatted* log, not the raw `GameEvent` stream, so
-    the first step is confirming the events are absent rather than unprinted.
+    **Evidence, on `main` at 103acf1 with no CV-1 code involved.**
+    `fuzz_games --games 40 --seed 12345 --threads 1 --dump-events x.log`:
+    **814 announced casts against 1,020 stack departures {D} 206 unannounced**,
+    identical on CV-1's tree. Game 1, object `f0c682c2` (Volcanic Upheaval) is
+    drawn at event 14 and emits `Stack {A} Graveyard [Resolved]` at event 178
+    with no `Hand {A} Stack [Cast]` and no `SpellCast` anywhere between; the
+    other copy does the full correct sequence four events later. **Every ghost
+    card has a generic component in its cost** (Merfolk Thaumaturgist `{2}{U}`,
+    Blood Moon `{2}{R}`, Grizzly Bears `{1}{G}`, …) and **no zero-generic card
+    is ever one** (Lightning Bolt `{R}`, Counterspell `{U}{U}`, Dark Ritual
+    `{B}`, Giant Growth `{G}`), which is the allocation prompt's own gate.
+
+    **Not a logging gap {D} an earlier draft of this entry said it was.**
+    `ui::display::format_event_log` maps every event with no filter, so the
+    events are genuinely absent; and the consequence is not that a trigger
+    would miss a cast, it is that **the spell resolves unpaid**, roughly five
+    times per game in the `performance` pool. That the event stream also
+    records nothing is the *second* problem: `CLAUDE.md` resolves the delta-log
+    fork by making trigger detection the performed-action stream, so CR 603.2's
+    "whenever a player casts a spell" would miss these too once item 6 exists.
+
+    **Nothing reads `GameEvent::SpellCast` in the engine today** {D} only
+    `fuzz_games`' stats and one integration test {D} which is why 206 free spells
+    per 40 games have gone unnoticed: no test asserts a spell was paid for, and
+    the fuzz harness measures cost and determinism, not legality.
+
+    **Sized: one line plus a regression test.** Give `pay_costs`'s `?` the
+    rollback its four siblings have. The test is the harder half and the
+    valuable one: construct a generic allocation that `can_pay_costs` accepts
+    and `pay_costs` rejects, then assert the card is back in hand, the mana is
+    still in the pool, and no `SpellCast` was emitted. **Its own PR** {D} it is
+    the cast path, it is pre-existing, and it wants a bugfix's discipline
+    (shown failing against the pre-fix tree first).
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 

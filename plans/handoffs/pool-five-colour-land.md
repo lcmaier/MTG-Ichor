@@ -64,6 +64,32 @@ a board that never plays half the registry.
 
 ---
 
+## The second half nobody would guess from the title
+
+**The land is what lets `--require` stop seeding deck colours, and that is
+arguably the bigger win.** Today `--require Mirrorweave` forces every deck to be
+W/U, because that is the only way the card gets cast. So the card is exercised
+against one colour pair and **never meets a black, red or green card at all**
+— the reachability number goes up while board diversity collapses.
+
+`random_deck` filters the nonland candidate pool by deck colours *before*
+drawing, so a WU card is not a candidate for a mono-red deck regardless of mana.
+`--require` already bypasses that by force-inserting. What it cannot bypass is
+the deck having no white or blue sources — which is exactly what the land fixes.
+
+**So this PR has two deliverables, not one:**
+
+1. The land.
+2. **Make `--require`'s colour seeding conditional or remove it**, and re-measure.
+   With the land in every deck's nonbasic budget, a forced Mirrorweave in a
+   mono-red deck is castable, and the run measures the card against a *random*
+   board instead of a hand-picked one.
+
+Do (2) in the same PR and report the reachability number both ways. If dropping
+the seeding tanks the resolution count, the land is not being drafted often
+enough and the lever is `NONBASIC_LANDS_PER_DECK` — which is the same finding
+the section below asks for, arrived at from the other direction.
+
 ## What it costs, and the trap
 
 **It changes the pool, so it invalidates both fixture tables** in
