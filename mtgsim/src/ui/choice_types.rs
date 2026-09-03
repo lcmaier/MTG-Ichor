@@ -79,6 +79,23 @@ pub enum ChoiceKind {
     /// asked (CR 102.2), and the choice is made before the permanent enters.
     ChooseEnteringController { object: ObjectId },
 
+    /// CR 614.13/13a — an entry replacement is being applied and it moves other
+    /// objects: devour's "you may sacrifice any number of creatures", Sutured
+    /// Ghoul's "exile any number of creature cards from your graveyard". The
+    /// options are the objects that may be chosen, already filtered by
+    /// CR 614.13a/b and by CR 101.2.
+    ///
+    /// **The minimum is zero and that is the card's text, not a courtesy.**
+    /// "Any number" includes none, so declining is a count rather than a
+    /// separate optional-replacement prompt — which is why devour is not a
+    /// `ReplacementDef::optional` and why a decline here does not spend
+    /// CR 614.5's opportunity.
+    ///
+    /// `entering` is the permanent whose entry is being modified — it can never
+    /// itself be an option (CR 614.13a), and it is not yet on the battlefield,
+    /// so a UI reads it out of the object store rather than off the board.
+    ChooseAuxiliaryZoneChange { entering: ObjectId, to: crate::types::zones::Zone },
+
     // --- Copy effects (CR 707) ---
     /// CR 707.4 — a resolving copy effect must **choose** the permanent whose
     /// copiable values it captures. Cytoshape's "Choose a nonlegendary creature

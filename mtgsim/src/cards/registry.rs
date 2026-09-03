@@ -43,7 +43,7 @@ use super::phase_sba_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 64] = [
+const PERFORMANCE_POOL: [&str; 66] = [
     "Plains",
     "Island",
     "Swamp",
@@ -143,6 +143,17 @@ const PERFORMANCE_POOL: [&str; 64] = [
     // stopped seeding a deck's colors from the required card's. The widest
     // board CR 305.7 has: Blood Moon strips five abilities here, not two.
     "Everywhere",
+    // RC-5 — the two new engine paths this phase opens, one card each.
+    // Thunder-Thrash Elder is an application that *prompts and mutates*
+    // (CR 614.13), the first rewrite that is not a pure function of the event,
+    // and the first non-`EnterWith` member a CR 616.1 entry bucket can hold —
+    // so `order_invariant_entry_bucket` has something it must refuse to
+    // suppress. Sigarda is already here, which makes CR 101.2's candidate
+    // filter live rather than fixtured. Master Biomancer is the dynamic
+    // counter amount: a layer read per application, and §5b's asymmetry on a
+    // board a random game reaches. Sutured Ghoul stays out at `{4}{B}{B}{B}`.
+    "Thunder-Thrash Elder",
+    "Master Biomancer",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -326,6 +337,14 @@ impl CardRegistry {
         registry.register("Containment Priest", phase_rc_cards::containment_priest);
         registry.register("Dryad Arbor", phase_rc_cards::dryad_arbor);
         registry.register("Keldon Warlord", phase_rc_cards::keldon_warlord);
+
+        // RC-5 — CR 614.13's auxiliary zone changes, one card per candidate
+        // zone (the battlefield and a player's graveyard are two enumerations),
+        // plus the first entry replacement whose counter amount is read off the
+        // board rather than printed on the card.
+        registry.register("Thunder-Thrash Elder", phase_rc_cards::thunder_thrash_elder);
+        registry.register("Sutured Ghoul", phase_rc_cards::sutured_ghoul);
+        registry.register("Master Biomancer", phase_rc_cards::master_biomancer);
 
         // Phase CV-1 — the first cards that put a row in layer 1. A pair,
         // because `CopyRoles` has two arms and each card is one of them:

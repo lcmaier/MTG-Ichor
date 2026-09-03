@@ -24,7 +24,9 @@ use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter};
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{
+    EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
+};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -50,7 +52,12 @@ fn entries(game: &GameState) -> Vec<(ObjectId, usize)> {
 /// A fixture, not a card: it exists to vary one axis at a time, and every claim
 /// it makes about a *registered* card is made again against
 /// [`idyllic_beachfront`] or [`chainbreaker`] below.
-fn enters_with(name: &str, power: i32, toughness: i32, mods: EnterMods) -> Arc<CardData> {
+fn enters_with(
+    name: &str,
+    power: i32,
+    toughness: i32,
+    mods: EnterModsTemplate,
+) -> Arc<CardData> {
     CardDataBuilder::new(name)
         // One colored symbol and no generic: a generic cost would make
         // `cast_spell` ask how to allocate it, and this fixture exists to reach
@@ -166,7 +173,7 @@ fn test_enters_tapped_does_not_leak_to_other_permanents() {
 fn test_resolving_permanent_spell_enters_tapped_under_its_caster() {
     let mut game = setup_two_player_game();
 
-    let id = put_in_hand(&mut game, enters_with("Slow Bear", 2, 2, EnterMods::tapped()), 0);
+    let id = put_in_hand(&mut game, enters_with("Slow Bear", 2, 2, EnterModsTemplate::tapped()), 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
     game.cast_spell(0, id, &test_dp()).expect("it is castable");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
@@ -290,7 +297,7 @@ fn test_two_entry_replacements_accumulate() {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
-                Rewrite::EnterWith(EnterMods::tapped()),
+                Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
         .ability(AbilityDef {
@@ -301,7 +308,7 @@ fn test_two_entry_replacements_accumulate() {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
-                Rewrite::EnterWith(EnterMods::with_counters(CounterType::Charge, 2)),
+                Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Charge, 2)),
             ))),
         })
         .build();
@@ -336,7 +343,7 @@ fn test_one_entry_replacement_applies_once() {
             "Charge Bear",
             2,
             2,
-            EnterMods::with_counters(CounterType::Charge, 1),
+            EnterModsTemplate::with_counters(CounterType::Charge, 1),
         ),
         0,
     );
@@ -368,7 +375,7 @@ fn orb_shaped() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter { filter: PermanentFilter::All },
-                Rewrite::EnterWith(EnterMods::tapped()),
+                Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
         .build()
@@ -596,7 +603,7 @@ fn test_direct_enter_battlefield_action_still_performs() {
     // The one shape a caller may build by hand: a token, created directly on
     // the battlefield, which `Primitive::CreateToken` does through
     // `propose_entry`.
-    let data = enters_with("Token-ish", 2, 2, EnterMods::tapped());
+    let data = enters_with("Token-ish", 2, 2, EnterModsTemplate::tapped());
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
     let id = obj.id;
     game.add_object(obj);
@@ -781,7 +788,7 @@ fn kismet_shaped() -> Arc<CardData> {
                         mtgsim::types::effects::PlayerRef::Opponent,
                     ),
                 },
-                Rewrite::EnterWith(EnterMods::tapped()),
+                Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
         .build()

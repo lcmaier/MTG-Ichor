@@ -122,6 +122,53 @@ impl DurationRow for RegisteredReplacementEffect {
 /// again to grow one.
 pub type ReplacementEffectRegistry = DurationRegistry<RegisteredReplacementEffect>;
 
+/// CR 614.13a/b's two exclusion sets, for one batch of simultaneous entries.
+///
+/// > 614.13a ... You can't choose the object that will become that permanent or
+/// > any other object entering the battlefield at the same time as that object.
+/// >
+/// > 614.13b The same object can't be chosen to change zones more than once when
+/// > applying replacement effects that modify how one or more permanents enter
+/// > the battlefield.
+///
+/// **Two rules, two fields, and they are not the same question.** 614.13a is
+/// about *this* batch's entries and is known before any replacement is applied;
+/// 614.13b accumulates as they are applied and spans every entry in the batch,
+/// which is what "one or more permanents" means.
+///
+/// **Why 614.13b is not redundant with the objects having moved.** It usually
+/// is — a sacrificed creature is in a graveyard and no longer a candidate — and
+/// the rule is written anyway, because the CR's own example is a single
+/// Runeclaw Bear offered to devour 3 and to devour 5. Tracking it explicitly is
+/// what makes the answer independent of whether a destination happens to fall
+/// out of the next effect's filter.
+///
+/// Lives on `GameState`; `codebase-state.md` item 40 says why. Empty outside a
+/// batch, and empty in every batch with no entry in it, which is nearly all of
+/// them.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct EntrySelectionScope {
+    /// CR 614.13a — every object entering the battlefield in this batch.
+    ///
+    /// A `Vec` and not a `HashSet` for the reason every ordered collection in
+    /// this engine is one: it reaches a `DecisionProvider`'s option list by way
+    /// of the candidates it removes, and a `HashSet` walk is not reproducible
+    /// across processes. Batches are one or two members, so membership is a
+    /// scan.
+    pub entering: Vec<ObjectId>,
+
+    /// CR 614.13b — every object already chosen to change zones while applying
+    /// an entry replacement in this batch.
+    pub chosen: Vec<ObjectId>,
+}
+
+impl EntrySelectionScope {
+    /// May `id` be chosen to change zones (CR 614.13a, 614.13b)?
+    pub fn admits(&self, id: ObjectId) -> bool {
+        !self.entering.contains(&id) && !self.chosen.contains(&id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

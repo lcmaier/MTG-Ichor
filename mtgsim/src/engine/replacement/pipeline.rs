@@ -5,11 +5,15 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, Effect, PermanentFilter, PlayerRef};
+use crate::types::effects::{AffectedSet, AmountExpr, Effect, PermanentFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::replacement::{EnterMods, GameActionTemplate, Rewrite, Uses};
+use crate::types::replacement::{
+    AuxiliaryMove, EnterMods, EnterModsTemplate, GameActionTemplate, Rewrite, Uses,
+};
 use crate::types::zones::Zone;
+use crate::oracle::characteristics::get_effective_power;
 use crate::ui::ask::ask_apply_optional_replacement;
+use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::ask_choose_entering_controller;
 use crate::ui::ask::ask_choose_replacement;
 
@@ -203,7 +207,7 @@ pub(crate) fn apply_replacements(
         let mut unsuppressed: Vec<ReplacementInstanceId> = Vec::new();
         let chosen = if bucket.len() == 1 {
             bucket.into_iter().next().expect("len checked")
-        } else if order_invariant_entry_bucket(&bucket) {
+        } else if order_invariant_entry_bucket(&bucket, subject_object(subject)) {
             let mut members = bucket.into_iter();
             let first = members.next().expect("len checked");
             unsuppressed = members.map(|c| c.id).collect();
@@ -311,6 +315,17 @@ pub(crate) fn apply_replacements(
 ///   tapped or untapped depending on which applies first, and *that* prompt
 ///   is real. `affected_is_mods_invariant` admits only leaves no `EnterMods`
 ///   field can move.
+/// - **Every amount is constant, or is read off a source that is not the
+///   entering object** (RC-5). The commuting half of the theorem was free
+///   while `EnterModsTemplate` held literals. It is not free now: a
+///   `SourcePower` amount is evaluated through `EntryFrame::frame_of(source)`,
+///   which answers the *hypothetical* permanent when the source is the
+///   entering object — so "enters with a counter for each point of its own
+///   power" gives a different number before and after another member's
+///   `-1/-1`. Master Biomancer is the reason this is the exact premise and not
+///   the conservative "all `Fixed`": its source is a real permanent, so its
+///   amount is read off the board and commutes, and Root Maze beside a
+///   Biomancer keeps its suppressed prompt.
 ///
 /// With every member's applicability fixed and every application commuting,
 /// each member applies exactly once in any order (CR 614.5) and the final
@@ -325,10 +340,17 @@ pub(crate) fn apply_replacements(
 /// reads P/T, keywords or counters, or `EventPattern::EnterBattlefield` reads
 /// `mods`. `check_order_invariance` is the debug-build check that computes it
 /// the other way, and `codebase-state.md` records the three conditions.
-fn order_invariant_entry_bucket(bucket: &[ReplacementInstance]) -> bool {
+fn order_invariant_entry_bucket(
+    bucket: &[ReplacementInstance],
+    entering: Option<ObjectId>,
+) -> bool {
     bucket.iter().all(|c| {
-        matches!(c.def.rewrite, Rewrite::EnterWith(_))
-            && !c.def.optional
+        (match &c.def.rewrite {
+            // Reads the frame only when the source is the object being
+            // computed, so anything else is a board read and commutes.
+            Rewrite::EnterWith(t) => t.is_fixed() || Some(c.source) != entering,
+            _ => false,
+        }) && !c.def.optional
             && c.def.then.is_none()
             && matches!(c.def.uses, Uses::Static)
             && !c.def.exempt_from_614_5
@@ -529,11 +551,20 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
 /// own. Clone pressure matters here beyond tidiness: a tree search clones
 /// `GameState`, and this loop runs inside every proposal.
 ///
-/// `game` and `ctx` are for the two arms that ask a question as they apply:
-/// `EnterWith` asks CR 614.17d whether its counters may be put on, and
-/// `EnterUnderControlOf(Opponent)` may have to ask a player which opponent.
+/// `game` and `ctx` are for the arms that ask a question as they apply:
+/// `EnterWith` asks CR 614.17d whether its counters may be put on and
+/// evaluates its amounts, `EnterUnderControlOf(Opponent)` may have to ask a
+/// player which opponent, and `EnterAfterMoving` prompts for a set of objects
+/// and moves them.
+///
+/// **`&mut` because of that last one, and only that one.** CR 614.13 is the
+/// rules' own statement that applying an entry replacement may change the
+/// board, so a rewrite is no longer a pure function of the event. Every other
+/// arm still is, and the mutation goes through `execute_actions_new_batch`
+/// rather than a direct write — the chokepoint invariant does not have an
+/// exception here.
 fn apply_rewrite(
-    game: &GameState,
+    game: &mut GameState,
     ctx: &ActionContext,
     chosen: &ReplacementInstance,
     event: GameAction,
@@ -556,10 +587,13 @@ fn apply_rewrite(
         // CR 101.2 at the door: a "can't have counters put on it" refuses the
         // counters this rewrite would add (CR 614.17d), and the entry goes on
         // without them.
-        Rewrite::EnterWith(extra) => match event {
+        Rewrite::EnterWith(template) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+                let extra = evaluate_enter_template(
+                    game, template, chosen.source, object, controller, &mods,
+                )?;
                 let extra = strip_prohibited_counters(
-                    game, object, controller, &mods, extra, Some(chosen.controller),
+                    game, object, controller, &mods, &extra, Some(chosen.controller),
                 );
                 mods.merge(&extra);
                 Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
@@ -568,6 +602,24 @@ fn apply_rewrite(
                 "replacement {:?} modifies how a permanent enters but matched {:?}, \
                  which is not an entry. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
+                chosen.id, other
+            )),
+        },
+
+        // CR 614.13 — choose, move, and count.
+        Rewrite::EnterAfterMoving(aux) => match event {
+            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+                let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
+                let extra = strip_prohibited_counters(
+                    game, object, controller, &mods, &extra, Some(chosen.controller),
+                );
+                mods.merge(&extra);
+                Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
+            }
+            other => Err(format!(
+                "replacement {:?} moves other objects as a permanent enters (CR 614.13) \
+                 but matched {:?}, which is not an entry. Its `EventPattern` and its \
+                 `Rewrite` describe different events.",
                 chosen.id, other
             )),
         },
@@ -736,4 +788,196 @@ pub(crate) fn strip_prohibited_counters(
         }
     }
     kept
+}
+
+/// Turn an [`EnterModsTemplate`] into the [`EnterMods`] the event carries, by
+/// evaluating each amount at the moment the effect is applied.
+///
+/// **Which board an amount reads is the whole of §5b, and it falls out of
+/// `frame_of` rather than being decided here.** The frame is built for the
+/// *entering* permanent with the mods applied so far (CR 614.12 clause 1), and
+/// `frame_of(source)` answers only when the source *is* that permanent — so an
+/// entering creature's own "with a counter for each ..." reads its hypothetical
+/// self, and Master Biomancer, a permanent already on the battlefield, is read
+/// off the real board. Elvish Archdruid entering under Biomancer therefore gets
+/// **2** counters and not 3: Archdruid's own anthem is in Archdruid's frame and
+/// in nothing else's.
+///
+/// A negative power is CR 122.6a's nothing rather than an error — no counters
+/// are put on — matching `add_counters`' `u32`.
+fn evaluate_enter_template(
+    game: &GameState,
+    template: &EnterModsTemplate,
+    source: ObjectId,
+    entering: ObjectId,
+    controller: PlayerId,
+    so_far: &EnterMods,
+) -> Result<EnterMods, String> {
+    let mut out = EnterMods { tapped: template.tapped, counters: Vec::new() };
+    if template.counters.is_empty() {
+        return Ok(out);
+    }
+    let frame = EntryFrame::for_entering(game, entering, controller, so_far);
+    for (counter, amount) in &template.counters {
+        let n = match amount {
+            AmountExpr::Fixed(n) => *n as i64,
+            AmountExpr::SourcePower => match frame.frame_of(source) {
+                Some(chars) => chars.power.unwrap_or(0) as i64,
+                None => get_effective_power(game, source).unwrap_or(0) as i64,
+            },
+            other => {
+                return Err(format!(
+                    "an entry replacement on {} gives counters with amount {:?}, which \
+                     `evaluate_enter_template` cannot read. CR 614.12 asks this question \
+                     of a permanent that does not exist yet, so an amount here has to \
+                     name either a constant or the effect's own source.",
+                    source, other
+                ))
+            }
+        };
+        if n > 0 {
+            out.counters.push((*counter, n as u32));
+        }
+    }
+    Ok(out)
+}
+
+/// CR 614.13's application: choose a number of objects, move them, and report
+/// what the entering permanent gets for it.
+///
+/// The three things §9 said did not exist, in order.
+///
+/// 1. **The prompt.** Candidates are filtered by CR 614.13a/b
+///    (`GameState::entry_selection`) and by CR 101.2 before they are offered,
+///    which is `sacrifice_of_choice`'s axis-1 shape: a Sigarda that makes a
+///    creature unsacrificeable removes it from the list rather than letting it
+///    be chosen and then refusing the move — the count would be wrong either
+///    way, and only one of them is a *choice* the player was allowed to make.
+/// 2. **The moves.** Proposed, never written: `execute_actions_new_batch` puts
+///    them through the whole CR 614 pipeline with fresh applied sets
+///    (CR 614.5), so a finality counter still exiles a devoured creature and
+///    Kalitas still gets its Zombie.
+/// 3. **The count.** What was *performed*, not what was picked. A move a
+///    replacement dropped entirely never happened (CR 614.6), so it is not a
+///    creature that was sacrificed; a move some effect redirected still is one.
+///
+/// CR 614.13b is recorded **before** the moves, so a nested batch cannot lose
+/// it and the state a fork would need at the next prompt is already in
+/// `GameState` (`codebase-state.md` item 40).
+fn apply_auxiliary_move(
+    game: &mut GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    aux: &AuxiliaryMove,
+    entering: ObjectId,
+    entering_controller: PlayerId,
+) -> Result<EnterMods, String> {
+    // "You" for CR 614.13a's choice. For devour and Sutured Ghoul the effect is
+    // the entering permanent's own, so this is the controller it will enter
+    // under (CR 110.2b, off the proposal); for a filter-scoped effect it is the
+    // other permanent's controller, which is what the card's "you" means.
+    let you = chosen.controller;
+    let _ = entering_controller;
+
+    let candidates = auxiliary_candidates(game, aux, you)?;
+    if candidates.is_empty() {
+        return Ok(EnterMods::NONE);
+    }
+    let max = aux
+        .up_to
+        .map(|n| n as usize)
+        .unwrap_or(candidates.len())
+        .min(candidates.len());
+    if max == 0 {
+        return Ok(EnterMods::NONE);
+    }
+
+    let picked = ask_choose_auxiliary_zone_change(
+        ctx.dp, game, you, entering, aux.to, &candidates, max,
+    );
+    if picked.is_empty() {
+        return Ok(EnterMods::NONE);
+    }
+    game.entry_selection.chosen.extend(picked.iter().copied());
+
+    // AUXILIARY-MOVE: CR 614.13's moves are not a result of the entry — they
+    // are performed while it is still being decided — so they get their own
+    // batch id rather than joining the one this pipeline is inside
+    // (`replacement-architecture.md` §4.2).
+    let batch: Vec<GameAction> = picked
+        .iter()
+        .map(|&id| GameAction::ZoneChange {
+            object: id,
+            from: aux.from,
+            to: aux.to,
+            cause: aux.cause,
+        })
+        .collect();
+    let moved = game.execute_actions_new_batch(batch, ctx)?.len() as u32;
+
+    Ok(match aux.per_chosen {
+        Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per),
+        _ => EnterMods::NONE,
+    })
+}
+
+/// Every object CR 614.13a lets this effect choose.
+///
+/// **Candidate scoping differs by zone, and the asymmetry is the CR's.** A
+/// player zone *is* the scope — "creature cards from **your** graveyard" is the
+/// chooser's own graveyard, in its own order — while the battlefield is one
+/// shared zone where control and ownership diverge, so "creatures you control"
+/// has to be a `ByController(You)` leaf on the effect's own filter. Both walk
+/// an ordered collection, because a candidate list reaches a `DecisionProvider`
+/// by index.
+///
+/// A zone with no card asking for it is an error rather than an empty list: an
+/// arm the pipeline cannot apply is worse than a missing one, and a silently
+/// empty candidate set is a devour that never devours.
+fn auxiliary_candidates(
+    game: &GameState,
+    aux: &AuxiliaryMove,
+    you: PlayerId,
+) -> Result<Vec<ObjectId>, String> {
+    let ids: Vec<ObjectId> = match aux.from {
+        Zone::Battlefield => game.battlefield_ids_ordered(),
+        Zone::Graveyard => game.players[you].graveyard.clone(),
+        other => {
+            return Err(format!(
+                "CR 614.13 auxiliary move reads {:?}, which has no candidate enumeration. \
+                 The battlefield and a player's graveyard are the two the printed cards \
+                 use; a third needs its ordering and its ownership scope stated.",
+                other
+            ))
+        }
+    };
+
+    Ok(ids
+        .into_iter()
+        .filter(|&id| {
+            // CR 614.13a/b, ahead of everything else: an excluded object is not
+            // a candidate that fails a check, it is not a candidate.
+            if !game.entry_selection.admits(id) {
+                return false;
+            }
+            if !game.permanent_matches_filter(id, &aux.filter, you).unwrap_or(false) {
+                return false;
+            }
+            // CR 101.2 on the move this choice would produce — the axis-1
+            // question `sacrifice_of_choice` asks, for the same reason.
+            !is_prohibited(
+                game,
+                &Query::Event {
+                    action: &GameAction::ZoneChange {
+                        object: id,
+                        from: aux.from,
+                        to: aux.to,
+                        cause: aux.cause,
+                    },
+                    cause: Some(you),
+                    lookahead: None,
+                },
+            )
+        })
+        .collect())
 }

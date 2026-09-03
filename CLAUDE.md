@@ -86,8 +86,8 @@ the event. Propose with `execute_action` / `change_zone`.
   it announces. A performer nests a proposal only if the outer event is real without it → §11 item 20.
 - **A simultaneous rule needs `execute_actions`, not a loop.** CR 704.3's single event, 704.7's
   collapse and 615.7's shield allocation are unreachable from a loop; a *nested* call joins the
-  enclosing batch. One permanent exemption, tagged `// CAST-ROLLBACK:`: CR 601.2a's move is silent
-  both ways and announced at 601.2i, when the spell is cast. → `replacement-architecture.md` §2.
+  enclosing batch unless the CR makes its events no *result of* the outer one (`// AUXILIARY-MOVE:`,
+  CR 614.13). One permanent chokepoint exemption, `// CAST-ROLLBACK:`: CR 601.2a's move is silent both ways, loud at 601.2i. → `replacement-architecture.md` §2.
 - **A decision site may not hold outcome-bearing state off `GameState`.** → `codebase-state.md` item 40.
 
 ## The replacement pipeline (CR 614–616)
