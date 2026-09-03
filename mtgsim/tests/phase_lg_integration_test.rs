@@ -230,8 +230,8 @@ fn test_a_spell_reports_its_caster_not_its_owner() {
 // Builds the *controller* clause of CR 400.7a -- "effects ... that change the
 // characteristics or controller of a permanent spell on the stack continue to
 // apply to the permanent that spell becomes". The atom's own scenario is the
-// characteristics clause (Deathlace recolouring a creature spell), which needs a
-// colour-changing effect that can target a stack object; that half is still open.
+// characteristics clause (Deathlace recoloring a creature spell), which needs a
+// color-changing effect that can target a stack object; that half is still open.
 #[test]
 fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     let mut game = setup_two_player_game();

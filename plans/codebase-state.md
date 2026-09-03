@@ -331,7 +331,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **`AmountExpr::CountOf`** — its first static-context evaluator, over `battlefield_ids_ordered` at the current `layer_index`, memoized within the walk. The entering object is invisible to it because it is not on that list: §5a's Thassa boundary, structural.
 - **§11 item 19** — CR 616.1 no longer prompts when every member of the bucket is an `EnterWith` whose applicability no `EnterMods` field can move; item 47 below has the three expiry conditions and the debug-build check. Containment Priest landed first, so the multi-candidate branch is still reached by a registered board.
 - **`GameAction::EnterBattlefield` carries the zone change that brought the object** (`None` for a token), because CR 601's "was it cast" is unrecoverable a moment later; `EventPattern::EnterBattlefield { cast }` projects it.
-- **Three cards.** Containment Priest and Dryad Arbor (stress pool), Keldon Warlord (`PERFORMANCE_POOL` 61 → 62). Wall of Stone gains the Wall subtype it always printed. Two fixes rode along: CR 205.1a in `land_types::apply_set_subtypes` — Blood Moon made Dryad Arbor a Mountain with no creature type; shown failing first, own commit — and the pool's colour check reading colour indicators (CR 204.1).
+- **Three cards.** Containment Priest and Dryad Arbor (stress pool), Keldon Warlord (`PERFORMANCE_POOL` 61 → 62). Wall of Stone gains the Wall subtype it always printed. Two fixes rode along: CR 205.1a in `land_types::apply_set_subtypes` — Blood Moon made Dryad Arbor a Mountain with no creature type; shown failing first, own commit — and the pool's color check reading color indicators (CR 204.1).
 - **`targeting::permanent_matches_filter` takes one layer walk per filter** instead of one per leaf, and only when a leaf reads a characteristic; the entry path matches against the frame through `permanent_matches_filter_in_frame`.
 
 **The measurement, three binaries.** Interleaved in one sitting, 50 games / seed 12345 / `--threads 1`, medians of seven rounds: `main` at 1045b70 (A), RC-4's engine with the pools exactly as `main` had them (B — the three cards unregistered, Keldon Warlord out of `PERFORMANCE_POOL`), and RC-4 shipped (C).
@@ -529,7 +529,7 @@ here. None is blocking RB.
    entered under P0 with a row on top or under P1 with the row double-counting, so
    an effective-only assertion lets either model pass. It also now carries
    `COVERS-PARTIAL: ATOM-400.7a-001` for that rule's *controller* clause; the
-   atom's own scenario is the characteristics clause (Deathlace recolouring a
+   atom's own scenario is the characteristics clause (Deathlace recoloring a
    creature spell) and stays open.
 
    Still owed from this item: carrying the caster onto the *permanent*, which
@@ -808,7 +808,7 @@ built, and none of it blocks RC-1 through RC-3.
     **The mechanism, confirmed by the failing test rather than inferred.**
     `can_pay_costs` passes; then `ask_choose_generic_mana_allocation` lets the
     player split the generic part across every type in the pool, capped only by
-    each type's amount, so a split that spends a colour a pip still needs
+    each type's amount, so a split that spends a color a pip still needs
     passes the prompt's own validation and `ManaPool::pay` refuses it. Grizzly
     Bears `{1}{G}` against `{R}{G}` with the generic put on Green is the whole
     reproducer, and on the pre-fix tree it fails at "back in hand: left
@@ -891,6 +891,56 @@ built, and none of it blocks RC-1 through RC-3.
     the whole pool, so a kicker's mana is double-counted and `pay_costs` fails
     with the base already spent. The rollback returns the card; it does not
     return the mana.
+
+### Found by the Everywhere pool change (2026-09-03)
+
+16d. **An any-color mana base turned the random agent's uniform tap into a
+    five-sided die, and the agent now taps for the pip it owes (2026-09-03,
+    `pool/everywhere-land`).** With fourteen Everywheres in every deck, a
+    uniform pick among (land, ability) pairs paid `{1}{G}{U}` from three taps
+    about one time in five; a failed payment rewinds with the lands still
+    tapped (CR 732.1's "may not reverse" branch, `backlog.md` §2.18); land
+    taps per spell cast went 3.86 → 7.66 (40-game `performance` dumps) and
+    spells per game 27.9 → 22.6 with them. `RandomDecisionProvider` now
+    prefers a source that makes a type an unpaid pip accepts, least flexible
+    source first, declines when a pip is owed that nothing offered can make,
+    and caps each type in the generic split at its pool amount less the pips
+    of that type the same payment pays — policy, not payment law: the prompt
+    still offers every legal option and the engine still validates the
+    answer. Taps per cast read **3.18**, spells per game 25.0 / 24.8, and
+    walks per game fall below `main` on `performance`, because every wasted
+    tap was a window iteration that walked the whole board.
+    `engineering-practices.md` §3 has the three sittings.
+
+    **What this entry first claimed, and why it was wrong.** The first draft
+    read "`--require Cytoshape` resolves 212 times against 390 with seeding,
+    and the halving is the agent". Most of it was copies: a deck seeded to
+    G/U drew its 36 nonlands from 21 cards and held 2.7 Cytoshapes, the whole
+    pool gives 1.7, and a throwaway build forcing exactly one copy per deck
+    read 149 / 141 / 133 for seeded / unseeded / unseeded with the agent
+    fixed. The seeding was worth about 5% per copy and the agent's fix none
+    of it — a forced card's count is bounded by drawing the copy and choosing
+    it among everything else castable, not by paying. `--require` now prints
+    `copies/deck` beside every count so the next reader cannot make the same
+    comparison.
+
+    **Still owed in §2.18:** the engine-side split clamp, which makes every
+    DP safe rather than this one, and the CR 732.1 reversal prompt.
+
+16e. **96% of layer walks repeat an object nothing has touched, so item 7's
+    memoization half is split out as 7a and moved ahead of triggers
+    (2026-09-03, owner's call, on the Everywhere PR).** A temporary probe keyed
+    every walk on `(ObjectId, execute_actions batch)`: 108,626 walks and 4,030
+    distinct keys per `performance` game, 111,418 and 4,183 on `stress`, at
+    313 batches a game. The 2026-08-23 reasons for deferring the memo ("Before
+    Layers", the Layer 2 phase's "cross-call memoization deliberately did NOT
+    land here") are all about a key that enumerates its inputs; an epoch key
+    has none, and it is what the 613.8 board-wide pass will store into. Design,
+    the bump-site census, the bypasses and the acceptance test are in
+    `layers-architecture.md` §12 "7a"; `CLAUDE.md`'s critical path carries the
+    order. This PR sharpened the motive as well as measuring it: Everywhere
+    made each land walk heavier (+36% per walk, `engineering-practices.md`
+    §3), and a memo pays that once per epoch rather than once per query.
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 
@@ -1396,13 +1446,13 @@ section never asked.
     a missing *event* already in the tree. Before deferring a widening, check
     which events can reach it — not only which cards.
 
-    **Colour is not derived from mana cost, and that is now guarded rather than
-    fixed** (raised in review 2026-08-31). CR 202.2 makes a card's colours the
-    colours of its mana cost, and `CardDataBuilder::color()` restates it by hand
+    **color is not derived from mana cost, and that is now guarded rather than
+    fixed** (raised in review 2026-08-31). CR 202.2 makes a card's colors the
+    colors of its mana cost, and `CardDataBuilder::color()` restates it by hand
     at **52** call sites. Measured: **0 of 58** registered cards disagree, so
     there is no bug today — only redundancy and drift risk.
 
-    Deriving it is one small PR and *not* a deletion: CR 202.2e's colour
+    Deriving it is one small PR and *not* a deletion: CR 202.2e's color
     indicator is printed data no mana cost implies (Dryad Arbor is a green land
     with no mana cost, Ancestral Vision is blue with none), so the builder needs
     an override, and CR 702.114a's devoid is a **CDA** that belongs in Layer 5
@@ -1411,11 +1461,11 @@ section never asked.
 
     **Deadline: before Phase 8 breadth**, when 52 sites become 500+. The error
     class that will actually bite is **hybrid** — a `{W/U}` card is *both*
-    colours (CR 202.2d) and that is what a human writing `.color()` gets wrong.
+    colors (CR 202.2d) and that is what a human writing `.color()` gets wrong.
     The registry has no hybrid card yet. Until then
     `card_pool_lowering_test::test_every_registered_cards_color_matches_its_mana_cost`
     is the guard that makes deferring safe, and it was verified to fail on an
-    injected miscolour rather than merely to pass.
+    injected miscolor rather than merely to pass.
 
     **Two findings from writing them.** A Rest in Peace that is itself dying
     still has its static ability at the instant the event is proposed, so it
@@ -2546,11 +2596,13 @@ It found a real over-claim on its first run over the existing 76 links. `ATOM-61
 
 **`fuzz_games::random_deck` land population — ✅ partly fixed (2026-08-23); artifacts still missing.**
 
-Land slots used to be filled entirely from a colour→basic table, so no deck could contain a nonbasic land. Blood Moon was in the card pool and inert, and CR 305.7 — the land-type carve-out in `engine/layers/land_types.rs`, the most intricate code in Layer 4 — had **zero** random-play coverage.
+Land slots used to be filled entirely from a color→basic table, so no deck could contain a nonbasic land. Blood Moon was in the card pool and inert, and CR 305.7 — the land-type carve-out in `engine/layers/land_types.rs`, the most intricate code in Layer 4 — had **zero** random-play coverage.
 
-Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giving `random_deck` a `NONBASIC_LANDS_PER_DECK` constant, currently 5. A land qualifies if it produces **at least one** of the deck's colours — deliberately not a subset test, because under a subset rule every dual is off by one colour for a two-colour deck and a mono-colour deck gets none at all. An unusable second colour on a land costs nothing in a fuzz deck.
+Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giving `random_deck` a `NONBASIC_LANDS_PER_DECK` constant, currently 5. A land qualifies if it produces **at least one** of the deck's colors — deliberately not a subset test, because under a subset rule every dual is off by one color for a two-color deck and a mono-color deck gets none at all. An unusable second color on a land costs nothing in a fuzz deck.
 
 Still crude, and knowingly so: a flat constant over a static pool is not a mana-base model. Replace it with a real picker when card breadth (Phase 8) gives it something to choose between.
+
+**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colors, which is why a deck rolled one or two colors and filtered its nonlands to them, and why `--require` had to seed those colors from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land is **Everywhere** (`cards/dual_lands.rs::everywhere`), the five-type token: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the color roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (200 of 200 games with a non-G/U permanent, from 0), and prints copies per deck beside the count because the first comparison across the two mana bases was counting copies — 16d has the correction.
 
 **~~Still open — no artifact exists anywhere in `CardRegistry`~~ — ✅ fixed 2026-08-24, together with the Layer 7d hole.** March of the Machines was registered and inert for the same reason Blood Moon had been: nothing in the crate outside the `phase_l*` fixtures was an artifact, so Layer 7b had zero random-play coverage. Layer 7d had none either — no registered card switched P/T, and the one fixture that does (`phase5_pre_cards::inside_out`) simplifies a hybrid cost the engine cannot express, so it cannot be registered without misrepresenting the card.
 

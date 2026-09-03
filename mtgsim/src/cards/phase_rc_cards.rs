@@ -19,10 +19,10 @@
 //! them. A fixture made that claim; a registered card is what makes the *pool*
 //! able to.
 //!
-//! None is gated behind a colour a random deck may not have: `random_deck`
-//! filters nonlands by colour, so a `{G}{W}` card reaches roughly one deck in
+//! None is gated behind a color a random deck may not have: `random_deck`
+//! filters nonlands by color, so a `{G}{W}` card reaches roughly one deck in
 //! sixteen, while a colorless card is in every deck and a two-type nonbasic land
-//! is in every deck that wants either of its colours. Reachability is the
+//! is in every deck that wants either of its colors. Reachability is the
 //! measurement this phase owes, so it is a selection criterion and not a
 //! footnote.
 //!
@@ -326,7 +326,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 /// controllers, so it exercises the multi-candidate branch without standing on
 /// a read RC-3 is still fixing.
 ///
-/// Its reachability is the other half. `random_deck` picks one or two colours
+/// Its reachability is the other half. `random_deck` picks one or two colors
 /// out of five, so a mono-green card is in about a third of decks; `{G}` at one
 /// mana means it lands on turn one and is out before most permanents arrive.
 /// It also matches **artifacts**, which is what puts it and [`chainbreaker`] on
@@ -451,7 +451,7 @@ pub fn containment_priest() -> Arc<CardData> {
 }
 
 /// Dryad Arbor
-/// Land Creature — Forest Dryad, 1/1 (green by colour indicator, CR 204.1)
+/// Land Creature — Forest Dryad, 1/1 (green by color indicator, CR 204.1)
 ///
 /// (This land isn't a spell, it's affected by summoning sickness, and it has
 /// "{T}: Add {G}.")

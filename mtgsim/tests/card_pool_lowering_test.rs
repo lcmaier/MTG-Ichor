@@ -67,23 +67,23 @@ fn test_every_registered_card_lowers_for_either_controller() {
 /// **redundant with the mana cost on every card in the registry today** — this
 /// test measured zero disagreements the day it was written. The right end state
 /// is deriving it in the builder, which is one small PR and is not this one:
-/// CR 202.2e's colour indicator is printed data that no mana cost implies
+/// CR 202.2e's color indicator is printed data that no mana cost implies
 /// (Dryad Arbor is a green land with no mana cost; Ancestral Vision is blue with
 /// none), so the derivation needs an override rather than a deletion, and CR
 /// 702.114a's devoid is a CDA that belongs in Layer 5 rather than in `CardData`.
 ///
-/// Until then this is the guard that makes deferring safe. A miscoloured card is
+/// Until then this is the guard that makes deferring safe. A miscolored card is
 /// exactly the failure class this file exists for: it produces a card that is
-/// quietly the wrong colour, which no other check we have would notice.
+/// quietly the wrong color, which no other check we have would notice.
 ///
 /// **When it starts mattering: hybrid.** A `{W/U}` card is *both* white and blue
 /// (CR 202.2d), and that is the first place a human writing `.color()` by hand
 /// gets it wrong. The registry has no hybrid card yet, so the error class has
 /// had no chance to appear.
 ///
-/// **A card with a colour indicator is checked against the indicator** (CR
+/// **A card with a color indicator is checked against the indicator** (CR
 /// 204.1 / 202.2e), not against its mana cost — Dryad Arbor has no cost and is
-/// green. A card that fails here is wrong about its colour or its cost, never
+/// green. A card that fails here is wrong about its color or its cost, never
 /// a case for bending the card to the check.
 #[test]
 fn test_every_registered_cards_color_matches_its_mana_cost() {
@@ -97,13 +97,13 @@ fn test_every_registered_cards_color_matches_its_mana_cost() {
             ManaType::Black => Some(Color::Black),
             ManaType::Red => Some(Color::Red),
             ManaType::Green => Some(Color::Green),
-            // CR 202.2b — {C} is not a colour.
+            // CR 202.2b — {C} is not a color.
             ManaType::Colorless => None,
         }
     }
 
     /// CR 202.2 + 202.2d: every colored symbol contributes, and a hybrid or
-    /// Phyrexian symbol contributes *all* of its colours.
+    /// Phyrexian symbol contributes *all* of its colors.
     fn derived(symbols: &[ManaSymbol]) -> Vec<Color> {
         let mut out: Vec<Color> = Vec::new();
         let push = |out: &mut Vec<Color>, c: Option<Color>| {
@@ -122,7 +122,7 @@ fn test_every_registered_cards_color_matches_its_mana_cost() {
                     push(&mut out, color_of(*a));
                     push(&mut out, color_of(*b));
                 }
-                // Generic, {C}, snow and X carry no colour.
+                // Generic, {C}, snow and X carry no color.
                 ManaSymbol::Generic
                 | ManaSymbol::Colorless
                 | ManaSymbol::Snow
@@ -138,9 +138,9 @@ fn test_every_registered_cards_color_matches_its_mana_cost() {
     for name in registry.card_names() {
         let Ok(card) = registry.create(&name) else { continue };
         let mut declared: Vec<Color> = card.colors.iter().copied().collect();
-        // CR 202.2b — no mana cost at all means no coloured symbols, so
-        // colorless. CR 204.1 is the exception: a colour indicator defines
-        // the colour outright, whatever the cost says. Dryad Arbor is the
+        // CR 202.2b — no mana cost at all means no colored symbols, so
+        // colorless. CR 204.1 is the exception: a color indicator defines
+        // the color outright, whatever the cost says. Dryad Arbor is the
         // first registered card with one.
         let mut expected = match (&card.color_indicator, &card.mana_cost) {
             (Some(indicator), _) => indicator.clone(),

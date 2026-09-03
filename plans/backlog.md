@@ -280,12 +280,12 @@ rule-level citations this file will accumulate as it fills, not for today's text
   this entry, not a zone guard. Corrected in §3.2's table.
 - **Owner** — none yet.
 
-### 2.10 Colour is a derived characteristic, and the engine stores it
+### 2.10 color is a derived characteristic, and the engine stores it
 
-- **Rules** — CR 202.2 (colour from the mana cost), 105.2, 105.3
+- **Rules** — CR 202.2 (color from the mana cost), 105.2, 105.3
 - **Verdict** — `engine/layers/compute.rs:99` seeds Layer 5 with
   `colors: card.colors.clone()` — **the stored field, never the mana cost.**
-  CR 202.2 makes colour *derived* from the mana symbols, so an authored card
+  CR 202.2 makes color *derived* from the mana symbols, so an authored card
   whose `colors` and `mana_cost` disagree is silently wrong and nothing can
   notice. `color_indicator` still has no reader (audit §5.2, Deferred
   Migrations), and `is_monocolored` / `is_multicolored` / `is_colorless` do not
@@ -294,9 +294,9 @@ rule-level citations this file will accumulate as it fills, not for today's text
   `EffectiveCharacteristics.colors` is already the right type and Layer 5
   already applies to it, so the change is the seed plus a derivation function.
   It pairs naturally with §2.1 — reading a hybrid or Phyrexian symbol for its
-  colours is the same symbol-decoding work as paying with one.
-- **Blocks** — devotion (§2.7's CR 700.5a); protection from a colour (§2.6);
-  every colour-matters card; the colour indicator's CV-5 landing.
+  colors is the same symbol-decoding work as paying with one.
+- **Blocks** — devotion (§2.7's CR 700.5a); protection from a color (§2.6);
+  every color-matters card; the color indicator's CV-5 landing.
 - **Atoms** — 20, across CR 202 (11) and CR 105 (9).
 - **Owner** — none yet.
 
@@ -457,12 +457,16 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   casts, ~7.5 per game, each a decision round-trip spent on nothing. **A third
   gap, and this one is engine-side (2026-09-02):** the generic-split prompt
   offers every type in the pool as a bucket with the pool's amount as its max,
-  so a split that spends a colour a pip still needs passes the prompt's own
+  so a split that spends a color a pip still needs passes the prompt's own
   validation and fails at `ManaPool::pay`. About five casts per game did that,
   and until `codebase-state.md` 16c closed they *resolved unpaid*; now they
   rewind, on top of the 7.5 above. Clamping each bucket to `available − pips
   of that type` removes the class — 16c's closing entry says yes, sizes it at
-  ten lines, and says why it is its own PR.
+  ten lines, and says why it is its own PR. **The DP-side half landed
+  2026-09-03** (`ui/random.rs`): the random agent taps for the pip it still
+  owes and splits the generic part only from the surplus, which took its
+  land taps per cast from 7.66 to 3.18 on an any-color mana base. The
+  engine-side clamp is still what makes *every* DP safe, and is still owed.
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:
@@ -476,6 +480,43 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
 - **Atoms** — ATOM-601.2h-002 is claimed partial by RC-4b's rewind test;
   732.1 has none.
 - **Owner** — none yet.
+
+### 2.19 Any-color mana — "Add one mana of any color"
+
+- **Rules** — CR 106.1b (the six types of mana; "any color" is a choice among
+  five of them), 605.1a; CR 111.10a and 111.10c (Treasure and Gold print the
+  text).
+- **Verdict** — `ManaType` has no any-color variant and `ManaOutput.mana` is
+  `Vec<(ManaType, AmountExpr)>`, so the ability cannot be written; and
+  `engine/mana.rs::resolve_mana_effect` accepts only `ProduceMana` atoms with
+  `Fixed` amounts and never asks a `DecisionProvider` anything, so a new atom
+  would still resolve without the color being chosen. The choice belongs at
+  resolution, not at activation — `ChoiceKind::ManaAbilityWindow`'s docs
+  already anticipate a Cavern of Souls whose second mode is "add one mana of
+  any color", and today that mode would have to be five abilities. **The
+  fuzz pool sidestepped it on 2026-09-03** with Everywhere
+  (`cards/dual_lands.rs::everywhere`): five one-color abilities, so the color *is*
+  the ability picked in the 601.2g window. That is faithful for a five-type
+  land and wrong for everything below, which prints one ability and a choice.
+- **Size** — small-to-medium. A `ManaOutput` arm (or a `ManaAtom`) for "one
+  mana of any color", one `ChoiceKind` asked in `resolve_mana_effect`, and
+  `fuzz_games::land_mana_colors` learning to read it. Riders are separate
+  and already carriable: City of Brass's damage and Mana Confluence's life
+  loss are a mana ability with a non-mana effect, which the `Sequence` arm
+  can hold once the primitive exists. Command Tower needs color identity on
+  top, which is the Commander track's, not this one's.
+- **Blocks** — Command Tower, Birds of Paradise, Chromatic Lantern, City of
+  Brass, Mana Confluence, Gemstone Mine, Exotic Orchard; every Treasure and
+  Gold token; Cavern of Souls' second mode; every mana filter ("{1}: Add one
+  mana of any color"). Any Commander-viable mana base.
+- **Atoms** — ATOM-111.10-001's expected result prints the text; ATOM-605.3c-001's
+  board is a mana filter that adds "one mana of any color". Neither is about
+  this mechanic and neither is claimed. The spending-side rules — CR 609.4b's
+  "as though it were mana of any color", ATOM-609.4b-001..003 — are a
+  different surface (`ManaPool::pay`) and stay where they are.
+- **Owner** — none yet. (Recorded here on 2026-09-03 when
+  `plans/handoffs/pool-five-color-land.md` was closed; its City of Brass
+  recommendation is this entry.)
 
 ---
 
@@ -640,7 +681,7 @@ recorded so they are not re-derived:
 1. **A CR section is a loose proxy for a mechanic, and it over-collects.** The
    CR 107/118/202 shipped-phase bucket reads as one cluster and is at least four:
    cost modification, exotic mana-symbol payment, mana-value computation, and
-   Layer 5 colour derivation — plus a fifth group that is genuinely implemented
+   Layer 5 color derivation — plus a fifth group that is genuinely implemented
    and merely untested. 28 of its 54 atoms stayed put for that reason. **Triage
    from the atom's `Mechanism` field**, which names the function, rather than
    from its rule number.

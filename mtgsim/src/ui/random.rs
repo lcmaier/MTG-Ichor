@@ -14,9 +14,23 @@
 // declines) up to `WINDOW_ACTIVATION_CAP`, after which it declines so the
 // engine bails out cleanly.
 //
-// Auto-tap as a *strategic* concern (choose which dual land to tap, whether
-// to save a Cavern of Souls for an uncounterable creature later) is a
-// future middleware DP concern, not this type's job — see
+// **It is random among the choices that can pay, not among all of them
+// (2026-09-03).** Two of its answers are not uniform: in the mana window it
+// taps a source that makes a pip the cost still needs before it taps
+// anything else, least flexible source first, and declines when no source
+// can make a pip that is still owed; and it splits the generic part of a cost
+// only across mana the same payment does not need for a pip. Both are
+// policy, not payment law — the prompt still offers every legal option and
+// the engine still validates what comes back — and both exist because an
+// any-color mana base (`cards/dual_lands.rs::everywhere`) turned a uniform
+// tap into a five-sided die: land taps per spell cast doubled, 3.86 → 7.66,
+// and spells per game fell with them (`codebase-state.md` 16d). A failed
+// payment rewinds with the lands still tapped, so a wrong tap is a turn's
+// mana gone. With this policy taps per cast read 3.18.
+//
+// Auto-tap as a *strategic* concern (which dual to tap, whether to save a
+// Cavern of Souls for an uncounterable creature later) is still a future
+// middleware DP concern, not this type's job — see
 // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md` §4.
 
 use std::cell::{Cell, RefCell};
@@ -25,10 +39,97 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 
+use crate::oracle::mana_helpers::available_mana_sources;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use crate::ui::decision::DecisionProvider;
+use crate::ui::decision::{DecisionProvider, PriorityAction};
+
+/// What a mana window's options can do for the pips a cost still owes.
+enum WindowPreference {
+    /// Indices of the options that make a type some unpaid pip accepts, among
+    /// the sources with the fewest such types — tap the Forest before the
+    /// five-color land, so the land is still there for the pip only it can
+    /// make.
+    Useful(Vec<usize>),
+    /// Nothing but generic (or nothing this policy reads) is owed: any source.
+    AnyWillDo,
+    /// A pip is owed that no offered source can make. Tapping anything now
+    /// spends mana on a payment that will fail and rewind.
+    Hopeless,
+}
+
+/// The policy behind [`WindowPreference`], read off `remaining_cost` — the
+/// pips the pool does not already cover — and what each offered ability
+/// produces. A hybrid pip accepts either half; a mono-hybrid or Phyrexian
+/// pip is payable without its color and so expresses no preference; X and
+/// generic never do.
+fn mana_window_preference(
+    game: &GameState,
+    player: PlayerId,
+    remaining: &ManaCost,
+    options: &[ChoiceOption],
+) -> WindowPreference {
+    let mut wanted: Vec<ManaType> = Vec::new();
+    let mut owes_a_pip = false;
+    for sym in &remaining.symbols {
+        match sym {
+            ManaSymbol::Colored(t) => {
+                owes_a_pip = true;
+                wanted.push(*t);
+            }
+            ManaSymbol::Colorless => {
+                owes_a_pip = true;
+                wanted.push(ManaType::Colorless);
+            }
+            ManaSymbol::Hybrid(a, b) => {
+                owes_a_pip = true;
+                wanted.push(*a);
+                wanted.push(*b);
+            }
+            _ => {}
+        }
+    }
+    if !owes_a_pip {
+        return WindowPreference::AnyWillDo;
+    }
+
+    let produces: std::collections::HashMap<(ObjectId, AbilityId), ManaType> =
+        available_mana_sources(game, player)
+            .into_iter()
+            .map(|s| ((s.permanent_id, s.ability_id), s.produces))
+            .collect();
+    // How many wanted types each permanent can make: its flexibility.
+    let mut flexibility: std::collections::HashMap<ObjectId, usize> =
+        std::collections::HashMap::new();
+    for ((perm, _), t) in &produces {
+        if wanted.contains(t) {
+            *flexibility.entry(*perm).or_insert(0) += 1;
+        }
+    }
+
+    let mut useful: Vec<(usize, usize)> = Vec::new();
+    let mut unreadable = false;
+    for (i, opt) in options.iter().enumerate() {
+        let ChoiceOption::Action(PriorityAction::ActivateAbility(perm, ab)) = opt else {
+            unreadable = true;
+            continue;
+        };
+        match produces.get(&(*perm, *ab)) {
+            Some(t) if wanted.contains(t) => useful.push((i, flexibility[perm])),
+            Some(_) => {}
+            None => unreadable = true,
+        }
+    }
+    if useful.is_empty() {
+        // An option this policy cannot read might still be the right one;
+        // only a fully-read window with nothing useful in it is hopeless.
+        return if unreadable { WindowPreference::AnyWillDo } else { WindowPreference::Hopeless };
+    }
+    let least = useful.iter().map(|(_, f)| *f).min().unwrap();
+    WindowPreference::Useful(useful.into_iter().filter(|(_, f)| *f == least).map(|(i, _)| i).collect())
+}
 
 /// A decision provider that makes random legal choices.
 ///
@@ -96,8 +197,8 @@ impl Default for RandomDecisionProvider {
 impl DecisionProvider for RandomDecisionProvider {
     fn pick_n(
         &self,
-        _game: &GameState,
-        _player: PlayerId,
+        game: &GameState,
+        player: PlayerId,
         context: &ChoiceContext,
         options: &[ChoiceOption],
         bounds: (usize, usize),
@@ -107,16 +208,20 @@ impl DecisionProvider for RandomDecisionProvider {
         }
         let mut rng = self.rng.borrow_mut();
 
-        // During a `ManaAbilityWindow`, RandomDP always picks an activation
-        // (never randomly declines) so fuzz exercises full cost-payment
+        // During a `ManaAbilityWindow`, RandomDP picks an activation that
+        // can still pay something (see `mana_window_preference`) and never
+        // declines while one exists, so fuzz exercises full cost-payment
         // paths. Termination is controlled by the engine via
         // `can_pay_costs` success / enumeration-empty / failure blacklist,
         // plus the per-window activation cap here as a safety net against
         // pathological filter-ability chains (e.g., `{1}: Add one mana of
-        // any color` cycled forever). Once the cap is hit we return empty
-        // (decline), letting the engine exit the window; any unpayable cost
-        // then triggers clean rollback via the caller.
-        if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } = &context.kind {
+        // any color` cycled forever). Once the cap is hit — or once a pip is
+        // owed that nothing offered can make — we return empty (decline),
+        // letting the engine exit the window; any unpayable cost then
+        // triggers clean rollback via the caller.
+        if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } =
+            &context.kind
+        {
             let (win_id, count) = match self.window.get() {
                 Some((id, n)) if id == *spell_or_ability_id => (id, n),
                 _ => (*spell_or_ability_id, 0),
@@ -125,7 +230,16 @@ impl DecisionProvider for RandomDecisionProvider {
                 self.window.set(Some((win_id, count)));
                 return Vec::new();
             }
-            let idx = rng.random_range(0..options.len());
+            let pick_from: Vec<usize> =
+                match mana_window_preference(game, player, remaining_cost, options) {
+                    WindowPreference::Useful(indices) => indices,
+                    WindowPreference::AnyWillDo => (0..options.len()).collect(),
+                    WindowPreference::Hopeless => {
+                        self.window.set(Some((win_id, count)));
+                        return Vec::new();
+                    }
+                };
+            let idx = pick_from[rng.random_range(0..pick_from.len())];
             self.window.set(Some((win_id, count + 1)));
             return vec![idx];
         }
@@ -221,7 +335,7 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _context: &ChoiceContext,
+        context: &ChoiceContext,
         total: u64,
         buckets: &[ChoiceOption],
         per_bucket_mins: &[u64],
@@ -232,27 +346,51 @@ impl DecisionProvider for RandomDecisionProvider {
             return Vec::new();
         }
 
+        let mut caps: Vec<u64> = per_bucket_maxs.map_or(vec![u64::MAX; n], |m| m.to_vec());
+
+        // A generic split spends from the pool the same payment pays its pips
+        // from (CR 601.2h), and the prompt's caps are the pool's amounts, so
+        // a split that spends a color a pip still needs passes the prompt
+        // and fails at `ManaPool::pay` — which rewinds the cast with the
+        // lands tapped. Cap each type at what is left after its own pips.
+        // If that leaves less than `total` (it cannot, once `can_pay_costs`
+        // passed), keep the prompt's caps so the answer is at least valid.
+        if let ChoiceKind::GenericManaAllocation { mana_cost } = &context.kind {
+            let mut clamped = caps.clone();
+            for (i, bucket) in buckets.iter().enumerate() {
+                if let ChoiceOption::ManaType(mt) = bucket {
+                    let owed = match mt {
+                        ManaType::Colorless => mana_cost
+                            .symbols
+                            .iter()
+                            .filter(|s| matches!(s, ManaSymbol::Colorless))
+                            .count() as u64,
+                        t => mana_cost.colored_count(*t) as u64,
+                    };
+                    clamped[i] = clamped[i].saturating_sub(owed);
+                }
+            }
+            let reach: u64 = clamped.iter().fold(0u64, |acc, c| acc.saturating_add(*c));
+            if reach >= total {
+                caps = clamped;
+            }
+        }
+
         // Start with minimums
         let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
         let min_sum: u64 = alloc.iter().sum();
         let mut remaining = total.saturating_sub(min_sum);
 
-        // Distribute remaining randomly across buckets, respecting maxs
+        // Distribute remaining randomly across buckets, respecting caps
         let mut rng = self.rng.borrow_mut();
         while remaining > 0 {
             // Collect buckets that can still accept more
-            let eligible: Vec<usize> = (0..n)
-                .filter(|&i| {
-                    per_bucket_maxs
-                        .map_or(true, |maxs| alloc[i] < maxs[i])
-                })
-                .collect();
+            let eligible: Vec<usize> = (0..n).filter(|&i| alloc[i] < caps[i]).collect();
             if eligible.is_empty() {
                 break;
             }
             let bucket = eligible[rng.random_range(0..eligible.len())];
-            let headroom = per_bucket_maxs
-                .map_or(remaining, |maxs| (maxs[bucket] - alloc[bucket]).min(remaining));
+            let headroom = (caps[bucket] - alloc[bucket]).min(remaining);
             let give = if headroom <= 1 { 1 } else { rng.random_range(1..=headroom) };
             alloc[bucket] += give;
             remaining -= give;
@@ -278,8 +416,137 @@ impl DecisionProvider for RandomDecisionProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::decision::PriorityAction;
+    use crate::cards::basic_lands::forest;
+    use crate::cards::dual_lands::everywhere;
+    use crate::oracle::mana_helpers::enumerate_activatable_mana_abilities;
+    use crate::test_support::{put_on_battlefield, setup_two_player_game};
     use crate::test_support::setup_two_player_game as setup_basic_game;
+
+    /// The window's options for player 0, as `ask_activate_mana_ability`
+    /// builds them, and what each produces.
+    fn window_options(game: &GameState) -> (Vec<ChoiceOption>, Vec<ManaType>) {
+        let legal = enumerate_activatable_mana_abilities(game, 0);
+        let produces: std::collections::HashMap<_, _> = available_mana_sources(game, 0)
+            .into_iter()
+            .map(|s| ((s.permanent_id, s.ability_id), s.produces))
+            .collect();
+        let options = legal
+            .iter()
+            .map(|(p, a)| ChoiceOption::Action(PriorityAction::ActivateAbility(*p, *a)))
+            .collect();
+        let types = legal.iter().map(|k| produces[k]).collect();
+        (options, types)
+    }
+
+    fn window(remaining: ManaCost) -> ChoiceContext {
+        ChoiceContext {
+            kind: ChoiceKind::ManaAbilityWindow {
+                spell_or_ability_id: crate::types::ids::new_object_id(),
+                remaining_cost: remaining,
+            },
+        }
+    }
+
+    /// A five-color land offers five abilities; with `{G}` still owed the
+    /// agent taps it for green every time, not one time in five.
+    #[test]
+    fn mana_window_taps_for_the_pip_still_owed() {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, everywhere(), 0);
+        let (options, types) = window_options(&game);
+        assert_eq!(options.len(), 5);
+        for seed in 0..20u64 {
+            let dp = RandomDecisionProvider::seeded(seed);
+            let ctx = window(ManaCost::build(&[ManaType::Green], 0));
+            let pick = dp.pick_n(&game, 0, &ctx, &options, (0, 1));
+            assert_eq!(types[pick[0]], ManaType::Green, "seed {seed}");
+        }
+    }
+
+    /// `{G}{U}` owed, a Forest and a five-color land offered: the Forest goes
+    /// first, because it is the source that can only make one of the two.
+    #[test]
+    fn mana_window_taps_the_least_flexible_source_first() {
+        let mut game = setup_two_player_game();
+        let forest = put_on_battlefield(&mut game, forest(), 0);
+        put_on_battlefield(&mut game, everywhere(), 0);
+        let (options, _) = window_options(&game);
+        assert_eq!(options.len(), 6);
+        for seed in 0..20u64 {
+            let dp = RandomDecisionProvider::seeded(seed);
+            let ctx = window(ManaCost::build(&[ManaType::Green, ManaType::Blue], 0));
+            let pick = dp.pick_n(&game, 0, &ctx, &options, (0, 1));
+            let ChoiceOption::Action(PriorityAction::ActivateAbility(perm, _)) = options[pick[0]]
+            else {
+                panic!("not an activation")
+            };
+            assert_eq!(perm, forest, "seed {seed}");
+        }
+    }
+
+    /// Only generic owed: every source is fair game, and the agent still
+    /// never declines while one is offered.
+    #[test]
+    fn mana_window_taps_anything_for_generic() {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, everywhere(), 0);
+        let (options, types) = window_options(&game);
+        let mut seen = std::collections::HashSet::new();
+        for seed in 0..40u64 {
+            let dp = RandomDecisionProvider::seeded(seed);
+            let ctx = window(ManaCost::build(&[], 1));
+            let pick = dp.pick_n(&game, 0, &ctx, &options, (0, 1));
+            assert_eq!(pick.len(), 1);
+            seen.insert(types[pick[0]]);
+        }
+        assert!(seen.len() > 1, "generic is paid with whatever comes: {seen:?}");
+    }
+
+    /// `{U}` owed and only a Forest offered: decline, so the engine rewinds
+    /// with the Forest untapped instead of after burning it.
+    #[test]
+    fn mana_window_declines_when_no_source_can_make_an_owed_pip() {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, forest(), 0);
+        let (options, _) = window_options(&game);
+        assert_eq!(options.len(), 1);
+        let dp = RandomDecisionProvider::seeded(1);
+        let ctx = window(ManaCost::build(&[ManaType::Blue], 0));
+        assert!(dp.pick_n(&game, 0, &ctx, &options, (0, 1)).is_empty());
+    }
+
+    /// `{1}{G}{U}` from a pool of one each of G, U and R: the generic mana is
+    /// the red, every time — the prompt's caps would have let it be the green
+    /// or the blue, and `ManaPool::pay` would then have refused the payment.
+    #[test]
+    fn generic_split_spends_only_what_the_pips_leave_over() {
+        let game = setup_basic_game();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let ctx = ChoiceContext { kind: ChoiceKind::GenericManaAllocation { mana_cost: cost } };
+        let buckets = vec![
+            ChoiceOption::ManaType(ManaType::Green),
+            ChoiceOption::ManaType(ManaType::Blue),
+            ChoiceOption::ManaType(ManaType::Red),
+        ];
+        for seed in 0..20u64 {
+            let dp = RandomDecisionProvider::seeded(seed);
+            let alloc = dp.allocate(&game, 0, &ctx, 1, &buckets, &[0, 0, 0], Some(&[1, 1, 1]));
+            assert_eq!(alloc, vec![0, 0, 1], "seed {seed}");
+        }
+    }
+
+    /// The same cost from `{G}{G}{U}`: the surplus green pays the generic.
+    #[test]
+    fn generic_split_uses_a_color_s_surplus_beyond_its_pips() {
+        let game = setup_basic_game();
+        let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
+        let ctx = ChoiceContext { kind: ChoiceKind::GenericManaAllocation { mana_cost: cost } };
+        let buckets =
+            vec![ChoiceOption::ManaType(ManaType::Green), ChoiceOption::ManaType(ManaType::Blue)];
+        let dp = RandomDecisionProvider::seeded(3);
+        let alloc = dp.allocate(&game, 0, &ctx, 1, &buckets, &[0, 0], Some(&[2, 1]));
+        assert_eq!(alloc, vec![1, 0]);
+    }
 
     #[test]
     fn test_random_dp_pick_n_empty() {
