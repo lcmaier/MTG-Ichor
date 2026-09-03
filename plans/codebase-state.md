@@ -894,41 +894,38 @@ built, and none of it blocks RC-1 through RC-3.
 
 ### Found by the Everywhere pool change (2026-09-03)
 
-16d. **The random agent cannot use an any-color mana base, and the harness
-    now measures that in every game.** `--require Cytoshape` without color
-    seeding resolves **212** times in 200 `performance` games (126 games,
-    63%) against **390** with it — and every deck can pay `{1}{G}{U}`, since
-    fourteen or more of its 24 lands are Everywhere. The agent picks a (land,
-    ability) pair uniformly in the 601.2g window, so an Everywhere tap is a
-    five-sided die: three taps hold a G and a U about one time in five, five
-    taps two in five. A failed payment rewinds silently with the lands still
-    tapped (CR 732.1's "may not reverse" branch, `backlog.md` §2.18), so the
-    turn's mana is gone. Land taps per spell cast: 3.86 on `main`, 7.66
-    shipped (40-game `performance` dumps). Spells cast per game fell with it
-    in the plain run, 27.9 → 22.6 on `performance`, and games run longer
-    (33.3 → 37.4 turns). **This is §2.18's auto-payment oracle, measured from the deck's
-    side rather than the agent's** — the mana base a Commander deck has, the
-    v1 target, and an agent that turns most of it into nothing. §2.18 already
-    sizes the oracle; this entry is the number that says what it is worth.
-    Not chased here: the fix is agent-side and moves game content a third
-    time, and this PR already moves it once.
+16d. **An any-color mana base turned the random agent's uniform tap into a
+    five-sided die, and the agent now taps for the pip it owes (2026-09-03,
+    `pool/everywhere-land`).** With fourteen Everywheres in every deck, a
+    uniform pick among (land, ability) pairs paid `{1}{G}{U}` from three taps
+    about one time in five; a failed payment rewinds with the lands still
+    tapped (CR 732.1's "may not reverse" branch, `backlog.md` §2.18); land
+    taps per spell cast went 3.86 → 7.66 (40-game `performance` dumps) and
+    spells per game 27.9 → 22.6 with them. `RandomDecisionProvider` now
+    prefers a source that makes a type an unpaid pip accepts, least flexible
+    source first, declines when a pip is owed that nothing offered can make,
+    and caps each type in the generic split at its pool amount less the pips
+    of that type the same payment pays — policy, not payment law: the prompt
+    still offers every legal option and the engine still validates the
+    answer. Taps per cast read **3.18**, spells per game 25.0 / 24.8, and
+    walks per game fall below `main` on `performance`, because every wasted
+    tap was a window iteration that walked the whole board.
+    `engineering-practices.md` §3 has the three sittings.
 
-    **The cheap first step is in the DP, not the engine (owner's question,
-    2026-09-03).** In the 601.2g window `RandomDecisionProvider` can prefer
-    an ability that produces a color the `remaining_cost` still has a pip
-    of, and take anything only once the pips are covered — about twenty
-    lines against `available_mana_sources`, a *policy* rather than payment
-    law, which a DP may hold (the prompt still offers every legal ability).
-    It pairs with §2.18's ten-line split clamp: the guard puts the right
-    colors in the pool and the clamp stops the generic part spending one of
-    them, and either alone leaves the other's failures. Its own PR with a
-    re-record, and the halving above is its acceptance test; every
-    multicolor card added makes it worth more.
+    **What this entry first claimed, and why it was wrong.** The first draft
+    read "`--require Cytoshape` resolves 212 times against 390 with seeding,
+    and the halving is the agent". Most of it was copies: a deck seeded to
+    G/U drew its 36 nonlands from 21 cards and held 2.7 Cytoshapes, the whole
+    pool gives 1.7, and a throwaway build forcing exactly one copy per deck
+    read 149 / 141 / 133 for seeded / unseeded / unseeded with the agent
+    fixed. The seeding was worth about 5% per copy and the agent's fix none
+    of it — a forced card's count is bounded by drawing the copy and choosing
+    it among everything else castable, not by paying. `--require` now prints
+    `copies/deck` beside every count so the next reader cannot make the same
+    comparison.
 
-    **What the pool change did to the fixtures** is in
-    `engineering-practices.md` §3, separated into the registration (nothing:
-    the middle arm reproduces `main` byte for byte on `performance`) and the
-    deck construction (everything else). The counters: games four to seven turns longer, spells per game 27.9 → 22.6 / 24.9 → 22.6, creatures died 7.8 → 5.6 / 4.6 → 3.8, walks +0.7% / +24%. Per-walk time is +34% / +39%, and a fourth binary with the Everywhere fill tier swapped for basics reads *below* `main` (0.977 against 1.060 ms per 1,000 walks) — so the cost is the land itself: a five-ability, five-subtype object is heavier to seed a frame from, and the mana window walks lands more than anything else. Not an engine change; item 7's memoization in another guise.
+    **Still owed in §2.18:** the engine-side split clamp, which makes every
+    DP safe rather than this one, and the CR 732.1 reversal prompt.
 
 ### Found by the #62 pre-merge pass (2026-08-30)
 
@@ -2590,7 +2587,7 @@ Fixed by registering the ten original dual lands (`cards/dual_lands.rs`) and giv
 
 Still crude, and knowingly so: a flat constant over a static pool is not a mana-base model. Replace it with a real picker when card breadth (Phase 8) gives it something to choose between.
 
-**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colors, which is why a deck rolled one or two colors and filtered its nonlands to them, and why `--require` had to seed those colors from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land is **Everywhere** (`cards/dual_lands.rs::everywhere`), the five-type token: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the color roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (198 of 200 games with a non-G/U permanent, from 0) at half the resolutions, and the half is the random agent's tapping, not the deck.
+**Inverted 2026-09-03 (`pool/everywhere-land`).** Every land in the registry made one or two colors, which is why a deck rolled one or two colors and filtered its nonlands to them, and why `--require` had to seed those colors from the required card's — a forced `{1}{G}{U}` in a deck that rolled red was included and never cast. Real "add one mana of any color" is not expressible (`backlog.md` §2.19), so the land is **Everywhere** (`cards/dual_lands.rs::everywhere`), the five-type token: it fills every land slot not taken by one basic of each type (`BASIC_LANDS_PER_DECK`, the contrast CR 305.7 needs) or by the `NONBASIC_LANDS_PER_DECK` draws. With that mana base the color roll and the nonland filter had nothing left to do and are gone: 36 nonlands come from the whole pool. What it bought and what it cost are under "Found by the Everywhere pool change" below; the short form is that `--require` now measures a card against a random board (200 of 200 games with a non-G/U permanent, from 0), and prints copies per deck beside the count because the first comparison across the two mana bases was counting copies — 16d has the correction.
 
 **~~Still open — no artifact exists anywhere in `CardRegistry`~~ — ✅ fixed 2026-08-24, together with the Layer 7d hole.** March of the Machines was registered and inert for the same reason Blood Moon had been: nothing in the crate outside the `phase_l*` fixtures was an artifact, so Layer 7b had zero random-play coverage. Layer 7d had none either — no registered card switched P/T, and the one fixture that does (`phase5_pre_cards::inside_out`) simplifies a hybrid cost the engine cannot express, so it cannot be registered without misrepresenting the card.
 

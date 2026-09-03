@@ -462,7 +462,11 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   and until `codebase-state.md` 16c closed they *resolved unpaid*; now they
   rewind, on top of the 7.5 above. Clamping each bucket to `available − pips
   of that type` removes the class — 16c's closing entry says yes, sizes it at
-  ten lines, and says why it is its own PR.
+  ten lines, and says why it is its own PR. **The DP-side half landed
+  2026-09-03** (`ui/random.rs`): the random agent taps for the pip it still
+  owes and splits the generic part only from the surplus, which took its
+  land taps per cast from 7.66 to 3.18 on an any-color mana base. The
+  engine-side clamp is still what makes *every* DP safe, and is still owed.
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:

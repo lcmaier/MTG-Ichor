@@ -23,10 +23,10 @@
 // policy, not payment law — the prompt still offers every legal option and
 // the engine still validates what comes back — and both exist because an
 // any-color mana base (`cards/dual_lands.rs::everywhere`) turned a uniform
-// tap into a five-sided die: a forced `{1}{G}{U}` resolved half as often
-// while every deck could pay it, and land taps per cast doubled
-// (`codebase-state.md` 16d). A failed payment rewinds with the lands still
-// tapped, so a wrong tap is a turn's mana gone.
+// tap into a five-sided die: land taps per spell cast doubled, 3.86 → 7.66,
+// and spells per game fell with them (`codebase-state.md` 16d). A failed
+// payment rewinds with the lands still tapped, so a wrong tap is a turn's
+// mana gone. With this policy taps per cast read 3.18.
 //
 // Auto-tap as a *strategic* concern (which dual to tap, whether to save a
 // Cavern of Souls for an uncounterable creature later) is still a future
