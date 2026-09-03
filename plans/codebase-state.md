@@ -1922,7 +1922,10 @@ section never asked.
     the other way — re-gather after the suppressed choice and assert the rest
     still apply — which catches either on any board a test or a debug fuzz run
     reaches. **The rule for whoever adds (a) or (c): revisit the predicate in
-    the same commit.**
+    the same commit.** **A fourth condition arrived with RC-5 and fired
+    immediately** — an `EnterModsTemplate` amount that reads the CR 614.12 frame
+    does not commute, so the predicate now asks for `Fixed` or a source that is
+    not the entering object. The rule was followed: see item 58.
 
 48. **`default_enter_controller` has three roads and answers a fourth wrongly
     — and RC-4 stopped standing on it.** The three that exist are exact: a
@@ -1952,7 +1955,13 @@ section never asked.
     parenthesis licenses the leg. No registered effect gives an entering
     permanent counters *from outside* — Master Biomancer is RC-5's — so there is
     no board to fail on yet; add the leg with the first such card, mirroring
-    `gather`'s `SelfScope::EnteringSelf`, ~20 lines.
+    `gather`'s `SelfScope::EnteringSelf`, ~20 lines. **Master Biomancer landed
+    2026-09-03 and the leg is still owed — the board now exists.** An entering
+    Tatterkite under a Biomancer should get no counters and would get two:
+    `strip_prohibited_counters` asks `is_prohibited`, which still has no
+    source-1a sweep. Neither Tatterkite nor Melira's Keepers is registered, so
+    nothing fails; this is the first entry on this list whose *reproducer* is
+    now one card away rather than two.
 
 50. **A count enumerates the battlefield twice per CDA.** `SetPowerToughness`
     evaluates its two amounts separately, so Keldon Warlord's `CountOf` sorts
@@ -2011,6 +2020,102 @@ section never asked.
     leaves-the-battlefield trigger keyed on `ZoneChange { from: Battlefield }`
     — and both would fire for a token that was created in exile and never left
     anything. Cross-listed as "Before card breadth" item 8.
+
+### Found by RC-5 — applying an entry can move the board (2026-09-03)
+
+**Shipped:** CR 614.13/13a/13b as `Rewrite::EnterAfterMoving`, and
+`EnterMods.counters` given an amount the board decides. `+2,239 / −121` across
+18 files. **Trace page:**
+[`plans/traces/rc-5-applying-an-entry-can-move-the-board.html`](traces/rc-5-applying-an-entry-can-move-the-board.html)
+— four boards, every read labelled board / frame / scope / player.
+`replacement-architecture.md` §9 has the design, the findings and the
+measurement; what follows is what a later phase has to know.
+
+53. **`apply_rewrite` takes `&mut GameState`, and exactly one arm needs it.**
+    CR 614.13 is the rules' own statement that applying an entry replacement may
+    change the board, so a `Rewrite` is no longer a pure function of the event.
+    Every other arm still is. The mutation goes through
+    `execute_actions_new_batch`, never a direct write — the chokepoint invariant
+    has no exception here — and the loop's termination argument is untouched,
+    because `apply_auxiliary_move` cannot create a replacement effect and the
+    applied set still bounds the iterations.
+
+54. **`execute_actions_new_batch` is §4.2's one exception, and the argument it
+    needs is not "these are different".** A nested `execute_actions` joins the
+    enclosing batch on CR 120.3f's grounds: lifelink's life gain is a *result
+    of* the damage. CR 614.13's moves are performed in phase 1, while the entry
+    is still being decided, so there is no entry event for them to be part of;
+    and two devour creatures entering together apply their replacements one
+    after the other, so joining would hand a CR 603.2c "whenever one or more
+    creatures die" one event where the rules have two. **Unreadable today** —
+    nothing consumes a `BatchId` until critical-path item 6 — which is why it
+    is asserted in a test rather than left to be discovered there
+    (`test_the_auxiliary_moves_are_their_own_batch`). A second caller needs the
+    same argument made again, from the CR.
+
+55. **`GameState::entry_selection` is batch-scoped state, and it is the third
+    thing item 40 would have caught.** CR 614.13a's "not the entering object nor
+    anything entering simultaneously" and 614.13b's "not the same object twice"
+    are both read across the CR 616.1 prompt and both change the outcome if
+    lost, so they are on `GameState` rather than on the pipeline's stack —
+    **item 40's table gains no third violator.** Saved and restored by
+    `execute_batch_inner` the way `open_batch`/`close_batch` handle the event
+    stamp, and the chosen set is recorded *before* the moves, so the nested
+    batch cannot lose it. Two mutations pin each half.
+
+56. **CR 614.13b is redundant until two effects' zones chain, and that is worth
+    knowing before the next rule like it.** A sacrificed creature stops matching
+    the next battlefield filter on its own, so the CR's own example — one
+    Runeclaw Bear, devour 3 and devour 5 — gives the right answer with the rule
+    deleted. It bites when one effect *writes into* the zone the next one reads:
+    devour into a graveyard, then Sutured Ghoul's exile. **Found by the mutation
+    pass, not by the design**, and the lesson generalises: `§10`'s
+    "mutation-check every assertion" can report a weak *board* rather than a
+    weak assertion.
+
+57. **`AmountExpr::SourcePower` has exactly one evaluator, and the other two
+    refuse it.** `replacement::evaluate_enter_template` reads
+    `EntryFrame::frame_of(source)` — `Some` only when the source *is* the
+    entering object — and falls back to the real board, which is the whole of
+    §5b's asymmetry in one line: an entering permanent's own "with a counter for
+    each …" reads its hypothetical self, and Master Biomancer is read off the
+    board. `compute::evaluate_amount` and `resolve::evaluate_amount` grow an arm
+    that errors rather than guessing at a source they were not given. **A third
+    evaluator is the thing to be careful about**: the answer depends on which
+    board the caller is entitled to, and only the entry path knows.
+
+58. **Item 47's predicate has a fourth expiry condition, and RC-5 fired it.**
+    `order_invariant_entry_bucket`'s theorem has two halves — every member still
+    applies, and the applications commute — and the second was free while
+    `EnterModsTemplate` held literals. It is not free now. The premise added is
+    **exact rather than conservative**: an amount is order-invariant if it is
+    `Fixed`, *or* its instance's source is not the entering object, since only
+    then can `frame_of` return `Some`. Master Biomancer therefore keeps the
+    suppressed prompt and the fuzz pool keeps its zero-prompt property. The rule
+    for whoever adds a fifth is item 47's: revisit the predicate in the same
+    commit.
+
+59. **Sutured Ghoul's power and toughness are missing, not wrong.** Its `*/*`
+    box is a CDA (CR 208.2) whose text reads "the exiled cards", which CR 614.14
+    links to the exiling ability — CR 607, ticket T20, the same block Painter's
+    Servant sits behind. The card is registered at its printed box's value
+    without the CDA, **0/0**, which is also the right answer when nothing is
+    exiled; a Ghoul that exiles something should live and dies to CR 704.5f
+    instead. In the default registry, so `--pool stress` plays it; out of
+    `PERFORMANCE_POOL`. **Closes with T20**, and it is the second card in the
+    pool whose printed P/T box the engine cannot fill (Keldon Warlord's is
+    filled).
+
+60. **Master Biomancer's Mutant clause is unimplemented, and it is not one
+    field.** "…and as a Mutant in addition to its other types" wants a type on
+    `EnterMods`, which fires item 47's expiry condition (a) directly:
+    `PermanentFilter`'s `ByType` and `BySubtype` leaves would stop being
+    mods-invariant, so **every** CR 616.1 entry bucket would start prompting.
+    It also needs somewhere for the type to live *after* the entry — a Layer 4
+    effect with no registry row and no duration, which is a shape the layer
+    system does not have. **Sized:** the field is small and the two consequences
+    are not; call it a phase of its own, and note that the printed population
+    for "enters as a [type]" is thin enough that it is not urgent.
 
 ### Was the critical path complete? — audited 2026-08-27
 

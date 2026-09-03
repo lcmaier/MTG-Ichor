@@ -2462,7 +2462,7 @@ accepts that a later PR may fix an earlier one.
 | **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
 | **RC-4 — the overlay** ✅ | §5's clauses (1)–(3), 614.17d, 616.1b, `CountOf`, §11 item 19. **614.13a/b moved to RC-5** | re-counted a third time at **9** reads and the count was the wrong instrument: **four kinds** of read needed perturbing, and only those moved. Shipped **+2,567 / −279 across 25 files** — 1,447 engine, 223 cards, 897 tests — over the band on tests alone, with RC-5 already split out in the doc before code | **highest** — and the risk that materialised was not the walk: it was item 19's theorem, which the frame falsified (finding 3) |
 | **RC-4b — one proposal per entry, none per cast step** ✅ | The entry hop RC-4's review found (`EnterBattlefield` carries `from` and its performer moves), tokens, CR 608.3e, and the cast rewind's phantom zone change (`codebase-state.md` item 51) — one bundle under one rule, §11 item 20 | sized ~450–650; shipped **+378 / −250 engine across 12 files** and +568 tests — the engine inside the band, the tests over it, as RC-4's were | low, and the one reach into `gather` beyond the pattern arm was a finding, not a cost: source 1a read the entering permanent through a plain walk that was right only because the card had already moved (finding 1 below) |
-| **RC-5 — auxiliary zone changes and a dynamic entry amount** | CR 614.13/13a/13b, a dynamic `EnterWith` amount. **Re-sized 2026-09-03 before code**: the batch-scoped frame was RC-4b's and CR 613.7m is RE's — see below | sized below: ~1,200 + ~250, after the re-size dropped the ~400 | medium — a new decision site, and the only piece the re-size did not shrink |
+| **RC-5 — auxiliary zone changes and a dynamic entry amount** ✅ | CR 614.13/13a/13b, a dynamic `EnterWith` amount. **Re-sized 2026-09-03 before code**: the batch-scoped frame was RC-4b's and CR 613.7m is RE's — see below | sized below: ~1,200 + ~250, after the re-size dropped the ~400 | medium — a new decision site, and the only piece the re-size did not shrink |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
 (`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
@@ -3183,7 +3183,7 @@ owed` unchanged for RC. Trace A's after-picture is the first two tests in
 and C from RC-4's review as they run now, B unchanged, and a fourth for the
 cast, with every read labelled board or frame.
 
-#### RC-5 — auxiliary zone changes and a dynamic entry amount
+#### RC-5 — auxiliary zone changes and a dynamic entry amount — ✅ landed 2026-09-03
 
 What RC-4 sized out, in the doc rather than in the moment. **Re-sized against
 the tree 2026-09-03, before a line of RC-5 was written, and the re-size moved
@@ -3347,6 +3347,79 @@ prompt and the fuzz pool keeps its zero-prompt property.
 Together at the middle of the band rather than the top, because piece 2 is
 gone. Cards: Thunder-Thrash Elder and Sutured Ghoul (piece 1), Master
 Biomancer (piece 3). Painter's Servant is piece 4's and stays blocked.
+
+##### Shipped 2026-09-03
+
+**+2,239 / −121 across 18 files** — 748 engine and cards, 1,111 tests, 380
+plans. The engine is inside the band and the tests are over it, which is the
+third RC PR in a row with that shape. Two commits: the re-size above, then the
+phase.
+
+**Five findings.**
+
+1. **CR 614.13b was redundant on every board the first draft of the tests could
+   build, and a mutation pass is what found out.** Delete the `chosen` set and
+   the CR's own example — one Runeclaw Bear, devour 3 and devour 5 — still gives
+   three counters, because the Bear is in the graveyard by the time the second
+   effect enumerates the battlefield. The rule is not bookkeeping; it needs two
+   effects whose *zones chain*, and devour into a graveyard-reading exile is
+   that board. Recorded as trace B on the phase's page, and the test is
+   `test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect`.
+   **The general lesson is §10's, sharpened:** "mutation-check every assertion"
+   found not a weak assertion but a *weak board* — the test asserted the right
+   thing about a scenario in which the rule could not fire.
+2. **Sigarda does not stop your own devour, and the card doc said she did.**
+   Her sentence is "spells and abilities **your opponents control** can't cause
+   you to sacrifice permanents" — `SourceFilter::ControlledBy(Opponent)` — and
+   devour is your own creature's ability, so your own Sigarda is a legal
+   candidate for it. Written into Thunder-Thrash Elder's doc as a claim, caught
+   by the test that asserted it. What the pair does measure is that the `cause`
+   the candidate filter asks CR 101.2 with is the *effect's* controller.
+3. **The CR 616.1 bucket puts the entering permanent's own effect last.**
+   `gather` splices source 1a in after the battlefield sweep, on CR 613.7's
+   oldest-first — the entering object is the newest there is. Two tests were
+   written with the indices the other way round and asserted the wrong number
+   for a real reason, which is the cheapest kind of test failure.
+4. **The `EnterMods` split was not in the ~150 the piece was sized at.**
+   `Rewrite::EnterWith` and `GameAction::EnterBattlefield` shared one type, and
+   §3.2 recorded that as a virtue. It held exactly as long as every amount was a
+   literal: the event's mods must be numbers the performer can put on, so the
+   definition needed its own type the moment one amount was an expression.
+   ~14 construction sites, mechanical, and the estimate is corrected to ~250
+   above rather than left as evidence of good sizing.
+5. **A prevented auxiliary move is unreachable in printed Magic, and the count
+   still has to be right.** Nothing printed stops a sacrifice's *move* — it is
+   not damage, so prevention does not apply, and not a destruction, so
+   regeneration and indestructible do not either. `performed.len()` rather than
+   `picked.len()` costs nothing and is the reading CR 701.21a gives; the test
+   that pins it uses a `Rewrite::Prevent` fixture and says in its doc comment
+   that it is engine-shaped rather than card-shaped.
+
+**Measurement.** `plans/fuzz_ab.py`, three arms in one sitting: `main` (A),
+this branch with `PERFORMANCE_POOL` as `main` had it (B), and as shipped (C).
+**B is byte-identical to A on `performance` outside `=== Timing ===`** at 200
+games / seed 12345 — same games, same counters, same event stream — so the arm,
+the template evaluation and the two exclusion sets cost the unchanged pool
+nothing. **B is identical to C on `stress`**, because `stress` is the whole
+registry and a registered card is in it whether or not it joined the measured
+pool. Between them the two columns partition the change: `performance`'s
+movement is the two cards joining that pool, `stress`'s is the three cards being
+registered. Time +0.7% (B) and +1.0% (C) on CPU/game, inside the ~2–6% spread a
+sitting shows, not chased. The §3 fixture table is re-recorded with the A/B
+beside it.
+
+**Determinism.** Three shell `fuzz_games` runs at seed 12345, 200 games,
+`--threads 1`, on both pools: identical outside `=== Timing ===`. The A/B's own
+three timing rounds per arm agree with its threaded counter run, which is the
+thread-independence half.
+
+**Exit met.** 937 tests (23 new), zero warnings, both `check_*.py`, `specdb
+owed` unchanged. All three of CR 614.13's atoms are covered rather than
+partial — ATOM-614.13-001, -614.13a-001 and -614.13b-001. **Trace page:**
+[`plans/traces/rc-5-applying-an-entry-can-move-the-board.html`](traces/rc-5-applying-an-entry-can-move-the-board.html)
+— devour's selection and its nested batch (A), the zone chain that makes
+CR 614.13b bite (B), `frame_of(source)` and §5b's asymmetry (C), and two
+entries decided against one board (D), which is the re-size's evidence.
 
 ##### What RC-5 leaves owed, named rather than implied
 
