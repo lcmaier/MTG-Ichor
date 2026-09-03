@@ -251,7 +251,14 @@ impl GameState {
             HashMap::new()
         };
 
-        self.pay_costs(&total_costs, player_id, card_id, &generic_allocation, &actx)?;
+        // The payment the player chose can be illegal even though the cost was
+        // payable — a generic split that spends a colour a pip still needs —
+        // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
+        // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
+        if let Err(e) = self.pay_costs(&total_costs, player_id, card_id, &generic_allocation, &actx) {
+            self.rollback_cast_to_hand(card_id)?;
+            return Err(e);
+        }
 
         // --- 601.2i: the spell becomes cast ---
         // The move 601.2a made silently is an event from this moment, and it is
