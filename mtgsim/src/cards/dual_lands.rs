@@ -2,7 +2,7 @@
 //! lands (Alpha), and Everywhere.
 //!
 //! Registered so `fuzz_games` has nonbasic lands to build a mana base from. Until
-//! they existed, `random_deck` filled every land slot from a colour→basic table,
+//! they existed, `random_deck` filled every land slot from a color→basic table,
 //! so no deck could contain a nonbasic land and Blood Moon — which is in the card
 //! pool — had nothing to affect. CR 305.7, the most intricate code in Layer 4, had
 //! no random-play coverage at all.

@@ -168,7 +168,7 @@ free is the internal arrows.
 | §2.1 cost pipeline (representation, then modification) | hybrid/Phyrexian (670 cards), kicker family (257), alternative costs; ≈ 903 cards | — (leads the Commander interleave) |
 | §2.2 linked abilities | the O-Ring pattern, "the chosen [value]" cards, kicker's second half | — |
 | §2.7 modal spells | 778 cards; consumes the dead `chosen_modes` field | near §2.1 |
-| §2.10 colour derivation | devotion, protection-from-colour, colour-matters | pairs with §2.1 |
+| §2.10 color derivation | devotion, protection-from-color, color-matters | pairs with §2.1 |
 | §2.5 remaining `Primitive` arms | manifest, cloak, exert, unattach; the face-down subsystem (shared with foretell) | §2.9 for face-down |
 | §2.12 step-scoped durations | only 10 cards say "until end of combat" — the weight is the engine hooks (CR 511.3, CR 703.4q), a caution against sizing by card count | — |
 | T12c/T12d restricted-mana wiring | the 227 `o:"this mana"` cards; Omnath-class blanket persistence | grants want item 30 and item 6 |
@@ -211,7 +211,7 @@ Phase 9, **user-ready** after Phase 10.
 
 **Milestone 8 — Commander Playable** (trigger: Phase 9 Commander support
 complete): a 4-player Commander game runs to completion; command zone,
-commander tax, commander damage, and colour identity all enforced; the
+commander tax, commander damage, and color identity all enforced; the
 `Format` trait dispatches Commander vs Standard correctly. *(Criteria
 unchanged; the tax is why §2.1 leads the interleave.)*
 

@@ -141,7 +141,7 @@ fn anthem_bear() -> Arc<CardData> {
     )
 }
 
-/// A castable 2/2: one coloured symbol and no generic, so `cast_spell` asks
+/// A castable 2/2: one colored symbol and no generic, so `cast_spell` asks
 /// nothing about mana.
 fn castable_bear(name: &str, color: ManaType) -> CardDataBuilder {
     CardDataBuilder::new(name)

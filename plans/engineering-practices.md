@@ -145,29 +145,29 @@ across months buys the timing measurement nothing.
   measures cost. `fuzz_games --require "Card A,Card B"` forces a copy of each
   into every deck, then prints casts, resolutions, the share of games each
   reached, and **board diversity** — the share of games in which a permanent of
-  a colour no required card has entered the battlefield. **An empty `--require`
+  a color no required card has entered the battlefield. **An empty `--require`
   changes nothing** — every RNG draw is guarded, so a reachability run and a
   timing run come from one binary without the first contaminating the second.
   **Run it once per phase that adds a card**, and put the resolution count in
   the phase's ledger entry.
 
-  **It no longer seeds the deck's colours from the required card's
+  **It no longer seeds the deck's colors from the required card's
   (2026-09-03).** It had to, because nothing in the registry made more than two
-  colours, and the price was the board: `--require Cytoshape` put every game on
+  colors, and the price was the board: `--require Cytoshape` put every game on
   a G/U pair, so the card resolved **390** times in 200 games and met a white,
-  black or red permanent in **none** of them. Everywhere — the five-colour land
+  black or red permanent in **none** of them. Everywhere — the five-color land
   token, now the fill tier of every deck's mana base (`random_deck`) — is what
   let the seeding go. Same 200 games / seed 12345 / `--threads 1`, `performance`:
 
   | `--require Cytoshape` | cast | resolved | games | games with a non-G/U permanent |
   |---|---:|---:|---:|---:|
-  | with colour seeding (`main`, 6dedaf8) | 400 | 390 | 177 (88%) | 0 — by construction |
+  | with color seeding (`main`, 6dedaf8) | 400 | 390 | 177 (88%) | 0 — by construction |
   | without | 216 | 212 | 126 (63%) | **198 (99%)** |
   | without, plus `,Everywhere` forced | 217 | 214 | 126 (63%) | 198 (99%) |
 
   **The resolution count halves, and that is the agent, not the deck.** Every
   deck can pay `{1}{G}{U}` — fourteen or more of its 24 lands tap for any
-  colour — but the random agent picks a (land, ability) pair uniformly in the
+  color — but the random agent picks a (land, ability) pair uniformly in the
   601.2g window, so each Everywhere tap is a five-sided die. Three uniform taps
   hold both a G and a U about one time in five (1 − 2·(4/5)³ + (3/5)³ ≈ 0.19;
   four taps ≈ 0.31, five ≈ 0.42), where a seeded deck's Forests and Islands
@@ -184,7 +184,7 @@ across months buys the timing measurement nothing.
 
 **Gameplay fixtures, 50 games / seed 12345 / `--threads 1`, re-recorded
 2026-09-03 (performance 63 → 64, stress 71 → 72; Everywhere, and with it a new
-mana base and no colour filter in `random_deck` — a pool *and* deck-construction
+mana base and no color filter in `random_deck` — a pool *and* deck-construction
 change, so nothing here is comparable across it):**
 
 | | performance (64 cards) | stress (72 cards) |
@@ -222,7 +222,7 @@ registered card being drawn.
 | stress walks / frames per walk | 100,619 / 1.29 | 99,938 / 1.28 | 123,868 / 1.32 |
 | stress ms / 1,000 walks (median of 3) | 0.992 | 0.961 | 1.328 |
 
-**Read it as two changes, and they pull in different directions.** A against B is the registration: identical counters on `performance`, and per-walk time inside the spread (+5% / −3%). B against C is the deck construction, and every behavioural row moved the way an any-colour mana base under a random agent should move it: games run four to seven turns longer (33.3 → 37.4 and 31.2 → 38.7), spells cast per game fall (27.9 → 22.6 and 24.9 → 22.6) because the agent taps Everywhere for random colours and rewinds (`codebase-state.md` 16d), and fewer creatures die because fewer are cast. Walks per game are flat on `performance` (+0.7%) and +24% on `stress`, where the longer games and the whole-pool statics show up. **The row to read is the cost row: +34% / +39% per 1,000 walks, far outside the ±4–6% spread — and it is the objects, not the engine.** A fourth binary settled that in the same sitting: **D** is C with the any-colour fill tier replaced by basics (`BASIC_LANDS_PER_DECK` 5 → 19, nothing else), and it reads **0.977** ms per 1,000 walks against 1.060 for `main` and 1.421 for C, both re-run beside it in its own three interleaved rounds (`performance`; the table's 1.064 / 1.476 are the earlier rounds, and the gap between the two sittings is the usual ~4%). So drawing nonlands from the whole pool costs nothing per walk, and the fill tier costs a third: a five-ability, five-subtype land is the object the 601.2g window walks most, and every walk of one clones five abilities and five subtypes into its frame where a dual clones two. That is a fact about `compute_characteristics` seeding each frame from `CardData`, and critical-path item 7's cross-call memoization is still the lever — no engine line changed between A and C, so it is a heavier board, not a regression. The number the timing arm carries from here is C's, and an A/B is still a delta within one sitting on one pool. (Two things seen and not chased: D casts more spells than C, 24.5 against 22.6, and Blood Moon is the likely reason — it turns an Everywhere mana base entirely red and leaves basics alone; and the first player's share of wins rises from 104/96 to 122/78 at 200 games, a tempo effect of a mana base that always has the colour.)
+**Read it as two changes, and they pull in different directions.** A against B is the registration: identical counters on `performance`, and per-walk time inside the spread (+5% / −3%). B against C is the deck construction, and every behavioural row moved the way an any-color mana base under a random agent should move it: games run four to seven turns longer (33.3 → 37.4 and 31.2 → 38.7), spells cast per game fall (27.9 → 22.6 and 24.9 → 22.6) because the agent taps Everywhere for random colors and rewinds (`codebase-state.md` 16d), and fewer creatures die because fewer are cast. Walks per game are flat on `performance` (+0.7%) and +24% on `stress`, where the longer games and the whole-pool statics show up. **The row to read is the cost row: +34% / +39% per 1,000 walks, far outside the ±4–6% spread — and it is the objects, not the engine.** A fourth binary settled that in the same sitting: **D** is C with the any-color fill tier replaced by basics (`BASIC_LANDS_PER_DECK` 5 → 19, nothing else), and it reads **0.977** ms per 1,000 walks against 1.060 for `main` and 1.421 for C, both re-run beside it in its own three interleaved rounds (`performance`; the table's 1.064 / 1.476 are the earlier rounds, and the gap between the two sittings is the usual ~4%). So drawing nonlands from the whole pool costs nothing per walk, and the fill tier costs a third: a five-ability, five-subtype land is the object the 601.2g window walks most, and every walk of one clones five abilities and five subtypes into its frame where a dual clones two. That is a fact about `compute_characteristics` seeding each frame from `CardData`, and critical-path item 7's cross-call memoization is still the lever — no engine line changed between A and C, so it is a heavier board, not a regression. The number the timing arm carries from here is C's, and an A/B is still a delta within one sitting on one pool. (Two things seen and not chased: D casts more spells than C, 24.5 against 22.6, and Blood Moon is the likely reason — it turns an Everywhere mana base entirely red and leaves basics alone; and the first player's share of wins rises from 104/96 to 122/78 at 200 games, a tempo effect of a mana base that always has the color.)
 
 **The first re-record where the pool did not move, so every row is the
 engine's (2026-09-02, 16c).** The row to read is `Spells cast`, and it went

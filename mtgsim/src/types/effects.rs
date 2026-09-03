@@ -91,7 +91,7 @@ pub enum PermanentFilter {
     /// hundreds of cards (Kalitas, Anointed Procession's mirror image, every
     /// "nontoken creature you control" anthem), and it is not derivable from
     /// any other leaf — `is_token` is a property of the *object*, not of its
-    /// characteristics, so no combination of type, colour or controller
+    /// characteristics, so no combination of type, color or controller
     /// reaches it.
     ///
     /// It is a leaf rather than a `Not`-only helper because `Not` already

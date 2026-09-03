@@ -682,7 +682,7 @@ Four things the registry design would have had to build fall out of this instead
 - **CR 613.7a's existence check.** `chars.abilities` at Layer 7a is already the
   post-Layer-6 list, so Humility removes a Tarmogoyf's CDA before 7a can read it — no
   `static_ability_still_exists` call involved. Same one layer earlier: `land_types` clears
-  abilities for CR 305.7 in Layer 4, so a Blood-Mooned land has lost a colour CDA before
+  abilities for CR 305.7 in Layer 4, so a Blood-Mooned land has lost a color CDA before
   Layer 5 looks.
 - **CR 613.8a(c)'s first clause.** With no CDA in the registry, every pair §9's algorithm
   will see is non-CDA↔non-CDA. Structural, not checked.

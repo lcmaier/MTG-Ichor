@@ -253,13 +253,13 @@ effect acts on, here it is the one permanent the effect does *not* change.
 ### C4. Reachability is thin — `--require` built here; the pool land is next
 
 Counted: Cytoshape resolved **16 times in 200 `performance` games**. A 63-card
-pool, a 60-card deck built from colour-appropriate subsets, and a three-mana
-two-colour instant: any one card is rare, and it gets rarer with every phase
+pool, a 60-card deck built from color-appropriate subsets, and a three-mana
+two-color instant: any one card is rare, and it gets rarer with every phase
 that adds one. **The second time a phase has had to say "the path is open but
 barely"** — the first was RS-1.
 
 **Built in this PR: `fuzz_games --require "A,B"`.** Forces one copy of each named
-card into every deck, **seeds the deck's colours from theirs** so the cards are
+card into every deck, **seeds the deck's colors from theirs** so the cards are
 actually castable, and prints casts, resolutions and the share of games each
 reached. It fixes the confusion rather than the pool: `PERFORMANCE_POOL` is a
 *cost* instrument that had been asked to double as a *coverage* one, and these
@@ -294,15 +294,15 @@ anything leaves the stack by resolving without a `SpellCast` behind it, and
 prints `Uncast resolved: 0` in every clean one. 16c's closing entry carries what
 the free spells were worth in game content and answers the prompt-shape question.
 
-**Known limitation, and it is the price of the colour seeding.** `--require
-Mirrorweave` makes every deck W/U, so the card is exercised against one colour
+**Known limitation, and it is the price of the color seeding.** `--require
+Mirrorweave` makes every deck W/U, so the card is exercised against one color
 pair and never meets a black, red or green card. The mode answers *"can the path
 be walked"*, not *"what does it meet"*, and a phase must not read interaction
-coverage off it. The seeding is a workaround for the missing five-colour land,
+coverage off it. The seeding is a workaround for the missing five-color land,
 not a design choice — with the land, forced insertion alone suffices and the
 seeding can go. That is deliverable 2 of the land's handoff. **Done,
 2026-09-03 (`pool/everywhere-land`):** the seeding is gone, every deck's mana
-base taps for any colour, and `--require` prints board diversity beside the
+base taps for any color, and `--require` prints board diversity beside the
 resolution count — `engineering-practices.md` §3 has the three numbers.
 
 **~~Still owed, and it has its own handoff:~~ landed 2026-09-03 as its own PR,

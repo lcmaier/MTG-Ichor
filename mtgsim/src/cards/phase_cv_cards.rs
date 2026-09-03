@@ -205,7 +205,7 @@ pub fn mirrorform() -> Arc<CardData> {
 /// the card *silently uncastable*, which is this project's named worst outcome.
 /// Registered as **`{2}{W}{U}`**: a strict **subset** of the real card's legal
 /// payments (it forbids WW and UU), so no game reaches a state the printed card
-/// forbids, and CR 202.2's colours come out W and U exactly as printed.
+/// forbids, and CR 202.2's colors come out W and U exactly as printed.
 ///
 /// `codebase-state.md`'s 2026-08-24 entry set the opposite precedent —
 /// `phase5_pre_cards::inside_out` stays unregistered because simplifying its

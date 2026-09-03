@@ -252,7 +252,7 @@ impl GameState {
         };
 
         // The payment the player chose can be illegal even though the cost was
-        // payable — a generic split that spends a colour a pip still needs —
+        // payable — a generic split that spends a color a pip still needs —
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
         if let Err(e) = self.pay_costs(&total_costs, player_id, card_id, &generic_allocation, &actx) {

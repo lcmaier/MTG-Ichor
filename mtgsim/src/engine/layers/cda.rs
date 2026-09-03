@@ -17,7 +17,7 @@
 //!   removes a Tarmogoyf's CDA before 7a can read it — Tarmogoyf is 1/1, with
 //!   no `static_ability_still_exists` call involved. The same holds one layer
 //!   earlier: `land_types` clears abilities for CR 305.7 in Layer 4, so a
-//!   Blood-Mooned land has lost a colour CDA by the time Layer 5 looks.
+//!   Blood-Mooned land has lost a color CDA by the time Layer 5 looks.
 //!
 //! - **CR 613.8a(c)'s guard.** Since no CDA is ever in the registry, every pair
 //!   the dependency algorithm will eventually see is non-CDA↔non-CDA — which is
