@@ -188,11 +188,14 @@ across months buys the timing measurement nothing.
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
-**Gameplay fixtures, 50 games / seed 12345, re-recorded 2026-09-03 (performance
-63 → 64, stress 71 → 72; Everywhere, and with it a new mana base, no color
-filter in `random_deck`, and a random agent that taps for the pip it owes — a
-pool, deck-construction *and* agent change, so nothing here is comparable
-across it):**
+**Gameplay fixtures, 50 games / seed 12345, re-recorded 2026-09-03 for the
+epoch memo (critical-path item 7a, `layers-architecture.md` §12 "7a"). Only
+the three cost rows moved and `Memo hits` is new: every behavioural row and
+both sweep counts reproduce the Everywhere row (the first trail entry below)
+to the digit, which was the acceptance test — the memoized binary plays the
+same games. `Layer walks` is the *miss* count now; walks plus hits is the
+number of questions asked, and it equals the previous walk count exactly
+(2,663 + 105,963 = 108,626; 2,719 + 108,699 = 111,418):**
 
 | | performance (64 cards) | stress (72 cards) |
 |---|---|---|
@@ -205,9 +208,10 @@ across it):**
 | Damage events | 26.7 | 25.6 |
 | Total damage | 58.4 | 54.4 |
 | Life changes | 18.4 | 17.5 |
-| **Layer walks** | **108,626** | **111,418** |
-| **Layer frames** | **161,827** | **152,428** |
-| **Frames/walk** | **1.49** | **1.37** |
+| **Layer walks** | **2,663** | **2,719** |
+| **Memo hits** | **105,963** | **108,699** |
+| **Layer frames** | **3,818** | **3,612** |
+| **Frames/walk** | **1.43** | **1.33** |
 | **Replacement gathers** | **584** | **599** |
 | **Restriction queries** | **585** | **600** |
 
@@ -312,8 +316,14 @@ and `Frames/walk` carries it. Games also got shorter (31.7 → 28.7 turns on
 `layers-architecture.md` §12's quadratic by design, measured rather than
 assumed, and critical-path item 7's cross-call memoization is still the lever.
 
-*Previous values, 2026-09-03 (performance 63 → 64, stress 71 → 72 — the same
-PR, before the random agent learned to tap for the pip it owes): performance
+*Previous values, 2026-09-03 (performance 64, stress 72 — the Everywhere pool,
+mana base and agent, before the epoch memo; every row but the three cost rows
+is unchanged by it, and `Memo hits` did not exist): performance 108,626 walks
+/ 161,827 frames / 1.49 per walk / 584 gathers / 585 queries; stress 111,418 /
+152,428 / 1.37 / 599 / 600 — reproduced to the digit on `main` at 90692f7 in
+the same sitting. Before that, 2026-09-03 (performance 63 → 64, stress 71 → 72
+— the same PR, before the random agent learned to tap for the pip it owes):
+performance
 30/20, 36.0 turns, 22.2 spells, 20.6 lands, 11.2 combats, 5.2 deaths, 22.3
 damage events, 50.8 damage, 16.5 life changes, 108,423 walks / 158,203 frames /
 1.46 per walk / 650 gathers / 651 queries; stress 31/19, 36.6, 21.7, 20.7,
@@ -379,7 +389,13 @@ the gap this closes — not "make it fast", but "notice".
 **How to read them.**
 
 - **Layer walks** is the headline. Almost every cost question in this engine
-  reduces to how many full CR 613 walks a game does.
+  reduces to how many full CR 613 walks a game does. Since the epoch memo
+  (item 7a, 2026-09-03) it is the *miss* count: a walk is paid once per object
+  per epoch rather than once per question.
+- **Memo hits** is the rest of the questions. Walks plus hits is what the
+  oracle was asked, and it did not move when the memo landed. A hit share that
+  falls means some writer started bumping the epoch more often; one that rises
+  means the games got more repetitive, not the engine cheaper.
 - **Frames/walk** is what CR 613.7a's existence re-check costs — a walk needing
   no sub-frame is 1.00, and `layers-architecture.md` §5.2's descending ceiling is
   what bounds this number instead of letting it iterate.
@@ -397,7 +413,9 @@ mana-ability discovery — each a full walk with no memo between calls. **That i
 memoization alongside the CR 613.8 dependency algorithm and already carries a
 hard back-stop before Phase 8. The measurement did not find new work; it found
 that the work already on the plan is the lever, and that a general optimization
-sweep would be aimed away from it.
+sweep would be aimed away from it. **Item 7a landed that memo on 2026-09-03**:
+walks per game 108,626 → 2,663 with every other row in the table unchanged,
+and the residual is in `layers-architecture.md` §12.
 
 **Adding them cost two determinism fixes, and that is the sharpest thing here.**
 `combat/steps.rs`'s first-strike scan and `targeting.rs`'s `has_any_legal_choice`

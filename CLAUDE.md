@@ -142,8 +142,8 @@ line for line but the timing lines. → `codebase-state.md`.
    **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
 5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **CV-1 is
    in** — a copy row stores values, never a reference, which keeps it off item 7. CV-2 needs RC-2
-7a. Epoch memoization of the layer walk — item 7's cache half, split out 2026-09-03: one counter every
-   write to a walk input bumps, the cache dies whole; 96% of walks repeat an untouched object. **Before 6.** → `layers-architecture.md` §12
+7a. Epoch memoization of the layer walk — ✅ 2026-09-03: one epoch every write to a walk input bumps, the
+   cache dies whole, and in debug every hit is audited against a fresh walk. → `layers-architecture.md` §12
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`; takes LKI formalization and conditional static abilities with it
 6b. Attachment as a layers input — CR 613.7e's field split + an Aura-host `AffectedSet`, phase LH. **Before 7**: two inputs a finer memo key would need; 7a's key has none. → `layers-architecture.md` §13a
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass; a finer memo key only

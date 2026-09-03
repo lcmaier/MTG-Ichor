@@ -651,7 +651,7 @@ Two refinements worth knowing before extending it:
 - Only sub-computations are memoized (`ceiling < LAYER_ORDER.len()`). The top-level frame is requested exactly once per call, so caching it is a pure clone. Measured: skipping it, plus not cloning the per-layer effect list, is the difference between +88% and flat on `fuzz_games`.
 - The existence check short-circuits entirely when `ContinuousEffectRegistry::summary().any_ability_changing` is false, so the cache is never even touched on ordinary boards.
 
-**Note for §5.1's hidden-zone fast path:** that fast path is conditional on the registry summary, so nothing may memoize "hidden-zone object → printed characteristics" beyond a single top-level call. The current key and lifetime already satisfy this; keep it that way.
+**Note for §5.1's hidden-zone fast path:** that fast path is conditional on the registry summary, so nothing may memoize "hidden-zone object → printed characteristics" beyond a single top-level call *unless the key sees the registry change*. The frame cache's key and lifetime satisfy this trivially. The cross-call memo of §12 "7a" satisfies it because the registry's own mutation count is half of its epoch: a row arriving turns the fast path off and invalidates every stored frame in the same write.
 
 ---
 
@@ -874,7 +874,7 @@ Targeting legality (`oracle/legality.rs`) reads effective characteristics via wr
 
 ## 12. Memoization / Performance
 
-**Phase LA through LD ship with no cache.** Each `compute_characteristics` call re-walks the registry.
+**Phase LA through LD ship with no cache.** Each `compute_characteristics` call re-walks the registry. (The cross-call memo landed 2026-09-03 as critical-path item 7a — the last subsection here. Everything between is the measurement that scheduled it.)
 
 Worst-case cost: `O(effects × objects × layers)` per frame if every effect's predicate inspects every object. In practice effects are few and filters are cheap. No evidence we need a cache yet.
 
@@ -1014,6 +1014,99 @@ sequential pass — those stay item 7, and the epoch memo is what that pass's ou
 will be stored in. Not a semantics-assuming shortcut in item 3's sense: a missed bump
 is testable, a wrong shortcut is not.
 
+**Built 2026-09-03, `layers/epoch-memo`.** As designed, with three details
+that differ from the sketch above:
+
+- **The epoch is two monotone counters read as one sum** —
+  `GameState::layer_epoch` plus `ContinuousEffectRegistry::mutations` — because
+  `mutating` is the one route to the rows and cannot see the state that owns
+  the other half. Both only grow, so the sum strictly increases at every write.
+  The registry's half moves only when a row arrives or leaves: both CR 514.2
+  expiry paths run every turn and usually remove nothing, and a bump for
+  nothing would cost every frame at each turn boundary. The state's half is a
+  plain `u64` behind `bump_layer_epoch(&mut self)` rather than a `Cell`, since
+  every writer already holds `&mut self` and a read path bumping is then a
+  compile error.
+- **Three inputs had no funnel and got one** — `remove_object`,
+  `remove_counters`, `set_stack_entry` / `take_stack_entry` — so every input in
+  the census has exactly one writer that bumps. `move_object` bumps once, after
+  the zone is written, which is what covers the `// CAST-ROLLBACK:` moves.
+- **The CR 603.10a capture reads `compute_characteristics_uncached`**, the
+  owned walk the audit also compares a hit against; `compute_as_entering` never
+  went through the top-level entry and still does not.
+
+The audit caught three tests writing a walk input directly (the base controller
+in `filter_controller_test.rs`, a counter removal in
+`phase_lf_integration_test.rs`) and nothing in the engine; a 50-game debug run
+per pool then passed clean. Debug and release agree to within four questions per
+50 games, and those predate the memo: `main`'s own debug build asks 108,630
+against its release build's 108,626.
+
+**Measured, 50 games / seed 12345 — the §3 rows in `engineering-practices.md`:**
+
+| | performance | stress |
+|---|---:|---:|
+| layer walks per game, before → after | 108,626 → **2,663** | 111,418 → **2,719** |
+| memo hits per game | 105,963 | 108,699 |
+| walks + hits — the questions asked | 108,626 | 111,418 |
+| layer frames per game | 161,827 → 3,818 | 152,428 → 3,612 |
+| every other row | unchanged | unchanged |
+
+Walks fell 40×, well under the ~4–6k the batch-keyed probe predicted, because
+that probe's key was the *batch*: most batches — a tap, an untap, damage, a life
+change — write no walk input, so the epoch survives them where the probe's key
+could not. 40-game `--dump-events` streams are byte-identical to `main`'s on
+both pools once ids are masked, and at 200 games every counter outside the
+three walk rows is identical on both pools.
+
+**Time — `plans/fuzz_ab.py`, 200 games / seed 12345 / `--threads 1`, medians of
+three interleaved rounds on `performance`:**
+
+| | `main` (90692f7) | `layers/epoch-memo` |
+|---|---:|---:|
+| CPU/game, median of three | 146.77 ms | **13.84 ms** (−90.6%) |
+| rounds | 149.87 / 146.21 / 146.77 | 14.83 / 13.84 / 13.83 |
+| ms per 1,000 questions (walks + hits) | 1.470 | 0.139 |
+| CPU/game p50 / p99 | 103.7 / 702.8 ms | 10.7 / 47.4 ms |
+| CPU/turn p50 | 3.49 ms | 0.39 ms |
+| deterministic across rounds | yes | yes |
+
+Ten and a half times, which is "most of an order of magnitude"; the sitting
+before this one had a contaminated third round (something else on the CPU) and
+read the same medians within 7%.
+
+**The residual, which nobody had seen because the walk hid it.** 13.8 ms a game over the same ~100,000
+questions (200-game counters: 2,509 walks and 97,325 hits per game). Bound the
+walking first: at `main`'s 1.47 ms per 1,000 walks — an upper bound on what a
+walk costs, since on `main` every millisecond was charged to one — the 2,509
+misses cost at most 3.7 ms, so at least 10 ms of the residual is **not
+walking**. That is about 100 ns a question: the memo probe (SipHash of a
+16-byte id, an `Arc` clone and its drop), the wrapper's read of the frame, and
+everything in the engine that is not a layer question at all. A throwaway
+probe counted the questions by wrapper — 50 games, `performance`; `stress` is
+within 15% on every row, and the rows sum to the 108,626 questions to within
+0.2%:
+
+| wrapper | calls per game | who asks |
+|---|---:|---|
+| `has_subtype` | 50,627 | the SBA sweep: Aura, Equipment and Fortification asked *separately* of every permanent at every check (`sba.rs`, six sites) |
+| `is_creature` | 17,443 | SBAs, combat, targeting legality |
+| `get_effective_abilities` | 12,923 | `cast.rs` and mana-ability discovery — **a deep clone of the ability list out of the frame on every call** |
+| `has_type` / `has_supertype` | 9,890 / 8,441 | SBAs (the legend rule) and targeting |
+| `has_summoning_sickness` | 4,877 | the CR 601.2g window |
+| everything else | under 3,000 each | |
+| (`controls` / `get_effective_controller`) | (26,400) | not a question: answered off `base_controller` while no `SetController` row exists |
+
+Two things follow for item 7, and neither is a finer key. **Misses are 2.5% of
+questions, so `CardData::abilities` as `Arc<Vec<AbilityDef>>` (CV-1 review C5)
+is not the lever**: it makes a *frame* cheaper to build, and frames are built
+2,663 times a game now, while the clone paid 12,923 times is
+`get_effective_abilities`' copy *out of* a hit — an `Arc` return on that one
+wrapper removes it. And the most-asked question is asked three times where one
+frame read answers all three: the SBA sweep's attachment checks are half of
+everything the oracle hears. A finer memo key would address the 2.5%; those two
+address the rest, and both are content-neutral. Neither is this PR.
+
 ---
 
 ## 13. Work-Phase Plan
@@ -1135,6 +1228,16 @@ layer walk:
 A memo key designed without either is wrong, and retrofitting a memo key is
 strictly worse than designing against the settled shape. That is the whole
 scheduling argument; nothing else on the critical path blocks on Auras.
+
+**Since 7a landed (2026-09-03) that argument is about item 7's *finer* key
+only.** The coarse epoch key has no inputs to enumerate, so LH does not
+change it — but LH does add two *writers*, and each must call
+`GameState::bump_layer_epoch` the day the walk starts reading what it
+writes: every `attach_to` / `detach` and direct `attached_to` /
+`attached_by` write (`resolve.rs`, `sba.rs`, `stack.rs`, `zones.rs`,
+`test_support::attach`), and the timestamp write LH-2 makes mutable. Until
+that day they are status and must not bump. `codebase-state.md` "Before
+Layers" 7g carries the migration.
 
 **It is not folded *into* item 7.** LH is a state-shape change and item 7 is an
 ordering-algorithm change, and item 7 is already the largest phase on the path.
