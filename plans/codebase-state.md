@@ -590,6 +590,41 @@ here. None is blocking RB.
     `replacement-architecture.md` §5c, and it is a replacement × continuous
     interaction, so RC is the natural forcing function.
 
+    **Sized 2026-09-03, and scheduled with CV-1b as one PR: after CV-2,
+    before RS-2.** The `ObjectId` stays — targets, attachments, events and
+    the fuzz log all key on it, and re-keying is the whole engine — so what
+    breaks is every *reference* made before the move. Three kinds hold one:
+
+    - **`AffectedSet::Fixed` rows**, in all three registries. They share
+      `DurationRegistry`, so one subject-keyed `retain` serves them: prune
+      the mover from every `Fixed` set, drop a row whose set empties (a
+      two-target pump keeps applying to the target that stayed), and keep
+      `remove_by_source` beside it — `copy-effects-architecture.md` §5.3's
+      "alongside" fact, which is why Clone must be on the board first.
+      Called from `move_object` for every zone pair, through the continuous
+      registry's `mutating` so the layer memo sees it.
+    - **`StackEntry.chosen_targets`**, which CR 608.2b re-validates by id
+      today, so a spell finds a target that died and came back. A parallel
+      `target_epochs` on the entry, set where the targets are chosen and
+      compared in `is_single_target_legal`; `ResolvedTarget::Object` has 38
+      match sites, so the type does not change for this.
+    - **Attachments**, already cleaned by `cleanup_zone_state`.
+
+    The exceptions 400.7a–c are one carve-out: a move from the stack to the
+    battlefield prunes nothing keyed on the mover, which is what keeps item
+    9's stolen spell stolen and Xu-Ifit's rider on the permanent. 400.7d–k
+    are trigger rules (e, f — item 6's, where the LKI frame finds the new
+    object) and cast-permission rules (g–i — the cast-permission entry's);
+    they stay there. **Content-neutral on both pools today**: no registered
+    card returns an object (`ReturnToBattlefield` is a stub), so the fuzz
+    rows should not move and the PR says so — the rule's tests are built by
+    hand around `move_object`. ~500 additions for the rule, its tests and
+    this entry's closure; CV-1b adds ~400 — `Duration::Indefinite`'s one
+    consumer, Dimir Doppelganger, its tests and a `PERFORMANCE_POOL` seat,
+    since an indefinite row is a new engine path. One PR under the band,
+    A/B'd as two arms (the rule alone, then the card) the way the Everywhere
+    PR was.
+
 11. **`AbilityType::Mana` is a printed tag; CR 605.1 defines mana abilities
     dynamically (found 2026-08-26, via Toph + Caged Sun).** `engine/mana.rs` and
     `engine/priority.rs` dispatch on the tag a card author wrote. The rule does

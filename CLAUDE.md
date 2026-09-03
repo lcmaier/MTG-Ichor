@@ -140,8 +140,8 @@ line for line but the timing lines. → `codebase-state.md`.
    one event, its own zone change, and CR 614.12's frame is a read-side overlay. **RC-5 next**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
-5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **CV-1 is
-   in** — a copy row stores values, never a reference, which keeps it off item 7. CV-2 needs RC-2
+5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **CV-1 is in**
+   (a copy row stores values, never a reference); CV-2 is free; item 10 (CR 400.7) + CV-1b after CV-2
 7a. Epoch memoization of the layer walk — ✅ 2026-09-03: one epoch every write to a walk input bumps, the
    cache dies whole, and in debug every hit is audited against a fresh walk. → `layers-architecture.md` §12
 6. Triggered abilities (CR 603) — insertion point in `perform_sba_and_triggers`; takes LKI formalization and conditional static abilities with it
