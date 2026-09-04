@@ -116,7 +116,10 @@ before Phase 8 card breadth, not before this. It also gets cheaper for waiting:
 §5 shows the CR 614.12 look-ahead forces `compute.rs`'s five concrete state
 reads behind one accessor pair, which is plumbing 613.8's step-4 hypothetical
 check would otherwise have to do itself. (Only the *seam* is shared — 613.8's
-own perturbation is frame-level and much cheaper; §5 and §11 item 5 price both.)
+own perturbation is frame-level and much cheaper; §5 and §11 item 5 price both.) **Since 2026-09-04 it does precede
+triggers** (`roadmap-v2.md` §3a): the accessor pair landed with RC-4, so the
+waiting bought what it could, and the performance pool now builds a 613.8
+wrong answer. Nothing here changes — RA–RE stay ahead of CR 603.
 
 **The honest cost of going first.** Three corpus atoms in the CR 614/615 family
 are tagged Phase 7 because they assert on triggers, not on replacement:
