@@ -188,75 +188,70 @@ across months buys the timing measurement nothing.
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
-**Re-recorded 2026-09-03 for RC-5** (CR 614.13's auxiliary zone changes and a
-dynamic entry amount; `replacement-architecture.md` §9). Three new cards, two of
-them in `PERFORMANCE_POOL` — Thunder-Thrash Elder and Master Biomancer, one per
-engine path the phase opens — and Sutured Ghoul registered, which is what moves
-`stress` from 72 cards to 75. **Every row here is the pool's and none is the
-engine's, and that was measured rather than assumed** — see the A/B below.
-`Layer walks` has been the epoch memo's *miss* count since 2026-09-03; walks
-plus `Memo hits` is the number of questions asked, which is the figure the
-entries before that one printed as a walk count.
+**Re-recorded 2026-09-04 for LH-1** (the Aura host becomes addressable;
+`layers-architecture.md` §13a). One new card, Holy Strength, in both pools —
+the first `AffectedSet::AttachedToSource` row, and the first spell whose target
+is its enchant ability rather than a spell ability — which moves `performance`
+from 66 cards to 67 and `stress` from 75 to 76. **Every row here is the pool's
+and none is the engine's**, measured the way RC-5 measured it, below.
 
-| | performance (66 cards) | stress (75 cards) |
+| | performance (67 cards) | stress (76 cards) |
 |---|---|---|
-| P0 / P1 | 27 (54.0%) / 23 (46.0%) | 28 (56.0%) / 22 (44.0%) |
-| Avg turns | 34.5 | 30.6 |
-| Spells cast | 24.9 | 22.3 |
-| Lands played | 20.0 | 18.2 |
-| Combat w/ atk | 12.0 | 10.2 |
-| Creatures died | 7.9 | 4.4 |
-| Damage events | 24.3 | 24.0 |
-| Total damage | 54.7 | 56.9 |
-| Life changes | 16.3 | 17.0 |
-| **Layer walks** | **2,550** | **2,214** |
-| **Memo hits** | **102,077** | **87,597** |
-| **Layer frames** | **3,555** | **3,116** |
-| **Frames/walk** | **1.39** | **1.41** |
-| **Replacement gathers** | **567** | **504** |
-| **Restriction queries** | **570** | **506** |
+| P0 / P1 | 30 (60.0%) / 20 (40.0%) | 32 (64.0%) / 18 (36.0%) |
+| Avg turns | 31.9 | 28.3 |
+| Spells cast | 24.6 | 21.1 |
+| Lands played | 19.0 | 17.1 |
+| Combat w/ atk | 11.7 | 10.1 |
+| Creatures died | 7.7 | 3.4 |
+| Damage events | 26.0 | 22.3 |
+| Total damage | 66.2 | 56.1 |
+| Life changes | 18.0 | 15.0 |
+| **Layer walks** | **2,421** | **1,962** |
+| **Memo hits** | **94,202** | **75,607** |
+| **Layer frames** | **3,496** | **2,697** |
+| **Frames/walk** | **1.44** | **1.37** |
+| **Replacement gathers** | **527** | **452** |
+| **Restriction queries** | **530** | **454** |
 
-**The engine's share is zero, and `performance` is where that is provable
-(2026-09-03, RC-5).** Three binaries in one sitting through `plans/fuzz_ab.py`:
-`main` (A), RC-5's engine with `PERFORMANCE_POOL` exactly as `main` had it (B),
-and RC-5 shipped (C).
+**The engine's share is zero again, by the same three-arm protocol
+(2026-09-04, LH-1).** `plans/fuzz_ab.py`, one sitting: `main` (A), LH-1's
+engine with `PERFORMANCE_POOL` exactly as `main` had it (B), and LH-1 shipped
+(C).
 
 | | A: main | B: engine, pool unchanged | C: shipped |
 |---|---|---|---|
 | performance, 200 games, outside `=== Timing ===` | — | **byte-identical to A** | differs |
-| performance walks (50 games) | 2,663 | 2,663 | 2,550 |
-| performance frames/walk | 1.43 | 1.43 | 1.39 |
-| performance CPU/game median (200 games, ×3) | 12.73 ms | 12.82 ms (+0.7%) | 12.86 ms (+1.0%) |
-| performance ms / 1,000 walks | 5.074 | 5.110 (+0.7%) | 5.124 (+1.0%) |
+| performance walks (50 games) | 2,550 | 2,550 | 2,421 |
+| performance frames/walk | 1.39 | 1.39 | 1.44 |
+| performance CPU/game median (200 games, ×3) | 12.84 ms | 12.78 ms (−0.5%) | 12.15 ms (−5.4%) |
+| performance ms / 1,000 walks | 5.116 | 5.092 (−0.5%) | 5.035 (−1.6%) |
 | stress, 200 games | — | **identical to C** | — |
 
-**Read the first and last rows together.** B against A is byte-identical on
-`performance` — same games, same counters, same event stream — so the new arm,
-the template evaluation and the two exclusion sets cost the pool nothing when
-no card reaches them. B against C on `stress` is *also* identical, and for the
-opposite reason: `stress` is the whole registry, so a registered card is in it
-whether or not it joined the measured pool. Between them the two columns
-partition the change exactly — everything that moved on `performance` is the two
-cards joining that pool, and everything that moved on `stress` is the three
-cards being registered at all. Time is +0.7% for the engine alone and +1.0%
-shipped, both inside the ~2–6% spread a sitting shows, and both were left
-un-chased for the reason RC-4b left its `stress` delta: a number inside the
-spread is not a finding.
+Read as RC-5's was read. B against A is byte-identical on `performance`, so
+the new `effect_applies_to` arm, the `StackEntry` field and the recipient
+helper cost the pool nothing when no card reaches them; B against C is
+identical on `stress`, because a registered card is in that pool whether or
+not it joined the measured one. **The shipped column's −5.4% is the game, not
+the walk**: a +1/+2 Aura in roughly a third of decks ends games sooner (33.3 →
+31.8 turns over 200 games), so fewer walks happen, while `ms / 1,000 walks`
+moves −1.6% — inside the sitting's spread, and not a finding. `Frames/walk`
+rises on `performance` (1.39 → 1.44) for the reason RC-5 gave for Master
+Biomancer: a row scoped to one host puts a sub-frame under its source. And
+`stress` loses a death a game (4.4 → 3.4) because a creature wearing +1/+2
+survives combats it used to lose — the one behavioural row LH-1 moves on its
+own.
 
-**What the cards do to the game is worth naming, because it is large.**
-Thunder-Thrash Elder is cast in 149 of 200 `performance` games and sacrifices
-its controller's own creatures to enter; `stress` loses four turns a game
-(34.4 → 30.6) and gains a death a game (3.5 → 4.4). Games that end sooner do
-fewer of everything, which is why every behavioural row on `stress` fell while
-`Creatures died` rose. `Frames/walk` moved the other way on the two pools —
-1.43 → 1.39 on `performance`, 1.33 → 1.41 on `stress` — and neither is a
-per-walk cost change: a Master Biomancer on the board puts a filter-scoped
-sub-frame under entries that did not have one, and a shorter game has fewer of
-the cheap walks that dilute the average.
-
-*Previous values, 2026-09-03 (performance 64, stress 72 — before RC-5's three
-cards; reproduced to the digit by this sitting's `main` arm, which is the check
-that the re-record is the cards and not the machine): performance 28/22, 34.6
+*Previous values, 2026-09-03 (performance 66, stress 75 — RC-5; reproduced to
+the digit by this sitting's `main` arm, which is the check that the re-record
+is the cards and not the machine): performance 27/23, 34.5 turns, 24.9 spells,
+20.0 lands, 12.0 combats, 7.9 deaths, 24.3 damage events, 54.7 damage, 16.3
+life changes, 2,550 walks / 102,077 memo hits / 3,555 frames / 1.39 per walk /
+567 gathers / 570 queries; stress 28/22, 30.6, 22.3, 18.2, 10.2, 4.4, 24.0,
+56.9, 17.0, 2,214 / 87,597 / 3,116 / 1.41 / 504 / 506. RC-5's own three-arm
+A/B read engine +0.7% and shipped +1.0% CPU/game against its `main`, B
+byte-identical to A on `performance` and to C on `stress` — the same partition
+this sitting reproduces. Before that, 2026-09-03 (performance 64, stress 72 —
+before RC-5's three cards; reproduced to the digit by RC-5's `main` arm): performance 28/22, 34.6
 turns, 26.0 spells, 20.3 lands, 13.1 combats, 8.2 deaths, 26.7 damage events,
 58.4 damage, 18.4 life changes, 2,663 walks / 105,963 memo hits / 3,818 frames /
 1.43 per walk / 584 gathers / 585 queries; stress 24/26, 34.4, 25.3, 19.7, 11.6,

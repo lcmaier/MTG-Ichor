@@ -21,7 +21,7 @@ Quoted verbatim from `CLAUDE.md`, which owns the ordering.
 end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points here. Numbers are stable labels.
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅.  7a. Epoch memoization of the layer walk — ✅ 2026-09-03
 6b. Attachment as a layers input — CR 613.7e's field split + an Aura-host `AffectedSet`, phase LH, two
-   sized PRs. **Next, and before 7**: it adds the two walk inputs a finer memo key would need. → `layers-architecture.md` §13a
+   sized PRs. **LH-1 ✅ 2026-09-04; LH-2 next, and before 7**: the second walk input a finer memo key would need. → `layers-architecture.md` §13a
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass, plus the `Condition` AST that
    conditional statics and CR 603.4 share. **Before 6** (2026-09-04: the pool already builds a 613.8 wrong
    answer, Humility + Citanul Hierophants). **Hard back-stop before Phase 8**: no dependency-ordering-sensitive cards until it lands
@@ -45,6 +45,7 @@ A `####` heading carrying ✅. **A lower bound** — the "can't" and copy tracks
 record phases in sizing tables with no status marker, so RS and CV phases are
 absent here whether or not they shipped.
 
+- `LH-1` — plans/layers-architecture.md
 - `RA-1` — plans/replacement-architecture.md
 - `RA-2` — plans/replacement-architecture.md
 - `RA-3` — plans/replacement-architecture.md
@@ -60,9 +61,9 @@ absent here whether or not they shipped.
 
 | | |
 |---|---:|
-| Cards registered | 76 |
-| …of them in `PERFORMANCE_POOL` | 66 |
-| `#[test]` functions | 939 |
+| Cards registered | 77 |
+| …of them in `PERFORMANCE_POOL` | 67 |
+| `#[test]` functions | 946 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -70,7 +71,7 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 3723 of 3938 lines (94%) |
+| Section size | 3761 of 3976 lines (94%) |
 | Numbered items | 112 |
 | …closed, still recorded | 21 |
 | …open — unreachable, and says why | 56 |
