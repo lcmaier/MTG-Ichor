@@ -136,8 +136,8 @@ line for line but the timing lines. → `codebase-state.md`.
 `CRITICAL_PATH` point here. Reasoning and what is *done* live in `codebase-state.md`.
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅
-5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and RC-1–RC-4b are in — an entry is
-   one event, its own zone change, and CR 614.12's frame is a read-side overlay. **RC-5 next**
+5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and **all of RC** are in — an entry is one
+   event, and applying one may move the board (CR 614.13). **RD (damage, CR 615) next**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
 5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **CV-1 is in**

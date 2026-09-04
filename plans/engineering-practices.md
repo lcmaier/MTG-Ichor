@@ -705,12 +705,13 @@ Two exist, and they are the template:
 |---|---|---|
 | `rc-4b-entering-is-one-event.html` | RC-4b | four entries through the CR 614.12 look-ahead frame, each read labelled board or frame, and what RC-4b changed trace by trace |
 | `cv-1-a-copy-is-a-snapshot.html` | CV-1 | a Cytoshape resolution from the choice to the copy row and back, and CR 707.4's re-copy tearing that row down through the existence check |
+| `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
 share, and it is why a phase that adds a card, an enum arm or a pool entry does
 not get one. The phases that qualify were listed when the practice started:
-RC-4 ✓, RC-4b ✓, CV-1 ✓, **RC-5, RS-2, critical-path item 6, item 7**. Budget
+RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, **RS-2, critical-path item 6, item 7**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 

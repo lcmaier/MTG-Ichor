@@ -44,17 +44,40 @@ cards — is in scope, gated only by the segments below.
 
 ---
 
-## 2. Where the route stands — snapshot 2026-08-31
+## 2. Where the route stands — snapshot 2026-09-03
 
-Point-in-time. `codebase-state.md` wins on state; regenerate the queries before
-trusting a number.
+Point-in-time, and **this section goes stale faster than any other in the
+tree** — it was three days and eight merged PRs behind when the owner went
+looking for a quick reference and could not use it (2026-09-03). Every number
+below is query-derivable; regenerate before trusting one, and prefer the query
+to the number:
 
-- **Spine:** items 1–4 done (layers core, CDAs, Layer 6, Layer 2). Item 5 is
-  two phases in (RA, RB) of five (RA–RE). Items 5b, 5c, 6, 7 unstarted.
-- **Cards:** 56 registered (`cards/registry.rs`) — deliberately near zero.
-  Breadth before surfaces is how the six historical gaps got expensive; the
-  bet of the whole ordering is that cards are cheap *after* the surfaces exist.
-- **Tests:** 753 `#[test]` functions.
+```bash
+grep -c "registry.register(" mtgsim/src/cards/registry.rs   # cards registered
+grep -rc "#\[test\]" mtgsim/src mtgsim/tests --include=*.rs | awk -F: '{s+=$2} END {print s}'
+python plans/specdb.py stats && python plans/specdb.py owed  # corpus, and the gate
+gh pr list --state open && git branch -a --no-merged origin/main   # what is in flight
+```
+
+`codebase-state.md` wins on state.
+
+- **Spine:** items 1–4 done (layers core, CDAs, Layer 6, Layer 2) and **7a**
+  (epoch memoization). Item 5 is **four of five** phases in — RA, RB, and all of
+  RC (RC-1…RC-5); **RD is next on that track**, RE after it. Item 5b is one of
+  four (RS-1; RS-2 next). Item 5c is one of seven (CV-1; CV-2 free). Items 6,
+  6b and 7 unstarted.
+- **In flight:** nothing. Two stale branches sit behind `origin/main` and are
+  neither merged nor scheduled — `replacement/rc-2-enter-battlefield` and
+  `phase-ld-part-b`; delete them or say what they are for.
+- **Cards:** 76 registered (`cards/registry.rs`), 66 of them in
+  `PERFORMANCE_POOL` — deliberately near zero. Breadth before surfaces is how
+  the six historical gaps got expensive; the bet of the whole ordering is that
+  cards are cheap *after* the surfaces exist.
+- **Tests:** 937 `#[test]` functions.
+- **Deferred Migrations:** 103 items, 92% of `codebase-state.md`, **62 of them
+  with no reachability note**. That triage is the one piece of debt work
+  currently competing with the spine — `codebase-state.md`'s audit at the head
+  of that section sizes it.
 - **Spec corpus** (`python plans/specdb.py stats`): 1,753 atoms —
 
   | Phase | Atoms | What it is |
@@ -69,7 +92,7 @@ trusting a number.
   | Backlog | 65 | re-filed to `backlog.md` entries |
   | other | 17 | 14 unclassified, 3 post-v1 |
 
-  The 3.2% FULL-test figure measures the *annotation* discipline (weeks old)
+  The 3.9% FULL-test figure measures the *annotation* discipline (weeks old)
   plus the fact that half the corpus is deliberately future material — not
   engine correctness; the triage confirmed ~159 atoms of
   implemented-but-untested behavior besides (`backlog.md` §5). The gate that
