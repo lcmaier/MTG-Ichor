@@ -9,6 +9,7 @@
 //! a working row from a missing one.
 
 use mtgsim::cards::phase_lh_cards::holy_strength;
+use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::engine::targeting::spell_recipient;
@@ -296,4 +297,17 @@ fn test_enchant_creature_admits_only_creatures() {
 
     assert_eq!(game.battlefield[&aura].attached_to, Some(bears));
     assert!(game.battlefield[&trinket].attached_by.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+/// In the registry, so `fuzz_games --pool stress` can draw it, and in the
+/// performance pool, so the new arm is measured rather than assumed
+/// (`engineering-practices.md` §3).
+#[test]
+fn test_holy_strength_is_registered_and_in_the_performance_pool() {
+    assert!(CardRegistry::default_registry().create("Holy Strength").is_ok());
+    assert!(CardRegistry::performance_pool().create("Holy Strength").is_ok());
 }
