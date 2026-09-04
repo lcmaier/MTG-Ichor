@@ -1406,6 +1406,13 @@ useful question is "what do I do next", not "what does each doc own".
 > **Track S** turns rules into things cards can forbid (RS-0 → RS-4).
 > They meet **once**: RS-1 before RC-4. Everything else is free ordering.
 
+**Superseded for scheduling, 2026-09-04.** Rows 1–8 below are done. The tail
+(9–16) is now `roadmap-v2.md` §3a — one route for every document — which keeps
+this table's two claims (613.8 before triggers; RD and RE before triggers),
+inserts Phase LH before 613.8 and CR 113.6 before triggers, and moves RS-3b
+behind 613.8 as row 14 already said. `CLAUDE.md`'s critical path was changed to
+match. The table stays as the Track R / Track S reading; schedule from §3a.
+
 | # | Do this | Why here |
 |---|---|---|
 | 1 | Finish #62 — themes G, then B | `rb-review.md`'s plan; both are on the branch already |

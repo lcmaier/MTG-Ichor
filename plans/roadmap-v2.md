@@ -137,7 +137,7 @@ the second card face (CR 712) and `CardData.color_indicator` live.
 → `copy-effects-architecture.md`; `codebase-state.md` item 30.
 
 **Item 6 — triggered abilities, with LKI formalization and conditional
-statics.** The largest unlock in the game, and it is not close: **14,603 of
+statics — after 5, 6b, 7 and CR 113.6 (§3a).** The largest unlock in the game, and it is not close: **14,603 of
 32,115 black-border cards — 45% — carry a triggered ability.** Phase 7 holds
 133 atoms. LKI rides along (the CR 603.10a frame has been captured at the
 chokepoint since RA; item 6 formalizes its consumers), as do conditional
@@ -145,12 +145,20 @@ static abilities. **It is also the least-sized item on the path — size it in
 the doc before the first PR.** The RB lesson (+5,475 because nobody counted)
 at five times the stakes. → `engineering-practices.md` §4.
 
-**Item 7 — the CR 613.8 cluster, after 6, back-stopped before Phase 8.** The
-dependency algorithm changes how the layer pass itself runs, so it wants to
-land after the systems that mass-produce effect sources (triggers) and
-**before card breadth multiplies the ordering-sensitive boards.** The
-back-stop is load-bearing and currently enforceable precisely because breadth
-has not started: until it lands, no dependency-ordering-sensitive card may be
+**Item 6b — attachment as a layers input (Phase LH), before 7.** Two sized
+PRs (`layers-architecture.md` §13a). It adds the two walk inputs a finer memo
+key would need — `attached_to` and a mutable CR 613.7 timestamp — so it lands
+before the phase that would design that key, and it is what makes an Aura
+authorable at all (the host `AffectedSet`; CR 608.3b rides along).
+
+**Item 7 — the CR 613.8 cluster, before 6, back-stopped before Phase 8
+(reordered 2026-09-04, §3a).** The dependency algorithm and the board-wide
+sequential pass are the frame that conditional statics (7f) and CR 603.4's
+intervening-ifs evaluate against, so building it first makes the trigger phase
+add a reader rather than a language; the pool already builds a 613.8 wrong
+answer (Humility + Citanul Hierophants); and the seam it shares with CR 614.12
+landed with RC-4. **The back-stop before card breadth is unchanged and
+load-bearing:** until it lands, no dependency-ordering-sensitive card may be
 authored.
 
 **The Commander interleave — after item 5.** Cost modification first
@@ -159,6 +167,102 @@ then `GameConfig::commander()`, CR 903.7, CR 800/802. CR 903.9a/b already
 work and sit dormant until something sets `GameObject.is_commander`. This is
 also when the 25 CR 601 casting-procedure atoms left unjudged by the triage
 get their verdicts (§7).
+
+---
+
+## 3a. The route, unified — 2026-09-04
+
+Three documents carried three orderings until this section: `CLAUDE.md`'s
+numbered list (read literally: triggers, then LH, then 613.8), §3 above ("item
+7 after 6"), and `cant-effects-architecture.md` §7.1's sixteen-row table (613.8
+at 13, RD/RE at 15, triggers last) — and Phase LH (2026-09-01) appeared in none
+of them. They are one route now. **`CLAUDE.md` still owns the order**; this
+section is the same order with the reason each row sits where it does, and it
+runs past the spine to v1, because the question asked was "what is the path to
+v1", not "what is next on the spine".
+
+**The sorting rule, applied to every row before triggers.** Does the trigger
+matcher observe fiction without it (must precede), does it make the trigger
+phase smaller (should precede), or neither (must not compete)? CR 603 reads the
+performed-event stream, so anything that changes what that stream says is in
+the first class; anything that would otherwise be built *inside* the trigger
+phase is in the second.
+
+**Two things moved.** The CR 613.8 cluster (item 7) now precedes triggers (item
+6): §3's reason for the old order — triggers "mass-produce effect sources" —
+does not hold (a trigger's resolution registers the same row a spell's does,
+and no trigger changes how a layer pass orders); the replacement doc's reason
+to let it wait (RC-4's accessor pair) is spent since RC-4 landed; and the
+Deferred Migrations triage found the first 613.8 wrong answer the performance
+pool builds (Humility + Citanul Hierophants — `codebase-state.md` "Before
+Layers" item 8). And the information model (§5 amendment 2) is on the route
+with its back-stop, because both v1 use cases need it and nothing else
+delivers it.
+
+### A. The path to triggers
+
+| # | Do this | Why here | PRs |
+|---|---|---|---:|
+| A1 | The CR 704.5d token-order leak (`codebase-state.md` main item 6) | the matcher reads that log; five lines and a test | 1 |
+| A2 | **LH-1, LH-2** — attachment as a layers input (critical-path 6b) | sized (`layers-architecture.md` §13a: ~730, ~900); Aura and Equipment triggers need `attached_to` as a fact the effective-ability list reads; must precede 7 | 2 |
+| A3 | **The CR 613.8 cluster** (7), with the `Condition` AST for conditional statics ("Before Layers" 7f) | fixes the live board; the board-wide pass is the frame conditional statics and CR 603.4's intervening-ifs both evaluate against, and `layers-architecture.md` §15.2 already says they share one AST — build it here so the trigger phase adds a reader, not a language; unblocks RS-3b | 1–2 |
+| A4 | **RD**, then **RE** (the rest of 5) | RD's CR 120.3 decomposition is what "whenever you lose life" needs to see combat damage; RE's `CreateTokens` is CR 603.2c's "one or more" for 249 token-watching cards and the token-in-exile back-stop ("Before card breadth" item 8), plus `PlayerLoses` and draw replacement so 391 draw-watchers see the post-replacement draw | 2–4 |
+| A5 | **CR 113.6** — which abilities function in which zone — with object timestamps (CR 613.7d) | the one missing facility three docs name and none owns: Wonder (layers item 9), Leyline's opening-hand clause (`replacement-architecture.md` §3.3 source 2), Bridge from Below (triggers); sized in `replacement-architecture.md` §11 item 9 | 1 |
+| A6 | **The triggers architecture doc**, then **item 6** | 52 CR 603 atoms plus ~80 more Phase 7 atoms in CR 610/608/724/707/605; the four problems in `atomic-tests/supplemental-docs/state-tracking-architecture.md` are the bar; the first PR carries the trace sink ("Before Triggered abilities" item 5), LKI's consumers, `cast_by` (main 9), CR 605.1b (main 11) and CR 707.10b's ability identity | 4–6 |
+
+Rows A2–A3 and A4 commute; A2–A3 go first because they are sized, their seam
+is built, and one fixes a live bug. **Beside A, pulled when a card family
+wants them:** RS-2 (hexproof and shroud; trigger targets then inherit it),
+CV-2 (copy on enter, which makes CR 707.5's ETB-of-a-copy testable), item 30's
+capture PR (§5 amendment 1), B1–B3 once A4 is in, and Deferred Migrations
+steps 3–5.
+
+### B. What breadth needs — beside and after triggers
+
+| # | Do this | Why here | PRs |
+|---|---|---|---:|
+| B1 | **Cost modification** (`backlog.md` §2.1, two phases) | commander tax runs through it; RS-4 reads better after it; the 25 unjudged CR 601 atoms get their verdicts here (§7) | 2 |
+| B2 | **`GameConfig::commander()`** and designation, CR 903.7, `DeckLimits` validation | "Before Commander" items 2–3 and main item 32; CR 903.9a/b and 704.6d already work and wait on `is_commander` | 1 |
+| B3 | **CR 800/802**, with a `--players 4` fuzz mode | "Before Commander" item 4: the priority loop, turn rotation and APNAP are already modulo `num_players`; CR 800.4 (a player leaves) and 802's defending-player choice are not | 1 |
+| B4 | **The information model** (`backlog.md` §2.9) | a v1 blocker, not breadth: the GUI renders one player's view and an AI observation must not leak a hidden zone; **hard back-stop before Phase 8's face-down and reveal cards and before any Phase 10 work**; depends on nothing above, so it can go anywhere in A or B | 1–2 |
+| B5 | **RS-3a, RS-4, RS-3b** | combat predicates (1,267 of 1,277 Tier-1a clauses), costs, then the solver, which waits on A3 | 3 |
+| B6 | **CV-3 … CV-7** | CV-7 (merging, CR 729) is back-stopped before Phase 8 because a multi-component permanent is a fact every later phase would otherwise code against | ~5 |
+| B7 | **The lattice** (§4's table) | feature-shaped, order free; §2.8 (functioning zones, activation restrictions) first, since §2.3's cast-from-elsewhere keywords are written in it | 10–13 |
+
+### C. Phase 8 — card breadth (643 atoms)
+
+Throughput, not architecture: every card a normal diff, keyword-depth atoms
+authored beside the cards that need them, the pool growing one card per new
+engine path (`engineering-practices.md` §3), and the deferred Scryfall import
+pipeline earning its slot when authoring speed binds. **Gates at its start:**
+A3 (no dependency-ordering-sensitive cards before it), B4 (no reveal or
+face-down cards before it), B6's CV-7. Milestone: **core-rules-complete** (§6).
+
+### D. Phase 9 — formats and multiplayer (230 atoms)
+
+The `Format` trait dispatching Commander against Standard; Commander complete
+on B1–B3 (command zone, tax, damage, color identity — Milestone 8, **Commander
+Playable**); CR 800's remaining subrules; Limited and `DraftEngine` stay
+post-v1. Milestone: **format-ready**.
+
+### E. Phase 10 — the v1 wrap
+
+Both use cases, on the surfaces the spine built. A Web GUI (Wasm) over the
+per-viewer query B4 delivers. An AI API over the same four-method
+`DecisionProvider` that drives CLI, random and scripted play (`ChoiceContext`
+is serde-serializable by design). The parallel-play harness: `fuzz_games`'
+worker pool already scales to ~6.7× on eight cores, and what is open is in
+`codebase-state.md` — the allocator question, the event-log window (main item
+42), and search, which needs the decision-site invariant (main item 40) and
+the priority-boundary fork test (main item 41) before any refactor is priced.
+Profile-driven performance: the 7a residual (`layers-architecture.md` §12) and
+the `Arc<Vec<AbilityDef>>` lever (main item 67). Network play is a stretch
+goal. Milestone: **user-ready**, which is v1.
+
+**Sizing, with §8's caveat.** Rows A and B sum to roughly the ~35–40 PRs §8
+guessed for "breadth unconstrained"; C–E are unsized in PRs, because C is
+throughput and D–E have no design yet. Re-derive from a live count before
+scheduling any row.
 
 ---
 
@@ -207,8 +311,9 @@ retrofit shape over again. The retired corpus tickets already sited the
 answer: a per-viewer query beside `oracle/characteristics.rs`. It depends on
 nothing in items 5–7 and can be built in parallel whenever.
 
-**Status: proposed.** `CLAUDE.md`'s critical path owns ordering; it takes
-these amendments, or doesn't, by the owner's call.
+**Status: adopted 2026-09-04** — both are rows in §3a (amendment 1 beside A;
+amendment 2 as B4 with its back-stop), and `CLAUDE.md`'s critical path names
+the information model.
 
 ---
 
@@ -265,6 +370,8 @@ gets drawn formally rather than by default. → `backlog.md` §4.
 ---
 
 ## 8. Sizing — starting guesses only
+
+**The order is §3a's; this table is only the per-segment guess it sums.**
 
 In the project's 1,500–2,500-addition PR band. **Re-derive from a live count
 before scheduling any row** (`engineering-practices.md` §4): two estimates in
