@@ -60,15 +60,30 @@ deferred, it is forgotten — that is the rule this step enforces.
 
 ## While you are in there
 
-- **Item ids are not unique**: 103 items use ids 1–65 twice, a main run plus
-  per-section runs in the four "Before X" sections. Every cross-reference in the
-  tree is hand-qualified and correct today. Decide whether to renumber into one
-  space (and fix every citation — grep `item \d` across `plans/` and
-  `mtgsim/src`) or to leave it and say in the section header that ids are
-  section-scoped. Either is defensible; silence is not.
+- **"item N" is three namespaces, not one, and that is bigger than it looked
+  when this prompt was written** (measured 2026-09-03). Within this section, 108
+  items use ids 1–65 twice — a main run plus per-section runs in the four
+  "Before X" sections. Across the tree it is worse: `CLAUDE.md`'s critical path
+  numbers items 1–7 and is cited as "item 7" too, so **`item 6` and `item 7` each
+  name three different things**. Counted across `plans/*.md` and `CLAUDE.md`:
+  **355 "item N" citations, 261 of them (73%) without naming which namespace.**
+  Most read correctly from context; the bare ones in prose are where a reader
+  loses. Decide the fix — renumber into one space and fix every citation, or
+  adopt a prefix (`DM-46`, `CP-7`) and sweep, or leave it and say in each
+  section header that ids are section-scoped. **Prefixing is the cheapest of the
+  three** and is the only one that makes a bare citation impossible rather than
+  merely discouraged. Either way this is the pass to do it in: it already
+  touches every item and every citation of them.
 - Two branches sit behind `origin/main`, unmerged and unscheduled —
   `replacement/rc-2-enter-battlefield` and `phase-ld-part-b`. Say what they are
   or delete them.
+- **`plans/handoffs/cv-1-review.md` holds six items marked "open, with an
+  owner"** (C1–C6) and CV-1 shipped. `CLAUDE.md`'s authority table says a
+  handoff is deleted when the work lands, so those six are debt sitting in a
+  file whose contract says it should not exist. They belong in this section or
+  in `copy-effects-architecture.md`. **Absorb them before or during this pass** —
+  otherwise the triage's output is "the complete list of what is owed" and is
+  missing six.
 
 ## Exit
 
