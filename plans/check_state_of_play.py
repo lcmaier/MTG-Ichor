@@ -32,6 +32,11 @@ out of the generated file.
    path. This is the failure that happened: RC-5 landed, its heading said so,
    and `CLAUDE.md` still said "RC-5 next".
 
+3. **The Deferred Migrations parser drifting** — `selftest()` runs the item
+   splitter and the verdict classifier against a fixture before every check,
+   so a regex edit that changes what counts as an item fails here rather than
+   silently moving the board's numbers.
+
 It does **not** derive per-phase status for the "can't" and copy tracks,
 because those docs record their phases only in sizing tables with no status
 marker. The replacement track has heading markers and is checked; the others
@@ -77,12 +82,60 @@ def counts():
     }
 
 
+ITEM_RE = re.compile(r"^(\d+[a-z]?)\.\s", re.M)
+VERDICT_RE = re.compile(r"\*\*Reachability \((\d{4}-\d{2}-\d{2})\):\*\*\s*(.+)")
+LEGACY_UNREACHABLE_RE = re.compile(r"[Uu]nreachable|no board to fail on|not reachable|no registered")
+
+
+def classify_item(body):
+    """One of: closed, unreachable, reachable_wrong, reachable_ok, none_owed, unstated.
+
+    A dated `**Reachability (YYYY-MM-DD):**` verdict is authoritative when
+    present; its first words name the class. Without one, the pre-triage
+    heuristics apply: a ✅/CLOSED/strike-through near the top means closed, and
+    the word "unreachable" (or its stock paraphrases) means the item says why it
+    cannot bite yet. `sized` is separate — `**Sized:**` anywhere in the item.
+    """
+    m = VERDICT_RE.search(body)
+    if m:
+        v = m.group(2).lower()
+        if v.startswith("closed"):
+            return "closed"
+        if v.startswith("unreachable"):
+            return "unreachable"
+        if v.startswith("reachable") and "wrong today" in v[:40]:
+            return "reachable_wrong"
+        if v.startswith("reachable"):
+            return "reachable_ok"
+        if v.startswith("nothing owed"):
+            return "none_owed"
+        return "unstated"
+    if "CLOSED" in body[:400] or "~~" in body[:120] or "✅" in body[:200]:
+        return "closed"
+    if LEGACY_UNREACHABLE_RE.search(body):
+        return "unreachable"
+    return "unstated"
+
+
+def split_items(block):
+    """The numbered items of a Deferred Migrations block, as text bodies.
+
+    An item is a column-0 `N.` or `Na.` line (`46.`, `7a.`, `16b.`); it runs to
+    the next such line or the end of the block. Lists in prose must not use that
+    marker at column 0 — the section uses `1)` for those, which Markdown renders
+    the same way.
+    """
+    starts = [m.start() for m in ITEM_RE.finditer(block)]
+    return [block[s:e] for s, e in zip(starts, starts[1:] + [len(block)])]
+
+
 def deferred_migrations():
     """Item counts for `codebase-state.md`'s Deferred Migrations section.
 
     The section's own audit block carries a dated snapshot of these; this is the
-    live one. `unannotated` is the number that matters — an item that does not
-    say why it cannot bite yet is an unchecked claim, not a deferral.
+    live one. `unstated` is the number that matters — an item that does not say
+    why it cannot bite yet is an unchecked claim, not a deferral — and
+    `reachable_wrong` is the list of known wrong answers the pool can reach.
     """
     lines = read("plans/codebase-state.md").split("\n")
     start = next(i for i, l in enumerate(lines) if l.startswith("## Deferred Migrations"))
@@ -92,28 +145,45 @@ def deferred_migrations():
             end = i
             break
     block = "\n".join(lines[start:end])
-
-    items = []
-    for m in re.finditer(r"^(\d+)\.\s", block, re.M):
-        nxt = re.search(r"^\d+\.\s", block[m.end():], re.M)
-        stop = m.end() + (nxt.start() if nxt else len(block) - m.end())
-        items.append(block[m.start():stop])
-
-    closed = [b for b in items if "CLOSED" in b[:400] or "~~" in b[:120] or "✅" in b[:200]]
-    rest = [b for b in items if b not in closed]
-    unreachable = [
-        b for b in rest
-        if re.search(r"[Uu]nreachable|no board to fail on|not reachable|no registered", b)
-    ]
+    items = split_items(block)
+    classes = [classify_item(b) for b in items]
+    open_items = [b for b, c in zip(items, classes) if c != "closed"]
+    counts = {k: classes.count(k) for k in
+              ("closed", "unreachable", "reachable_wrong", "reachable_ok", "none_owed", "unstated")}
     return {
         "lines": end - start,
         "of": len(lines),
         "items": len(items),
-        "closed": len(closed),
-        "unreachable": len(unreachable),
-        "unannotated": len(rest) - len(unreachable),
-        "sized": sum(1 for b in items if "Sized:" in b),
+        **counts,
+        "sized": sum(1 for b in open_items if "Sized:" in b),
+        "open": len(open_items),
     }
+
+
+def selftest():
+    """The parser, checked against a fixture — so a regex edit cannot silently
+    change what the board counts. Runs under --check and --write."""
+    fixture = "\n".join([
+        "## Deferred Migrations",
+        "1. **Done — ✅ closed (2026-01-01).** text",
+        "2. **Open, old style.** Unreachable today: no caller. **Sized:** 5 lines.",
+        "2a. **Lettered sub-item.** **Reachability (2026-09-03):** reachable — wrong today; x. **Sized:** y.",
+        "3. **Verdict wins over the heading ✅.** **Reachability (2026-09-03):** unreachable — no card.",
+        "4. **Says nothing.** prose",
+        "   1. an indented list is not an item",
+        "5. **Record.** **Reachability (2026-09-03):** nothing owed — a record.",
+        "6. **Perf.** **Reachability (2026-09-03):** reachable — not wrong; perf only. **Sized:** z.",
+        "7. **Struck later.** **Reachability (2026-09-03):** closed — PR #1.",
+        "1) a prose list with the paren delimiter is not an item",
+    ])
+    items = split_items(fixture)
+    got = [classify_item(b) for b in items]
+    want = ["closed", "unreachable", "reachable_wrong", "unreachable", "unstated",
+            "none_owed", "reachable_ok", "closed"]
+    assert len(items) == 8, f"selftest: expected 8 items, parsed {len(items)}"
+    assert got == want, f"selftest: {got} != {want}"
+    sized = sum(1 for b, c in zip(items, got) if c != "closed" and "Sized:" in b)
+    assert sized == 3, f"selftest: sized {sized} != 3"
 
 
 def landed_phases():
@@ -219,12 +289,20 @@ def render():
     L.append(f"| Section size | {dm['lines']} of {dm['of']} lines ({100 * dm['lines'] // dm['of']}%) |")
     L.append(f"| Numbered items | {dm['items']} |")
     L.append(f"| …closed, still recorded | {dm['closed']} |")
-    L.append(f"| …open, reachability stated | {dm['unreachable']} |")
-    L.append(f"| **…open, reachability *not* stated** | **{dm['unannotated']}** |")
-    L.append(f"| …carrying an explicit size | {dm['sized']} |")
+    L.append(f"| …open — unreachable, and says why | {dm['unreachable']} |")
+    L.append(f"| **…open — reachable, wrong today** | **{dm['reachable_wrong']}** |")
+    L.append(f"| …open — reachable, not wrong (perf, a name, a harness) | {dm['reachable_ok']} |")
+    L.append(f"| …open — nothing to build, a record for a later phase | {dm['none_owed']} |")
+    L.append(f"| **…open — reachability *not* stated** | **{dm['unstated']}** |")
+    L.append(f"| …open, carrying an explicit `**Sized:**` | {dm['sized']} of {dm['open']} |")
     L.append("")
-    L.append("The bolded row is the one to act on: an item that does not say why it cannot")
-    L.append("bite yet is an unchecked claim rather than a deferral.")
+    L.append("Two bolded rows. \"Not stated\" is the one to act on: an item that does not say")
+    L.append("why it cannot bite yet is an unchecked claim rather than a deferral. \"Wrong")
+    L.append("today\" is the list of known wrong answers a fuzz game can reach — bug")
+    L.append("reports filed as deferrals, each named in the section. A dated")
+    L.append("`**Reachability (YYYY-MM-DD):**` line is what the board reads; the date says")
+    L.append("when the verdict was last derived against the tree, because reachability")
+    L.append("only ever grows.")
     L.append("")
     L.append("### This is not `specdb owed`, and the two overlap nowhere")
     L.append("")
@@ -301,6 +379,7 @@ def main():
         flight()
         return 0
 
+    selftest()
     fresh = render()
 
     if args.write:
