@@ -16,13 +16,18 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_controller, get_effective_power, get_effective_toughness,
 };
+use mtgsim::oracle::mana_helpers::castable_spells;
 use mtgsim::state::game_state::{GameState, StackEntry};
 use mtgsim::test_support::{
-    attach, put_on_battlefield, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
+    attach, equipment, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
+    vanilla_creature,
 };
-use mtgsim::types::effects::Effect;
+use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -178,4 +183,115 @@ fn test_the_aura_dies_with_its_host() {
         moves_of(&game, aura).last().copied(),
         Some((Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::AuraSba))
     );
+}
+
+// ---------------------------------------------------------------------------
+// CR 608.3b — a permanent spell whose target is gone fizzles
+// ---------------------------------------------------------------------------
+
+/// `codebase-state.md` Deferred Migrations item 8. An Aura has no spell
+/// ability, so a fizzle check that derives the recipient from the *effect*
+/// sees `Implicit`, asks nothing, and lets the Aura enter the battlefield
+/// with a target that no longer exists.
+// COVERS: ATOM-608.3b-001, ATOM-303.4g-002
+#[test]
+fn test_an_aura_whose_target_left_fizzles() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let aura = aura_on_stack_targeting(&mut game, 0, bears);
+
+    destroy(&mut game, bears);
+    game.resolve_top_of_stack(&test_dp())
+        .expect("resolution runs; the spell is countered by the rules, not an error");
+
+    assert!(!game.battlefield.contains_key(&aura), "CR 608.3b: it never enters");
+    assert!(game.players[0].graveyard.contains(&aura), "to its owner's graveyard");
+    assert_eq!(
+        moves_of(&game, aura),
+        vec![(Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)]
+    );
+    assert!(game
+        .events
+        .events()
+        .any(|e| matches!(e, GameEvent::SpellFizzled { spell_id } if *spell_id == aura)));
+}
+
+// ---------------------------------------------------------------------------
+// CR 303.4a / 601.2c — an Aura spell's target is defined by its enchant ability
+// ---------------------------------------------------------------------------
+
+/// Holy Strength in `player`'s hand with the {W} to cast it floating.
+fn holy_strength_in_hand(game: &mut GameState, player: PlayerId) -> ObjectId {
+    let id = put_in_hand(game, holy_strength(), player);
+    game.players[player].mana_pool.add(ManaType::White, 1);
+    id
+}
+
+/// Cast `aura` at index 0 of the legal targets, which each caller makes
+/// unambiguous by leaving exactly one creature on the battlefield.
+fn cast_at_the_only_creature(game: &mut GameState, player: PlayerId, aura: ObjectId) {
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id: aura,
+        },
+        vec![0],
+    );
+    game.cast_spell(player, aura, &decisions).expect("it is castable");
+    assert!(decisions.is_empty(), "CR 601.2c asked for the target");
+    game.resolve_top_of_stack(&decisions).expect("it resolves");
+}
+
+/// The whole cast path: the target is chosen at CR 601.2c from the enchant
+/// ability — the card has no spell ability to take one from — and CR 608.3c
+/// attaches to it.
+// COVERS: ATOM-303.4-001
+#[test]
+fn test_an_aura_cast_from_hand_targets_at_601_2c_and_enters_attached() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let aura = holy_strength_in_hand(&mut game, 0);
+
+    cast_at_the_only_creature(&mut game, 0, aura);
+
+    assert_eq!(game.battlefield[&aura].attached_to, Some(bears));
+    assert_eq!(pt(&game, bears), (3, 4));
+}
+
+/// No creature, no cast — and the castability pre-check the fuzz agent reads
+/// agrees, which is what keeps a random game from trying.
+// COVERS: ATOM-303.4a-001
+#[test]
+fn test_an_aura_with_no_legal_target_cannot_be_cast() {
+    let mut game = setup_two_player_game();
+    let aura = holy_strength_in_hand(&mut game, 0);
+
+    assert!(
+        castable_spells(&game, 0).iter().all(|(id, _)| *id != aura),
+        "CR 601.2c's pre-check: a spell with no legal target is not castable"
+    );
+    assert!(game.cast_spell(0, aura, &test_dp()).is_err());
+    assert_eq!(game.get_object(aura).unwrap().zone, Zone::Hand, "the cast rewound");
+    assert!(game.stack.is_empty());
+}
+
+/// CR 702.5a — "Enchant creature" is the restriction. With only an artifact
+/// to enchant the Aura cannot be cast at all; once a creature is there, that
+/// is what it enchants and the artifact is never offered.
+// COVERS: ATOM-702.5a-001
+#[test]
+fn test_enchant_creature_admits_only_creatures() {
+    let mut game = setup_two_player_game();
+    let trinket = put_on_battlefield(&mut game, equipment("Trinket"), 1);
+    let aura = holy_strength_in_hand(&mut game, 0);
+
+    assert!(castable_spells(&game, 0).iter().all(|(id, _)| *id != aura));
+    assert!(game.cast_spell(0, aura, &test_dp()).is_err(), "an artifact is not a creature");
+
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    cast_at_the_only_creature(&mut game, 0, aura);
+
+    assert_eq!(game.battlefield[&aura].attached_to, Some(bears));
+    assert!(game.battlefield[&trinket].attached_by.is_empty());
 }
