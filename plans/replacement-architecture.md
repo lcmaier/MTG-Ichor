@@ -3431,6 +3431,16 @@ beside it.
 three timing rounds per arm agree with its threaded counter run, which is the
 thread-independence half.
 
+**Debug-assertion fuzz, added on review** — the release A/B measures cost and
+says nothing about the assertions, and this phase's sharpest internal check
+(`check_order_invariance`, a second gather per suppressed prompt) is
+`cfg!(debug_assertions)`-only. A **debug** build at 400 games on each pool and
+120 games with each new card forced into every deck: **0 errors, 0 panics, 0
+uncast resolutions** throughout, with 134 devour resolutions in the forced run.
+That is the evidence that the new paths hold up on boards nobody wrote a test
+for; it is not evidence that the *rules* are right, which is what the review's
+own findings are for.
+
 **Exit met.** 937 tests (23 new), zero warnings, both `check_*.py`, `specdb
 owed` unchanged. All three of CR 614.13's atoms are covered rather than
 partial — ATOM-614.13-001, -614.13a-001 and -614.13b-001. **Trace page:**

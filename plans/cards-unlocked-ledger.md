@@ -137,6 +137,24 @@ Recommended integration tests:
 
 ### Tier 5: Zone, Combat, Damage, Targeting (T21a–T22)
 
+**Where this tier lives now — added 2026-09-03, because "where did T21 go" is a
+question this table kept failing to answer.** These `T##` ids are the archived
+plan's vocabulary and name no live owner (`CLAUDE.md`'s authority table). The
+*work* is alive and is spread across four homes:
+
+| Archived id | What it was | Live owner |
+|---|---|---|
+| `T21a` | instant/sorcery can't enter the battlefield | **done** — CR 608.2n vs 608.3a routing in `engine/stack.rs`, never ticked off here |
+| `T21a` | CastInfo carried to the permanent (ATOM-400.7d-001) | **unowned.** The shape is recorded as `EventPattern::EnterBattlefield`'s stated growth axis — "a fact about *how the object arrived* lands here as a field" (`replacement-architecture.md` §3.1); nothing schedules it |
+| `T21b` | evasion framework (menace, shadow, fear, landwalk…) | **RS-3**, `cant-effects-architecture.md` — see its "Why now" §2, which names this row |
+| `T21c` | infect / wither / toxic | `backlog.md` §2.6 (CR 702 keyword abilities) — Phase 8 breadth |
+| `T21c` | planeswalker combat damage routing | **Phase RD**, `replacement-architecture.md` §9 — CR 120.3c's loyalty removal, part of the CR 120.3 results decomposition |
+| `T21d` | CR 508.1d/509.1c requirements solver | **RS-3b**, `cant-effects-architecture.md`; wants CR 613.8 first |
+| `T22` | hexproof / shroud / protection targeting | **RS-2**, `cant-effects-architecture.md`; the current gap is `codebase-state.md` "Before card breadth" item 7 |
+
+The rows below are the archived plan's own table, kept as the historical record
+of what each ticket was meant to unlock.
+
 | Ticket(s) | Cards Unlocked | Example Cards | Status |
 |-----------|---------------|---------------|--------|
 | T21a (+ T17) | CastInfo on permanents; instant/sorcery can't enter battlefield | Any permanent spell (CastInfo auto-populated) | |

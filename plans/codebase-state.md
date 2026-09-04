@@ -219,6 +219,56 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **How to use this section:** before opening the first ticket of a listed target system, re-read that system's subsection and treat the items as prerequisites to schedule before or alongside the system's core work.
 
+### Deferred Migrations, measured — and the thinning it needs (2026-09-03)
+
+**Asked on review after RC-5 added 13 items in one PR**, which is the largest
+single addition this section has taken. Counted rather than estimated:
+
+| | |
+|---|---|
+| Deferred Migrations | **2,819 of this file's 3,034 lines — 92%** |
+| numbered items | **103**, across 29 subsections |
+| closed / struck, still in the file | 20 |
+| open, explicitly marked unreachable | 21 |
+| **open, with no reachability note at all** | **62** |
+| carrying an explicit `**Sized:**` | **20 of 103** |
+
+**The number that matters is 62, and it is not the length.** This section's
+stated purpose is that each entry is "a migration owed to a future system", read
+"before opening the first ticket of a listed target system". An item that says
+*why it cannot bite yet* is a safe deferral: 21 do, and RC-5's own items 61–63
+are among them. An item that does not is a claim nobody has checked — it might
+be dormant scaffolding or it might be wrong on a board the pool can already
+build, and the file does not distinguish them. **That is the risk the length is
+a symptom of**, and it is what a thinning pass should resolve, in this order:
+
+1. **Triage the 62 for reachability** — for each, name the card or code path
+   that would expose it, or mark it unreachable and say why. This is the whole
+   value; the rest is tidying. Roughly a day, and it is the same instrument
+   `codebase-state.md` already uses well in the 21.
+2. **Size the 83 unsized.** The rule was already written down —
+   *size an item before punting it* — and it has been followed for one in five.
+   An unsized deferral cannot be scheduled, so it is not deferred, it is
+   forgotten.
+3. **Collapse the 20 closed items to one line each**, pointing at the commit.
+   Cheap, mechanical, and worth ~400 lines.
+4. **Only then consider splitting the file.** Splitting first would move the
+   problem: `CLAUDE.md` makes this file the doc that "wins over every other
+   doc", and a Deferred Migrations that lives elsewhere is one more doc to
+   forget.
+
+**Numbering is not unique and the docs cite it as if it were.** The 103 items
+use ids 1–65 twice over: a main run that spans the dated "Found by …" sections,
+and per-section runs inside "Before Layers", "Before card breadth", "Before
+Triggered abilities" and "Before Commander". Every cross-reference in the tree
+is qualified by hand ("'Before card breadth' item 4") and is correct today; the
+next unqualified "item 4" is a silent mis-citation. Fix it with (1).
+
+**Should the next phase wait for this?** The parts of it that gate correctness
+are (1) and (2) — a phase that opens a new system is supposed to read this
+section first, and today that is not a thing a person does. (3) and (4) are
+tidying and can wait indefinitely.
+
 ### Before Replacement effects (CR 614–616)
 
 **The phase has an architecture doc as of 2026-08-24: `plans/replacement-architecture.md`.** It is authoritative for the type shapes, the CR 616.1 pipeline, the ETB look-ahead frame, and the RA–RE sequencing; item 3 below *is* its Phase RA. This section stays the status ledger.
