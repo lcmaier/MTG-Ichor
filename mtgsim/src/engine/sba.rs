@@ -507,12 +507,25 @@ impl GameState {
         // 704.5d — Token in a non-battlefield zone ceases to exist
         // Tokens cease to exist — they are removed from the game entirely.
         // This is NOT a zone change (no death trigger, no ZoneChange event).
-        let tokens_to_remove: Vec<(ObjectId, Zone)> = self.objects.iter()
+        //
+        // Ordered by the epoch of the move that took each token out of the
+        // battlefield, because `self.objects` is a `HashMap` and this sweep
+        // announces. Two Zombies dying in one combat is the reachable case:
+        // nothing here *decides* on the order, so the event log is the only
+        // witness and per-process order hides from the whole determinism
+        // harness. `move_object` stamps the epoch, monotone and one per move,
+        // so a batch's tokens carry distinct ticks in batch order — the same
+        // key `moved_since` uses, and for the same reason it is not `ObjectId`,
+        // a v4 UUID. Every token is created *in* the battlefield zone
+        // (`Primitive::CreateToken`), so one reaching here has moved and its
+        // stamp is not the pregame 0.
+        let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
-            .map(|(&id, obj)| (id, obj.zone))
+            .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))
             .collect();
+        tokens_to_remove.sort_by_key(|&(_, _, epoch)| epoch);
 
-        for (id, zone) in tokens_to_remove {
+        for (id, zone, _) in tokens_to_remove {
             // Remove from zone collection (reuse the centralized helper;
             // stack_entries cleanup is handled internally)
             self.remove_from_zone_collection(id, zone)?;
