@@ -780,6 +780,7 @@ pub fn ask_choose_auxiliary_zone_change(
     game: &GameState,
     chooser: PlayerId,
     entering: ObjectId,
+    source: ObjectId,
     to: crate::types::zones::Zone,
     candidates: &[ObjectId],
     max: usize,
@@ -792,7 +793,7 @@ pub fn ask_choose_auxiliary_zone_change(
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseAuxiliaryZoneChange { entering, to },
+        kind: ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to },
     };
     let indices = dp.pick_n(game, chooser, &ctx, &options, (0, max));
     validate_pick_n(&indices, options.len(), (0, max), "choose_auxiliary_zone_change");

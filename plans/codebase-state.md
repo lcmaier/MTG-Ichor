@@ -1904,6 +1904,22 @@ section never asked.
     batch-scoped frame reachable from a game rather than from a test. CR 613.7m
     is *not* part of this any more; see item 4 under "Before card breadth".
 
+    **`Primitive::CreateToken` is the cheaper producer and it should stop
+    looping** (asked on review 2026-09-03). "Create three 1/1 Soldiers" is one
+    event by CR 111's own shape, and the loop makes it three — three batches,
+    three CR 616.1 passes, three chances for an entry replacement to see a token
+    the others just made. Phase RE's `GameAction::CreateTokens` is where that
+    stops, and it arrives there for CR 614.16's doublers anyway, so the fix is
+    free at the point of use rather than a job of its own. **It is also the
+    cheaper route to a multi-entry batch than a mass return**: no graveyard leaf,
+    no item 48 controller field, and the pool already makes tokens (Kalitas's
+    rider). Whoever builds RE should expect it to close this item and 613.7m
+    together. **On storage:** a token is a full `GameObject` today, and a wide
+    board of them is the shape simulators historically bog down on. Nothing has
+    measured it here — `fuzz_games` makes few tokens — so it is not a claim, but
+    a batched creation is the prerequisite for ever storing them any other way,
+    because a per-token loop hard-codes one object per token at the *proposal*.
+
 47. **`pipeline::order_invariant_entry_bucket` is a semantics-assuming shortcut,
     and these are its expiry conditions.** It skips CR 616.1's prompt when every
     member of the bucket is an `EnterWith` whose applicability no `EnterMods`
@@ -2040,6 +2056,18 @@ measurement; what follows is what a later phase has to know.
     because `apply_auxiliary_move` cannot create a replacement effect and the
     applied set still bounds the iterations.
 
+    **Will the next arm need it? Asked on review, and the answer is mostly no.**
+    RD's `Amount` (614.5 doublers, 615.7 partial prevention) is arithmetic on
+    the event. RD's `Retarget` (614.9) re-checks its destination against the
+    board, which is a read. CV-2's copy-on-enter (616.1c) *chooses* a donor,
+    which is a prompt — `&GameState` plus `ctx.dp`, as
+    `EnterUnderControlOf(Opponent)` already is. **The one that will is piece 4**,
+    CR 614.12a's choice-carrying mods: "as this enters, choose a color" has to
+    record the choice somewhere a linked ability can read it, and that write is
+    on the object. So the count stands at one arm today and two when linked
+    abilities land — which is the argument for leaving the signature `&mut`
+    rather than threading a narrower capability that would be widened twice.
+
 54. **`execute_actions_new_batch` is §4.2's one exception, and the argument it
     needs is not "these are different".** A nested `execute_actions` joins the
     enclosing batch on CR 120.3f's grounds: lifelink's life gain is a *result
@@ -2097,12 +2125,13 @@ measurement; what follows is what a later phase has to know.
 
 59. **Sutured Ghoul's power and toughness are missing, not wrong.** Its `*/*`
     box is a CDA (CR 208.2) whose text reads "the exiled cards", which CR 614.14
-    links to the exiling ability — CR 607, ticket T20, the same block Painter's
+    links to the exiling ability — CR 607, whose live home is `backlog.md` §2.2
+    (the `T##` labels are the archived plan's vocabulary, not a queue), the same block Painter's
     Servant sits behind. The card is registered at its printed box's value
     without the CDA, **0/0**, which is also the right answer when nothing is
     exiled; a Ghoul that exiles something should live and dies to CR 704.5f
     instead. In the default registry, so `--pool stress` plays it; out of
-    `PERFORMANCE_POOL`. **Closes with T20**, and it is the second card in the
+    `PERFORMANCE_POOL`. **Closes with `backlog.md` §2.2**, and it is the second card in the
     pool whose printed P/T box the engine cannot fill (Keldon Warlord's is
     filled).
 
@@ -2116,6 +2145,88 @@ measurement; what follows is what a later phase has to know.
     system does not have. **Sized:** the field is small and the two consequences
     are not; call it a phase of its own, and note that the printed population
     for "enters as a [type]" is thin enough that it is not urgent.
+
+61. **Every auxiliary move of one entry event should be one batch, and RC-5
+    ships one per application.** Thunder-Thrash Elder's own ruling
+    (Gatherer, 2008-10-01): "If multiple creatures with devour are entering
+    under your control at the same time, you may use each one's devour ability.
+    A creature you already control can be devoured by only one of them, however.
+    **All creatures devoured this way are sacrificed at the same time.**" The
+    same ruling is where CR 614.13a and 614.13b came from, and RC-5 got those
+    two right and the simultaneity wrong. `apply_auxiliary_move` performs its
+    picks through `execute_actions_new_batch` immediately, so two applications
+    are two batches at two moments; a CR 603.2c "whenever one or more creatures
+    die" would fire twice where the rules fire once.
+
+    **Unreachable today**, and it takes two things that do not exist to reach:
+    a multi-entry batch (item 46) or a second devour ability on one entry
+    (nothing grants devour; the plane in CR 614.13b's example is not a card
+    type this engine has). The fixture in
+    `phase_rc5_integration_test::grants_devour` is the only board that gets
+    there.
+
+    **Not a batch-id relabelling — a deferral, and it has a real cost.** The
+    moves would be collected across phase 1 and performed once, before phase 2
+    performs the entries. But the counters devour arrives with are computed
+    *while applying*, and RC-5 counts what the nested batch actually performed
+    (a dropped move is not a sacrifice, CR 701.21a). Deferred, there is nothing
+    performed yet to count, so the count reverts to what was chosen and the
+    prevented-move case (`test_a_prevented_sacrifice_is_not_counted`) inverts.
+    **Whoever builds this owes an answer to that**, and the CR's own wording —
+    "for each creature sacrificed this way" — is on the side of counting the
+    performed moves, which argues for performing the batch *before* the mods
+    are finalised rather than after. **Sized:** ~150 in `execute_batch_inner`
+    and `apply_auxiliary_move`, plus the count question. Lands with item 46's
+    producer, since neither is testable in a game without the other.
+
+62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
+    controller — and the two printed shapes disagree.** CR 614.13a says "**you**
+    may have to choose a number of objects", and who "you" is depends on where
+    the ability came from: devour is the entering creature's own ability, so the
+    choice is the *entering permanent's* controller's, while a filter-scoped
+    effect ("each other creature **you** control enters …") means its own
+    controller. RC-5 uses `ReplacementInstance::controller` for both, which is
+    exact for every registered card — devour is `AffectedSet::SourceOnly`, and
+    `gather` source 1a hands it the proposal's controller — and wrong for a
+    *granted* devour, where the granting permanent's controller would choose and
+    sacrifice their own creatures instead of the entering creature's controller
+    doing it. **Sized:** one field on `AuxiliaryMove`
+    (`EffectController | EnteringController`) read in one place, ~15 lines.
+    Deliberately not built: no registered card takes the second road, and a
+    field with one used value is the shape §3.2's growth contract warns about.
+    The test fixture `grants_devour` takes it and says so.
+
+63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
+    not.** "Devour X, where X is the number of creatures devoured this way" —
+    X creatures give X² counters, so the multiplier *is* the count. One more
+    shape in the payload (`per_chosen: PerChosen::Fixed(n) | PerChosen::Count`)
+    and no new `Rewrite` arm, which is the growth contract working as intended.
+    ~20 lines with the card. It is one of the 23 printed devour cards; the other
+    22 are `Fixed`, and CR 702.82c's devour-[quality] variants are covered
+    already by the payload's `filter`.
+
+64. **`PermanentFilter` filters objects in zones where nothing is a permanent,
+    and the name now lies.** CR 110.1 makes a permanent a card *on the
+    battlefield*; RC-5's `AuxiliaryMove.filter` matches creature **cards in a
+    graveyard**, and `EventPattern::ZoneChange`'s `object` filter has matched
+    cards in graveyards and libraries since RB (Grafdigger's Cage, Rest in
+    Peace). The type is right and the name is two phases stale.
+    **Sized:** a rename with ~120 mechanical call sites and no behaviour change,
+    which is why it has not happened; the cost is entirely in review noise, so
+    it wants a quiet PR of its own rather than a ride-along. Cross-cutting, not
+    blocking anything.
+
+65. **`order_invariant_entry_bucket` is named after its implementation, not its
+    question.** The question is "does CR 616.1's ordering prompt have more than
+    one outcome here" — §11 item 19's rule that the engine must not ask a
+    player a question whose answer cannot matter. "Bucket" is CR 616.1a–e's
+    forced-choice class, which a reader has to already know to parse the name.
+    `entry_ordering_is_observable` (negated at the call site) says the question;
+    the counter-argument is that "bucket" is the codebase's word for the thing
+    the function takes, and renaming the predicate without renaming
+    `forced_bucket` trades one mismatch for another. **Decide with the rename in
+    item 64's PR or leave it**; recorded because the confusion was reported
+    rather than guessed at.
 
 ### Was the critical path complete? — audited 2026-08-27
 

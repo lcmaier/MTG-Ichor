@@ -786,14 +786,35 @@ pub fn sutured_ghoul() -> Arc<CardData> {
 /// # What is missing, and it is deliberate
 ///
 /// The "**and as a Mutant in addition to its other types**" clause is not
-/// implemented. A type an entry modification adds is a field `EnterMods` does
-/// not have, and adding one is not the one line it looks like: it fires
-/// `codebase-state.md` item 47's expiry condition (a) — `PermanentFilter`'s
-/// `ByType` and `BySubtype` leaves would stop being mods-invariant, so every
-/// CR 616.1 entry bucket would have to prompt — and a type that persists after
-/// the entry is a Layer 4 effect with no registry row to live in. Recorded in
-/// `codebase-state.md`; the counters clause is what RC-5 is for, and it is
-/// complete.
+/// implemented, and it is not the one field it looks like. Two costs, and the
+/// second is the larger:
+///
+/// 1. **It breaks `order_invariant_entry_bucket`'s last premise for the most
+///    common filter leaves.** That predicate suppresses CR 616.1's ordering
+///    prompt when no member's applicability can depend on what another member
+///    adds — §11 item 19's rule that the engine must not ask a question whose
+///    answer cannot matter. `filter_is_mods_invariant` decides that leaf by
+///    leaf, and `ByType`/`BySubtype` are invariant today *only because no
+///    `EnterMods` field feeds a type*. Give one a `types` field and a
+///    "creatures you control enter tapped" beside a Biomancer becomes
+///    order-dependent — apply Biomancer first and the permanent is a Mutant
+///    when the tapper's filter looks, apply the tapper first and it is not —
+///    so the predicate has to return `false` for the two leaves nearly every
+///    filter is built from, and the prompt comes back on boards that have not
+///    prompted since RC-4. `codebase-state.md` item 47 lists this as expiry
+///    condition (a) and RC-5 fired condition (d); this would be the one that
+///    costs something.
+/// 2. **The type has to persist after the entry, and there is nowhere for it
+///    to live.** CR 613.1d puts a type addition in Layer 4, and the Biomancer's
+///    is not a continuous effect of the Biomancer — the ruling is that the
+///    creature stays a Mutant even after the Biomancer leaves. So it is a Layer
+///    4 modification with no source-scoped duration and no registry row, which
+///    is a shape `ContinuousEffectRegistry` does not have.
+///
+/// **So "replacement effects" are not done, and this is one of the two places
+/// that says so** — the other is Sutured Ghoul's CR 614.14-linked P/T. Both are
+/// recorded in `codebase-state.md` (items 59 and 60) rather than left as a
+/// footnote here. The counters clause is what RC-5 is for, and it is complete.
 ///
 /// # In `PERFORMANCE_POOL`
 ///

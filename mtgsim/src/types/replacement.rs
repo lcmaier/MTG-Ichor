@@ -360,11 +360,24 @@ pub enum Rewrite {
     /// > may cause other objects to change zones.
     ///
     /// The rule that permits the arm, which is what the closed algebra asks of
-    /// a new one. Devour ("as this creature enters, you may sacrifice any
-    /// number of creatures; it enters with three times that many +1/+1
-    /// counters") and Sutured Ghoul ("exile any number of creature cards from
-    /// your graveyard") are the two printed shapes, and they differ only in the
+    /// a new one.
+    ///
+    /// **The printed population, counted 2026-09-03.** Devour is **23 cards**
+    /// (`keyword:devour`), of which four are CR 702.82c's *devour [quality]* —
+    /// artifacts, lands, Foods — which cost nothing here because the payload's
+    /// `filter` is what says "creatures". "As ~ enters, exile … from your
+    /// graveyard" is **5** more: Sutured Ghoul, Living Lore, Dermotaxi,
+    /// Mimeoplasm Revered One, Frankenstein's Monster. They differ only in the
     /// payload's fields.
+    ///
+    /// **Two of the 23 the payload does not reach**, and neither wants a new
+    /// arm: Thromok the Insatiable's "devour X, where X is the number of
+    /// creatures devoured this way" makes the multiplier *be* the count
+    /// (`codebase-state.md` item 63), and Frankenstein's Monster exiles exactly
+    /// X with a "if you can't" failure branch. **Sweep is not one of these** —
+    /// "return any number of Mountains you control to their owner's hand" is an
+    /// instruction of a resolving spell, not a modification of an entry, so it
+    /// is a `Primitive` and never reaches CR 614.13.
     ///
     /// **Not an `EnterWith` with a rider.** A `then` runs *after* the performed
     /// event (§4.1a, CR 615.5), and these moves happen while the effect is
@@ -426,6 +439,12 @@ pub struct AuxiliaryMove {
     /// What a candidate must be. Read off the layer walk on the battlefield and
     /// off the card anywhere else, which is the same split
     /// `EventPattern::ZoneChange`'s `object` filter already makes.
+    ///
+    /// **`PermanentFilter` is the wrong name for what this does** and has been
+    /// since RB: CR 110.1 makes a permanent a card *on the battlefield*, and
+    /// this matches creature cards in a graveyard. The type is right; the name
+    /// is two phases stale, and the rename is `codebase-state.md` item 64 —
+    /// ~120 mechanical call sites, no behaviour, so it wants a PR of its own.
     pub filter: PermanentFilter,
 
     /// Where the chosen objects go, and why. The `cause` is what separates
@@ -447,6 +466,11 @@ pub struct AuxiliaryMove {
     /// Devour 3 is `Some((PlusOnePlusOne, 3))`; Sutured Ghoul is `None`,
     /// because its power and toughness come from a *linked* ability (CR 614.14,
     /// 607) and not from the entry.
+    ///
+    /// **A constant per object, which Thromok the Insatiable is not**: "devour
+    /// X, where X is the number of creatures devoured this way" makes the
+    /// multiplier the count itself, so X creatures give X² counters. One more
+    /// shape here and no new [`Rewrite`] arm — `codebase-state.md` item 63.
     pub per_chosen: Option<(CounterType, u32)>,
 }
 

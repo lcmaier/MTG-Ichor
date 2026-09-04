@@ -995,12 +995,19 @@ decomposition is the same shape.
 **One exception, and it is the converse of that argument** (RC-5, 2026-09-03).
 CR 614.13's auxiliary zone changes are *not* a result of the entry: they are
 performed while the entry is still being decided, in phase 1, before the entry
-event exists at all, and two devour creatures entering together apply their
-replacements one after the other. Joining would hand a CR 603.2c "whenever one
-or more creatures die" trigger one event where the rules have two.
-`execute_actions_new_batch` opens a genuinely fresh id; it has one caller,
-tagged `// AUXILIARY-MOVE:`, and a second caller needs the rule that says its
-events are not a result of the enclosing one.
+event exists at all. Joining would put a devoured creature's death and the entry
+it paid for into one CR 603.2c event. `execute_actions_new_batch` opens a
+genuinely fresh id; it has one caller, tagged `// AUXILIARY-MOVE:`, and a second
+caller needs the rule that says its events are not a result of the enclosing one.
+
+**A fresh id is right and one-per-application is wrong, corrected on review the
+same day.** Thunder-Thrash Elder's own ruling (2008-10-01) says "all creatures
+devoured this way are sacrificed at the same time" when several devour creatures
+enter together — so the target is one batch per *entry event*, not one per
+`apply_auxiliary_move` call. That is a **deferral**, not a relabelling: the moves
+would have to be collected across phase 1 and performed once, which collides
+with counting what was performed (§10's finding 5). Unreachable from the
+registered pool, sized as `codebase-state.md` item 61.
 
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
@@ -3247,7 +3254,7 @@ to do with the other.
 
 "As this enters, choose a color" (Voice of All, Painter's Servant) needs the
 choice recorded on the permanent for a linked ability to read — CR 607, which
-is T20's. RC-4 claims 614.12a partially through the CR 616.1b prompt, which is
+is `backlog.md` §2.2's. RC-4 claims 614.12a partially through the CR 616.1b prompt, which is
 made before the entry and whose result the announced entry carries; the general
 field waits on linked abilities. Listed here so it stays findable. **Sutured
 Ghoul's third sentence is in this piece, not in piece 1** — its power and
@@ -3298,8 +3305,19 @@ exiles itself; `change_zone(.., Battlefield, Returned)` is a production path
 and a test drives it. The second clause needs two entries in one batch, which
 only `execute_actions` can build today (see piece 2).
 
-Printed: devour is ~30 cards, Sutured Ghoul's exile variant a handful, "as ~
-enters, choose" with a board consequence ~20 more.
+**Printed, counted 2026-09-03** (`keyword:devour`, `o:/as .* enters, exile/`):
+devour is **23 cards**, not the "~30" this section carried; the graveyard-exile
+variant is **5** (Sutured Ghoul, Living Lore, Dermotaxi, Mimeoplasm Revered One,
+Frankenstein's Monster). CR 702.82c's **devour [quality]** — artifacts, lands,
+Foods — is four of the 23 and costs nothing here, because the payload's `filter`
+is what says "creatures".
+
+**Two of the 23 the payload does not reach.** *Thromok the Insatiable* is
+"devour X, where X is the number of creatures devoured this way": its multiplier
+**is** the count, so X creatures give X² counters, and `per_chosen` is a
+constant per object (item 63). *Frankenstein's Monster* exiles exactly X and puts
+itself into the graveyard "if you can't", which is a cast-time X and a failure
+branch. Both are payload shapes rather than new arms.
 
 ##### Piece 3 — a dynamic counter amount in `EnterWith`
 
@@ -3342,7 +3360,7 @@ prompt and the fuzz pool keeps its zero-prompt property.
 | 1 — CR 614.13/13a/13b | ~1,200 | ~1,200: the arm and its payload, the selection prompt and its `ChoiceKind`, the fresh-batch escape, `GameState::entry_selection`, two cards |
 | 2 — batch-scoped frame + 613.7m | ~400 | **0** — RC-4b paid it; RC-5 adds the two-entry test and the ledger line |
 | 3 — dynamic `EnterWith` amount | ~150 | ~250: the template split touches ~14 construction sites the estimate did not count |
-| 4 — choice-carrying mods | not RC-5 | not RC-5 (CR 607, T20) |
+| 4 — choice-carrying mods | not RC-5 | not RC-5 (CR 607, `backlog.md` §2.2) |
 
 Together at the middle of the band rather than the top, because piece 2 is
 gone. Cards: Thunder-Thrash Elder and Sutured Ghoul (piece 1), Master
@@ -3432,7 +3450,15 @@ entries decided against one board (D), which is the re-size's evidence.
   what makes 614.13a's second clause and §5b's batch-scoped frame reachable
   from a game rather than from `execute_actions`. Recorded against item 46.
 - **CR 613.7m**, in RE with `CreateTokens`, per the answer above.
-- **Sutured Ghoul's P/T**, in piece 4 with CR 607.
+- **Sutured Ghoul's P/T**, in piece 4 with CR 607 — `backlog.md` §2.2 is the
+  live home for that work.
+- **One batch for every auxiliary move of one entry event** — item 61, above.
+- **Whose choice a granted devour is** — item 62. `AuxiliaryMove` has no chooser
+  field, so "you" is the *effect's* controller. Right for Master Biomancer's
+  "each other creature you control"; wrong for a devour granted by someone
+  else's permanent, where CR 614.13a's "you" is the entering creature's
+  controller. The two coincide on every registered board.
+- **Thromok's `devour X`** — item 63.
 
 ### Phase RD — damage (CR 615, 609.7, 614.9)
 
@@ -3459,7 +3485,10 @@ library), skips (614.10/a/b — per-player consumable `pending_skips` consulted 
 step/phase/turn begin), token and counter doublers (614.16 — `CreateTokens`
 as a proposal, which is also where RC-4b's token residual lands: a creation
 whose destination the entry's decision sets, `codebase-state.md` item 52 and
-"Before card breadth" item 8 — a Phase 8 back-stop, not a nicety),
+"Before card breadth" item 8 — a Phase 8 back-stop, not a nicety; **and where
+`Primitive::CreateToken`'s loop over `propose_entry` stops**, which is the
+other half of `codebase-state.md` item 46 and the first *plural* entry the
+engine will produce),
 life-gain replacement (119.10), mana replacement (106.6a), and the three kinds
 §8a's audit added: `PlayerLoses` / `PlayerWins` (CR 104, 6 cards) and the discard
 pattern arm (CR 701.9, 17 cards).
@@ -4055,7 +4084,7 @@ there, because all three are about **what a rider can reach**.
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.
   CR 616.1c gets its ordering *bucket* in RC-4 so the classification is complete,
   but nothing produces a copy-on-enter replacement until Layer 1 lands.
-- **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (T20).
+- **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (`backlog.md` §2.2).
 - **CR 614.12b** — "combined costs of those effects to not be payable" across
   simultaneous entries. Needs cost modification; revisit with commander tax.
 - **CR 614.12c anchor words.** Linked abilities again.

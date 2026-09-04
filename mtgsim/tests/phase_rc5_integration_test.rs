@@ -100,6 +100,12 @@ fn kinds_and_batches(game: &GameState, start: usize) -> Vec<(&'static str, Optio
 /// `AffectedSet::Filter`, so it is a second, *separate* replacement effect on
 /// the same entry — which is the whole point of 614.13b: two effects, one
 /// candidate, one choice.
+///
+/// **It models the granting half and not the "you", and that is `codebase-state.md`
+/// item 62.** A real granted devour is still the *entering creature's* ability,
+/// so CR 614.13a's "you" is that creature's controller; `AuxiliaryMove` has no
+/// chooser field, so the choice here belongs to this enchantment's controller.
+/// Every test below puts both under the same player, so nothing turns on it.
 fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
@@ -246,6 +252,37 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
         .build()
 }
 
+/// "Spells and abilities **you** control can't cause you to sacrifice
+/// permanents" — Sigarda's sentence with `SourceFilter::ControlledBy` flipped.
+///
+/// A fixture rather than a card: printed restrictions say "your opponents
+/// control", and the flipped form is what pins the *value* RC-5 passes as the
+/// CR 101.2 `cause`. Sigarda proves the filter can decline; this proves it can
+/// fire, and that the player it fires on is the effect's controller rather
+/// than nobody.
+fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text("Spells and abilities you control can't cause you to sacrifice permanents.")
+        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
+            Restriction::Event {
+                pattern: EventPattern::ZoneChange {
+                    from: Some(Zone::Battlefield),
+                    to: Some(Zone::Graveyard),
+                    cause: Some(ZoneChangeCause::Sacrificed),
+                    object: None,
+                },
+                affected: AffectedSet::Filter {
+                    filter: PermanentFilter::ByController(PlayerRef::You),
+                },
+                by: Some(mtgsim::types::restriction::SourceFilter::ControlledBy(PlayerRef::You)),
+            },
+        )))))
+        .build()
+}
+
 /// "Creatures you control can't be sacrificed", with no source filter — the
 /// unrestricted form of Sigarda's sentence, so it reaches your own abilities
 /// too.
@@ -348,7 +385,7 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     // CR 613.7's oldest-first puts the newest object last.
     dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
         vec![0],
     );
     // The granted devour 5 applies next and finds nothing left to choose, so it
@@ -392,7 +429,7 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     // Index 0 is the granted devour 5 — see the bucket-order note above.
     dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
         vec![0],
     );
 
@@ -427,8 +464,11 @@ fn test_sutured_ghoul_cannot_exile_itself_as_it_enters() {
     let food = put_in_graveyard(&mut game, vanilla_creature(3, 3, &[]), 0);
     let ghoul = put_in_graveyard(&mut game, sutured_ghoul(), 0);
 
-    // Answers every prompt with index 0 and records what it was asked.
-    let dp = RecordingDecisionProvider::picking(0);
+    // Takes *everything* offered and records what it was asked. Taking
+    // everything is what makes an over-permissive candidate list fail: a
+    // provider that picks index 0 only notices a wrongly-offered option when
+    // it happens to be first, and neither excluded object here is.
+    let dp = RecordingDecisionProvider::picking_all();
     let ctx = ActionContext::new(&dp);
     game.change_zone(ghoul, Zone::Battlefield, ZoneChangeCause::Returned, &ctx)
         .expect("it enters");
@@ -476,7 +516,7 @@ fn test_614_13a_excludes_an_object_entering_simultaneously() {
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
     let ghoul = put_in_graveyard(&mut game, sutured_ghoul(), 0);
 
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::picking_all();
     let ctx = ActionContext::new(&dp);
     let batch = vec![entry_of(&game, ghoul, 0), entry_of(&game, bear, 0)];
     game.execute_actions(batch, &ctx).expect("both enter");
@@ -581,7 +621,7 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
 
     let dp = test_dp();
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0, 1],
     );
 
@@ -631,7 +671,7 @@ fn test_the_auxiliary_moves_are_their_own_batch() {
 
     let dp = test_dp();
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
 
@@ -666,7 +706,7 @@ fn test_devour_declined_enters_with_no_counters_and_asks_once() {
 
     let dp = test_dp();
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -744,7 +784,7 @@ fn test_sigarda_does_not_stop_your_own_devour() {
     // Both are candidates, in `battlefield_ids_ordered` order — Sigarda entered
     // first, so she is index 0, and she is not even protected from herself.
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0, 1],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -788,7 +828,7 @@ fn test_a_devoured_creature_with_a_finality_counter_is_exiled_and_still_counts()
 
     let dp = test_dp();
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -933,7 +973,7 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
     let dp = test_dp();
     let first = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: first, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: first, source: first, to: Zone::Graveyard },
         vec![0],
     );
     game.change_zone(first, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -943,7 +983,7 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
     // legal candidate for it — nothing about the earlier batch survives.
     let second = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: second, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: second, source: second, to: Zone::Graveyard },
         vec![0, 1],
     );
     game.change_zone(second, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -996,7 +1036,7 @@ fn test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect() {
     // asks.
     dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
 
@@ -1029,7 +1069,7 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
 
     let dp = test_dp();
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -1038,7 +1078,7 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
 
     let ghoul = put_in_graveyard(&mut game, sutured_ghoul(), 0);
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: ghoul, to: Zone::Exile },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: ghoul, source: ghoul, to: Zone::Exile },
         vec![0],
     );
     game.change_zone(ghoul, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -1067,7 +1107,7 @@ fn test_a_prevented_sacrifice_is_not_counted() {
 
     let dp = test_dp();
     dp.expect_pick_n(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, to: Zone::Graveyard },
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
@@ -1083,4 +1123,37 @@ fn test_a_prevented_sacrifice_is_not_counted() {
         "and it was never sacrificed, so devour counts nothing — the count is what the \
          nested batch performed, not what the prompt returned"
     );
+}
+
+/// The CR 101.2 `cause` an auxiliary move is checked against is the **effect's
+/// controller**, and it is `Some`.
+///
+/// Sigarda above proves the `by` filter can decline; this proves it can fire.
+/// Between them they pin the value: with `cause: None` neither
+/// `ControlledBy(Opponent)` nor `ControlledBy(You)` matches, so Sigarda's test
+/// passes either way and this one does not.
+///
+/// **What no test here can separate** is the effect's controller from the
+/// entering permanent's, because on every reachable board they are the same
+/// player: devour is `AffectedSet::SourceOnly`, so `gather` source 1a hands it
+/// the proposal's controller, and no printed entry replacement sacrifices a
+/// creature its own controller does not control. `codebase-state.md` item 62
+/// is where the two come apart, and it is unreachable by construction.
+#[test]
+fn test_the_cr_101_2_cause_is_the_effects_controller() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, your_own_abilities_cant_sacrifice("Mirror Sanctuary"), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
+
+    // Empty queue: a prompt means the Bear was still a candidate.
+    let dp = test_dp();
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+        .expect("it enters");
+
+    assert!(
+        game.battlefield.contains_key(&bear),
+        "the restriction names abilities *you* control, devour is one, and the          candidate filter asked CR 101.2 with the effect's controller"
+    );
+    assert_eq!(counters(&game, elder, CounterType::PlusOnePlusOne), 0);
 }

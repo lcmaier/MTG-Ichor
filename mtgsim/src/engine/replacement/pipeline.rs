@@ -340,6 +340,10 @@ pub(crate) fn apply_replacements(
 /// reads P/T, keywords or counters, or `EventPattern::EnterBattlefield` reads
 /// `mods`. `check_order_invariance` is the debug-build check that computes it
 /// the other way, and `codebase-state.md` records the three conditions.
+/// **The name is the implementation's, not the question's** — reported in
+/// review, recorded as `codebase-state.md` item 65. The question is "does
+/// CR 616.1's ordering prompt here have more than one outcome"; "bucket" is
+/// 616.1a–e's forced-choice class, which a reader has to already know.
 fn order_invariant_entry_bucket(
     bucket: &[ReplacementInstance],
     entering: Option<ObjectId>,
@@ -893,7 +897,7 @@ fn apply_auxiliary_move(
     }
 
     let picked = ask_choose_auxiliary_zone_change(
-        ctx.dp, game, you, entering, aux.to, &candidates, max,
+        ctx.dp, game, you, entering, chosen.source, aux.to, &candidates, max,
     );
     if picked.is_empty() {
         return Ok(EnterMods::NONE);
@@ -965,6 +969,20 @@ fn auxiliary_candidates(
             }
             // CR 101.2 on the move this choice would produce — the axis-1
             // question `sacrifice_of_choice` asks, for the same reason.
+            //
+            // `cause` is a `PlayerId` and not a richer context because that is
+            // the only question `SourceFilter` asks: its one variant is
+            // `ControlledBy(PlayerRef)`, and the printed population it serves —
+            // Sigarda's "spells and abilities **your opponents** control",
+            // Tamiyo's mirror of it — reads control and nothing else. A
+            // restriction that scoped by *which* ability ("abilities of
+            // creatures you control can't …") would need the source object
+            // here, and the field widens with the `SourceFilter` variant that
+            // needs it rather than ahead of it.
+            //
+            // The player is the effect's controller, which is why Sigarda does
+            // **not** stop her own controller's devour: her filter is
+            // `Opponent`, relative to her own controller.
             !is_prohibited(
                 game,
                 &Query::Event {

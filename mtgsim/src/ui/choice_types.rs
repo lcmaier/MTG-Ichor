@@ -94,7 +94,22 @@ pub enum ChoiceKind {
     /// `entering` is the permanent whose entry is being modified — it can never
     /// itself be an option (CR 614.13a), and it is not yet on the battlefield,
     /// so a UI reads it out of the object store rather than off the board.
-    ChooseAuxiliaryZoneChange { entering: ObjectId, to: crate::types::zones::Zone },
+    ///
+    /// **`source` is not always `entering`, and a UI that assumed so would
+    /// mislabel half the population.** Devour is the entering creature's own
+    /// ability, so the two coincide; an effect that modifies *someone else's*
+    /// entry — the plane in CR 614.13b's example, granting devour 5 — is a
+    /// different object, and "why am I being asked this" is answered by the
+    /// source and by nothing else on this prompt. It is the same field
+    /// [`Self::ApplyOptionalReplacement`] carries, for the same reason.
+    ///
+    /// `to` is where the chosen objects go, which is what separates "sacrifice
+    /// these" from "exile these" without the UI having to know the card.
+    ChooseAuxiliaryZoneChange {
+        entering: ObjectId,
+        source: ObjectId,
+        to: crate::types::zones::Zone,
+    },
 
     // --- Copy effects (CR 707) ---
     /// CR 707.4 — a resolving copy effect must **choose** the permanent whose

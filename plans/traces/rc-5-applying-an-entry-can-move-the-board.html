@@ -136,6 +136,7 @@
   .step .what em { color: var(--ink); }
   .step[data-era="new"] { box-shadow: inset 3px 0 0 var(--new); }
   .step.phase { background: var(--surface-2); }
+  .step[data-era="wrong"] { box-shadow: inset 3px 0 0 var(--decide); background: var(--decide-tint); }
   .step.phase .call code { font-weight: 600; letter-spacing: 0.02em; }
   .step .tags { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; padding-top: 0.15rem; }
 
@@ -195,6 +196,7 @@
     <span class="chip scope">scope</span> reads this batch's CR 614.13a/b sets
     <span class="chip decide">player</span> asks a <code>DecisionProvider</code>
     <span class="chip new">RC-5</span> new in this phase
+    <span class="chip decide">corrected</span> a step this page got wrong on review
   </div>
 
   <h2 id="map">The map</h2>
@@ -294,7 +296,9 @@ flowchart TD
 
     <li class="step"><span class="n">15</span><span class="call" style="--d:3"><code>entry_selection.chosen.extend</code><span class="loc">pipeline.rs:867</span></span><span class="tags"><span class="chip new">RC-5</span><span class="chip scope">scope</span></span><p class="what">Recorded <strong>before</strong> the moves. Two reasons, and both have teeth: a nested batch takes and restores the scope, so a later write would be lost inside it; and <code>codebase-state.md</code> item 40 wants the outcome-bearing state on <code>GameState</code> before the next prompt, so a fork at that prompt sees it.</p></li>
 
-    <li class="step"><span class="n">16</span><span class="call" style="--d:3"><code>execute_actions_new_batch</code><span class="loc">actions.rs:322</span><span class="sub">// AUXILIARY-MOVE:</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what"><strong>The second thing that did not exist.</strong> §4.2's default is that a nested <code>execute_actions</code> joins the enclosing batch, on CR 120.3f's grounds — lifelink's life gain is a <em>result of</em> the damage. These moves are the converse: performed while the entry is still being decided, before the entry event exists at all. Joining would hand a CR 603.2c "whenever one or more creatures die" one event where two devour creatures entering together have two.</p></li>
+    <li class="step"><span class="n">16</span><span class="call" style="--d:3"><code>execute_actions_new_batch</code><span class="loc">actions.rs:322</span><span class="sub">// AUXILIARY-MOVE:</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what"><strong>The second thing that did not exist.</strong> §4.2's default is that a nested <code>execute_actions</code> joins the enclosing batch, on CR 120.3f's grounds — lifelink's life gain is a <em>result of</em> the damage. These moves are not: they are performed while the entry is still being decided, before the entry event exists at all, so joining would put a creature's death and the entry it paid for into one CR 603.2c event.</p></li>
+
+    <li class="step" data-era="wrong"><span class="n">16a</span><span class="call" style="--d:3"><code>one batch per application</code><span class="sub">— and it should be one per entry event</span></span><span class="tags"><span class="chip decide">corrected</span></span><p class="what"><strong>This step is not right, and Thunder-Thrash Elder's own ruling is what says so</strong> (Gatherer, 2008-10-01): "If multiple creatures with devour are entering under your control at the same time, you may use each one's devour ability. A creature you already control can be devoured by only one of them, however. … <strong>All creatures devoured this way are sacrificed at the same time.</strong>" A fresh batch id is right — these are not the entry's event — but <em>one per application</em> is one too many: every auxiliary move of one simultaneous entry event belongs in a single batch, performed once. <strong>Unreachable from the registered pool</strong>, which needs either a multi-entry batch (nothing produces one) or two devour abilities on one entry (nothing grants devour), and it is <em>not</em> a batch-id relabelling: the moves have to be deferred to the end of phase 1, which collides with step 18's count. Sized as <code>codebase-state.md</code> item 61.</p></li>
 
     <li class="step"><span class="n">17</span><span class="call" style="--d:4"><code>apply_replacements</code> ×2<span class="loc">pipeline.rs:103</span><span class="sub">nested phase 1</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Each sacrifice is a real trip through the pipeline with a fresh applied set (CR 614.5): a finality counter still exiles instead, Kalitas still gets its Zombie. The two moves are decided against one board and performed together — CR 701.21's simultaneity, which is why this is one <code>execute_actions</code> and not a loop.</p></li>
 
@@ -320,13 +324,14 @@ batch 6   PermanentEnteredBattlefield  Elder</div>
   <p class="prose">Board B. One Bear, and a second CR 614.13 effect — a filter-scoped "exile any number of creature cards from your graveyard" — applying to the same entry. Devour applies first and puts the Bear into the graveyard; the second effect then enumerates that graveyard.</p>
 
   <div class="note">
-    <p><strong>This is the phase's finding, and a mutation pass produced it.</strong> The first draft of RC-5's tests asserted CR 614.13b with two devour effects, which is the CR's own example — and deleting the <code>chosen</code> set did not break them. With both effects reading the battlefield, a sacrificed creature stops matching the next filter on its own, so the rule looks like bookkeeping. It is not: the moment two effects' zones <em>chain</em>, the same object is a legal candidate twice and only 614.13b refuses it.</p>
+    <p><strong>This is the phase's finding, and a mutation pass produced it.</strong> The first draft of RC-5's tests asserted CR 614.13b with two devour effects, which is the CR's own example — and deleting the <code>chosen</code> set did not break them. Both devours read the <em>battlefield</em>, so the first one's sacrifice takes the Bear off the battlefield and out of the second one's candidate list for free. The rule looked like bookkeeping.</p>
+    <p><strong>"Chained" means one effect's destination is the next effect's source zone</strong>, and that is when it stops being bookkeeping. Devour moves a creature battlefield&nbsp;→&nbsp;<em>graveyard</em>; Grave Chain enumerates the <em>graveyard</em> and moves cards graveyard&nbsp;→&nbsp;exile. So the Bear devour just spent is sitting in the very list the next effect builds, still matching its filter, and nothing but CR 614.13b refuses it. Same object, two zone changes, from replacement effects applying to one entry — which is the sentence the rule is.</p>
   </div>
 
   <ol class="trace">
     <li class="step"><span class="n">1–9</span><span class="call"><code>as trace A</code></span><span class="tags"><span class="chip none">—</span></span><p class="what">Same route to the CR 616.1 loop. <code>gather</code> now finds <strong>two</strong> candidates: Grave Chain's filter-scoped effect from the battlefield sweep, and the Elder's own devour, spliced in after it — CR 613.7's oldest-first, and the entering permanent is the newest object there is.</p></li>
 
-    <li class="step"><span class="n">10</span><span class="call" style="--d:2"><code>order_invariant_entry_bucket</code><span class="loc">pipeline.rs:343</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what">Refused: neither member is an <code>EnterWith</code>. The prompt is real, and the CR's own example says why — the Elder ends with three counters or with five, depending on which applies first, and never with eight.</p></li>
+    <li class="step"><span class="n">10</span><span class="call" style="--d:2"><code>order_invariant_entry_bucket</code><span class="loc">pipeline.rs:343</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what">Refused: neither member is an <code>EnterWith</code>, and the predicate admits nothing else. The prompt is real on <em>this</em> board because the two effects take objects out of different zones and the first one's move decides what the second can still choose (step 14). CR 614.13b's own example is the same point on a board this trace does not build — Thunder-Thrash Elder under a plane granting devour 5 ends with three counters or with five, depending on which applies first, and never with eight.</p></li>
 
     <li class="step"><span class="n">11</span><span class="call" style="--d:2"><code>ask_choose_replacement</code><span class="loc">ask.rs</span><span class="sub">CR 616.1</span></span><span class="tags"><span class="chip decide">player</span></span><p class="what">Index 1 — devour first.</p></li>
 
@@ -429,7 +434,7 @@ Measured against the tree, 2026-09-03: every clause false.
         <td>Which batch do the moves belong to?</td>
         <td><span class="chip new">RC-5</span> <code>execute_actions_new_batch</code></td>
         <td>Their own id — they are not a result of the entry</td>
-        <td>The enclosing batch: two devour creatures entering together would give CR 603.2c's "whenever one or more creatures die" one event where the rules have two. Unreadable today; critical-path item 6 is the customer</td>
+        <td>The enclosing batch, which would put a death and the entry it paid for in one event. <strong>Still not the whole answer</strong> — the Elder's ruling makes every devour sacrifice of one entry event simultaneous, so the target is one batch per <em>entry event</em>, not one per application (step 16a, <code>codebase-state.md</code> item 61). Unreadable today; critical-path item 6 is the customer</td>
       </tr>
       <tr>
         <td>"Equal to this creature's power" — whose board?</td>
@@ -457,7 +462,7 @@ Measured against the tree, 2026-09-03: every clause false.
   <div class="tablewrap"><table>
     <thead><tr><th>Trace</th><th>Before RC-5</th><th>After, at 2b0faba</th></tr></thead>
     <tbody>
-      <tr><td>A · devour</td><td>Inexpressible. A <code>Rewrite</code> was a pure function of the event, riders ran after it, and <code>EnterMods.counters</code> held literals — so devour had no arm, no prompt and no way to compute its number</td><td>One arm, <code>EnterAfterMoving</code>, with CR 614.13's own sentence as its licence; the prompt, the nested batch and the count are steps 14, 16 and 18</td></tr>
+      <tr><td>A · devour</td><td>Inexpressible. A <code>Rewrite</code> was a pure function of the event, riders ran after it, and <code>EnterMods.counters</code> held literals — so devour had no arm, no prompt and no way to compute its number</td><td>One arm, <code>EnterAfterMoving</code>, with CR 614.13's own sentence as its licence; the prompt, the nested batch and the count are steps 14, 16 and 18, and step 16a is what the nested batch still owes</td></tr>
       <tr><td>B · 614.13b</td><td>Inexpressible for the same reason</td><td>Two exclusion sets on <code>GameState</code>, scoped to the batch, consulted before the filter. The zone chain is the board that makes 614.13b load-bearing, and it came out of the mutation pass rather than the design</td></tr>
       <tr><td>C · the amount</td><td><code>EnterMods</code> carried <code>u32</code>. Master Biomancer was listed in RC-4's row as blocked on exactly this</td><td><code>EnterModsTemplate</code> splits the definition from the event; <code>frame_of(source)</code> decides which board to read, and §5b's Archdruid claim falls out with no clause anywhere saying so</td></tr>
       <tr><td>D · two entries</td><td>Believed broken and scheduled for ~400 lines</td><td>Already right. RC-4b paid it; RC-5 supplies the test and the correction to §9. What is left is a <em>producer</em>, sized in item 46</td></tr>
@@ -470,6 +475,9 @@ Measured against the tree, 2026-09-03: every clause false.
     <li><strong>Sutured Ghoul's power and toughness.</strong> The card is registered for its exile clause; its <code>*/*</code> reads "the exiled cards", which CR 614.14 links to the exiling ability — CR 607, ticket T20, the same thing Painter's Servant waits on. A Ghoul that exiles something should live and dies instead, which is a missing CDA rather than a wrong one.</li>
     <li><strong>Master Biomancer's Mutant clause.</strong> A type an entry modification adds is a field <code>EnterMods</code> does not have, and adding one fires item 47's expiry condition (a): <code>ByType</code> and <code>BySubtype</code> would stop being mods-invariant and every entry bucket would prompt. It also wants a Layer 4 effect with somewhere to live after the entry.</li>
     <li><strong>A production multi-entry batch</strong>, which is trace D's honest gap and item 46's remaining half.</li>
+    <li><strong>One batch for every auxiliary move of one entry event</strong> (step 16a) — the Elder's ruling, item 61.</li>
+    <li><strong>Whose choice a granted devour is.</strong> <code>AuxiliaryMove</code> has no chooser field, so "you" is the effect's controller. That is right for Master Biomancer's "each other creature <em>you</em> control" and wrong for a devour granted by someone else's permanent, where CR 614.13a's "you" is the entering creature's controller. Only <code>AffectedSet::SourceOnly</code> devour is registered, so the two coincide on every reachable board; item 62.</li>
+    <li><strong>Thromok the Insatiable's "devour X, where X is the number of creatures devoured this way."</strong> <code>per_chosen</code> is a constant per object, and Thromok's multiplier <em>is</em> the count — X creatures give X² counters. One more shape in the payload, no new arm; item 63.</li>
   </ol>
 
   <p class="prose"><strong>Pinned, never maintained.</strong> This page records the engine at 2b0faba against CR <code>tmnt</code>. When a later phase changes these paths — RE's <code>CreateTokens</code> proposal is the next one that will — it gets its own page and this one is left alone.</p>
