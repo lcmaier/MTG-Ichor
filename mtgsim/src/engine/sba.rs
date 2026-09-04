@@ -507,12 +507,25 @@ impl GameState {
         // 704.5d — Token in a non-battlefield zone ceases to exist
         // Tokens cease to exist — they are removed from the game entirely.
         // This is NOT a zone change (no death trigger, no ZoneChange event).
-        let tokens_to_remove: Vec<(ObjectId, Zone)> = self.objects.iter()
+        //
+        // Ordered by the epoch of the move that took each token out of the
+        // battlefield, because `self.objects` is a `HashMap` and this sweep
+        // announces. Two Zombies dying in one combat is the reachable case:
+        // nothing here *decides* on the order, so the event log is the only
+        // witness and per-process order hides from the whole determinism
+        // harness. `move_object` stamps the epoch, monotone and one per move,
+        // so a batch's tokens carry distinct ticks in batch order — the same
+        // key `moved_since` uses, and for the same reason it is not `ObjectId`,
+        // a v4 UUID. Every token is created *in* the battlefield zone
+        // (`Primitive::CreateToken`), so one reaching here has moved and its
+        // stamp is not the pregame 0.
+        let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
-            .map(|(&id, obj)| (id, obj.zone))
+            .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))
             .collect();
+        tokens_to_remove.sort_by_key(|&(_, _, epoch)| epoch);
 
-        for (id, zone) in tokens_to_remove {
+        for (id, zone, _) in tokens_to_remove {
             // Remove from zone collection (reuse the centralized helper;
             // stack_entries cleanup is handled internally)
             self.remove_from_zone_collection(id, zone)?;
@@ -550,7 +563,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use crate::types::replacement::EnterMods;
-    use crate::engine::actions::ZoneChangeCause;
+    use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -713,6 +726,59 @@ mod tests {
             matches!(e, crate::events::event::GameEvent::TokenCeasedToExist { object_id } if *object_id == id)
         });
         assert!(has_event);
+    }
+
+    // COVERS-PARTIAL: ATOM-704.5d-001 — the atom's board (token creatures in a
+    // graveyard, one SBA check) and its `TokenCeasedToExist` clause only. Removal
+    // from the game and the no-second-death clause are
+    // `test_sba_token_ceases_to_exist_in_graveyard`'s.
+    #[test]
+    fn test_tokens_cease_to_exist_in_the_order_they_left_the_battlefield() {
+        // CR 704.5d's sweep gathers from `GameState.objects` — a `HashMap` — so
+        // without a key of its own it announces two tokens' cessation in
+        // per-process order. Nothing *decides* on that order, which is why
+        // `determinism_test` and the fuzz summary both stay green while it
+        // leaks; the event log is the only witness, and the `stress` pool
+        // reaches it whenever two of Kalitas's Zombies die in one combat.
+        // Eight tokens make a chance match one run in 40,320.
+        let mut game = GameState::new(2, 20);
+
+        let tokens: Vec<crate::types::ids::ObjectId> = (0..8)
+            .map(|_| {
+                let id = crate::test_support::place_vanilla_creature(&mut game, 0, 1, 1, &[]);
+                game.objects.get_mut(&id).unwrap().is_token = true;
+                id
+            })
+            .collect();
+
+        // One batch, so `move_object` stamps eight distinct zone-change epochs
+        // in batch order — the order the tokens left, recoverable afterwards.
+        let dp = ScriptedDecisionProvider::new();
+        let ctx = ActionContext::new(&dp);
+        let batch = tokens
+            .iter()
+            .map(|&object| GameAction::ZoneChange {
+                object,
+                from: Zone::Battlefield,
+                to: Zone::Graveyard,
+                cause: ZoneChangeCause::Sacrificed,
+            })
+            .collect();
+        game.execute_actions(batch, &ctx).unwrap();
+
+        assert!(game.check_state_based_actions(&dp).unwrap());
+
+        let ceased: Vec<crate::types::ids::ObjectId> = game
+            .events
+            .events()
+            .filter_map(|e| match e {
+                crate::events::event::GameEvent::TokenCeasedToExist { object_id } => {
+                    Some(*object_id)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ceased, tokens, "704.5d announces in the order the tokens left");
     }
 
     #[test]
