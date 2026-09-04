@@ -616,6 +616,15 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
 
 ---
 
+**A shipped phase marks its own heading.** `#### <code> — <what it was> — ✅
+landed <date>` in the owning architecture doc, in the commit that ships it.
+This was already the habit for six of RC's phases and missing from four;
+`check_state_of_play.py` now reads those markers and fails when `CLAUDE.md`'s
+critical path still calls a landed phase "next", which is the drift that made
+`roadmap-v2.md` §2 unusable. **It only works on the track that has headings** —
+the "can't" and copy docs record phases in sizing tables with no status marker,
+so normalising those is the next cheap thing anyone touching them can do.
+
 ## 5. The spec database as a gate
 
 `plans/specdb.py` joins the atomic-test corpus to the test suite and the CR, so
