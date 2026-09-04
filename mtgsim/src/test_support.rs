@@ -471,14 +471,12 @@ pub fn set_blocking(game: &mut GameState, blocker: ObjectId, blocking: Vec<Objec
 ///
 /// Both directions matter — `cleanup_zone_state` walks `attached_by` to detach
 /// a departing host, and SBA 704.5m/n reads `attached_to`. Writing one and not
-/// the other produces a board no real game can reach.
+/// the other produces a board no real game can reach, which is why this goes
+/// through `GameState::attach` rather than the two fields: it is also the
+/// writer that bumps the layer epoch, and a test that wrote the fields itself
+/// would be the stale-memo bug in a fixture.
 pub fn attach(game: &mut GameState, attachment: ObjectId, host: ObjectId) {
-    if let Some(entry) = game.battlefield.get_mut(&attachment) {
-        entry.attached_to = Some(host);
-    }
-    if let Some(entry) = game.battlefield.get_mut(&host) {
-        entry.attached_by.push(attachment);
-    }
+    game.attach(attachment, host);
 }
 
 /// A `{1}` Equipment named `name`, with no equip ability and no granted bonus.

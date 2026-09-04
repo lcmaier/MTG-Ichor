@@ -167,16 +167,18 @@ impl BattlefieldEntity {
         self.counters.get(&counter_type).map(|s| s.timestamp)
     }
 
-    /// Attach this permanent to a host permanent.
-    /// Sets `self.attached_to` to the host's ID.
-    /// The caller is responsible for adding this permanent's ID to the host's `attached_by`.
+    /// Attach this permanent to a host permanent — this side of the link only.
+    ///
+    /// Prefer `GameState::attach`, which writes the host's `attached_by` too
+    /// and bumps the layer epoch; `attached_to` is a layer-walk input, and
+    /// this low-level form cannot see the game to bump it.
     pub fn attach_to(&mut self, host: ObjectId) {
         self.attached_to = Some(host);
     }
 
-    /// Detach this permanent from its host.
-    /// Clears `self.attached_to`.
-    /// The caller is responsible for removing this permanent's ID from the host's `attached_by`.
+    /// Detach this permanent from its host — this side of the link only.
+    ///
+    /// Prefer `GameState::detach`, for the reason `attach_to` gives.
     pub fn detach(&mut self) {
         self.attached_to = None;
     }

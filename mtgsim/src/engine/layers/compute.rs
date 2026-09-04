@@ -845,6 +845,14 @@ fn effect_applies_to(
     match &effect.affected {
         AffectedSet::SourceOnly => effect.source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
+        // CR 303.4m — whatever the source enchants *now*, read off the entity
+        // at every layer. `attached_to` only ever names a permanent
+        // (`cleanup_zone_state` clears it when the host leaves), so no zone
+        // gate is needed; an unattached source, or one not on the battlefield,
+        // matches nothing.
+        AffectedSet::AttachedToSource => {
+            game.battlefield.get(&effect.source).and_then(|e| e.attached_to) == Some(id)
+        }
         AffectedSet::Filter { filter } => {
             // Object must be in the battlefield *zone* for filter-based effects.
             // Checked before anything else so a non-permanent costs no frame
@@ -1523,6 +1531,69 @@ mod tests {
         let giant_chars = compute_characteristics(&game, giant_id).unwrap();
         assert_eq!(giant_chars.power, Some(4));
         assert_eq!(giant_chars.toughness, Some(4));
+    }
+
+    /// CR 303.4m — `AttachedToSource` is whatever the source is attached to at
+    /// the moment of the walk: nothing while unattached, the host once
+    /// attached, the new host after a move, nothing again after a detach. Read
+    /// through the memo on purpose, so a writer that skipped its epoch bump
+    /// would serve the previous answer here.
+    #[test]
+    fn test_attached_to_source_follows_the_attachment() {
+        let mut game = GameState::new(2, 20);
+        let place = |game: &mut GameState, name: &str, card_type: CardType| {
+            let obj = GameObject::new(
+                CardDataBuilder::new(name).card_type(card_type).power_toughness(2, 2).build(),
+                0,
+                Zone::Battlefield,
+            );
+            let id = obj.id;
+            game.add_object(obj);
+            game.place_on_battlefield(id, 0, &EnterMods::NONE);
+            id
+        };
+        let bears = place(&mut game, "Grizzly Bears", CardType::Creature);
+        let giant = place(&mut game, "Hill Giant", CardType::Creature);
+        let aura = place(&mut game, "Holy Strength", CardType::Enchantment);
+
+        let timestamp = game.allocate_timestamp();
+        game.continuous_effects.add(ContinuousEffect {
+            id: 0,
+            source: aura,
+            origin: EffectOrigin::Resolution,
+            layer: Layer::Layer7cModifyPT,
+            duration: Duration::WhileSourceOnBattlefield,
+            controller: 0,
+            created_on_turn: 1,
+            timestamp,
+            affected: AffectedSet::AttachedToSource,
+            modification: EffectModification::ModifyPowerToughness {
+                power: PtValue::Fixed(1),
+                toughness: PtValue::Fixed(2),
+            },
+        });
+        let pt = |game: &GameState, id| {
+            let c = compute_characteristics(game, id).unwrap();
+            (c.power.unwrap(), c.toughness.unwrap())
+        };
+
+        assert_eq!(pt(&game, bears), (2, 2), "unattached, the row names nothing");
+
+        game.attach(aura, bears);
+        assert_eq!(pt(&game, bears), (3, 4));
+        assert_eq!(pt(&game, giant), (2, 2));
+
+        game.attach(aura, giant);
+        assert_eq!(pt(&game, bears), (2, 2), "a reattachment moves the row");
+        assert_eq!(pt(&game, giant), (3, 4));
+        assert!(
+            !game.battlefield[&bears].attached_by.contains(&aura),
+            "and the old host's back-pointer went with it"
+        );
+
+        game.detach(aura);
+        assert_eq!(pt(&game, giant), (2, 2));
+        assert_eq!(game.battlefield[&aura].attached_to, None);
     }
 
     #[test]

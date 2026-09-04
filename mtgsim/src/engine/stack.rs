@@ -170,12 +170,7 @@ impl GameState {
                             object_id
                         )),
                     };
-                    if let Some(aura_bf) = self.battlefield.get_mut(&object_id) {
-                        aura_bf.attach_to(host_id);
-                    }
-                    if let Some(host_bf) = self.battlefield.get_mut(&host_id) {
-                        host_bf.attached_by.push(object_id);
-                    }
+                    self.attach(object_id, host_id);
                 }
             } else {
                 // Instant/sorcery: to its owner's graveyard as the final part

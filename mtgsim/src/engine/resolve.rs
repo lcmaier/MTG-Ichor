@@ -1368,95 +1368,6 @@ impl GameState {
         }
     }
 
-    // --- Helper: Aura non-stack ETB (rule 303.4a) ---
-
-    /// When an Aura enters the battlefield *not* from the stack (e.g.
-    /// returned from graveyard by an effect), it doesn't target — the
-    /// controller chooses a legal object to attach to (rule 303.4a).
-    ///
-    /// If no legal host exists the Aura stays unattached; the 704.5m SBA
-    /// will move it to the graveyard on the next SBA check.
-    ///
-    /// This must be called *after* the Aura is already on the battlefield
-    /// (i.e. after `move_object` / `place_on_battlefield`).
-    ///
-    /// Returns `Ok(true)` if a host was chosen and attached, `Ok(false)` if
-    /// no host was chosen (Aura left unattached for SBA), or `Err` on a
-    /// hard failure.
-    pub fn attach_aura_on_etb(
-        &mut self,
-        aura_id: ObjectId,
-        controller: PlayerId,
-        dp: &dyn DecisionProvider,
-    ) -> Result<bool, String> {
-        use crate::types::card_types::{EnchantmentType, Subtype};
-        use crate::types::effects::{EffectRecipient, TargetCount};
-
-        let obj = self.get_object(aura_id)?;
-
-        // Only applies to Auras.
-        if !crate::oracle::characteristics::has_subtype(
-            self, aura_id, &Subtype::Enchantment(EnchantmentType::Aura),
-        ) {
-            return Ok(false);
-        }
-
-        // Read the enchant filter directly from card data.
-        let filter = match &obj.card_data.enchant_filter {
-            Some(f) => f.clone(),
-            // Aura with no enchant_filter — card data bug.
-            // Fall back to "enchant permanent" so the game doesn't crash,
-            // but warn loudly so we catch it.
-            None => {
-                let name = &self.get_object(aura_id)?.card_data.name;
-                eprintln!(
-                    "[WARN] Aura {:?} (id={}) has no enchant_filter set — \
-                     falling back to \"enchant permanent\". This is a card data bug.",
-                    name, aura_id
-                );
-                SelectionFilter::Permanent(
-                    crate::types::effects::PermanentFilter::All,
-                )
-            }
-        };
-
-        // Pre-check: is there at least one legal host?
-        // Skip the DP prompt entirely if not — no point asking the player
-        // to choose from an empty set.
-        // CR 109.5: "you" on the Aura's enchant clause is the Aura's
-        // controller, which is what makes "Enchant creature you control" mean
-        // something different from "Enchant creature".
-        if !self.has_any_legal_choice(&filter, Some(aura_id), controller) {
-            // No legal host exists. Aura stays unattached; 704.5m SBA
-            // will put it into the graveyard.
-            return Ok(false);
-        }
-
-        let recipient = EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(1));
-        let legal = crate::oracle::legality::enumerate_legal_selections(
-            self, &filter, Some(aura_id), controller,
-        );
-        let choices = crate::ui::ask::ask_select_recipients(
-            dp, self, controller, &recipient, aura_id,
-            &legal, 1, 1,
-        );
-
-        if let Some(ResolvedTarget::Object(host_id)) = choices.first() {
-            let host_id = *host_id;
-            if let Some(aura_bf) = self.battlefield.get_mut(&aura_id) {
-                aura_bf.attach_to(host_id);
-            }
-            if let Some(host_bf) = self.battlefield.get_mut(&host_id) {
-                host_bf.attached_by.push(aura_id);
-            }
-            Ok(true)
-        } else {
-            // No legal host chosen — Aura stays unattached.
-            // 704.5m SBA will put it into the graveyard.
-            Ok(false)
-        }
-    }
-
     // --- Helper: determine which player an effect applies to ---
 
     /// For effects that target "you" (the controller) or use EffectRecipient::Implicit,
@@ -1500,14 +1411,13 @@ fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::replacement::EnterMods;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::BattlefieldEntity;
     use crate::types::card_types::*;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-    use crate::test_support::{pacifism as make_pacifism, test_dp};
+    use crate::test_support::test_dp;
 
     fn setup_game_with_creature() -> (GameState, ObjectId) {
         let mut game = GameState::new(2, 20);
@@ -1676,109 +1586,6 @@ mod tests {
 
         // Creature should still be on the battlefield
         assert!(game.battlefield.contains_key(&target_id));
-    }
-
-    // --- attach_aura_on_etb tests (rule 303.4a) ---
-
-    #[test]
-    fn test_aura_etb_non_stack_chooses_host() {
-        // Rule 303.4a: Aura entering the battlefield not from the stack —
-        // controller chooses a legal host. No targeting rules apply.
-        let mut game = GameState::new(2, 20);
-
-        // Put a creature on the battlefield (valid host)
-        let creature = GameObject::new(
-            CardDataBuilder::new("Grizzly Bears")
-                .card_type(CardType::Creature)
-                .power_toughness(2, 2)
-                .build(),
-            1,
-            Zone::Battlefield,
-        );
-        let creature_id = creature.id;
-        game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
-
-        // Put the Aura on the battlefield (simulating a non-stack ETB)
-        let aura = GameObject::new(make_pacifism(), 0, Zone::Battlefield);
-        let aura_id = aura.id;
-        game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
-
-        // Script the DP to choose the creature as host
-        let dp = crate::ui::decision::ScriptedDecisionProvider::new();
-        // Legal selections: [Object(creature_id)] — index 0
-        dp.expect_pick_n(
-            crate::ui::choice_types::ChoiceKind::SelectRecipients {
-                recipient: crate::types::effects::EffectRecipient::Choose(
-                    SelectionFilter::Creature,
-                    crate::types::effects::TargetCount::Exactly(1),
-                ),
-                spell_id: aura_id,
-            },
-            vec![0],
-        );
-
-        let attached = game.attach_aura_on_etb(aura_id, 0, &dp).unwrap();
-        assert!(attached);
-
-        // Aura should be attached to the creature
-        let aura_bf = game.battlefield.get(&aura_id).unwrap();
-        assert_eq!(aura_bf.attached_to, Some(creature_id));
-
-        // Host should list the Aura
-        let host_bf = game.battlefield.get(&creature_id).unwrap();
-        assert!(host_bf.attached_by.contains(&aura_id));
-    }
-
-    #[test]
-    fn test_aura_etb_non_stack_no_legal_host() {
-        // Rule 303.4a + 704.5m: Aura enters with no legal host —
-        // stays unattached, SBA will handle it.
-        let mut game = GameState::new(2, 20);
-
-        // No creatures on the battlefield — Pacifism has no legal host
-
-        // Put the Aura on the battlefield (simulating a non-stack ETB)
-        let aura = GameObject::new(make_pacifism(), 0, Zone::Battlefield);
-        let aura_id = aura.id;
-        game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
-
-        // PassiveDP returns empty — no host chosen
-        let attached = game.attach_aura_on_etb(aura_id, 0, &test_dp()).unwrap();
-        assert!(!attached);
-
-        // Aura is still on battlefield but unattached
-        assert!(game.battlefield.contains_key(&aura_id));
-        assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
-
-        // SBA should now kill it (704.5m)
-        let performed = game.check_state_based_actions(&test_dp()).unwrap();
-        assert!(performed);
-        assert!(!game.battlefield.contains_key(&aura_id));
-        assert_eq!(game.get_object(aura_id).unwrap().zone, Zone::Graveyard);
-    }
-
-    #[test]
-    fn test_attach_aura_on_etb_non_aura_is_noop() {
-        // Non-Aura permanents should return Ok(false) and do nothing.
-        let mut game = GameState::new(2, 20);
-
-        let creature = GameObject::new(
-            CardDataBuilder::new("Grizzly Bears")
-                .card_type(CardType::Creature)
-                .power_toughness(2, 2)
-                .build(),
-            0,
-            Zone::Battlefield,
-        );
-        let creature_id = creature.id;
-        game.add_object(creature);
-        game.place_on_battlefield(creature_id, 0, &EnterMods::NONE);
-
-        let result = game.attach_aura_on_etb(creature_id, 0, &test_dp()).unwrap();
-        assert!(!result);
     }
 }
 

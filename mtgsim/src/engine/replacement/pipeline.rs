@@ -364,11 +364,11 @@ fn order_invariant_entry_bucket(
 }
 
 /// Can no `EnterMods` field change whether this set matches the entering
-/// object? `SourceOnly` and `Fixed` match by id; a `Filter` is invariant iff
-/// every leaf is.
+/// object? `SourceOnly`, `Fixed` and `AttachedToSource` match by id; a
+/// `Filter` is invariant iff every leaf is.
 fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
     match affected {
-        AffectedSet::SourceOnly | AffectedSet::Fixed(_) => true,
+        AffectedSet::SourceOnly | AffectedSet::Fixed(_) | AffectedSet::AttachedToSource => true,
         AffectedSet::Filter { filter } => filter_is_mods_invariant(filter),
     }
 }
