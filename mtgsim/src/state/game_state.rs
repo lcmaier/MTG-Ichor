@@ -32,6 +32,12 @@ pub struct StackEntry {
     pub controller: PlayerId,
     /// Targets chosen at cast/activation time (locked in)
     pub chosen_targets: Vec<ResolvedTarget>,
+    /// What `chosen_targets` were chosen against at CR 601.2c / 602.2b, and
+    /// so what CR 608.2b re-checks them against. Recorded rather than
+    /// re-derived at resolution because the two must be the same question:
+    /// an Aura's comes from its enchant ability (`targeting::spell_recipient`),
+    /// which `effect` cannot show.
+    pub recipient: crate::types::effects::EffectRecipient,
     /// Modes chosen at cast time (for modal spells, future-proofed)
     pub chosen_modes: Vec<usize>,
     /// X value if the spell has a variable cost
@@ -1771,6 +1777,7 @@ mod tests {
             object_id: crate::types::ids::new_object_id(),
             controller: 0,
             chosen_targets: Vec::<ResolvedTarget>::new(),
+            recipient: crate::types::effects::EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),

@@ -11,6 +11,7 @@
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::ResolvedTarget;
+use mtgsim::engine::targeting::spell_recipient;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -52,6 +53,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         object_id: id,
         controller,
         chosen_targets: vec![ResolvedTarget::Object(target)],
+        recipient: spell_recipient(&holy_strength()),
         chosen_modes: Vec::new(),
         x_value: None,
         effect: Effect::Sequence(Vec::new()),

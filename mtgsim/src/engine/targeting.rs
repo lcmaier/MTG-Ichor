@@ -1,11 +1,53 @@
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::objects::card_data::{AbilityType, CardData};
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{PermanentFilter, EffectRecipient, SelectionFilter, TargetCount};
+use crate::types::effects::{Effect, PermanentFilter, EffectRecipient, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
+
+/// What a spell targets or chooses as it is cast (CR 601.2c), read off the
+/// card — and therefore what CR 608.2b re-checks the chosen targets against,
+/// since `StackEntry::recipient` records this answer for the resolution.
+///
+/// **An Aura spell's target is defined by its enchant ability (CR 303.4a),
+/// not by a spell ability, and an Aura has none.** Three copies of the
+/// effect-based derivation below used to sit in the castability pre-check,
+/// the target selection and the fizzle, so none could see `enchant_filter`:
+/// an Aura chose no target at 601.2c and never fizzled at 608.3b
+/// (`codebase-state.md` Deferred Migrations item 8). One function, one rule.
+///
+/// PRE-LAYER ZONE: printed abilities, on a card in hand. The resolution does
+/// not call this — it reads the entry.
+pub fn spell_recipient(card: &CardData) -> EffectRecipient {
+    // CR 702.5a — only an Aura carries an enchant ability.
+    if let Some(filter) = &card.enchant_filter {
+        return EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1));
+    }
+    match card.abilities.iter().find(|a| a.ability_type == AbilityType::Spell) {
+        Some(spell) => effect_recipient(&spell.effect),
+        None => EffectRecipient::Implicit,
+    }
+}
+
+/// The recipient an effect tree selects with: an atom's own, or the first
+/// atom's in a sequence — the targeting atom, by convention of every card
+/// written so far. Shared by [`spell_recipient`] and `activate_ability`.
+pub fn effect_recipient(effect: &Effect) -> EffectRecipient {
+    match effect {
+        Effect::Atom(_, recipient) => recipient.clone(),
+        Effect::Sequence(effects) => effects
+            .iter()
+            .find_map(|e| match e {
+                Effect::Atom(_, recipient) => Some(recipient.clone()),
+                _ => None,
+            })
+            .unwrap_or(EffectRecipient::Implicit),
+        _ => EffectRecipient::Implicit,
+    }
+}
 
 impl GameState {
     /// Validate that chosen targets are legal for the given EffectRecipient.

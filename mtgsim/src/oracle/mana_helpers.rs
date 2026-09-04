@@ -7,6 +7,7 @@
 use crate::objects::card_data::AbilityType;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
+use crate::engine::targeting::spell_recipient;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -184,13 +185,14 @@ pub fn castable_spells(
         }
 
         // Target legality check (rule 601.2c): can't cast a spell that
-        // requires targets if no legal target exists.
-        if let Some(ability) = spell_ability {
-            let recipient = spell_recipient(&ability.effect);
-            if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) = recipient {
-                if !game.has_any_legal_choice(f, None, player_id) {
-                    continue;
-                }
+        // requires targets if no legal target exists. Asked of the card, not
+        // the spell ability — an Aura's target is its enchant ability
+        // (CR 303.4a) and it has no spell ability to ask.
+        if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) =
+            spell_recipient(&obj.card_data)
+        {
+            if !game.has_any_legal_choice(f, None, player_id) {
+                continue;
             }
         }
 
@@ -426,26 +428,6 @@ fn can_afford_ability_costs(
         }
     }
     true
-}
-
-/// Extract the targeting EffectRecipient from a spell's effect tree.
-///
-/// Mirrors the logic in `cast.rs` — for an Atom, take the recipient directly;
-/// for a Sequence, take the recipient from the first Atom (the targeting atom).
-fn spell_recipient(effect: &crate::types::effects::Effect) -> EffectRecipient {
-    match effect {
-        crate::types::effects::Effect::Atom(_, r) => r.clone(),
-        crate::types::effects::Effect::Sequence(effects) => {
-            effects.iter().find_map(|e| {
-                if let crate::types::effects::Effect::Atom(_, r) = e {
-                    Some(r.clone())
-                } else {
-                    None
-                }
-            }).unwrap_or(EffectRecipient::Implicit)
-        }
-        _ => EffectRecipient::Implicit,
-    }
 }
 
 #[cfg(test)]

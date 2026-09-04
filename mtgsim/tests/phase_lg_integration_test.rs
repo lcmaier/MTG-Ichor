@@ -91,6 +91,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         object_id: spell_id,
         controller,
         chosen_targets: Vec::new(),
+        recipient: EffectRecipient::Implicit,
         chosen_modes: Vec::new(),
         x_value: None,
         effect,
