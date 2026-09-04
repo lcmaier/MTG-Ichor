@@ -2,7 +2,9 @@
 """state-of-play — the board, generated, plus the check that keeps it honest.
 
 `plans/state-of-play.md` answers one question: **what is done, what is next,
-and what is owed.** It exists because the doc that answered it before —
+and what the tree is carrying.** ("Carrying", not "owed": `specdb owed` is a
+different question and the board says how — see the section it renders.) It
+exists because the doc that answered it before —
 `roadmap-v2.md` §2 — was three days and eight merged PRs stale the first time
 anyone went looking (2026-09-03), and nothing failed when it rotted.
 
@@ -173,7 +175,8 @@ def render():
     L.append("")
     L.append("# State of play")
     L.append("")
-    L.append("**What is done, what is next, what is owed.** Generated from the tree, so it")
+    L.append("**What is done, what is next, and what the tree is carrying.** Generated from")
+    L.append("the tree, so it")
     L.append("cannot be stale without CI saying so. It carries no opinions: everything here")
     L.append("is a number or a quotation, and the reasoning lives where it always did —")
     L.append("`codebase-state.md` for state, the architecture docs for design,")
@@ -207,8 +210,7 @@ def render():
     L.append(f"| …of them in `PERFORMANCE_POOL` | {c['pool']} |")
     L.append(f"| `#[test]` functions | {c['tests']} |")
     L.append("")
-    L.append("Coverage is a separate query and stays one: `python plans/specdb.py stats`,")
-    L.append("and `owed` is the gate a phase closes against.")
+    L.append("Coverage is a separate query and stays one: `python plans/specdb.py stats`.")
     L.append("")
     L.append("## Debt — `codebase-state.md`'s Deferred Migrations")
     L.append("")
@@ -223,6 +225,23 @@ def render():
     L.append("")
     L.append("The bolded row is the one to act on: an item that does not say why it cannot")
     L.append("bite yet is an unchecked claim rather than a deferral.")
+    L.append("")
+    L.append("### This is not `specdb owed`, and the two overlap nowhere")
+    L.append("")
+    L.append("| | `specdb owed` | Deferred Migrations |")
+    L.append("|---|---|---|")
+    L.append("| Unit | an **atom** — one scenario from the spec corpus | a **migration** — one code change |")
+    L.append("| Looks | **backwards**, at phases already shipped | **forwards**, at systems not yet built |")
+    L.append("| Catches | a phase that closed without testing its own spec | scaffolding that will lie to whatever is built on it |")
+    L.append("| Reachable now | yes, by construction — the behaviour shipped | usually not, which is why it is easy to forget |")
+    L.append("| Gate | a phase does not close until it is clean | read before a system's first ticket |")
+    L.append("")
+    L.append("**The seam between them is real.** A defect in shipped behaviour that has no")
+    L.append("atom is in neither list — RC-5's item 61 is one, because the ruling it violates")
+    L.append("was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES`,")
+    L.append("which lists three phases and not Phase 6, so a replacement phase closing against")
+    L.append("\"owed is clean\" is making a claim about *other* phases; what actually gated it")
+    L.append("was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.")
     L.append("")
     L.append("## Half-finished work")
     L.append("")

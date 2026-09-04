@@ -4,7 +4,8 @@
 
 # State of play
 
-**What is done, what is next, what is owed.** Generated from the tree, so it
+**What is done, what is next, and what the tree is carrying.** Generated from
+the tree, so it
 cannot be stale without CI saying so. It carries no opinions: everything here
 is a number or a quotation, and the reasoning lives where it always did —
 `codebase-state.md` for state, the architecture docs for design,
@@ -62,14 +63,13 @@ absent here whether or not they shipped.
 | …of them in `PERFORMANCE_POOL` | 66 |
 | `#[test]` functions | 937 |
 
-Coverage is a separate query and stays one: `python plans/specdb.py stats`,
-and `owed` is the gate a phase closes against.
+Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
 | | |
 |---|---:|
-| Section size | 2892 of 3107 lines (93%) |
+| Section size | 2896 of 3111 lines (93%) |
 | Numbered items | 108 |
 | …closed, still recorded | 20 |
 | …open, reachability stated | 23 |
@@ -78,6 +78,23 @@ and `owed` is the gate a phase closes against.
 
 The bolded row is the one to act on: an item that does not say why it cannot
 bite yet is an unchecked claim rather than a deferral.
+
+### This is not `specdb owed`, and the two overlap nowhere
+
+| | `specdb owed` | Deferred Migrations |
+|---|---|---|
+| Unit | an **atom** — one scenario from the spec corpus | a **migration** — one code change |
+| Looks | **backwards**, at phases already shipped | **forwards**, at systems not yet built |
+| Catches | a phase that closed without testing its own spec | scaffolding that will lie to whatever is built on it |
+| Reachable now | yes, by construction — the behaviour shipped | usually not, which is why it is easy to forget |
+| Gate | a phase does not close until it is clean | read before a system's first ticket |
+
+**The seam between them is real.** A defect in shipped behaviour that has no
+atom is in neither list — RC-5's item 61 is one, because the ruling it violates
+was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES`,
+which lists three phases and not Phase 6, so a replacement phase closing against
+"owed is clean" is making a claim about *other* phases; what actually gated it
+was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.
 
 ## Half-finished work
 

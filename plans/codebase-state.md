@@ -222,7 +222,11 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 ### Deferred Migrations, measured — and the thinning it needs (2026-09-03)
 
 **Asked on review after RC-5 added 13 items in one PR**, which is the largest
-single addition this section has taken. Counted rather than estimated:
+single addition this section has taken. Counted rather than estimated — and
+these are a **dated snapshot**; the live counts are on `plans/state-of-play.md`,
+which derives them and is checked in CI. They have already moved: the RC-5
+review added items 61–65 after this was measured, and this audit is itself forty
+lines of the section it measures.
 
 | | |
 |---|---|

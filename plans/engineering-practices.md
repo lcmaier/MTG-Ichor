@@ -662,6 +662,32 @@ record a fact.
 
 ---
 
+
+### 5.1 What `owed` does not cover, and what closed RC instead
+
+**`owed`'s default scope is `SHIPPED_PHASES`** — `ALREADY-IMPL`, `Phase 5-Pre`,
+`Phase 5-Layers` — and the constant's own comment says why: an atom parked in a
+phase that has *not* landed is being waited on, so counting it would make the
+query a report rather than a gate. Correct, and it has a consequence nobody had
+written down: **Phase 6 is not in that list, so no replacement phase has ever
+been gated by `owed`.** Every RC exit line that says "`specdb owed` unchanged"
+is a true statement about three *other* phases. What actually held RC's spec
+coverage to account was the `// COVERS:` discipline above, plus `orphans` and
+`suspicious`, and those are per-PR habits rather than a gate.
+
+**Two things follow.** Add `Phase 6` to `SHIPPED_PHASES` when RE lands, which is
+what turns the habit into a gate for the whole replacement track — and until
+then, a replacement phase that wants the real number runs
+`specdb owed --phase "Phase 6"` and reads it as a to-do list for RD and RE (54
+atoms as of 2026-09-03, nearly all damage and prevention).
+
+**And the seam neither instrument covers:** a defect in shipped behaviour that
+has no atom is invisible to both `owed` and Deferred Migrations. RC-5's item 61
+is one — the card ruling it violates was never written into the corpus, so no
+query could have asked for it. That is what the review pass is for, and it is
+the argument for `plans/state-of-play.md` rendering the contrast rather than
+letting the two words blur.
+
 ## 6. Module layout — a `mod.rs` declares and re-exports; it does not define
 
 **Checked, not trusted:** `python plans/check_module_layout.py`, in CI beside the
