@@ -93,3 +93,13 @@ jobs:
       - name: Module layout
         working-directory: .
         run: python3 plans/check_module_layout.py
+
+      # `plans/state-of-play.md` is generated from the tree, so a stale board is
+      # a diff. It also fails when CLAUDE.md's critical path calls a phase
+      # "next" that an architecture doc records as landed — the exact drift that
+      # made roadmap-v2 §2 unusable as a quick reference (2026-09-03). Reads
+      # files only: no git, no gh, no spec.sqlite, so a shallow checkout here
+      # produces the same bytes as a local run.
+      - name: State of play
+        working-directory: .
+        run: python3 plans/check_state_of_play.py --check

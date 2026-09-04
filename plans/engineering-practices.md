@@ -616,6 +616,15 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
 
 ---
 
+**A shipped phase marks its own heading.** `#### <code> — <what it was> — ✅
+landed <date>` in the owning architecture doc, in the commit that ships it.
+This was already the habit for six of RC's phases and missing from four;
+`check_state_of_play.py` now reads those markers and fails when `CLAUDE.md`'s
+critical path still calls a landed phase "next", which is the drift that made
+`roadmap-v2.md` §2 unusable. **It only works on the track that has headings** —
+the "can't" and copy docs record phases in sizing tables with no status marker,
+so normalising those is the next cheap thing anyone touching them can do.
+
 ## 5. The spec database as a gate
 
 `plans/specdb.py` joins the atomic-test corpus to the test suite and the CR, so
@@ -652,6 +661,32 @@ Count cards to decide *when* to build a feature; never to decide *whether* to
 record a fact.
 
 ---
+
+
+### 5.1 What `owed` does not cover, and what closed RC instead
+
+**`owed`'s default scope is `SHIPPED_PHASES`** — `ALREADY-IMPL`, `Phase 5-Pre`,
+`Phase 5-Layers` — and the constant's own comment says why: an atom parked in a
+phase that has *not* landed is being waited on, so counting it would make the
+query a report rather than a gate. Correct, and it has a consequence nobody had
+written down: **Phase 6 is not in that list, so no replacement phase has ever
+been gated by `owed`.** Every RC exit line that says "`specdb owed` unchanged"
+is a true statement about three *other* phases. What actually held RC's spec
+coverage to account was the `// COVERS:` discipline above, plus `orphans` and
+`suspicious`, and those are per-PR habits rather than a gate.
+
+**Two things follow.** Add `Phase 6` to `SHIPPED_PHASES` when RE lands, which is
+what turns the habit into a gate for the whole replacement track — and until
+then, a replacement phase that wants the real number runs
+`specdb owed --phase "Phase 6"` and reads it as a to-do list for RD and RE (54
+atoms as of 2026-09-03, nearly all damage and prevention).
+
+**And the seam neither instrument covers:** a defect in shipped behaviour that
+has no atom is invisible to both `owed` and Deferred Migrations. RC-5's item 61
+is one — the card ruling it violates was never written into the corpus, so no
+query could have asked for it. That is what the review pass is for, and it is
+the argument for `plans/state-of-play.md` rendering the contrast rather than
+letting the two words blur.
 
 ## 6. Module layout — a `mod.rs` declares and re-exports; it does not define
 
@@ -705,12 +740,13 @@ Two exist, and they are the template:
 |---|---|---|
 | `rc-4b-entering-is-one-event.html` | RC-4b | four entries through the CR 614.12 look-ahead frame, each read labelled board or frame, and what RC-4b changed trace by trace |
 | `cv-1-a-copy-is-a-snapshot.html` | CV-1 | a Cytoshape resolution from the choice to the copy row and back, and CR 707.4's re-copy tearing that row down through the existence check |
+| `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
 share, and it is why a phase that adds a card, an enum arm or a pool entry does
 not get one. The phases that qualify were listed when the practice started:
-RC-4 ✓, RC-4b ✓, CV-1 ✓, **RC-5, RS-2, critical-path item 6, item 7**. Budget
+RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, **RS-2, critical-path item 6, item 7**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 

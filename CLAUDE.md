@@ -12,13 +12,14 @@ cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard ba
 cd mtgsim && cargo run --bin cli_play     # play a game at the terminal
 cd mtgsim && cargo run --bin fuzz_games   # random-vs-random; --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py   # both must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_state_of_play.py --check   # all must pass
 ```
 
 ## Where authority lives
 
 | Doc | Authority |
 |---|---|
+| `plans/state-of-play.md` | **Read this first when picking up work.** Generated board — the critical path verbatim, which phases each architecture doc records as landed, card/test counts, the Deferred Migrations debt, and every half-finished phase in `plans/handoffs/`. **Never hand-edit**: `python plans/check_state_of_play.py --write` regenerates it, `--check` fails CI when it is stale, and `--flight` prints branches and open PRs |
 | `plans/codebase-state.md` | Current state; wins over every other doc. Hand-maintained — update it as part of the work that changes it. Its **Deferred Migrations** section is the one to guard: debt owed by forward-looking scaffolding, invisible to tests until the dependent system lands. Add a line for every new stub or TODO at commit time |
 | `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5). **A new subsystem extends this row, never adds one** |
 | `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
@@ -136,8 +137,8 @@ line for line but the timing lines. → `codebase-state.md`.
 `CRITICAL_PATH` point here. Reasoning and what is *done* live in `codebase-state.md`.
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅
-5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and RC-1–RC-4b are in — an entry is
-   one event, its own zone change, and CR 614.12's frame is a read-side overlay. **RC-5 next**
+5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and **all of RC** are in — an entry is one
+   event, and applying one may move the board (CR 614.13). **RD (damage, CR 615) next**
 5b. "Can't" effects (CR 101.2/614.17/613.11), phases RS-1–RS-4, beside 5 rather than after.
    **RS-1 is in**; RS-2 is next on this track; RS-3 (combat) wants item 7 first
 5c. Copy effects (CR 707/712/708/729 + Layer 1), phases CV-1–CV-7, beside 5 and 5b. **CV-1 is in**
@@ -196,5 +197,4 @@ call** — hand over the URL unless they say otherwise that session.
 **200 lines, hard**, checked by `python plans/check_claude_md.py`. Every invariant is at most
 three lines plus a pointer — the reasoning, the war story and the rule numbers live in the
 architecture doc. **Adding a section requires removing one.** No progress snapshots or counts:
-this file loads into every session, so a stale claim here is worse than no claim.
-→ `engineering-practices.md` §1.
+this file loads into every session, so a stale claim here is worse than no claim. → `engineering-practices.md` §1.

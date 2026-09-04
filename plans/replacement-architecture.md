@@ -2128,7 +2128,7 @@ tickets is the session that overruns. Split off, RA-1 is the safest PR shape the
 project writes: the diff is a signature sweep, and green-on-the-nose is the whole
 test.
 
-#### RA-1 — the plumbing (tickets 1–2)
+#### RA-1 — the plumbing (tickets 1–2) — ✅ landed 2026-08-25
 
 1. `ActionContext` threaded through `execute_action` / `change_zone` /
    `advance_turn` / `apply_combat_damage` / the SBA sweep. `resolve_effect` and
@@ -2163,7 +2163,7 @@ three `fuzz_games` runs at one seed identical but for the timing lines. No new
 events, no new behavior — if the fuzz numbers move, the sweep changed something
 it should not have.
 
-#### RA-2 — routing the silent sites (tickets 3–5, 10–12)
+#### RA-2 — routing the silent sites (tickets 3–5, 10–12) — ✅ landed 2026-08-25
 
 Six tickets, each independently testable, roughly one commit apiece.
 
@@ -2483,7 +2483,7 @@ share one shape, and one of them exercises CR 616.1 exactly as poorly as one of
 them exercises it now. `codebase-state.md` item 35 sizes the two cards that
 close RB's half at zero engine cost; do not let RC open a second such gap.
 
-#### RC-1 — delete the early stack pop
+#### RC-1 — delete the early stack pop — ✅ landed 2026-09-01
 
 `codebase-state.md` Deferred Migrations item 7, on its own and first. `RC` was
 going to carry it "along" with the performer migration; measured, it is its own
@@ -2542,7 +2542,7 @@ between runs of the *same* binary on the `stress` pool. Recorded against
 `fuzz_games` identical on every line. No new events, no new behavior. If the fuzz
 numbers move, the deletion changed something it should not have.
 
-#### RC-2 — `EnterBattlefield` as an event
+#### RC-2 — `EnterBattlefield` as an event — ✅ landed 2026-09-01
 
 `GameAction::EnterBattlefield { object, controller, mods }`; `place_on_battlefield`
 becomes its performer; `EventPattern::EnterBattlefield`, `Rewrite::EnterWith`,
