@@ -61,7 +61,7 @@ absent here whether or not they shipped.
 |---|---:|
 | Cards registered | 76 |
 | …of them in `PERFORMANCE_POOL` | 66 |
-| `#[test]` functions | 937 |
+| `#[test]` functions | 938 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -69,15 +69,23 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 2896 of 3111 lines (93%) |
-| Numbered items | 108 |
-| …closed, still recorded | 20 |
-| …open, reachability stated | 23 |
-| **…open, reachability *not* stated** | **65** |
-| …carrying an explicit size | 21 |
+| Section size | 3726 of 3941 lines (94%) |
+| Numbered items | 112 |
+| …closed, still recorded | 21 |
+| …open — unreachable, and says why | 55 |
+| **…open — reachable, wrong today** | **5** |
+| …open — reachable, not wrong (perf, a name, a harness) | 9 |
+| …open — nothing to build, a record for a later phase | 22 |
+| **…open — reachability *not* stated** | **0** |
+| …open, carrying an explicit `**Sized:**` | 91 of 91 |
 
-The bolded row is the one to act on: an item that does not say why it cannot
-bite yet is an unchecked claim rather than a deferral.
+Two bolded rows. "Not stated" is the one to act on: an item that does not say
+why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
+today" is the list of known wrong answers a fuzz game can reach — bug
+reports filed as deferrals, each named in the section. A dated
+`**Reachability (YYYY-MM-DD):**` line is what the board reads; the date says
+when the verdict was last derived against the tree, because reachability
+only ever grows.
 
 ### This is not `specdb owed`, and the two overlap nowhere
 
@@ -101,8 +109,7 @@ was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/cv-1-review.md`
-- `plans/handoffs/deferred-migrations-triage.md`
+- (none — nothing half-finished)
 
 ## What this file deliberately does not know
 
