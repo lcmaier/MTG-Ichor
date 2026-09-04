@@ -34,6 +34,23 @@ pub enum AmountExpr {
     /// and read the target of a spell. This one has meaning in a static context,
     /// which is what lets `compute.rs` evaluate it at every layer.
     AffectedManaValue,
+    /// "equal to **this** creature's power" — the power of the object whose
+    /// ability this is, not of anything the ability points at.
+    ///
+    /// Master Biomancer's "a number of additional +1/+1 counters on it equal to
+    /// this creature's power". Distinct from [`Self::TargetPower`], which reads
+    /// a resolved target, and from [`Self::AffectedManaValue`], which reads the
+    /// object a continuous effect is being *applied to*: this one reads the
+    /// source, which for a replacement effect is a permanent somewhere else on
+    /// the board.
+    ///
+    /// **Whose board is the whole question, and only one evaluator answers it.**
+    /// `replacement::evaluate_enter_amount` reads the CR 614.12 frame when the
+    /// source is the entering permanent and the real battlefield otherwise, so
+    /// §5b's Elvish-Archdruid-under-Master-Biomancer falls out of RC-4's
+    /// asymmetry. The layer walk and the resolution evaluator both refuse it
+    /// rather than guessing at a source they were not given.
+    SourcePower,
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"

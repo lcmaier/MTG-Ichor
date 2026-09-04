@@ -219,6 +219,56 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **How to use this section:** before opening the first ticket of a listed target system, re-read that system's subsection and treat the items as prerequisites to schedule before or alongside the system's core work.
 
+### Deferred Migrations, measured — and the thinning it needs (2026-09-03)
+
+**Asked on review after RC-5 added 13 items in one PR**, which is the largest
+single addition this section has taken. Counted rather than estimated:
+
+| | |
+|---|---|
+| Deferred Migrations | **2,819 of this file's 3,034 lines — 92%** |
+| numbered items | **103**, across 29 subsections |
+| closed / struck, still in the file | 20 |
+| open, explicitly marked unreachable | 21 |
+| **open, with no reachability note at all** | **62** |
+| carrying an explicit `**Sized:**` | **20 of 103** |
+
+**The number that matters is 62, and it is not the length.** This section's
+stated purpose is that each entry is "a migration owed to a future system", read
+"before opening the first ticket of a listed target system". An item that says
+*why it cannot bite yet* is a safe deferral: 21 do, and RC-5's own items 61–63
+are among them. An item that does not is a claim nobody has checked — it might
+be dormant scaffolding or it might be wrong on a board the pool can already
+build, and the file does not distinguish them. **That is the risk the length is
+a symptom of**, and it is what a thinning pass should resolve, in this order:
+
+1. **Triage the 62 for reachability** — for each, name the card or code path
+   that would expose it, or mark it unreachable and say why. This is the whole
+   value; the rest is tidying. Roughly a day, and it is the same instrument
+   `codebase-state.md` already uses well in the 21.
+2. **Size the 83 unsized.** The rule was already written down —
+   *size an item before punting it* — and it has been followed for one in five.
+   An unsized deferral cannot be scheduled, so it is not deferred, it is
+   forgotten.
+3. **Collapse the 20 closed items to one line each**, pointing at the commit.
+   Cheap, mechanical, and worth ~400 lines.
+4. **Only then consider splitting the file.** Splitting first would move the
+   problem: `CLAUDE.md` makes this file the doc that "wins over every other
+   doc", and a Deferred Migrations that lives elsewhere is one more doc to
+   forget.
+
+**Numbering is not unique and the docs cite it as if it were.** The 103 items
+use ids 1–65 twice over: a main run that spans the dated "Found by …" sections,
+and per-section runs inside "Before Layers", "Before card breadth", "Before
+Triggered abilities" and "Before Commander". Every cross-reference in the tree
+is qualified by hand ("'Before card breadth' item 4") and is correct today; the
+next unqualified "item 4" is a silent mis-citation. Fix it with (1).
+
+**Should the next phase wait for this?** The parts of it that gate correctness
+are (1) and (2) — a phase that opens a new system is supposed to read this
+section first, and today that is not a thing a person does. (3) and (4) are
+tidying and can wait indefinitely.
+
 ### Before Replacement effects (CR 614–616)
 
 **The phase has an architecture doc as of 2026-08-24: `plans/replacement-architecture.md`.** It is authoritative for the type shapes, the CR 616.1 pipeline, the ETB look-ahead frame, and the RA–RE sequencing; item 3 below *is* its Phase RA. This section stays the status ledger.
@@ -1887,6 +1937,39 @@ section never asked.
     `CreateToken` still loops `propose_entry` one token per batch — and
     CR 613.7m's APNAP timestamps.
 
+    **Re-read against the tree 2026-09-03 (RC-5's re-size), and the two halves
+    split.** The frame half is *done*, not merely designed: phase 1 decides
+    every member before phase 2 performs any, `EntryFrame::new` is built from
+    the proposal inside phase 1, and a `ZoneChange { to: Battlefield }`
+    proposal is a debug assertion — so §5b's two Master Biomancers already give
+    each other nothing. RC-5 proves it at the `execute_actions` boundary
+    (`test_two_biomancers_entering_together_give_each_other_nothing`) and does
+    not pretend that proves the pool. **The producer is the whole of what is
+    left, and it is bigger than it looks**: `Primitive::ReturnToBattlefield` is
+    the natural one, and it needs a graveyard leaf on `SelectionFilter` (which
+    enumerates only battlefield, stack and players) plus item 48's `controller`
+    field, because a mass return is exactly item 48's wrong fourth road.
+    **Sized:** ~350 and a card. It is what makes CR 614.13a's second clause —
+    "nor any other object entering the battlefield at the same time" — and the
+    batch-scoped frame reachable from a game rather than from a test. CR 613.7m
+    is *not* part of this any more; see item 4 under "Before card breadth".
+
+    **`Primitive::CreateToken` is the cheaper producer and it should stop
+    looping** (asked on review 2026-09-03). "Create three 1/1 Soldiers" is one
+    event by CR 111's own shape, and the loop makes it three — three batches,
+    three CR 616.1 passes, three chances for an entry replacement to see a token
+    the others just made. Phase RE's `GameAction::CreateTokens` is where that
+    stops, and it arrives there for CR 614.16's doublers anyway, so the fix is
+    free at the point of use rather than a job of its own. **It is also the
+    cheaper route to a multi-entry batch than a mass return**: no graveyard leaf,
+    no item 48 controller field, and the pool already makes tokens (Kalitas's
+    rider). Whoever builds RE should expect it to close this item and 613.7m
+    together. **On storage:** a token is a full `GameObject` today, and a wide
+    board of them is the shape simulators historically bog down on. Nothing has
+    measured it here — `fuzz_games` makes few tokens — so it is not a claim, but
+    a batched creation is the prerequisite for ever storing them any other way,
+    because a per-token loop hard-codes one object per token at the *proposal*.
+
 47. **`pipeline::order_invariant_entry_bucket` is a semantics-assuming shortcut,
     and these are its expiry conditions.** It skips CR 616.1's prompt when every
     member of the bucket is an `EnterWith` whose applicability no `EnterMods`
@@ -1905,7 +1988,10 @@ section never asked.
     the other way — re-gather after the suppressed choice and assert the rest
     still apply — which catches either on any board a test or a debug fuzz run
     reaches. **The rule for whoever adds (a) or (c): revisit the predicate in
-    the same commit.**
+    the same commit.** **A fourth condition arrived with RC-5 and fired
+    immediately** — an `EnterModsTemplate` amount that reads the CR 614.12 frame
+    does not commute, so the predicate now asks for `Fixed` or a source that is
+    not the entering object. The rule was followed: see item 58.
 
 48. **`default_enter_controller` has three roads and answers a fourth wrongly
     — and RC-4 stopped standing on it.** The three that exist are exact: a
@@ -1935,7 +2021,13 @@ section never asked.
     parenthesis licenses the leg. No registered effect gives an entering
     permanent counters *from outside* — Master Biomancer is RC-5's — so there is
     no board to fail on yet; add the leg with the first such card, mirroring
-    `gather`'s `SelfScope::EnteringSelf`, ~20 lines.
+    `gather`'s `SelfScope::EnteringSelf`, ~20 lines. **Master Biomancer landed
+    2026-09-03 and the leg is still owed — the board now exists.** An entering
+    Tatterkite under a Biomancer should get no counters and would get two:
+    `strip_prohibited_counters` asks `is_prohibited`, which still has no
+    source-1a sweep. Neither Tatterkite nor Melira's Keepers is registered, so
+    nothing fails; this is the first entry on this list whose *reproducer* is
+    now one card away rather than two.
 
 50. **A count enumerates the battlefield twice per CDA.** `SetPowerToughness`
     evaluates its two amounts separately, so Keldon Warlord's `CountOf` sorts
@@ -1994,6 +2086,197 @@ section never asked.
     leaves-the-battlefield trigger keyed on `ZoneChange { from: Battlefield }`
     — and both would fire for a token that was created in exile and never left
     anything. Cross-listed as "Before card breadth" item 8.
+
+### Found by RC-5 — applying an entry can move the board (2026-09-03)
+
+**Shipped:** CR 614.13/13a/13b as `Rewrite::EnterAfterMoving`, and
+`EnterMods.counters` given an amount the board decides. `+2,239 / −121` across
+18 files. **Trace page:**
+[`plans/traces/rc-5-applying-an-entry-can-move-the-board.html`](traces/rc-5-applying-an-entry-can-move-the-board.html)
+— four boards, every read labelled board / frame / scope / player.
+`replacement-architecture.md` §9 has the design, the findings and the
+measurement; what follows is what a later phase has to know.
+
+53. **`apply_rewrite` takes `&mut GameState`, and exactly one arm needs it.**
+    CR 614.13 is the rules' own statement that applying an entry replacement may
+    change the board, so a `Rewrite` is no longer a pure function of the event.
+    Every other arm still is. The mutation goes through
+    `execute_actions_new_batch`, never a direct write — the chokepoint invariant
+    has no exception here — and the loop's termination argument is untouched,
+    because `apply_auxiliary_move` cannot create a replacement effect and the
+    applied set still bounds the iterations.
+
+    **Will the next arm need it? Asked on review, and the answer is mostly no.**
+    RD's `Amount` (614.5 doublers, 615.7 partial prevention) is arithmetic on
+    the event. RD's `Retarget` (614.9) re-checks its destination against the
+    board, which is a read. CV-2's copy-on-enter (616.1c) *chooses* a donor,
+    which is a prompt — `&GameState` plus `ctx.dp`, as
+    `EnterUnderControlOf(Opponent)` already is. **The one that will is piece 4**,
+    CR 614.12a's choice-carrying mods: "as this enters, choose a color" has to
+    record the choice somewhere a linked ability can read it, and that write is
+    on the object. So the count stands at one arm today and two when linked
+    abilities land — which is the argument for leaving the signature `&mut`
+    rather than threading a narrower capability that would be widened twice.
+
+54. **`execute_actions_new_batch` is §4.2's one exception, and the argument it
+    needs is not "these are different".** A nested `execute_actions` joins the
+    enclosing batch on CR 120.3f's grounds: lifelink's life gain is a *result
+    of* the damage. CR 614.13's moves are performed in phase 1, while the entry
+    is still being decided, so there is no entry event for them to be part of;
+    and two devour creatures entering together apply their replacements one
+    after the other, so joining would hand a CR 603.2c "whenever one or more
+    creatures die" one event where the rules have two. **Unreadable today** —
+    nothing consumes a `BatchId` until critical-path item 6 — which is why it
+    is asserted in a test rather than left to be discovered there
+    (`test_the_auxiliary_moves_are_their_own_batch`). A second caller needs the
+    same argument made again, from the CR.
+
+55. **`GameState::entry_selection` is batch-scoped state, and it is the third
+    thing item 40 would have caught.** CR 614.13a's "not the entering object nor
+    anything entering simultaneously" and 614.13b's "not the same object twice"
+    are both read across the CR 616.1 prompt and both change the outcome if
+    lost, so they are on `GameState` rather than on the pipeline's stack —
+    **item 40's table gains no third violator.** Saved and restored by
+    `execute_batch_inner` the way `open_batch`/`close_batch` handle the event
+    stamp, and the chosen set is recorded *before* the moves, so the nested
+    batch cannot lose it. Two mutations pin each half.
+
+56. **CR 614.13b is redundant until two effects' zones chain, and that is worth
+    knowing before the next rule like it.** A sacrificed creature stops matching
+    the next battlefield filter on its own, so the CR's own example — one
+    Runeclaw Bear, devour 3 and devour 5 — gives the right answer with the rule
+    deleted. It bites when one effect *writes into* the zone the next one reads:
+    devour into a graveyard, then Sutured Ghoul's exile. **Found by the mutation
+    pass, not by the design**, and the lesson generalises: `§10`'s
+    "mutation-check every assertion" can report a weak *board* rather than a
+    weak assertion.
+
+57. **`AmountExpr::SourcePower` has exactly one evaluator, and the other two
+    refuse it.** `replacement::evaluate_enter_template` reads
+    `EntryFrame::frame_of(source)` — `Some` only when the source *is* the
+    entering object — and falls back to the real board, which is the whole of
+    §5b's asymmetry in one line: an entering permanent's own "with a counter for
+    each …" reads its hypothetical self, and Master Biomancer is read off the
+    board. `compute::evaluate_amount` and `resolve::evaluate_amount` grow an arm
+    that errors rather than guessing at a source they were not given. **A third
+    evaluator is the thing to be careful about**: the answer depends on which
+    board the caller is entitled to, and only the entry path knows.
+
+58. **Item 47's predicate has a fourth expiry condition, and RC-5 fired it.**
+    `order_invariant_entry_bucket`'s theorem has two halves — every member still
+    applies, and the applications commute — and the second was free while
+    `EnterModsTemplate` held literals. It is not free now. The premise added is
+    **exact rather than conservative**: an amount is order-invariant if it is
+    `Fixed`, *or* its instance's source is not the entering object, since only
+    then can `frame_of` return `Some`. Master Biomancer therefore keeps the
+    suppressed prompt and the fuzz pool keeps its zero-prompt property. The rule
+    for whoever adds a fifth is item 47's: revisit the predicate in the same
+    commit.
+
+59. **Sutured Ghoul's power and toughness are missing, not wrong.** Its `*/*`
+    box is a CDA (CR 208.2) whose text reads "the exiled cards", which CR 614.14
+    links to the exiling ability — CR 607, whose live home is `backlog.md` §2.2
+    (the `T##` labels are the archived plan's vocabulary, not a queue), the same block Painter's
+    Servant sits behind. The card is registered at its printed box's value
+    without the CDA, **0/0**, which is also the right answer when nothing is
+    exiled; a Ghoul that exiles something should live and dies to CR 704.5f
+    instead. In the default registry, so `--pool stress` plays it; out of
+    `PERFORMANCE_POOL`. **Closes with `backlog.md` §2.2**, and it is the second card in the
+    pool whose printed P/T box the engine cannot fill (Keldon Warlord's is
+    filled).
+
+60. **Master Biomancer's Mutant clause is unimplemented, and it is not one
+    field.** "…and as a Mutant in addition to its other types" wants a type on
+    `EnterMods`, which fires item 47's expiry condition (a) directly:
+    `PermanentFilter`'s `ByType` and `BySubtype` leaves would stop being
+    mods-invariant, so **every** CR 616.1 entry bucket would start prompting.
+    It also needs somewhere for the type to live *after* the entry — a Layer 4
+    effect with no registry row and no duration, which is a shape the layer
+    system does not have. **Sized:** the field is small and the two consequences
+    are not; call it a phase of its own, and note that the printed population
+    for "enters as a [type]" is thin enough that it is not urgent.
+
+61. **Every auxiliary move of one entry event should be one batch, and RC-5
+    ships one per application.** Thunder-Thrash Elder's own ruling
+    (Gatherer, 2008-10-01): "If multiple creatures with devour are entering
+    under your control at the same time, you may use each one's devour ability.
+    A creature you already control can be devoured by only one of them, however.
+    **All creatures devoured this way are sacrificed at the same time.**" The
+    same ruling is where CR 614.13a and 614.13b came from, and RC-5 got those
+    two right and the simultaneity wrong. `apply_auxiliary_move` performs its
+    picks through `execute_actions_new_batch` immediately, so two applications
+    are two batches at two moments; a CR 603.2c "whenever one or more creatures
+    die" would fire twice where the rules fire once.
+
+    **Unreachable today**, and it takes two things that do not exist to reach:
+    a multi-entry batch (item 46) or a second devour ability on one entry
+    (nothing grants devour; the plane in CR 614.13b's example is not a card
+    type this engine has). The fixture in
+    `phase_rc5_integration_test::grants_devour` is the only board that gets
+    there.
+
+    **Not a batch-id relabelling — a deferral, and it has a real cost.** The
+    moves would be collected across phase 1 and performed once, before phase 2
+    performs the entries. But the counters devour arrives with are computed
+    *while applying*, and RC-5 counts what the nested batch actually performed
+    (a dropped move is not a sacrifice, CR 701.21a). Deferred, there is nothing
+    performed yet to count, so the count reverts to what was chosen and the
+    prevented-move case (`test_a_prevented_sacrifice_is_not_counted`) inverts.
+    **Whoever builds this owes an answer to that**, and the CR's own wording —
+    "for each creature sacrificed this way" — is on the side of counting the
+    performed moves, which argues for performing the batch *before* the mods
+    are finalised rather than after. **Sized:** ~150 in `execute_batch_inner`
+    and `apply_auxiliary_move`, plus the count question. Lands with item 46's
+    producer, since neither is testable in a game without the other.
+
+62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
+    controller — and the two printed shapes disagree.** CR 614.13a says "**you**
+    may have to choose a number of objects", and who "you" is depends on where
+    the ability came from: devour is the entering creature's own ability, so the
+    choice is the *entering permanent's* controller's, while a filter-scoped
+    effect ("each other creature **you** control enters …") means its own
+    controller. RC-5 uses `ReplacementInstance::controller` for both, which is
+    exact for every registered card — devour is `AffectedSet::SourceOnly`, and
+    `gather` source 1a hands it the proposal's controller — and wrong for a
+    *granted* devour, where the granting permanent's controller would choose and
+    sacrifice their own creatures instead of the entering creature's controller
+    doing it. **Sized:** one field on `AuxiliaryMove`
+    (`EffectController | EnteringController`) read in one place, ~15 lines.
+    Deliberately not built: no registered card takes the second road, and a
+    field with one used value is the shape §3.2's growth contract warns about.
+    The test fixture `grants_devour` takes it and says so.
+
+63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
+    not.** "Devour X, where X is the number of creatures devoured this way" —
+    X creatures give X² counters, so the multiplier *is* the count. One more
+    shape in the payload (`per_chosen: PerChosen::Fixed(n) | PerChosen::Count`)
+    and no new `Rewrite` arm, which is the growth contract working as intended.
+    ~20 lines with the card. It is one of the 23 printed devour cards; the other
+    22 are `Fixed`, and CR 702.82c's devour-[quality] variants are covered
+    already by the payload's `filter`.
+
+64. **`PermanentFilter` filters objects in zones where nothing is a permanent,
+    and the name now lies.** CR 110.1 makes a permanent a card *on the
+    battlefield*; RC-5's `AuxiliaryMove.filter` matches creature **cards in a
+    graveyard**, and `EventPattern::ZoneChange`'s `object` filter has matched
+    cards in graveyards and libraries since RB (Grafdigger's Cage, Rest in
+    Peace). The type is right and the name is two phases stale.
+    **Sized:** a rename with ~120 mechanical call sites and no behaviour change,
+    which is why it has not happened; the cost is entirely in review noise, so
+    it wants a quiet PR of its own rather than a ride-along. Cross-cutting, not
+    blocking anything.
+
+65. **`order_invariant_entry_bucket` is named after its implementation, not its
+    question.** The question is "does CR 616.1's ordering prompt have more than
+    one outcome here" — §11 item 19's rule that the engine must not ask a
+    player a question whose answer cannot matter. "Bucket" is CR 616.1a–e's
+    forced-choice class, which a reader has to already know to parse the name.
+    `entry_ordering_is_observable` (negated at the call site) says the question;
+    the counter-argument is that "bucket" is the codebase's word for the thing
+    the function takes, and renaming the predicate without renaming
+    `forced_bucket` trades one mismatch for another. **Decide with the rename in
+    item 64's PR or leave it**; recorded because the confusion was reported
+    rather than guessed at.
 
 ### Was the critical path complete? — audited 2026-08-27
 
@@ -2624,7 +2907,7 @@ first.
 
    Unreachable today — Equip is unimplemented and Auras attach only at ETB — but the day any reattachment path lands, every equip silently re-orders Layers 6 and 7. **Corrected and scheduled 2026-09-01 -- "unreachable today" was the wrong frame, and so was "restate the contract".** Reattachment is not exotic: Aura Finesse (`{U}` Instant, "Attach target Aura you control to target creature") and Equip both do it with no new subsystem behind them. And the field is doing **two jobs** -- `battlefield_ordered` and `battlefield_ids_ordered` read it as *determinism / decision order*, `static_effect_timestamp` reads it as CR 613.7a. Four production readers, counted. Reassigning it makes a reattached Aura jump to the end of every ordered sweep, so the work is a **field split** -- a stable entry timestamp and a CR 613.7 timestamp -- not a reassignment plus a doc edit. Bounded by an in-tree precedent: CR 613.7c already reassigns `CounterStack.timestamp` from the same monotonic counter (`state/battlefield.rs:144`). Now **Phase LH-2**, `layers-architecture.md` §13a, scheduled before critical-path item 7. Original entry: **Do these together:** reassign from the same monotonic counter (still deterministic — that is the point), restate the contract as "never reassigned *except by CR 613.7e*" in CLAUDE.md and in `battlefield_ordered`, and re-audit every site that reads `timestamp` as a proxy for ETB order. Caught by audit before it had a reproducer; the two before it were found by their reproducers.
 
-   **CR 613.7m is the same rule family and is also unimplemented (recorded 2026-09-01, RC-2 review).** "If two or more objects would receive a timestamp simultaneously, such as by entering a zone simultaneously or becoming attached simultaneously, their relative timestamps are determined in APNAP order." `allocate_timestamp` hands out a strict sequence one call at a time, so the engine can only ever produce a total order in *allocation* order — which is the caller's loop order, not APNAP. It is exact today because every entry is its own singleton batch: `propose_entry` is called once per zone change, and nothing puts two permanents onto the battlefield as one event. **The two things that change that are `GameAction::CreateTokens` (Phase RE) and CR 614.13's auxiliary zone changes (RC-4)** — either one makes the order APNAP has to fix reachable, and neither is far away. Note the shape of the fix is *not* "sort the batch": 613.7m gives the active player's objects the earlier timestamps **in the order of that player's choice**, so it is a decision point, not a sort. Related and separate: CR 613.7n's rule that an object's own static ability out-timestamps a resolving spell's effect on it is also unimplemented, and is the same batch of work.
+   **CR 613.7m is the same rule family and is also unimplemented (recorded 2026-09-01, RC-2 review).** "If two or more objects would receive a timestamp simultaneously, such as by entering a zone simultaneously or becoming attached simultaneously, their relative timestamps are determined in APNAP order." `allocate_timestamp` hands out a strict sequence one call at a time, so the engine can only ever produce a total order in *allocation* order — which is the caller's loop order, not APNAP. It is exact today because every entry is its own singleton batch: `propose_entry` is called once per zone change, and nothing puts two permanents onto the battlefield as one event. **The one thing that changes that is `GameAction::CreateTokens` (Phase RE)**, plus the mass-return primitive item 46 now sizes. **Corrected 2026-09-03, by RC-5's re-size:** this row also named "CR 614.13's auxiliary zone changes (RC-4)", and they are not one of them. An object receives a timestamp in one production place — `place_on_battlefield` (`game_state.rs:671`; `:789` is CR 613.7c's per-counter-kind stack, not an object) — and 614.13's auxiliary moves are battlefield → graveyard and graveyard → exile. Neither destination allocates a timestamp and neither is an entry, so RC-5 produces no simultaneous entries and 613.7m stays with `CreateTokens` in RE, beside item 52's token residual. Note the shape of the fix is *not* "sort the batch": 613.7m gives the active player's objects the earlier timestamps **in the order of that player's choice**, so it is a decision point, not a sort. Related and separate: CR 613.7n's rule that an object's own static ability out-timestamps a resolving spell's effect on it is also unimplemented, and is the same batch of work.
 
 5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
 

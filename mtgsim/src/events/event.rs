@@ -360,6 +360,19 @@ impl EventLog {
         previous
     }
 
+    /// Open a batch that does **not** join an enclosing one.
+    ///
+    /// `GameState::execute_actions_new_batch` is the only caller and owns the
+    /// rules argument for why CR 614.13's auxiliary moves are not a result of
+    /// the event they are nested inside.
+    pub(crate) fn open_new_batch(&mut self, resolution: Option<ResolutionStamp>) -> EventStamp {
+        let previous = self.stamp;
+        let id = BatchId(self.next_batch);
+        self.next_batch += 1;
+        self.stamp = EventStamp { batch: Some(id), resolution };
+        previous
+    }
+
     /// Close a batch, restoring what [`Self::open_batch`] returned.
     pub(crate) fn close_batch(&mut self, previous: EventStamp) {
         self.stamp = previous;

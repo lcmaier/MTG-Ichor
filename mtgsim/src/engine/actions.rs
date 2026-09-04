@@ -302,6 +302,34 @@ impl GameState {
         result
     }
 
+    /// [`Self::execute_actions`], but the batch gets a **new** id instead of
+    /// joining the enclosing one.
+    ///
+    /// **One caller, and it needs a rule to exist** — CR 614.13's auxiliary
+    /// zone changes (`// AUXILIARY-MOVE:` in `engine::replacement::pipeline`).
+    /// §4.2's default is right on CR 120.3f's grounds: lifelink's life gain is
+    /// a *result of* the damage, so a second batch id would tell a CR 603.2c
+    /// trigger that two events happened. 614.13's moves are the converse. They
+    /// are performed in phase 1, while the entry is still being *decided*, so
+    /// there is no entry event yet for them to be part of; and two devour
+    /// creatures entering together apply their replacements one after the
+    /// other, so joining would hand "whenever one or more creatures die" one
+    /// event where the rules have two.
+    ///
+    /// A second caller needs the same argument made again: not "these are
+    /// different", but "the CR does not make these a result of the enclosing
+    /// event".
+    pub(crate) fn execute_actions_new_batch(
+        &mut self,
+        batch: Vec<GameAction>,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        let previous = self.events.open_new_batch(ctx.resolution_stamp());
+        let result = self.execute_batch_inner(batch, ctx);
+        self.events.close_batch(previous);
+        result
+    }
+
     /// The three phases of one batch. Split out so `close_batch` runs on every
     /// exit path, including the error ones.
     ///
@@ -344,18 +372,35 @@ impl GameState {
         // *create* a replacement effect, and each member's 616.1f loop runs to
         // completion before the next begins. That is a simplification, not a
         // proof; interleaving the members is deferred (rb-review F6).
+        // CR 614.13a/b's exclusion sets belong to *these* simultaneous entries.
+        // Saved and restored like the event stamp: an auxiliary move's own
+        // nested batch, and a rider's, are different events with their own.
+        // Populated before the first member is decided, because 614.13a is
+        // about what is entering rather than about what has entered.
+        let outer_selection = std::mem::take(&mut self.entry_selection);
+        self.entry_selection.entering = batch
+            .iter()
+            .filter_map(|a| match a {
+                GameAction::EnterBattlefield { object, .. } => Some(*object),
+                _ => None,
+            })
+            .collect();
+
         let mut riders: Vec<Rider> = Vec::new();
         let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
         let inherited = std::collections::HashSet::new();
+        let mut decided_ok = Ok(());
         for index in self.apnap_batch_order(&batch) {
-            decided[index] = apply_replacements(
-                self,
-                batch[index].clone(),
-                ctx,
-                &inherited,
-                &mut riders,
-            )?;
+            match apply_replacements(self, batch[index].clone(), ctx, &inherited, &mut riders) {
+                Ok(action) => decided[index] = action,
+                Err(e) => {
+                    decided_ok = Err(e);
+                    break;
+                }
+            }
         }
+        self.entry_selection = outer_selection;
+        decided_ok?;
 
         // --- Phase 2: perform, in batch order -------------------------------
         //

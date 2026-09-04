@@ -24,16 +24,20 @@
 //! - [`Rewrite`] is a **closed algebra**. CR 614 and 615 enumerate what a
 //!   replacement effect may do to an event and the list is short; a new arm
 //!   is a claim that those rules permit an operation the list omits, and it
-//!   should arrive with the rule number that says so. It ships **four** —
-//!   `Prevent`, `Instead`, `EnterWith` and `EnterUnderControlOf` — not §3.2's
-//!   five plus one: an arm the pipeline cannot apply is worse than a missing
-//!   one. `EnterWith` gained its performer in Phase RC-2 and
-//!   `EnterUnderControlOf` its CR 616.1b bucket in RC-4.
+//!   should arrive with the rule number that says so. It ships **five** —
+//!   `Prevent`, `Instead`, `EnterWith`, `EnterUnderControlOf` and
+//!   `EnterAfterMoving` — still not §3.2's five plus one: an arm the pipeline
+//!   cannot apply is worse than a missing one. `EnterWith` gained its performer
+//!   in Phase RC-2, `EnterUnderControlOf` its CR 616.1b bucket in RC-4, and
+//!   `EnterAfterMoving` arrived in RC-5 with CR 614.13, the sentence that
+//!   permits an entry modification to move other objects.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
 
-use crate::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter, PlayerRef};
+use crate::types::effects::{
+    AffectedSet, AmountExpr, CounterType, Effect, PermanentFilter, PlayerRef,
+};
 use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
@@ -343,7 +347,48 @@ pub enum Rewrite {
     /// no `BattlefieldEntity` to tap and no counter map to write, which is the
     /// whole reason the modifications ride on the proposal instead of being
     /// applied as they are chosen.
-    EnterWith(EnterMods),
+    ///
+    /// Carries an [`EnterModsTemplate`] rather than an [`EnterMods`]: the
+    /// effect's *text* may name an amount ("equal to this creature's power")
+    /// that the event's mods cannot, because the performer needs a number.
+    EnterWith(EnterModsTemplate),
+
+    /// CR 614.13 — an entry modification that **causes other objects to change
+    /// zones** as it is applied.
+    ///
+    /// > 614.13. An effect that modifies how a permanent enters the battlefield
+    /// > may cause other objects to change zones.
+    ///
+    /// The rule that permits the arm, which is what the closed algebra asks of
+    /// a new one.
+    ///
+    /// **The printed population, counted 2026-09-03.** Devour is **23 cards**
+    /// (`keyword:devour`), of which four are CR 702.82c's *devour [quality]* —
+    /// artifacts, lands, Foods — which cost nothing here because the payload's
+    /// `filter` is what says "creatures". "As ~ enters, exile … from your
+    /// graveyard" is **5** more: Sutured Ghoul, Living Lore, Dermotaxi,
+    /// Mimeoplasm Revered One, Frankenstein's Monster. They differ only in the
+    /// payload's fields.
+    ///
+    /// **Two of the 23 the payload does not reach**, and neither wants a new
+    /// arm: Thromok the Insatiable's "devour X, where X is the number of
+    /// creatures devoured this way" makes the multiplier *be* the count
+    /// (`codebase-state.md` item 63), and Frankenstein's Monster exiles exactly
+    /// X with a "if you can't" failure branch. **Sweep is not one of these** —
+    /// "return any number of Mountains you control to their owner's hand" is an
+    /// instruction of a resolving spell, not a modification of an entry, so it
+    /// is a `Primitive` and never reaches CR 614.13.
+    ///
+    /// **Not an `EnterWith` with a rider.** A `then` runs *after* the performed
+    /// event (§4.1a, CR 615.5), and these moves happen while the effect is
+    /// being applied — the counters the entry arrives with are computed from
+    /// them, so a rider is too late by construction. It is also the only
+    /// rewrite that is not a pure function of the event: applying it prompts.
+    ///
+    /// CR 614.13a and 614.13b scope that prompt to a *batch*
+    /// (`GameState::entry_selection`), not to one event, which is why the two
+    /// exclusion sets are not fields here.
+    EnterAfterMoving(AuxiliaryMove),
 
     /// CR 616.1b — modify *under whose control* a permanent enters.
     ///
@@ -369,13 +414,126 @@ pub enum Rewrite {
     EnterUnderControlOf(PlayerRef),
 }
 
+/// CR 614.13's "other objects that will also change zones" — what one
+/// [`Rewrite::EnterAfterMoving`] chooses, where it sends them, and what the
+/// entering permanent gets for each.
+///
+/// **Where per-mechanic variety lives, so [`Rewrite`] does not grow again.**
+/// Devour N is `(Battlefield, creatures you control) → Graveyard, Sacrificed`
+/// with `per_chosen: Some((PlusOnePlusOne, N))`; Sutured Ghoul is
+/// `(Graveyard, creature cards) → Exile, Exiled` with `per_chosen: None`. The
+/// ~20 "as ~ enters, choose" cards with a board consequence are the same five
+/// fields.
+///
+/// **`from` is a zone and not a `SelectionFilter`**, because
+/// `oracle::legality::enumerate_legal_selections` enumerates the battlefield,
+/// the stack and players and has no graveyard leaf. Adding one is the job
+/// `codebase-state.md` item 46 sizes, and it is not this arm's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AuxiliaryMove {
+    /// Which zone the choosable objects are in. Only the choosing player's own
+    /// objects are candidates — CR 701.21a's "its controller moves it" for a
+    /// sacrifice, and every printed graveyard variant says "your graveyard".
+    pub from: Zone,
+
+    /// What a candidate must be. Read off the layer walk on the battlefield and
+    /// off the card anywhere else, which is the same split
+    /// `EventPattern::ZoneChange`'s `object` filter already makes.
+    ///
+    /// **`PermanentFilter` is the wrong name for what this does** and has been
+    /// since RB: CR 110.1 makes a permanent a card *on the battlefield*, and
+    /// this matches creature cards in a graveyard. The type is right; the name
+    /// is two phases stale, and the rename is `codebase-state.md` item 64 —
+    /// ~120 mechanical call sites, no behaviour, so it wants a PR of its own.
+    pub filter: PermanentFilter,
+
+    /// Where the chosen objects go, and why. The `cause` is what separates
+    /// devour's sacrifice from an exile, and 278 cards care (CR 701.21).
+    pub to: Zone,
+    pub cause: ZoneChangeCause,
+
+    /// The upper bound on how many may be chosen. `None` is "any number", which
+    /// is what both printed shapes say; a bounded form would be `Some(n)`.
+    ///
+    /// The lower bound is always zero. "Any number" includes none, so the
+    /// choice to decline lives in the count rather than in
+    /// [`ReplacementDef::optional`] — marking devour optional would ask the
+    /// player twice and let a decline consume CR 614.5's one opportunity for a
+    /// reason the card does not have.
+    pub up_to: Option<u32>,
+
+    /// CR 122.6a — what the entering permanent is given per object chosen.
+    /// Devour 3 is `Some((PlusOnePlusOne, 3))`; Sutured Ghoul is `None`,
+    /// because its power and toughness come from a *linked* ability (CR 614.14,
+    /// 607) and not from the entry.
+    ///
+    /// **A constant per object, which Thromok the Insatiable is not**: "devour
+    /// X, where X is the number of creatures devoured this way" makes the
+    /// multiplier the count itself, so X creatures give X² counters. One more
+    /// shape here and no new [`Rewrite`] arm — `codebase-state.md` item 63.
+    pub per_chosen: Option<(CounterType, u32)>,
+}
+
+/// What an entry replacement *adds*, before its amounts are evaluated
+/// (CR 614.1c/d).
+///
+/// **The half of [`EnterMods`] that cannot be a number yet.** Master
+/// Biomancer's "additional +1/+1 counters equal to this creature's power" is
+/// known only when the effect is applied, and it is read off the *source* —
+/// so the definition carries an [`AmountExpr`] and
+/// `replacement::evaluate_enter_amount` turns it into an [`EnterMods`] inside
+/// the CR 616.1 loop.
+///
+/// Split out in RC-5. Until then one type did both jobs, which §3.2 recorded as
+/// a virtue and which held exactly as long as every amount was a literal.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnterModsTemplate {
+    /// CR 110.5b — the permanent enters tapped. A status, so no amount.
+    pub tapped: bool,
+
+    /// CR 122.6a — the counters, and how many of each.
+    pub counters: Vec<(CounterType, AmountExpr)>,
+}
+
+impl EnterModsTemplate {
+    /// CR 110.5b — "this permanent enters tapped".
+    pub fn tapped() -> Self {
+        EnterModsTemplate { tapped: true, counters: Vec::new() }
+    }
+
+    /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
+    pub fn with_counters(counter: CounterType, n: u32) -> Self {
+        EnterModsTemplate {
+            tapped: false,
+            counters: vec![(counter, AmountExpr::Fixed(n as u64))],
+        }
+    }
+
+    /// CR 122.6a with an amount the board decides — Master Biomancer.
+    pub fn with_counter_amount(counter: CounterType, amount: AmountExpr) -> Self {
+        EnterModsTemplate { tapped: false, counters: vec![(counter, amount)] }
+    }
+
+    /// Does every amount here read a constant?
+    ///
+    /// The premise `pipeline::order_invariant_entry_bucket` grew for RC-5:
+    /// an amount that reads the CR 614.12 frame changes with what already
+    /// applied, so two such applications do not commute and CR 616.1's
+    /// ordering prompt is real. `codebase-state.md` item 47 carries the
+    /// expiry conditions this is one of.
+    pub fn is_fixed(&self) -> bool {
+        self.counters.iter().all(|(_, a)| matches!(a, AmountExpr::Fixed(_)))
+    }
+}
+
 /// How a permanent enters the battlefield, when something modified it
 /// (CR 614.1c/d).
 ///
-/// The payload of both [`Rewrite::EnterWith`] and
-/// `GameAction::EnterBattlefield`: the same type describes what one effect
-/// *adds* and what the permanent will *end up with*, which is what makes
-/// [`Self::merge`] the whole of CR 616.1f's accumulation.
+/// The payload of `GameAction::EnterBattlefield`, and what
+/// [`EnterModsTemplate`] evaluates to: what one effect *adds* and what the
+/// permanent will *end up with* are the same shape once the amounts are
+/// numbers, which is what makes [`Self::merge`] the whole of CR 616.1f's
+/// accumulation.
 ///
 /// **Two fields, and each is a rule rather than a convenience.** CR 110.5b —
 /// "permanents enter the battlefield untapped … unless a spell or ability says
@@ -544,9 +702,10 @@ impl ReplacementClass {
     pub fn from_rewrite(rewrite: &Rewrite) -> Self {
         match rewrite {
             Rewrite::EnterUnderControlOf(_) => ReplacementClass::ControlChanging,
-            Rewrite::Prevent | Rewrite::Instead(_) | Rewrite::EnterWith(_) => {
-                ReplacementClass::Other
-            }
+            Rewrite::Prevent
+            | Rewrite::Instead(_)
+            | Rewrite::EnterWith(_)
+            | Rewrite::EnterAfterMoving(_) => ReplacementClass::Other,
         }
     }
 }

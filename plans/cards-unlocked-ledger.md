@@ -137,6 +137,24 @@ Recommended integration tests:
 
 ### Tier 5: Zone, Combat, Damage, Targeting (T21a–T22)
 
+**Where this tier lives now — added 2026-09-03, because "where did T21 go" is a
+question this table kept failing to answer.** These `T##` ids are the archived
+plan's vocabulary and name no live owner (`CLAUDE.md`'s authority table). The
+*work* is alive and is spread across four homes:
+
+| Archived id | What it was | Live owner |
+|---|---|---|
+| `T21a` | instant/sorcery can't enter the battlefield | **done** — CR 608.2n vs 608.3a routing in `engine/stack.rs`, never ticked off here |
+| `T21a` | CastInfo carried to the permanent (ATOM-400.7d-001) | **unowned.** The shape is recorded as `EventPattern::EnterBattlefield`'s stated growth axis — "a fact about *how the object arrived* lands here as a field" (`replacement-architecture.md` §3.1); nothing schedules it |
+| `T21b` | evasion framework (menace, shadow, fear, landwalk…) | **RS-3**, `cant-effects-architecture.md` — see its "Why now" §2, which names this row |
+| `T21c` | infect / wither / toxic | `backlog.md` §2.6 (CR 702 keyword abilities) — Phase 8 breadth |
+| `T21c` | planeswalker combat damage routing | **Phase RD**, `replacement-architecture.md` §9 — CR 120.3c's loyalty removal, part of the CR 120.3 results decomposition |
+| `T21d` | CR 508.1d/509.1c requirements solver | **RS-3b**, `cant-effects-architecture.md`; wants CR 613.8 first |
+| `T22` | hexproof / shroud / protection targeting | **RS-2**, `cant-effects-architecture.md`; the current gap is `codebase-state.md` "Before card breadth" item 7 |
+
+The rows below are the archived plan's own table, kept as the historical record
+of what each ticket was meant to unlock.
+
 | Ticket(s) | Cards Unlocked | Example Cards | Status |
 |-----------|---------------|---------------|--------|
 | T21a (+ T17) | CastInfo on permanents; instant/sorcery can't enter battlefield | Any permanent spell (CastInfo auto-populated) | |
@@ -261,7 +279,7 @@ four PRs; this table grows one row each.
 | RC-2 | **"Enters tapped" (CR 110.5b, 773 printed cards) and "enters with counters" (CR 122.6a, 580)**, for the `AffectedSet::SourceOnly` case — the permanent's own ability, about itself, which CR 614.12's first sentence names explicitly. That is the overwhelming majority of both populations | 🃏 **Idyllic Beachfront** and **Chainbreaker** (both in `PERFORMANCE_POOL`), plus 🃏 **Adaptive Shimmerer** in the stress pool — a 0/0, which is the only board state that dies if CR 122.6a's counters arrive after the entry is observable. Also newly correct without card work: every planeswalker (CR 306.5b's loyalty is an entry replacement now) and every token (CR 111.1 makes a token's entry a proposal like any other) | ✅ shipped 2026-09-01 |
 | RC-3 | **The *other* population — an entry-modifying effect that is not on the entering permanent.** CR 614.12's membership rule in both directions: a filter-scoped layer effect reaches an entering permanent (Blood Moon strips a tapland's ability, Humility strips Chainbreaker's counters), and an entering permanent's own filter-scoped replacement does not reach itself (Orb of Dreams enters untapped). Kismet, Loxodon Gatekeeper and Frozen Aether were never blocked — `set_affects` had no gate — and Dress Down waits on triggers (item 6) | 🃏 **Root Maze** (`PERFORMANCE_POOL`), plus `PermanentFilter::Or` | ✅ shipped 2026-09-02 |
 | RC-4 | **CR 614.12's look-ahead frame** — the permanent as it *would exist* on the battlefield: its pending `EnterMods` (clause 1), its own static abilities (clause 2), the effects that already exist (clause 3), under its proposed controller. Plus **CR 614.17d** on that frame (a "can't enter" at the zone change, a "can't have counters put on it" refusing an entry's counters), **CR 616.1b** (`Rewrite::EnterUnderControlOf`, with the N-player "opponent of your choice" prompt — CR 614.12a's choice-before-entry), the first `AmountExpr::CountOf` in the layer walk, and §11 item 19 (CR 616.1 no longer prompts when the choice provably has one outcome). **Grist and the Theros gods stay blocked** — on `Effect::Conditional` as a static (Deferred item 7f), not on the frame — and Master Biomancer on a dynamic counter amount in `EnterWith` (RC-5) | 🃏 **Containment Priest**, 🃏 **Dryad Arbor** (stress pool), 🃏 **Keldon Warlord** (`PERFORMANCE_POOL`); Wall of Stone gains its printed Wall subtype. Unlocked but unregistered: Hallowed Moonlight (RD's durational form), Xantcha / Captive Audience / Pendant of Prosperity (each carries a second ability the engine lacks), Melira and Darksteel Angel's "-1/-1 counters" sentence (fixture-tested; both cards carry player-scoped clauses that are RE's) | ✅ shipped 2026-09-02 |
-| RC-5 | **CR 614.13/13a/13b — entry replacements that move other objects**, with the choice that feeds them (devour, Sutured Ghoul), the batch-scoped frame for simultaneous entries (§5b's two Biomancers), and a dynamic counter amount in `EnterWith` (Master Biomancer's "equal to this creature's power") | Master Biomancer, Thunder-Thrash Elder, Sutured Ghoul, Painter's Servant | 📋 designed 2026-09-02, `replacement-architecture.md` §9 |
+| RC-5 | **CR 614.13/13a/13b — entry replacements that move other objects** (23 printed devour cards, Sutured Ghoul's exile variant, and ~20 more "as ~ enters, choose" with a board consequence), with the selection that feeds them and its two batch-scoped exclusion sets; plus **a dynamic counter amount in `EnterWith`** (`AmountExpr::SourcePower`), which unblocks every "enters with counters equal to …" whose amount is the source's power. The batch-scoped frame turned out to be RC-4b's and is not this row's | 🃏 **Thunder-Thrash Elder** (`PERFORMANCE_POOL`) — cast 250 / resolved 246 in 149 of 200 games (74%), copies/deck 1.70; 🃏 **Master Biomancer** (`PERFORMANCE_POOL`) — 185 / 183 in 110 games (55%), copies/deck 1.68, counters clause only, its Mutant clause is `codebase-state.md` item 60; 🃏 **Sutured Ghoul** (stress) — 152 / 150 in 95 games (48%), copies/deck 1.55, exile clause only, its `*/*` is CR 614.14-linked and waits on `backlog.md` §2.2. Unlocked but unregistered: **20 of the 23 printed devour cards** (one `AuxiliaryMove` each, no engine work), including CR 702.82c's devour-artifact / land / Food variants, which the payload's filter already covers. Still blocked: Painter's Servant and Voice of All on CR 607 (`backlog.md` §2.2); Thromok the Insatiable on `codebase-state.md` item 63 (its multiplier is the count) | ✅ shipped 2026-09-03 |
 
 **What RC-2 did not unlock, and it is worth naming.** CR 616.1's
 multi-candidate branch is still unreachable in a game — measured 2026-09-01, the

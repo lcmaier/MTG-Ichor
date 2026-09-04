@@ -992,6 +992,23 @@ Lifelink proposes from inside `perform_action(DealDamage)`, and a second batch i
 there would tell a CR 603.2c trigger that two events happened. RD's CR 120.3
 decomposition is the same shape.
 
+**One exception, and it is the converse of that argument** (RC-5, 2026-09-03).
+CR 614.13's auxiliary zone changes are *not* a result of the entry: they are
+performed while the entry is still being decided, in phase 1, before the entry
+event exists at all. Joining would put a devoured creature's death and the entry
+it paid for into one CR 603.2c event. `execute_actions_new_batch` opens a
+genuinely fresh id; it has one caller, tagged `// AUXILIARY-MOVE:`, and a second
+caller needs the rule that says its events are not a result of the enclosing one.
+
+**A fresh id is right and one-per-application is wrong, corrected on review the
+same day.** Thunder-Thrash Elder's own ruling (2008-10-01) says "all creatures
+devoured this way are sacrificed at the same time" when several devour creatures
+enter together — so the target is one batch per *entry event*, not one per
+`apply_auxiliary_move` call. That is a **deferral**, not a relabelling: the moves
+would have to be collected across phase 1 and performed once, which collides
+with counting what was performed (§10's finding 5). Unreachable from the
+registered pool, sized as `codebase-state.md` item 61.
+
 **Each batch member keeps its own `applied` set.** A first draft had the batch
 share one, and that is wrong: CR 614.5 is per *event*, and batch members are
 separate events. Kalitas's own ruling pins it — when Kalitas dies at the same
@@ -1316,7 +1333,11 @@ neither is on the battlefield when the other's replacements are applied. RA-3's
 `execute_actions` is the mechanism (one batch, one `BatchId`), and the rule RC
 owes is that the *frame* is batch-scoped: every member's look-ahead reads the
 pre-batch board. This is a different axis from §4.2's per-member `applied` set,
-which is about CR 614.5 and stays per-event.
+which is about CR 614.5 and stays per-event. **Delivered by RC-4b rather than by
+the RC-5 piece that was sized for it** — once the entry is a phase-1 proposal
+every member is decided before any is performed, so the frame is batch-scoped by
+construction; RC-5 supplies the two-Biomancer test and §9's RC-5 entry has the
+re-size.
 
 **Not every judge example is a requirement.** Uphill Battle ("Creatures played
 by your opponents enter tapped") looked like a demand for a "played by" filter
@@ -2448,7 +2469,7 @@ accepts that a later PR may fix an earlier one.
 | **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
 | **RC-4 — the overlay** ✅ | §5's clauses (1)–(3), 614.17d, 616.1b, `CountOf`, §11 item 19. **614.13a/b moved to RC-5** | re-counted a third time at **9** reads and the count was the wrong instrument: **four kinds** of read needed perturbing, and only those moved. Shipped **+2,567 / −279 across 25 files** — 1,447 engine, 223 cards, 897 tests — over the band on tests alone, with RC-5 already split out in the doc before code | **highest** — and the risk that materialised was not the walk: it was item 19's theorem, which the frame falsified (finding 3) |
 | **RC-4b — one proposal per entry, none per cast step** ✅ | The entry hop RC-4's review found (`EnterBattlefield` carries `from` and its performer moves), tokens, CR 608.3e, and the cast rewind's phantom zone change (`codebase-state.md` item 51) — one bundle under one rule, §11 item 20 | sized ~450–650; shipped **+378 / −250 engine across 12 files** and +568 tests — the engine inside the band, the tests over it, as RC-4's were | low, and the one reach into `gather` beyond the pattern arm was a finding, not a cost: source 1a read the entering permanent through a plain walk that was right only because the card had already moved (finding 1 below) |
-| **RC-5 — auxiliary zone changes** | CR 614.13/13a/13b, the batch-scoped frame, a dynamic `EnterWith` amount | sized below: ~1,200 + ~400 + ~150 | medium — a new decision site, and the batch restructuring shares a seam with CR 613.7m |
+| **RC-5 — auxiliary zone changes and a dynamic entry amount** ✅ | CR 614.13/13a/13b, a dynamic `EnterWith` amount. **Re-sized 2026-09-03 before code**: the batch-scoped frame was RC-4b's and CR 613.7m is RE's — see below | sized below: ~1,200 + ~250, after the re-size dropped the ~400 | medium — a new decision site, and the only piece the re-size did not shrink |
 
 **Every RC PR that ships a card owes a *second* card of a different shape**
 (`engineering-practices.md` §3.3). RB shipped exactly one — Kalitas — and the
@@ -3169,70 +3190,285 @@ owed` unchanged for RC. Trace A's after-picture is the first two tests in
 and C from RC-4's review as they run now, B unchanged, and a fourth for the
 cast, with every read labelled board or frame.
 
-#### RC-5 — auxiliary zone changes and the batch-scoped frame
+#### RC-5 — auxiliary zone changes and a dynamic entry amount — ✅ landed 2026-09-03
 
-What RC-4 sized out, in the doc rather than in the moment. Three pieces that
-share a shape — an entry replacement whose *application* is a decision with
-consequences elsewhere on the board — and one that is a field type.
+What RC-4 sized out, in the doc rather than in the moment. **Re-sized against
+the tree 2026-09-03, before a line of RC-5 was written, and the re-size moved
+two of the four pieces** — the subsection this replaces predates RC-4b and
+described RC-2's nested `propose_entry`, which RC-4b deleted. The corrected
+picture was already in `codebase-state.md` item 46; this section had not been
+reconciled against it. What follows is the tree as it is.
 
-1. **CR 614.13/13a/13b — devour and its kin.** "As this creature enters, you
-   may sacrifice any number of creatures. It enters with N +1/+1 counters for
-   each" is an entry replacement whose application (a) prompts for a set of
-   objects, (b) moves them *while applying* — 614.13's "may cause other objects
-   to change zones" — and (c) sets the `EnterMods` from the count. None of the
-   three exists: a `Rewrite` is a pure function of the event, riders run
-   *after* it (§4.1a), and `EnterMods.counters` carries literals. The shape is
-   a `Rewrite` arm with CR 614.13's cite whose payload is a selection and the
-   mods it yields, applied inside the CR 616.1 loop with its zone changes
-   proposed as a nested batch (§4.2 — they are events of their own and CR 614.5
-   gives them fresh applied sets). The exclusion sets are per *batch*: 614.13a
-   (not the entering object, nor anything entering simultaneously) and 614.13b
-   (no object chosen twice across the replacements applying to one or more
-   simultaneous entries). Printed: devour is ~30 cards, Sutured Ghoul's exile
-   variant a handful, "as ~ enters, choose" with a board consequence ~20 more.
-   **A new decision site**, and item 40 applies in full: the chosen set is
-   outcome-bearing and cannot live on the loop's stack across the prompt
-   without joining that item's list.
+##### Piece 2 — the batch-scoped frame — **closed by RC-4b. This is why.**
 
-2. **The batch-scoped frame (§5b).** Two Master Biomancers entering as one
-   event give each other nothing, because every member's look-ahead reads the
-   pre-batch board. Today an entry is proposed *inside* the zone change's
-   performer (RC-2's nested `propose_entry`), so the second member of a
-   `[ZoneChange, ZoneChange]` batch is decided after the first was performed
-   and sees it on the battlefield. The fix is structural — the entry has to be
-   *decided* in phase 1 beside its zone change and *performed* in phase 2 —
-   and it is the same restructuring CR 613.7m needs (APNAP timestamps for
-   simultaneous entries, `codebase-state.md` "Before card breadth" item 4), so
-   the two land together. No caller produces a multi-entry batch yet
-   (`Primitive::ReturnToBattlefield` is a stub, `CreateToken` loops), so this
-   is unreachable rather than wrong — `codebase-state.md` item 46.
-   The same restructuring closes the entry hop Containment Priest made
-   observable (`codebase-state.md`, "Before Triggered abilities" item 4): an
-   `EnterBattlefield` that carries `from` and whose performer does the move is
-   a phase-1 proposal like any other, and a substituted entry then never
-   touches the battlefield.
+The claim was: "today an entry is proposed *inside* the zone change's
+performer, so the second member of a `[ZoneChange, ZoneChange]` batch is
+decided after the first was performed and sees it on the battlefield." **Every
+clause of that is false of the tree.** RC-4b routes a battlefield destination
+in `change_zone` to `propose_entry`, which proposes `EnterBattlefield` as an
+ordinary batch member; `execute_batch_inner` phase 1 runs `apply_replacements`
+for *every* member before phase 2 performs *any*; and a `ZoneChange { to:
+Battlefield }` proposal is a debug assertion. `EntryFrame::new` is built from
+the proposal inside phase 1, so it reads the pre-batch board by construction.
+**§5b's "two Master Biomancers entering as one event give each other nothing"
+is already true**, and the restructuring this piece was sized for (~400 in
+`execute_batch_inner` and `perform_action`'s `ZoneChange` arm) was paid by
+RC-4b's +378/−250.
 
-3. **A dynamic counter amount in `EnterWith`.** Master Biomancer's "equal to
-   this creature's power" needs `EnterMods.counters` to carry an `AmountExpr`
-   evaluated against the *source's* frame at application. One field type, one
-   evaluator call; §5b's Archdruid-under-Biomancer claim (Biomancer's power
-   read off the real board, without the entering Archdruid's anthem) then falls
-   out of RC-4's asymmetry with no further work.
+What is genuinely left of item 46 is **not a frame question**, and it is two
+things:
 
-4. **Choice-carrying mods (CR 614.12a's full form).** "As this enters, choose a
-   color" (Voice of All, Painter's Servant) needs the choice recorded on the
-   permanent for a linked ability to read — CR 607, which is T20's. RC-4 claims
-   614.12a partially through the CR 616.1b prompt, which is made before the
-   entry and whose result the announced entry carries; the general field waits
-   on linked abilities and is listed here so it is findable.
+1. **Nothing produces a multi-entry batch.** `propose_entry` is called once per
+   entry; `Primitive::CreateToken` loops it; `Primitive::ReturnToBattlefield`
+   is a stub. So the batch-scoped frame is *right and unreachable from a
+   registered card*, which is the RB-Kalitas shape this section keeps warning
+   about. RC-5 does what can honestly be done about it: it **tests it at the
+   `execute_actions` boundary** — two Master Biomancers as one two-member batch
+   — which proves the engine and does not pretend to prove the pool. The line
+   in the ledger says exactly that.
+2. **CR 613.7m.** Unchanged, and see below.
 
-**Sized:** (1) is the phase — the arm, the selection prompt, the nested batch,
-the two exclusion sets on `execute_batch_inner`, and two cards (Thunder-Thrash
-Elder, Sutured Ghoul) — ~1,200 additions. (2) is ~400 in `execute_batch_inner`
-and `perform_action`'s `ZoneChange` arm, with 613.7m. (3) is ~150, and Master
-Biomancer is its card. Together at the top of the band; if (2) runs long it
-splits off with 613.7m rather than the other way round, because (1) and (3)
-have cards waiting and (2) has none.
+##### Does CR 614.13 make CR 613.7m reachable? **No — and 613.7m stays in RE.**
+
+Asked because "Before card breadth" item 4 named "CR 614.13's auxiliary zone
+changes (RC-4)" as one of the two things that make APNAP timestamps reachable.
+Measured: **it is not one of them.** 613.7m is about objects that "receive a
+timestamp simultaneously, such as by entering a zone simultaneously or becoming
+attached simultaneously". In this engine an object receives a timestamp in
+exactly one production place — `place_on_battlefield`, one `BattlefieldEntity`
+per entry (`game_state.rs:671`; the other production caller, `:789`, is
+CR 613.7c's per-counter-kind stack, which is not an object and is unchanged
+here). **CR 614.13's auxiliary zone changes allocate none of them**: devour's
+are battlefield → graveyard and Sutured Ghoul's are graveyard → exile. Neither
+destination has a timestamp, and neither is an entry.
+
+So 613.7m needs *simultaneous entries*, which 614.13 does not produce, and it
+stays where item 4's other half put it: reachable first from
+`GameAction::CreateTokens` (Phase RE), which is also where item 52's token
+residual lands. **Item 4's parenthesis is corrected to name RE alone.** The two
+pieces were scheduled together on the belief that they were one restructuring;
+they were one restructuring, RC-4b did it, and what is left of each has nothing
+to do with the other.
+
+##### Piece 4 — choice-carrying mods (CR 614.12a's full form) — unchanged
+
+"As this enters, choose a color" (Voice of All, Painter's Servant) needs the
+choice recorded on the permanent for a linked ability to read — CR 607, which
+is `backlog.md` §2.2's. RC-4 claims 614.12a partially through the CR 616.1b prompt, which is
+made before the entry and whose result the announced entry carries; the general
+field waits on linked abilities. Listed here so it stays findable. **Sutured
+Ghoul's third sentence is in this piece, not in piece 1** — its power and
+toughness read "the exiled cards", which is CR 614.14's linked pair.
+
+##### Piece 1 — CR 614.13/13a/13b, devour and its kin
+
+An entry replacement whose *application* (a) prompts for a set of objects,
+(b) moves them while applying, and (c) sets the `EnterMods` from the count.
+None of the three exists: a `Rewrite` is a pure function of the event, riders
+run *after* it (§4.1a), and `EnterMods.counters` carries literals.
+
+**The arm, and the rule that permits it.** `Rewrite` is a closed algebra and a
+new arm needs the CR rule that permits the operation; this one is CR 614.13's
+own sentence — "an effect that modifies how a permanent enters the battlefield
+**may cause other objects to change zones**". `Rewrite::EnterAfterMoving`
+carries an `AuxiliaryMove`: where the choosable objects are, what they must be,
+where they go and why, and what the entering permanent gets per object chosen.
+Per-mechanic variety stays in the payload rather than in new arms — devour N is
+`per_chosen: (PlusOnePlusOne, N)`, Sutured Ghoul is `per_chosen: None`.
+
+**The moves are a nested batch with a *fresh batch id*, and that is a change to
+§4.2.** A nested `execute_actions` joins the enclosing batch, on CR 120.3f's
+grounds: lifelink's life gain is a *result of* the damage, part of the same
+event. Devour's sacrifices are not part of the entry — they are performed in
+phase 1, before the entry event exists — so joining would tell a CR 603.2c
+"whenever one or more creatures die" trigger that two devour creatures'
+sacrifices were one event. `execute_actions_new_batch` is the escape, one
+caller, tagged; §4.2 gains the exception and CLAUDE.md's bullet gains four
+words. Fresh applied sets fall out of it being a separate `execute_actions`
+(CR 614.5), and Kalitas replacing a devoured creature's death is the test.
+
+**The two exclusion sets live on `GameState`, and item 40 is why.** They are
+per *batch*: 614.13a excludes the entering object and anything entering
+simultaneously with it; 614.13b excludes anything already chosen by an entry
+replacement applying to the same simultaneous entries. Both are consulted
+across the CR 616.1 prompt and both change the outcome if lost — drop 614.13b's
+set and Thunder-Thrash Elder sacrifices one Runeclaw Bear to devour 3 *and* to
+devour 5, which is the CR's own example of the wrong answer. So they are
+`GameState::entry_selection`, saved and restored around every batch the way
+`open_batch`/`close_batch` handle the stamp, and **item 40's table gains no
+third violator**.
+
+**614.13a's first clause is reachable and its second is not.** A Sutured Ghoul
+entering *from the graveyard* is in the graveyard when its own replacement
+applies — RC-4b decides the entry before the move — so without the clause it
+exiles itself; `change_zone(.., Battlefield, Returned)` is a production path
+and a test drives it. The second clause needs two entries in one batch, which
+only `execute_actions` can build today (see piece 2).
+
+**Printed, counted 2026-09-03** (`keyword:devour`, `o:/as .* enters, exile/`):
+devour is **23 cards**, not the "~30" this section carried; the graveyard-exile
+variant is **5** (Sutured Ghoul, Living Lore, Dermotaxi, Mimeoplasm Revered One,
+Frankenstein's Monster). CR 702.82c's **devour [quality]** — artifacts, lands,
+Foods — is four of the 23 and costs nothing here, because the payload's `filter`
+is what says "creatures".
+
+**Two of the 23 the payload does not reach.** *Thromok the Insatiable* is
+"devour X, where X is the number of creatures devoured this way": its multiplier
+**is** the count, so X creatures give X² counters, and `per_chosen` is a
+constant per object (item 63). *Frankenstein's Monster* exiles exactly X and puts
+itself into the graveyard "if you can't", which is a cast-time X and a failure
+branch. Both are payload shapes rather than new arms.
+
+##### Piece 3 — a dynamic counter amount in `EnterWith`
+
+Master Biomancer's "equal to this creature's power". **The type split is the
+finding**: `EnterMods` is the payload of both `Rewrite::EnterWith` and
+`GameAction::EnterBattlefield`, and §3.2 recorded that as a virtue — "the same
+type describes what one effect *adds* and what the permanent will *end up
+with*". The moment one side needs an *unevaluated* expression they part
+company, because the event's mods must be numbers the performer can put on.
+So `Rewrite::EnterWith` takes an `EnterModsTemplate` whose counters are
+`(CounterType, AmountExpr)`, `apply_rewrite` evaluates it into an `EnterMods`,
+and `EnterMods::merge` is untouched. ~14 construction sites change constructor
+and nothing else.
+
+**Evaluated against the source's frame, which is `EntryFrame::frame_of(source)`
+and answers §5b for free.** The frame is `Some` exactly when the source *is*
+the entering object, so an entering permanent's own "enters with a counter for
+each ..." reads its hypothetical self and Master Biomancer — a real permanent —
+is read off the real board. Elvish Archdruid enters under Biomancer with **2**
+counters, not 3, with no clause anywhere saying so: it falls out of RC-4's
+asymmetry, exactly as §5b predicted. `AmountExpr` gains `SourcePower`; the two
+existing evaluators match exhaustively, so each grows an arm rather than
+defaulting.
+
+**It fires item 47's expiry conditions, and the predicate is revisited in the
+same commit.** `order_invariant_entry_bucket`'s theorem has two halves — every
+member still applies, and the applications commute — and the second was free
+while `merge` was `|=` and `+` over literals. An amount read off the frame is
+not free: "enters with X counters where X is its own power" applied before and
+after a `-1/-1` counter gives different answers. The premise added is exact
+rather than conservative — an amount is order-invariant if it is `Fixed`, **or**
+its instance's source is not the entering object, since only then can
+`frame_of` return `Some`. Master Biomancer therefore keeps the suppressed
+prompt and the fuzz pool keeps its zero-prompt property.
+
+##### Sized
+
+| Piece | Was | Now |
+|---|---|---|
+| 1 — CR 614.13/13a/13b | ~1,200 | ~1,200: the arm and its payload, the selection prompt and its `ChoiceKind`, the fresh-batch escape, `GameState::entry_selection`, two cards |
+| 2 — batch-scoped frame + 613.7m | ~400 | **0** — RC-4b paid it; RC-5 adds the two-entry test and the ledger line |
+| 3 — dynamic `EnterWith` amount | ~150 | ~250: the template split touches ~14 construction sites the estimate did not count |
+| 4 — choice-carrying mods | not RC-5 | not RC-5 (CR 607, `backlog.md` §2.2) |
+
+Together at the middle of the band rather than the top, because piece 2 is
+gone. Cards: Thunder-Thrash Elder and Sutured Ghoul (piece 1), Master
+Biomancer (piece 3). Painter's Servant is piece 4's and stays blocked.
+
+##### Shipped 2026-09-03
+
+**+2,239 / −121 across 18 files** — 748 engine and cards, 1,111 tests, 380
+plans. The engine is inside the band and the tests are over it, which is the
+third RC PR in a row with that shape. Two commits: the re-size above, then the
+phase.
+
+**Five findings.**
+
+1. **CR 614.13b was redundant on every board the first draft of the tests could
+   build, and a mutation pass is what found out.** Delete the `chosen` set and
+   the CR's own example — one Runeclaw Bear, devour 3 and devour 5 — still gives
+   three counters, because the Bear is in the graveyard by the time the second
+   effect enumerates the battlefield. The rule is not bookkeeping; it needs two
+   effects whose *zones chain*, and devour into a graveyard-reading exile is
+   that board. Recorded as trace B on the phase's page, and the test is
+   `test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect`.
+   **The general lesson is §10's, sharpened:** "mutation-check every assertion"
+   found not a weak assertion but a *weak board* — the test asserted the right
+   thing about a scenario in which the rule could not fire.
+2. **Sigarda does not stop your own devour, and the card doc said she did.**
+   Her sentence is "spells and abilities **your opponents control** can't cause
+   you to sacrifice permanents" — `SourceFilter::ControlledBy(Opponent)` — and
+   devour is your own creature's ability, so your own Sigarda is a legal
+   candidate for it. Written into Thunder-Thrash Elder's doc as a claim, caught
+   by the test that asserted it. What the pair does measure is that the `cause`
+   the candidate filter asks CR 101.2 with is the *effect's* controller.
+3. **The CR 616.1 bucket puts the entering permanent's own effect last.**
+   `gather` splices source 1a in after the battlefield sweep, on CR 613.7's
+   oldest-first — the entering object is the newest there is. Two tests were
+   written with the indices the other way round and asserted the wrong number
+   for a real reason, which is the cheapest kind of test failure.
+4. **The `EnterMods` split was not in the ~150 the piece was sized at.**
+   `Rewrite::EnterWith` and `GameAction::EnterBattlefield` shared one type, and
+   §3.2 recorded that as a virtue. It held exactly as long as every amount was a
+   literal: the event's mods must be numbers the performer can put on, so the
+   definition needed its own type the moment one amount was an expression.
+   ~14 construction sites, mechanical, and the estimate is corrected to ~250
+   above rather than left as evidence of good sizing.
+5. **A prevented auxiliary move is unreachable in printed Magic, and the count
+   still has to be right.** Nothing printed stops a sacrifice's *move* — it is
+   not damage, so prevention does not apply, and not a destruction, so
+   regeneration and indestructible do not either. `performed.len()` rather than
+   `picked.len()` costs nothing and is the reading CR 701.21a gives; the test
+   that pins it uses a `Rewrite::Prevent` fixture and says in its doc comment
+   that it is engine-shaped rather than card-shaped.
+
+**Measurement.** `plans/fuzz_ab.py`, three arms in one sitting: `main` (A),
+this branch with `PERFORMANCE_POOL` as `main` had it (B), and as shipped (C).
+**B is byte-identical to A on `performance` outside `=== Timing ===`** at 200
+games / seed 12345 — same games, same counters, same event stream — so the arm,
+the template evaluation and the two exclusion sets cost the unchanged pool
+nothing. **B is identical to C on `stress`**, because `stress` is the whole
+registry and a registered card is in it whether or not it joined the measured
+pool. Between them the two columns partition the change: `performance`'s
+movement is the two cards joining that pool, `stress`'s is the three cards being
+registered. Time +0.7% (B) and +1.0% (C) on CPU/game, inside the ~2–6% spread a
+sitting shows, not chased. The §3 fixture table is re-recorded with the A/B
+beside it.
+
+**Determinism.** Three shell `fuzz_games` runs at seed 12345, 200 games,
+`--threads 1`, on both pools: identical outside `=== Timing ===`. The A/B's own
+three timing rounds per arm agree with its threaded counter run, which is the
+thread-independence half.
+
+**Debug-assertion fuzz, added on review** — the release A/B measures cost and
+says nothing about the assertions, and this phase's sharpest internal check
+(`check_order_invariance`, a second gather per suppressed prompt) is
+`cfg!(debug_assertions)`-only. A **debug** build at 400 games on each pool and
+120 games with each new card forced into every deck: **0 errors, 0 panics, 0
+uncast resolutions** throughout, with 134 devour resolutions in the forced run.
+That is the evidence that the new paths hold up on boards nobody wrote a test
+for; it is not evidence that the *rules* are right, which is what the review's
+own findings are for.
+
+**Exit met.** 937 tests (23 new), zero warnings, both `check_*.py`, `specdb
+owed` unchanged. All three of CR 614.13's atoms are covered rather than
+partial — ATOM-614.13-001, -614.13a-001 and -614.13b-001. **Trace page:**
+[`plans/traces/rc-5-applying-an-entry-can-move-the-board.html`](traces/rc-5-applying-an-entry-can-move-the-board.html)
+— devour's selection and its nested batch (A), the zone chain that makes
+CR 614.13b bite (B), `frame_of(source)` and §5b's asymmetry (C), and two
+entries decided against one board (D), which is the re-size's evidence.
+
+##### What RC-5 leaves owed, named rather than implied
+
+- **A production multi-entry batch.** `Primitive::ReturnToBattlefield` is the
+  natural one and it is *not* a small job: `SelectionFilter` enumerates the
+  battlefield, the stack and players and has no graveyard leaf, and a mass
+  return is `default_enter_controller`'s known-wrong fourth road
+  (`codebase-state.md` item 48). Sized at a graveyard leaf plus item 48's
+  `controller` field plus the primitive — call it ~350 and a card — and it is
+  what makes 614.13a's second clause and §5b's batch-scoped frame reachable
+  from a game rather than from `execute_actions`. Recorded against item 46.
+- **CR 613.7m**, in RE with `CreateTokens`, per the answer above.
+- **Sutured Ghoul's P/T**, in piece 4 with CR 607 — `backlog.md` §2.2 is the
+  live home for that work.
+- **One batch for every auxiliary move of one entry event** — item 61, above.
+- **Whose choice a granted devour is** — item 62. `AuxiliaryMove` has no chooser
+  field, so "you" is the *effect's* controller. Right for Master Biomancer's
+  "each other creature you control"; wrong for a devour granted by someone
+  else's permanent, where CR 614.13a's "you" is the entering creature's
+  controller. The two coincide on every registered board.
+- **Thromok's `devour X`** — item 63.
 
 ### Phase RD — damage (CR 615, 609.7, 614.9)
 
@@ -3259,7 +3495,10 @@ library), skips (614.10/a/b — per-player consumable `pending_skips` consulted 
 step/phase/turn begin), token and counter doublers (614.16 — `CreateTokens`
 as a proposal, which is also where RC-4b's token residual lands: a creation
 whose destination the entry's decision sets, `codebase-state.md` item 52 and
-"Before card breadth" item 8 — a Phase 8 back-stop, not a nicety),
+"Before card breadth" item 8 — a Phase 8 back-stop, not a nicety; **and where
+`Primitive::CreateToken`'s loop over `propose_entry` stops**, which is the
+other half of `codebase-state.md` item 46 and the first *plural* entry the
+engine will produce),
 life-gain replacement (119.10), mana replacement (106.6a), and the three kinds
 §8a's audit added: `PlayerLoses` / `PlayerWins` (CR 104, 6 cards) and the discard
 pattern arm (CR 701.9, 17 cards).
@@ -3855,7 +4094,7 @@ there, because all three are about **what a rider can reach**.
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.
   CR 616.1c gets its ordering *bucket* in RC-4 so the classification is complete,
   but nothing produces a copy-on-enter replacement until Layer 1 lands.
-- **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (T20).
+- **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (`backlog.md` §2.2).
 - **CR 614.12b** — "combined costs of those effects to not be payable" across
   simultaneous entries. Needs cost modification; revisit with commander tax.
 - **CR 614.12c anchor words.** Linked abilities again.

@@ -213,13 +213,35 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 /// one.
 pub struct RecordingDecisionProvider {
     pick: usize,
+    all: bool,
     seen: std::cell::RefCell<Vec<String>>,
 }
 
 impl RecordingDecisionProvider {
     /// Answer every `pick_n` with `index`, clamped to the options offered.
     pub fn picking(index: usize) -> Self {
-        RecordingDecisionProvider { pick: index, seen: std::cell::RefCell::new(Vec::new()) }
+        RecordingDecisionProvider {
+            pick: index,
+            all: false,
+            seen: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Answer every `pick_n` by taking **everything offered**, up to the bound.
+    ///
+    /// **The one that catches an over-permissive candidate list**, which
+    /// [`Self::picking`] structurally cannot: a rule that should have removed an
+    /// option leaves it somewhere in the list, and a provider that always takes
+    /// index 0 only notices when the wrongly-offered option happens to be
+    /// first. RC-5's CR 614.13a tests were killed by their mutation until a
+    /// third candidate was added in front of the excluded one, at which point
+    /// they passed with the rule deleted (`phase_rc5_integration_test`).
+    pub fn picking_all() -> Self {
+        RecordingDecisionProvider {
+            pick: 0,
+            all: true,
+            seen: std::cell::RefCell::new(Vec::new()),
+        }
     }
 
     /// The `ChoiceKind`s seen so far, `Debug`-formatted, in prompt order.
@@ -248,6 +270,9 @@ impl DecisionProvider for RecordingDecisionProvider {
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         self.seen.borrow_mut().push(format!("{:?}", ctx.kind));
+        if self.all {
+            return (0..options.len().min(_bounds.1)).collect();
+        }
         vec![self.pick.min(options.len().saturating_sub(1))]
     }
 

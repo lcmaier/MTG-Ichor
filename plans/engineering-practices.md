@@ -188,138 +188,80 @@ across months buys the timing measurement nothing.
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
-**Gameplay fixtures, 50 games / seed 12345, re-recorded 2026-09-03 for the
-epoch memo (critical-path item 7a, `layers-architecture.md` §12 "7a"). Only
-the three cost rows moved and `Memo hits` is new: every behavioural row and
-both sweep counts reproduce the Everywhere row (the first trail entry below)
-to the digit, which was the acceptance test — the memoized binary plays the
-same games. `Layer walks` is the *miss* count now; walks plus hits is the
-number of questions asked, and it equals the previous walk count exactly
-(2,663 + 105,963 = 108,626; 2,719 + 108,699 = 111,418). Re-run 2026-09-03 for
-the generic-split clamp (`backlog.md` §2.18) and reproduced to the digit — the
-clamp is the engine computing what the random agent had been computing for
-itself, so it is confirmed here rather than re-recorded:**
+**Re-recorded 2026-09-03 for RC-5** (CR 614.13's auxiliary zone changes and a
+dynamic entry amount; `replacement-architecture.md` §9). Three new cards, two of
+them in `PERFORMANCE_POOL` — Thunder-Thrash Elder and Master Biomancer, one per
+engine path the phase opens — and Sutured Ghoul registered, which is what moves
+`stress` from 72 cards to 75. **Every row here is the pool's and none is the
+engine's, and that was measured rather than assumed** — see the A/B below.
+`Layer walks` has been the epoch memo's *miss* count since 2026-09-03; walks
+plus `Memo hits` is the number of questions asked, which is the figure the
+entries before that one printed as a walk count.
 
-| | performance (64 cards) | stress (72 cards) |
+| | performance (66 cards) | stress (75 cards) |
 |---|---|---|
-| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 24 (48.0%) / 26 (52.0%) |
-| Avg turns | 34.6 | 34.4 |
-| Spells cast | 26.0 | 25.3 |
-| Lands played | 20.3 | 19.7 |
-| Combat w/ atk | 13.1 | 11.6 |
-| Creatures died | 8.2 | 3.5 |
-| Damage events | 26.7 | 25.6 |
-| Total damage | 58.4 | 54.4 |
-| Life changes | 18.4 | 17.5 |
-| **Layer walks** | **2,663** | **2,719** |
-| **Memo hits** | **105,963** | **108,699** |
-| **Layer frames** | **3,818** | **3,612** |
-| **Frames/walk** | **1.43** | **1.33** |
-| **Replacement gathers** | **584** | **599** |
-| **Restriction queries** | **585** | **600** |
+| P0 / P1 | 27 (54.0%) / 23 (46.0%) | 28 (56.0%) / 22 (44.0%) |
+| Avg turns | 34.5 | 30.6 |
+| Spells cast | 24.9 | 22.3 |
+| Lands played | 20.0 | 18.2 |
+| Combat w/ atk | 12.0 | 10.2 |
+| Creatures died | 7.9 | 4.4 |
+| Damage events | 24.3 | 24.0 |
+| Total damage | 54.7 | 56.9 |
+| Life changes | 16.3 | 17.0 |
+| **Layer walks** | **2,550** | **2,214** |
+| **Memo hits** | **102,077** | **87,597** |
+| **Layer frames** | **3,555** | **3,116** |
+| **Frames/walk** | **1.39** | **1.41** |
+| **Replacement gathers** | **567** | **504** |
+| **Restriction queries** | **570** | **506** |
 
-**Three changes in one PR, separated into sittings before this table was
-recorded (2026-09-03) — all 200 games / seed 12345 / `--threads 1`, medians of
-three interleaved rounds.** First the registration and the deck construction:
-`main` (6dedaf8), Everywhere registered but not pooled and `random_deck`
-untouched (1ad5797), and the pool plus the new mana base (eb9efb8). **The
-middle arm reproduces `main` byte for byte outside `=== Timing ===` on
-`performance`** — registering a card is still not the same act as adding one —
-and on `stress` it differs only by the registered card being drawn.
+**The engine's share is zero, and `performance` is where that is provable
+(2026-09-03, RC-5).** Three binaries in one sitting through `plans/fuzz_ab.py`:
+`main` (A), RC-5's engine with `PERFORMANCE_POOL` exactly as `main` had it (B),
+and RC-5 shipped (C).
 
-| | A: `main` | B: registered, not pooled | C: pool + mana base |
+| | A: main | B: engine, pool unchanged | C: shipped |
 |---|---|---|---|
-| performance turns / spells / deaths | 33.3 / 27.9 / 7.8 | 33.3 / 27.9 / 7.8 | 37.4 / 22.6 / 5.6 |
-| performance walks / frames per walk | 116,233 / 1.33 | 116,233 / 1.33 | 117,031 / 1.41 |
-| performance ms / 1,000 walks (median of 3) | 1.064 | 1.121 | 1.476 |
-| stress turns / spells / deaths | 30.9 / 24.8 / 4.6 | 31.2 / 24.9 / 5.1 | 38.7 / 22.6 / 3.8 |
-| stress walks / frames per walk | 100,619 / 1.29 | 99,938 / 1.28 | 123,868 / 1.32 |
-| stress ms / 1,000 walks (median of 3) | 0.992 | 0.961 | 1.328 |
+| performance, 200 games, outside `=== Timing ===` | — | **byte-identical to A** | differs |
+| performance walks (50 games) | 2,663 | 2,663 | 2,550 |
+| performance frames/walk | 1.43 | 1.43 | 1.39 |
+| performance CPU/game median (200 games, ×3) | 12.73 ms | 12.82 ms (+0.7%) | 12.86 ms (+1.0%) |
+| performance ms / 1,000 walks | 5.074 | 5.110 (+0.7%) | 5.124 (+1.0%) |
+| stress, 200 games | — | **identical to C** | — |
 
-**Read it as two changes, and they pull in different directions.** A against B is the registration: identical counters on `performance`, and per-walk time inside the spread (+5% / −3%). B against C is the deck construction, and every behavioural row moved the way an any-color mana base under a random agent should move it: games run four to seven turns longer (33.3 → 37.4 and 31.2 → 38.7), spells cast per game fall (27.9 → 22.6 and 24.9 → 22.6) because the agent taps Everywhere for random colors and rewinds (`codebase-state.md` 16d), and fewer creatures die because fewer are cast. Walks per game are flat on `performance` (+0.7%) and +24% on `stress`, where the longer games and the whole-pool statics show up. **The row to read is the cost row: +34% / +39% per 1,000 walks, far outside the ±4–6% spread — and it is the objects, not the engine.** A fourth binary settled that in the same sitting: **D** is C with the any-color fill tier replaced by basics (`BASIC_LANDS_PER_DECK` 5 → 19, nothing else), and it reads **0.977** ms per 1,000 walks against 1.060 for `main` and 1.421 for C, both re-run beside it in its own three interleaved rounds (`performance`; the table's 1.064 / 1.476 are the earlier rounds, and the gap between the two sittings is the usual ~4%). So drawing nonlands from the whole pool costs nothing per walk, and the fill tier costs a third: a five-ability, five-subtype land is the object the 601.2g window walks most, and every walk of one clones five abilities and five subtypes into its frame where a dual clones two. That is a fact about `compute_characteristics` seeding each frame from `CardData`, and critical-path item 7's cross-call memoization is still the lever — no engine line changed between A and C, so it is a heavier board, not a regression. The number the timing arm carries from here is C's, and an A/B is still a delta within one sitting on one pool. (Two things seen and not chased: D casts more spells than C, 24.5 against 22.6, and Blood Moon is the likely reason — it turns an Everywhere mana base entirely red and leaves basics alone; and the first player's share of wins rises from 104/96 to 122/78 at 200 games — 114/86 once the agent taps properly — a tempo effect of a mana base that always has the color.)
+**Read the first and last rows together.** B against A is byte-identical on
+`performance` — same games, same counters, same event stream — so the new arm,
+the template evaluation and the two exclusion sets cost the pool nothing when
+no card reaches them. B against C on `stress` is *also* identical, and for the
+opposite reason: `stress` is the whole registry, so a registered card is in it
+whether or not it joined the measured pool. Between them the two columns
+partition the change exactly — everything that moved on `performance` is the two
+cards joining that pool, and everything that moved on `stress` is the three
+cards being registered at all. Time is +0.7% for the engine alone and +1.0%
+shipped, both inside the ~2–6% spread a sitting shows, and both were left
+un-chased for the reason RC-4b left its `stress` delta: a number inside the
+spread is not a finding.
 
-**Then the agent, on top of C — `plans/fuzz_ab.py`'s first run, 259 s for
-three arms:** `main`, C, and C with the random agent tapping for the pip it
-owes and splitting the generic part from the surplus (97d3af0).
+**What the cards do to the game is worth naming, because it is large.**
+Thunder-Thrash Elder is cast in 149 of 200 `performance` games and sacrifices
+its controller's own creatures to enter; `stress` loses four turns a game
+(34.4 → 30.6) and gains a death a game (3.5 → 4.4). Games that end sooner do
+fewer of everything, which is why every behavioural row on `stress` fell while
+`Creatures died` rose. `Frames/walk` moved the other way on the two pools —
+1.43 → 1.39 on `performance`, 1.33 → 1.41 on `stress` — and neither is a
+per-walk cost change: a Master Biomancer on the board puts a filter-scoped
+sub-frame under entries that did not have one, and a shorter game has fewer of
+the cheap walks that dilute the average.
 
-| | A: `main` | C: pool + mana base | E: + the agent |
-|---|---|---|---|
-| performance turns / spells / deaths | 33.3 / 27.9 / 7.8 | 37.4 / 22.6 / 5.6 | 32.8 / 25.0 / 7.4 |
-| performance walks / frames per walk | 116,233 / 1.33 | 117,031 / 1.41 | 99,834 / 1.50 |
-| performance ms / 1,000 walks (median of 3) | 0.867 | 1.179 | 1.272 |
-| stress turns / spells / deaths | 30.9 / 24.8 / 4.6 | 38.7 / 22.6 / 3.8 | 33.6 / 24.8 / 3.9 |
-| stress walks / frames per walk | 100,619 / 1.29 | 123,868 / 1.32 | 105,939 / 1.40 |
-| land taps per spell cast (40-game `performance` dumps) | 3.86 | 7.66 | 3.18 |
-
-**The agent gives back what the mana base took in game content, and the walks
-go with it.** Spells per game return to 25.0 / 24.8, games to 33 turns, and
-walks per game fall *below* `main` on `performance`: every wasted tap was a
-window iteration that walked the whole board, and there are half as many. What
-does not come back is per-walk time — +8% over C and +47% over `main`, with
-`Frames/walk` at 1.50 — because the board now holds the statics the spells were
-failing to cast, and Blood Moon, Humility and the Anthem each put a sub-frame
-under every walk. Note the absolute figures too: this sitting read `main` at
-0.867 ms per 1,000 walks where the earlier one read 1.064, a 19% gap between
-two sittings a few hours apart, which is the whole reason a delta is read
-inside one.
-
-**The first re-record where the pool did not move, so every row is the
-engine's (2026-09-02, 16c).** The row to read is `Spells cast`, and it went
-*up* — 21.0 → 26.4 and 19.6 → 25.1 — without five more spells per game being
-cast: they are the same spells, now announced. The old tree resolved ~5.5
-spells per game without a `SpellCast`, so the row never counted them, and the
-200-game dumps put `main` at 27.2 resolutions per `performance` game against
-21.7 announced. Every other row moved because those spells are now paid for:
-games run about two turns longer, and the cost rows follow the length (walks
-+11% / +14%, walks per turn +5% / +5%). Per-walk *time* did not move — −4% /
-−6% at 200 games, interleaved, inside a sitting — and the ghosts were
-disproportionately the statics that put a sub-frame under every walk, which is
-where the small `Frames/walk` movement comes from. **The check the fix added
-is deliberately not a row here.** `fuzz_games` prints `Uncast resolved:` beside
-`Errors:` and `Panics:` and fails the run on any value but 0; that is a
-threshold, like the stress column's, and a threshold in a fixture table would
-be read as a number that can drift. Both runs above read 0.
-
-**Most of the movement in the CV-1 re-record (the first entry under *Previous
-values*) was not CV-1's, and the version before it was already stale when CV-1
-read it.** `main` at 103acf1 answers 93,717 walks / 530
-gathers on `performance`, against the 93,854 / 594 the table printed — so the
-gather column had fallen ~11% before this phase touched anything. The cause is
-**RC-4b**, which made entering the battlefield one proposal instead of two and
-merged without re-recording here. CV-1's own contribution is the small half:
-+197 walks and +1 gather on `performance`, +249 walks and +3 on `stress`. **The
-rule the miss argues for is the one already written above** — re-record the
-table in the PR that moves it — and the reason it is cheap to forget is that
-nothing fails when you don't. Worth one line in a phase's exit checklist rather
-than a check: the numbers are seed-deterministic, so a stale row is silently
-wrong rather than noisily so.
-
-**Both columns moved, and the engine's share was separated from the pool's
-before this table was recorded** — three binaries in one sitting, medians of
-seven interleaved rounds: `main` (A), RC-4's engine with the pools exactly as
-`main` had them (B), and RC-4 shipped (C).
-
-| | A: main | B: engine, pools unchanged | C: shipped |
-|---|---|---|---|
-| performance walks | 108,632 | 108,709 | 93,854 |
-| performance frames/walk | 1.25 | 1.25 | **1.45** |
-| performance ms / 1,000 walks | 0.912 | 0.940 (+3.1%) | 1.302 |
-| stress walks | 98,843 | 98,889 | 85,738 |
-| stress frames/walk | 1.20 | 1.20 | **1.31** |
-| stress ms / 1,000 walks | 0.775 | 0.787 (+1.6%) | 0.944 |
-
-**`Frames/walk` is the number RC-4 was told to watch, and it moved for the
-reason the plan gave.** A against B — the frame, with nothing new on the board
-— is flat on every fixture row and inside the spread on time (−2.2% / +1.1% at
-200 games over three interleaved rounds). What moved in C
-is Keldon Warlord: a walk of the Warlord asks every permanent's frame at layer
-7a's ceiling, so it costs 1 + N frames where an ordinary walk costs about 1.25,
-and `Frames/walk` carries it. Games also got shorter (31.7 → 28.7 turns on
-`performance`), so walks per game *fell* while each walk cost more. That is
-`layers-architecture.md` §12's quadratic by design, measured rather than
-assumed, and critical-path item 7's cross-call memoization is still the lever.
-
-*Previous values, 2026-09-03 (performance 64, stress 72 — the Everywhere pool,
+*Previous values, 2026-09-03 (performance 64, stress 72 — before RC-5's three
+cards; reproduced to the digit by this sitting's `main` arm, which is the check
+that the re-record is the cards and not the machine): performance 28/22, 34.6
+turns, 26.0 spells, 20.3 lands, 13.1 combats, 8.2 deaths, 26.7 damage events,
+58.4 damage, 18.4 life changes, 2,663 walks / 105,963 memo hits / 3,818 frames /
+1.43 per walk / 584 gathers / 585 queries; stress 24/26, 34.4, 25.3, 19.7, 11.6,
+3.5, 25.6, 54.4, 17.5, 2,719 / 108,699 / 3,612 / 1.33 / 599 / 600. Before that,
+2026-09-03 (performance 64, stress 72 — the Everywhere pool,
 mana base and agent, before the epoch memo; every row but the three cost rows
 is unchanged by it, and `Memo hits` did not exist): performance 108,626 walks
 / 161,827 frames / 1.49 per walk / 584 gathers / 585 queries; stress 111,418 /

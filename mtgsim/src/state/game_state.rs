@@ -9,7 +9,7 @@ use crate::objects::object::GameObject;
 use crate::state::battlefield::BattlefieldEntity;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::layer_memo::LayerMemo;
-use crate::state::replacement_effects::ReplacementEffectRegistry;
+use crate::state::replacement_effects::{EntrySelectionScope, ReplacementEffectRegistry};
 use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
@@ -298,6 +298,22 @@ pub struct GameState {
     /// inserts and `cleanup_zone_state` removes.
     pub restriction_ability_sources: HashSet<ObjectId>,
 
+    /// CR 614.13a/b — the two sets an auxiliary zone change is chosen against,
+    /// scoped to the batch whose entries are being decided.
+    ///
+    /// **On `GameState` because it is outcome-bearing** (`codebase-state.md`
+    /// item 40). Both sets are read across the CR 616.1 prompt and item 40's
+    /// test is "drop it and re-derive": drop `chosen` and Thunder-Thrash Elder
+    /// sacrifices one Runeclaw Bear to devour 3 *and* to devour 5, which is
+    /// CR 614.13b's own example of the wrong answer. A fork at the prompt has
+    /// to see both, so neither may live on the pipeline's stack.
+    ///
+    /// Saved and restored by `execute_batch_inner` the way `open_batch` and
+    /// `close_batch` handle the event stamp — the exclusions belong to *these*
+    /// simultaneous entries, and a nested batch (an auxiliary move's own, a
+    /// rider's) is a different event with its own.
+    pub(crate) entry_selection: EntrySelectionScope,
+
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
     ///
@@ -469,6 +485,7 @@ impl GameState {
             replacement_ability_sources: HashSet::new(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: HashSet::new(),
+            entry_selection: EntrySelectionScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
             events: EventLog::new(),

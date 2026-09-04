@@ -45,7 +45,9 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::replacement::{EnterMods, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{
+    EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
+};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -95,7 +97,7 @@ fn enter_tapped_when(name: &str, filter: PermanentFilter) -> Arc<CardData> {
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             AffectedSet::Filter { filter },
-            Rewrite::EnterWith(EnterMods::tapped()),
+            Rewrite::EnterWith(EnterModsTemplate::tapped()),
         )))))
         .build()
 }
@@ -180,7 +182,7 @@ fn defector_with_counters() -> Arc<CardData> {
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             AffectedSet::SourceOnly,
-            Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 2)),
+            Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 2)),
         )))))
         .build()
 }

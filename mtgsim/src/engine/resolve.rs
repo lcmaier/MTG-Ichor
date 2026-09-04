@@ -1341,6 +1341,16 @@ impl GameState {
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())
             }
+            // "This creature's power" is a *replacement effect's* question —
+            // CR 614.12 asks it of a permanent that is about to enter, and
+            // `replacement::evaluate_enter_template` is the one evaluator that
+            // knows whether to read the board or the look-ahead frame. A
+            // resolving spell has neither, so it refuses rather than reading
+            // the board and being quietly wrong under Master Biomancer.
+            AmountExpr::SourcePower => Err(
+                "SourcePower has no meaning at resolution time; it is evaluated                  against the CR 614.12 frame when an entry replacement is applied"
+                    .to_string(),
+            ),
             AmountExpr::TargetToughness => {
                 Err("TargetToughness amount resolution not yet implemented".to_string())
             }

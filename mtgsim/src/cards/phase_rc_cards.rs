@@ -70,7 +70,8 @@ use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
-    EnterMods, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+    AuxiliaryMove, EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef,
+    Rewrite,
 };
 use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -141,7 +142,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
-                Rewrite::EnterWith(EnterMods::tapped()),
+                Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
         // CR 305.6 — intrinsic to the land types, modelled as two explicit mana
@@ -205,7 +206,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
-                Rewrite::EnterWith(EnterMods::with_counters(CounterType::MinusOneMinusOne, 2)),
+                Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::MinusOneMinusOne, 2)),
             ))),
         })
         .ability(AbilityDef {
@@ -273,7 +274,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::SourceOnly,
-                Rewrite::EnterWith(EnterMods::with_counters(CounterType::PlusOnePlusOne, 3)),
+                Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 3)),
             ))),
         })
         .build()
@@ -361,7 +362,7 @@ pub fn root_maze() -> Arc<CardData> {
                         Box::new(PermanentFilter::ByType(CardType::Land)),
                     ),
                 },
-                Rewrite::EnterWith(EnterMods::tapped()),
+                Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
         .build()
@@ -562,6 +563,296 @@ pub fn keldon_warlord() -> Arc<CardData> {
                 ),
                 EffectRecipient::Implicit,
             ),
+        })
+        .build()
+}
+
+/// Thunder-Thrash Elder — {2}{R}
+/// Creature — Lizard Warrior, 1/1
+///
+/// Devour 3 (As this creature enters, you may sacrifice any number of
+/// creatures. It enters with three times that many +1/+1 counters on it.)
+///
+/// (Oracle text verified on Scryfall, 2026-09-03.)
+///
+/// # The card CR 614.13 is written about
+///
+/// CR 614.13b's own example names it: "A player controls Runeclaw Bear and
+/// casts Thunder-Thrash Elder, a red creature spell with devour 3 ... its
+/// controller can choose to sacrifice Runeclaw Bear when applying the devour 3
+/// effect or when applying the devour 5 effect, but not both." So the rule's
+/// worked example and the phase's card are the same object, which is the
+/// cheapest possible check that the arm models the rule and not a paraphrase
+/// of it.
+///
+/// **Devour is a replacement effect, not a triggered ability**, and the whole
+/// arm exists because of that one word. A trigger would put the sacrifices on
+/// the stack after the Elder was already a 1/1 on the battlefield; CR 614.13
+/// makes them part of applying the entry, so the counters are on before
+/// anything — a state-based action, a `PermanentEnteredBattlefield` reader —
+/// can see the permanent at all. A 1/1 that arrives as a 7/7 is what a game
+/// shows of that.
+///
+/// # In `PERFORMANCE_POOL`, and why this one rather than Sutured Ghoul
+///
+/// RC-5 opens a new engine path — an application that prompts and mutates —
+/// and `engineering-practices.md` §3 says a phase that opens one adds a card to
+/// the measured pool. `{2}{R}` is castable in a random game where `{4}{B}{B}{B}`
+/// is not, its candidates are permanents the pool already produces in numbers,
+/// and it is the only registered card that makes a player *choose* how much of
+/// their own board to spend. It also puts a second replacement effect on the
+/// same entry as Root Maze whenever both are out, which is CR 616.1's
+/// multi-candidate branch with a member that is not an `EnterWith` — the case
+/// `order_invariant_entry_bucket` must refuse to suppress.
+///
+/// **Sigarda, Host of Herons is in the same pool and does not stop it**, which
+/// is worth stating because the opposite is the easy assumption. Her sentence
+/// is "spells and abilities **your opponents control** can't cause you to
+/// sacrifice permanents" — a `SourceFilter::ControlledBy(Opponent)` — and
+/// devour is your own creature's ability, so your own Sigarda is a legal
+/// candidate for it. What the pair does measure is that the `cause` the
+/// candidate filter asks CR 101.2 with is the *effect's* controller: get that
+/// wrong and Sigarda silently switches devour off for the player who controls
+/// her. The filter itself is `sacrifice_of_choice`'s axis-1 shape — a
+/// prohibited move removes the candidate rather than being chosen and then
+/// refused, which would leave the Elder counting creatures that never went
+/// anywhere.
+pub fn thunder_thrash_elder() -> Arc<CardData> {
+    CardDataBuilder::new("Thunder-Thrash Elder")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Lizard))
+        .subtype(Subtype::Creature(CreatureType::Warrior))
+        .power_toughness(1, 1)
+        .rules_text(
+            "Devour 3 (As this creature enters, you may sacrifice any number of \
+             creatures. It enters with three times that many +1/+1 counters on it.)",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: None },
+                // CR 614.12's first sentence — it affects only this permanent,
+                // so it is found on the entering object itself (gather source
+                // 1a) and needs no board sweep.
+                AffectedSet::SourceOnly,
+                Rewrite::EnterAfterMoving(AuxiliaryMove {
+                    from: Zone::Battlefield,
+                    // "Creatures" is every creature *you control*: CR 701.21a
+                    // says a sacrifice is its controller moving it, so nothing
+                    // else could be chosen. On the battlefield that has to be a
+                    // filter leaf, because control and ownership diverge there.
+                    filter: PermanentFilter::And(
+                        Box::new(PermanentFilter::ByType(CardType::Creature)),
+                        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                    ),
+                    to: Zone::Graveyard,
+                    cause: ZoneChangeCause::Sacrificed,
+                    // "Any number", so the bound is the candidate list and the
+                    // floor is zero — which is where devour's "you **may**"
+                    // lives. Marking the def `optional` instead would ask twice
+                    // and let a decline spend CR 614.5's one opportunity.
+                    up_to: None,
+                    per_chosen: Some((CounterType::PlusOnePlusOne, 3)),
+                }),
+            ))),
+        })
+        .build()
+}
+
+/// Sutured Ghoul — {4}{B}{B}{B}
+/// Creature — Zombie, */*
+///
+/// Trample
+/// As this creature enters, exile any number of creature cards from your
+/// graveyard.
+/// Sutured Ghoul's power is equal to the total power of the exiled cards and
+/// its toughness is equal to their total toughness.
+///
+/// (Oracle text verified on Scryfall, 2026-09-03.)
+///
+/// # The second shape of CR 614.13, and it is a different code path
+///
+/// Devour chooses permanents on the battlefield; this chooses **cards in a
+/// player's graveyard**, which `auxiliary_candidates` enumerates from the
+/// player's own zone rather than from the shared one. Registering only the
+/// first would leave the second exactly as reachable as CR 616.1's
+/// multi-candidate branch was after RB shipped Kalitas alone
+/// (`engineering-practices.md` §3.3).
+///
+/// It is also the card CR 614.13a is written about — "if Sutured Ghoul and
+/// Runeclaw Bear enter the battlefield from your graveyard at the same time,
+/// you can't choose to exile either of them" — and the *first* clause of that
+/// rule is reachable here with one entry and no help: a Ghoul returned from a
+/// graveyard is still in the graveyard while its own replacement is applied
+/// (RC-4b decides the entry before the move), so without CR 614.13a it exiles
+/// itself.
+///
+/// # What is missing, and it is the third sentence
+///
+/// The P/T clause reads "**the exiled cards**", which CR 614.14 links to the
+/// exiling ability — CR 607's linked abilities, ticket T20, the same thing
+/// Painter's Servant waits on. So the characteristic-defining ability CR 208.2
+/// gives the `*/*` box is absent, and the card is registered with what that box
+/// is worth without it: **0/0**, which is also the right answer whenever no
+/// card is exiled. A Ghoul that exiles something should live and dies instead.
+/// Recorded in `codebase-state.md`; it is a missing CDA, not a wrong one, and
+/// the entry mechanism this card is registered for is complete.
+///
+/// **Not in `PERFORMANCE_POOL`**: `{4}{B}{B}{B}` is barely castable in a random
+/// game, and the pool measures engine cost rather than card coverage
+/// (`engineering-practices.md` §3). It is in the default registry, so
+/// `--pool stress` plays it.
+pub fn sutured_ghoul() -> Arc<CardData> {
+    CardDataBuilder::new("Sutured Ghoul")
+        .mana_cost(ManaCost::build(
+            &[ManaType::Black, ManaType::Black, ManaType::Black],
+            4,
+        ))
+        .color(Color::Black)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Zombie))
+        // `*/*` with its CDA unimplemented — see the doc comment. CR 607.
+        .power_toughness(0, 0)
+        .keyword(KeywordFlag::Trample)
+        .rules_text(
+            "Trample\n\
+             As this creature enters, exile any number of creature cards from your \
+             graveyard.\n\
+             Sutured Ghoul's power is equal to the total power of the exiled cards and \
+             its toughness is equal to their total toughness.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: None },
+                AffectedSet::SourceOnly,
+                Rewrite::EnterAfterMoving(AuxiliaryMove {
+                    // "Your graveyard" is the zone itself, so the scope needs no
+                    // `ByController` leaf — a player's graveyard is enumerated
+                    // in its own order.
+                    from: Zone::Graveyard,
+                    filter: PermanentFilter::ByType(CardType::Creature),
+                    to: Zone::Exile,
+                    cause: ZoneChangeCause::Exiled,
+                    up_to: None,
+                    // The counters are not how this card grows; CR 614.14's
+                    // linked P/T ability is, and it is T20's.
+                    per_chosen: None,
+                }),
+            ))),
+        })
+        .build()
+}
+
+/// Master Biomancer — {2}{G}{U}
+/// Creature — Elf Wizard, 2/4
+///
+/// Each other creature you control enters with a number of additional +1/+1
+/// counters on it equal to this creature's power and as a Mutant in addition to
+/// its other types.
+///
+/// (Oracle text verified on Scryfall, 2026-09-03.)
+///
+/// # The card §5b argued the whole look-ahead frame against
+///
+/// "Equal to **this creature's** power" is read off the *real board*, not off
+/// the entering permanent's hypothetical one, and the two answers differ on a
+/// board the pool can build: Elvish Archdruid ("other Elf creatures you control
+/// get +1/+1") entering under a Biomancer — itself an **Elf** — enters with
+/// **2** counters and not 3, because the Archdruid's own anthem is in the
+/// Archdruid's frame and in no other object's. RC-4 built that asymmetry;
+/// RC-5's job was to give it an amount to read, and
+/// `replacement::evaluate_enter_template` gets it right by asking
+/// `EntryFrame::frame_of(source)`, which answers only for the entering object.
+///
+/// It is also the first `AffectedSet::Filter` entry replacement whose *amount*
+/// is dynamic, which is what makes `order_invariant_entry_bucket`'s new premise
+/// load-bearing rather than theoretical (`codebase-state.md` item 47).
+///
+/// **"Other" needs no filter leaf.** A Biomancer's own ability cannot apply to
+/// a Biomancer that is entering: gather source 1 sweeps the battlefield, where
+/// the entering object is not, and source 1a admits only `AffectedSet::SourceOnly`
+/// (CR 614.12's parenthesis). Two Biomancers entering as one event give each
+/// other nothing for the same reason, which is §5b's other worked example.
+///
+/// # What is missing, and it is deliberate
+///
+/// The "**and as a Mutant in addition to its other types**" clause is not
+/// implemented, and it is not the one field it looks like. Two costs, and the
+/// second is the larger:
+///
+/// 1. **It breaks `order_invariant_entry_bucket`'s last premise for the most
+///    common filter leaves.** That predicate suppresses CR 616.1's ordering
+///    prompt when no member's applicability can depend on what another member
+///    adds — §11 item 19's rule that the engine must not ask a question whose
+///    answer cannot matter. `filter_is_mods_invariant` decides that leaf by
+///    leaf, and `ByType`/`BySubtype` are invariant today *only because no
+///    `EnterMods` field feeds a type*. Give one a `types` field and a
+///    "creatures you control enter tapped" beside a Biomancer becomes
+///    order-dependent — apply Biomancer first and the permanent is a Mutant
+///    when the tapper's filter looks, apply the tapper first and it is not —
+///    so the predicate has to return `false` for the two leaves nearly every
+///    filter is built from, and the prompt comes back on boards that have not
+///    prompted since RC-4. `codebase-state.md` item 47 lists this as expiry
+///    condition (a) and RC-5 fired condition (d); this would be the one that
+///    costs something.
+/// 2. **The type has to persist after the entry, and there is nowhere for it
+///    to live.** CR 613.1d puts a type addition in Layer 4, and the Biomancer's
+///    is not a continuous effect of the Biomancer — the ruling is that the
+///    creature stays a Mutant even after the Biomancer leaves. So it is a Layer
+///    4 modification with no source-scoped duration and no registry row, which
+///    is a shape `ContinuousEffectRegistry` does not have.
+///
+/// **So "replacement effects" are not done, and this is one of the two places
+/// that says so** — the other is Sutured Ghoul's CR 614.14-linked P/T. Both are
+/// recorded in `codebase-state.md` (items 59 and 60) rather than left as a
+/// footnote here. The counters clause is what RC-5 is for, and it is complete.
+///
+/// # In `PERFORMANCE_POOL`
+///
+/// The dynamic amount is a second new engine path this phase opens, and it is
+/// the one that costs a layer read per application. With `Everywhere` in the
+/// pool a `{2}{G}{U}` card is castable in every deck.
+pub fn master_biomancer() -> Arc<CardData> {
+    CardDataBuilder::new("Master Biomancer")
+        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Blue], 2))
+        .color(Color::Green)
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Elf))
+        .subtype(Subtype::Creature(CreatureType::Wizard))
+        .power_toughness(2, 4)
+        .rules_text(
+            "Each other creature you control enters with a number of additional \
+             +1/+1 counters on it equal to this creature's power and as a Mutant in \
+             addition to its other types.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: None },
+                AffectedSet::Filter {
+                    filter: PermanentFilter::And(
+                        Box::new(PermanentFilter::ByType(CardType::Creature)),
+                        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                    ),
+                },
+                Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(
+                    CounterType::PlusOnePlusOne,
+                    AmountExpr::SourcePower,
+                )),
+            ))),
         })
         .build()
 }

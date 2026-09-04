@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch replacement/rc-5 at 2b0faba and the frozen CR `tmnt`;
+  never maintained — a later phase that changes these paths gets its own page.
+  Self-contained: fonts from Google Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>Applying an Entry Can Move the Board — RC-5</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B;
+      --surface: #1C2326;
+      --surface-2: #232C30;
+      --ink: #E4E9E8;
+      --muted: #93A0A5;
+      --line: #2E393D;
+      --real: #58B7BF;
+      --real-tint: #163338;
+      --frame: #E1A64A;
+      --frame-tint: #3A2C12;
+      --new: #B39DE0;
+      --new-tint: #2B2340;
+      --changed: #6FC08F;
+      --changed-tint: #173325;
+      --decide: #E08A97;
+      --decide-tint: #3D1F25;
+      --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B;
+    --surface: #1C2326;
+    --surface-2: #232C30;
+    --ink: #E4E9E8;
+    --muted: #93A0A5;
+    --line: #2E393D;
+    --real: #58B7BF;
+    --real-tint: #163338;
+    --frame: #E1A64A;
+    --frame-tint: #3A2C12;
+    --new: #B39DE0;
+    --new-tint: #2B2340;
+    --changed: #6FC08F;
+    --changed-tint: #173325;
+    --decide: #E08A97;
+    --decide-tint: #3D1F25;
+    --code-bg: #232C30;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0 0; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 1.15rem; color: var(--ink); margin-top: 1rem; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+  html, body { overflow-x: hidden; }
+  a { color: var(--real); }
+  a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--frame); outline-offset: 2px; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.95rem; }
+  nav.toc a { text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
+  nav.toc a:hover { border-bottom-color: var(--ink); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); font-size: 0.92rem; }
+  .legend label { display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; margin-left: auto; }
+
+  .chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.real { color: var(--real); border-color: var(--real); background: var(--real-tint); }
+  .chip.frame { color: var(--frame); border-color: var(--frame); background: var(--frame-tint); }
+  .chip.none { color: var(--muted); border-color: var(--line); background: transparent; }
+  .chip.decide { color: var(--decide); border-color: var(--decide); background: var(--decide-tint); }
+  .chip.new { color: var(--new); border-color: var(--new); background: var(--new-tint); }
+  .chip.changed { color: var(--changed); border-color: var(--changed); background: var(--changed-tint); }
+  .chip.scope { color: var(--changed); border-color: var(--changed); background: var(--changed-tint); }
+
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); padding: 0.9rem 1rem; }
+  .card .who { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card .name { font-family: var(--display); font-size: 1.2rem; margin-top: 0.2rem; }
+  .card .text { font-size: 0.92rem; color: var(--muted); margin-top: 0.3rem; }
+  .card.moving { border-color: var(--frame); }
+
+  .trace { list-style: none; margin: 1.25rem 0 0; padding: 0; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
+  .step { display: grid; grid-template-columns: 2.6rem minmax(18rem, 1.1fr) 5.4rem minmax(20rem, 1.4fr); gap: 0 1rem; align-items: start; padding: 0.55rem 0.9rem; border-top: 1px solid var(--line); min-width: 52rem; }
+  .step:first-child { border-top: 0; }
+  .step .n { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .step .call { padding-left: calc(var(--d, 0) * 1.1rem); position: relative; }
+  .step .call code { background: transparent; padding: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .step .call .loc { display: block; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .call .sub { display: block; font-size: 0.88rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .what { margin: 0; font-size: 0.95rem; }
+  .step .what em { color: var(--ink); }
+  .step[data-era="new"] { box-shadow: inset 3px 0 0 var(--new); }
+  .step.phase { background: var(--surface-2); }
+  .step[data-era="wrong"] { box-shadow: inset 3px 0 0 var(--decide); background: var(--decide-tint); }
+  .step.phase .call code { font-weight: 600; letter-spacing: 0.02em; }
+  .step .tags { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; padding-top: 0.15rem; }
+
+  .branch { margin-top: 1.25rem; }
+  .branch .switch { display: inline-flex; border: 1px solid var(--line); background: var(--surface); }
+  .branch button { font: inherit; font-size: 0.92rem; padding: 0.45rem 0.9rem; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+  .branch button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .branch .trace { margin-top: 0.75rem; }
+
+  .log { font-family: var(--mono); font-size: 0.82rem; background: var(--code-bg); border: 1px solid var(--line); padding: 0.8rem 1rem; margin-top: 1rem; overflow-x: auto; white-space: pre; line-height: 1.6; }
+  .note { border-left: 3px solid var(--frame); padding: 0.2rem 0 0.2rem 1rem; margin-top: 1.25rem; max-width: 66ch; }
+  .note.real { border-left-color: var(--real); }
+  .note.changed { border-left-color: var(--changed); }
+
+  details.before { margin-top: 1rem; border: 1px dashed var(--line); padding: 0.4rem 1rem 0.8rem; background: var(--surface); }
+  details.before summary { cursor: pointer; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 0.3rem 0; }
+  details.before .trace { margin-top: 0.6rem; }
+  details.before .step { opacity: 0.85; }
+
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.93rem; background: var(--surface); }
+  .tablewrap { overflow-x: auto; margin-top: 1rem; border: 1px solid var(--line); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-top: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 0; background: var(--surface-2); font-weight: 600; }
+  td code { white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+
+  .mermaid { background: var(--surface); border: 1px solid var(--line); padding: 1rem; margin-top: 1.25rem; overflow-x: auto; }
+
+  .plan-when { font-family: var(--mono); font-size: 0.8rem; min-width: 11rem; }
+  ol.plain { padding-left: 1.2rem; }
+  ol.plain li { margin-top: 0.5rem; }
+  @media (prefers-reduced-motion: no-preference) {
+    .branch button { transition: background 120ms ease, color 120ms ease; }
+  }
+</style>
+
+<div class="page">
+  <div class="eyebrow">MTG-Ichor · Phase RC-5 · CR 614.13, 614.13a, 614.13b, 614.12 · branch at 2b0faba · CR tmnt</div>
+  <h1>Applying an Entry Can Move the Board</h1>
+  <p class="lede prose">Until RC-5 a <code>Rewrite</code> was a pure function of the event: the CR 616.1 loop decided what would happen and nothing happened while it decided. CR 614.13 says otherwise — an effect that modifies how a permanent enters the battlefield <em>may cause other objects to change zones</em> — so applying one is now a prompt and a mutation, in the middle of deciding an entry that has not happened yet. Four boards, walked one call at a time, with every read labelled by what it consulted: the board as it is, the permanent as it would be, the batch's own exclusion sets, or a player.</p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#map">The map</a>
+    <a href="#a">A · Devour: choose, move, count</a>
+    <a href="#b">B · The same object twice</a>
+    <a href="#c">C · Whose power?</a>
+    <a href="#d">D · Two entries, one board</a>
+    <a href="#reads">Where the reads differ</a>
+    <a href="#delta">What RC-5 changed</a>
+  </nav>
+
+  <div class="legend">
+    <span class="chip real">board</span> reads the battlefield as it is
+    <span class="chip frame">frame</span> reads CR 614.12's would-be permanent
+    <span class="chip scope">scope</span> reads this batch's CR 614.13a/b sets
+    <span class="chip decide">player</span> asks a <code>DecisionProvider</code>
+    <span class="chip new">RC-5</span> new in this phase
+    <span class="chip decide">corrected</span> a step this page got wrong on review
+  </div>
+
+  <h2 id="map">The map</h2>
+  <p class="prose">Three claims, four traces. <strong>A</strong> is the mechanism: where the prompt sits, why the moves are a nested batch with an id of their own, and what the count is taken from. <strong>B</strong> is the phase's finding — the one board on which CR 614.13b is not redundant with the object having already moved, which a mutation pass produced after the first draft of the tests could not build it. <strong>C</strong> is §5b's asymmetry with an amount finally attached to it. <strong>D</strong> is the re-size: what §9 scheduled as RC-5's second piece, already paid for by RC-4b.</p>
+
+  <div class="board">
+    <div class="card moving">
+      <div class="who">Boards A and B · entering</div>
+      <div class="name">Thunder-Thrash Elder</div>
+      <div class="text">{2}{R} · Lizard Warrior · 1/1 · Devour 3 <em>(as this creature enters, you may sacrifice any number of creatures; it enters with three times that many +1/+1 counters)</em>. Returning from its owner's graveyard.</div>
+    </div>
+    <div class="card">
+      <div class="who">Boards A and B · battlefield</div>
+      <div class="name">Grizzly Bears ×2</div>
+      <div class="text">2/2 and 1/1 vanilla creatures under the same player. Board A has both; board B has one.</div>
+    </div>
+    <div class="card">
+      <div class="who">Board B only · battlefield</div>
+      <div class="name">Grave Chain</div>
+      <div class="text">Fixture enchantment: "as a creature enters, exile any number of creature cards from your graveyard". A second, filter-scoped CR 614.13 effect on the same entry — and its zone is the one devour just wrote into.</div>
+    </div>
+    <div class="card">
+      <div class="who">Board C · battlefield</div>
+      <div class="name">Master Biomancer</div>
+      <div class="text">{2}{G}{U} · <strong>Elf</strong> Wizard · 2/4 · "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power."</div>
+    </div>
+    <div class="card moving">
+      <div class="who">Board C · entering</div>
+      <div class="name">Elvish Lord</div>
+      <div class="text">Fixture: 2/2 Elf, "other Elf creatures you control get +1/+1". Returning from the graveyard — and the Biomancer is an Elf, so once the Lord is a permanent it pumps the very creature whose power decided its counters.</div>
+    </div>
+    <div class="card moving">
+      <div class="who">Board D · entering, together</div>
+      <div class="name">Master Biomancer ×2</div>
+      <div class="text">Both returning from the graveyard as one <code>execute_actions</code> batch. Nothing in the engine yet <em>produces</em> such a batch (<code>codebase-state.md</code> item 46); the trace is what the pipeline does when handed one.</div>
+    </div>
+  </div>
+
+  <div class="mermaid">
+flowchart TD
+  CZ["change_zone(to: Battlefield)"] --> PE["propose_entry"]
+  PE --> EA["execute_actions"]
+  EA --> P1["phase 1 · decide, APNAP<br/>entry_selection.entering := batch's entries"]
+  P1 --> AR["apply_replacements · CR 616.1 loop"]
+  AR --> FR["EntryFrame::new<br/>(pre-batch board)"]
+  FR --> G["gather · sweep, then the entering object"]
+  G --> B["forced_bucket · CR 616.1a-e"]
+  B --> OI["order_invariant_entry_bucket<br/>Fixed, or source is not entering"]
+  OI --> RW["apply_rewrite"]
+  RW --> EW["EnterWith<br/>evaluate_enter_template"]
+  RW --> AM["EnterAfterMoving<br/>apply_auxiliary_move"]
+  AM --> C1["auxiliary_candidates<br/>scope, filter, CR 101.2"]
+  C1 --> ASK["ask_choose_auxiliary_zone_change"]
+  ASK --> REC["record entry_selection.chosen"]
+  REC --> NB["execute_actions_new_batch<br/>fresh batch id"]
+  NB --> CNT["count what was performed"]
+  CNT --> MRG["EnterMods::merge"]
+  EW --> MRG
+  MRG --> AR
+  AR --> P2["phase 2 · perform<br/>EnterBattlefield arm"]
+  P2 --> PB["place_on_battlefield<br/>timestamp, counters, tapped"]
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  class AM,C1,ASK,REC,NB,CNT,EW,OI new;
+  </div>
+
+  <h2 id="a">A · Devour: choose, move, count</h2>
+  <p class="prose">Board A. The Elder returns from the graveyard with two creatures on the battlefield under the same player, and its controller sacrifices both. It arrives as a 7/7. The three things §9 said did not exist are steps 12, 16 and 18.</p>
+
+  <ol class="trace">
+    <li class="step"><span class="n">1</span><span class="call"><code>GameState::change_zone</code><span class="loc">actions.rs:496</span><span class="sub">to: Battlefield, cause: Returned</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Reads the object's current zone — <em>Graveyard</em> — and routes a battlefield destination to the entry proposal. No <code>ZoneChange { to: Battlefield }</code> exists any more; constructing one is a debug assertion (RC-4b).</p></li>
+
+    <li class="step"><span class="n">2</span><span class="call" style="--d:1"><code>default_enter_controller</code><span class="loc">game_state.rs</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">No resolution is in flight, and the card is not a land drop, so CR 110.2b's default is the owner. That value is the proposal's <code>controller</code> and becomes CR 614.12's "under whose control it would enter" for everything below.</p></li>
+
+    <li class="step"><span class="n">3</span><span class="call" style="--d:1"><code>propose_entry</code><span class="loc">actions.rs:889</span></span><span class="tags"><span class="chip real">board</span></span><p class="what"><code>default_enter_mods</code> seeds CR 306.5b's loyalty — none here — and <code>strip_prohibited_counters</code> asks CR 614.17d of the seed. The proposal is <code>EnterBattlefield { object, from: Graveyard, controller, mods: NONE, cause: Returned }</code>.</p></li>
+
+    <li class="step phase"><span class="n">4</span><span class="call"><code>execute_actions</code> → <code>execute_batch_inner</code><span class="loc">actions.rs:294, 343</span></span><span class="tags"><span class="chip new">RC-5</span><span class="chip scope">scope</span></span><p class="what"><strong>Phase 1 begins.</strong> The outer <code>entry_selection</code> is taken and saved; <code>entering</code> is filled from the batch's <code>EnterBattlefield</code> members — here, the Elder alone. CR 614.13a is decided before any replacement is applied, because it is a fact about what is entering, not about what has entered.</p></li>
+
+    <li class="step"><span class="n">5</span><span class="call" style="--d:1"><code>apnap_batch_order</code><span class="loc">actions.rs:435</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">One member, so CR 101.4's ordering has nothing to sequence. It still runs: the answer being trivial is not the same as the question not being asked.</p></li>
+
+    <li class="step"><span class="n">6</span><span class="call" style="--d:1"><code>apply_replacements</code><span class="loc">pipeline.rs:103</span><span class="sub">CR 616.1 loop, iteration 1</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">Fresh <code>applied</code> / <code>declined</code> sets. Nothing has happened yet; the loop is deciding what the event <em>is</em>.</p></li>
+
+    <li class="step"><span class="n">7</span><span class="call" style="--d:2"><code>EntryFrame::new</code><span class="loc">lookahead.rs:49</span></span><span class="tags"><span class="chip frame">frame</span></span><p class="what">Built from the proposal, lazily. It answers for one object — the Elder — and for nothing else. Because it is built inside phase 1, the board it reads is the board before any member of this batch was performed.</p></li>
+
+    <li class="step"><span class="n">8</span><span class="call" style="--d:2"><code>is_prohibited</code><span class="loc">restriction/mod.rs</span><span class="sub">CR 614.17d, on the frame</span></span><span class="tags"><span class="chip frame">frame</span></span><p class="what">No "can't enter" applies. A CR 101.2 prohibition would win here, ahead of the pipeline, and the entry would simply not happen (CR 614.6) with the card left in the graveyard.</p></li>
+
+    <li class="step"><span class="n">9</span><span class="call" style="--d:2"><code>gather</code><span class="loc">gather.rs:138</span></span><span class="tags"><span class="chip frame">frame</span><span class="chip real">board</span></span><p class="what">Source 1a reads the Elder's <em>effective</em> ability list through <code>frame.frame_of(object)</code> — the card is still in the graveyard, so a plain walk would find nothing filter-scoped (RC-4b finding 1). Devour is <code>AffectedSet::SourceOnly</code>, which is CR 614.12's first sentence. The battlefield sweep finds nothing; the two Bears have no replacement abilities.</p></li>
+
+    <li class="step"><span class="n">10</span><span class="call" style="--d:2"><code>forced_bucket</code><span class="loc">gather.rs:755</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">One candidate, so CR 616.1a–e has one bucket with one member. No prompt: the rule chooses only among two or more.</p></li>
+
+    <li class="step"><span class="n">11</span><span class="call" style="--d:2"><code>order_invariant_entry_bucket</code><span class="loc">pipeline.rs:343</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what">Not consulted — the bucket has one member. It would refuse this bucket anyway: an <code>EnterAfterMoving</code> is not an <code>EnterWith</code>, and its application is neither commutative nor free of consequences.</p></li>
+
+    <li class="step"><span class="n">12</span><span class="call" style="--d:2"><code>apply_rewrite</code> → <code>apply_auxiliary_move</code><span class="loc">pipeline.rs:566, 867</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what"><strong>The first thing §9 said did not exist.</strong> <code>apply_rewrite</code> now takes <code>&amp;mut GameState</code>, and only for this arm. Every other rewrite is still a pure function of the event; this one is CR 614.13's own statement that applying an entry replacement may change the board.</p></li>
+
+    <li class="step"><span class="n">13</span><span class="call" style="--d:3"><code>auxiliary_candidates</code><span class="loc">pipeline.rs:937</span><span class="sub">from: Battlefield</span></span><span class="tags"><span class="chip new">RC-5</span><span class="chip scope">scope</span><span class="chip real">board</span></span><p class="what">Three filters in order. <em>Scope</em>: <code>entry_selection.admits</code> — the Elder is in <code>entering</code>, and it is not on the battlefield either, so 614.13a costs nothing here and everything in trace B. <em>Board</em>: <code>permanent_matches_filter</code> over <code>battlefield_ids_ordered</code>, which is where "creatures <strong>you control</strong>" lives, because control and ownership diverge on the shared zone. <em>CR 101.2</em>: <code>is_prohibited</code> on the <code>ZoneChange</code> this choice would produce — a creature that can't be sacrificed is removed from the list, not offered and then refused.</p></li>
+
+    <li class="step"><span class="n">14</span><span class="call" style="--d:3"><code>ask_choose_auxiliary_zone_change</code><span class="loc">ask.rs:778</span><span class="sub">bounds (0, 2)</span></span><span class="tags"><span class="chip new">RC-5</span><span class="chip decide">player</span></span><p class="what">The floor is zero, and that is devour's "you <strong>may</strong>": "any number" includes none, so declining is a count rather than a second prompt. Marking the def <code>optional</code> instead would ask twice and let a decline spend CR 614.5's one opportunity for a reason the card does not have. Unlike <code>ask_choose_replacement</code> this <em>is</em> asked with one candidate — take it or not is a real choice.</p></li>
+
+    <li class="step"><span class="n">15</span><span class="call" style="--d:3"><code>entry_selection.chosen.extend</code><span class="loc">pipeline.rs:867</span></span><span class="tags"><span class="chip new">RC-5</span><span class="chip scope">scope</span></span><p class="what">Recorded <strong>before</strong> the moves. Two reasons, and both have teeth: a nested batch takes and restores the scope, so a later write would be lost inside it; and <code>codebase-state.md</code> item 40 wants the outcome-bearing state on <code>GameState</code> before the next prompt, so a fork at that prompt sees it.</p></li>
+
+    <li class="step"><span class="n">16</span><span class="call" style="--d:3"><code>execute_actions_new_batch</code><span class="loc">actions.rs:322</span><span class="sub">// AUXILIARY-MOVE:</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what"><strong>The second thing that did not exist.</strong> §4.2's default is that a nested <code>execute_actions</code> joins the enclosing batch, on CR 120.3f's grounds — lifelink's life gain is a <em>result of</em> the damage. These moves are not: they are performed while the entry is still being decided, before the entry event exists at all, so joining would put a creature's death and the entry it paid for into one CR 603.2c event.</p></li>
+
+    <li class="step" data-era="wrong"><span class="n">16a</span><span class="call" style="--d:3"><code>one batch per application</code><span class="sub">— and it should be one per entry event</span></span><span class="tags"><span class="chip decide">corrected</span></span><p class="what"><strong>This step is not right, and Thunder-Thrash Elder's own ruling is what says so</strong> (Gatherer, 2008-10-01): "If multiple creatures with devour are entering under your control at the same time, you may use each one's devour ability. A creature you already control can be devoured by only one of them, however. … <strong>All creatures devoured this way are sacrificed at the same time.</strong>" A fresh batch id is right — these are not the entry's event — but <em>one per application</em> is one too many: every auxiliary move of one simultaneous entry event belongs in a single batch, performed once. <strong>Unreachable from the registered pool</strong>, which needs either a multi-entry batch (nothing produces one) or two devour abilities on one entry (nothing grants devour), and it is <em>not</em> a batch-id relabelling: the moves have to be deferred to the end of phase 1, which collides with step 18's count. Sized as <code>codebase-state.md</code> item 61.</p></li>
+
+    <li class="step"><span class="n">17</span><span class="call" style="--d:4"><code>apply_replacements</code> ×2<span class="loc">pipeline.rs:103</span><span class="sub">nested phase 1</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Each sacrifice is a real trip through the pipeline with a fresh applied set (CR 614.5): a finality counter still exiles instead, Kalitas still gets its Zombie. The two moves are decided against one board and performed together — CR 701.21's simultaneity, which is why this is one <code>execute_actions</code> and not a loop.</p></li>
+
+    <li class="step"><span class="n">18</span><span class="call" style="--d:3"><code>performed.len()</code><span class="loc">pipeline.rs:867</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what"><strong>The third.</strong> Devour counts what was <em>sacrificed</em>, and CR 701.21a makes a sacrifice a move — so a move a replacement dropped (CR 614.6) was not one, and a move some effect redirected still was. Two moves performed × 3 = six <code>+1/+1</code> counters, as an <code>EnterMods</code>.</p></li>
+
+    <li class="step"><span class="n">19</span><span class="call" style="--d:3"><code>strip_prohibited_counters</code><span class="loc">pipeline.rs:767</span></span><span class="tags"><span class="chip frame">frame</span></span><p class="what">CR 614.17d, asked of the counters as the <code>AddCounters</code> event CR 122.6 says they are, against the Elder's frame with the mods applied so far. A Solemnity or a Melira refuses them and the entry goes on without them.</p></li>
+
+    <li class="step"><span class="n">20</span><span class="call" style="--d:2"><code>EnterMods::merge</code><span class="loc">types/replacement.rs</span></span><span class="tags"><span class="chip none">—</span></span><p class="what">CR 616.1f's accumulation, unchanged. The loop re-gathers against the rewritten event, finds devour already in <code>applied</code> (CR 614.5), and returns.</p></li>
+
+    <li class="step phase"><span class="n">21</span><span class="call"><code>execute_batch_inner</code><span class="loc">actions.rs:343</span></span><span class="tags"><span class="chip new">RC-5</span><span class="chip scope">scope</span></span><p class="what"><strong>Phase 1 ends and the scope is restored</strong> — the exclusions belonged to these simultaneous entries, and phases 2 and 3 are past deciding. Phase 2 performs the decided entry.</p></li>
+
+    <li class="step"><span class="n">22</span><span class="call" style="--d:1"><code>perform_action</code> → <code>place_on_battlefield</code><span class="loc">actions.rs:780, game_state.rs:682</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">The move from the graveyard, the <code>ZoneChange</code> event, the entity, its CR 613.7 timestamp, six counters with one CR 613.7c timestamp, then <code>PermanentEnteredBattlefield</code>. The counters are on before anything can observe the permanent, so a 1/1 is never seen as a 1/1.</p></li>
+  </ol>
+
+  <div class="log">batch 7   ZoneChange  Bears#1  Battlefield → Graveyard  [Sacrificed]
+batch 7   ZoneChange  Bears#2  Battlefield → Graveyard  [Sacrificed]
+batch 6   ZoneChange  Elder    Graveyard   → Battlefield [Returned]
+batch 6   CountersChanged  Elder  +1/+1  +6
+batch 6   PermanentEnteredBattlefield  Elder</div>
+  <p class="prose"><strong>Read the batch ids, not the order.</strong> The sacrifices are performed first and belong to a batch opened <em>after</em> the entry's — the entry's batch is still open, deciding. That inversion is the shape CR 614.13 has: the moves happen while the entry is being decided, and they are not part of it.</p>
+
+  <h2 id="b">B · The same object twice, and where CR 614.13b actually bites</h2>
+  <p class="prose">Board B. One Bear, and a second CR 614.13 effect — a filter-scoped "exile any number of creature cards from your graveyard" — applying to the same entry. Devour applies first and puts the Bear into the graveyard; the second effect then enumerates that graveyard.</p>
+
+  <div class="note">
+    <p><strong>This is the phase's finding, and a mutation pass produced it.</strong> The first draft of RC-5's tests asserted CR 614.13b with two devour effects, which is the CR's own example — and deleting the <code>chosen</code> set did not break them. Both devours read the <em>battlefield</em>, so the first one's sacrifice takes the Bear off the battlefield and out of the second one's candidate list for free. The rule looked like bookkeeping.</p>
+    <p><strong>"Chained" means one effect's destination is the next effect's source zone</strong>, and that is when it stops being bookkeeping. Devour moves a creature battlefield&nbsp;→&nbsp;<em>graveyard</em>; Grave Chain enumerates the <em>graveyard</em> and moves cards graveyard&nbsp;→&nbsp;exile. So the Bear devour just spent is sitting in the very list the next effect builds, still matching its filter, and nothing but CR 614.13b refuses it. Same object, two zone changes, from replacement effects applying to one entry — which is the sentence the rule is.</p>
+  </div>
+
+  <ol class="trace">
+    <li class="step"><span class="n">1–9</span><span class="call"><code>as trace A</code></span><span class="tags"><span class="chip none">—</span></span><p class="what">Same route to the CR 616.1 loop. <code>gather</code> now finds <strong>two</strong> candidates: Grave Chain's filter-scoped effect from the battlefield sweep, and the Elder's own devour, spliced in after it — CR 613.7's oldest-first, and the entering permanent is the newest object there is.</p></li>
+
+    <li class="step"><span class="n">10</span><span class="call" style="--d:2"><code>order_invariant_entry_bucket</code><span class="loc">pipeline.rs:343</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what">Refused: neither member is an <code>EnterWith</code>, and the predicate admits nothing else. The prompt is real on <em>this</em> board because the two effects take objects out of different zones and the first one's move decides what the second can still choose (step 14). CR 614.13b's own example is the same point on a board this trace does not build — Thunder-Thrash Elder under a plane granting devour 5 ends with three counters or with five, depending on which applies first, and never with eight.</p></li>
+
+    <li class="step"><span class="n">11</span><span class="call" style="--d:2"><code>ask_choose_replacement</code><span class="loc">ask.rs</span><span class="sub">CR 616.1</span></span><span class="tags"><span class="chip decide">player</span></span><p class="what">Index 1 — devour first.</p></li>
+
+    <li class="step"><span class="n">12</span><span class="call" style="--d:3"><code>apply_auxiliary_move</code><span class="loc">pipeline.rs:867</span></span><span class="tags"><span class="chip scope">scope</span><span class="chip decide">player</span></span><p class="what">Candidates: the one Bear. Chosen; <code>chosen := [Bear]</code>; the nested batch moves it to the graveyard. The Elder is a 4/4-to-be.</p></li>
+
+    <li class="step"><span class="n">13</span><span class="call" style="--d:2"><code>apply_replacements</code><span class="loc">pipeline.rs:103</span><span class="sub">CR 616.1f, iteration 2</span></span><span class="tags"><span class="chip frame">frame</span></span><p class="what">Re-gathered against the rewritten event. Devour is in <code>applied</code>; Grave Chain is not, and still applies. One candidate, so no CR 616.1 prompt.</p></li>
+
+    <li class="step"><span class="n">14</span><span class="call" style="--d:3"><code>auxiliary_candidates</code><span class="loc">pipeline.rs:937</span><span class="sub">from: Graveyard</span></span><span class="tags"><span class="chip scope">scope</span><span class="chip real">board</span></span><p class="what"><strong>The graveyard now holds the Bear and the Elder</strong>, and both are creature cards matching the filter. Both are refused, by different clauses of the same rule: the Elder by <code>entering</code> (614.13a — it is the object that will become the permanent), the Bear by <code>chosen</code> (614.13b — it was already chosen to change zones while applying a replacement to this entry). <em>Zero candidates.</em></p></li>
+
+    <li class="step"><span class="n">15</span><span class="call" style="--d:3"><code>ask_choose_auxiliary_zone_change</code><span class="loc">ask.rs:778</span></span><span class="tags"><span class="chip none">—</span></span><p class="what"><strong>Not called.</strong> The empty candidate list is skipped before the ask, not answered by it — which is what makes "no third prompt" the assertion the test can make, and a <code>ScriptedDecisionProvider</code> with an empty queue the sharpest way to make it.</p></li>
+  </ol>
+
+  <p class="prose"><strong>What the two clauses cost if either is missing.</strong> Without <code>entering</code>, the Elder exiles itself as it enters and never arrives. Without <code>chosen</code>, the Bear is sacrificed and then exiled — one object, two zone changes, from replacement effects applying to one entry, which is the sentence CR 614.13b is. Both mutations are in the phase's mutation pass and both are killed by this trace's test.</p>
+
+  <h2 id="c">C · Whose power? <code>frame_of(source)</code> and the asymmetry</h2>
+  <p class="prose">Board C. An Elvish Lord returns from the graveyard while Master Biomancer — a 2/4 <strong>Elf</strong> — is on the battlefield. The Lord enters with <strong>two</strong> counters, not three.</p>
+
+  <ol class="trace">
+    <li class="step"><span class="n">1–8</span><span class="call"><code>as trace A</code></span><span class="tags"><span class="chip none">—</span></span><p class="what">Through <code>change_zone</code> to the CR 616.1 loop, with the frame built from the proposal.</p></li>
+
+    <li class="step"><span class="n">9</span><span class="call" style="--d:2"><code>gather</code> → <code>set_affects</code><span class="loc">gather.rs:138, 480</span></span><span class="tags"><span class="chip frame">frame</span></span><p class="what">The Biomancer's <code>AffectedSet::Filter</code> is matched against the <em>Lord</em> through <code>permanent_matches_filter_in_frame</code>: it is a creature, and its controller is the proposal's. "Each <strong>other</strong> creature you control" needs no filter leaf — the Biomancer's own ability can never reach a Biomancer that is entering, because the sweep reads the battlefield and source 1a admits only <code>SourceOnly</code>.</p></li>
+
+    <li class="step"><span class="n">10</span><span class="call" style="--d:2"><code>order_invariant_entry_bucket</code><span class="loc">pipeline.rs:343</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what">One member here, so nothing is suppressed. With a second <code>EnterWith</code> beside it the premise matters: an amount is order-invariant if it is <code>Fixed</code>, <strong>or</strong> its source is not the entering object — because only then can <code>frame_of</code> return <code>Some</code>. Exact rather than conservative, so a Biomancer keeps the suppressed prompt and the fuzz pool keeps its zero-prompt property.</p></li>
+
+    <li class="step"><span class="n">11</span><span class="call" style="--d:2"><code>apply_rewrite</code> → <code>evaluate_enter_template</code><span class="loc">pipeline.rs:566, 808</span></span><span class="tags"><span class="chip new">RC-5</span></span><p class="what">The template's amount is <code>AmountExpr::SourcePower</code>. <code>EnterMods</code> was the payload of both the definition and the event, and §3.2 recorded that as a virtue; it held exactly as long as every amount was a literal, because the event's mods must be numbers the performer can put on.</p></li>
+
+    <li class="step"><span class="n">12</span><span class="call" style="--d:3"><code>EntryFrame::frame_of(source)</code><span class="loc">lookahead.rs:79</span></span><span class="tags"><span class="chip frame">frame</span></span><p class="what"><strong><code>None</code>.</strong> The frame answers for one object and the source is not it. That single line is the whole of §5b's asymmetry: one object is hypothetical, nothing else is.</p></li>
+
+    <li class="step"><span class="n">13</span><span class="call" style="--d:3"><code>get_effective_power(game, source)</code><span class="loc">characteristics.rs:238</span></span><span class="tags"><span class="chip real">board</span></span><p class="what"><strong>2.</strong> A full layer walk of the Biomancer on the <em>real</em> board, where the Lord is not a permanent and CR 604.3 keeps its anthem from functioning. Not the printed 2 either — an anthem on the Biomancer would make this 3, and the test asserts both directions.</p></li>
+
+    <li class="step"><span class="n">14</span><span class="call" style="--d:1"><code>place_on_battlefield</code><span class="loc">game_state.rs:682</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Two counters. And the moment the Lord is a permanent its anthem <em>does</em> reach the Biomancer, which is now a 3/5 — the two answers really are different, which is what makes the assertion mean something.</p></li>
+  </ol>
+
+  <div class="note real">
+    <p><strong>The counterfactual, in one line.</strong> Read <code>frame_of(entering)</code> instead of <code>frame_of(source)</code> and the Lord gets <strong>three</strong> counters: the frame has the Lord's own anthem in it (clause 2), and the anthem pumps Elves, and the Biomancer is an Elf. That is the mutation, and it is killed by this trace's test.</p>
+  </div>
+
+  <h2 id="d">D · Two entries, one board — what RC-4b already paid for</h2>
+  <p class="prose">Board D. Two Master Biomancers entering as one <code>execute_actions</code> batch. Each gives the other <strong>nothing</strong>. §9 scheduled this as RC-5's second piece and sized it at ~400 lines in <code>execute_batch_inner</code>; the re-size found it already true.</p>
+
+  <ol class="trace">
+    <li class="step phase"><span class="n">1</span><span class="call"><code>execute_batch_inner</code><span class="loc">actions.rs:343</span></span><span class="tags"><span class="chip scope">scope</span></span><p class="what"><code>entering := [Biomancer A, Biomancer B]</code>. Phase 1 begins.</p></li>
+
+    <li class="step"><span class="n">2</span><span class="call" style="--d:1"><code>apply_replacements(A)</code><span class="loc">pipeline.rs:103</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">The battlefield sweep finds no Biomancer: B is in the graveyard, not on the battlefield, and its static ability functions only there (CR 604.3). Source 1a finds A's own ability and refuses it — the sweep is for other objects, and 1a admits only <code>SourceOnly</code>, which "each other creature you control" is not. No candidate. A enters with nothing.</p></li>
+
+    <li class="step"><span class="n">3</span><span class="call" style="--d:1"><code>apply_replacements(B)</code><span class="loc">pipeline.rs:103</span></span><span class="tags"><span class="chip real">board</span></span><p class="what"><strong>The step the old §9 got wrong.</strong> It claimed B would be decided after A was performed and would see it on the battlefield. Phase 2 has not run: nothing has been performed. A is still in the graveyard. B enters with nothing too.</p></li>
+
+    <li class="step phase"><span class="n">4</span><span class="call"><code>phase 2</code><span class="loc">actions.rs:343</span></span><span class="tags"><span class="chip real">board</span></span><p class="what">Both entries are performed, in batch order. Their CR 613.7 timestamps are allocated one after another — which is <em>allocation</em> order, not CR 613.7m's APNAP order, and is the one thing item 46 still owes. Same controller here, so any order is that player's choice and 613.7m is satisfied trivially.</p></li>
+  </ol>
+
+  <details class="before">
+    <summary>What §9 said this piece would cost, before the re-size</summary>
+    <div class="log">RC-5 piece 2 — the batch-scoped frame (§5b)
+  "Today an entry is proposed inside the zone change's performer
+   (RC-2's nested propose_entry), so the second member of a
+   [ZoneChange, ZoneChange] batch is decided after the first was
+   performed and sees it on the battlefield."
+  Sized: ~400 in execute_batch_inner and perform_action's ZoneChange arm.
+
+Measured against the tree, 2026-09-03: every clause false.
+  change_zone routes a battlefield destination to propose_entry;
+  a ZoneChange { to: Battlefield } proposal is a debug assertion;
+  phase 1 decides every member before phase 2 performs any.
+  Paid by RC-4b's +378 / -250.</div>
+  </details>
+
+  <p class="prose"><strong>What is honestly left</strong> is not a frame question: nothing <em>produces</em> a multi-entry batch. <code>propose_entry</code> is called once per entry, <code>CreateToken</code> loops it, and <code>Primitive::ReturnToBattlefield</code> is a stub — so this trace is built by calling <code>execute_actions</code> directly, and the test that carries it says so. The producer is <code>codebase-state.md</code> item 46, sized there for the first time at ~350 lines and a card, because a mass return needs a graveyard leaf on <code>SelectionFilter</code> and item 48's controller field before it can exist.</p>
+
+  <h2 id="reads">Where the reads differ</h2>
+  <p class="prose">The payload. Every read RC-5 adds, what it consulted, and what the other answer would have been.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Read</th><th>Consults</th><th>Answers</th><th>The other answer, and what it would break</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>auxiliary_candidates</code> — is this object choosable?</td>
+        <td><span class="chip scope">scope</span> <code>entry_selection.entering</code></td>
+        <td>A Sutured Ghoul returning from its own graveyard is <em>not</em> a candidate for its own exile</td>
+        <td>The board, alone: the Ghoul is a creature card in that graveyard, so it exiles itself and never enters. Reachable through <code>change_zone</code> with no help — RC-4b decides the entry before the card moves</td>
+      </tr>
+      <tr>
+        <td><code>auxiliary_candidates</code> — again, one effect later</td>
+        <td><span class="chip scope">scope</span> <code>entry_selection.chosen</code></td>
+        <td>A devoured Bear is not choosable by the next entry replacement, in any zone</td>
+        <td>The board, alone: the Bear <em>is</em> a creature card in the graveyard now, so it changes zones twice for one entry (trace B). With two battlefield-reading effects the board happens to agree, which is why this rule reads as bookkeeping until the zones chain</td>
+      </tr>
+      <tr>
+        <td><code>auxiliary_candidates</code> — may it move at all?</td>
+        <td><span class="chip real">board</span> <code>is_prohibited</code>, CR 101.2</td>
+        <td>A creature that can't be sacrificed is not offered</td>
+        <td>Offer it, move it, and let the move be refused: the count then includes a creature that never went anywhere. Sigarda is the near-miss — her sentence names <em>your opponents'</em> spells and abilities, so your own devour may eat her</td>
+      </tr>
+      <tr>
+        <td>How many counters did devour earn?</td>
+        <td><span class="chip new">RC-5</span> the nested batch's <em>performed</em> events</td>
+        <td>A redirected move still counts; a dropped one does not</td>
+        <td><code>picked.len()</code>: a creature whose move a replacement prevented would be counted as sacrificed, which CR 701.21a says it was not</td>
+      </tr>
+      <tr>
+        <td>Which batch do the moves belong to?</td>
+        <td><span class="chip new">RC-5</span> <code>execute_actions_new_batch</code></td>
+        <td>Their own id — they are not a result of the entry</td>
+        <td>The enclosing batch, which would put a death and the entry it paid for in one event. <strong>Still not the whole answer</strong> — the Elder's ruling makes every devour sacrifice of one entry event simultaneous, so the target is one batch per <em>entry event</em>, not one per application (step 16a, <code>codebase-state.md</code> item 61). Unreadable today; critical-path item 6 is the customer</td>
+      </tr>
+      <tr>
+        <td>"Equal to this creature's power" — whose board?</td>
+        <td><span class="chip frame">frame</span> then <span class="chip real">board</span>: <code>frame_of(source)</code>, else the walk</td>
+        <td><strong>2</strong> — the Biomancer as it is, without the entering Lord's anthem</td>
+        <td><strong>3</strong>, if the frame answered for every object. §5b's asymmetry is this one line: one object is hypothetical, nothing else is</td>
+      </tr>
+      <tr>
+        <td>Is this CR 616.1 bucket's order observable?</td>
+        <td><span class="chip new">RC-5</span> the template's amounts and the instance's source</td>
+        <td>Suppressed for a Biomancer beside an "enters tapped"; asked for a creature whose own amount reads its own power</td>
+        <td>Suppress everything (item 47's predicate before RC-5): two applications that do not commute, decided by whichever was gathered first. Or suppress nothing: every Biomancer board starts prompting for a choice with one outcome</td>
+      </tr>
+      <tr>
+        <td>Which board does a batch member's frame read?</td>
+        <td><span class="chip frame">frame</span> built in phase 1</td>
+        <td>The pre-batch board, for every member (trace D)</td>
+        <td>The board as of the previous member — which is what §9 said the tree did, and what RC-4b had already fixed</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="delta">What RC-5 changed</h2>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Trace</th><th>Before RC-5</th><th>After, at 2b0faba</th></tr></thead>
+    <tbody>
+      <tr><td>A · devour</td><td>Inexpressible. A <code>Rewrite</code> was a pure function of the event, riders ran after it, and <code>EnterMods.counters</code> held literals — so devour had no arm, no prompt and no way to compute its number</td><td>One arm, <code>EnterAfterMoving</code>, with CR 614.13's own sentence as its licence; the prompt, the nested batch and the count are steps 14, 16 and 18, and step 16a is what the nested batch still owes</td></tr>
+      <tr><td>B · 614.13b</td><td>Inexpressible for the same reason</td><td>Two exclusion sets on <code>GameState</code>, scoped to the batch, consulted before the filter. The zone chain is the board that makes 614.13b load-bearing, and it came out of the mutation pass rather than the design</td></tr>
+      <tr><td>C · the amount</td><td><code>EnterMods</code> carried <code>u32</code>. Master Biomancer was listed in RC-4's row as blocked on exactly this</td><td><code>EnterModsTemplate</code> splits the definition from the event; <code>frame_of(source)</code> decides which board to read, and §5b's Archdruid claim falls out with no clause anywhere saying so</td></tr>
+      <tr><td>D · two entries</td><td>Believed broken and scheduled for ~400 lines</td><td>Already right. RC-4b paid it; RC-5 supplies the test and the correction to §9. What is left is a <em>producer</em>, sized in item 46</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What this page does not show, and where it went</h3>
+  <ol class="plain prose">
+    <li><strong>CR 613.7m.</strong> "Before card breadth" item 4 named CR 614.13's auxiliary zone changes as one of the two things that make APNAP timestamps reachable. They are not: an object receives a timestamp in one production place, <code>place_on_battlefield</code>, and devour's moves are battlefield → graveyard while Sutured Ghoul's are graveyard → exile. Neither is an entry. 613.7m stays with <code>CreateTokens</code> in Phase RE, beside item 52's token residual.</li>
+    <li><strong>Sutured Ghoul's power and toughness.</strong> The card is registered for its exile clause; its <code>*/*</code> reads "the exiled cards", which CR 614.14 links to the exiling ability — CR 607, ticket T20, the same thing Painter's Servant waits on. A Ghoul that exiles something should live and dies instead, which is a missing CDA rather than a wrong one.</li>
+    <li><strong>Master Biomancer's Mutant clause.</strong> A type an entry modification adds is a field <code>EnterMods</code> does not have, and adding one fires item 47's expiry condition (a): <code>ByType</code> and <code>BySubtype</code> would stop being mods-invariant and every entry bucket would prompt. It also wants a Layer 4 effect with somewhere to live after the entry.</li>
+    <li><strong>A production multi-entry batch</strong>, which is trace D's honest gap and item 46's remaining half.</li>
+    <li><strong>One batch for every auxiliary move of one entry event</strong> (step 16a) — the Elder's ruling, item 61.</li>
+    <li><strong>Whose choice a granted devour is.</strong> <code>AuxiliaryMove</code> has no chooser field, so "you" is the effect's controller. That is right for Master Biomancer's "each other creature <em>you</em> control" and wrong for a devour granted by someone else's permanent, where CR 614.13a's "you" is the entering creature's controller. Only <code>AffectedSet::SourceOnly</code> devour is registered, so the two coincide on every reachable board; item 62.</li>
+    <li><strong>Thromok the Insatiable's "devour X, where X is the number of creatures devoured this way."</strong> <code>per_chosen</code> is a constant per object, and Thromok's multiplier <em>is</em> the count — X creatures give X² counters. One more shape in the payload, no new arm; item 63.</li>
+  </ol>
+
+  <p class="prose"><strong>Pinned, never maintained.</strong> This page records the engine at 2b0faba against CR <code>tmnt</code>. When a later phase changes these paths — RE's <code>CreateTokens</code> proposal is the next one that will — it gets its own page and this one is left alone.</p>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) { mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'strict' }); }
+</script>
+</body>
+</html>

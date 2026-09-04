@@ -27,7 +27,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py   # both 
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
-| `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live; its `L##`/`T##` vocabulary is defined in `plans/archive/implementation-plan-final.md` |
+| `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live — but its `L##`/`T##` labels are the **archived** plan's vocabulary (`plans/archive/implementation-plan-final.md`), **not a live queue**. A `T##` names work, never schedules it; where that work lives now is `backlog.md` §2, an architecture doc, or the critical path. Do not cite a `T##` as the owner of anything |
 | `plans/roadmap-v2.md` | The route narrative: why the spine is ordered, card stakes per segment, milestones, sizing. Ordering authority stays with **Critical path to v1** below |
 | `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md` | Historical. Still live from them: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's D## deferred-item tables — its milestones and v1 target shape moved to `roadmap-v2.md`. The §8/§11 delta-log fork was **resolved against** 2026-08-24 — trigger detection is the performed-action event stream; see `codebase-state.md`. `plans/archive/*` is superseded: do not act on it |
 | `plans/references/*` | Research tooling, not rules authority. Fetch card text/rulings via Bash+curl with a UA header — Scryfall 403s `WebFetch` |
@@ -86,8 +86,8 @@ the event. Propose with `execute_action` / `change_zone`.
   it announces. A performer nests a proposal only if the outer event is real without it → §11 item 20.
 - **A simultaneous rule needs `execute_actions`, not a loop.** CR 704.3's single event, 704.7's
   collapse and 615.7's shield allocation are unreachable from a loop; a *nested* call joins the
-  enclosing batch. One permanent exemption, tagged `// CAST-ROLLBACK:`: CR 601.2a's move is silent
-  both ways and announced at 601.2i, when the spell is cast. → `replacement-architecture.md` §2.
+  enclosing batch unless the CR makes its events no *result of* the outer one (`// AUXILIARY-MOVE:`,
+  CR 614.13). One permanent chokepoint exemption, `// CAST-ROLLBACK:`: CR 601.2a's move is silent both ways, loud at 601.2i. → `replacement-architecture.md` §2.
 - **A decision site may not hold outcome-bearing state off `GameState`.** → `codebase-state.md` item 40.
 
 ## The replacement pipeline (CR 614–616)

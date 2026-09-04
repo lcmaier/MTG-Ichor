@@ -759,6 +759,52 @@ pub fn ask_choose_entering_controller(
 /// `ask_choose_entering_controller` uses it). The assert is what keeps that a
 /// caller obligation rather than a convention, and it is why registering
 /// Cytoshape adds no prompt to any existing scripted test.
+/// CR 614.13a — choose the objects an entry replacement also moves.
+///
+/// > 614.13a While applying an effect that modifies how a permanent enters the
+/// > battlefield, you may have to choose a number of objects that will also
+/// > change zones.
+///
+/// **Called with one candidate as well as with many, and that is not the
+/// CR 616.1 rule.** `ask_choose_replacement`'s two-candidate floor is about
+/// choosing *between effects*, where one candidate leaves nothing to decide.
+/// Here a single candidate is still a real choice — take it or not — because
+/// the count's floor is zero. It is skipped only when the candidate list is
+/// empty, where there is genuinely nothing to ask.
+///
+/// `max` is the caller's clamp: the smaller of the effect's own bound and the
+/// number of candidates, so CR 101.3's "only the possible portion" is applied
+/// before the prompt rather than after it.
+pub fn ask_choose_auxiliary_zone_change(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    entering: ObjectId,
+    source: ObjectId,
+    to: crate::types::zones::Zone,
+    candidates: &[ObjectId],
+    max: usize,
+) -> Vec<ObjectId> {
+    assert!(
+        !candidates.is_empty(),
+        "ask_choose_auxiliary_zone_change: nothing to choose from for {}",
+        entering,
+    );
+    let options: Vec<ChoiceOption> =
+        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to },
+    };
+    let indices = dp.pick_n(game, chooser, &ctx, &options, (0, max));
+    validate_pick_n(&indices, options.len(), (0, max), "choose_auxiliary_zone_change");
+    // Sorted, so the batch is built in candidate order however the provider
+    // returned its picks — the order the moves are performed in is observable
+    // (a graveyard is ordered), and it must not depend on a DP's whim.
+    let mut picked: Vec<usize> = indices;
+    picked.sort_unstable();
+    picked.into_iter().map(|i| candidates[i]).collect()
+}
+
 pub fn ask_choose_copy_source(
     dp: &dyn DecisionProvider,
     game: &GameState,
