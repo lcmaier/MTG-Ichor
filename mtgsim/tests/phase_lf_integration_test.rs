@@ -668,3 +668,41 @@ fn test_citanul_hierophants_grant_retires_when_it_leaves() {
     game.change_zone(hierophants, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
     assert!(get_effective_abilities(&game, bears).is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Humility before Citanul Hierophants — a known wrong answer, pinned.
+//
+// CR 613.8a(b): applying Humility removes the ability that generates the
+// Hierophants' grant, so the grant depends on Humility, Humility applies first
+// whatever the timestamps say, and when the grant's turn comes there is no
+// ability left to justify it — the Bears get nothing. The engine orders the two
+// by timestamp (which here agrees) and then applies the grant anyway, because
+// `static_ability_still_exists` reads the Hierophants' frame as of the end of
+// Layer 5 and cannot see a partially-applied Layer 6. This test asserts the
+// wrong answer on purpose, so the phase that builds the board-wide sequential
+// pass (critical-path item 7; `codebase-state.md` "Before Layers" item 8, third
+// board) has to flip it. Both cards are in `PERFORMANCE_POOL`, so a fuzz game
+// reaches this board.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_humility_before_hierophants_does_not_yet_retire_the_grant() {
+    use mtgsim::oracle::characteristics::get_effective_abilities;
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+
+    // Wrong: CR 613.8 says empty. Flip this assertion when the fix lands.
+    let abilities = get_effective_abilities(&game, bears);
+    assert_eq!(abilities.len(), 1, "the known-wrong answer changed — has 613.8 landed?");
+    assert_eq!(abilities[0].ability_type, mtgsim::objects::card_data::AbilityType::Mana);
+
+    // The other order is right today, and stays right after the fix.
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    assert!(get_effective_abilities(&game, bears).is_empty());
+}
