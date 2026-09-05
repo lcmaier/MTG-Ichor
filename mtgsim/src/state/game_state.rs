@@ -582,11 +582,13 @@ impl GameState {
     /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
     /// UUIDs, so the key is itself random.
     ///
-    /// `BattlefieldEntity::timestamp` is the deterministic key. It is allocated
-    /// once per `place_on_battlefield` from `next_timestamp`, a monotonic
-    /// counter, and never reassigned — so it is unique across the battlefield
-    /// and totally orders it. It is also the order CR 613.7 already cares
-    /// about, oldest first.
+    /// `BattlefieldEntity::entry_timestamp` is the deterministic key. It is
+    /// allocated once per `place_on_battlefield` from `next_timestamp`, a
+    /// monotonic counter, and never reassigned — so it is unique across the
+    /// battlefield and totally orders it. **Not `timestamp`**: that is CR
+    /// 613.7's, and CR 613.7e reassigns it when an Aura or Equipment becomes
+    /// attached. The two agree until the first attach; sorting on the wrong one
+    /// would send a reattached permanent to the end of every decision list.
     ///
     /// Order-irrelevant sweeps — "untap every permanent", "clear all damage" —
     /// may still iterate the map directly; they touch disjoint entries and emit
@@ -594,7 +596,7 @@ impl GameState {
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &BattlefieldEntity)> {
         let mut entries: Vec<(ObjectId, &BattlefieldEntity)> =
             self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
-        entries.sort_by_key(|(_, e)| e.timestamp);
+        entries.sort_by_key(|(_, e)| e.entry_timestamp);
         entries
     }
 
@@ -608,13 +610,14 @@ impl GameState {
         // 36.0 µs vs 1.7 µs at n=200. This runs 8 times per SBA sweep, and the
         // sweep runs after every resolution and priority check.
         //
-        // Stable, keyed on timestamp alone — identical ordering to the previous
-        // form. Do not "simplify" to sorting the pair: timestamps are unique
-        // (CLAUDE.md, determinism), but tiebreaking on a v4 `ObjectId` would be
-        // the exact non-determinism the ordered sweeps exist to avoid.
+        // Stable, keyed on the entry timestamp alone — identical ordering to
+        // the previous form. Do not "simplify" to sorting the pair: entry
+        // timestamps are unique (CLAUDE.md, determinism), but tiebreaking on a
+        // v4 `ObjectId` would be the exact non-determinism the ordered sweeps
+        // exist to avoid.
         let mut pairs: Vec<(u64, ObjectId)> = self.battlefield
             .iter()
-            .map(|(&id, e)| (e.timestamp, id))
+            .map(|(&id, e)| (e.entry_timestamp, id))
             .collect();
         pairs.sort_by_key(|&(ts, _)| ts);
         pairs.into_iter().map(|(_, id)| id).collect()

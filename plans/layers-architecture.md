@@ -1249,13 +1249,16 @@ ordering-algorithm change, and item 7 is already the largest phase on the path.
 
 ### The finding that sets the scope: one field, two jobs
 
-`BattlefieldEntity.timestamp` has exactly **four** production readers:
+`BattlefieldEntity.timestamp` had exactly **three** production readers (re-derived
+against the tree 2026-09-05 — this table first said "four" and listed three; the
+fourth was a test, `phase_ld_integration_test.rs`, checking CR 613.7a's equality,
+and `lookahead.rs` only *constructs* the entity):
 
-| Reader | Job |
-|---|---|
-| `battlefield_ordered` (`game_state.rs:563`) | determinism / decision order |
-| `battlefield_ids_ordered` (`:583`) | determinism / decision order |
-| `static_effect_timestamp` (`:839–840`) | CR 613.7a |
+| Reader | Job | After LH-2 reads |
+|---|---|---|
+| `battlefield_ordered` (`game_state.rs`) | determinism / decision order | `entry_timestamp` |
+| `battlefield_ids_ordered` | determinism / decision order | `entry_timestamp` |
+| `static_effect_timestamp` | CR 613.7a | `timestamp` |
 
 `CLAUDE.md`'s determinism rule names this field as the sort key for every
 collection reaching a decision. **CR 613.7e reassigns it**, so an Aura that

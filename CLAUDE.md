@@ -120,8 +120,8 @@ worse than a missing one**, so both ship narrower than §3.2. → §2a (as built
 
 **Never iterate `game.battlefield` directly where the order is observable** — go through
 `battlefield_ordered` / `battlefield_ids_ordered`. A `DecisionProvider` picks by *index* and
-`HashMap` order differs per process. The key is `BattlefieldEntity::timestamp` (CR 613.7's
-order anyway), never `ObjectId`; same rule for any collection reaching a choice, log **or count**.
+`HashMap` order differs per process. The key is `BattlefieldEntity::entry_timestamp`, allocated once —
+never `ObjectId`, never `timestamp` (CR 613.7e reassigns it); same for any collection reaching a choice, log **or count**.
 
 **Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`;
 draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`

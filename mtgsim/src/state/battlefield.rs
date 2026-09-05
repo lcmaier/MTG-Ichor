@@ -33,9 +33,20 @@ pub struct BattlefieldEntity {
     pub object_id: ObjectId,
     pub controller: PlayerId,
 
-    /// Timestamp for the layer system (rule 613.7).
-    /// Permanents that entered the battlefield earlier have lower timestamps.
-    /// Used to order continuous effects within the same layer/sublayer.
+    /// When this permanent entered the battlefield, as a position in
+    /// `GameState::next_timestamp`'s sequence. **The determinism key**:
+    /// allocated once by `place_on_battlefield` and never reassigned, so it
+    /// totally orders the battlefield for `battlefield_ordered` and every
+    /// sweep that reaches a decision, a log or a count (CLAUDE.md,
+    /// "Determinism at the decision boundary"). Not the layer system's key.
+    pub entry_timestamp: u64,
+
+    /// The CR 613.7 timestamp: what a static ability's continuous effect
+    /// inherits (613.7a) and what orders it within a layer. Starts equal to
+    /// `entry_timestamp` (613.7d) and **is reassigned** — CR 613.7e gives an
+    /// Aura or Equipment a new one each time it becomes attached, in
+    /// `GameState::attach`. Never sort a sweep by this field: a reattachment
+    /// would move the permanent to the end of every decision list.
     pub timestamp: u64,
 
     // Permanent state
@@ -102,6 +113,7 @@ impl BattlefieldEntity {
         BattlefieldEntity {
             object_id,
             controller,
+            entry_timestamp: timestamp,
             timestamp,
             tapped: false,
             flipped: false,
