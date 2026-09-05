@@ -1,7 +1,7 @@
 //! Phase LH-1 — the Aura host becomes addressable
 //! (`layers-architecture.md` §13a).
 //!
-//! Holy Strength is the card; `AffectedSet::AttachedToSource` is what it
+//! Holy Strength is the card; `AffectedSet::Host` is what it
 //! consumes. Every board below is built from the registered card rather than
 //! a fixture Aura, because the claim being tested is that a *real* Aura's
 //! static ability reaches its host through the layer walk — the fixtures in
@@ -21,7 +21,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::oracle::mana_helpers::castable_spells;
 use mtgsim::state::game_state::{GameState, StackEntry};
 use mtgsim::test_support::{
-    attach, equipment, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
+    equipment, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
     vanilla_creature,
 };
 use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCount};
@@ -96,6 +96,12 @@ fn moves_of(game: &GameState, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeCause)
 /// The row itself. Asked *before* the attach as well as after: the first query
 /// caches a frame at the pre-attach epoch, so a writer of `attached_to` that
 /// skipped its bump would serve 2/2 here in release and panic in debug.
+///
+/// No `COVERS`, deliberately: the corpus classifies CR 303.4m as PURE-DEF
+/// ("naming convention for effect resolution … no independent testable
+/// behavior beyond the attachment system", session-3), so there is no atom
+/// for it. The atoms this row makes reachable are the CR 303.4 / 608.3
+/// scenarios below, which claim theirs.
 #[test]
 fn test_holy_strength_gives_its_host_plus_one_plus_two() {
     let mut game = setup_two_player_game();
@@ -105,7 +111,7 @@ fn test_holy_strength_gives_its_host_plus_one_plus_two() {
 
     assert_eq!(pt(&game, bears), (2, 2), "unattached, the Aura names nothing");
 
-    attach(&mut game, aura, bears);
+    game.attach(aura, bears);
     assert_eq!(pt(&game, bears), (3, 4));
     assert_eq!(pt(&game, other), (2, 2), "only the enchanted creature");
 }
@@ -116,7 +122,7 @@ fn test_the_bonus_leaves_when_the_aura_does() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let aura = put_on_battlefield(&mut game, holy_strength(), 0);
-    attach(&mut game, aura, bears);
+    game.attach(aura, bears);
     assert_eq!(pt(&game, bears), (3, 4));
 
     destroy(&mut game, aura);

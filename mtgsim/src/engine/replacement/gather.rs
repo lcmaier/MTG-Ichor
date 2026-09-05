@@ -500,7 +500,7 @@ pub(crate) fn set_affects(
         AffectedSet::Fixed(ids) => ids.contains(&id),
         // CR 303.4m, by id like the two above: an entering permanent is
         // attached to by nothing, so the frame has nothing to say.
-        AffectedSet::AttachedToSource => {
+        AffectedSet::Host => {
             game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
         }
         AffectedSet::Filter { filter } => match frame.and_then(|f| f.frame_of(id)) {

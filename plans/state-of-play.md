@@ -63,7 +63,7 @@ absent here whether or not they shipped.
 |---|---:|
 | Cards registered | 77 |
 | …of them in `PERFORMANCE_POOL` | 67 |
-| `#[test]` functions | 946 |
+| `#[test]` functions | 944 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

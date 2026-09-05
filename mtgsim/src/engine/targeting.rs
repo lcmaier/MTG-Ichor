@@ -33,8 +33,15 @@ pub fn spell_recipient(card: &CardData) -> EffectRecipient {
 }
 
 /// The recipient an effect tree selects with: an atom's own, or the first
-/// atom's in a sequence — the targeting atom, by convention of every card
-/// written so far. Shared by [`spell_recipient`] and `activate_ability`.
+/// atom's in a sequence, with every later atom resolving against the same
+/// targets (Giant Growth's pump; Call to Serve's type change and pump).
+/// Shared by [`spell_recipient`] and `activate_ability`.
+///
+/// **One recipient per spell is a modeling limit, not a rule.** A spell with
+/// several target clauses — a bite spell's two creatures, Decimate's four —
+/// has no second slot here, on `StackEntry`, or in the CR 608.2b re-check,
+/// and CR 608.2b's "resolve with the legal ones" cannot be asked. `backlog.md`
+/// §2.20 sizes it and counts the cards: a few hundred, not an edge case.
 pub fn effect_recipient(effect: &Effect) -> EffectRecipient {
     match effect {
         Effect::Atom(_, recipient) => recipient.clone(),
@@ -67,7 +74,7 @@ impl GameState {
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::FilteredPermanents { .. }
-            | EffectRecipient::AttachedToSource => {
+            | EffectRecipient::Host => {
                 if !targets.is_empty() {
                     return Err("Spell has no targets but targets were provided".to_string());
                 }
@@ -396,7 +403,7 @@ impl GameState {
             | EffectRecipient::Controller
             | EffectRecipient::Choose(_, _)
             | EffectRecipient::FilteredPermanents { .. }
-            | EffectRecipient::AttachedToSource => true,
+            | EffectRecipient::Host => true,
             EffectRecipient::Target(_, _) => {
                 targets.iter().any(|t| {
                     self.is_single_target_legal(recipient, t, you)

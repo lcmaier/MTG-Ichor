@@ -850,7 +850,7 @@ fn effect_applies_to(
         // (`cleanup_zone_state` clears it when the host leaves), so no zone
         // gate is needed; an unattached source, or one not on the battlefield,
         // matches nothing.
-        AffectedSet::AttachedToSource => {
+        AffectedSet::Host => {
             game.battlefield.get(&effect.source).and_then(|e| e.attached_to) == Some(id)
         }
         AffectedSet::Filter { filter } => {
@@ -1533,7 +1533,7 @@ mod tests {
         assert_eq!(giant_chars.toughness, Some(4));
     }
 
-    /// CR 303.4m — `AttachedToSource` is whatever the source is attached to at
+    /// CR 303.4m — `Host` is whatever the source is attached to at
     /// the moment of the walk: nothing while unattached, the host once
     /// attached, the new host after a move, nothing again after a detach. Read
     /// through the memo on purpose, so a writer that skipped its epoch bump
@@ -1566,7 +1566,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp,
-            affected: AffectedSet::AttachedToSource,
+            affected: AffectedSet::Host,
             modification: EffectModification::ModifyPowerToughness {
                 power: PtValue::Fixed(1),
                 toughness: PtValue::Fixed(2),

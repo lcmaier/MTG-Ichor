@@ -167,7 +167,7 @@ pub enum AffectedSet {
     /// `place_on_battlefield`, before the resolution attaches the Aura, so a
     /// snapshot would be empty for every Aura ever cast. An unattached source
     /// names nothing.
-    AttachedToSource,
+    Host,
 }
 
 /// Filter for matching cards (extensible)
@@ -250,10 +250,10 @@ pub enum EffectRecipient {
     /// The permanent this one is attached to — "enchanted creature" on an
     /// Aura (CR 303.4m), "equipped creature" on an Equipment (CR 301.5a).
     /// Static abilities only, like `FilteredPermanents`; lowers to
-    /// `AffectedSet::AttachedToSource`, which reads `attached_to` during the
+    /// `AffectedSet::Host`, which reads `attached_to` during the
     /// layer walk rather than capturing it, because registration happens
     /// before the attach.
-    AttachedToSource,
+    Host,
 }
 
 /// What kind of object(s) can be selected.

@@ -3133,7 +3133,7 @@ gained Battlegrowth**, so nothing in that table is comparable across this commit
 **The Aura row closed 2026-09-04 (LH-1, `layers-architecture.md` §13a).** Same
 instrument, same 200 stress games at seed 12345: `[AuraSba]` **0 → 23**, and
 60 under `--require "Holy Strength"`. Both blockers the row named are gone —
-`AffectedSet::AttachedToSource` reaches the host, and `targeting::spell_recipient`
+`AffectedSet::Host` reaches the host, and `targeting::spell_recipient`
 reads the enchant ability — but only one of the two paths they blocked is
 *reached*: CR 704.5m/n fires because hosts die in combat, while the CR 608.3b
 fizzle, covered by `tests/phase_lh_integration_test.rs`, went **0** in the same
@@ -3336,7 +3336,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **Reachability (2026-09-04):** unreachable for what is left. (1)'s
     `attached_to` half landed in LH-1 — the walk reads it through
-    `AffectedSet::AttachedToSource`, and every writer goes through
+    `AffectedSet::Host`, and every writer goes through
     `GameState::attach` / `detach`, which bump; `bump_layer_epoch`'s doc
     lists them. The CR 613.7 timestamp is still immutable until LH-2, and no
     `DurationRegistry` mutator edits a row in place.

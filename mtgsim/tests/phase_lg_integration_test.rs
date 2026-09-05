@@ -22,7 +22,7 @@ use mtgsim::oracle::legality::legal_attackers;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
-    attach, aura_enchanting_your_creature, card_of_type, equipment, fill_library, pacifism,
+    aura_enchanting_your_creature, card_of_type, equipment, fill_library, pacifism,
     pass_turn, put_in_graveyard, put_on_battlefield, put_on_battlefield_this_turn, setup_game,
     setup_two_player_game, test_dp, vanilla_creature,
 };
@@ -500,7 +500,7 @@ fn test_stealing_the_equipped_creature_leaves_the_equipment_behind() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let sword = put_on_battlefield(&mut game, equipment("Test Sword"), 0);
-    attach(&mut game, sword, creature);
+    game.attach(sword, creature);
 
     gain_control(&mut game, 1, creature, Duration::Indefinite);
 
@@ -526,7 +526,7 @@ fn test_stealing_the_enchanted_creature_leaves_the_aura_behind() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let aura = put_on_battlefield(&mut game, pacifism(), 0);
-    attach(&mut game, aura, creature);
+    game.attach(aura, creature);
 
     gain_control(&mut game, 1, creature, Duration::Indefinite);
     game.check_state_based_actions(&test_dp()).unwrap();
@@ -554,8 +554,8 @@ fn test_one_control_change_moves_neither_the_equipment_nor_the_aura() {
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let sword = put_on_battlefield(&mut game, equipment("Test Sword"), 0);
     let aura = put_on_battlefield(&mut game, pacifism(), 0);
-    attach(&mut game, sword, creature);
-    attach(&mut game, aura, creature);
+    game.attach(sword, creature);
+    game.attach(aura, creature);
 
     gain_control(&mut game, 1, creature, Duration::Indefinite);
     game.check_state_based_actions(&test_dp()).unwrap();
@@ -586,7 +586,7 @@ fn test_an_enchant_creature_you_control_aura_falls_off_when_the_creature_is_stol
         aura_enchanting_your_creature("Test Bond"),
         0,
     );
-    attach(&mut game, aura, creature);
+    game.attach(aura, creature);
 
     game.check_state_based_actions(&test_dp()).unwrap();
     assert!(

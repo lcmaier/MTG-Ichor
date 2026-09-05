@@ -1271,7 +1271,7 @@ kind arrives. Deterministic, shipped, and the same move one level up.
 
 ### LH-1 — the host becomes addressable (~730 additions) — ✅ 2026-09-04
 
-1. **`AffectedSet::AttachedToSource`** plus its `EffectRecipient` lowering. One
+1. **`AffectedSet::Host`** plus its `EffectRecipient` lowering. One
    arm in `compute::effect_applies_to`
    (`game.battlefield.get(&effect.source).and_then(|e| e.attached_to) == Some(id)`),
    one in `static_affected_set`. **Resolved during the walk, never snapshotted**
@@ -1312,6 +1312,11 @@ from the list above, each smaller than what it replaces:
    CR 303.4f's choose-on-entry for a path no card can take, and it was the
    second attach writer. Whatever first returns an Aura to the battlefield
    brings 303.4f/g back with its consumer.
+4. The variant is `Host`, not the `AttachedToSource` this section first named
+   (review, 2026-09-04): on a card the source is the card itself, so "attached
+   to source" read as "the things attached to me", which is the wrong
+   direction. `EffectRecipient::Host` lowers to `AffectedSet::Host`, and "host"
+   is what every attach site already called it.
 
 Measured, 200 stress games at seed 12345: CR 704.5m/n's `[AuraSba]` **0 → 23**
 (60 under `--require "Holy Strength"`); Holy Strength resolves 96 times

@@ -155,7 +155,7 @@ const PERFORMANCE_POOL: [&str; 67] = [
     // board a random game reaches. Sutured Ghoul stays out at `{4}{B}{B}{B}`.
     "Thunder-Thrash Elder",
     "Master Biomancer",
-    // LH-1 — the pool's first Aura, and so its first `AttachedToSource` row:
+    // LH-1 — the pool's first Aura, and so its first `Host` row:
     // membership is a `battlefield` read per candidate per layer rather than
     // a filter match, a new arm in `effect_applies_to`. Also the first spell
     // whose target comes from `enchant_filter`, which is what puts CR 608.3b's
@@ -369,7 +369,7 @@ impl CardRegistry {
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 
         // LH-1 — the first Aura. Its static ability is the first to lower to
-        // `AffectedSet::AttachedToSource`, and it is the first spell whose
+        // `AffectedSet::Host`, and it is the first spell whose
         // recipient comes from `enchant_filter` (CR 303.4a) rather than a
         // spell ability — which is what makes CR 608.3b and CR 704.5m/n
         // reachable from a fuzz game at all (`phase_lh_cards`).

@@ -4,8 +4,8 @@
 //! and until LH-1 no `AffectedSet` could name the host: `static_affected_set`
 //! lowered "creatures you control" and "this permanent" and nothing else, and
 //! `register_static_effects` runs before the resolution attaches the Aura, so
-//! even a captured set would have been empty. `AffectedSet::AttachedToSource`
-//! is the arm this card is the consumer of.
+//! even a captured set would have been empty. `AffectedSet::Host` is the arm
+//! this card is the consumer of.
 //!
 //! It is also the card that makes CR 608.3b reachable. Three functions used
 //! to derive a spell's recipient from its *effect* — the CR 601.2c castability
@@ -54,7 +54,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// # In `PERFORMANCE_POOL`, and why
 ///
 /// The first static ability in the pool that lowers to
-/// `AffectedSet::AttachedToSource`, so the first row whose membership is a
+/// `AffectedSet::Host`, so the first row whose membership is a
 /// `battlefield` read per candidate per layer rather than a filter match. That
 /// is a new arm in `effect_applies_to`, and §3 asks that a new engine path be
 /// measured rather than assumed.
@@ -79,7 +79,7 @@ pub fn holy_strength() -> Arc<CardData> {
                     AmountExpr::Fixed(2),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::AttachedToSource,
+                EffectRecipient::Host,
             ),
         })
         .build()

@@ -70,7 +70,8 @@ pub struct BattlefieldEntity {
     /// Carried from StackEntry on resolution. None for non-X spells.
     pub x_value: Option<u64>,
 
-    // Attachment tracking (rule 301.5, 303.4)
+    // Attachment tracking (rule 301.5, 303.4). Written only by
+    // `GameState::attach` / `detach`: `attached_to` is a layer-walk input.
     /// The permanent this is attached to (for Auras, Equipment, Fortifications).
     pub attached_to: Option<ObjectId>,
     /// Permanents attached to this one (Auras, Equipment, Fortifications targeting this).
@@ -167,21 +168,6 @@ impl BattlefieldEntity {
         self.counters.get(&counter_type).map(|s| s.timestamp)
     }
 
-    /// Attach this permanent to a host permanent — this side of the link only.
-    ///
-    /// Prefer `GameState::attach`, which writes the host's `attached_by` too
-    /// and bumps the layer epoch; `attached_to` is a layer-walk input, and
-    /// this low-level form cannot see the game to bump it.
-    pub fn attach_to(&mut self, host: ObjectId) {
-        self.attached_to = Some(host);
-    }
-
-    /// Detach this permanent from its host — this side of the link only.
-    ///
-    /// Prefer `GameState::detach`, for the reason `attach_to` gives.
-    pub fn detach(&mut self) {
-        self.attached_to = None;
-    }
 }
 
 #[cfg(test)]
@@ -248,42 +234,6 @@ mod tests {
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 0);
         assert_eq!(e.counter_count(CounterType::MinusOneMinusOne), 1);
         assert_eq!(e.counter_count(CounterType::Flying), 1);
-    }
-
-    #[test]
-    fn test_attachment_tracking_basic() {
-        let host_id = Uuid::new_v4();
-        let attachment_id = Uuid::new_v4();
-
-        let mut host = BattlefieldEntity::new(host_id, 0, 1, 1);
-        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2, 1);
-
-        // Attach: set attached_to on attachment, add to host's attached_by
-        attachment.attach_to(host_id);
-        host.attached_by.push(attachment_id);
-
-        assert_eq!(attachment.attached_to, Some(host_id));
-        assert_eq!(host.attached_by, vec![attachment_id]);
-    }
-
-    #[test]
-    fn test_detach_clears_both_sides() {
-        let host_id = Uuid::new_v4();
-        let attachment_id = Uuid::new_v4();
-
-        let mut host = BattlefieldEntity::new(host_id, 0, 1, 1);
-        let mut attachment = BattlefieldEntity::new(attachment_id, 0, 2, 1);
-
-        // Attach
-        attachment.attach_to(host_id);
-        host.attached_by.push(attachment_id);
-
-        // Detach
-        attachment.detach();
-        host.attached_by.retain(|&id| id != attachment_id);
-
-        assert_eq!(attachment.attached_to, None);
-        assert!(host.attached_by.is_empty());
     }
 
     #[test]
