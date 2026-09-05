@@ -754,7 +754,7 @@ Assignment (CR 613.7c–d):
 2. **On effect creation** — `ContinuousEffect.timestamp = game.next_timestamp();` at registration.
 3. **Re-timestamping on aura/equipment attachment** (CR 613.7e) — when an Aura moves from one creature to another (e.g., via Sun Titan returning it), the Aura's effect timestamp updates. Similarly when a permanent becomes an Aura/Equipment.
 
-   **⚠️ Designed here, not implemented (recorded 2026-08-24; scheduled 2026-09-01 as §13a Phase LH-2).** Nothing in `src/` reassigns `BattlefieldEntity.timestamp`, and CLAUDE.md states "allocated once, never reassigned" as the *determinism* contract. **The 2026-08-24 entry framed this as a contract-wording change and it is not** — the field is doing two jobs, and 613.7e is what forces them apart. See §13a, which owns the split; this point owns the rule.
+   **✅ Implemented 2026-09-05 (§13a Phase LH-2).** `GameState::attach` allocates the new timestamp onto `BattlefieldEntity.timestamp` each time the permanent becomes attached to a *different* host (CR 701.3b/c: the same host is a no-op). The determinism key is the separate `entry_timestamp`, allocated once. The rows the permanent's static abilities registered are **not** re-stamped: `compute::effect_timestamp` reads the source's current timestamp at walk time, `max(row, source)` per 613.7a's clauses. The 2026-08-24 entry framed this as a contract-wording change and it was not — the field was doing two jobs, and 613.7e is what forced them apart; §13a records the split and the measurement.
 
 Storage: `GameState.next_timestamp: Timestamp` — monotonic counter, never rewound. Saturation not a practical concern (u64).
 
@@ -1333,7 +1333,7 @@ composition fell out of the pool for free: Mirrorform copying a creature onto
 an attached Holy Strength makes it a non-Aura permanent that is attached to
 something, and the CR 704.5n catch-all unattaches it — four times in 200 games.
 
-### LH-2 — CR 613.7e, and the field split (~900 additions)
+### LH-2 — CR 613.7e, and the field split (~900 additions) — ✅ 2026-09-05
 
 1. Split `BattlefieldEntity.timestamp` per the table above; update the four
    readers, each deliberately.
@@ -1360,6 +1360,77 @@ activation-restriction value on `AbilityDef`, not `backlog.md` §2.8 wholesale.
 CR 613.7e's reassignment lives in `GameState::attach` (LH-1's one writer), and
 it closes the timestamp half of "Before Layers" 7g.
 
+**As built (2026-09-05, `layers/lh-2-timestamp-split`).** Four commits,
+~830 additions before the docs; the ~900 estimate held.
+
+1. **Where a row's timestamp is read — shape (a): the walk reads it live.**
+   `register_static_effects` runs inside `place_on_battlefield`, before any
+   attach, so once CR 613.7e exists a registered row's stored timestamp is
+   stale the moment its source attaches. Two shapes were weighed: (a) the
+   walk reads the source's CR 613.7 timestamp at comparison time; (b) `attach`
+   re-stamps the source's `StaticAbility` rows in place — "Before Layers"
+   7g's part (2), an in-place registry mutator that has to bump `mutations`
+   itself. **Built (a).** `compute::effect_timestamp` keys a static row on
+   `max(row.timestamp, source.timestamp)` — CR 613.7a's two clauses and its
+   third in one expression, exact because a source's timestamp only grows —
+   and `apply_effects` orders each layer's rows by that key into one scratch
+   buffer per frame; the stored `ContinuousEffect.timestamp` remains the
+   registry's storage key. Measured in one `fuzz_ab.py` sitting (200 games
+   × 3 rounds, `performance`): the split alone −0.6%, a naive
+   per-layer-allocating prototype of (a) +1.8%, the shipped (a) with the
+   Equip scaffolding +2.5% CPU/game and per 1,000 walks, all three producing
+   `main`'s event stream — inside the 2–6% spread the script prints. Why not
+   (b), beyond the number: it is the move CLAUDE.md forbids for existence,
+   reconciling the registry at a state-mutation chokepoint when the walk can
+   read the truth, and 7g's mutator would have had to bump for a change
+   `len` cannot see. Item 7's board-wide pass sorts applications per layer
+   anyway; this key is its input.
+2. **The reader table was wrong by one** — three production readers, not
+   four; corrected above. `battlefield_ordered` / `battlefield_ids_ordered`
+   key on `entry_timestamp`, `static_effect_timestamp` on `timestamp`, and
+   `tests/determinism_test.rs` pins that two reattachments leave the sweep
+   order alone.
+3. **CR 613.7e applies to Auras as well.** Holy Strength's resolution attach
+   goes through the same `attach`, so an Aura's row keys on its attach
+   timestamp from LH-2 on. Unobservable today — Layer 7c commutes — and
+   correct. Attaching to the host it is already on is CR 701.3b's "does
+   nothing": no write, no event, no new timestamp (701.3c says "a different
+   object").
+4. **Equip's shape.** `Primitive::Attach` behind
+   `EffectRecipient::Target(Permanent(creature ∧ you control), Exactly(1))`,
+   so CR 608.2b's re-check is CR 301.5b's "control matters when it resolves"
+   and CR 701.3b's "doesn't move" with no second check. It proposes
+   `GameAction::Attach` — the proposal `codebase-state.md` item 6 said the
+   pair would want — performed through `GameState::attach`, still the one
+   writer, and announced as `GameEvent::Attached` on the transition only.
+   `ResolutionContext::ability_source` carries the ability's permanent
+   (CR 113.7a); `source` was the ephemeral stack object, which nothing could
+   attach. "Activate only as a sorcery" is `ActivationRestriction::OnlyAsSorcery`,
+   one value on `AbilityDef` (`backlog.md` §2.8 grows the enum), kept out of
+   the window by `activatable_abilities` and refused by `activate_ability`;
+   the sorcery-speed rule itself is now one function the cast path shares.
+5. **A bug the consumer found.** `activate_ability` paid every ability with
+   an empty generic-mana allocation, so any ability with a generic pip failed
+   at payment and was blacklisted: Chainbreaker's `{3}, {T}` was activated
+   97 times and resolved 0 in 40 `main` games, 92 and 85 after. Fixed by
+   sharing the cast path's allocation step. Chainbreaker is pooled, so the
+   protocol's "engine, pool unchanged" arm is not `main`'s stream; a fourth
+   arm with the fix reverted and Bonesplitter unregistered is, apart from a
+   memo-hit count that moved by four per 200 games (the new `can_pay_costs`
+   pre-check asks cached questions). `engineering-practices.md` §3 records
+   the four arms.
+
+Measured, 200 games at seed 12345: Bonesplitter cast 245 / resolved 241 in
+140 of 200 `performance` games; `Attached` 494 (`performance`) and 385
+(`stress`), of which 358 and 262 are re-equips; CR 704.5p **0 → 7** per 200
+`stress` games on Equipment subjects — Mirrorform copying a non-creature onto
+the equipped creature — beside 3 catch-all detaches of Mirrorform'd Holy
+Strengths; three serial runs per pool byte-identical outside
+`=== Timing ===`, and their dumps identical after the id masks, with the
+re-equips in them. `specdb owed --phase LH` is clean; ATOM-613.7e-001 is
+claimed partial (one reattachment against Humility, not the atom's
+away-and-back against an Aura).
+
 ### Exit criteria
 
 - An Aura cast from hand chooses a target at CR 601.2c, fizzles per CR 608.3b
@@ -1370,6 +1441,9 @@ it closes the timestamp half of "Before Layers" 7g.
   `=== Timing ===`, **with a reattachment in the log**.
 - `PERFORMANCE_POOL` gains one card per new engine path, with the §3 table
   re-recorded.
+
+**Met** — LH-1 on 2026-09-04, LH-2 on 2026-09-05; the as-built notes above
+carry the numbers, `engineering-practices.md` §3 the re-recorded tables.
 
 ### Explicitly out
 
