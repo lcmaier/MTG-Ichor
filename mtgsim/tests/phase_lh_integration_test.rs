@@ -327,6 +327,10 @@ use mtgsim::objects::card_data::AbilityType;
 use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::oracle::mana_helpers::activatable_abilities;
 use mtgsim::state::game_state::{Phase, PhaseType};
+use mtgsim::cards::phase_lf_cards::humility;
+use mtgsim::cards::phase_lh_cards::equipment_granting_flying;
+use mtgsim::oracle::characteristics::has_keyword;
+use mtgsim::types::keywords::KeywordFlag;
 
 fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
     get_effective_abilities(game, equipment)
@@ -484,6 +488,39 @@ fn test_equipping_the_host_it_is_already_on_does_nothing() {
     assert_eq!(game.battlefield[&bears].attached_by, vec![splitter]);
     assert_eq!(attaches_of(&game, splitter).len(), 1, "the second activation announced nothing");
     assert_eq!(game.battlefield[&splitter].timestamp, stamped);
+}
+
+/// CR 613.7e, pinned where Layer 7c cannot see it. The Equipment enters
+/// first (T1), Humility second (T2). By registration order Humility's "lose
+/// all abilities" is the later Layer 6 effect and the grant is gone; the
+/// timestamp the equip gives the Equipment (T3 > T2) is the only thing that
+/// puts its grant after Humility. The determinism key does not move.
+///
+/// Partial: the atom moves an Equipment away and back against an Aura that
+/// grants flying; this is one reattachment against Humility, which the pool
+/// registers.
+// COVERS-PARTIAL: ATOM-613.7e-001
+#[test]
+fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
+    let mut game = setup_two_player_game();
+    let harness = put_on_battlefield(&mut game, equipment_granting_flying(), 0);
+    let humility_id = put_on_battlefield(&mut game, humility(), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
+    let entered = game.battlefield[&harness].entry_timestamp;
+
+    equip(&mut game, 0, harness, 0).unwrap();
+
+    assert!(
+        game.battlefield[&harness].timestamp > game.battlefield[&humility_id].timestamp,
+        "CR 613.7e: the attach gave the Equipment a new timestamp"
+    );
+    assert!(
+        has_keyword(&game, bears, KeywordFlag::Flying),
+        "the grant now applies after Humility's Layer 6 strip"
+    );
+    assert_eq!(game.battlefield[&harness].entry_timestamp, entered, "the determinism key is untouched");
+    assert_eq!(game.battlefield_ids_ordered(), vec![harness, humility_id, bears]);
 }
 
 /// CR 301.5b — an Equipment spell resolves like any artifact and enters
