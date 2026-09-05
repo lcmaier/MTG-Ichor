@@ -207,7 +207,7 @@ delivers it.
 | A2 | **LH-1, LH-2** — attachment as a layers input (critical-path 6b) | sized (`layers-architecture.md` §13a: ~730, ~900); Aura and Equipment triggers need `attached_to` as a fact the effective-ability list reads; must precede 7 | 2 |
 | A3 | **The CR 613.8 cluster** (7), with the `Condition` AST for conditional statics ("Before Layers" 7f) | fixes the live board; the board-wide pass is the frame conditional statics and CR 603.4's intervening-ifs both evaluate against, and `layers-architecture.md` §15.2 already says they share one AST — build it here so the trigger phase adds a reader, not a language; unblocks RS-3b | 1–2 |
 | A4 | **RD**, then **RE** (the rest of 5) | RD's CR 120.3 decomposition is what "whenever you lose life" needs to see combat damage; RE's `CreateTokens` is CR 603.2c's "one or more" for 249 token-watching cards and the token-in-exile back-stop ("Before card breadth" item 8), plus `PlayerLoses` and draw replacement so 391 draw-watchers see the post-replacement draw | 2–4 |
-| A5 | **CR 113.6** — which abilities function in which zone — with object timestamps (CR 613.7d) | the one missing facility three docs name and none owns: Wonder (layers item 9), Leyline's opening-hand clause (`replacement-architecture.md` §3.3 source 2), Bridge from Below (triggers); sized in `replacement-architecture.md` §11 item 9 | 1 |
+| A5 | **CR 113.6** — which abilities function in which zone — with object timestamps (CR 613.7d) | the one missing facility three docs name and none owns: Wonder (layers item 9), Leyline's opening-hand clause (`replacement-architecture.md` §3.3 source 2), Bridge from Below (triggers); sized in `replacement-architecture.md` §11 item 9. **Preceded by the `PermanentFilter` → `ObjectFilter` rename as its own zero-behaviour PR** (layers item 9's Sized line, 2026-09-04), and by item 9's zone-reaching `AffectedSet`, whose first consumer needs nothing from this row | 1 + 1 rename + 1 (item 9) |
 | A6 | **The triggers architecture doc**, then **item 6** | 52 CR 603 atoms plus ~80 more Phase 7 atoms in CR 610/608/724/707/605; the four problems in `atomic-tests/supplemental-docs/state-tracking-architecture.md` are the bar; the first PR carries the trace sink ("Before Triggered abilities" item 5), LKI's consumers, `cast_by` (main 9), CR 605.1b (main 11) and CR 707.10b's ability identity | 4–6 |
 
 Rows A2–A3 and A4 commute; A2–A3 go first because they are sized, their seam
@@ -215,7 +215,13 @@ is built, and one fixes a live bug. **Beside A, pulled when a card family
 wants them:** RS-2 (hexproof and shroud; trigger targets then inherit it),
 CV-2 (copy on enter, which makes CR 707.5's ETB-of-a-copy testable), item 30's
 capture PR (§5 amendment 1), B1–B3 once A4 is in, and Deferred Migrations
-steps 3–5.
+steps 3–5. **And `backlog.md` §2.20, several target clauses on one spell —
+back-stopped before RS-2 and before A6's first PR** (2026-09-04): both build on
+`StackEntry`'s one-recipient shape — RS-2 at `validate_targets` and the two
+enumeration sites, item 6 when CR 603.3d chooses a trigger's targets as it goes
+on the stack — so on the fact/feature triage it is a fact, and it re-threads
+whatever is built on that shape after it. Commutes with A2–A4. A bite spell is
+its consumer: two targets, no division, 36 real cards.
 
 ### B. What breadth needs — beside and after triggers
 

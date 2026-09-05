@@ -1349,6 +1349,13 @@ something, and the CR 704.5n catch-all unattaches it — four times in 200 games
 a timing restriction and a new `Primitive::Attach` (only `KeywordAction::Attach`
 exists today). If that reads as too much for one PR, the alternative is
 multi-target plus Aura Finesse — a different subsystem, not a smaller one.
+**Settled 2026-09-04:** that alternative is `backlog.md` §2.20 now, a medium
+PR of its own with a back-stop before RS-2 and item 6 (`roadmap-v2.md` §3a),
+and LH-2 does not absorb it. Equip is the consumer. The timing restriction is
+the one piece to keep minimal: CR 702.6a's "only as a sorcery" is one
+activation-restriction value on `AbilityDef`, not `backlog.md` §2.8 wholesale.
+CR 613.7e's reassignment lives in `GameState::attach` (LH-1's one writer), and
+it closes the timestamp half of "Before Layers" 7g.
 
 ### Exit criteria
 

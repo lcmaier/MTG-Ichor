@@ -3413,7 +3413,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     "can't have or gain" restriction (RS-era), and `LoseAbility(AbilityId)` has
     no natural card.
 
-9. **Abilities granted to cards outside the battlefield — ❌ inexpressible.** The layer system can only apply filter-based effects to permanents: `effect_applies_to` returns `false` for any object not in `game.battlefield` (`engine/layers/compute.rs`), and the filter type is `PermanentFilter`. So a whole class of real cards has no representation — Yawgmoth's Will and Underworld Breach (flashback on graveyard cards), Aminatou, Veil Piercer ("Each enchantment card in your hand has miracle"), Future Sight and Bolas's Citadel (playing off the library), foretell-style grants on face-down exile.
+9. **Abilities granted to cards outside the battlefield — ❌ inexpressible.** The layer system can only apply filter-based effects to objects in the battlefield *zone*: `effect_applies_to`'s gate is `in_battlefield_zone_or_entering` (`engine/layers/compute.rs`, since RC-3), and the filter type is `PermanentFilter`. So a whole class of real cards has no representation — Yawgmoth's Will and Underworld Breach (flashback on graveyard cards), Aminatou, Veil Piercer ("Each enchantment card in your hand has miracle"), Future Sight and Bolas's Citadel (playing off the library), foretell-style grants on face-down exile.
 
    Two pieces are needed, in this order:
    - **A card filter and a zone-aware `AffectedSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
@@ -3425,16 +3425,49 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    The mask also generalizes the existing fast path, which today early-outs only when the registry is *entirely* empty: with it, a card in hand early-outs even with many battlefield effects registered. Worth building **with** the first zone-reaching card, not before — there is nothing to test against otherwise. Note that Aminatou additionally needs item 3 (the cost-modification pipeline) for "its miracle cost is equal to its mana cost reduced by {4}".
 
-   **Reachability (2026-09-03):** unreachable — no registered card grants an
+   **Reachability (2026-09-04):** unreachable — no registered card grants an
    ability to a card outside the battlefield; Leyline of the Void's opening-hand
    clause is left off the registered card (`phase_rb_cards.rs`), which is the
-   narrower-card precedent, not a wrong answer.
+   narrower-card precedent, not a wrong answer. Re-derived with the breadth,
+   since "niche" was the risk: Scryfall gives 24 graveyard-side "has/have"
+   statics, 103 static cast-from-graveyard permissions, 25 "spells you cast
+   have" grants reaching the stack and 3 "cards in your hand have" — with the
+   replacement doc's ~390 sources outside the battlefield, a few hundred
+   cards.
 
    **Sized:** a zone-aware `AffectedSet` with a card filter, CR
    613.7d timestamps on `GameObject`, and `reachable_zones` on
    `RegistryScopeSummary`: ~400–600 lines; with the first zone-reaching card,
    and `replacement-architecture.md` §3.3 source 2 (Leyline's clause) rides the
    same change.
+
+   **Three corrections (2026-09-04, after LH-1's review).**
+   1) *One filter type, not two.* "A card filter" above assumed a second type
+   beside `PermanentFilter`. CR 108.4a — a card that has no controller uses its
+   owner wherever a controller is asked for — means every existing leaf,
+   `ByController` included, reads correctly off a card in hand, so the shape is
+   one `ObjectFilter` with a zone leaf, `PermanentFilter` renamed to it and
+   `CardFilter` (three variants, five uses, `Condition::CardInGraveyard`) folded
+   in. **The rename is its own zero-behaviour PR, immediately before this
+   item**, byte-identical on the A/B, so the behaviour PR stays readable: 301
+   mentions across 35 files (203 in `src/`, 88 of them card definitions; 98 in
+   `tests/`) and ~40 across nine plan docs. ATOM-614.12-001 (Yixlid Jailer,
+   "Cards in graveyards lose all abilities") is the atom the zone leaf unblocks,
+   and that card is also the right **first consumer**: its source is on the
+   battlefield, so it needs nothing from CR 113.6 (A5) — only the zone-scoped
+   filter and a `LoseAllAbilities` row reaching a graveyard. Wonder needs A5 and
+   the `Condition` AST (7f) as well; it is the second card, not the first.
+   2) *Aminatou is four systems deep, and this item is only the first.*
+   Verified text (Scryfall, 2026-09-04): "Each enchantment card in your hand
+   has miracle. Its miracle cost is equal to its mana cost reduced by {4}." It
+   needs this item (a Layer 6 grant reaching hand, filtered by card type), A5's
+   CR 113.6 so miracle functions from hand, miracle itself (CR 702.94, a static
+   linked to a draw trigger — item 6, and RE's post-replacement draw stream),
+   and cost modification for the reduction (item 3, `backlog.md` §2.1). A
+   Phase 8 card, not this item's consumer.
+   3) The sentence at the top of this item was stale since RC-3 and is
+   corrected above: the gate is the battlefield *zone*, not `game.battlefield`
+   membership.
 
 10. **The `Layer` enum is missing a sublayer split — doc/code drift.** (The CDA half of this item is ✅ done, 2026-08-22; see below.)
 
