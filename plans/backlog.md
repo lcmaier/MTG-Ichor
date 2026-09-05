@@ -559,9 +559,12 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   legal → resolve, the illegal ones unaffected), ATOM-601.2d-001/-002
   (division), ATOM-115.3-001/-002. None claimed; every one of them needs two
   target clauses to build.
-- **Owner** — none yet. (Recorded 2026-09-04 in LH-1's review: the
-  `effect_recipient` doc had described the first-atom rule as "the convention
-  of every card written so far", and the reviewer asked for the whole pool.)
+- **Owner** — none yet; **scheduled** in `roadmap-v2.md` §3a beside A,
+  back-stopped before RS-2 and before A6's first PR (2026-09-04), because
+  both would otherwise build on the one-recipient shape. (Recorded 2026-09-04
+  in LH-1's review: the `effect_recipient` doc had described the first-atom
+  rule as "the convention of every card written so far", and the reviewer
+  asked for the whole pool.)
 
 ---
 
