@@ -93,11 +93,14 @@ impl GameState {
         controller: crate::types::ids::PlayerId,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        // --- Re-validate targets (rule 608.2b) ---
-        let recipient = self.extract_recipient(&entry.effect);
+        // --- Re-validate targets (rule 608.2b; 608.3b for a permanent spell) ---
+        // Against what they were chosen against, which the entry recorded:
+        // an Aura's is its enchant ability, and nothing in `entry.effect`
+        // could say so — that was Deferred Migrations item 8.
+        let recipient = &entry.recipient;
         let has_targets = matches!(recipient, EffectRecipient::Target(_, _));
 
-        if has_targets && !self.any_targets_still_legal(&recipient, &entry.chosen_targets, controller) {
+        if has_targets && !self.any_targets_still_legal(recipient, &entry.chosen_targets, controller) {
             // All targets illegal — spell/ability fizzles (is countered by game rules)
             self.handle_fizzle(object_id, &entry, dp)?;
             return Ok(());
@@ -170,12 +173,7 @@ impl GameState {
                             object_id
                         )),
                     };
-                    if let Some(aura_bf) = self.battlefield.get_mut(&object_id) {
-                        aura_bf.attach_to(host_id);
-                    }
-                    if let Some(host_bf) = self.battlefield.get_mut(&host_id) {
-                        host_bf.attached_by.push(object_id);
-                    }
+                    self.attach(object_id, host_id);
                 }
             } else {
                 // Instant/sorcery: to its owner's graveyard as the final part
@@ -240,23 +238,6 @@ impl GameState {
 
         Ok(())
     }
-
-    /// Extract the EffectRecipient from an Effect for re-validation purposes.
-    fn extract_recipient(&self, effect: &crate::types::effects::Effect) -> EffectRecipient {
-        match effect {
-            crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
-            crate::types::effects::Effect::Sequence(effects) => {
-                effects.iter().find_map(|e| {
-                    if let crate::types::effects::Effect::Atom(_, ts) = e {
-                        Some(ts.clone())
-                    } else {
-                        None
-                    }
-                }).unwrap_or(EffectRecipient::Implicit)
-            }
-            _ => EffectRecipient::Implicit,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -303,6 +284,7 @@ mod tests {
             .find(|a| a.ability_type == AbilityType::Spell)
             .unwrap();
         let effect = ability.effect.clone();
+        let recipient = crate::engine::targeting::spell_recipient(&card_data);
 
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = obj.id;
@@ -312,6 +294,7 @@ mod tests {
             object_id: id,
             controller,
             chosen_targets: targets,
+            recipient,
             chosen_modes: Vec::new(),
             x_value: None,
             effect,
@@ -441,6 +424,7 @@ mod tests {
             object_id: id,
             controller,
             chosen_targets: Vec::new(),
+            recipient: EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),
@@ -518,6 +502,7 @@ mod tests {
             object_id: id,
             controller,
             chosen_targets: Vec::new(),
+            recipient: EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value,
             effect: Effect::Sequence(vec![]),
@@ -563,6 +548,7 @@ mod tests {
         controller: usize,
         targets: Vec<ResolvedTarget>,
     ) -> crate::types::ids::ObjectId {
+        let recipient = crate::engine::targeting::spell_recipient(&card_data);
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = obj.id;
         game.add_object(obj);
@@ -571,6 +557,7 @@ mod tests {
             object_id: id,
             controller,
             chosen_targets: targets,
+            recipient,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),
@@ -684,6 +671,7 @@ mod tests {
             object_id: aura_id,
             controller: 0,
             chosen_targets: Vec::new(),
+            recipient: EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(Vec::new()),

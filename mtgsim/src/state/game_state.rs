@@ -32,6 +32,12 @@ pub struct StackEntry {
     pub controller: PlayerId,
     /// Targets chosen at cast/activation time (locked in)
     pub chosen_targets: Vec<ResolvedTarget>,
+    /// What `chosen_targets` were chosen against at CR 601.2c / 602.2b, and
+    /// so what CR 608.2b re-checks them against. Recorded rather than
+    /// re-derived at resolution because the two must be the same question:
+    /// an Aura's comes from its enchant ability (`targeting::spell_recipient`),
+    /// which `effect` cannot show.
+    pub recipient: crate::types::effects::EffectRecipient,
     /// Modes chosen at cast time (for modal spells, future-proofed)
     pub chosen_modes: Vec<usize>,
     /// X value if the spell has a variable cost
@@ -646,13 +652,15 @@ impl GameState {
     /// The inputs, and the one writer of each: `battlefield`, `objects[id].zone`
     /// and the players' graveyards in `move_object`; the entity in
     /// `place_on_battlefield`; its counters in `add_counters` /
-    /// `remove_counters`; the `objects` map in `add_object` / `remove_object`;
-    /// `stack_entries` in `set_stack_entry` / `take_stack_entry`; `resolving`
-    /// in `resolve_top_of_stack`; the registry's rows through its own
+    /// `remove_counters`; its `attached_to` in `attach` / `detach`
+    /// (`AffectedSet::Host` reads it at every layer); the
+    /// `objects` map in `add_object` / `remove_object`; `stack_entries` in
+    /// `set_stack_entry` / `take_stack_entry`; `resolving` in
+    /// `resolve_top_of_stack`; the registry's rows through its own
     /// `mutating`. Status the walk never reads — `tapped`, damage, combat,
-    /// attachment, the mana pool — has no bump, and must not get one: every
-    /// bump costs one walk per queried object. `&mut self` on purpose, so a
-    /// read path cannot call this.
+    /// the mana pool — has no bump, and must not get one: every bump costs
+    /// one walk per queried object. `&mut self` on purpose, so a read path
+    /// cannot call this.
     pub fn bump_layer_epoch(&mut self) {
         self.layer_epoch += 1;
     }
@@ -826,6 +834,47 @@ impl GameState {
             self.bump_layer_epoch();
         }
         removed
+    }
+
+    /// Attach a permanent to a host (CR 301.5, 303.4): writes the attachment's
+    /// `attached_to` and the host's `attached_by`, the two fields that together
+    /// record one attachment.
+    ///
+    /// The one writer of those fields, for the reason `add_counters` is the one
+    /// route to the entity's counters: `attached_to` is a layer-walk input —
+    /// `AffectedSet::Host` reads it at every layer — so the write bumps the
+    /// epoch, and a writer that bypassed this would leave the memo serving
+    /// "enchanted creature gets +1/+2" to nobody until something else bumped.
+    /// Writes nothing, and burns no bump, unless both permanents are on the
+    /// battlefield: CR 303.4i sends an Aura whose host is gone elsewhere, and
+    /// CR 301.5c never lets an Equipment point off the battlefield either.
+    pub fn attach(&mut self, attachment: ObjectId, host: ObjectId) {
+        if !self.battlefield.contains_key(&attachment) || !self.battlefield.contains_key(&host) {
+            return;
+        }
+        // A reattachment leaves the old host's back-pointer behind otherwise.
+        self.detach(attachment);
+        self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
+        self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
+        self.bump_layer_epoch();
+    }
+
+    /// Detach a permanent from whatever it is attached to — clears its
+    /// `attached_to` and removes it from the host's `attached_by` — and return
+    /// the former host, if there was one.
+    ///
+    /// The counterpart of [`GameState::attach`], and the other writer of the
+    /// same two fields. Not a state-based action by itself: the SBA that
+    /// decides an Equipment is on a non-creature (CR 704.5n) calls this and
+    /// then announces. No bump when there was nothing to detach — that is not
+    /// a write.
+    pub fn detach(&mut self, attachment: ObjectId) -> Option<ObjectId> {
+        let host = self.battlefield.get_mut(&attachment)?.attached_to.take()?;
+        if let Some(host_entry) = self.battlefield.get_mut(&host) {
+            host_entry.attached_by.retain(|&id| id != attachment);
+        }
+        self.bump_layer_epoch();
+        Some(host)
     }
 
     /// Remove a permanent from combat (CR 506.4).
@@ -1318,6 +1367,9 @@ impl GameState {
                 Some(AffectedSet::Filter { filter: filter.clone() })
             }
             EffectRecipient::Implicit => Some(AffectedSet::SourceOnly),
+            // Likewise unresolved: the host is read during the walk, which is
+            // what makes it fine that this runs before the Aura is attached.
+            EffectRecipient::Host => Some(AffectedSet::Host),
 
             // `Target` and `Choose` need a resolution to pick with, and
             // `Controller` names a player where an `AffectedSet` names objects.
@@ -1727,6 +1779,7 @@ mod tests {
             object_id: crate::types::ids::new_object_id(),
             controller: 0,
             chosen_targets: Vec::<ResolvedTarget>::new(),
+            recipient: crate::types::effects::EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),

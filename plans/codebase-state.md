@@ -100,7 +100,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 |---|---|---|---|
 | 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | 🟡 attachment tracking ✅, `attach_to`/`detach` primitives ✅; **Equip activated ability ❌** | `state/battlefield.rs`, `engine/zones.rs` |
 | 302 | Creatures + summoning sickness | ✅ turn-based tracking (T09) | `oracle/characteristics.rs` `has_summoning_sickness` |
-| 303 | Enchantments / Auras — ETB attach, enchant filter, control on resolve, non-stack ETB host choice | ✅ all via T15b | `engine/resolve.rs` `attach_aura_on_etb`, `objects/card_data.rs` `enchant_filter` |
+| 303 | Enchantments / Auras — an Aura spell targets its enchant ability (303.4a), enters attached (303.4 / 608.3c), fizzles against a gone target (608.3b), "enchanted creature" reaches the host (303.4m, LH-1 2026-09-04), control on resolve (303.4e); **non-stack ETB host choice (303.4f/g) ❌** — `attach_aura_on_etb` was dead code and was deleted with LH-1 | 🟡 | `engine/targeting.rs` `spell_recipient`, `engine/stack.rs` Aura branch, `state/game_state.rs` `attach`/`detach`, `objects/card_data.rs` `enchant_filter` |
 | 304 | Instants | ✅ basic cast path | `engine/cast.rs` |
 | 305 | Lands | ✅ basic lands + mana abilities | `cards/basic_lands.rs` |
 | 306 | Planeswalkers | ✅ loyalty ETB, 0-loyalty SBA; loyalty-ability costs ❌ (T19 pending) | `engine/sba.rs` |
@@ -636,6 +636,24 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
    **Sized:** above (2026-09-01) — one shared helper, not three; ships inside
    LH-1 with Holy Strength.
+
+   **Closed 2026-09-04 — LH-1 ✅ (`layers/lh-1-host-addressable`).** One
+   helper, `engine/targeting.rs::spell_recipient(&CardData)`: an Aura's
+   recipient is its enchant ability (CR 303.4a), anything else's is the spell
+   ability's through `effect_recipient`, which is the fourteen lines kept once
+   and shared with `activate_ability`. The resolution does not derive a fourth
+   time — `StackEntry` records the recipient the targets were chosen against,
+   so CR 608.2b re-checks the question 601.2c asked. `attach_aura_on_etb` was
+   deleted rather than made the path. The four tests that pinned this
+   (`tests/phase_lh_integration_test.rs`) were shown failing against the
+   pre-fix tree at the first assertion each makes.
+
+   **Reachability (2026-09-04):** closed — LH-1. One honest residue: the
+   fizzle arm is covered and reachable in principle (a Bolt in response),
+   but in 200 stress games at seed 12345 Holy Strength was countered 3 times
+   and fizzled **0**, with or without `--require` — the random agent does not
+   answer an Aura by killing its target. CR 704.5m/n, the other half of the
+   Aura row, went 0 → 23 in the same run.
 
 ### Found by a judge-corpus pass (2026-08-26)
 
@@ -3095,7 +3113,10 @@ zero production callers, reached only by its own three unit tests. It implements
 CR 303.4g's *choose a host on entry*, which is the right shape for an Aura put
 onto the battlefield without being cast — a path no card can take yet. Left in
 place rather than deleted, and recorded here so the next reader does not mistake
-it for the live path (`engine/stack.rs`'s Aura branch is).
+it for the live path (`engine/stack.rs`'s Aura branch is). **Deleted with LH-1
+(2026-09-04):** it was the second attach writer, which is what item 8 is about,
+and whatever first returns an Aura to the battlefield brings CR 303.4f/g back
+with its consumer.
 
 **Also registered: `adaptive_shimmerer`.** Its own doc comment said "this one
 grows the stress pool" and `registry.rs` never registered it, so the claim was
@@ -3108,6 +3129,18 @@ lives only on its counters, which is the sharpest board CR 704.5f has.
 seed on both pools, byte-identical outside `=== Timing ===`. Fixtures re-recorded
 in `plans/engineering-practices.md` §3; **both columns moved, because both pools
 gained Battlegrowth**, so nothing in that table is comparable across this commit.
+
+**The Aura row closed 2026-09-04 (LH-1, `layers-architecture.md` §13a).** Same
+instrument, same 200 stress games at seed 12345: `[AuraSba]` **0 → 23**, and
+60 under `--require "Holy Strength"`. Both blockers the row named are gone —
+`AffectedSet::Host` reaches the host, and `targeting::spell_recipient`
+reads the enchant ability — but only one of the two paths they blocked is
+*reached*: CR 704.5m/n fires because hosts die in combat, while the CR 608.3b
+fizzle, covered by `tests/phase_lh_integration_test.rs`, went **0** in the same
+200 games with and without `--require`. The random agent never answers an Aura
+by killing its target; the closest it came was three Counterspells. That is a
+statement about the agent, recorded here so the next reader does not count the
+fizzle as fuzz-covered. The Equipment row is LH-2's.
 
 ### Phasing (CR 702.26) — sized 2026-08-26, not started
 
@@ -3301,12 +3334,17 @@ The layer system's designated single-point change site is `oracle/characteristic
     mutator edits a row in place today; an in-place mutator bumps `mutations`
     itself or the memo serves the pre-pass order.
 
-    **Reachability (2026-09-03):** unreachable — LH has not landed (no walk
-    reads `attached_to`), and no `DurationRegistry` mutator edits a row in
-    place.
+    **Reachability (2026-09-04):** unreachable for what is left. (1)'s
+    `attached_to` half landed in LH-1 — the walk reads it through
+    `AffectedSet::Host`, and every writer goes through
+    `GameState::attach` / `detach`, which bump; `bump_layer_epoch`'s doc
+    lists them. The CR 613.7 timestamp is still immutable until LH-2, and no
+    `DurationRegistry` mutator edits a row in place.
 
-    **Sized:** one `bump_layer_epoch` per writer at the six sites
-    named, ~10 lines, inside LH-2; item 7's in-place mutator bumps itself, in
+    **Sized:** the timestamp bump, one line inside LH-2's attach site — the
+    placement this item first gave *all* the bumps was stale, since it is the
+    PR that makes the walk read a field that owes the bump, and for
+    `attached_to` that was LH-1; item 7's in-place mutator bumps itself, in
     item 7's PR.
 
 8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.

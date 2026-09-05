@@ -498,6 +498,11 @@ pub(crate) fn set_affects(
     match affected {
         AffectedSet::SourceOnly => source == id,
         AffectedSet::Fixed(ids) => ids.contains(&id),
+        // CR 303.4m, by id like the two above: an entering permanent is
+        // attached to by nothing, so the frame has nothing to say.
+        AffectedSet::Host => {
+            game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
+        }
         AffectedSet::Filter { filter } => match frame.and_then(|f| f.frame_of(id)) {
             Some(chars) => game
                 .permanent_matches_filter_in_frame(id, filter, controller, chars)

@@ -8,6 +8,7 @@ use crate::types::costs::Cost;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
+use crate::engine::targeting::{effect_recipient, spell_recipient};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -60,32 +61,19 @@ impl GameState {
         // Find the spell ability on the card.
         // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
         // may not have a spell ability — they resolve by entering the
-        // battlefield. Use an empty Sequence as a no-op effect.
-        let (effect, recipient) = if let Some(spell_ability) = card_data.abilities.iter()
+        // battlefield. Use an empty Sequence as a no-op effect. The recipient
+        // is a separate question (CR 303.4a: an Aura's is its enchant
+        // ability), asked of the card by `spell_recipient`.
+        let effect = if let Some(spell_ability) = card_data.abilities.iter()
             .find(|a| a.ability_type == AbilityType::Spell)
         {
-            let effect = spell_ability.effect.clone();
-            let recipient = match &effect {
-                crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
-                crate::types::effects::Effect::Sequence(effects) => {
-                    // For sequence effects, use the target spec from the first atom
-                    effects.iter().find_map(|e| {
-                        if let crate::types::effects::Effect::Atom(_, ts) = e {
-                            Some(ts.clone())
-                        } else {
-                            None
-                        }
-                    }).unwrap_or(EffectRecipient::Implicit)
-                }
-                _ => EffectRecipient::Implicit,
-            };
-            (effect, recipient)
+            spell_ability.effect.clone()
         } else if card_data.types.iter().any(|t| t.is_permanent()) {
-            // Permanent spell with no spell ability — resolves by ETB alone
-            (crate::types::effects::Effect::Sequence(Vec::new()), EffectRecipient::Implicit)
+            crate::types::effects::Effect::Sequence(Vec::new())
         } else {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
+        let recipient = spell_recipient(&card_data);
 
         // --- 601.2a: Move to stack ---
         // Capture the origin first: once the card is on the stack its `zone`
@@ -178,6 +166,7 @@ impl GameState {
             object_id: card_id,
             controller: player_id,
             chosen_targets: targets,
+            recipient,
             chosen_modes: Vec::new(),
             x_value: if x_count > 0 { Some(x_value) } else { None },
             effect,
@@ -340,10 +329,7 @@ impl GameState {
             source: source_id,
             ability: ability.id,
         };
-        let recipient = match &effect {
-            crate::types::effects::Effect::Atom(_, ts) => ts.clone(),
-            _ => EffectRecipient::Implicit,
-        };
+        let recipient = effect_recipient(&effect);
 
         // Create a new object on the stack representing the ability (rule 602.2a)
         // Abilities on the stack are not cards — they have no CardData.
@@ -382,6 +368,7 @@ impl GameState {
             object_id: ability_obj_id,
             controller: player_id,
             chosen_targets: targets,
+            recipient,
             chosen_modes: Vec::new(),
             x_value: None,
             effect,

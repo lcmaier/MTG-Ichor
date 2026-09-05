@@ -21,6 +21,7 @@ use super::phase_rc_cards;
 use super::phase_cv_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
+use super::phase_lh_cards;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -43,7 +44,7 @@ use super::phase_sba_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 66] = [
+const PERFORMANCE_POOL: [&str; 67] = [
     "Plains",
     "Island",
     "Swamp",
@@ -154,6 +155,12 @@ const PERFORMANCE_POOL: [&str; 66] = [
     // board a random game reaches. Sutured Ghoul stays out at `{4}{B}{B}{B}`.
     "Thunder-Thrash Elder",
     "Master Biomancer",
+    // LH-1 — the pool's first Aura, and so its first `Host` row:
+    // membership is a `battlefield` read per candidate per layer rather than
+    // a filter match, a new arm in `effect_applies_to`. Also the first spell
+    // whose target comes from `enchant_filter`, which is what puts CR 608.3b's
+    // fizzle and CR 704.5m/n in front of a random game.
+    "Holy Strength",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -360,6 +367,13 @@ impl CardRegistry {
         // and until this card the annihilation sweep had never run in a fuzz
         // game — `engineering-practices.md` §3.3.
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
+
+        // LH-1 — the first Aura. Its static ability is the first to lower to
+        // `AffectedSet::Host`, and it is the first spell whose
+        // recipient comes from `enchant_filter` (CR 303.4a) rather than a
+        // spell ability — which is what makes CR 608.3b and CR 704.5m/n
+        // reachable from a fuzz game at all (`phase_lh_cards`).
+        registry.register("Holy Strength", phase_lh_cards::holy_strength);
 
         registry
     }

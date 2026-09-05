@@ -434,12 +434,7 @@ impl GameState {
             .collect();
 
         for (equip_id, host_id) in equip_bad_host {
-            if let Some(entry) = self.battlefield.get_mut(&equip_id) {
-                entry.detach();
-            }
-            if let Some(host) = self.battlefield.get_mut(&host_id) {
-                host.attached_by.retain(|&aid| aid != equip_id);
-            }
+            self.detach(equip_id);
             self.events.emit(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
             any_performed = true;
         }
@@ -464,12 +459,7 @@ impl GameState {
             .collect();
 
         for (att_id, host_id) in illegal_attachments {
-            if let Some(entry) = self.battlefield.get_mut(&att_id) {
-                entry.detach();
-            }
-            if let Some(host) = self.battlefield.get_mut(&host_id) {
-                host.attached_by.retain(|&aid| aid != att_id);
-            }
+            self.detach(att_id);
             self.events.emit(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
             any_performed = true;
         }
@@ -1360,8 +1350,7 @@ mod tests {
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment
-        game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
-        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
+        game.attach(aura_id, host_id);
 
         // Verify setup
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, Some(host_id));
@@ -1408,8 +1397,7 @@ mod tests {
         game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
 
         // Illegally attach equipment to the land
-        game.battlefield.get_mut(&equip_id).unwrap().attach_to(land_id);
-        game.battlefield.get_mut(&land_id).unwrap().attached_by.push(equip_id);
+        game.attach(equip_id, land_id);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
@@ -1453,8 +1441,7 @@ mod tests {
         game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
 
         // Legally attach
-        game.battlefield.get_mut(&equip_id).unwrap().attach_to(creature_id);
-        game.battlefield.get_mut(&creature_id).unwrap().attached_by.push(equip_id);
+        game.attach(equip_id, creature_id);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -1488,8 +1475,7 @@ mod tests {
         game.place_on_battlefield(att_id, 0, &EnterMods::NONE);
 
         // Wire up illegal attachment
-        game.battlefield.get_mut(&att_id).unwrap().attach_to(host_id);
-        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(att_id);
+        game.attach(att_id, host_id);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
@@ -1525,8 +1511,7 @@ mod tests {
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Attach
-        game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
-        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
+        game.attach(aura_id, host_id);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -1665,8 +1650,7 @@ mod tests {
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Wire up illegal attachment (Aura enchanting a land with "Enchant creature")
-        game.battlefield.get_mut(&aura_id).unwrap().attach_to(land_id);
-        game.battlefield.get_mut(&land_id).unwrap().attached_by.push(aura_id);
+        game.attach(aura_id, land_id);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);

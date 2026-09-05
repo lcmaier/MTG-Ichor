@@ -379,19 +379,14 @@ impl GameState {
                 }
             };
 
-            // If this permanent was attached to a host, remove it from the host's attached_by
-            if let Some(host_id) = attached_to {
-                if let Some(host) = self.battlefield.get_mut(&host_id) {
-                    host.attached_by.retain(|&aid| aid != id);
-                }
+            // Both ends of every link this permanent is in, through the one
+            // writer that bumps the layer epoch. Its own attachments are left
+            // on the battlefield unattached, for SBA 704.5m to find.
+            if attached_to.is_some() {
+                self.detach(id);
             }
-
-            // If this permanent had things attached to it, clear their attached_to
-            // (Aura SBAs will handle the resulting unattached auras)
             for attachment_id in attached_by {
-                if let Some(attachment) = self.battlefield.get_mut(&attachment_id) {
-                    attachment.attached_to = None;
-                }
+                self.detach(attachment_id);
             }
         }
     }
@@ -610,8 +605,7 @@ mod tests {
         game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
-        game.battlefield.get_mut(&equip_id).unwrap().attach_to(host_id);
-        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(equip_id);
+        game.attach(equip_id, host_id);
 
         // Verify setup
         assert_eq!(game.battlefield.get(&equip_id).unwrap().attached_to, Some(host_id));
@@ -641,8 +635,7 @@ mod tests {
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
-        game.battlefield.get_mut(&aura_id).unwrap().attach_to(host_id);
-        game.battlefield.get_mut(&host_id).unwrap().attached_by.push(aura_id);
+        game.attach(aura_id, host_id);
 
         // Attachment leaves the battlefield — host's attached_by should be updated
         game.move_object(aura_id, Zone::Graveyard).unwrap();

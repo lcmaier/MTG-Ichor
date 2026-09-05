@@ -160,6 +160,14 @@ pub enum AffectedSet {
     /// A fixed set captured at effect creation time.
     /// Pump spells use this — the target is locked at resolution.
     Fixed(Vec<ObjectId>),
+    /// Whatever the source is attached to *now* — CR 303.4m's "enchanted
+    /// creature". Resolved during the walk off the source's `attached_to`,
+    /// never captured, for the same reason `Filter` stores its `PlayerRef`
+    /// unresolved: `register_static_effects` runs inside
+    /// `place_on_battlefield`, before the resolution attaches the Aura, so a
+    /// snapshot would be empty for every Aura ever cast. An unattached source
+    /// names nothing.
+    Host,
 }
 
 /// Filter for matching cards (extensible)
@@ -239,6 +247,13 @@ pub enum EffectRecipient {
     /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes
     /// a static ability's "you" the source's *current* controller.
     FilteredPermanents(PermanentFilter),
+    /// The permanent this one is attached to — "enchanted creature" on an
+    /// Aura (CR 303.4m), "equipped creature" on an Equipment (CR 301.5a).
+    /// Static abilities only, like `FilteredPermanents`; lowers to
+    /// `AffectedSet::Host`, which reads `attached_to` during the
+    /// layer walk rather than capturing it, because registration happens
+    /// before the attach.
+    Host,
 }
 
 /// What kind of object(s) can be selected.

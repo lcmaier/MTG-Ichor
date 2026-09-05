@@ -462,25 +462,6 @@ pub fn set_blocking(game: &mut GameState, blocker: ObjectId, blocking: Vec<Objec
     }
 }
 
-/// Attach `attachment` to `host`, writing both sides of the link.
-///
-/// Writes the state directly rather than replaying an Aura's ETB or an
-/// Equipment's equip ability, for the same reason the combat helpers write
-/// combat state directly: the tests that want this are asking what happens to
-/// an *already attached* permanent, and there is no equip ability to replay.
-///
-/// Both directions matter — `cleanup_zone_state` walks `attached_by` to detach
-/// a departing host, and SBA 704.5m/n reads `attached_to`. Writing one and not
-/// the other produces a board no real game can reach.
-pub fn attach(game: &mut GameState, attachment: ObjectId, host: ObjectId) {
-    if let Some(entry) = game.battlefield.get_mut(&attachment) {
-        entry.attached_to = Some(host);
-    }
-    if let Some(entry) = game.battlefield.get_mut(&host) {
-        entry.attached_by.push(attachment);
-    }
-}
-
 /// A `{1}` Equipment named `name`, with no equip ability and no granted bonus.
 ///
 /// Equip (CR 702.6) is not implemented, and the control-independence tests do

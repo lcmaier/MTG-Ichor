@@ -1237,7 +1237,11 @@ writes: every `attach_to` / `detach` and direct `attached_to` /
 `attached_by` write (`resolve.rs`, `sba.rs`, `stack.rs`, `zones.rs`,
 `test_support::attach`), and the timestamp write LH-2 makes mutable. Until
 that day they are status and must not bump. `codebase-state.md` "Before
-Layers" 7g carries the migration.
+Layers" 7g carries the migration. **LH-1 was that day for `attached_to`
+(2026-09-04)**, and rather than a bump at each of the six sites there is one
+writer, `GameState::attach` / `detach` — both sides of the link, the way
+`add_counters` is the one route to the entity's counters — that every site
+goes through. The timestamp bump is LH-2's.
 
 **It is not folded *into* item 7.** LH is a state-shape change and item 7 is an
 ordering-algorithm change, and item 7 is already the largest phase on the path.
@@ -1265,9 +1269,9 @@ CR 613.7c already reassigns a timestamp from the same monotonic counter —
 `state/battlefield.rs:144`, `CounterStack.timestamp`, when a new counter of a
 kind arrives. Deterministic, shipped, and the same move one level up.
 
-### LH-1 — the host becomes addressable (~730 additions)
+### LH-1 — the host becomes addressable (~730 additions) — ✅ 2026-09-04
 
-1. **`AffectedSet::AttachedToSource`** plus its `EffectRecipient` lowering. One
+1. **`AffectedSet::Host`** plus its `EffectRecipient` lowering. One
    arm in `compute::effect_applies_to`
    (`game.battlefield.get(&effect.source).and_then(|e| e.attached_to) == Some(id)`),
    one in `static_affected_set`. **Resolved during the walk, never snapshotted**
@@ -1287,6 +1291,44 @@ what the three copies return today for every card that exists — **a fix nothin
 in a fuzz game can reach**. Shipping it alone would put a new arm in front of
 the performance pool that no card can open, which is the failure §3 of
 `engineering-practices.md` describes. It ships with the card that makes it live.
+
+**As built (2026-09-04, `layers/lh-1-host-addressable`).** Three departures
+from the list above, each smaller than what it replaces:
+
+1. The helper is `engine/targeting.rs::spell_recipient(&CardData)`, and the
+   resolution does not call it. `StackEntry` records the recipient the targets
+   were chosen against at CR 601.2c, so CR 608.2b re-checks the *same* question
+   rather than a second derivation that has to agree — and the resolution stops
+   reading printed abilities off an object on the stack. The fourteen lines
+   survive once, as `effect_recipient`, shared with `activate_ability`, which
+   had a fourth, `Atom`-only copy.
+2. The epoch bumps 7g placed in LH-2 belong here, since this is the PR that
+   makes the walk read `attached_to`. Rather than six bumps there is one writer:
+   `GameState::attach` / `detach` write both sides of the link and bump, and
+   every former site goes through them. `attach` refuses a host that is not on
+   the battlefield (CR 303.4i sends such an Aura elsewhere), and a reattachment
+   detaches first, so the old host's back-pointer never survives.
+3. `attach_aura_on_etb` was deleted rather than made the path. It implemented
+   CR 303.4f's choose-on-entry for a path no card can take, and it was the
+   second attach writer. Whatever first returns an Aura to the battlefield
+   brings 303.4f/g back with its consumer.
+4. The variant is `Host`, not the `AttachedToSource` this section first named
+   (review, 2026-09-04): on a card the source is the card itself, so "attached
+   to source" read as "the things attached to me", which is the wrong
+   direction. `EffectRecipient::Host` lowers to `AffectedSet::Host`, and "host"
+   is what every attach site already called it.
+
+Measured, 200 stress games at seed 12345: CR 704.5m/n's `[AuraSba]` **0 → 23**
+(60 under `--require "Holy Strength"`); Holy Strength resolves 96 times
+unforced and in 134–135 of 200 games forced, both pools. The CR 608.3b fizzle
+is covered and **reached 0 times** — the random agent does not kill an Aura's
+target in response; 3 Counterspells is the closest it came. Three serial runs
+at one seed are byte-identical outside `=== Timing ===` on both pools, and the
+three-arm A/B (`engineering-practices.md` §3) puts the engine's share at zero:
+the pool-unchanged arm is byte-identical to `main` on `performance`. One more
+composition fell out of the pool for free: Mirrorform copying a creature onto
+an attached Holy Strength makes it a non-Aura permanent that is attached to
+something, and the CR 704.5n catch-all unattaches it — four times in 200 games.
 
 ### LH-2 — CR 613.7e, and the field split (~900 additions)
 

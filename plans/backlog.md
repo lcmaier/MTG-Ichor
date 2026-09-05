@@ -525,6 +525,46 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
 
 ---
 
+### 2.20 Several target clauses on one spell
+
+- **Rules** — CR 115.1 ("one or more objects or players as targets"), 115.3
+  (one object may be chosen once per *instance* of "target", and for several
+  instances), 601.2c (targets are announced per instance), 601.2d (a divided
+  effect is announced per target), 608.2b (a spell with *some* legal targets
+  resolves, and the illegal ones are not affected).
+- **Verdict** — a spell has one recipient. `StackEntry` carries one
+  `EffectRecipient` and one flat `chosen_targets`; `targeting::effect_recipient`
+  takes a `Sequence`'s *first* atom's recipient and every later atom resolves
+  against the same targets; `cast_spell` asks one `SelectRecipients`; and
+  `any_targets_still_legal` answers for the whole list. "Target creature
+  deals damage equal to its power to another target creature" has no slot for
+  its second choice, no prompt for it, and no rule that keeps the spell
+  resolving when only one of the two is gone. Wants a recipient *per atom* (or
+  per instance of "target"), targets keyed the same way, a CR 601.2c loop over
+  the instances, and CR 608.2b's per-target legality at resolution.
+- **Size** — medium, one PR in the band: per-atom target slots on `StackEntry`,
+  `cast_spell` / `activate_ability` looping the instances, `resolve_effect`
+  reading its own atom's slot, `any_targets_still_legal` becoming "any instance
+  still legal" with the illegal ones skipped. No new `DecisionProvider` shape —
+  one `SelectRecipients` per instance. CR 601.2d's division is a second step on
+  top and wants `DecisionProvider::allocate`.
+- **Blocks** — by Scryfall (2026-09-04): 228 instants and sorceries whose text
+  names "target" twice in one sentence, and 165 permanents with such an
+  ability; among them 36 bite spells ("another target creature"), 32 of
+  Decimate's "target X and target Y" shape (Decimate itself is four), and the
+  48 "divided as you choose" spells (Electrolyze, Fiery Justice) that also
+  want 601.2d. Aura Finesse, LH-2's alternative consumer, is here too.
+- **Atoms** — ATOM-601.2c-003/-004 (one object for several instances of
+  "target", never twice for one), ATOM-608.2b-002 and -005 (some targets
+  legal → resolve, the illegal ones unaffected), ATOM-601.2d-001/-002
+  (division), ATOM-115.3-001/-002. None claimed; every one of them needs two
+  target clauses to build.
+- **Owner** — none yet. (Recorded 2026-09-04 in LH-1's review: the
+  `effect_recipient` doc had described the first-atom rule as "the convention
+  of every card written so far", and the reviewer asked for the whole pool.)
+
+---
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
