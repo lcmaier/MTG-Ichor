@@ -28,6 +28,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -69,6 +70,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -129,6 +131,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -178,6 +181,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -239,6 +243,7 @@ pub fn blood_moon() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -283,6 +288,7 @@ pub fn urborg_effect() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -323,6 +329,7 @@ pub fn dual_land_ub() -> Arc<CardData> {
     fn mana_ability(mana_type: ManaType) -> AbilityDef {
         AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Mana,
             costs: vec![crate::types::costs::Cost::Tap],
@@ -366,6 +373,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .rules_text("Lands have flying.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -412,6 +420,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -475,6 +484,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
         .rules_text("Creatures have flying.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -527,6 +537,7 @@ pub fn self_stripping_land() -> Arc<CardData> {
         .rules_text("Nonbasic lands are Mountains.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),

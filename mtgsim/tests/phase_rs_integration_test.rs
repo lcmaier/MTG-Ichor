@@ -130,6 +130,7 @@ fn resolve_edict(
     let effect = edict_effect();
     let ctx = ResolutionContext {
         source: edict,
+        ability_source: None,
         controller: caster,
         targets: vec![ResolvedTarget::Player(victim)],
     };
@@ -166,6 +167,7 @@ fn resolve_edict_effect(
     let source = place_bare(game, diabolic_edict(), caster);
     let ctx = ResolutionContext {
         source,
+        ability_source: None,
         controller: caster,
         targets: vec![ResolvedTarget::Player(victim)],
     };
@@ -593,6 +595,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
     );
     let ctx = ResolutionContext {
         source,
+        ability_source: None,
         controller: 1,
         targets: vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)],
     };
@@ -628,7 +631,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
         affected: AffectedSet::Filter { filter: PermanentFilter::ByController(PlayerRef::You) },
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
-    let ctx = ResolutionContext { source, controller: 0, targets: Vec::new() };
+    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: Vec::new() };
 
     let err = game
         .resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new())

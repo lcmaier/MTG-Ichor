@@ -36,6 +36,7 @@ pub fn sol_ring() -> Arc<CardData> {
         .rules_text("{T}: Add {C}{C}.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],

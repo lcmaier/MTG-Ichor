@@ -104,6 +104,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -159,6 +160,7 @@ pub fn diabolic_edict() -> Arc<CardData> {
         .rules_text("Target player sacrifices a creature of their choice.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),

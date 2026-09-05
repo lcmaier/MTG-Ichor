@@ -109,6 +109,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
+            ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
             targets: entry.chosen_targets.clone(),
         };
@@ -260,6 +261,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

@@ -71,6 +71,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
                 EffectRecipient::Implicit,
             ),
             is_characteristic_defining: true,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         })
         .build()
 }
@@ -106,6 +107,7 @@ pub fn culling_drone() -> Arc<CardData> {
                 EffectRecipient::Implicit,
             ),
             is_characteristic_defining: true,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         })
         .build()
 }

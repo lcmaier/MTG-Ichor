@@ -136,6 +136,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
         .rules_text("This land enters tapped.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -200,6 +201,7 @@ pub fn chainbreaker() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -211,6 +213,7 @@ pub fn chainbreaker() -> Arc<CardData> {
         })
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::Tap],
@@ -268,6 +271,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
         .rules_text("Flash\nThis creature enters with three +1/+1 counters on it.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -351,6 +355,7 @@ pub fn root_maze() -> Arc<CardData> {
         .rules_text("Artifacts and lands enter tapped.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -431,6 +436,7 @@ pub fn containment_priest() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -552,6 +558,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: true,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -631,6 +638,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -728,6 +736,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -837,6 +846,7 @@ pub fn master_biomancer() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),

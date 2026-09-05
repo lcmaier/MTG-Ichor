@@ -244,6 +244,7 @@ mod tests {
             costs: Vec::new(),
             effect: Effect::Atom(primitive, EffectRecipient::Implicit),
             is_characteristic_defining: true,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         }
     }
 

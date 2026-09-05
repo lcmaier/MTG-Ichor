@@ -71,6 +71,7 @@ fn undying_probe(name: &str) -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -312,6 +313,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -763,6 +765,7 @@ fn replacement_creature(name: &str, def: ReplacementDef) -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -1070,6 +1073,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
     let dp = ScriptedDecisionProvider::new();
     let rctx = ResolutionContext {
         source,
+        ability_source: None,
         controller: 0,
         targets: vec![ResolvedTarget::Object(target)],
     };
@@ -1271,6 +1275,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
     let dp = ScriptedDecisionProvider::new();
     let rctx = ResolutionContext {
         source: killer,
+        ability_source: None,
         controller: 1,
         targets: vec![ResolvedTarget::Object(bear)],
     };
@@ -1307,6 +1312,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
     let dp = ScriptedDecisionProvider::new();
     let rctx = ResolutionContext {
         source: killer,
+        ability_source: None,
         controller: 1,
         targets: vec![ResolvedTarget::Object(bear)],
     };

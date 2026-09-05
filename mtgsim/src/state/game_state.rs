@@ -851,15 +851,23 @@ impl GameState {
     /// Writes nothing, and burns no bump, unless both permanents are on the
     /// battlefield: CR 303.4i sends an Aura whose host is gone elsewhere, and
     /// CR 301.5c never lets an Equipment point off the battlefield either.
-    pub fn attach(&mut self, attachment: ObjectId, host: ObjectId) {
+    /// Nor when `attachment` is already on `host` — CR 701.3b, "the effect
+    /// does nothing" — so a caller can tell a transition from a no-op by the
+    /// return: `true` iff the link was written. The `GameAction::Attach`
+    /// performer announces only the transition.
+    pub fn attach(&mut self, attachment: ObjectId, host: ObjectId) -> bool {
         if !self.battlefield.contains_key(&attachment) || !self.battlefield.contains_key(&host) {
-            return;
+            return false;
+        }
+        if self.battlefield[&attachment].attached_to == Some(host) {
+            return false;
         }
         // A reattachment leaves the old host's back-pointer behind otherwise.
         self.detach(attachment);
         self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
         self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
         self.bump_layer_epoch();
+        true
     }
 
     /// Detach a permanent from whatever it is attached to — clears its
@@ -1610,6 +1618,7 @@ mod tests {
         fn static_ability(effect: Effect) -> AbilityDef {
             AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: new_ability_id(),
                 ability_type: AbilityType::Static,
                 costs: Vec::new(),

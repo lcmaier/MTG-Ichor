@@ -25,8 +25,16 @@ use crate::ui::decision::DecisionProvider;
 /// targets so that each `Primitive` knows what it's acting on.
 #[derive(Debug, Clone)]
 pub struct ResolutionContext {
-    /// The object that is the source of this spell/ability
+    /// The resolving stack object — the spell, or for an ability the
+    /// ephemeral object CR 608.2n deletes at the end of resolution.
     pub source: ObjectId,
+    /// CR 113.7a — for an activated ability, the permanent whose ability is
+    /// resolving; `None` for a spell (whose source is `source`) and for a
+    /// CR 615.5 rider. "This permanent" in an ability's text reads this:
+    /// `Primitive::Attach` attaches it. Existing primitives that attribute to
+    /// `source` (`DealDamage`'s source, `Destroy`'s `DestructionSource`) are
+    /// unchanged by this field; nothing registered activates one.
+    pub ability_source: Option<ObjectId>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
     /// Resolved targets (validated before resolution begins)
@@ -300,6 +308,36 @@ impl GameState {
                     }
                 }
                 self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            Primitive::Attach => {
+                // "Attach this permanent to target ..." (CR 702.6a). The
+                // attachment is the ability's source; a spell has none to attach.
+                let attachment = ctx.ability_source.ok_or_else(|| {
+                    "Primitive::Attach resolved from a spell: only an ability has a permanent to attach"
+                        .to_string()
+                })?;
+                // CR 608.2b partial resolution: the performer is loud, so the
+                // caller checks. The Equipment may have left the battlefield
+                // after activation (CR 301.5b says nothing happens then), and
+                // the target's legality — "creature you control" at resolution
+                // — was re-checked against the recipient before `resolve_effect`
+                // was called, which is the check CR 701.3b's "doesn't move" is.
+                if !self.battlefield.contains_key(&attachment) {
+                    return Ok(());
+                }
+                for target in &ctx.targets {
+                    if let ResolvedTarget::Object(host) = target {
+                        if !self.battlefield.contains_key(host) {
+                            continue;
+                        }
+                        self.execute_action(
+                            GameAction::Attach { attachment, host: *host },
+                            &actx,
+                        )?;
+                    }
+                }
                 Ok(())
             }
 
@@ -1442,6 +1480,7 @@ mod tests {
     fn bolt_ctx(source: ObjectId, targets: Vec<ResolvedTarget>) -> ResolutionContext {
         ResolutionContext {
             source,
+            ability_source: None,
             controller: 0,
             targets,
         }

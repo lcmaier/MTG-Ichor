@@ -137,6 +137,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -545,6 +546,7 @@ pub fn static_ability(effect: Effect) -> AbilityDef {
         costs: Vec::new(),
         effect,
         is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
     }
 }
 

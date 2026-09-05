@@ -69,6 +69,7 @@ fn enters_with(
         .power_toughness(power, toughness)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -291,6 +292,7 @@ fn test_two_entry_replacements_accumulate() {
         .power_toughness(2, 2)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -302,6 +304,7 @@ fn test_two_entry_replacements_accumulate() {
         })
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -369,6 +372,7 @@ fn orb_shaped() -> Arc<CardData> {
         .rules_text("Permanents enter tapped.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -778,6 +782,7 @@ fn kismet_shaped() -> Arc<CardData> {
         .rules_text("Permanents your opponents control enter tapped.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),

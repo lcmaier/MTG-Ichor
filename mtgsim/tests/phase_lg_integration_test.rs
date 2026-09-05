@@ -49,6 +49,7 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
 
     let ctx = ResolutionContext {
         source: source_id,
+        ability_source: None,
         controller: thief,
         targets: vec![ResolvedTarget::Object(victim)],
     };
@@ -77,6 +78,7 @@ fn gain_control(
     );
     let ctx = ResolutionContext {
         source: source_id,
+        ability_source: None,
         controller: thief,
         targets: vec![ResolvedTarget::Object(target)],
     };

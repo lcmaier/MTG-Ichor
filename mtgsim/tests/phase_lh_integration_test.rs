@@ -317,3 +317,194 @@ fn test_holy_strength_is_registered_and_in_the_performance_pool() {
     assert!(CardRegistry::default_registry().create("Holy Strength").is_ok());
     assert!(CardRegistry::performance_pool().create("Holy Strength").is_ok());
 }
+
+// ===========================================================================
+// LH-2 — Equip (CR 702.6a), and the timestamp an attach gives (CR 613.7e)
+// ===========================================================================
+
+use mtgsim::cards::phase_lh_cards::bonesplitter;
+use mtgsim::objects::card_data::AbilityType;
+use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::oracle::mana_helpers::activatable_abilities;
+use mtgsim::state::game_state::{Phase, PhaseType};
+
+fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
+    get_effective_abilities(game, equipment)
+        .iter()
+        .position(|a| a.ability_type == AbilityType::Activated)
+        .expect("an Equipment with an equip ability")
+}
+
+/// Activate `equipment`'s equip with its {1} floating, pick the `pick`th legal
+/// target, and resolve. The error is the activation's — a resolution failure
+/// is a test bug.
+fn equip(game: &mut GameState, player: PlayerId, equipment: ObjectId, pick: usize) -> Result<(), String> {
+    game.players[player].mana_pool.add(ManaType::White, 1);
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id: equipment,
+        },
+        vec![pick],
+    );
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![1],
+    );
+    let idx = equip_ability_index(game, equipment);
+    if let Err(e) = game.activate_ability(player, equipment, idx, &decisions) {
+        // Refused before any question was asked; the provider asserts on drop
+        // that every expectation was consumed, and here none should be.
+        std::mem::forget(decisions);
+        return Err(e);
+    }
+    game.resolve_top_of_stack(&decisions).expect("an activated equip resolves");
+    Ok(())
+}
+
+fn offered_to(game: &GameState, player: PlayerId, equipment: ObjectId) -> bool {
+    activatable_abilities(game, player).iter().any(|(id, _, _)| *id == equipment)
+}
+
+fn attaches_of(game: &GameState, attachment: ObjectId) -> Vec<(ObjectId, Option<ObjectId>)> {
+    game.events
+        .events()
+        .filter_map(|e| match e {
+            GameEvent::Attached { attachment: a, host, former_host } if *a == attachment => {
+                Some((*host, *former_host))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// CR 702.6a in full: the ability is offered and legal only at sorcery speed
+/// — active player, main phase, empty stack — and when it resolves the
+/// Equipment is attached, both ends of the link written, and the bonus is on
+/// the host. Each timing leg is checked against the window the random agent
+/// reads as well as against the activation itself.
+// COVERS: ATOM-702.6a-001, ATOM-702.6a-003, ATOM-301.5b-002, ATOM-301.5-001
+#[test]
+fn test_equip_is_offered_and_legal_only_at_sorcery_speed_and_then_attaches() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+    assert_eq!(pt(&game, bears), (2, 2), "unattached, the row names nothing");
+
+    // Not a main phase.
+    game.phase = Phase::new(PhaseType::Combat);
+    assert!(!offered_to(&game, 0, splitter));
+    assert!(equip(&mut game, 0, splitter, 0).is_err());
+
+    // A main phase, but not the active player's.
+    game.phase = Phase::new(PhaseType::Precombat);
+    game.active_player = 1;
+    assert!(!offered_to(&game, 0, splitter));
+    assert!(equip(&mut game, 0, splitter, 0).is_err());
+
+    // Active player, main phase, but the stack is not empty.
+    game.active_player = 0;
+    let on_stack = aura_on_stack_targeting(&mut game, 1, bears);
+    assert!(!offered_to(&game, 0, splitter));
+    assert!(equip(&mut game, 0, splitter, 0).is_err());
+    assert_eq!(game.battlefield[&splitter].attached_to, None, "nothing attached on the way");
+    let decisions = ScriptedDecisionProvider::new();
+    game.resolve_top_of_stack(&decisions).expect("the Aura resolves");
+    assert_eq!(game.battlefield[&on_stack].attached_to, Some(bears));
+
+    // Sorcery speed.
+    assert!(offered_to(&game, 0, splitter));
+    equip(&mut game, 0, splitter, 0).expect("legal at sorcery speed");
+
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
+    assert!(game.battlefield[&bears].attached_by.contains(&splitter));
+    // +1/+2 from Holy Strength, +2/+0 from Bonesplitter.
+    assert_eq!(pt(&game, bears), (5, 4));
+    assert_eq!(attaches_of(&game, splitter), vec![(bears, None)]);
+}
+
+/// "Target creature you control" — an opponent's creature is not a legal
+/// target, so with only one on the board the activation has nowhere to go,
+/// and with one of each the first legal pick is yours even though the
+/// opponent's entered first.
+// COVERS: ATOM-702.6a-002
+#[test]
+fn test_equip_targets_only_creatures_you_control() {
+    let mut game = setup_two_player_game();
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+
+    assert!(equip(&mut game, 0, splitter, 0).is_err(), "no legal target");
+    assert_eq!(game.battlefield[&splitter].attached_to, None);
+    assert!(game.stack.is_empty(), "the activation rolled back");
+
+    let mine = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    equip(&mut game, 0, splitter, 0).expect("your creature is a legal target");
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(mine));
+    assert!(!game.battlefield[&theirs].attached_by.contains(&splitter));
+}
+
+/// A second equip moves the Equipment: the old host's back-pointer is gone,
+/// the bonus went with it, and the event names where it came from.
+// COVERS: ATOM-301.5c-005
+#[test]
+fn test_re_equipping_moves_the_equipment_and_cleans_the_old_host() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let second = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+
+    equip(&mut game, 0, splitter, 0).unwrap();
+    assert_eq!(pt(&game, first), (4, 2));
+
+    equip(&mut game, 0, splitter, 1).unwrap();
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(second));
+    assert!(game.battlefield[&second].attached_by.contains(&splitter));
+    assert!(!game.battlefield[&first].attached_by.contains(&splitter));
+    assert_eq!(pt(&game, first), (2, 2));
+    assert_eq!(pt(&game, second), (5, 3));
+    assert_eq!(attaches_of(&game, splitter), vec![(first, None), (second, Some(first))]);
+}
+
+/// CR 701.3b — attaching to the object it is already attached to does
+/// nothing: no transition, no event, and no new timestamp (CR 701.3c says
+/// "a different object").
+#[test]
+fn test_equipping_the_host_it_is_already_on_does_nothing() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+
+    equip(&mut game, 0, splitter, 0).unwrap();
+    let stamped = game.battlefield[&splitter].timestamp;
+    equip(&mut game, 0, splitter, 0).unwrap();
+
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
+    assert_eq!(game.battlefield[&bears].attached_by, vec![splitter]);
+    assert_eq!(attaches_of(&game, splitter).len(), 1, "the second activation announced nothing");
+    assert_eq!(game.battlefield[&splitter].timestamp, stamped);
+}
+
+/// CR 301.5b — an Equipment spell resolves like any artifact and enters
+/// unattached; there is no target to choose at CR 601.2c.
+// COVERS: ATOM-301.5b-001
+#[test]
+fn test_an_equipment_spell_enters_unattached() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_in_hand(&mut game, bonesplitter(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![1],
+    );
+    game.cast_spell(0, splitter, &decisions).expect("castable");
+    game.resolve_top_of_stack(&decisions).expect("resolves");
+
+    assert!(game.battlefield.contains_key(&splitter));
+    assert_eq!(game.battlefield[&splitter].attached_to, None);
+    assert!(decisions.is_empty());
+}

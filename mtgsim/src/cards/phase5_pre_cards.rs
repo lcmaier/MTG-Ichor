@@ -31,6 +31,7 @@ pub fn nights_whisper() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -58,6 +59,7 @@ pub fn doom_blade() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -82,6 +84,7 @@ pub fn angels_mercy() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -100,6 +103,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -129,6 +133,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -167,6 +172,7 @@ pub fn inside_out() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -194,6 +200,7 @@ pub fn bull_rush() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -219,6 +226,7 @@ pub fn dark_ritual() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),

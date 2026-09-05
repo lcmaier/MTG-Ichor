@@ -498,6 +498,13 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
         }
+        Attached { attachment, host, former_host } => match former_host {
+            Some(former) => format!(
+                "Attached: {} to {} (from {})",
+                obj_name(game, *attachment), obj_name(game, *host), obj_name(game, *former)
+            ),
+            None => format!("Attached: {} to {}", obj_name(game, *attachment), obj_name(game, *host)),
+        },
         EquipmentDetached { equipment_id, former_host } => {
             format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
         }

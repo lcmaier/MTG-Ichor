@@ -460,6 +460,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
     );
     let ctx = ResolutionContext {
         source: caster,
+        ability_source: None,
         controller: 0,
         targets: vec![ResolvedTarget::Object(creature)],
     };
@@ -498,6 +499,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     );
     let ctx = ResolutionContext {
         source: caster,
+        ability_source: None,
         controller: 0,
         targets: vec![ResolvedTarget::Object(creature)],
     };
@@ -533,6 +535,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
     );
     let ctx = ResolutionContext {
         source: caster,
+        ability_source: None,
         controller: 0,
         targets: vec![ResolvedTarget::Object(creature)],
     };
@@ -583,6 +586,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
     );
     let ctx = ResolutionContext {
         source: caster,
+        ability_source: None,
         controller: 0,
         targets: vec![ResolvedTarget::Object(creature)],
     };
