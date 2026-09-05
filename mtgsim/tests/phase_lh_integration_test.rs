@@ -545,3 +545,12 @@ fn test_an_equipment_spell_enters_unattached() {
     assert_eq!(game.battlefield[&splitter].attached_to, None);
     assert!(decisions.is_empty());
 }
+
+/// Registered, so `fuzz_games --pool stress` can draw it, and pooled, so the
+/// new primitive, the new action and the first activation restriction are
+/// measured rather than assumed (`engineering-practices.md` §3).
+#[test]
+fn test_bonesplitter_is_registered_and_in_the_performance_pool() {
+    assert!(CardRegistry::default_registry().create("Bonesplitter").is_ok());
+    assert!(CardRegistry::performance_pool().create("Bonesplitter").is_ok());
+}

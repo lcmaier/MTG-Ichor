@@ -44,7 +44,7 @@ use super::phase_lh_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 67] = [
+const PERFORMANCE_POOL: [&str; 68] = [
     "Plains",
     "Island",
     "Swamp",
@@ -161,6 +161,7 @@ const PERFORMANCE_POOL: [&str; 67] = [
     // whose target comes from `enchant_filter`, which is what puts CR 608.3b's
     // fizzle and CR 704.5m/n in front of a random game.
     "Holy Strength",
+    "Bonesplitter",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -374,6 +375,7 @@ impl CardRegistry {
         // spell ability — which is what makes CR 608.3b and CR 704.5m/n
         // reachable from a fuzz game at all (`phase_lh_cards`).
         registry.register("Holy Strength", phase_lh_cards::holy_strength);
+        registry.register("Bonesplitter", phase_lh_cards::bonesplitter);
 
         registry
     }
