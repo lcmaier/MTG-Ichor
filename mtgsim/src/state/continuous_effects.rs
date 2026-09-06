@@ -3,7 +3,7 @@
 //! This is the data owner — lives on GameState. The computation logic
 //! lives in `engine/layers/compute.rs`.
 
-use crate::engine::layers::types::{ContinuousEffect, EffectId, Layer, Timestamp};
+use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin, Layer, Timestamp};
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -198,10 +198,6 @@ impl RegistryScopeSummary {
 pub struct ContinuousEffectRegistry {
     effects: DurationRegistry<ContinuousEffect>,
     summary: RegistryScopeSummary,
-    /// How many times the rows have changed. One half of
-    /// `GameState::layer_epoch`, kept here because `mutating` is the one route
-    /// to the rows and cannot reach the state that owns the other half.
-    mutations: u64,
 }
 
 impl ContinuousEffectRegistry {
@@ -209,7 +205,6 @@ impl ContinuousEffectRegistry {
         ContinuousEffectRegistry {
             effects: DurationRegistry::new(),
             summary: RegistryScopeSummary::default(),
-            mutations: 0,
         }
     }
 
@@ -218,9 +213,14 @@ impl ContinuousEffectRegistry {
         &self.summary
     }
 
-    /// How many times the rows have changed — see `GameState::layer_epoch`.
+    /// How many times the rows have changed — one half of
+    /// `GameState::layer_epoch`. The rows are a layer-walk input, and this is
+    /// their bump: `DurationRegistry` counts every add, remove and in-place
+    /// edit that actually changed a row, so a CR 514.2 expiry pass that
+    /// removes nothing — both run every turn — costs no memoized frame, and
+    /// an in-place re-stamp costs exactly one.
     pub fn mutations(&self) -> u64 {
-        self.mutations
+        self.effects.generation()
     }
 
     /// Run a mutation against the rows, then rebuild the summary.
@@ -230,19 +230,28 @@ impl ContinuousEffectRegistry {
     /// skipped existence check — the exact class of bug the Layer 2 phase
     /// existed to remove.
     fn mutating<R>(&mut self, f: impl FnOnce(&mut DurationRegistry<ContinuousEffect>) -> R) -> R {
-        let before = self.effects.len();
         let out = f(&mut self.effects);
-        // The rows are a layer-walk input, and this is their bump. `len` tells
-        // a write from a no-op exactly: every `DurationRegistry` mutator adds
-        // or removes rows and none edits one in place, and each closure here
-        // makes one call. Exactness matters because both CR 514.2 expiry paths
-        // run every turn and usually remove nothing — a bump for nothing would
-        // cost every memoized frame at each turn boundary.
-        if self.effects.len() != before {
-            self.mutations += 1;
-        }
         self.recompute_summary();
         out
+    }
+
+    /// CR 613.7a, third sentence: `source` received a new timestamp, so every
+    /// effect its static abilities generate receives it too, keeping their
+    /// relative order. Rows from resolutions (CR 613.7b) keep the timestamp of
+    /// the effect that created them and are not touched. Returns how many rows
+    /// moved. `GameState::attach` is the caller (CR 613.7e).
+    pub fn retime_static_rows(&mut self, source: ObjectId, timestamp: Timestamp) -> usize {
+        self.mutating(|rows| {
+            rows.update_rows(|row| {
+                let is_static = matches!(row.origin, EffectOrigin::StaticAbility { .. });
+                if row.source == source && is_static && row.timestamp != timestamp {
+                    row.timestamp = timestamp;
+                    true
+                } else {
+                    false
+                }
+            })
+        })
     }
 
     /// Recompute `summary` from scratch.
@@ -402,6 +411,39 @@ mod tests {
         let removed = reg.remove(id1);
         assert!(removed.is_some());
         assert_eq!(reg.len(), 1);
+    }
+
+    /// CR 613.7a's third sentence, as `GameState::attach` asks for it: the
+    /// source's static rows take the new timestamp and keep their relative
+    /// order and their ids; its resolution rows (CR 613.7b) and every other
+    /// source's rows are untouched; and the walk's epoch sees exactly one
+    /// change — none at all when nothing had to move.
+    #[test]
+    fn test_retime_static_rows_moves_only_the_sources_static_rows() {
+        let mut reg = ContinuousEffectRegistry::new();
+        let src = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let ability = crate::types::ids::new_ability_id();
+        let static_row = |ts| {
+            let mut e = make_effect(src, Layer::Layer6Ability, ts);
+            e.origin = EffectOrigin::StaticAbility { ability };
+            e
+        };
+        let a = reg.add(static_row(1));
+        let b = reg.add(static_row(1));
+        let resolution = reg.add(make_effect(src, Layer::Layer6Ability, 2));
+        let theirs = reg.add(make_effect(other, Layer::Layer6Ability, 3));
+        let before = reg.mutations();
+
+        assert_eq!(reg.retime_static_rows(src, 9), 2);
+        assert_eq!(reg.mutations(), before + 1, "one write, one bump");
+
+        let order: Vec<(EffectId, Timestamp)> =
+            reg.effects_in_layer(Layer::Layer6Ability).iter().map(|e| (e.id, e.timestamp)).collect();
+        assert_eq!(order, vec![(resolution, 2), (theirs, 3), (a, 9), (b, 9)]);
+
+        assert_eq!(reg.retime_static_rows(src, 9), 0, "already there");
+        assert_eq!(reg.mutations(), before + 1, "and a no-op does not bump");
     }
 
     #[test]

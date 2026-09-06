@@ -656,13 +656,13 @@ impl GameState {
     /// and the players' graveyards in `move_object`; the entity in
     /// `place_on_battlefield`; its counters in `add_counters` /
     /// `remove_counters`; its `attached_to` in `attach` / `detach`
-    /// (`AffectedSet::Host` reads it at every layer) and its CR 613.7
-    /// `timestamp`, which `attach` reassigns (CR 613.7e) and
-    /// `compute::effect_timestamp` reads for every static row; the
+    /// (`AffectedSet::Host` reads it at every layer); the
     /// `objects` map in `add_object` / `remove_object`; `stack_entries` in
     /// `set_stack_entry` / `take_stack_entry`; `resolving` in
     /// `resolve_top_of_stack`; the registry's rows through its own
-    /// `mutating`. Status the walk never reads — `tapped`, damage, combat,
+    /// `mutating`, including the re-stamp `attach` asks of it (CR 613.7e) —
+    /// the entity's own `timestamp` is not a walk input, only registration
+    /// reads it. Status the walk never reads — `tapped`, damage, combat,
     /// the mana pool — has no bump, and must not get one: every bump costs
     /// one walk per queried object. `&mut self` on purpose, so a read path
     /// cannot call this.
@@ -868,13 +868,14 @@ impl GameState {
         self.detach(attachment);
         // CR 613.7e — "receives a new timestamp each time it becomes attached".
         // The determinism key, `entry_timestamp`, is not this field and does
-        // not move. The rows the attachment's static abilities registered are
-        // not re-stamped: the walk reads this value live (CR 613.7a clause 3,
-        // `compute::effect_timestamp`).
+        // not move. CR 613.7a's third sentence then re-stamps the rows the
+        // attachment's static abilities registered, through the registry's own
+        // funnel, which is their epoch bump; the bump below is `attached_to`'s.
         let timestamp = self.allocate_timestamp();
         let entry = self.battlefield.get_mut(&attachment).unwrap();
         entry.attached_to = Some(host);
         entry.timestamp = timestamp;
+        self.continuous_effects.retime_static_rows(attachment, timestamp);
         self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
         self.bump_layer_epoch();
         true

@@ -42,10 +42,12 @@ pub struct BattlefieldEntity {
     pub entry_timestamp: u64,
 
     /// The CR 613.7 timestamp: what a static ability's continuous effect
-    /// inherits (613.7a) and what orders it within a layer. Starts equal to
-    /// `entry_timestamp` (613.7d) and **is reassigned** — CR 613.7e gives an
-    /// Aura or Equipment a new one each time it becomes attached, in
-    /// `GameState::attach`. Never sort a sweep by this field: a reattachment
+    /// inherits (613.7a). Starts equal to `entry_timestamp` (613.7d) and
+    /// **is reassigned** — CR 613.7e gives an Aura or Equipment a new one
+    /// each time it becomes attached, in `GameState::attach`, which then
+    /// re-stamps the rows this object's static abilities registered (613.7a's
+    /// third sentence). Read at registration, never by the walk: the rows
+    /// carry the value. Never sort a sweep by this field: a reattachment
     /// would move the permanent to the end of every decision list.
     pub timestamp: u64,
 
