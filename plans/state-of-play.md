@@ -47,6 +47,7 @@ absent here whether or not they shipped.
 
 - `LH-1` — plans/layers-architecture.md
 - `LH-2` — plans/layers-architecture.md
+- `LI-1` — plans/layers-architecture.md
 - `RA-1` — plans/replacement-architecture.md
 - `RA-2` — plans/replacement-architecture.md
 - `RA-3` — plans/replacement-architecture.md
@@ -64,7 +65,7 @@ absent here whether or not they shipped.
 |---|---:|
 | Cards registered | 79 |
 | …of them in `PERFORMANCE_POOL` | 68 |
-| `#[test]` functions | 957 |
+| `#[test]` functions | 961 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -72,15 +73,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 3801 of 4016 lines (94%) |
+| Section size | 3813 of 4028 lines (94%) |
 | Numbered items | 112 |
-| …closed, still recorded | 22 |
+| …closed, still recorded | 23 |
 | …open — unreachable, and says why | 55 |
-| **…open — reachable, wrong today** | **4** |
+| **…open — reachable, wrong today** | **3** |
 | …open — reachable, not wrong (perf, a name, a harness) | 9 |
 | …open — nothing to build, a record for a later phase | 22 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 90 of 90 |
+| …open, carrying an explicit `**Sized:**` | 89 of 89 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -112,7 +113,7 @@ was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- (none — nothing half-finished)
+- `plans/handoffs/li-2.md`
 
 ## What this file deliberately does not know
 
