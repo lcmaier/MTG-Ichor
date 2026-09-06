@@ -433,14 +433,22 @@ mod tests {
         let b = reg.add(static_row(1));
         let resolution = reg.add(make_effect(src, Layer::Layer6Ability, 2));
         let theirs = reg.add(make_effect(other, Layer::Layer6Ability, 3));
+        // A static row of the same source in another layer moves with them and
+        // stays in its own layer's range.
+        let mut seven_c = make_effect(src, Layer::Layer7cModifyPT, 1);
+        seven_c.origin = EffectOrigin::StaticAbility { ability };
+        let c = reg.add(seven_c);
         let before = reg.mutations();
 
-        assert_eq!(reg.retime_static_rows(src, 9), 2);
+        assert_eq!(reg.retime_static_rows(src, 9), 3);
         assert_eq!(reg.mutations(), before + 1, "one write, one bump");
 
         let order: Vec<(EffectId, Timestamp)> =
             reg.effects_in_layer(Layer::Layer6Ability).iter().map(|e| (e.id, e.timestamp)).collect();
         assert_eq!(order, vec![(resolution, 2), (theirs, 3), (a, 9), (b, 9)]);
+        let seven: Vec<(EffectId, Timestamp)> =
+            reg.effects_in_layer(Layer::Layer7cModifyPT).iter().map(|e| (e.id, e.timestamp)).collect();
+        assert_eq!(seven, vec![(c, 9)]);
 
         assert_eq!(reg.retime_static_rows(src, 9), 0, "already there");
         assert_eq!(reg.mutations(), before + 1, "and a no-op does not bump");

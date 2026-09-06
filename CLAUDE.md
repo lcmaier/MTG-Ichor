@@ -120,8 +120,8 @@ worse than a missing one**, so both ship narrower than §3.2. → §2a (as built
 
 **Never iterate `game.battlefield` directly where the order is observable** — go through
 `battlefield_ordered` / `battlefield_ids_ordered`. A `DecisionProvider` picks by *index* and
-`HashMap` order differs per process. The key is `BattlefieldEntity::entry_timestamp`, allocated once —
-never `ObjectId`, never `timestamp` (CR 613.7e reassigns it); same for any collection reaching a choice, log **or count**.
+`HashMap` order differs per process. The key is `BattlefieldEntity::timestamp` — CR 613.7's, which 613.7e
+reassigns from the same process-independent counter — never `ObjectId`; same for any collection reaching a choice, log **or count**.
 
 **Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`;
 draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
@@ -137,8 +137,8 @@ line for line but the timing lines. → `codebase-state.md`.
 end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points here. Numbers are stable labels.
 
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅.  7a. Epoch memoization of the layer walk — ✅ 2026-09-03
-6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 the
-   `entry_timestamp` / CR 613.7 `timestamp` split, CR 613.7e and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
+6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 CR 613.7e
+   (one timestamp, reassigned in `attach`, rows re-stamped) and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass, plus the `Condition` AST that
    conditional statics and CR 603.4 share. **Before 6** (2026-09-04: the pool already builds a 613.8 wrong
    answer, Humility + Citanul Hierophants). **Hard back-stop before Phase 8**: no dependency-ordering-sensitive cards until it lands
