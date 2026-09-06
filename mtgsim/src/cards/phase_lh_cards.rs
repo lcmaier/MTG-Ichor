@@ -152,8 +152,8 @@ pub fn equip(costs: Vec<Cost>) -> AbilityDef {
 ///   the first in the pool; the random agent is offered it only at sorcery
 ///   speed.
 /// - **CR 613.7e / 701.3c** — a permanent whose CR 613.7 timestamp changes
-///   after it entered, which is why `BattlefieldEntity.timestamp` split from
-///   `entry_timestamp` (`layers-architecture.md` §13a, LH-2).
+///   after it entered, and with it the rows its static abilities registered
+///   (`GameState::attach`; `layers-architecture.md` §13a, LH-2).
 /// - **CR 704.5p** — the Equipment detach SBA, measured at **0** in the
 ///   2026-09-01 fuzz re-audit because nothing could attach an Equipment.
 ///
