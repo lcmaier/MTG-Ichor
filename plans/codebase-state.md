@@ -16,7 +16,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Layers (CR 613) — core landed, three layers live (Phases LA–LD, 2026-05 → 2026-08).** The system is real, not scaffolding: `Layer` enum with all 9 sublayer variants (`engine/layers/types.rs`), `EffectiveCharacteristics` struct (name, mana_cost, colors, types, subtypes, supertypes, keyword_flags, abilities, P/T, controller), a `ContinuousEffect` registry whose row storage and duration-based expiry live in the shared `state/duration_registry.rs` it owns (RS-0, 2026-08-31), and `compute_characteristics` (`engine/layers/compute.rs`, 967 lines). Static abilities register through `GameState::register_static_effects`. `oracle/characteristics.rs` wrappers all route through `compute_characteristics`.
   - **Live layers:** 2 (control) — Layer 2 phase, 2026-08-23. 4 (types/subtypes/supertypes) — Phase LD Part A. 5 (color) — Phase LC. 6 (abilities) — Phase LF. 7a (CDA P/T) — Phase LE. 7b (set P/T), 7c (modify P/T), 7d (switch P/T) — Phase LB.
   - **Still stubbed:** Layer 3 (text) is an enum variant only. Layer 1 has a producer as of CV-1 (2026-09-02) — `EffectModification::CopyFrom`, from `Primitive::Copy`; its face-down sublayer (CR 613.2b) waits on CV-6.
-  - **Dependency algorithm (CR 613.8) not implemented.** Ordering is timestamp-only, which is sufficient for the layers landed so far in isolation but will not survive Layer 6 + Layer 4 interaction (Humility/Opalescence).
+  - **The board-wide sequential pass is live (LI-1, 2026-09-06)** — `engine/layers/board.rs`: one pass per board, one live frame per member, every application ordered on CR 613.3/613.7's key, so what an application reads is what applied earlier in the same layer. **The dependency algorithm (CR 613.8) is not implemented** — LI-2 (`layers-architecture.md` §13b); the order is the key's, and the two Blood Moon boards in "Before Layers" item 8 are still wrong.
   - **CR 305.7 / 305.6 — ✅ done (Phase LD Part B).** Blood Moon strips a nonbasic land's printed abilities and grants the intrinsic `{T}: Add {R}`; Urborg adds a basic land type and its mana ability without stripping. Lives in `engine/layers/land_types.rs`. `AbilityOrigin` was evaluated at Part B kickoff and **not built** — layer ordering makes it unnecessary; see `layers-architecture.md` §15.2 item 4.
 - **Commander (CR 903) — in scope, skeleton only:** command zone ✅ as a `Zone` variant + `GameState.command` field; commander damage loss SBA ✅; commander damage **increment on combat damage now wired** (2026-04-18) via `GameObject.is_commander` flag + per-source accumulation in `execute_action(DealDamage)`. **903.9a (CR 704.6d) and 903.9b both landed with Phase RB, 2026-08-26.** Still missing: commander tax, `GameConfig::commander()`, and a commander designation/setup hook — nothing outside tests sets `is_commander = true`, so neither 903.9 half is reachable in a real game yet.
 - **Biggest single block of work remaining before the engine can run real Magic:** the CR 613.8 dependency algorithm + triggered abilities + replacement effects. These are tangled — CR 613.1c says abilities themselves can be layer-modified, replacement effects depend on effective characteristics, triggers often fire on events that must be observed post-replacement. **Commander's zone-redirection dependency is discharged** — both halves of 903.9 shipped with Phase RB — so what Commander still needs is cost modification (tax) and multiplayer (800 priority).
@@ -145,7 +145,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 608 | Resolution of spells and abilities — fizzle, Target vs Choose split | ✅ via T15b refactor (`TargetSpec` → `EffectRecipient`) | `engine/resolve.rs`, `engine/stack.rs` |
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
-| **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 6 (abilities), Layer 2 (control), Layer 3 (text), Layer 1 (copy); the CR 613.8 dependency algorithm (timestamp ordering only). CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,compute,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
+| **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down); the CR 613.8 dependency algorithm (LI-2 — the board-wide pass it runs inside landed with LI-1, 2026-09-06, `engine/layers/board.rs`). Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
 | **614–616** | **Replacement + prevention + interaction** | 🟡 **The pipeline is live. Phases RA (2026-08-25) and RB (2026-08-26) complete.** RA made every observable mutation a `GameAction` proposal carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution. RB put `apply_replacements` between proposal and mutation: CR 616.1a–g, 614.4/5/6/17, 616.2, CR 615.5 riders, CR 101.4 APNAP. Consumers: CR 122.1c/d/h counters, CR 701.19 regeneration, Kalitas, CR 903.9b. **Not yet:** CR 614.15 self-replacement (bucket, no producer), CR 614.10/11/16 (RE), CR 614.12/13 ETB (RC), **all of CR 615's prevention detail (RD)** — RB has `Rewrite::Prevent` and CR 122.1c's prevention half, not shields or amounts. See `plans/replacement-architecture.md` §9. |
 
 ### CR 7 — Additional Rules
@@ -3265,28 +3265,31 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     - **Layers 1–5** — a layer 6 grant whose ability generates a layer 4 or 5 effect. This is *not* scheduled, and not because it is hard. CR 613.8a(a) confines dependency to a single layer, so the CR itself supplies no mechanism for a later layer to reach back into an earlier one; any ordering we picked would be invented rather than implemented. Searched Scryfall for granted statics that define a type, color or subtype — every hit is a false positive (quoted text inside a granted *activated* ability, plus Animate Dead's enchant clause). Real grants are of triggered abilities, activated abilities, keywords, or layer 7 statics. Revisit if a card ever appears; there is nothing to build against today.
 
-    **Reachability (2026-09-03):** reachable — wrong today, and not three things
-    away: the limitation this entry records — the existence check reads the
-    frame as of the end of the previous layer and cannot see a partially-applied
-    Layer 6 — is exactly what Humility + Citanul Hierophants hits, and both are
-    in `PERFORMANCE_POOL`. Item 8 below has the board, the probe and the CR
-    argument; it is the third known-wrong 613.8 board and the first the pool can
-    build.
+    **Reachability (2026-09-06):** closed — LI-1, for the layer 6 case. The
+    board-wide pass (`engine/layers/board.rs`) applies a layer over its
+    ordered applications with one live frame per member, so the existence
+    check at a derived row's turn sees the grant applied earlier in layer 6;
+    `register_granted_static_effects`' assert admits layer 6 and refuses
+    layers 1–5 only. Humility + Citanul Hierophants gives the CR's answer
+    in both orders (`test_humility_before_hierophants_retires_the_grant`,
+    the flipped pin), and `tests/phase_li_integration_test.rs` builds the
+    Rune-of-Flight shape by resolution. The layers 1–5 half stays as
+    recorded above: no CR mechanism and no card.
 
-    **Sized:** with item 8 — the board-wide sequential pass is the
-    frame the check needs. Pinned meanwhile by
-    `test_humility_before_hierophants_does_not_yet_retire_the_grant`
-    (`phase_lf_integration_test.rs`, 2026-09-03), which asserts the wrong answer
-    so the fixing phase has to flip it.
+    **Sized:** done for layer 6 (LI-1); layers 1–5 have nothing to build.
 
 7c. **CR 613.6 "existence persists once started" — implemented, untested.** The `started` set in `apply_effects` keys on `EffectGroup`, so an effect that has begun applying keeps applying even if a later layer removes its ability. No test: every construction available today puts the strip in the *same* layer as the effect's first part, so the correct answer depends on 613.8 dependency ordering, and a test now would pin the timestamp-only answer that 613.8 must change. See item 8.
 
-    **Reachability (2026-09-03):** unreachable as a test — the behaviour is
-    implemented; whether it is right depends on item 8's ordering, and no board
-    in the pool separates the two answers because every strip-plus-effect
-    construction is same-layer.
+    **Reachability (2026-09-06):** unreachable as a test until LI-2. LI-1's
+    pass records the set of members an effect first applied to
+    (`Board::started`, per `EffectGroup`) and applies the group's later rows
+    to that set — CR 613.6's locked set, where the per-object walk re-ran
+    the filter for objects the group had missed. The boards that separate
+    the two answers are same-layer strip-plus-effect constructions, whose
+    order is CR 613.8's, so the test is LI-2's (`layers-architecture.md`
+    §13b).
 
-    **Sized:** one test after item 8, ~40 lines.
+    **Sized:** one test in LI-2, ~40 lines.
 
 7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, 16 sites (recounted 2026-08-24).** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
 
@@ -3356,9 +3359,9 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
 
-   - **Rootpath Purifier** ("Lands you control and land cards in your library are basic") changes the set of permanents Blood Moon affects, so Blood Moon *depends* on it and applies second regardless of timestamp — Blood Moon never touches that player's lands. We get this wrong whenever Blood Moon has the earlier timestamp.
+   - **Rootpath Purifier** ("Lands you control and land cards in your library are basic") changes the set of permanents Blood Moon affects, so Blood Moon *depends* on it and applies second regardless of timestamp — Blood Moon never touches that player's lands. Its ruling (Scryfall, 2022-10-14) says exactly this: "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic." We get this wrong whenever Blood Moon has the earlier timestamp.
 
-   - **Intra-layer re-evaluation is part of 613.8, and the written design omits it.** `layers-architecture.md` §5 orders each layer once via `resolve_order_within_layer`, then applies in that order. The CR re-evaluates dependencies **after each effect is applied** — the judge walkthrough of Blood Moon + Ashaya + Opalescence + Urborg applies one independent effect, recomputes every remaining pair, and repeats, which is how "Urborg no longer has an effect so we're done in layer 4" falls out. §9's hybrid algorithm needs to run inside that loop, not once per layer.
+   - **Intra-layer re-evaluation is part of 613.8, and the written design omits it.** `layers-architecture.md` §5 orders each layer once via `resolve_order_within_layer`, then applies in that order. The CR re-evaluates dependencies **after each effect is applied** (613.8c) — apply one independent effect, recompute every remaining pair, repeat — which is how "Urborg no longer has an effect so we're done in layer 4" falls out, and Urborg's own ruling (Scryfall, 2021-03-19) states the result: an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply". §9's hybrid algorithm needs to run inside that loop, not once per layer. The walkthrough this bullet cited from memory — a judge's answer on a Reddit thread, Blood Moon + Urborg + Ashaya + Opalescence, four effects in layer 4 — was recovered on 2026-09-06 and is quoted in full in `plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md`: Opalescence, then Ashaya, then Blood Moon, and Urborg never applies. It is a worked procedure rather than a ruling, and it is LI-2's CR 613.8c test board.
 
    - **CDAs are not in the DAG. Here is what to do if that ever costs us.** `engine/layers/cda.rs` applies characteristic-defining abilities intrinsically, so no CDA is ever a registry row. 613.8a(c)'s *first* clause — "neither effect is from a characteristic-defining ability" — therefore holds structurally, for free. Its *second* clause, both-CDA dependency, is currently unreachable, and the reason is worth stating precisely rather than filed as "can't do".
 
@@ -3395,10 +3398,23 @@ The layer system's designated single-point change site is `oracle/characteristic
    Layer 5 (item 7b's limitation). With the Hierophants first the answer is
    right. Observable in a game: a creature under Humility taps for mana.
 
-   **Sized:** critical-path item 7; `roadmap-v2.md` §8 gives it 1–2
-   PRs and no line count — size before writing. Steps 1–3 above are cheap; step
-   4, the board-wide sequential pass, is the PR, and it is also what 7b and 7c
-   wait on.
+   **Reachability (2026-09-06):** reachable — wrong today on the two Blood
+   Moon boards; the third is fixed. Step 4 is built — LI-1,
+   `engine/layers/board.rs`, traced call by call in
+   `plans/traces/li-1-one-pass-per-board.html`: Humility + Citanul Hierophants answers as the
+   CR does in both orders, and the pool's "engine, pool unchanged" A/B arm
+   differs from `main` in one game in forty per pool for exactly that reason
+   (`engineering-practices.md` §3). Step 1 is built with it (an
+   `Application` per row, CDA or counter, carrying `is_cda`); steps 2 and 3
+   — the dependency graph, 613.8b's loop rule, 613.8c's re-evaluation — are
+   LI-2, worked from the rulings: Urborg, Tomb of Yawgmoth registered, the
+   Rootpath Purifier ruling's board as a named fixture (the Purifier itself
+   waits on item 9), Opalescence registered for the Humility rulings, and
+   Ashaya, Soul of the Wild as the printed card of the applies-to shape with
+   a CR-derived answer no ruling covers (`layers-architecture.md` §13b).
+
+   **Sized:** LI-2, ~1,300–1,500 additions (§13b); step 4 shipped in LI-1
+   at +1,013 / −775 in `src`.
 
 12. **The card → registry lowering is loud — ✅ done (2026-08-23).** `register_static_effects` had five arms that declined to lower something and `continue`d, registering nothing and saying nothing. Every one now `debug_assert!`s first.
 
@@ -3894,6 +3910,10 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    reachable at all; Commander interleave.
 
 ### Cross-cutting — keep this section honest
+
+**The existence check is CR 604.2, not CR 613.7a (2026-09-06, LI-1 review).** `static_ability_still_exists` and every comment and doc line around it have called the "does the source still have the ability" question "CR 613.7a" since 2026-08-21. 613.7a is the timestamp rule; the question is CR 604.2 — "these effects are active as long as the permanent with the ability remains on the battlefield and has the ability" — and 611.3b says the same. `engine/layers/board.rs` and `layers-architecture.md` §13b cite 604.2; the older sites (`compute.rs`, `lookahead.rs`, `resolve.rs`, `game_state.rs`, `layers/types.rs`, and the "Before Layers" items above) are a comment sweep owed, not a behaviour change. **Sized:** a grep for `613.7a` beside "exist", ~20 sites, one quiet commit.
+
+**`BattlefieldEntity` is misnamed (2026-09-06, LI-1 review).** It holds what a permanent has that its card does not — controller, the CR 613.7 timestamp, CR 110.5's status (tapped, flipped, face-down, phased out), counters, attachments, damage — and the name reads as a second kind of object beside `GameObject`. Proposed **`PermanentState`**; 93 sites in 26 files, its own quiet PR beside main item 64's rename, not this one. **Sized:** mechanical, ~100 lines of diff.
 
 **~~Summoning sickness ended one turn early (CR 302.6).~~ — ✅ fixed 2026-08-24.** `has_summoning_sickness` compared `control_since_turn >= game.turn_number`, which asks "was control gained during the turn now being played" — the same answer as the CR only on the controller's own turn. A creature you cast on your turn went unsick as soon as the turn passed, one full turn early, and at four players three turns early. Reachable in the current pool: Citanul Hierophants grants "{T}: Add {G}", and instant-speed mana activation on an opponent's turn is an ordinary play.
 

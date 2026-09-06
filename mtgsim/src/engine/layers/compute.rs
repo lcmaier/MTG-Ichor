@@ -1,26 +1,28 @@
 //! Core computation: `compute_characteristics(game, id)`.
 //!
-//! Walks the continuous effect registry in layer order and produces
-//! `EffectiveCharacteristics` for a given object. All oracle queries
-//! route through this function.
+//! Produces `EffectiveCharacteristics` for a game object by applying every
+//! continuous effect in layer order (1→2→3→4→5→6→7a→7b→7c→7d). All oracle
+//! queries route through this function.
 //!
-//! Reads base characteristics from CardData, then applies all continuous
-//! effects in layer order (1→2→3→4→5→6→7b→7c→7d).
+//! The walk itself is `board.rs`'s: one pass per layer over the whole
+//! working set, so that what an application reads is what applied earlier in
+//! the same layer (`layers-architecture.md` §13b). This file is the entry
+//! point, the memo, the walk of an object no row can reach, and the
+//! evaluators the pass calls — filters, amounts, and a modification's
+//! resolution against the board before it is written to a frame.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::engine::layers::board::{compute_board, compute_board_to, membership, Board, Membership};
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
-use crate::state::battlefield::{BattlefieldEntity, CounterStack};
+use crate::objects::card_data::CardData;
 use crate::state::game_state::GameState;
-use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::zones::Zone;
 
 /// The layers, in application order (CR 613.1). Index into this array is the
-/// "layer ceiling" used by the frame cache: ceiling `n` means layers
+/// "layer ceiling" a non-member walk stops at: ceiling `n` means layers
 /// `LAYER_ORDER[..n]` have been applied, i.e. the frame as of the end of
 /// layer `n - 1`.
 ///
@@ -48,123 +50,23 @@ pub(super) const LAYER_ORDER: [Layer; 10] = [
     Layer::Layer7dSwitchPT,
 ];
 
-/// Memo for one top-level `compute_characteristics` call
-/// (`layers-architecture.md` §5.2).
-///
-/// Deciding whether a CR 613.7a effect still exists means asking whether some
-/// *other* object still has the static ability that generates it, which is a
-/// characteristics query of its own. §5.2's answer is to answer it at a lower
-/// **layer ceiling**: at layer index `i` we need the source's frame as of the
-/// end of layer `i - 1`, which is ceiling `i`.
-///
-/// That is also the termination argument. Computing an object at ceiling `C`
-/// only ever requests ceilings `< C`, so the recursion strictly descends and
-/// bottoms out at ceiling 0, which applies no effects at all. There is no
-/// fixpoint to iterate and nothing to cap.
-///
-/// Discarded when the top-level call returns, so it never has to be
-/// invalidated.
-///
-/// **It also carries the one perturbation a caller may ask for** — CR 614.12's
-/// look-ahead for an entering object (`lookahead::Lookahead`). The walk's two
-/// reads of concrete state go through the accessor pair below rather than
-/// through `game.battlefield` and the registry directly, so a caller can say
-/// "compute this object as it *would* exist on the battlefield" without
-/// cloning the game (`replacement-architecture.md` §11 item 5). Threading it
-/// through the cache rather than as a parameter of its own keeps every
-/// signature in this file stable, and it is exact rather than convenient: a
-/// frame memoized under one hypothetical must never be served to a walk under
-/// another, so the memo and the hypothetical sharing a lifetime is the
-/// invariant, not a shortcut.
-pub(super) struct FrameCache<'l> {
-    frames: HashMap<(ObjectId, usize), EffectiveCharacteristics>,
-    lookahead: Option<&'l Lookahead>,
-}
-
-impl<'l> FrameCache<'l> {
-    pub(super) fn new(lookahead: Option<&'l Lookahead>) -> Self {
-        FrameCache { frames: HashMap::new(), lookahead }
+/// Layer 0 — an object's printed characteristics, plus the two things that
+/// are not printed: its controller and CR 302.6's clock.
+pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_turn: u32) -> EffectiveCharacteristics {
+    EffectiveCharacteristics {
+        name: card.name.clone(),
+        mana_cost: card.mana_cost.clone(),
+        colors: card.colors.clone(),
+        types: card.types.clone(),
+        subtypes: card.subtypes.clone(),
+        supertypes: card.supertypes.clone(),
+        keyword_flags: card.keyword_flags.clone(),
+        abilities: card.abilities.clone(),
+        power: card.power,
+        toughness: card.toughness,
+        controller,
+        control_since_turn,
     }
-
-    fn get(&self, key: &(ObjectId, usize)) -> Option<&EffectiveCharacteristics> {
-        self.frames.get(key)
-    }
-
-    fn insert(&mut self, key: (ObjectId, usize), frame: EffectiveCharacteristics) {
-        self.frames.insert(key, frame);
-    }
-
-    /// The look-ahead, if `id` is the object it is about.
-    fn entering(&self, id: ObjectId) -> Option<&'l Lookahead> {
-        self.lookahead.filter(|l| l.object == id)
-    }
-
-    /// **Accessor 1**: the battlefield entity the walk seeds from and reads
-    /// counters off — the real one for a permanent, the one the performer
-    /// would build for the entering object (`Lookahead::entity`). `None` for
-    /// anything that is neither.
-    ///
-    /// The look-ahead answers first even when a real entity exists for the
-    /// same id: the caller asked what the object would be under the proposal,
-    /// not what it is on the board. Borrows `game` or the look-ahead and never
-    /// `self`, so a caller can hold the entity across mutable uses of the cache.
-    fn entity<'a>(&self, game: &'a GameState, id: ObjectId) -> Option<&'a BattlefieldEntity>
-    where
-        'l: 'a,
-    {
-        if let Some(l) = self.entering(id) {
-            return Some(&l.entity);
-        }
-        game.battlefield.get(&id)
-    }
-
-    /// Is `id` in the battlefield zone, or is it the object entering it?
-    ///
-    /// The gate `effect_applies_to` asks before matching a filter. RC-3 made
-    /// it the *zone* rather than `game.battlefield` membership, which admits a
-    /// token created in the zone with no entity yet; the look-ahead admits the
-    /// entering object, which is still in its source zone while its entry is
-    /// decided (RC-4b) — and nothing else.
-    fn in_battlefield_zone_or_entering(&self, game: &GameState, id: ObjectId) -> bool {
-        self.entering(id).is_some()
-            || matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield)
-    }
-}
-
-/// **Accessor 2**: the rows that apply in `layer` when computing `id` — the
-/// registry's slice in CR 613.7 order, then the entering object's own would-be
-/// rows when `id` is it (CR 614.12 clause 2).
-///
-/// Those rows sort last by construction: they carry the timestamp the object
-/// would get, later than every registered row's, which is where CR 613.7a
-/// would put them once it had entered. A free function over the look-ahead
-/// reference rather than a method on the cache, so the iterator borrows
-/// neither the cache nor the frame being built — the loop body needs both
-/// mutably.
-///
-/// Nothing is appended for any other object. That is §5b's asymmetry
-/// (`replacement-architecture.md`): the entering permanent's anthem is in its
-/// own frame and reaches no other object's, because it is not on the
-/// battlefield yet and CR 604.3 makes its static abilities function there.
-fn rows_in_layer<'a>(
-    game: &'a GameState,
-    lookahead: Option<&'a Lookahead>,
-    layer: Layer,
-    id: ObjectId,
-) -> impl Iterator<Item = &'a ContinuousEffect> + 'a {
-    let own: &'a [ContinuousEffect] = lookahead
-        .filter(|l| l.object == id)
-        .map(|l| l.rows.as_slice())
-        .unwrap_or(&[]);
-    game.continuous_effects
-        .effects_in_layer(layer)
-        .iter()
-        .chain(own.iter().filter(move |row| row.layer == layer))
-}
-
-/// The CR 122.1a count of one counter kind, off either accessor-1 source.
-fn count_of(counters: &HashMap<CounterType, CounterStack>, kind: CounterType) -> i32 {
-    counters.get(&kind).map(|stack| stack.count as i32).unwrap_or(0)
 }
 
 /// Compute the effective characteristics of a game object after applying
@@ -175,9 +77,13 @@ fn count_of(counters: &HashMap<CounterType, CounterStack>, kind: CounterType) ->
 /// **Memoized across calls** (`layers-architecture.md` §12 "7a"). The frame
 /// for `id` is served from `GameState::layer_memo` while nothing has written
 /// a walk input since it was computed — `GameState::layer_epoch` is that
-/// test — and walked and stored otherwise. Shared rather than owned, so a
+/// test — and computed and stored otherwise. Shared rather than owned, so a
 /// hit never clones the ability list. A `None` is never stored: an object
 /// that does not exist costs a probe of the object map, not a walk.
+///
+/// **A miss for a member of the working set runs the whole pass and stores
+/// every member's frame** at this epoch, so the next member asked is a hit
+/// (§13b, decision 2). A miss for anything else walks that object alone.
 ///
 /// Two readers bypass the memo on purpose. The CR 614.12 look-ahead
 /// (`lookahead::compute_as_entering`) computes a hypothetical board, and the
@@ -191,9 +97,30 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
         audit_memo_hit(game, id, &frame);
         return Some(frame);
     }
-    let frame = Arc::new(compute_characteristics_uncached(game, id)?);
-    game.layer_memo.insert(id, epoch, Arc::clone(&frame));
-    Some(frame)
+    // Counted before the store is probed, so a query for an object that does
+    // not exist is a walk — the same walk it was before the pass.
+    game.counters.record_layer_walk();
+    game.objects.get(&id)?;
+
+    let asked = match membership(game, id) {
+        Membership::Member => None,
+        Membership::ZoneOnly => Some(id),
+        Membership::NonMember => {
+            let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len())?);
+            game.layer_memo.insert(id, epoch, Arc::clone(&frame));
+            return Some(frame);
+        }
+    };
+    let mut wanted = None;
+    for (member, frame) in compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames() {
+        let frame = Arc::new(frame);
+        if member == id {
+            wanted = Some(Arc::clone(&frame));
+        }
+        game.layer_memo.insert(member, epoch, frame);
+    }
+    debug_assert!(wanted.is_some(), "a member's frame comes out of the pass");
+    wanted
 }
 
 /// The debug mode §12 required in the same commit as the cache: every hit is
@@ -206,9 +133,13 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
 /// build's `Layer walks` and `Layer frames` are the release build's.
 #[cfg(debug_assertions)]
 fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
-    let (walks, frames) = (game.counters.layer_walks(), game.counters.layer_frames());
+    let (walks, board_walks, frames) = (
+        game.counters.layer_walks(),
+        game.counters.board_walks(),
+        game.counters.layer_frames(),
+    );
     let fresh = compute_characteristics_uncached(game, id);
-    game.counters.rewind_layer_work(walks, frames);
+    game.counters.rewind_layer_work(walks, board_walks, frames);
     debug_assert_eq!(
         fresh.as_ref(),
         Some(served),
@@ -220,7 +151,8 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
 }
 
 /// One full layer walk of `id`, owned by the caller — a memo **miss**, and
-/// the walk `EngineCounters::layer_walks` counts.
+/// the walk `EngineCounters::layer_walks` counts. For a member that is a
+/// whole pass, of which one frame is kept.
 ///
 /// The CR 603.10a LKI capture reads through here: the frame it takes is about
 /// to be *stored*, on an event, as the record of what the permanent was, and
@@ -230,346 +162,58 @@ pub(crate) fn compute_characteristics_uncached(
     id: ObjectId,
 ) -> Option<EffectiveCharacteristics> {
     game.counters.record_layer_walk();
-    let mut cache = FrameCache::new(None);
-    compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)
+    game.objects.get(&id)?;
+    match membership(game, id) {
+        Membership::Member => compute_board(game, None).take(id),
+        Membership::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
+        Membership::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len()),
+    }
 }
 
-/// `compute_characteristics` with layers `LAYER_ORDER[ceiling..]` left unapplied.
-pub(super) fn compute_to_ceiling(
+/// The walk of an object no row can reach — a card in a hand, library or
+/// graveyard, or a spell — up to `ceiling`: its printed characteristics and
+/// its own CDAs, which CR 604.3 makes function in every zone.
+///
+/// No row applies here by construction of the working set: a filter row
+/// needs the battlefield zone, a `Fixed` row's targets are members, a `Host`
+/// row's host is a permanent. What a CDA here reads of *another* object goes
+/// through `board.frame_of` — a member's live frame inside a pass, its
+/// memoized frame outside one, and another non-member at a strictly lower
+/// ceiling, which is what bounds the recursion (§13b, decision 4).
+pub(super) fn compute_non_member(
     game: &GameState,
+    board: &Board<'_>,
     id: ObjectId,
     ceiling: usize,
-    cache: &mut FrameCache<'_>,
 ) -> Option<EffectiveCharacteristics> {
-    // Only sub-computations are worth memoizing. The top-level frame is
-    // requested exactly once per call, so caching it would be a pure clone.
-    let memoize = ceiling < LAYER_ORDER.len();
-    if memoize {
-        if let Some(cached) = cache.get(&(id, ceiling)) {
-            return Some(cached.clone());
-        }
-    }
-
-    // Past the memo, so this counts frames *computed* rather than frames asked
-    // for. The ratio against `layer_walks` is what CR 613.7a's existence
-    // re-check costs — see `EngineCounters::record_layer_frame`.
+    let obj = game.objects.get(&id)?;
+    debug_assert!(
+        board.entity(game, id).is_none(),
+        "a battlefield entity is a member of every pass, never walked alone"
+    );
     game.counters.record_layer_frame();
 
-    let obj = game.objects.get(&id)?;
-    let card = &obj.card_data;
+    let controller = base_controller(game, id, board.lookahead).unwrap_or(obj.owner);
+    let mut chars = seed_frame(&obj.card_data, controller, 0);
 
-    // Start from printed (base) characteristics.
-    //
-    // The controller seed and CR 302.6's clock come from the entity —
-    // accessor 1 — for a permanent or the entering object, and from CR 108.4's
-    // other arms (`base_controller`) with the pregame sentinel for anything
-    // else. Layer 2 overwrites both when it actually moves control.
-    let (chars_controller, control_since_turn) = match cache.entity(game, id) {
-        Some(entity) => (entity.controller, entity.controller_since_turn),
-        None => (base_controller(game, id, cache.lookahead).unwrap_or(obj.owner), 0),
-    };
-    let mut chars = EffectiveCharacteristics {
-        name: card.name.clone(),
-        mana_cost: card.mana_cost.clone(),
-        colors: card.colors.clone(),
-        types: card.types.clone(),
-        subtypes: card.subtypes.clone(),
-        supertypes: card.supertypes.clone(),
-        keyword_flags: card.keyword_flags.clone(),
-        abilities: card.abilities.clone(),
-        power: card.power,
-        toughness: card.toughness,
-        controller: chars_controller,
-        control_since_turn,
-    };
+    // The common case, and worth its own exit: with no CDA there is nothing
+    // any layer can do to an object off the battlefield.
+    if !crate::engine::layers::cda::has_any_cda(&chars) {
+        return Some(chars);
+    }
 
-    // Walk layers in order, applying all effects (registered + counters)
-    apply_effects(game, id, &mut chars, ceiling, cache);
-
-    if memoize {
-        cache.insert((id, ceiling), chars.clone());
+    for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
+        if !crate::engine::layers::cda::CDA_LAYERS.contains(&layer) {
+            continue;
+        }
+        // Collected before applying, because applying mutates the list
+        // being read.
+        for (_, modification) in crate::engine::layers::cda::cda_modifications(&chars, layer) {
+            let resolved = resolve_modification(&modification, game, board, id, layer_index, None);
+            apply_resolved(&resolved, &mut chars, id);
+        }
     }
     Some(chars)
-}
-
-/// CR 613.7a — does the static ability that generates `effect` still exist?
-///
-/// A continuous effect from a static ability applies only while its source
-/// actually has that ability. Registry membership does not answer this: the
-/// effect is registered when the permanent enters the battlefield, but CR 305.7
-/// (Blood Moon) and Layer 6 ability removal can take the ability away later
-/// without touching the registry. So the question is re-asked at every layer,
-/// against the source's frame as of the end of the previous layer.
-///
-/// `EffectOrigin::Resolution` effects (CR 613.7b) always exist: a resolution
-/// already happened and cannot be taken back, so there is no ability to go
-/// looking for.
-///
-/// Existence is not the same as surviving, and only existence is decided here.
-/// An instant that grants first strike until end of turn creates an effect that
-/// exists for the turn no matter what — but Humility, applying later in layer 6,
-/// still clears the keyword it granted. That is ordering inside a layer, which
-/// `effects_in_layer` handles (timestamp today, CR 613.8 eventually), not a
-/// question about whether the effect is there to apply.
-fn static_ability_still_exists(
-    game: &GameState,
-    effect: &ContinuousEffect,
-    layer_index: usize,
-    cache: &mut FrameCache<'_>,
-) -> bool {
-    let ability_id = match effect.origin {
-        EffectOrigin::Resolution => return true,
-        EffectOrigin::StaticAbility { ability } => ability,
-    };
-
-    match compute_to_ceiling(game, effect.source, layer_index, cache) {
-        Some(source_frame) => source_frame.abilities.iter().any(|a| a.id == ability_id),
-        // Source is gone from the object store entirely.
-        None => false,
-    }
-}
-
-/// Apply all continuous effects in layer order (rule 613).
-///
-/// Walks registered effects by layer, and also applies counter-derived
-/// P/T modifications in layer 7c (rule 613.4c) alongside other modifiers.
-fn apply_effects(
-    game: &GameState,
-    id: ObjectId,
-    chars: &mut EffectiveCharacteristics,
-    ceiling: usize,
-    cache: &mut FrameCache<'_>,
-) {
-    let lookahead = cache.lookahead;
-    let entering = cache.entering(id);
-    let has_registered = !game.continuous_effects.is_empty()
-        || entering.is_some_and(|l| !l.rows.is_empty());
-    // Looked up once and reused by layers 6 and 7c. Both need it every call,
-    // and a second `HashMap` probe per `compute_characteristics` is not free —
-    // this function is the inner loop of mana enumeration and targeting.
-    // Through accessor 1, so the entering object reads the entity it would
-    // have — its pending `EnterMods`, CR 614.12 clause (1) — where a permanent
-    // reads its own.
-    let entity = cache.entity(game, id);
-    let on_battlefield = entity.is_some();
-
-    // CR 613.6 — "if an effect starts to apply in one layer, it will continue
-    // to be applied to the same set of objects in each other applicable layer".
-    //
-    // `effect_applies_to` reads `chars`, which earlier layers have already
-    // mutated, so re-filtering from scratch at every layer is wrong: March of
-    // the Machines' Layer 4 part makes a noncreature artifact a creature, and
-    // its Layer 7b part then finds nothing matching "noncreature artifact".
-    // Once a CR-level effect has started applying to this object, membership
-    // here short-circuits the filter for the rest of the walk.
-    //
-    // Keyed by `EffectGroup`, not `EffectId`: the two halves of March of the
-    // Machines are two registry rows, and it is the *effect* that started
-    // applying, not the row.
-    let mut started: std::collections::HashSet<EffectGroup> = std::collections::HashSet::new();
-
-    // ...but only when some CR-level effect actually occupies more than one
-    // row. For a single-row group the mark is written after its only row
-    // applies and never read, so maintaining it is pure cost — two SipHashes
-    // over a pair of UUIDs, per effect, per layer. That was 70% of the layer
-    // walk on a static-heavy board before this check existed.
-    let track_started = game.continuous_effects.summary().any_multi_row_group
-        || entering.is_some_and(|l| l.summary.any_multi_row_group);
-
-    // Fast path: nothing to apply.
-    //
-    // A CDA is not in the registry and does not need the battlefield (CR 604.3
-    // — CDAs function in all zones), so it gets its own term. Reading the
-    // printed list is exact here: with an empty registry and no battlefield
-    // entry, nothing in the walk can add an ability.
-    if !has_registered && !on_battlefield && !crate::engine::layers::cda::has_any_cda(chars) {
-        return;
-    }
-
-    // Keyword counters (CR 122.1b) are a *second* source of layer 6 effects, and
-    // CR 613.7c timestamps them, so they interleave with that layer's registry
-    // rows by timestamp rather than following them. Humility with a later
-    // timestamp than a flying counter really does strip that flying.
-    //
-    // Built once per call rather than per layer, and empty for every permanent
-    // carrying no keyword counter — which is nearly all of them. Held descending
-    // so `pop()` yields the earliest.
-    let mut pending_counters = collect_keyword_counters(entity.map(|e| &e.counters));
-    // Layer 7c's CR 122.1a counts, read once here for the same reason.
-    let (plus_counters, minus_counters) = entity
-        .map(|e| {
-            (
-                count_of(&e.counters, CounterType::PlusOnePlusOne),
-                count_of(&e.counters, CounterType::MinusOneMinusOne),
-            )
-        })
-        .unwrap_or((0, 0));
-
-    for (layer_index, &layer) in LAYER_ORDER.iter().enumerate() {
-        if layer_index >= ceiling {
-            break;
-        }
-
-        // CR 613.3 — "apply effects from characteristic-defining abilities
-        // first, then all other effects in timestamp order". Intrinsic before
-        // the registry slice is that sentence. Only three layers can hold a
-        // CDA (CR 604.3a(1)), so the other seven skip the scan entirely.
-        if crate::engine::layers::cda::CDA_LAYERS.contains(&layer) {
-            crate::engine::layers::cda::apply_intrinsic_cdas(
-                game, chars, id, layer, layer_index, cache,
-            );
-        }
-
-        // Apply registered effects in this layer — accessor 2, so the entering
-        // object's own would-be rows follow the registry's (CR 614.12 clause 2).
-        if has_registered {
-            for effect in rows_in_layer(game, lookahead, layer, id) {
-                // Every keyword counter older than this row goes first (CR
-                // 613.7). Done before the filter and existence checks below,
-                // because those `continue` and would skip the drain.
-                if !pending_counters.is_empty() && layer == Layer::Layer6Ability {
-                    drain_keyword_counters_before(
-                        &mut pending_counters, effect.timestamp, chars,
-                    );
-                }
-
-                let already_applying = track_started && started.contains(&effect.group());
-                if !already_applying {
-                    if !effect_applies_to(effect, id, chars, game, layer_index, cache) {
-                        continue;
-                    }
-                    // CR 613.7a. Only asked before the effect starts applying:
-                    // once it has, CR 613.6 keeps it applying for the rest of
-                    // this walk even if a later layer removes the ability.
-                    if !static_ability_still_exists(game, effect, layer_index, cache) {
-                        continue;
-                    }
-                    if track_started {
-                        started.insert(effect.group());
-                    }
-                }
-                apply_modification(
-                    &effect.modification, chars, id, game, layer_index, cache, Some(effect),
-                );
-            }
-        }
-
-        // Whatever is left is later than every row in the layer.
-        if !pending_counters.is_empty() && layer == Layer::Layer6Ability {
-            drain_keyword_counters_before(&mut pending_counters, Timestamp::MAX, chars);
-        }
-
-        // Apply counter P/T in layer 7c (rule 613.4c).
-        //
-        // Not interleaved by timestamp the way layer 6's keyword counters are,
-        // and it does not need to be *yet*: every 7c modification this engine can
-        // express is an addition to power and toughness, so the layer's result is
-        // order-independent. That is a property of the current `EffectModification`
-        // vocabulary, not of the layer — CR 701.10a makes "double this creature's
-        // power" a 7c effect whose addend depends on what already applied, and 19
-        // printed cards say it. `AmountExpr` has no affected-power leaf, so the
-        // shape is inexpressible today; the first doubling card needs both that
-        // leaf and a timestamp merge like the one above (codebase-state.md,
-        // "Before card breadth").
-        if layer == Layer::Layer7cModifyPT {
-            if plus_counters != 0 {
-                if let Some(ref mut p) = chars.power { *p += plus_counters; }
-                if let Some(ref mut t) = chars.toughness { *t += plus_counters; }
-            }
-            if minus_counters != 0 {
-                if let Some(ref mut p) = chars.power { *p -= minus_counters; }
-                if let Some(ref mut t) = chars.toughness { *t -= minus_counters; }
-            }
-            // TODO: handle other P/T-modifying counter types (+2/+2, +0/+1, etc.)
-            // when they are added to CounterType. Scheduled with named counters
-            // — codebase-state.md, "Before card breadth" item 3.
-        }
-    }
-}
-
-/// The keyword counters on `entry` (CR 122.1b), as `(timestamp, keyword)` sorted
-/// **descending** so `pop()` yields the earliest.
-///
-/// Returns empty for every layer but 6, and for every permanent with no keyword
-/// counter — which is the overwhelming majority, and an empty `Vec` does not
-/// allocate.
-fn collect_keyword_counters(
-    counters: Option<&HashMap<CounterType, CounterStack>>,
-) -> Vec<(Timestamp, crate::types::keywords::KeywordFlag)> {
-    let Some(counters) = counters else {
-        return Vec::new();
-    };
-    // The overwhelmingly common case, and worth its own exit: no counters at
-    // all means no iteration and no `Vec`.
-    if counters.is_empty() {
-        return Vec::new();
-    }
-
-    let mut out: Vec<(Timestamp, crate::types::keywords::KeywordFlag)> = counters
-        .iter()
-        .filter(|(_, stack)| stack.count > 0)
-        .filter_map(|(counter_type, stack)| {
-            counter_type.keyword_granted().map(|kw| (stack.timestamp, kw))
-        })
-        .collect();
-
-    // Descending, and by keyword on a tie. The tie is reachable — two kinds of
-    // keyword counter put on in one action share a timestamp under CR 613.7c —
-    // and `HashMap` iteration order is per-process, so without the second key
-    // the order would differ between runs of the binary. It cannot change the
-    // answer here (both are inserts into a set), but a `Vec` whose order is
-    // nondeterministic is a trap for whoever extends this. `KeywordFlag` derives
-    // `Ord` for exactly this, which is why the tiebreak costs nothing.
-    out.sort_unstable_by(|a, b| b.cmp(a));
-    out
-}
-
-/// Apply every pending keyword counter with a timestamp earlier than `limit`.
-fn drain_keyword_counters_before(
-    pending: &mut Vec<(Timestamp, crate::types::keywords::KeywordFlag)>,
-    limit: Timestamp,
-    chars: &mut EffectiveCharacteristics,
-) {
-    while let Some(&(timestamp, keyword)) = pending.last() {
-        if timestamp >= limit {
-            return;
-        }
-        chars.keyword_flags.insert(keyword);
-        pending.pop();
-    }
-}
-
-/// The effective controller of `id` as of the end of layer `layer_index - 1`.
-///
-/// `None` only when `id` is not in the object store at all.
-///
-/// The gate is exact rather than a heuristic. Layer 2 is the only thing that
-/// writes `chars.controller` after `compute_to_ceiling` seeds it, so when the
-/// registry holds no `SetController` row the seed *is* the answer and reading
-/// the field skips a whole sub-walk.
-///
-/// It was worth ~4% when `FilterPlayers::you()` was its only caller. The Layer 2
-/// phase put 20 more behind it and re-measured on boards where the flag is
-/// actually true: **+28%**, and the phase itself cost ~+4% rather than the +7%
-/// that was predicted. `RegistryScopeSummary::any_control_changing` carries the
-/// numbers, and the note on why the sharper per-object gate was built, measured
-/// and discarded.
-///
-/// The ungated arm asks at `layer_index`, never at the full ceiling
-/// (`layers-architecture.md` §5.2) — that descent is the termination argument,
-/// and `test_self_stripping_land_terminates_and_is_stable` is its canary.
-fn effective_controller(
-    game: &GameState,
-    id: ObjectId,
-    layer_index: usize,
-    cache: &mut FrameCache<'_>,
-) -> Option<PlayerId> {
-    let control_changing = game.continuous_effects.summary().any_control_changing
-        || cache.lookahead.is_some_and(|l| l.summary.any_control_changing);
-    if !control_changing {
-        return base_controller(game, id, cache.lookahead);
-    }
-    compute_to_ceiling(game, id, layer_index, cache).map(|frame| frame.controller)
 }
 
 /// The controller an object has before Layer 2 touches it — CR 110.2's default,
@@ -580,10 +224,10 @@ fn effective_controller(
 /// graveyard has no controller at all — owner is what this reports for it,
 /// because `EffectiveCharacteristics.controller` is not an `Option`.
 ///
-/// **The single definition of the pre-Layer-2 seed.** Both
-/// `any_control_changing` gates return this instead of walking, and they are
-/// only exact while they and `compute_to_ceiling`'s seed agree — which they
-/// used to do by having the same body written out three times.
+/// **The single definition of the pre-Layer-2 seed.** The oracle's
+/// `any_control_changing` gate returns this instead of walking, and it is
+/// only exact while it and the pass's seed agree — which they do by both
+/// calling this.
 ///
 /// **The third arm is a resolving object, and it is not the owner fallback.**
 /// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything
@@ -640,21 +284,12 @@ pub(crate) fn base_controller(
 ///
 /// - **`StaticAbility` (CR 613.7a).** CR 109.5: "For a static ability, this is
 ///   the *current* controller of the object it's on." So ask the source for its
-///   effective controller, the same way `static_ability_still_exists` asks it
-///   for its effective ability list — `compute_to_ceiling` at `layer_index`,
-///   never at the full ceiling (`layers-architecture.md` §5.2).
-///
-///   It is tempting to call that walk free on the grounds that the existence
-///   check makes the identical request a few lines below and would hit the
-///   frame cache. **It is not.** The existence check runs only for effects that
-///   already *matched*; this one runs for every object the filter is about to
-///   reject, which is most of the board. Resolving it eagerly *and* ungated
-///   measured 749 ms/game against a 73.0 baseline on `fuzz_games --games 200
-///   --seed 12345`.
-///
-///   Of the two fixes, **this one is the load-bearing half**: lazy-and-ungated
-///   is 78.1 ms/game, lazy-and-gated 74.8. So laziness is what has to survive a
-///   refactor here; `effective_controller`'s gate is a further ~4%.
+///   controller as the pass has it *now* — the same live frame the existence
+///   check reads. At layer 2 that is the partially-applied layer: two Layer 2
+///   effects where applying one changes what the other applies to are
+///   dependent under CR 613.8a, and LI-2 orders them; a mutual pair is a
+///   loop, applied in timestamp order, which is the order this pass already
+///   uses.
 ///
 /// - **`Resolution` (CR 613.7b).** "You" was fixed when the spell or ability
 ///   resolved — CR 611.2c, "the set of objects it affects is determined when
@@ -667,27 +302,6 @@ pub(crate) fn base_controller(
 /// `static_ability_still_exists` anyway, so the value only has to be defined,
 /// not meaningful.
 ///
-/// # A Layer 2 effect asking about its own controller
-///
-/// Layer 2 lands next, and "permanents you control" on a Layer 2 effect reaches
-/// here with `layer_index == 1` — the frame as of the end of Layer 1, i.e.
-/// *before* any control-changing effect has applied. That reads
-/// `BattlefieldEntity.controller`, CR 110.2's default controller.
-///
-/// That is the right answer whenever the source is not itself under a
-/// control-changing effect, and it is the CR's own fallback when it is. Two
-/// Layer 2 effects where applying one changes what the other applies to are
-/// dependent under CR 613.8a — same layer, and the answer to "what it applies
-/// to" changes — so 613.8b orders them, and a mutual pair is a dependency
-/// *loop*, which 613.8b resolves by ignoring dependency and applying in
-/// timestamp order. Timestamp order over a pre-layer frame is what we already
-/// do. The exact version needs the frame this reads to be a partially-applied
-/// layer, which is `codebase-state.md` item 8 step 4's board-wide sequential
-/// pass — the same missing piece a granted Layer 6 static ability already
-/// waits on (`resolve::register_granted_static_effects`), and scheduled with
-/// 613.8 for that reason. Nothing here needs redoing when it arrives; only the
-/// ceiling this asks at.
-///
 /// # Two ways to build one
 ///
 /// A registry row supplies `effect`, and the two players are derived from it
@@ -697,16 +311,26 @@ pub(crate) fn base_controller(
 /// players already resolved and no row. The `Option` is that second
 /// constructor; a row-less `FilterPlayers` with an unresolved player is a
 /// construction error, and `expect`s.
-struct FilterPlayers<'a, 'c, 'l> {
+pub(super) struct FilterPlayers<'a, 'l> {
     effect: Option<&'a ContinuousEffect>,
     game: &'a GameState,
+    board: &'a Board<'l>,
     layer_index: usize,
-    cache: &'c mut FrameCache<'l>,
     you: Option<PlayerId>,
     owner: Option<PlayerId>,
 }
 
-impl FilterPlayers<'_, '_, '_> {
+impl<'a, 'l> FilterPlayers<'a, 'l> {
+    /// The players of a registry row's filter, resolved on first use.
+    pub(super) fn for_row(
+        effect: &'a ContinuousEffect,
+        game: &'a GameState,
+        board: &'a Board<'l>,
+        layer_index: usize,
+    ) -> Self {
+        FilterPlayers { effect: Some(effect), game, board, layer_index, you: None, owner: None }
+    }
+
     /// CR 109.5's "you".
     fn you(&mut self) -> PlayerId {
         if let Some(you) = self.you {
@@ -717,13 +341,11 @@ impl FilterPlayers<'_, '_, '_> {
             .expect("a FilterPlayers built without a row is built with both players resolved");
         let you = match effect.origin {
             EffectOrigin::Resolution => effect.controller,
-            EffectOrigin::StaticAbility { .. } => effective_controller(
-                self.game,
-                effect.source,
-                self.layer_index,
-                self.cache,
-            )
-            .unwrap_or(effect.controller),
+            EffectOrigin::StaticAbility { .. } => self
+                .board
+                .frame_of(self.game, effect.source, self.layer_index)
+                .map(|frame| frame.controller)
+                .unwrap_or(effect.controller),
         };
         self.you = Some(you);
         you
@@ -790,19 +412,12 @@ fn resolve_set_controller(
     object_id: ObjectId,
     effect: &ContinuousEffect,
     game: &GameState,
+    board: &Board<'_>,
     layer_index: usize,
-    cache: &mut FrameCache<'_>,
 ) -> Option<PlayerId> {
     use crate::types::effects::PlayerRef;
 
-    let mut players = FilterPlayers {
-        effect: Some(effect),
-        game,
-        layer_index,
-        cache,
-        you: None,
-        owner: None,
-    };
+    let mut players = FilterPlayers::for_row(effect, game, board, layer_index);
 
     match player_ref {
         PlayerRef::You => Some(players.you()),
@@ -833,55 +448,6 @@ fn resolve_set_controller(
     }
 }
 
-/// Check whether a continuous effect applies to the given object.
-fn effect_applies_to(
-    effect: &ContinuousEffect,
-    id: ObjectId,
-    chars: &EffectiveCharacteristics,
-    game: &GameState,
-    layer_index: usize,
-    cache: &mut FrameCache<'_>,
-) -> bool {
-    match &effect.affected {
-        AffectedSet::SourceOnly => effect.source == id,
-        AffectedSet::Fixed(ids) => ids.contains(&id),
-        // CR 303.4m — whatever the source enchants *now*, read off the entity
-        // at every layer. `attached_to` only ever names a permanent
-        // (`cleanup_zone_state` clears it when the host leaves), so no zone
-        // gate is needed; an unattached source, or one not on the battlefield,
-        // matches nothing.
-        AffectedSet::Host => {
-            game.battlefield.get(&effect.source).and_then(|e| e.attached_to) == Some(id)
-        }
-        AffectedSet::Filter { filter } => {
-            // Object must be in the battlefield *zone* for filter-based effects.
-            // Checked before anything else so a non-permanent costs no frame
-            // computation for the source.
-            //
-            // The zone, not `game.battlefield` membership, and that is CR
-            // 614.12's clause (3) in one predicate: the effects that "already
-            // exist and would apply to the object" are exactly the ones a
-            // filter has to be allowed to match, and asking the stricter
-            // question here is what kept Blood Moon, Humility and Dress Down
-            // away from an entry. The zone admits a token created in it with
-            // no entity yet; the look-ahead admits the one object entering
-            // from elsewhere, and no more.
-            if !cache.in_battlefield_zone_or_entering(game, id) {
-                return false;
-            }
-            let mut players = FilterPlayers {
-                effect: Some(effect),
-                game,
-                layer_index,
-                cache,
-                you: None,
-                owner: None,
-            };
-            permanent_matches_filter(filter, id, chars, &mut players)
-        }
-    }
-}
-
 /// Check if a permanent's current characteristics match a filter.
 ///
 /// `players` resolves the `PlayerRef` in a `ByController` node. Controller is
@@ -894,11 +460,11 @@ fn effect_applies_to(
 /// frame alone — that is what "post-layers" means — but CR 707.2 excludes
 /// tokenness from copiable values, so `PermanentFilter::Token` is a property of
 /// the `GameObject` that no layer can reach and no frame can carry.
-fn permanent_matches_filter(
+pub(super) fn permanent_matches_filter(
     filter: &crate::types::effects::PermanentFilter,
     id: ObjectId,
     chars: &EffectiveCharacteristics,
-    players: &mut FilterPlayers<'_, '_, '_>,
+    players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
     use crate::types::effects::{PermanentFilter, PlayerRef};
     match filter {
@@ -977,33 +543,33 @@ pub(super) fn evaluate_pt_value(
     chars: &EffectiveCharacteristics,
     object_id: ObjectId,
     layer_index: usize,
-    cache: &mut FrameCache<'_>,
+    board: &Board<'_>,
     origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
     match value {
         PtValue::Fixed(n) => Some(*n),
         PtValue::Dynamic(expr) => {
-            evaluate_amount(expr, game, chars, object_id, layer_index, cache, origin)
+            evaluate_amount(expr, game, chars, object_id, layer_index, board, origin)
         }
     }
 }
 
 /// Evaluate a card-definition amount inside the layer walk.
 ///
-/// Anything reading *another* object goes through `compute_to_ceiling` at the
-/// current `layer_index`, never through `card_data`. Both halves of that matter:
-/// it keeps the layer-system invariant (effective characteristics, not printed
-/// ones), and it preserves §5.2's termination argument — a request at ceiling
-/// `layer_index` is strictly below the ceiling of the walk that made it, so the
-/// recursion descends. A Tarmogoyf in a graveyard counting itself bottoms out
-/// for exactly that reason.
+/// Anything reading *another* object goes through `board.frame_of`, never
+/// through `card_data`: a member's frame as the pass has it now, a non-member
+/// at this `layer_index` as its ceiling. Both halves of that matter: it keeps
+/// the layer-system invariant (effective characteristics, not printed ones),
+/// and it keeps the one recursion left bounded — a non-member read at ceiling
+/// `layer_index` is strictly below the ceiling of the walk that made it. A
+/// Tarmogoyf in a graveyard counting itself bottoms out for exactly that reason.
 fn evaluate_amount(
     expr: &crate::types::effects::AmountExpr,
     game: &GameState,
     chars: &EffectiveCharacteristics,
     object_id: ObjectId,
     layer_index: usize,
-    cache: &mut FrameCache<'_>,
+    board: &Board<'_>,
     origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
     use crate::types::effects::{AmountExpr, PermanentFilter, PlayerRef, Selector};
@@ -1017,15 +583,15 @@ fn evaluate_amount(
         }
 
         AmountExpr::Plus(inner, n) => {
-            evaluate_amount(inner, game, chars, object_id, layer_index, cache, origin)
+            evaluate_amount(inner, game, chars, object_id, layer_index, board, origin)
                 .map(|v| v + *n as i32)
         }
 
         // A count over the battlefield, taken at this layer — Keldon Warlord's
         // "the number of non-Wall creatures you control".
         //
-        // **Enumerates the real board**, `battlefield_ids_ordered`, which a
-        // permanent that is only *entering* is not on. That is §5a's boundary
+        // **Enumerates the real battlefield**, which a permanent that is only
+        // *entering* is not on. That is §5a's boundary
         // (`replacement-architecture.md`) falling out of the structure rather
         // than being special-cased: the entering object is visible to filters
         // — the frame this count runs inside is its own — and invisible to
@@ -1033,9 +599,9 @@ fn evaluate_amount(
         // mana cost won't be counted", because replacement effects are
         // considered before the God is on the battlefield.
         //
-        // Each member's frame is asked at `layer_index`, strictly below this
-        // walk's ceiling (§5.2's termination argument), and memoized in `cache`
-        // for the rest of the walk. One frame per permanent per query is
+        // Each member's frame is the live one — including the object doing
+        // the counting, which is why a modification is resolved before its
+        // frame is written. One filter evaluation per permanent per query is
         // `layers-architecture.md` §12's quadratic by design, and Keldon
         // Warlord is the card that measures it.
         //
@@ -1065,12 +631,10 @@ fn evaluate_amount(
                     Some(game.objects.get(&object_id).map(|obj| obj.owner).unwrap_or(chars.controller)),
                 ),
             };
-            let mut players = FilterPlayers { effect: origin, game, layer_index, cache, you, owner };
+            let mut players = FilterPlayers { effect: origin, game, board, layer_index, you, owner };
             let mut count = 0;
-            for other in game.battlefield_ids_ordered() {
-                let Some(other_chars) =
-                    compute_to_ceiling(game, other, layer_index, players.cache)
-                else {
+            for other in board.battlefield_ids(game) {
+                let Some(other_chars) = board.frame_of(game, other, layer_index) else {
                     continue;
                 };
                 if permanent_matches_filter(&filter, other, &other_chars, &mut players) {
@@ -1088,7 +652,7 @@ fn evaluate_amount(
                     std::collections::HashSet::new();
                 for player in &game.players {
                     for card_id in &player.graveyard {
-                        if let Some(card) = compute_to_ceiling(game, *card_id, layer_index, cache) {
+                        if let Some(card) = board.frame_of(game, *card_id, layer_index) {
                             types.extend(card.types.iter().copied());
                         }
                     }
@@ -1120,62 +684,133 @@ fn evaluate_amount(
     }
 }
 
-/// Apply a single effect modification to the characteristics frame.
+/// A modification with its reads already made, ready to be written to a
+/// frame without touching the board again.
 ///
-/// `object_id` is the object being computed. Layer 4's subtype arms need it to
-/// derive stable ids for intrinsic mana abilities (CR 305.6) — see
-/// `land_types::intrinsic_mana_ability`.
-/// `origin` is the registry row this modification came from, or `None` for an
-/// intrinsic CDA application (`layers::cda`), which has no row.
+/// Only three arms read anything: `SetController` asks who "you" is, and the
+/// two P/T arms evaluate their amounts. Everything else carries its own
+/// answer and is applied as it is. The split exists so a pass can resolve
+/// against every member's live frame — including the one about to be
+/// mutated — and only then take that frame mutably.
+pub(super) enum Resolved<'m> {
+    AsIs(&'m EffectModification),
+    /// CR 613.1b, resolved; `None` when the `PlayerRef` could not be.
+    Controller(Option<(PlayerId, u32)>),
+    /// Layer 7b, both sides; `None` when either amount had no meaning.
+    SetPt(Option<(i32, i32)>),
+    /// Layer 7c, each side independently.
+    ModifyPt(Option<i32>, Option<i32>),
+}
+
+/// Make a modification's reads against the board.
 ///
-/// Only `SetController` reads it, because it is the only modification that does
-/// not carry its own answer. `AddType(Creature)` says what to do; "the
-/// controller becomes *you*" does not say who "you" is, and CR 109.5 answers
-/// that from the ability's source and the row's origin. The row also supplies
-/// `created_on_turn`, which is when the new controller's CR 302.6 clock starts.
+/// `object_id` is the object about to be modified. `origin` is the registry
+/// row this modification came from, or `None` for an intrinsic application
+/// (`layers::cda`, a counter), which has no row.
 ///
-/// CDAs never reach that arm — CR 613.4a lists 7a as their only P/T sublayer
-/// and none live in Layer 2 — so it asserts instead of guessing.
-pub(super) fn apply_modification(
-    modification: &EffectModification,
-    chars: &mut EffectiveCharacteristics,
-    object_id: ObjectId,
+/// Only `SetController` needs the row, because it is the only modification
+/// that does not carry its own answer. `AddType(Creature)` says what to do;
+/// "the controller becomes *you*" does not say who "you" is, and CR 109.5
+/// answers that from the ability's source and the row's origin. The row also
+/// supplies `created_on_turn`, which is when the new controller's CR 302.6
+/// clock starts. CDAs never reach that arm — CR 613.4a lists 7a as their only
+/// P/T sublayer and none live in Layer 2 — so it asserts instead of guessing.
+pub(super) fn resolve_modification<'m>(
+    modification: &'m EffectModification,
     game: &GameState,
+    board: &Board<'_>,
+    object_id: ObjectId,
     layer_index: usize,
-    cache: &mut FrameCache<'_>,
     origin: Option<&ContinuousEffect>,
-) {
+) -> Resolved<'m> {
+    match modification {
+        EffectModification::SetController(player_ref) => {
+            let Some(effect) = origin else {
+                debug_assert!(
+                    false,
+                    "SetController reached the walk with no registry row. CR 613.4a \
+                     puts no characteristic-defining ability in Layer 2, so the only \
+                     caller that passes `None` cannot produce this modification."
+                );
+                return Resolved::Controller(None);
+            };
+            Resolved::Controller(
+                resolve_set_controller(player_ref, object_id, effect, game, board, layer_index)
+                    .map(|pid| (pid, effect.created_on_turn)),
+            )
+        }
+        EffectModification::SetPowerToughness { power, toughness } => {
+            let chars = board
+                .frame_of(game, object_id, layer_index)
+                .expect("a modification resolves against the frame it is about to change");
+            let p = evaluate_pt_value(power, game, &chars, object_id, layer_index, board, origin);
+            let t = evaluate_pt_value(toughness, game, &chars, object_id, layer_index, board, origin);
+            Resolved::SetPt(p.zip(t))
+        }
+        EffectModification::ModifyPowerToughness { power, toughness } => {
+            let chars = board
+                .frame_of(game, object_id, layer_index)
+                .expect("a modification resolves against the frame it is about to change");
+            let dp = evaluate_pt_value(power, game, &chars, object_id, layer_index, board, origin);
+            let dt = evaluate_pt_value(toughness, game, &chars, object_id, layer_index, board, origin);
+            Resolved::ModifyPt(dp, dt)
+        }
+        other => Resolved::AsIs(other),
+    }
+}
+
+/// Write a resolved modification to a frame.
+///
+/// `object_id` is the object `chars` describes. Layer 4's subtype arms need it
+/// to derive stable ids for intrinsic mana abilities (CR 305.6) — see
+/// `land_types::intrinsic_mana_ability`.
+pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveCharacteristics, object_id: ObjectId) {
+    let modification = match resolved {
+        // Layer 2. CR 302.6 asks whether control has been *continuous*, so the
+        // clock only restarts when control actually moves. Act of Treason
+        // legally targets a creature you already control; gaining control of
+        // something you control changes nothing, and resetting the epoch here
+        // would invent summoning sickness the CR does not give. (Act of
+        // Treason grants haste, so it would hide the bug; a card that gains
+        // control without haste would not.)
+        Resolved::Controller(Some((new_controller, since))) => {
+            if chars.controller != *new_controller {
+                chars.controller = *new_controller;
+                chars.control_since_turn = *since;
+            }
+            return;
+        }
+        Resolved::Controller(None) => return,
+        // Layer 7b
+        Resolved::SetPt(Some((p, t))) => {
+            chars.power = Some(*p);
+            chars.toughness = Some(*t);
+            return;
+        }
+        Resolved::SetPt(None) => return,
+        // Layer 7c
+        Resolved::ModifyPt(dp, dt) => {
+            if let (Some(dp), Some(p)) = (dp, chars.power.as_mut()) {
+                *p += dp;
+            }
+            if let (Some(dt), Some(t)) = (dt, chars.toughness.as_mut()) {
+                *t += dt;
+            }
+            return;
+        }
+        Resolved::AsIs(modification) => *modification,
+    };
+
     match modification {
         // Layer 1a — CR 707.2's captured values replace every characteristic
         // channel at once. Everything after this point in the walk modifies the
         // copy, which is CR 613.2c read forwards.
         EffectModification::CopyFrom(values) => values.apply_to(chars),
 
-        // Layer 2
-        EffectModification::SetController(player_ref) => {
-            let Some(effect) = origin else {
-                debug_assert!(
-                    false,
-                    "SetController reached `apply_modification` with no registry                      row. CR 613.4a puts no characteristic-defining ability in                      Layer 2, so the only caller that passes `None` cannot                      produce this modification."
-                );
-                return;
-            };
-            let Some(new_controller) =
-                resolve_set_controller(player_ref, object_id, effect, game, layer_index, cache)
-            else {
-                return;
-            };
-            // CR 302.6 asks whether control has been *continuous*, so the clock
-            // only restarts when control actually moves. Act of Treason legally
-            // targets a creature you already control; gaining control of
-            // something you control changes nothing, and resetting the epoch
-            // here would invent summoning sickness the CR does not give. (Act
-            // of Treason grants haste, so it would hide the bug; a card that
-            // gains control without haste would not.)
-            if chars.controller != new_controller {
-                chars.controller = new_controller;
-                chars.control_since_turn = effect.created_on_turn;
-            }
+        EffectModification::SetController(_)
+        | EffectModification::SetPowerToughness { .. }
+        | EffectModification::ModifyPowerToughness { .. } => {
+            unreachable!("resolved above")
         }
 
         // Layer 4
@@ -1234,36 +869,6 @@ pub(super) fn apply_modification(
             chars.abilities.clear();
         }
 
-        // Layer 7b
-        EffectModification::SetPowerToughness { power, toughness } => {
-            // Evaluated before mutating: `AffectedManaValue` reads `chars`, and
-            // setting power first would let it observe a half-applied frame.
-            let p = evaluate_pt_value(power, game, chars, object_id, layer_index, cache, origin);
-            let t =
-                evaluate_pt_value(toughness, game, chars, object_id, layer_index, cache, origin);
-            if let (Some(p), Some(t)) = (p, t) {
-                chars.power = Some(p);
-                chars.toughness = Some(t);
-            }
-        }
-
-        // Layer 7c
-        EffectModification::ModifyPowerToughness { power, toughness } => {
-            let dp = evaluate_pt_value(power, game, chars, object_id, layer_index, cache, origin);
-            let dt =
-                evaluate_pt_value(toughness, game, chars, object_id, layer_index, cache, origin);
-            if let Some(dp) = dp {
-                if let Some(ref mut p) = chars.power {
-                    *p += dp;
-                }
-            }
-            if let Some(dt) = dt {
-                if let Some(ref mut t) = chars.toughness {
-                    *t += dt;
-                }
-            }
-        }
-
         // Layer 7d
         EffectModification::SwitchPowerToughness => {
             let old_power = chars.power;
@@ -1276,6 +881,7 @@ pub(super) fn apply_modification(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::effects::CounterType;
     use crate::types::replacement::EnterMods;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -2025,6 +1631,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     use crate::engine::layers::lookahead::{compute_as_entering, Lookahead};
+    use crate::engine::layers::board::compute_board;
     use crate::objects::card_data::CardData;
     use crate::test_support::{creature_with_ability, put_on_battlefield, static_ability};
     use crate::types::effects::{
@@ -2160,8 +1767,7 @@ mod tests {
         );
 
         let lookahead = Lookahead::new(&game, anthem, 0, &EnterMods::NONE);
-        let mut cache = FrameCache::new(Some(&lookahead));
-        let other_frame = compute_to_ceiling(&game, other, LAYER_ORDER.len(), &mut cache).unwrap();
+        let other_frame = compute_board(&game, Some(&lookahead)).take(other).unwrap();
         assert_eq!(other_frame.power, Some(2), "nothing else is hypothetical");
 
         game.move_object(anthem, Zone::Battlefield).unwrap();

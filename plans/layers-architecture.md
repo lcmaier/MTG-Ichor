@@ -541,55 +541,45 @@ The single entry point all oracle queries route through.
 
 **Critical correctness requirement:** applicable effects are gathered **per layer**, not once upfront. This is why the layer system exists — Layer 4 can change what "is a creature", which determines whether a Layer 6 effect targeting creatures applies. Gathering all applicable effects before layer 1 would miss this.
 
-**This applies to effect *existence*, not only to what an effect applies to (2026-08-21).** A continuous effect from a static ability exists only while its source still has that ability, and CR 305.7 or Layer 6 can take it away mid-walk without touching the registry. So registry membership is not existence: the gather step re-checks it per layer, against the source's frame as of the end of the previous layer (see `EffectOrigin` and `static_ability_still_exists`). Because each effect is gathered at most once and the pending set only shrinks, this terminates structurally — there is no fixpoint over the registry and nothing to iterate. Two consequences:
+**This applies to effect *existence*, not only to what an effect applies to (2026-08-21).** A continuous effect from a static ability exists only while its source still has that ability, and CR 305.7 or Layer 6 can take it away mid-walk without touching the registry. So registry membership is not existence: the pass re-checks it at every application, against the source's frame **as the pass has it at that moment** — including everything applied earlier in the same layer (LI-1, 2026-09-06; §13b). Because each application is applied at most once, this terminates structurally — there is no fixpoint over the registry and nothing to iterate (§5.2). Two consequences:
 
 - Do **not** add reconcile-the-registry machinery at state-mutation chokepoints. It was tried and discarded; it needs an iteration cap and invents oscillation the CR does not have.
-- CR 613.6 rides on the same gather step: once an effect has started applying to an object, a per-walk `started` set (keyed on `EffectGroup`, not `EffectId` — one CR-level effect is several registry rows) short-circuits both the filter and the existence check for the rest of that walk.
+- CR 613.6 rides on the same step: once an effect has started applying, the pass records the *set of members* it applied to (keyed on `EffectGroup`, not `EffectId` — one CR-level effect is several registry rows), and its rows in later layers apply to that set without re-running the filter or the existence check.
+
+**One pass per board, not one walk per object (LI-1).** `compute_characteristics` is the memoized entry; on a miss for a permanent it runs `board::compute_board`, which walks every member of the working set — the battlefield, the entering object under a look-ahead, anything a `Fixed` row names — through the layers together, and stores every member's frame. An object no row can reach (a card in a hand or graveyard, a spell) keeps a walk of its own that applies only its CDAs (`compute_non_member`). Layer 1a is an ordinary registry slice carrying `CopyFrom` rows and 1b will read `BattlefieldEntity.face_down` from inside the loop the way 7c reads counters (§7); neither is special-cased ahead of the walk.
 
 ```
-compute_characteristics(game, object_id) -> EffectiveCharacteristics:
+compute_board(game, lookahead) -> a frame for every member:
 
-  1. frame = EffectiveCharacteristics::from_card_data(game.objects[id].card_data)
-     // Printed values. For zones where the pipeline is a no-op (hand,
-     // library, etc.), we return frame directly. See §5.1.
+  1. members = battlefield entities in CR 613.7 timestamp order,
+     then the look-ahead's object, then Fixed-named objects (row order).
+     frame[m] = printed characteristics + controller + CR 302.6's clock.
+     (Layer 0.)
 
-  2. (This step was Layer 1a as face-down synthesis. It is not: 1a is
-     copy and 1b is face-down (see §7), and neither is special-cased
-     ahead of the walk — 1a is an ordinary registry slice carrying
-     CopyFrom rows, and 1b will read BattlefieldEntity.face_down from
-     inside the loop the way 7c reads counters.)
+  2. For layer in [Layer1Copy, Layer2Control, Layer3Text, Layer4Type,
+                   Layer5Color, Layer6Ability, Layer7aCdaPT, Layer7bSetPT,
+                   Layer7cModifyPT, Layer7dSwitchPT]:
 
-  3. For layer in [Layer1aCopy, Layer1bFaceDown, Layer2Control, Layer3Text,
-                   Layer4Type, Layer5Color, Layer6Ability,
-                   Layer7aCdaPT, Layer7bSetPT, Layer7cModifyPT,
-                   Layer7dSwitchPT]:
+       applications = each member's CDAs at this layer          (CR 613.3)
+                    + the registry's rows at this layer, and the
+                      look-ahead's would-be rows                 (CR 613.7)
+                    + keyword counters at layer 6 and P/T counters
+                      at layer 7c                                (CR 613.7c)
+       sorted on (is_cda descending, timestamp, tiebreak)
 
-       // Predicates are evaluated against the frame *as of the end of
-       // the previous layer*. That's why we re-filter each iteration
-       // rather than pre-gathering.
-       applicable = registry.iter().filter(|e|
-           e.layer == layer
-           && affected_under_frame(e.affected, object_id, &frame)
-       )
+       for application in that order:        // LI-2: CR 613.8's loop instead
+           if !exists(application, frames): continue      // CR 613.7a, live
+           targets = the locked set (CR 613.6), or the affected set over frames
+           for t in targets:
+               resolved = resolve(application.modification, frames, t)
+               apply(resolved, &mut frame[t])
 
-       ordered = resolve_order_within_layer(applicable, &frame)
-
-       for effect in ordered:
-           apply(&mut frame, effect, object_id)
-
-       // Layer 7c applies counter-derived modifiers after the registry slice.
-       // NOT "per CR 613.4c" — 613.4c only says what layer 7c *is*; order
-       // within a layer is CR 613.7 timestamps. The real justification is that
-       // every 7c modification this engine can express is an addition, so the
-       // layer's result is order-independent — a property of the current
-       // vocabulary, not of the layer. See codebase-state.md, "Before card
-       // breadth": CR 701.10a's "double its power" is a non-commutative 7c
-       // effect on 19 printed cards, and the first one needs a timestamp merge.
-
-  4. return frame
+  3. return frames
 ```
 
-The `apply()` function for each `EffectModification` variant mutates `frame` in place.
+`resolve` makes every read a modification needs — who "you" is, a dynamic amount's count — against the live frames before any is written, because a count may include the member being modified; `apply` is the per-`EffectModification` arm (`compute::resolve_modification`, `compute::apply_resolved`).
+
+Layer 7c's counters are applications like any other, on CR 613.7c's clock. Until LI-1 they applied after the layer's rows, on the argument that every 7c modification is an addition, so the layer's result was order-independent. That was a property of the vocabulary, not of the layer: a filter reading `PowerLE` breaks it (CR 701.10a's "double its power" would too, and 19 printed cards say it), and the sort key is exact where the ordering was not.
 
 ### 5.1 Zone scope — hidden-zone fast path
 
@@ -629,29 +619,17 @@ In the common case (no Mycosynth Lattice / Painter's Servant / Leyline of the Vo
 
 **Longer-term optimization (out of scope here, noted as future work):** a pre-game analysis pass over every card in the starting libraries + command zones computes a "universal effect filter" — the set of continuous-effect *patterns* that could ever fire in this game. Effects not in the filter are pre-pruned from dependency checks regardless of runtime state. Tracked as a Phase LE+ possibility, not planned now.
 
-### 5.2 Acyclicity argument
+### 5.2 Termination
 
-Predicates inside `compute_characteristics(id)` sometimes need to know characteristics of *other* objects. Example: "enchantments you control" needs to know what's an Enchantment. That could naively recurse into `compute_characteristics(other_id)` and loop.
+Predicates inside the walk sometimes need to know characteristics of *other* objects. "Enchantments you control" needs to know what is an Enchantment; the CR 613.7a existence check needs the source's ability list. Naively that recurses into another walk and loops.
 
-Resolution:
+**Until LI-1 (2026-09-06) the argument was a descending layer ceiling.** The walk computed one object; every read of another object was answered at the end of the *previous* layer through a per-call frame cache keyed `(ObjectId, ceiling)`; a request at ceiling `C` only ever made requests below `C`, so the recursion bottomed out at ceiling 0. That was exact while no application in a layer changed what a later one in the same layer read, and `codebase-state.md` "Before Layers" item 8 lists the three boards where it did not — one of which the pool builds.
 
-- CR 613 applies effects in layer order against the game state *as modified by prior layers*. So predicates in layer N read characteristics-as-of-end-of-layer-(N-1).
-- Predicates never call back into `compute_characteristics`. Instead, they read from a **frame cache** built during this one computation.
-- The frame cache is a lazy map `ObjectId -> EffectiveCharacteristics` that accumulates during the current `compute_characteristics` call. When a predicate needs another object's layer-(N-1) characteristics, it requests them from the cache, which runs the pipeline up to layer N-1 for that object (re-entering the same function but with a lower layer-ceiling; bounded recursion).
-- Cycles within a layer are broken by CR 613.8b's timestamp fallback (§9).
+**The argument now (§13b, decision 4).** The pass is one sequential loop over the layers, and inside a layer the ordering loop applies exactly one application per iteration. Under LI-1's key order that is a plain sequence. Under LI-2's CR 613.8 loop a candidate always exists: a finite dependency graph's condensation has a source component; a trivial one is an application with no unapplied dependency, and a non-trivial one is a loop, whose members CR 613.8b applies in timestamp order. So the pending set shrinks by one per iteration and a layer ends after as many iterations as it has applications. Nothing inside the pass calls the top-level entry — a member's frame is read from the live map, never recomputed — and the only recursion left is a non-member's CDA walk reading another non-member at a strictly lower ceiling (a Tarmogoyf in a graveyard counting graveyard cards, `compute_non_member`), which is the old argument bounding the one path no row reaches. That per-pass cache of non-member frames is keyed `(ObjectId, ceiling)` as the old one was, and discarded with the pass.
 
-The frame cache is the *only* cache we maintain, and only within one top-level `compute_characteristics` call. It's discarded on return.
+**The canary is `test_self_stripping_land_terminates_and_is_stable`, and it still bites.** A version of `static_ability_still_exists` that asked the top-level entry for its source instead of the live board starts a second pass inside the first, and the test overflows the stack against it — checked by sabotage on 2026-09-06.
 
-**Status (2026-08-21): implemented, and load-bearing.** `FrameCache` in `engine/layers/compute.rs` is a `HashMap<(ObjectId, usize), EffectiveCharacteristics>` where the `usize` is the layer ceiling — index into `LAYER_ORDER`, so ceiling `n` means layers `LAYER_ORDER[..n]` have been applied. Its first caller is the CR 613.7a existence check (`static_ability_still_exists`), which at layer index `i` asks for the effect's source at ceiling `i`.
-
-The strictly-descending ceiling is not an optimization, it is the termination argument, and it is pinned: `test_self_stripping_land_terminates_and_is_stable` overflows the stack if the check asks at the full ceiling instead of `layer_index`.
-
-Two refinements worth knowing before extending it:
-
-- Only sub-computations are memoized (`ceiling < LAYER_ORDER.len()`). The top-level frame is requested exactly once per call, so caching it is a pure clone. Measured: skipping it, plus not cloning the per-layer effect list, is the difference between +88% and flat on `fuzz_games`.
-- The existence check short-circuits entirely when `ContinuousEffectRegistry::summary().any_ability_changing` is false, so the cache is never even touched on ordinary boards.
-
-**Note for §5.1's hidden-zone fast path:** that fast path is conditional on the registry summary, so nothing may memoize "hidden-zone object → printed characteristics" beyond a single top-level call *unless the key sees the registry change*. The frame cache's key and lifetime satisfy this trivially. The cross-call memo of §12 "7a" satisfies it because the registry's own mutation count is half of its epoch: a row arriving turns the fast path off and invalidates every stored frame in the same write.
+**Note for §5.1's hidden-zone fast path:** that fast path is conditional on the registry summary, so nothing may memoize "hidden-zone object → printed characteristics" beyond a single top-level call *unless the key sees the registry change*. The per-pass cache's lifetime satisfies this trivially. The cross-call memo of §12 "7a" satisfies it because the registry's own mutation count is half of its epoch: a row arriving turns the fast path off and invalidates every stored frame in the same write.
 
 ---
 
@@ -808,6 +786,8 @@ For each candidate pair (A, B) surviving steps 2+3:
 6. Discard snapshot.
 
 For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep clone. Phase LC decides the snapshot shape. Phase LA just reserves the interface.
+
+**LI-1 (2026-09-06) built the frame this runs against and superseded the signature.** The layer driver is `board::apply_layer`, applying in key order over `Application`s — rows, CDAs, counters, with `is_cda` on each for 613.8a(c) — and the live board is the `frame` argument above. LI-2 replaces the driver's body with the loop, and the function it becomes, `resolve_order_within_layer`, *applies as it orders*: CR 613.8c makes the order after the k-th application a function of the first k, so no `Vec<EffectId>` can be returned up front (§13b, LI-2 piece 3).
 
 **The seam this shares with CR 614.12, recorded 2026-09-02 (RC-4).** The look-ahead frame is built, and it is *not* this snapshot — `replacement-architecture.md` §5 separates the two and §11 item 5 decided the shape: a read-side overlay, never a `GameState` clone. What 613.8 inherits is the accessor pair `compute.rs` now routes its concrete-state reads through — `FrameCache::entity` (controller, CR 302.6's clock, counters) and `rows_in_layer` (the registry slice plus an entering object's would-be rows) — so a step-4 hypothetical never has to re-plumb the walk. The `Lookahead` is threaded through `FrameCache` itself rather than passed beside it, because a frame memoized under one hypothetical must never be served to a walk under another; the step-4 snapshot, when it is built, wants the same discipline.
 
@@ -1011,7 +991,8 @@ sitting that hurt.
 
 **What it is not.** Not the CR 613.8 dependency algorithm and not the board-wide
 sequential pass — those stay item 7, and the epoch memo is what that pass's output
-will be stored in. Not a semantics-assuming shortcut in item 3's sense: a missed bump
+will be stored in. (It is, since LI-1, 2026-09-06: a miss for a permanent runs one
+pass and stores every member's frame, §13b decision 2.) Not a semantics-assuming shortcut in item 3's sense: a missed bump
 is testable, a wrong shortcut is not.
 
 **Built 2026-09-03, `layers/epoch-memo`.** As designed, with three details
@@ -1500,6 +1481,509 @@ carry the numbers, `engineering-practices.md` §3 the re-recorded tables.
 
 ---
 
+## 13b. Phase LI — the CR 613.8 cluster (live plan, 2026-09-06)
+
+**Lettered for the reason §13a is**, and written before LI-1 the way §13a was
+written before LH-1: the finding that sets the scope, the decisions the phase
+was asked to make first, the pieces, and a size for each PR measured against
+the tree rather than guessed (`engineering-practices.md` §4).
+
+**Why it extends this document.** All three pieces are CR 613: the board-wide
+pass is the frame CR 613.3, 613.6 and 613.7a describe; the dependency
+algorithm is CR 613.8; and a conditional static's condition is an existence
+question with 613.7a's shape. Critical-path item 7, `roadmap-v2.md` §3a row A3.
+
+### The finding that sets the scope: one walk, one object
+
+`compute_characteristics` walks **one object** through the ten layers, and
+every read it makes of *another* object is answered at a lower layer ceiling —
+that object's frame as of the end of the previous layer (§5.2). CR 613
+describes the opposite shape: one pass per layer over the whole board, in
+which each application's reads — whether its generating ability still exists,
+who "you" is, what it applies to, what a count comes to — see everything
+applied *earlier in the same layer*. The per-object walk is exact exactly
+while no application in a layer changes what a later application in the same
+layer reads. Three boards break that, and the pool builds one of them:
+
+| Board | Layer | What the per-object walk gets wrong | Fix |
+|---|---|---|---|
+| **Humility + Citanul Hierophants** — both in `PERFORMANCE_POOL`; `test_humility_before_hierophants_does_not_yet_retire_the_grant` pins the wrong answer | 6 | the grant's CR 613.7a check reads the Hierophants as of the end of layer 5 and cannot see Humility's strip, applied earlier in layer 6; a creature under Humility taps for {G} | **LI-1**: the pass — the check reads the live frame |
+| **Blood Moon + Rootpath Purifier** — the Purifier's ruling (Scryfall, 2022-10-14): "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic" | 4 | applying the Purifier changes what Blood Moon applies to (613.8a(b)), so Blood Moon waits for it whatever the timestamps say; the walk orders by timestamp | **LI-2**: dependency ordering, the ruling's board as a named fixture (the Purifier's library clause is item 9's) |
+| **Blood Moon + Urborg, Tomb of Yawgmoth** — Urborg's ruling (Scryfall, 2021-03-19): an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply" | 4 | applying Blood Moon removes the ability that generates Urborg's effect (613.8a(b)); with Urborg's earlier timestamp the walk applies Urborg first and a basic Forest is a Forest Swamp | **LI-2**, on LI-1's existence check |
+
+**Rulings first, then the walkthrough.** The two rulings above are what LI-2 works from, together with the Humility + Opalescence rulings (2009-10-01 and 2006-02-01), which walk layers 4, 6 and 7b with timestamps and are LI-2's CR 613.6 test. The "judge walkthrough" item 8 cited from memory was recovered on 2026-09-06 — a judge's answer on a Reddit thread, Blood Moon + Urborg + Ashaya + Opalescence, all four in layer 4 — and is quoted in full in `plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md`. It is a worked procedure, not a ruling, and it states two of this section's decisions in its own words: dependencies are decided against "the current game state being built, not theoretical" (decision 3), and re-evaluated "after each effect is applied" (CR 613.8c, LI-2's loop). Its board — Opalescence, then Ashaya, then Blood Moon, Urborg never applying — is LI-2's 613.8c test. Ashaya + Blood Moon *alone* has no ruling; where its answer appears below it is derived from the CR and says so.
+
+The fourth thing the same missing frame blocks is not a wrong answer but an
+assert: "Before Layers" 7b's *Layer 6 exactly* case, a granted static ability
+whose own effect lands in layer 6 (Rune of Flight's shape, CR 613.7a's own
+example). `register_granted_static_effects` refuses it because the existence
+check could not see the grant applied earlier in the same layer. LI-1 lifts
+that assert; the card itself waits on item 6 (its draw is a trigger).
+
+### Decisions — the five the phase was asked to settle before a line of code
+
+**1. The unit of ordering inside a layer is an *application*.** Four kinds,
+one list per layer, one sort key:
+
+| Application | Where it comes from | Affected set | Existence (CR 604.2) |
+|---|---|---|---|
+| a registry row (and, under a look-ahead, one of the entering object's would-be rows) | `effects_in_layer` / `Lookahead::rows` | the row's `AffectedSet` | `StaticAbility` rows: does the source's *live* frame still carry the ability; `Resolution` rows: always |
+| one object's intrinsic CDA at this layer | the member's live ability list at the start of the layer (`cda.rs`) | the object itself (CR 604.3a(3)) | does the object's live frame still carry it |
+| a keyword counter (CR 122.1b), layer 6 only | the entity's counters | the object itself | always |
+| a P/T counter kind (CR 122.1a), layer 7c only | the entity's counters | the object itself | always |
+
+The key is `(is_cda descending, timestamp, tiebreak)`: CR 613.3's "CDAs first,
+then timestamp order" and CR 613.7c's counter timestamps fall out of one sort,
+and CR 613.8a(c) is a flag comparison on the pair rather than a second pass —
+CDA↔non-CDA pairs are independent by rule, CDA↔CDA pairs go through the same
+check as any other. The tiebreak is the row's `EffectId`, the CDA's ability
+index in its object's list, or the counter kind: process-independent, every
+one (CLAUDE.md, determinism). **Two of the four are new as applications.**
+Layer 6 keyword counters already interleaved with rows by timestamp; layer 7c
+counters applied after the layer's rows on the argument that every 7c
+modification is an addition. That argument is about the *vocabulary*, and
+CR 613.7c says timestamp; making them applications is exact and, with no
+registered filter reading `PowerLE`, unobservable on every board the pools
+build.
+
+**2. What the pass mutates, and where its output lives.** One live frame per
+working-set member, advanced layer by layer in one `HashMap<ObjectId,
+EffectiveCharacteristics>`; an application is applied to every member it
+affects before the next application is considered. The plan's wording was a
+map keyed `(ObjectId, layer_index)` holding post-layer values; as designed
+that is the same structure with the layer index implicit, because **nothing
+reads a past layer** — every read the walk makes is of the *current* state
+(the existence check, `FilterPlayers::you`, the filter, `CountOf`) or of a
+non-member at a lower ceiling (below), so keeping ten copies would be ten
+deep clones of the ability list per member per pass for no reader. The
+epoch memo caches the pass's output: a miss for a member runs the pass and
+stores every member's frame at that epoch, so the next member asked is a hit
+— one epoch, no finer key, exactly as §12 "7a" said. **No order is stored
+into rows**: CR 613.8c makes the order a function of the applications already
+made, so it is a result of the pass, not an attribute of a row, and 7g's
+`update_rows` route is not needed.
+
+*The working set* W is **every object some row can reach**, and it is
+derived from the `AffectedSet` variants rather than listed: a `Filter` row
+needs the battlefield zone (RC-3's gate — because `PermanentFilter` is a
+filter over *permanents*; a filter over cards in a graveyard, Deeproot
+Historian's "Merfolk and Druid cards in your graveyard have retrace", is
+layers item 9's zone-reaching variant, and main item 64's `ObjectFilter`
+rename is its precursor), a `Host` row's host is a permanent,
+a `SourceOnly` row's source is a permanent (a `StaticAbility` row's source is
+on the battlefield, or is the entering object), and a `Fixed` row names what
+it names — anywhere, which is why `Fixed` is the one variant that adds
+members beyond the battlefield (a pump spell's target that has since died).
+So W is every battlefield entity in `battlefield_ids_ordered` order, then the
+look-ahead's object when there is one, then whatever `Fixed` rows name (in
+row order). **It is not contained to the battlefield by design, only by
+today's variants**: layers item 9's zone-reaching `AffectedSet` — Wonder's
+"as long as this card is in your graveyard" — adds one clause to
+`Board::seed`, and nothing else in the pass changes. A token in the
+battlefield zone with no entity (its entry being decided) is a member of the
+pass that asks about it and of no other; the as-built notes say why.
+**A non-member** — a card in a hand, library or graveyard, or a spell — keeps
+a walk of its own that applies no row, only its CDAs (CR 604.3, all zones),
+and reads a member's frame from the memo, or from the live board when the
+request is nested inside a pass. Final frames are exact for every read a
+non-member's CDA makes today: types, subtypes, colors and controller are
+settled by layer 6, and the only read that is not — a 7a CDA on a card
+outside the battlefield reading another creature's *power* mid-sublayer — is
+613.8a(c)'s both-CDA shape, which no printed card has (`cda.rs`). Recorded,
+not built.
+
+*The look-ahead* (CR 614.12) is a pass over W plus the entering object, whose
+own would-be rows apply to it alone — `replacement-architecture.md` §5b's
+asymmetry, pinned by `test_look_ahead_rows_reach_only_the_entering_object`.
+That asymmetry is about *which objects an entering permanent's static
+abilities reach before it has entered* (none but itself: CR 604.3 makes them
+function on the battlefield, and 614.12 clause 2 asks only what "would apply
+to it"); it has nothing to do with CR 613.8's dependency check, which is
+symmetric — LI-2 asks both "does A depend on B" and "does B depend on A" of
+every pair, look-ahead or not. Every other member's frame comes out equal to
+the real pass's, which is what §5b claims and what makes a cheaper replay
+possible later (below). It fills no memo, as §12 "7a" says.
+
+**3. The hypothetical check's snapshot is a frame clone.** CR 613.8a(b) asks
+whether applying B would change what A reads. A's reads are few and named —
+its source's ability list (existence), its source's controller ("you"), the
+filter leaves of its `AffectedSet` and of any `CountOf` in a dynamic amount —
+so the check clones the frame of each member B affects, applies B to the
+clone, re-evaluates A's read on it, and discards the clone. Not a `GameState`
+clone (`replacement-architecture.md` §11 item 5: it duplicates `rng` and
+aliases every v4 id) and not RC-4's overlay (§5's table: that perturbs
+battlefield membership, this perturbs one frame). §15.2 item 3 closes on
+this.
+
+**4. Termination is no longer "the ceiling descends".** The pass is one
+sequential loop over the layers, and within a layer the ordering loop
+applies exactly one application per iteration: a finite dependency graph's
+condensation has a source component; a trivial source is an application with
+no unapplied dependency, and a non-trivial one is a loop, whose members
+CR 613.8b applies in timestamp order. So a candidate always exists, the
+pending set shrinks by one, and a layer ends after as many iterations as it
+has applications. Nothing inside the pass calls the top-level entry — a
+member's frame is read from the live map, never recomputed — and the only
+recursion left is a non-member's CDA walk reading another non-member at a
+strictly lower ceiling (Tarmogoyf in a graveyard counting graveyard cards),
+which is §5.2's old argument bounding the one path no row reaches. §5.2 is
+rewritten to say this. `test_self_stripping_land_terminates_and_is_stable`
+stays the canary: a version that answered the existence check by asking the
+top-level entry for the source would start a second pass inside the first,
+and the test overflows the stack against it.
+
+**5. `Condition` is extended, never duplicated.** The eight-variant enum in
+`types/effects.rs`, written for CR 603.4, gets an evaluator whose frame is the
+pass's live board, and grows a leaf only when a registered card needs it.
+A conditional static lowers to ordinary rows; the condition lives on the
+ability, which the existence check already fetches from the source's live
+frame, so "the effect exists while the condition holds" is one more clause in
+`static_ability_still_exists` and no new field on `ContinuousEffect` (7d's
+26 construction sites stay untouched). CR 613.6 then reads the same for a
+condition as for a removed ability: once the effect has started applying to
+a set, a later layer does not re-ask.
+
+### Where "as of the end of the previous layer" survives, and where it does not
+
+| Read in `compute.rs` | Today | Under the pass |
+|---|---|---|
+| `static_ability_still_exists` — the source's ability list | `compute_to_ceiling(source, layer_index)` | the source's live frame |
+| `FilterPlayers::you` — a static ability's controller (CR 109.5) | `effective_controller` at `layer_index` | the source's live frame; at layer 2 that is the partially-applied layer the function's doc named as the exact version |
+| `effect_applies_to` — the candidate's own frame | live (own object) | live, every member |
+| `CountOf` over the battlefield | each member at `layer_index` | each member's live frame |
+| `CardTypesAmong(CardsInGraveyard)` | each card at `layer_index` | unchanged: non-members, CDA walk at that ceiling |
+| `AffectedManaValue` | own frame | own live frame |
+| the CR 613.6 `started` set | per walk, per group | per pass, per group, holding the *set of members* the group first applied to — the locked set CR 613.6 names, so a later layer applies to it without re-running the filter. Today's per-object mark re-runs the filter for objects the group missed at its first layer, which is wrong for a Forest-animating effect beside a later "lands are Forests"; no registered pair builds that board |
+
+### The split, sized against the tree
+
+Measured the way §4 asks: the functions the pass replaces, counted, and the
+new pieces beside them. `compute.rs` is 2,183 lines, of which 1,110 are tests;
+the non-test functions the pass rewrites are `FrameCache` (70), `rows_in_layer`
+(17), `compute_to_ceiling` (76), `static_ability_still_exists` (22),
+`apply_effects` (160), the two keyword-counter helpers (65),
+`effective_controller` (42), `FilterPlayers` (88), `effect_applies_to` (60),
+the `CountOf` arm of `evaluate_amount` (~45) and the three resolving arms of
+`apply_modification` (~40) — **about 685 lines**, plus `cda.rs`'s
+`apply_intrinsic_cdas` (30) and `lookahead.rs`'s `compute_as_entering` (10).
+
+| PR | Pieces | Measured | ~additions |
+|---|---|---|---|
+| **LI-1** — the board-wide sequential pass | the `Board` and its working set (~120 new); the per-layer application list (~110); `apply_layer`, applying in list order with the live existence check, the locked 613.6 set and evaluate-then-apply for the three resolving arms (~90); the non-member walk (~60); the memo fill and a `Board walks` cost row (~40 across `diagnostics.rs`, `fuzz_games.rs`, `fuzz_ab.py`); the ~685 lines above rewritten rather than added (net ~+200) | engine ~+550 / −350; tests ~+250 (the flipped pin, a layer-6 granted static, the locked 613.6 set, signatures in the unit tests); docs ~+450 (this section, §5.2, §5, §9, `codebase-state.md` 7b/7c/8, §3's re-record, the ledger) | **~1,250** |
+| **LI-2** — CR 613.8a/b/c | the channel sets (what each `EffectModification` writes, what each read reads — the static check, ~90); the hypothetical check (~120); the ordering loop with the transitive closure, the loop rule and re-evaluation after every application (~110); `resolve_order_within_layer` as the layer driver (~30); two cards (~115); tests (~420: Urborg both orders, Ashaya + Blood Moon both orders, a 613.8b loop fixture on creature types, a 613.8c chain fixture, 613.8a-003, 7c's CR 613.6 test, the composition); docs and §3 (~380) | | **~1,300–1,500** |
+| **LI-3** — conditional statics | the `Effect::Conditional` lowering arm (~40); `layers/condition.rs`, an evaluator for the eight leaves in a static context plus one leaf the Rune shape needs (~160); the clause in the existence check (~30); Kird Ape (~50) and its tests (~120); a named fixture for the Rune-of-Flight shape (~100); docs, 7f's close and §3 (~230) | | **~750–900** |
+
+**Not one PR, and not two.** LI-1 and LI-2 sum past the band, their consumers
+are different cards (a pooled pair against two new ones), and LI-2 is the
+algorithm a review should read on its own — the hypothetical check and the
+loop rule are where a subtle wrong answer would hide. LI-3 could ride with
+LI-2 on size alone (~2,200 together, at the top of the band) and does not,
+because it is a different seam — the card → row lowering and an evaluator,
+not the walk — and because Kird Ape wants LI-2's Blood Moon board to be
+settled first (a nonbasic Forest under Blood Moon stops being a Forest).
+
+### LI-1 — the board-wide sequential pass (~1,250 additions) — ✅ 2026-09-06
+
+1. **`Board`** in `engine/layers/board.rs`: the working set in its order, the
+   live frames, the CR 613.6 locked sets, and the look-ahead reference
+   `FrameCache` carries today (the accessor pair moves with it — `entity` and
+   the rows read stay the two places the walk touches concrete state).
+2. **`applications_in_layer`**: the four kinds of decision 1, built once per
+   layer per pass, sorted on the one key.
+3. **`apply_layer`**: for each application in order — existence against the
+   live frame; the affected members, from the locked set when the group has
+   started (CR 613.6) and from the filter over W otherwise; then the
+   modification, its dynamic parts resolved *before* any member is mutated
+   (`CountOf` must be able to read the member being modified — a creature
+   counting "creatures you control" counts itself). LI-2 replaces "in order"
+   with 613.8's loop and nothing else here moves.
+4. **The existence check** reads the live frame, which is the whole of item
+   8 step 4 and closes 7b's Layer 6 case: `register_granted_static_effects`'s
+   assert becomes `layer >= Layer6Ability`, with a test granting a Host-scoped
+   "equipped creature has flying" static to an Equipment by resolution.
+5. **`compute_characteristics`**: a miss for a member runs the pass and fills
+   the memo for every member; a miss for a non-member runs the CDA walk. The
+   debug audit compares a hit against a throwaway pass, as before.
+   `compute_characteristics_uncached` (the CR 603.10a capture) and
+   `compute_as_entering` are throwaway passes too.
+6. **`FrameCache` survives** as the non-member walk's `(id, ceiling)` memo,
+   with a reference to the live board when the walk is nested inside a pass.
+7. **The cost rows.** `Layer walks` keeps its meaning — a top-level miss —
+   and a new bold row, `Board walks`, says how many of them walked the whole
+   board; `Layer frames` becomes board walks × members plus the non-member
+   frames, so `Frames/walk` will read near the member count rather than 1.55.
+   §3 says so.
+8. **§5.2 rewritten** per decision 4; §5's pseudo-code and §9's interface note
+   updated; `codebase-state.md` 7b's Layer 6 case and 7c's untested claim
+   closed, item 8 marked "step 4 built, steps 1–3 LI-2".
+
+**Consumer and red test.** Humility then Citanul Hierophants, both pooled:
+`test_humility_before_hierophants_does_not_yet_retire_the_grant` is red
+against the pass by construction (it asserts the wrong answer) and is
+rewritten to assert the CR's — the Bears have no mana ability in either order.
+Because both cards are pooled, the A/B's "engine, pool unchanged" arm will
+legitimately differ from `main`: every game in which a creature under
+Humility tapped for the Hierophants' {G} takes a different path. §3 counts
+those games and says why, as LH-2 did for Chainbreaker.
+
+**What the A/B should show, and the levers if it does not.** A pass builds
+one frame per member; a walk today builds 1.55. After a write, the SBA
+sweep asks six questions of every permanent, so today it is ~40 walks at 1.55
+frames and under the pass one pass at ~40 frames — cheaper, and it is the
+dominant case (96% of questions repeat an untouched board). Two cases cost
+more: an epoch in which only one or two objects are asked before the next
+write, and the look-ahead, which today walks one object with sub-frames and
+under the pass builds every member — ~45 entries a game, so ~1,800 frames
+against a 3,755 total today. Expected: frames up, walks down, CPU per game
+flat to +10%. If it is worse, both levers are answer-preserving and each has
+its proof already written: **replay** the real pass's application order
+against the entering object alone for the look-ahead (§5b's asymmetry says
+the other members' frames are the real ones), and **project** a layer whose
+applications are pairwise statically independent — no application writes a
+channel another reads, which is LI-2's static check computed from the rows'
+kinds alone — through the per-object walk, which is exact for exactly that
+layer. Neither is LI-1, and a finer memo key is neither (§12 "7a").
+
+**As built (2026-09-06, `layers/li-1-board-pass`).** +1,013 / −775 in
+`src` across nine files and +230 in tests before the docs: the ~685 lines the
+plan counted came out as `board.rs` (new, ~560 lines) and a `compute.rs` that
+keeps the entry, the memo, the non-member walk and the evaluators. The ~1,250
+estimate held for the code; the docs put the PR near 1,700. Four departures
+from the pieces above, each found by a test:
+
+1. **An object in the battlefield zone with no entity is a member of the
+   pass that asks about it, and of no other.** The plan said such an object
+   — a token whose entry is being decided — is asked about only through its
+   look-ahead. It is not: the CR 614.17 restriction predicate
+   (`keyword_prohibits`) asks its keywords through the plain entry while the
+   entry is decided, and passes for *other* objects run meanwhile with no
+   look-ahead at all. A debug assertion that demanded the look-ahead failed
+   seven token tests, and the assertion was wrong. `board::classify` names
+   the three ways the entry answers — `Member`, `ZoneOnly`, `NonMember` —
+   and a `ZoneOnly` object joins its own pass as `asked`, which reproduces
+   its old frame exactly (the zone gate admits filter rows; the controller
+   seeds from the owner). It is invisible to counts and changes no other
+   member's frame, so two of them never need an order between them.
+2. **`copiable_values` wanted a ceiling.** CR 613.2c's capture is the frame
+   at the end of layer 1, which the old `compute_to_ceiling` gave and a full
+   pass does not. `compute_board_to(.., ceiling)` stops a pass where it is
+   told; `frame_at_ceiling` routes a member through that and anything else
+   through its own walk.
+3. **`Layer walks` still counts a query for an object that does not exist**,
+   as it did: the count sits before the store probe, so that case's fixture
+   rows stay comparable to `main`'s.
+4. **The `Board walks` row.** Walks per game fell 2,425 → 328 on
+   `performance` at 50 games (3,129 → 366 per 200) and 236 of the 328 walked
+   the whole board; frames rose 3,755 → 4,289 (+14%; +21% per 200 games),
+   which is board walks times members. `Frames/walk` reads 13.1 where it
+   read 1.55, and the row is what makes that legible.
+
+Two things the plan predicted and the sitting confirmed. **The A/B is
+flat**: `plans/fuzz_ab.py`, one sitting, `main` at 650633f against the
+branch — CPU/game 14.56 → 14.81 ms (+1.7%), ms per 1,000 questions
+0.146 → 0.149 (+2.1%), both inside the sitting's spread; p99 48.3 → 46.6 ms.
+**And the "engine, pool unchanged" arm legitimately differs from `main`**,
+because both consumers are pooled: on 40-game `--dump-events` streams with
+the id masks applied, **one game in forty differs on each pool** —
+`performance` game 38, `stress` game 20 — and in both, Humility and Citanul
+Hierophants had entered before the divergence; the first divergent event is
+a choice made by index (a mana source tapped for a payment, a blocker) from
+a list in which a creature under Humility no longer offers the Hierophants'
+ability. Every other game is byte-identical. Three serial runs per pool are
+identical outside `=== Timing ===`, and the sitting's rounds reproduce the
+threaded counters. `engineering-practices.md` §3 has the tables.
+
+The first `main` binary the sitting was run against was stale — built the
+day before #102's last commits — and every game differed from its first
+draw; a `git worktree` synced to a commit is not a binary built at it, and
+the attribution script now says so on its first line. Tests: the pinned
+wrong answer is flipped in place
+(`test_humility_before_hierophants_retires_the_grant`), and
+`tests/phase_li_integration_test.rs` pins 7b's Layer 6 case built by
+resolution, a +1/+1 counter interleaving with a power-reading 7c row on
+CR 613.7c's clock (the one order that stays stable under LI-2), a graveyard
+Keldon Warlord counting the board through the settled path, and one pass
+answering every member with the nested graveyard reads not counted as
+board walks. No card and no pool change: the consumer was already in both
+pools.
+
+**Scaling, measured before the merge (2026-09-06).** §12's synthetic board —
+N anthem creatures ("creatures you control get +1/+1", one 7c row each)
+beside N vanilla creatures — run on one machine against `main` at 650633f
+and this branch, release, µs per epoch. Two columns per arm: every member
+asked once after a write (what an SBA sweep does), and one member asked.
+
+| board (creatures + anthems) | rows | `main`, all asked | pass, all asked | `main`, one asked | pass, one asked |
+|---|---:|---:|---:|---:|---:|
+| 10 + 1 | 1 | 15.0 | **6.4** | **1.3** | 6.2 |
+| 10 + 10 | 10 | 180.0 | **33.2** | **8.7** | 27.4 |
+| 40 + 5 | 5 | 191.8 | **42.2** | **4.5** | 36.6 |
+| 40 + 40 | 40 | 2,978 | **315.5** | **41.3** | 323.5 |
+| 80 + 5 | 5 | 414.0 | **77.2** | **4.2** | 75.8 |
+| 80 + 80 | 80 | 13,476 | **1,195** | **107.2** | 1,182 |
+
+The pass is 2–11× cheaper whenever the board is asked about after a write,
+and the gap *widens* with rows: the old walk's CR 604.2 check was a sub-walk
+of the source per row per query (§12 called it superlinear), and the pass
+reads a live frame instead. What the pass pays is the single-object query
+between writes — the whole board for one answer, 5–10× the old cost on a
+row-heavy board and bounded by members × rows. The fuzz mix nets to +1.7%
+because the first case is what games do (96% of questions repeat an
+unchanged board, and the sweep after a write asks about everything).
+The levers if the second case ever dominates are all answer-preserving and
+listed above; the first two — resolving a `Fixed` modification once per row
+rather than once per target, and the look-ahead replay — are constant
+factors, and the finer memo key, which the pass makes definable because it
+knows which members each application touched, is the structural one.
+
+**Review (2026-09-06).** Two names changed — `Board passes` is `Board walks`,
+the entry's `Query` enum is `Membership` — and one rule number: the existence
+check is CR 604.2 (611.3b says the same), not CR 613.7a, which is the
+timestamp rule; the label had been wrong since 2026-08-21 and a comment sweep
+is recorded in `codebase-state.md`. The "judge walkthrough" this section
+cited for the Blood Moon boards does not exist; the rulings above replace
+it, and LI-2's cards are re-planned around them. The trace page for this
+PR, `plans/traces/li-1-one-pass-per-board.html`, walks the Humility +
+Hierophants board through the old walk and the pass call by call, a
+look-ahead entry, and a graveyard Keldon Warlord, and carries the
+field-by-field account of `Board` the review asked for.
+
+### LI-2 — CR 613.8a, 613.8b, 613.8c (~1,300–1,500 additions)
+
+1. **Channels.** `writes(&EffectModification) -> Channels` — types, subtypes,
+   supertypes, colors, abilities, keywords, controller, power, toughness, and
+   everything for `CopyFrom`; `SetSubtypes` on a land also writes abilities
+   (CR 305.7). `reads` for each thing an application reads: existence reads
+   abilities; `you` reads the source's controller; a filter reads its leaves;
+   a dynamic amount reads through its `CountOf`. Disjoint sets are the
+   static check, and they settle nearly every pair — a 7c anthem writes
+   power, and nothing in 7c reads it.
+2. **The hypothetical check** for the pairs the static check leaves, per
+   decision 3, in three parts matching 613.8a(b)'s clauses that the engine
+   can express: existence, what it applies to, what it does (the `you` of a
+   `SetController(You)`, a dynamic amount). "Text" is layer 3 and is not
+   modelled.
+3. **The loop**: dependencies over the pending set, the transitive closure
+   (a handful of applications; Floyd–Warshall is fine), `ready` = no
+   dependency, `loop_ready` = in a cycle whose closure is all mutual (a source
+   component), the earliest candidate by the layer's sort key, apply,
+   re-evaluate — CR 613.8c is the loop re-running its own first line. That
+   driver is `resolve_order_within_layer`, and it differs from §9's reserved
+   signature in one way that 613.8c forces: it applies as it orders, because
+   the order after the k-th application is a function of the first k.
+4. **Cards, and which boards a ruling backs.** **Urborg, Tomb of
+   Yawgmoth**, the printed Legendary Land ("Each land is a Swamp in addition
+   to its other land types"), registered and in `PERFORMANCE_POOL` beside
+   Blood Moon — the existence dependency, its ruling quoted above, and a land
+   any deck drops; `phase_ld_cards::urborg_effect` stays the Enchantment
+   fixture the CR 305.6 tests rest on. **The Rootpath Purifier ruling's
+   board as a named fixture** ("Lands you control are basic", an invented
+   name, §3's rule): the applies-to dependency with a ruling behind it. The
+   printed Purifier waits on item 9 for its library clause — registering it
+   without one would wear a printed name while behaving differently. **Ashaya,
+   Soul of the Wild**, registered in `stress` as the printed card of the same
+   shape ("Nontoken creatures you control are Forest lands in addition to
+   their other types"), with its expected answer **derived from the CR, no
+   ruling covering it**: Blood Moon depends on Ashaya (applying Ashaya makes
+   creatures nonbasic lands), Ashaya does not depend back (Blood Moon reaches
+   no creature before Ashaya applies), so Ashaya applies first and Blood Moon
+   then makes the creature-lands Mountains that lose their abilities (CR
+   305.7) — Ashaya's own P/T CDA included. **Opalescence** ("Each other
+   non-Aura enchantment is a creature in addition to its other types and has
+   base power and toughness each equal to its mana value"), registered: its
+   rulings with Humility (2009-10-01, both timestamp orders, layer by layer;
+   2006-02-01, two Opalescences) are 7c's CR 613.6 test with the CR's own
+   answers attached, and LI-1's pass already gives them — timestamp order
+   plus the locked set. It needs one filter leaf, `PermanentFilter::Other`
+   ("each other" is `id != source`; the self-stripping fixture's doc names
+   this gap), on both `permanent_matches_filter`s. First job of LI-2.
+5. **Tests.** Urborg + Blood Moon in both orders (a basic Forest is a Forest,
+   never a Forest Swamp; Urborg is a Mountain — the ruling's words);
+   the Purifier fixture + Blood Moon in both orders (the ruling's words: Blood
+   Moon "can no longer apply to the lands you control"); Ashaya + Blood Moon
+   in both orders, marked CR-derived; Humility + Opalescence in both orders
+   and the two-Opalescence board, the rulings quoted in the test — 7c's
+   CR 613.6 test; a 613.8b loop on creature types — "Elves are Goblins"
+   against "Goblins are Elves", `SetSubtypes` both ways so the two orders
+   differ — applied in timestamp order; a 613.8c chain where C's dependency
+   on B appears only after A applies; 613.8a-003 with a CDA and a non-CDA in
+   one layer; the row-older-than-counter order of
+   `test_a_counter_older_than_a_power_reading_row_applies_first`;
+   ATOM-613.8-001 claimed partial or not at all, since its "all activated
+   abilities of other creatures" is not buildable. **And the four-card board
+   from the judge answer** — Opalescence, Ashaya, Blood Moon and Urborg all
+   in layer 4 — asserting the sequence Opalescence → Ashaya → Blood Moon with
+   Urborg never applying, which is CR 613.8c re-evaluation on a printed
+   board rather than a fixture chain. `specdb.py show` each atom first.
+
+### LI-3 — conditional statics (~750–900 additions)
+
+1. **Lowering.** `static_ability_atoms` gains an `Effect::Conditional(cond,
+   inner)` arm that lowers `inner`'s atoms exactly as today; nothing about
+   the rows changes. `card_pool_lowering_test` already puts every registered
+   card on the battlefield under the assert this arm replaces.
+2. **The evaluator**, `engine/layers/condition.rs`: `holds(cond, board, game,
+   source)` for the eight leaves — `ControlPermanent` and
+   `OpponentControlsPermanent` over W's live frames with CR 109.5's "you";
+   `LifeAtLeast`/`LifeAtMost` off the players; `CardInGraveyard` off the
+   graveyards; `SourceOnBattlefield` off the zone; `SpellWasKicked` and
+   `ModeChosen` assert, as `evaluate_amount` does for a resolution-only
+   amount. One new leaf for the Rune-of-Flight shape, a predicate on the
+   host (`§15.1`'s `ObjectRef::AttachedTo` sketch, one variant, not the whole
+   sketch). Item 6 adds a reader, not a language.
+3. **The existence clause.** `static_ability_still_exists` finds the ability
+   on the source's live frame today; if its body is `Conditional`, the
+   condition is evaluated there and then. CR 613.6's locked set covers the
+   later layers.
+4. **Consumer: Kird Ape** — {R}, 1/1, "This creature gets +1/+2 as long as
+   you control a Forest" (Scryfall-verified before it is quoted in the card
+   file). Asymmetric, the cheapest printed conditional, no new leaf, and it
+   reads LI-2's board: a Breeding Pool is a Forest until Blood Moon makes it
+   a Mountain, and the Ape loses its bonus with no dependency involved — a
+   condition at 7c reading layer 4's output. In `PERFORMANCE_POOL`: the first
+   row whose existence is a condition, which is a new path in the check.
+5. **The Rune-of-Flight shape as a named fixture**: an Aura enchanting a
+   permanent, "as long as enchanted permanent is an Equipment, it has
+   'Equipped creature has flying'" — a conditional static granting a layer-6
+   static over `Host`. Three things at once, and each exists after LI-1
+   (the layer-6 grant), LH-2 (Equip) and this PR (the condition). Rune of
+   Flight itself is registered when item 6 gives it its draw trigger.
+
+### Every PR carries
+
+The card registered where there is one, `PERFORMANCE_POOL` +1 per new engine
+path, §3 re-recorded with `plans/fuzz_ab.py` against a same-day `main`
+worktree, three-run determinism on both pools, `specdb owed` clean, and
+`// COVERS:` on exactly what each test builds. Item 7 qualifies for a trace
+page (`engineering-practices.md` §7) at the phase's close: it changes *how* a
+read is answered, and the three boards above are its findings.
+
+### Exit criteria — the phase
+
+- Item 8 and 7f closed in Deferred Migrations; 7b's Layer 6 case and 7c's
+  test closed with LI-1.
+- §5.2 rewritten; `resolve_order_within_layer` real; the three boards above
+  answered as the CR answers them, in both timestamp orders.
+- RS-3b unblocked in `cant-effects-architecture.md` §7.1; item 7 ✅ in
+  `CLAUDE.md` within its lines; `roadmap-v2.md` A3 ✅;
+  `check_state_of_play.py --write`.
+- If the work spans sessions, `plans/handoffs/li-<n>.md` says where to
+  resume.
+
+### Explicitly out
+
+- **`backlog.md` §2.20** (several targets) and **RS-2** — their own PRs.
+- **Dependency-ordering-sensitive breadth cards** — the back-stop this phase
+  exists to lift, and it lifts only when the cluster lands.
+- **A finer memo key** — §12 "7a" names the levers and neither is a key.
+- **Rootpath Purifier** — with item 9. **Rune of Flight** — with item 6.
+- **613.8a(c)'s both-CDA case beyond the mechanism** — the list and the
+  check admit it; no printed card reaches it.
+- **CR 400.7** for a `Fixed` row naming an object that changed zones — item
+  10, CV-1b; the working set keeps such an object so the answer is today's.
+
+---
+
 ## 14. Testing Strategy
 
 Per phase:
@@ -1577,7 +2061,7 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
 
 3. **Dependency hypothetical-check snapshot performance.** Clone vs. CoW overlay for step-4 frame snapshots. Resolve in Phase LC.
 
-   **Half-resolved 2026-09-02 (RC-4), and the resolved half is the one that was actually open.** The *game-state* question — clone the game, or overlay its reads — was decided for CR 614.12 in `replacement-architecture.md` §11 item 5 and is now built (`engine/layers/lookahead.rs`): overlay, on correctness grounds rather than speed (a clone duplicates `GameState.rng` and aliases every v4 `ObjectId`). The *frame* question this item asked is smaller than it looked, because §12 already measured frame construction flat at 0.27–0.37 µs: step 4 clones `chars`, applies one `EffectModification`, re-runs `permanent_matches_filter`, and needs no overlay at all. What it does need is the accessor pair (§9), which exists. Closed when 613.8 lands and confirms the clone is as cheap in situ as it measured in isolation.
+   **Half-resolved 2026-09-02 (RC-4), and the resolved half is the one that was actually open.** The *game-state* question — clone the game, or overlay its reads — was decided for CR 614.12 in `replacement-architecture.md` §11 item 5 and is now built (`engine/layers/lookahead.rs`): overlay, on correctness grounds rather than speed (a clone duplicates `GameState.rng` and aliases every v4 `ObjectId`). The *frame* question this item asked is smaller than it looked, because §12 already measured frame construction flat at 0.27–0.37 µs: step 4 clones `chars`, applies one `EffectModification`, re-runs `permanent_matches_filter`, and needs no overlay at all. What it does need is the accessor pair (§9), which exists. Closed when 613.8 lands and confirms the clone is as cheap in situ as it measured in isolation. **LI-1 (2026-09-06) built the frame it clones from** — the live board, §13b decision 3 — so what LI-2 confirms is the cost, not the shape.
 
 4. **`AbilityOrigin` enum variants — CLOSED at Phase LD kickoff: not built, not needed.**
    The premise was that CR 305.7 must strip selectively (rules-text and old-land-type

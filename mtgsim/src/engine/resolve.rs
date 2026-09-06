@@ -1043,52 +1043,40 @@ impl GameState {
 
             for (layer, modification) in rows {
                 // A granted static ability whose own effect lands in layers
-                // 1-6 does not apply, and it fails silently: the grant applies
-                // AT layer 6, so at any layer <= 6 the frame the CR 613.7a
-                // existence check reads (`compute_to_ceiling` at `layer_index`)
-                // predates the grant, and the derived effect finds no ability
-                // to justify itself. Assert at the authoring site rather than
-                // let a card quietly do nothing.
+                // 1-5 cannot apply, and it would fail silently: the grant
+                // applies AT layer 6, so at any layer below it the CR 613.7a
+                // existence check reads a frame that predates the grant, and
+                // the derived effect finds no ability to justify itself.
+                // Assert at the authoring site rather than let a card quietly
+                // do nothing.
                 //
-                // The two cases below the assert are not the same problem.
+                // **Layer 6 itself is fine since LI-1.** The pass applies a
+                // layer board-wide in one sequence, so the existence check at
+                // the derived row's turn sees the grant applied earlier in
+                // the same layer — CR 613.7a's own worked example, Rune of
+                // Flight granting "Equipped creature has flying". Clause 2
+                // makes the derived timestamp `max(grantee, grant)`, which is
+                // >= the grant's, and when they tie the grant row was added
+                // first and takes the lower id, so the grant always sorts
+                // at-or-before its own derived effect.
                 //
-                // **Layer 6 exactly** is real and is CR 613.7a's own worked
-                // example: Rune of Flight grants enchanted Equipment "Equipped
-                // creature has flying". The CR resolves it purely by timestamp
-                // within layer 6, and our ordering is already right for it --
-                // clause 2 makes the derived timestamp `max(grantee, grant)`,
-                // which is >= the grant's, and when they tie the grant row is
-                // added first so it takes the lower `EffectId` tiebreak. So the
-                // grant always sorts at-or-before its own derived effect. The
-                // only missing piece is that the existence check cannot see a
-                // *partially applied* layer.
-                //
-                // That is exactly what `codebase-state.md` item 8 step 4 builds:
-                // apply a layer board-wide in one sequential pass over ordered
-                // applications, so the check at position k sees everything
-                // applied earlier in the same layer. It is the same fix 613.8b's
-                // loop rule needs, which is why the two are scheduled together.
-                // Not a workaround waiting for a rewrite -- the ordering work is
-                // done, only the frame the check reads has to change.
-                //
-                // **Layers 1-5** is a different animal, and we are not waiting
-                // on it. CR 613.8a(a) confines dependency to a single layer, so
-                // the CR supplies no mechanism for a layer 6 grant to reach back
-                // into layer 5, and any answer would be invented. Searched
-                // Scryfall for granted statics that define a type, color or
-                // subtype: the hits are all false positives (quoted text inside
-                // activated abilities, and Animate Dead's enchant clause). Real
-                // grants are of triggered abilities, activated abilities,
-                // keywords, or layer 7 statics. Nothing to build against.
+                // **Layers 1-5** are a different animal, and nothing waits on
+                // them: CR 613.8a(a) confines dependency to a single layer, so
+                // the CR supplies no mechanism for a layer 6 grant to reach
+                // back into layer 5, and any answer would be invented.
+                // Searched Scryfall for granted statics that define a type,
+                // color or subtype: the hits are all false positives (quoted
+                // text inside activated abilities, and Animate Dead's enchant
+                // clause). Real grants are of triggered abilities, activated
+                // abilities, keywords, or layer 6 and 7 statics.
                 debug_assert!(
-                    layer > Layer::Layer6Ability,
+                    layer >= Layer::Layer6Ability,
                     concat!(
                         "granted static ability generates a {:?} effect. A grant ",
                         "applies at layer 6, so the CR 613.7a existence check ",
-                        "reads a pre-grant frame at any layer <= 6 and this ",
-                        "effect will not apply. Layer 6 itself needs the ",
-                        "board-wide sequential pass (codebase-state.md item 8 ",
-                        "step 4); layers 1-5 have no CR mechanism and no known card."
+                        "reads a pre-grant frame at any layer below it and this ",
+                        "effect will not apply; layers 1-5 have no CR mechanism ",
+                        "and no known card."
                     ),
                     layer
                 );

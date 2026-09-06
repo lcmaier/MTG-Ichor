@@ -64,6 +64,7 @@ ROWS = [
     ("Total damage", r"^\s+Total damage:\s+([\d.]+)"),
     ("Life changes", r"^\s+Life changes:\s+([\d.]+)"),
     ("Layer walks", r"^\s+Layer walks:\s+(\d+)"),
+    ("Board walks", r"^\s+Board walks:\s+(\d+)"),
     ("Memo hits", r"^\s+Memo hits:\s+(\d+)"),
     ("Layer frames", r"^\s+Layer frames:\s+(\d+)"),
     ("Frames/walk", r"^\s+Frames/walk:\s+([\d.]+)"),
@@ -73,7 +74,7 @@ ROWS = [
 THRESHOLDS = ["Errors", "Panics", "Uncast resolved", "Hit turn limit"]
 # The §3 table's rows, in its order; the four thresholds stay out of it.
 FIXTURE_ROWS = [r for r, _ in ROWS if r not in THRESHOLDS and r != "Max turns"]
-BOLD = {"Layer walks", "Memo hits", "Layer frames", "Frames/walk", "Replacement gathers", "Restriction queries"}
+BOLD = {"Layer walks", "Board walks", "Memo hits", "Layer frames", "Frames/walk", "Replacement gathers", "Restriction queries"}
 
 
 def run(binary, args, out_path):
@@ -116,7 +117,7 @@ def counters(text):
 
 
 def fmt(name, value):
-    if name in ("Layer walks", "Memo hits", "Layer frames") and value.isdigit():
+    if name in ("Layer walks", "Board walks", "Memo hits", "Layer frames") and value.isdigit():
         return f"{int(value):,}"
     return value
 

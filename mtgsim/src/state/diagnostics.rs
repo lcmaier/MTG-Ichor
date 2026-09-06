@@ -27,7 +27,7 @@
 //! No timers, no allocation counts, no per-call-site breakdown. Each of those is
 //! either machine-dependent (the first two) or a profiler's job (the third), and
 //! a diagnostic that cannot go in the fixtures table is a diagnostic nobody will
-//! look at twice. Five counters, each naming a decision the engine makes a lot.
+//! look at twice. Six counters, each naming a decision the engine makes a lot.
 
 use std::cell::Cell;
 
@@ -48,6 +48,7 @@ use std::cell::Cell;
 #[derive(Debug, Clone, Default)]
 pub struct EngineCounters {
     layer_walks: Cell<u64>,
+    board_walks: Cell<u64>,
     memo_hits: Cell<u64>,
     layer_frames: Cell<u64>,
     replacement_gathers: Cell<u64>,
@@ -66,6 +67,20 @@ impl EngineCounters {
     /// questions asked.
     pub fn record_layer_walk(&self) {
         self.layer_walks.set(self.layer_walks.get() + 1);
+    }
+
+    /// One walk of the whole board (`layers::board`) — a layer walk that
+    /// computed every member of the working set at once, rather than one
+    /// object alone.
+    ///
+    /// Read beside [`Self::layer_walks`]: a layer walk is either a board walk
+    /// or the walk of an object no row can reach, and `Layer frames` is the
+    /// board walks times the working set plus those single walks. Since LI-1
+    /// a board walk fills the memo for every member, so this is the number of
+    /// *boards* the engine computed, where walks were once the number of
+    /// objects.
+    pub fn record_board_walk(&self) {
+        self.board_walks.set(self.board_walks.get() + 1);
     }
 
     /// A top-level `compute_characteristics` call answered from
@@ -110,6 +125,10 @@ impl EngineCounters {
         self.layer_walks.get()
     }
 
+    pub fn board_walks(&self) -> u64 {
+        self.board_walks.get()
+    }
+
     pub fn memo_hits(&self) -> u64 {
         self.memo_hits.get()
     }
@@ -119,8 +138,9 @@ impl EngineCounters {
     /// debug build's counters differ from a release build's. The one setter,
     /// and it does not exist in release.
     #[cfg(debug_assertions)]
-    pub(crate) fn rewind_layer_work(&self, walks: u64, frames: u64) {
+    pub(crate) fn rewind_layer_work(&self, walks: u64, board_walks: u64, frames: u64) {
         self.layer_walks.set(walks);
+        self.board_walks.set(board_walks);
         self.layer_frames.set(frames);
     }
 
