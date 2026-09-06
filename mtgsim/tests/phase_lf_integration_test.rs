@@ -674,36 +674,39 @@ fn test_citanul_hierophants_grant_retires_when_it_leaves() {
 }
 
 // ---------------------------------------------------------------------------
-// Humility before Citanul Hierophants — a known wrong answer, pinned.
+// Humility before Citanul Hierophants — the board-wide pass (LI-1).
 //
 // CR 613.8a(b): applying Humility removes the ability that generates the
 // Hierophants' grant, so the grant depends on Humility, Humility applies first
 // whatever the timestamps say, and when the grant's turn comes there is no
-// ability left to justify it — the Bears get nothing. The engine orders the two
-// by timestamp (which here agrees) and then applies the grant anyway, because
-// `static_ability_still_exists` reads the Hierophants' frame as of the end of
-// Layer 5 and cannot see a partially-applied Layer 6. This test asserts the
-// wrong answer on purpose, so the phase that builds the board-wide sequential
-// pass (critical-path item 7; `codebase-state.md` "Before Layers" item 8, third
-// board) has to flip it. Both cards are in `PERFORMANCE_POOL`, so a fuzz game
-// reaches this board.
+// ability left to justify it — the Bears get nothing. Until LI-1 the engine
+// applied the grant anyway, because `static_ability_still_exists` read the
+// Hierophants' frame as of the end of Layer 5 and could not see a partially
+// applied Layer 6; this test pinned that wrong answer so the fixing phase had
+// to flip it. The pass reads the live frame, and this is the flip. Both cards
+// are in `PERFORMANCE_POOL`, so a fuzz game reaches this board.
+//
+// With Humility first the timestamps already agree with the dependency, so
+// the pass alone gives the CR's answer; LI-2's dependency ordering is what
+// makes the answer hold when they do not.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_humility_before_hierophants_does_not_yet_retire_the_grant() {
+fn test_humility_before_hierophants_retires_the_grant() {
     use mtgsim::oracle::characteristics::get_effective_abilities;
 
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
     let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
-    put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    let hierophants = put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
 
-    // Wrong: CR 613.8 says empty. Flip this assertion when the fix lands.
-    let abilities = get_effective_abilities(&game, bears);
-    assert_eq!(abilities.len(), 1, "the known-wrong answer changed — has 613.8 landed?");
-    assert_eq!(abilities[0].ability_type, mtgsim::objects::card_data::AbilityType::Mana);
+    assert!(
+        get_effective_abilities(&game, bears).is_empty(),
+        "CR 613.7a read against the live board: Humility stripped the Hierophants          earlier in layer 6, so the grant no longer exists when its turn comes"
+    );
+    assert!(get_effective_abilities(&game, hierophants).is_empty());
 
-    // The other order is right today, and stays right after the fix.
+    // The other order was right before the pass and stays right.
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);
     put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
