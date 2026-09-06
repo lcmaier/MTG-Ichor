@@ -185,24 +185,24 @@ fn test_a_cda_off_the_battlefield_counts_the_board() {
 }
 
 /// Tarmogoyf on the battlefield reads graveyard cards from inside the pass —
-/// non-members, walked at layer 7a's ceiling — and those walks are not passes.
-/// One pass answers the whole board, and every member is then a hit.
+/// non-members, walked at layer 7a's ceiling — and those walks are not board
+/// walks. One pass answers the whole board, and every member is then a hit.
 #[test]
-fn test_one_pass_answers_every_member_and_nested_reads_are_not_passes() {
+fn test_one_pass_answers_every_member_and_nested_reads_are_not_board_walks() {
     let mut game = setup_two_player_game();
     let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     put_in_graveyard(&mut game, card_of_type("Shock", CardType::Instant), 1);
     put_in_graveyard(&mut game, card_of_type("Forest", CardType::Land), 0);
 
-    let (walks, passes, hits) = (
+    let (walks, board_walks, hits) = (
         game.counters.layer_walks(),
-        game.counters.board_passes(),
+        game.counters.board_walks(),
         game.counters.memo_hits(),
     );
     assert_eq!(pt(&game, goyf), (Some(2), Some(3)), "instant and land: two types");
     assert_eq!(game.counters.layer_walks(), walks + 1, "one miss");
-    assert_eq!(game.counters.board_passes(), passes + 1, "one pass — the graveyard reads nest inside it");
+    assert_eq!(game.counters.board_walks(), board_walks + 1, "one board walk — the graveyard reads nest inside it");
 
     assert!(is_creature(&game, bears));
     assert_eq!(game.counters.layer_walks(), walks + 1, "the other member was filled by the same pass");

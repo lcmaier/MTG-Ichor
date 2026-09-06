@@ -1,5 +1,5 @@
-//! The board-wide sequential pass — CR 613.3, 613.6 and 613.7a applied the
-//! way the CR states them (`layers-architecture.md` §13b, LI-1).
+//! The board-wide sequential pass — CR 613.3, 613.6, 613.7 and 604.2 applied
+//! the way the CR states them (`layers-architecture.md` §13b, LI-1).
 //!
 //! CR 613 applies a layer to the whole board at once: each application's
 //! reads — whether the ability generating it still exists, who "you" is, what
@@ -8,8 +8,8 @@
 //! another object at the end of the previous layer, which is exact exactly
 //! while no application in a layer changes what a later one reads. Humility
 //! beside Citanul Hierophants is the board in the pool that breaks it: the
-//! grant's CR 613.7a check could not see Humility's strip, applied earlier in
-//! layer 6, and a creature under Humility tapped for {G}.
+//! grant's CR 604.2 existence check could not see Humility's strip, applied
+//! earlier in layer 6, and a creature under Humility tapped for {G}.
 //!
 //! One [`Board`] is one pass: the working set, one live frame per member,
 //! advanced layer by layer. The unit of ordering inside a layer is an
@@ -17,12 +17,16 @@
 //! counters — sorted once on a key that is CR 613.3 and CR 613.7c read
 //! together. Dependency (CR 613.8) is LI-2's; here the order is the key's.
 //!
-//! **What is a member.** Every battlefield entity, then the look-ahead's
-//! entering object, then any object a `Fixed` row names — every object a row
-//! can reach. Everything else keeps a walk of its own that applies only its
-//! CDAs (CR 604.3, all zones) and reads a member's frame from the live board
-//! when nested inside a pass, or from the memo otherwise
-//! (`compute::compute_non_member`).
+//! **What is a member: every object some row can reach**, read off the
+//! `AffectedSet` variants. `Filter` and `Host` rows reach the battlefield;
+//! `SourceOnly` rows reach their source, a permanent; `Fixed` rows name what
+//! they name, anywhere. So: every battlefield entity, then the look-ahead's
+//! entering object, then whatever `Fixed` rows name. A variant that reaches
+//! another zone — `codebase-state.md` layers item 9, Wonder's graveyard
+//! static — extends `Board::seed` by one clause. Everything else keeps a
+//! walk of its own that applies only its CDAs (CR 604.3, all zones) and reads
+//! a member's frame from the live board when nested inside a pass, or from
+//! the memo otherwise (`compute::compute_non_member`).
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -69,7 +73,7 @@ pub(super) struct Board<'l> {
     /// group the set is written after its only row and never read, and
     /// maintaining it was 70% of a static-heavy walk before this gate.
     track_started: bool,
-    lookahead: Option<&'l Lookahead>,
+    pub(super) lookahead: Option<&'l Lookahead>,
     /// Non-member frames at a layer ceiling, for reads that leave the
     /// working set — Tarmogoyf counting graveyard cards. Keyed the way the
     /// old per-call frame cache was, and bounded the way it was: a read at
@@ -173,10 +177,6 @@ impl<'l> Board<'l> {
         board
     }
 
-    pub(super) fn lookahead(&self) -> Option<&'l Lookahead> {
-        self.lookahead
-    }
-
     fn entering(&self, id: ObjectId) -> Option<&'l Lookahead> {
         self.lookahead.filter(|l| l.object == id)
     }
@@ -268,7 +268,7 @@ enum Kind<'a> {
     /// entering object alone.
     Row { effect: &'a ContinuousEffect, would_be: bool },
     /// One member's own application: its CDA (which must still be on it
-    /// when its turn comes, CR 613.7a), a keyword counter (CR 122.1b), or a
+    /// when its turn comes, CR 604.2), a keyword counter (CR 122.1b), or a
     /// P/T counter kind (CR 122.1a). Affects the member and nothing else.
     Own { object: ObjectId, cda: Option<AbilityId>, modification: EffectModification },
 }
@@ -417,8 +417,10 @@ fn applications_in_layer<'a, 'l: 'a>(
     apps
 }
 
-/// CR 613.7a — does the static ability that generates `effect` still exist,
-/// *now*, on the source's frame as the pass has built it so far?
+/// CR 604.2 — does the static ability that generates `effect` still exist,
+/// *now*, on the source's frame as the pass has built it so far? ("These
+/// effects are active as long as the permanent with the ability remains on
+/// the battlefield and has the ability"; CR 611.3b says the same.)
 ///
 /// Registry membership does not answer this: the row was registered when the
 /// permanent entered, and CR 305.7 or Layer 6 can take the ability away later
@@ -528,7 +530,7 @@ fn apply_one(game: &GameState, board: &mut Board<'_>, layer_index: usize, app: &
         }
         Kind::Own { object, cda, modification } => {
             if let Some(ability) = cda {
-                // CR 613.7a for a CDA: still on the object when its turn comes.
+                // CR 604.2 for a CDA: still on the object when its turn comes.
                 let still_there = board.frames[object]
                     .abilities
                     .iter()
@@ -585,7 +587,7 @@ pub(super) fn compute_board_to<'l>(
     asked: Option<ObjectId>,
     ceiling: usize,
 ) -> Board<'l> {
-    game.counters.record_board_pass();
+    game.counters.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked);
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
         let apps = applications_in_layer(game, &board, layer);
@@ -594,8 +596,9 @@ pub(super) fn compute_board_to<'l>(
     board
 }
 
-/// How the top-level entry computes `id`.
-pub(super) enum Query {
+/// Whether `id` belongs to the working set, which decides how the
+/// top-level entry computes it.
+pub(super) enum Membership {
     /// A battlefield entity, or an object a `Fixed` row names: a member of
     /// every pass. Rows are scanned rather than summarised — `Fixed` rows
     /// are few, and a miss is already a walk.
@@ -607,27 +610,27 @@ pub(super) enum Query {
     NonMember,
 }
 
-pub(super) fn classify(game: &GameState, id: ObjectId) -> Query {
+pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     if game.battlefield.contains_key(&id) {
-        return Query::Member;
+        return Membership::Member;
     }
     if matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield) {
-        return Query::ZoneOnly;
+        return Membership::ZoneOnly;
     }
     let fixed_named = game
         .continuous_effects
         .iter()
         .any(|e| matches!(&e.affected, AffectedSet::Fixed(ids) if ids.contains(&id)));
-    if fixed_named { Query::Member } else { Query::NonMember }
+    if fixed_named { Membership::Member } else { Membership::NonMember }
 }
 
 /// `id`'s frame as of the end of layer `ceiling - 1`, from outside any pass:
 /// through a pass stopped there for a member, through its own walk otherwise.
 pub(super) fn frame_at_ceiling(game: &GameState, id: ObjectId, ceiling: usize) -> Option<EffectiveCharacteristics> {
     game.objects.get(&id)?;
-    match classify(game, id) {
-        Query::Member => compute_board_to(game, None, None, ceiling).take(id),
-        Query::ZoneOnly => compute_board_to(game, None, Some(id), ceiling).take(id),
-        Query::NonMember => compute_non_member(game, &Board::settled(), id, ceiling),
+    match membership(game, id) {
+        Membership::Member => compute_board_to(game, None, None, ceiling).take(id),
+        Membership::ZoneOnly => compute_board_to(game, None, Some(id), ceiling).take(id),
+        Membership::NonMember => compute_non_member(game, &Board::settled(), id, ceiling),
     }
 }

@@ -48,7 +48,7 @@ use std::cell::Cell;
 #[derive(Debug, Clone, Default)]
 pub struct EngineCounters {
     layer_walks: Cell<u64>,
-    board_passes: Cell<u64>,
+    board_walks: Cell<u64>,
     memo_hits: Cell<u64>,
     layer_frames: Cell<u64>,
     replacement_gathers: Cell<u64>,
@@ -69,16 +69,18 @@ impl EngineCounters {
         self.layer_walks.set(self.layer_walks.get() + 1);
     }
 
-    /// One board-wide pass (`layers::board`) — a walk that computed every
-    /// member of the working set at once, rather than one object alone.
+    /// One walk of the whole board (`layers::board`) — a layer walk that
+    /// computed every member of the working set at once, rather than one
+    /// object alone.
     ///
-    /// Read beside [`Self::layer_walks`]: a walk is either a pass or the walk
-    /// of an object no row can reach, and `Layer frames` is the passes times
-    /// the working set plus those single walks. Since LI-1 a pass fills the
-    /// memo for every member, so passes are the number of *boards* the engine
-    /// computed, where walks were once the number of objects.
-    pub fn record_board_pass(&self) {
-        self.board_passes.set(self.board_passes.get() + 1);
+    /// Read beside [`Self::layer_walks`]: a layer walk is either a board walk
+    /// or the walk of an object no row can reach, and `Layer frames` is the
+    /// board walks times the working set plus those single walks. Since LI-1
+    /// a board walk fills the memo for every member, so this is the number of
+    /// *boards* the engine computed, where walks were once the number of
+    /// objects.
+    pub fn record_board_walk(&self) {
+        self.board_walks.set(self.board_walks.get() + 1);
     }
 
     /// A top-level `compute_characteristics` call answered from
@@ -123,8 +125,8 @@ impl EngineCounters {
         self.layer_walks.get()
     }
 
-    pub fn board_passes(&self) -> u64 {
-        self.board_passes.get()
+    pub fn board_walks(&self) -> u64 {
+        self.board_walks.get()
     }
 
     pub fn memo_hits(&self) -> u64 {
@@ -136,9 +138,9 @@ impl EngineCounters {
     /// debug build's counters differ from a release build's. The one setter,
     /// and it does not exist in release.
     #[cfg(debug_assertions)]
-    pub(crate) fn rewind_layer_work(&self, walks: u64, passes: u64, frames: u64) {
+    pub(crate) fn rewind_layer_work(&self, walks: u64, board_walks: u64, frames: u64) {
         self.layer_walks.set(walks);
-        self.board_passes.set(passes);
+        self.board_walks.set(board_walks);
         self.layer_frames.set(frames);
     }
 

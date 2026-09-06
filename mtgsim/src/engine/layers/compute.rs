@@ -14,7 +14,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::engine::layers::board::{classify, compute_board, compute_board_to, Board, Query};
+use crate::engine::layers::board::{compute_board, compute_board_to, membership, Board, Membership};
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
 use crate::objects::card_data::CardData;
@@ -102,10 +102,10 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     game.counters.record_layer_walk();
     game.objects.get(&id)?;
 
-    let asked = match classify(game, id) {
-        Query::Member => None,
-        Query::ZoneOnly => Some(id),
-        Query::NonMember => {
+    let asked = match membership(game, id) {
+        Membership::Member => None,
+        Membership::ZoneOnly => Some(id),
+        Membership::NonMember => {
             let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len())?);
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));
             return Some(frame);
@@ -133,13 +133,13 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
 /// build's `Layer walks` and `Layer frames` are the release build's.
 #[cfg(debug_assertions)]
 fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
-    let (walks, passes, frames) = (
+    let (walks, board_walks, frames) = (
         game.counters.layer_walks(),
-        game.counters.board_passes(),
+        game.counters.board_walks(),
         game.counters.layer_frames(),
     );
     let fresh = compute_characteristics_uncached(game, id);
-    game.counters.rewind_layer_work(walks, passes, frames);
+    game.counters.rewind_layer_work(walks, board_walks, frames);
     debug_assert_eq!(
         fresh.as_ref(),
         Some(served),
@@ -163,10 +163,10 @@ pub(crate) fn compute_characteristics_uncached(
 ) -> Option<EffectiveCharacteristics> {
     game.counters.record_layer_walk();
     game.objects.get(&id)?;
-    match classify(game, id) {
-        Query::Member => compute_board(game, None).take(id),
-        Query::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
-        Query::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len()),
+    match membership(game, id) {
+        Membership::Member => compute_board(game, None).take(id),
+        Membership::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
+        Membership::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len()),
     }
 }
 
@@ -193,7 +193,7 @@ pub(super) fn compute_non_member(
     );
     game.counters.record_layer_frame();
 
-    let controller = base_controller(game, id, board.lookahead()).unwrap_or(obj.owner);
+    let controller = base_controller(game, id, board.lookahead).unwrap_or(obj.owner);
     let mut chars = seed_frame(&obj.card_data, controller, 0);
 
     // The common case, and worth its own exit: with no CDA there is nothing
@@ -313,7 +313,7 @@ pub(crate) fn base_controller(
 /// construction error, and `expect`s.
 pub(super) struct FilterPlayers<'a, 'l> {
     effect: Option<&'a ContinuousEffect>,
-    pub(super) game: &'a GameState,
+    game: &'a GameState,
     board: &'a Board<'l>,
     layer_index: usize,
     you: Option<PlayerId>,
