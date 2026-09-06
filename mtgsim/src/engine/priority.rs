@@ -293,6 +293,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

@@ -127,6 +127,21 @@ pub enum GameAction {
         object: ObjectId,
     },
 
+    /// Attach an Aura, Equipment or Fortification to a permanent (CR 701.3a).
+    ///
+    /// A proposal because CR 603's "becomes attached" triggers read the
+    /// performed stream, and because `GameState::attach` is the one writer
+    /// of both sides of the link — a resolution that wrote it directly would
+    /// be a second one. The performer writes through it and is loud when
+    /// either end is off the battlefield; attaching to the host it is already
+    /// on performs nothing (CR 701.3b). No `EventPattern` arm yet: no card
+    /// replaces an attach, and an arm the pipeline cannot apply is worse than
+    /// a missing one (`replacement-architecture.md` §3.2a).
+    Attach {
+        attachment: ObjectId,
+        host: ObjectId,
+    },
+
     /// Put counters on a permanent (CR 122.1).
     ///
     /// A proposal rather than a direct write because CR 614.16's counter
@@ -471,6 +486,7 @@ impl GameState {
 
         let rctx = ResolutionContext {
             source: rider.source,
+            ability_source: None,
             controller: rider.controller,
             targets: rider
                 .subject
@@ -673,6 +689,26 @@ impl GameState {
                 }
                 entry.tapped = false;
                 self.events.emit(GameEvent::Untapped { object_id: object });
+                Ok(())
+            }
+
+            GameAction::Attach { attachment, host } => {
+                // Loud at both ends, like `Tap`: the caller checks CR 608.2b
+                // legality and this asserts its precondition. `attach` itself
+                // refuses silently, which is right for the state writer and
+                // wrong for a performer.
+                if !self.battlefield.contains_key(&attachment) {
+                    return Err(format!("Cannot attach {}: not on the battlefield", attachment));
+                }
+                if !self.battlefield.contains_key(&host) {
+                    return Err(format!("Cannot attach to {}: not on the battlefield", host));
+                }
+                let former_host = self.battlefield[&attachment].attached_to;
+                // CR 701.3b — already there: the effect does nothing, and
+                // nothing "becomes attached" (CR 603.2e's transition rule).
+                if self.attach(attachment, host) {
+                    self.events.emit(GameEvent::Attached { attachment, host, former_host });
+                }
                 Ok(())
             }
 

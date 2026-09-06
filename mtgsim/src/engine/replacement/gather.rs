@@ -89,6 +89,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::EnterBattlefield { object, .. } => EventSubject::Object(*object),
         GameAction::AddCounters { object, .. } => EventSubject::Object(*object),
         GameAction::RemoveCounters { object, .. } => EventSubject::Object(*object),
+        GameAction::Attach { attachment, .. } => EventSubject::Object(*attachment),
     }
 }
 

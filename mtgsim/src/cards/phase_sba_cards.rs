@@ -100,6 +100,7 @@ pub fn battlegrowth() -> Arc<CardData> {
         .rules_text("Put a +1/+1 counter on target creature.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),

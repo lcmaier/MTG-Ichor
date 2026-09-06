@@ -102,6 +102,7 @@ pub(crate) fn intrinsic_mana_ability(
     let mana_type = intrinsic_mana_type(land_type)?;
     Some(AbilityDef {
         is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: intrinsic_ability_id(object_id, land_type),
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
@@ -237,6 +238,7 @@ mod tests {
             keyword_flags: HashSet::new(),
             abilities: vec![AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::Tap],

@@ -52,6 +52,7 @@ pub fn humility() -> Arc<CardData> {
         .rules_text("All creatures lose all abilities and have base power and toughness 1/1.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -122,6 +123,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
     // The granted body: `{T}: Add {G}`, exactly what a Forest carries.
     let granted = AbilityDef {
         is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: new_ability_id(),
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
@@ -142,6 +144,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .rules_text("Creatures you control have \"{T}: Add {G}.\"")
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),

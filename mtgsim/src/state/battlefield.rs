@@ -33,9 +33,21 @@ pub struct BattlefieldEntity {
     pub object_id: ObjectId,
     pub controller: PlayerId,
 
-    /// Timestamp for the layer system (rule 613.7).
-    /// Permanents that entered the battlefield earlier have lower timestamps.
-    /// Used to order continuous effects within the same layer/sublayer.
+    /// The CR 613.7 timestamp. Allocated from `GameState::next_timestamp` on
+    /// entry (613.7d) and **reassigned** by CR 613.7e — `GameState::attach`
+    /// gives an Aura or Equipment a new one each time it becomes attached, and
+    /// re-stamps the rows this object's static abilities registered (613.7a's
+    /// third sentence). Read at registration, never by the walk: the rows
+    /// carry the value.
+    ///
+    /// Also the key of every ordered sweep (`battlefield_ordered`), and so of
+    /// every decision list, log and count — CLAUDE.md, "Determinism at the
+    /// decision boundary". A reassignment moves the permanent to the end of
+    /// those lists, and that is fine: the value comes from the one monotonic
+    /// counter every run advances the same way, so it is exactly as
+    /// process-independent as the entry value was. LH-2 briefly split off an
+    /// `entry_timestamp` for the sweeps and removed it in review: no rule
+    /// reads a sweep as *entry* order, only as *an* order.
     pub timestamp: u64,
 
     // Permanent state

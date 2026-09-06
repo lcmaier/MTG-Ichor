@@ -24,6 +24,7 @@ pub fn cerulean_wisps() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -55,6 +56,7 @@ pub fn moonlace() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -85,6 +87,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -120,6 +123,7 @@ pub fn chromatic_ward() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),

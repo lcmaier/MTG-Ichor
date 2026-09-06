@@ -97,11 +97,21 @@ pub trait DurationRow {
 pub struct DurationRegistry<T: DurationRow> {
     rows: Vec<T>,
     next_id: RowId,
+    /// Bumped by every mutator that changed a row — added one, removed one,
+    /// or edited one in place. What a wrapper reads to tell a write from a
+    /// no-op: comparing `len` before and after cannot see an in-place edit,
+    /// and could not see a closure that added and removed in one call.
+    generation: u64,
 }
 
 impl<T: DurationRow> DurationRegistry<T> {
     pub fn new() -> Self {
-        DurationRegistry { rows: Vec::new(), next_id: 1 }
+        DurationRegistry { rows: Vec::new(), next_id: 1, generation: 0 }
+    }
+
+    /// How many times the rows have changed. Only ever grows.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Store a row, stamping it with a fresh id. Returns that id.
@@ -121,13 +131,40 @@ impl<T: DurationRow> DurationRegistry<T> {
         let key = (row.sort_key(), id);
         let pos = self.rows.partition_point(|r| (r.sort_key(), r.id()) < key);
         self.rows.insert(pos, row);
+        self.generation += 1;
         id
     }
 
     /// Remove one row by id. Returns it if it was there.
     pub fn remove(&mut self, id: RowId) -> Option<T> {
         let pos = self.rows.iter().position(|r| r.id() == id)?;
+        self.generation += 1;
         Some(self.rows.remove(pos))
+    }
+
+    /// Edit rows in place: `edit` runs on every row and returns whether it
+    /// changed that row's `SortKey`. Returns how many it changed; when that is
+    /// nonzero the rows are re-sorted — a *stable* sort on `(sort_key, id)`,
+    /// so rows that end up sharing a key keep their id order, which is the
+    /// registration order — and the generation is bumped.
+    ///
+    /// The one in-place mutator. Exists for CR 613.7a's third sentence: when
+    /// an object receives a new timestamp, "each continuous effect generated
+    /// by static abilities of that object receives a new timestamp as well,
+    /// but the relative order of those timestamps remains the same". Ids
+    /// survive, unlike a remove-and-re-add, so nothing holding one dangles.
+    pub fn update_rows(&mut self, mut edit: impl FnMut(&mut T) -> bool) -> usize {
+        let mut changed = 0;
+        for row in &mut self.rows {
+            if edit(row) {
+                changed += 1;
+            }
+        }
+        if changed > 0 {
+            self.rows.sort_by_key(|r| (r.sort_key(), r.id()));
+            self.generation += 1;
+        }
+        changed
     }
 
     /// Remove every row created by a given source object.
@@ -152,6 +189,9 @@ impl<T: DurationRow> DurationRegistry<T> {
             }
         }
         self.rows = kept;
+        if !removed.is_empty() {
+            self.generation += 1;
+        }
         removed
     }
 
@@ -354,6 +394,56 @@ mod tests {
         // added first (id 2) still precedes the one added last (id 4).
         assert_eq!(keys, vec![(2, 2), (2, 4), (5, 1), (9, 3)]);
         assert!(reg.is_sorted());
+    }
+
+    /// `update_rows` is the one in-place mutator: rows whose key it changes
+    /// move to where `add` would have put them, rows sharing the new key keep
+    /// their id order, ids never change, and the generation moves once per
+    /// call that changed something and not at all otherwise. The generation is
+    /// what `ContinuousEffectRegistry::mutations` reads, so the last point is
+    /// the layer memo's correctness.
+    #[test]
+    fn update_rows_resorts_keeps_ids_and_bumps_the_generation_once() {
+        let mut reg: DurationRegistry<KeyedRow> = DurationRegistry::new();
+        let src = Uuid::new_v4();
+        let keyed = |rank: u8| {
+            let mut r = Row::new(src, Duration::WhileSourceOnBattlefield);
+            r.rank = rank;
+            KeyedRow(r)
+        };
+        let a = reg.add(keyed(1));
+        let b = reg.add(keyed(1));
+        let c = reg.add(keyed(5));
+        let g0 = reg.generation();
+
+        let changed = reg.update_rows(|r| if r.0.rank == 1 { r.0.rank = 9; true } else { false });
+        assert_eq!(changed, 2);
+        assert_eq!(reg.generation(), g0 + 1);
+        assert!(reg.is_sorted());
+        let ids: Vec<RowId> = reg.iter().map(|r| r.id()).collect();
+        assert_eq!(ids, vec![c, a, b], "moved behind c, still in registration order");
+
+        assert_eq!(reg.update_rows(|_| false), 0);
+        assert_eq!(reg.generation(), g0 + 1, "a pass that changed nothing is not a write");
+    }
+
+    /// Every path that changes the rows moves the generation; a removal that
+    /// found nothing does not.
+    #[test]
+    fn generation_counts_writes_not_calls() {
+        let mut reg: DurationRegistry<Row> = DurationRegistry::new();
+        let src = Uuid::new_v4();
+        assert_eq!(reg.generation(), 0);
+        let id = reg.add(Row::new(src, Duration::UntilEndOfTurn));
+        assert_eq!(reg.generation(), 1);
+        assert!(reg.remove(999).is_none());
+        assert_eq!(reg.generation(), 1);
+        assert!(reg.remove_expired_at_turn_start(0, 5).is_empty());
+        assert_eq!(reg.generation(), 1);
+        assert_eq!(reg.remove_expired_at_cleanup(0, 5).len(), 1);
+        assert_eq!(reg.generation(), 2);
+        assert!(reg.remove(id).is_none());
+        assert_eq!(reg.generation(), 2);
     }
 
     #[test]

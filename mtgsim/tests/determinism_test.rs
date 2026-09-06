@@ -116,3 +116,38 @@ fn test_battlefield_sweeps_come_out_in_timestamp_order() {
     );
     assert_eq!(mtgsim::oracle::legality::legal_blockers(&game, 0), placed);
 }
+
+/// CR 613.7e gives an Equipment a new timestamp each time it becomes attached,
+/// and the ordered sweeps key on that same timestamp — so a reattached
+/// permanent moves to the end of every decision list. That is deterministic:
+/// the value comes from the one monotonic counter every run advances the same
+/// way, and it is the CR's own order. What this pins is that the move is
+/// exactly that and nothing more — the rest of the order is untouched, both
+/// accessors agree, and an attach to the host it is already on (CR 701.3b)
+/// moves nothing.
+#[test]
+fn test_a_reattachment_moves_only_the_attachment_to_the_end() {
+    let mut game = mtgsim::test_support::setup_two_player_game();
+    let equipment = put_on_battlefield(&mut game, mtgsim::test_support::equipment("Harness"), 0);
+    let placed: Vec<ObjectId> = (0..8)
+        .map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0))
+        .collect();
+    assert_eq!(game.battlefield_ids_ordered()[0], equipment, "the Equipment entered first");
+    let stamped = game.battlefield[&equipment].timestamp;
+
+    assert!(game.attach(equipment, placed[3]));
+    let mut expected = placed.clone();
+    expected.push(equipment);
+    assert!(game.battlefield[&equipment].timestamp > stamped, "CR 613.7e moved its timestamp");
+    assert_eq!(game.battlefield_ids_ordered(), expected, "and only it moved, to the end");
+    assert_eq!(
+        game.battlefield_ordered().iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        expected,
+    );
+
+    assert!(!game.attach(equipment, placed[3]), "CR 701.3b: the same host is not an attach");
+    assert_eq!(game.battlefield_ids_ordered(), expected);
+
+    assert!(game.attach(equipment, placed[5]));
+    assert_eq!(game.battlefield_ids_ordered(), expected, "already last; a second move is a no-op on the order");
+}

@@ -187,6 +187,14 @@ pub enum GameEvent {
     /// (`codebase-state.md` Deferred Migrations item 6).
     CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
 
+    // --- Attachment ---
+    /// An Aura, Equipment or Fortification became attached to `host`
+    /// (CR 701.3a), leaving `former_host` if it was attached before. Emitted
+    /// by the `GameAction::Attach` performer on the transition only — an
+    /// attach to the host it is already on is CR 701.3b's "does nothing" and
+    /// announces nothing.
+    Attached { attachment: ObjectId, host: ObjectId, former_host: Option<ObjectId> },
+
     // --- Attachment SBAs ---
     /// An Equipment or Fortification was detached by SBA 704.5p
     /// (attached to a non-creature). Equipment stays on battlefield.

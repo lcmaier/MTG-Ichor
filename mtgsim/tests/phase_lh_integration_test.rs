@@ -317,3 +317,325 @@ fn test_holy_strength_is_registered_and_in_the_performance_pool() {
     assert!(CardRegistry::default_registry().create("Holy Strength").is_ok());
     assert!(CardRegistry::performance_pool().create("Holy Strength").is_ok());
 }
+
+// ===========================================================================
+// LH-2 — Equip (CR 702.6a), and the timestamp an attach gives (CR 613.7e)
+// ===========================================================================
+
+use mtgsim::cards::phase_lh_cards::bonesplitter;
+use mtgsim::objects::card_data::AbilityType;
+use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::oracle::mana_helpers::activatable_abilities;
+use mtgsim::state::game_state::{Phase, PhaseType};
+use mtgsim::cards::phase_lf_cards::humility;
+use mtgsim::cards::phase_lh_cards::cobbled_wings;
+use mtgsim::oracle::characteristics::has_keyword;
+use mtgsim::types::keywords::KeywordFlag;
+
+fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
+    get_effective_abilities(game, equipment)
+        .iter()
+        .position(|a| a.ability_type == AbilityType::Activated)
+        .expect("an Equipment with an equip ability")
+}
+
+/// Activate `equipment`'s equip with its {1} floating, pick the `pick`th legal
+/// target, and resolve. The error is the activation's — a resolution failure
+/// is a test bug.
+fn equip(game: &mut GameState, player: PlayerId, equipment: ObjectId, pick: usize) -> Result<(), String> {
+    game.players[player].mana_pool.add(ManaType::White, 1);
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            spell_id: equipment,
+        },
+        vec![pick],
+    );
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![1],
+    );
+    let idx = equip_ability_index(game, equipment);
+    if let Err(e) = game.activate_ability(player, equipment, idx, &decisions) {
+        // Refused before any question was asked; the provider asserts on drop
+        // that every expectation was consumed, and here none should be.
+        std::mem::forget(decisions);
+        return Err(e);
+    }
+    game.resolve_top_of_stack(&decisions).expect("an activated equip resolves");
+    Ok(())
+}
+
+fn offered_to(game: &GameState, player: PlayerId, equipment: ObjectId) -> bool {
+    activatable_abilities(game, player).iter().any(|(id, _, _)| *id == equipment)
+}
+
+fn attaches_of(game: &GameState, attachment: ObjectId) -> Vec<(ObjectId, Option<ObjectId>)> {
+    game.events
+        .events()
+        .filter_map(|e| match e {
+            GameEvent::Attached { attachment: a, host, former_host } if *a == attachment => {
+                Some((*host, *former_host))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// CR 702.6a in full: the ability is offered and legal only at sorcery speed
+/// — active player, main phase, empty stack — and when it resolves the
+/// Equipment is attached, both ends of the link written, and the bonus is on
+/// the host. Each timing leg is checked against the window the random agent
+/// reads as well as against the activation itself.
+// COVERS: ATOM-702.6a-001, ATOM-702.6a-003, ATOM-301.5b-002, ATOM-301.5-001
+#[test]
+fn test_equip_is_offered_and_legal_only_at_sorcery_speed_and_then_attaches() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+    assert_eq!(pt(&game, bears), (2, 2), "unattached, the row names nothing");
+
+    // Not a main phase.
+    game.phase = Phase::new(PhaseType::Combat);
+    assert!(!offered_to(&game, 0, splitter));
+    assert!(equip(&mut game, 0, splitter, 0).is_err());
+
+    // A main phase, but not the active player's.
+    game.phase = Phase::new(PhaseType::Precombat);
+    game.active_player = 1;
+    assert!(!offered_to(&game, 0, splitter));
+    assert!(equip(&mut game, 0, splitter, 0).is_err());
+
+    // Active player, main phase, but the stack is not empty.
+    game.active_player = 0;
+    let on_stack = aura_on_stack_targeting(&mut game, 1, bears);
+    assert!(!offered_to(&game, 0, splitter));
+    assert!(equip(&mut game, 0, splitter, 0).is_err());
+    assert_eq!(game.battlefield[&splitter].attached_to, None, "nothing attached on the way");
+    let decisions = ScriptedDecisionProvider::new();
+    game.resolve_top_of_stack(&decisions).expect("the Aura resolves");
+    assert_eq!(game.battlefield[&on_stack].attached_to, Some(bears));
+
+    // Sorcery speed.
+    assert!(offered_to(&game, 0, splitter));
+    equip(&mut game, 0, splitter, 0).expect("legal at sorcery speed");
+
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
+    assert!(game.battlefield[&bears].attached_by.contains(&splitter));
+    // +1/+2 from Holy Strength, +2/+0 from Bonesplitter.
+    assert_eq!(pt(&game, bears), (5, 4));
+    assert_eq!(attaches_of(&game, splitter), vec![(bears, None)]);
+}
+
+/// "Target creature you control" — an opponent's creature is not a legal
+/// target, so with only one on the board the activation has nowhere to go,
+/// and with one of each the first legal pick is yours even though the
+/// opponent's entered first.
+// COVERS: ATOM-702.6a-002
+#[test]
+fn test_equip_targets_only_creatures_you_control() {
+    let mut game = setup_two_player_game();
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+
+    assert!(equip(&mut game, 0, splitter, 0).is_err(), "no legal target");
+    assert_eq!(game.battlefield[&splitter].attached_to, None);
+    assert!(game.stack.is_empty(), "the activation rolled back");
+
+    let mine = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    equip(&mut game, 0, splitter, 0).expect("your creature is a legal target");
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(mine));
+    assert!(!game.battlefield[&theirs].attached_by.contains(&splitter));
+}
+
+/// A second equip moves the Equipment: the old host's back-pointer is gone,
+/// the bonus went with it, and the event names where it came from.
+// COVERS: ATOM-301.5c-005
+#[test]
+fn test_re_equipping_moves_the_equipment_and_cleans_the_old_host() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let second = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+
+    equip(&mut game, 0, splitter, 0).unwrap();
+    assert_eq!(pt(&game, first), (4, 2));
+
+    equip(&mut game, 0, splitter, 1).unwrap();
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(second));
+    assert!(game.battlefield[&second].attached_by.contains(&splitter));
+    assert!(!game.battlefield[&first].attached_by.contains(&splitter));
+    assert_eq!(pt(&game, first), (2, 2));
+    assert_eq!(pt(&game, second), (5, 3));
+    assert_eq!(attaches_of(&game, splitter), vec![(first, None), (second, Some(first))]);
+}
+
+/// CR 701.3b — attaching to the object it is already attached to does
+/// nothing: no transition, no event, and no new timestamp (CR 701.3c says
+/// "a different object").
+#[test]
+fn test_equipping_the_host_it_is_already_on_does_nothing() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+
+    equip(&mut game, 0, splitter, 0).unwrap();
+    let stamped = game.battlefield[&splitter].timestamp;
+    equip(&mut game, 0, splitter, 0).unwrap();
+
+    assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
+    assert_eq!(game.battlefield[&bears].attached_by, vec![splitter]);
+    assert_eq!(attaches_of(&game, splitter).len(), 1, "the second activation announced nothing");
+    assert_eq!(game.battlefield[&splitter].timestamp, stamped);
+}
+
+/// CR 613.7e, pinned where Layer 7c cannot see it. The Equipment enters
+/// first (T1), Humility second (T2). By registration order Humility's "lose
+/// all abilities" is the later Layer 6 effect and the grant is gone; the
+/// timestamp the equip gives the Equipment (T3 > T2) is the only thing that
+/// puts its grant after Humility — and, since the ordered sweeps key on the
+/// same timestamp, Cobbled Wings now sorts last among the three.
+///
+/// Partial: the atom moves an Equipment away and back against an Aura that
+/// grants flying; this is one reattachment against Humility, which the pool
+/// registers.
+// COVERS-PARTIAL: ATOM-613.7e-001
+#[test]
+fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
+    let mut game = setup_two_player_game();
+    let wings = put_on_battlefield(&mut game, cobbled_wings(), 0);
+    let humility_id = put_on_battlefield(&mut game, humility(), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
+    assert_eq!(game.battlefield_ids_ordered(), vec![wings, humility_id, bears]);
+
+    equip(&mut game, 0, wings, 0).unwrap();
+
+    assert!(
+        game.battlefield[&wings].timestamp > game.battlefield[&humility_id].timestamp,
+        "CR 613.7e: the attach gave the Equipment a new timestamp"
+    );
+    assert!(
+        has_keyword(&game, bears, KeywordFlag::Flying),
+        "the grant now applies after Humility's Layer 6 strip"
+    );
+    assert_eq!(
+        game.battlefield_ids_ordered(),
+        vec![humility_id, bears, wings],
+        "the sweep order is CR 613.7's, so the equipped Wings sorts last"
+    );
+}
+
+/// A rules fixture, not a card: no printed Equipment both strips and grants
+/// (Scryfall, 2026-09-06 — Barrow-Blade is the only "loses all abilities"
+/// Equipment, and that is a trigger). Two Layer 6 static abilities in printed
+/// order, the strip first and the grant second, so their relative order *is*
+/// the observable answer.
+fn strip_then_grant_equipment() -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
+    use mtgsim::types::card_types::{ArtifactType, CardType, Subtype};
+    use mtgsim::types::effects::{Duration, Primitive};
+    mtgsim::objects::card_data::CardDataBuilder::new("Muzzle and Wings (fixture)")
+        .card_type(CardType::Artifact)
+        .subtype(Subtype::Artifact(ArtifactType::Equipment))
+        .mana_cost(mtgsim::types::mana::ManaCost::build(&[], 1))
+        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+            Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
+            EffectRecipient::Host,
+        )))
+        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+            Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
+            EffectRecipient::Host,
+        )))
+        .build()
+}
+
+/// `(id, timestamp)` of every registry row `source` generated, in storage
+/// order — which is application order within a layer.
+fn rows_of(game: &GameState, source: ObjectId) -> Vec<(mtgsim::engine::layers::types::EffectId, u64)> {
+    game.continuous_effects.iter().filter(|e| e.source == source).map(|e| (e.id, e.timestamp)).collect()
+}
+
+/// CR 613.7a, third sentence: "if the object the ability is on receives a new
+/// timestamp, each continuous effect generated by static abilities of that
+/// object receives a new timestamp as well, but the relative order of those
+/// timestamps remains the same." Strip then grant on one Equipment: a
+/// creature with printed flying loses everything and then has flying, and so
+/// does one without. Each attach re-stamps both rows to one new timestamp
+/// (CR 613.7e); a re-stamp that reversed them, gave them distinct fresh
+/// timestamps in the wrong order, or replaced the rows with new ids would
+/// leave the host flightless or break the id check.
+///
+/// No `COVERS`: the corpus states the third sentence in §613.7a's summary and
+/// files no atom for it (ATOM-613.7a-001 is the later-of clause).
+#[test]
+fn test_a_re_stamp_keeps_the_relative_order_of_one_objects_effects() {
+    let mut game = setup_two_player_game();
+    let flyer = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Flying]), 0);
+    let walker = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let harness = put_on_battlefield(&mut game, strip_then_grant_equipment(), 0);
+    let registered = rows_of(&game, harness);
+    assert_eq!(registered.len(), 2, "two static abilities, two rows");
+    assert_eq!(registered[0].1, registered[1].1, "CR 613.7a: one timestamp for both");
+    let attach = |game: &mut GameState, host| {
+        game.execute_action(GameAction::Attach { attachment: harness, host }, &test_ctx())
+            .expect("both on the battlefield");
+    };
+
+    attach(&mut game, flyer);
+    assert!(has_keyword(&game, flyer, KeywordFlag::Flying), "strip, then grant: the grant is the later row");
+    let after_first = rows_of(&game, harness);
+    assert_eq!(after_first.iter().map(|r| r.0).collect::<Vec<_>>(), registered.iter().map(|r| r.0).collect::<Vec<_>>(), "same rows, same order");
+    assert!(after_first[0].1 > registered[0].1, "and a new timestamp");
+    assert_eq!(after_first[0].1, after_first[1].1);
+    assert_eq!(after_first[0].1, game.battlefield[&harness].timestamp);
+
+    attach(&mut game, walker);
+    assert!(has_keyword(&game, walker, KeywordFlag::Flying), "the same order on the second host");
+    assert!(has_keyword(&game, flyer, KeywordFlag::Flying), "the first host is back to its printed flying");
+    let after_second = rows_of(&game, harness);
+    assert_eq!(after_second.iter().map(|r| r.0).collect::<Vec<_>>(), registered.iter().map(|r| r.0).collect::<Vec<_>>());
+    assert!(after_second[0].1 > after_first[0].1);
+    assert_eq!(after_second[0].1, after_second[1].1);
+}
+
+/// CR 301.5b — an Equipment spell resolves like any artifact and enters
+/// unattached; there is no target to choose at CR 601.2c.
+// COVERS: ATOM-301.5b-001
+#[test]
+fn test_an_equipment_spell_enters_unattached() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_in_hand(&mut game, bonesplitter(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+        vec![1],
+    );
+    game.cast_spell(0, splitter, &decisions).expect("castable");
+    game.resolve_top_of_stack(&decisions).expect("resolves");
+
+    assert!(game.battlefield.contains_key(&splitter));
+    assert_eq!(game.battlefield[&splitter].attached_to, None);
+    assert!(decisions.is_empty());
+}
+
+/// Registered, so `fuzz_games --pool stress` can draw it, and pooled, so the
+/// new primitive, the new action and the first activation restriction are
+/// measured rather than assumed (`engineering-practices.md` §3).
+#[test]
+fn test_bonesplitter_is_registered_and_in_the_performance_pool() {
+    assert!(CardRegistry::default_registry().create("Bonesplitter").is_ok());
+    assert!(CardRegistry::performance_pool().create("Bonesplitter").is_ok());
+}
+
+/// Registered so a `stress` game can put it beside Humility (CR 613.7e in
+/// the wild), and deliberately not pooled: it opens no engine path
+/// Bonesplitter does not, and the pool grows one card per path.
+#[test]
+fn test_cobbled_wings_is_registered_and_not_pooled() {
+    assert!(CardRegistry::default_registry().create("Cobbled Wings").is_ok());
+    assert!(CardRegistry::performance_pool().create("Cobbled Wings").is_err());
+}

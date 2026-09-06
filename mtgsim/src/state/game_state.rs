@@ -582,11 +582,13 @@ impl GameState {
     /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
     /// UUIDs, so the key is itself random.
     ///
-    /// `BattlefieldEntity::timestamp` is the deterministic key. It is allocated
-    /// once per `place_on_battlefield` from `next_timestamp`, a monotonic
-    /// counter, and never reassigned — so it is unique across the battlefield
-    /// and totally orders it. It is also the order CR 613.7 already cares
-    /// about, oldest first.
+    /// `BattlefieldEntity::timestamp` — CR 613.7's — is the deterministic
+    /// key. Every value of it comes from `next_timestamp`, one monotonic
+    /// counter, so it is unique across the battlefield and totally orders it,
+    /// and CR 613.7e's reassignment on attach keeps both properties: a
+    /// reattached permanent moves to the end of the order, in every run
+    /// alike. The sweep order is therefore the CR's own timestamp order, and
+    /// nothing reads it as entry order.
     ///
     /// Order-irrelevant sweeps — "untap every permanent", "clear all damage" —
     /// may still iterate the map directly; they touch disjoint entries and emit
@@ -657,7 +659,9 @@ impl GameState {
     /// `objects` map in `add_object` / `remove_object`; `stack_entries` in
     /// `set_stack_entry` / `take_stack_entry`; `resolving` in
     /// `resolve_top_of_stack`; the registry's rows through its own
-    /// `mutating`. Status the walk never reads — `tapped`, damage, combat,
+    /// `mutating`, including the re-stamp `attach` asks of it (CR 613.7e) —
+    /// the entity's own `timestamp` is not a walk input, only registration
+    /// reads it. Status the walk never reads — `tapped`, damage, combat,
     /// the mana pool — has no bump, and must not get one: every bump costs
     /// one walk per queried object. `&mut self` on purpose, so a read path
     /// cannot call this.
@@ -848,15 +852,33 @@ impl GameState {
     /// Writes nothing, and burns no bump, unless both permanents are on the
     /// battlefield: CR 303.4i sends an Aura whose host is gone elsewhere, and
     /// CR 301.5c never lets an Equipment point off the battlefield either.
-    pub fn attach(&mut self, attachment: ObjectId, host: ObjectId) {
+    /// Nor when `attachment` is already on `host` — CR 701.3b, "the effect
+    /// does nothing" — so a caller can tell a transition from a no-op by the
+    /// return: `true` iff the link was written. The `GameAction::Attach`
+    /// performer announces only the transition.
+    pub fn attach(&mut self, attachment: ObjectId, host: ObjectId) -> bool {
         if !self.battlefield.contains_key(&attachment) || !self.battlefield.contains_key(&host) {
-            return;
+            return false;
+        }
+        if self.battlefield[&attachment].attached_to == Some(host) {
+            return false;
         }
         // A reattachment leaves the old host's back-pointer behind otherwise.
         self.detach(attachment);
-        self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
+        // CR 613.7e — "receives a new timestamp each time it becomes attached".
+        // The ordered sweeps key on this too, so the attachment moves to the
+        // end of them — deterministically, from the one counter (see
+        // `battlefield_ordered`). CR 613.7a's third sentence then re-stamps the rows the
+        // attachment's static abilities registered, through the registry's own
+        // funnel, which is their epoch bump; the bump below is `attached_to`'s.
+        let timestamp = self.allocate_timestamp();
+        let entry = self.battlefield.get_mut(&attachment).unwrap();
+        entry.attached_to = Some(host);
+        entry.timestamp = timestamp;
+        self.continuous_effects.retime_static_rows(attachment, timestamp);
         self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
         self.bump_layer_epoch();
+        true
     }
 
     /// Detach a permanent from whatever it is attached to — clears its
@@ -1607,6 +1629,7 @@ mod tests {
         fn static_ability(effect: Effect) -> AbilityDef {
             AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: new_ability_id(),
                 ability_type: AbilityType::Static,
                 costs: Vec::new(),

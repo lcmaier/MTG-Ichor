@@ -70,6 +70,7 @@ fn resolve_spell(
     let effect = card.abilities[0].effect.clone();
     let ctx = ResolutionContext {
         source: source_id,
+        ability_source: None,
         controller,
         targets: targets.into_iter().map(ResolvedTarget::Object).collect(),
     };
@@ -774,6 +775,7 @@ fn restriction_creature() -> Arc<CardData> {
         .ability(AbilityDef {
             id: new_ability_id(),
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::costs::assemble_total_cost;
 use crate::events::event::GameEvent;
-use crate::objects::card_data::AbilityType;
+use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::types::costs::Cost;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
@@ -12,7 +12,7 @@ use crate::engine::targeting::{effect_recipient, spell_recipient};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::mana::ManaCost;
+use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections;
 use crate::oracle::mana_helpers::{
@@ -220,25 +220,7 @@ impl GameState {
             return Err(e);
         }
 
-        // Find the mana cost component for generic allocation
-        let mana_cost_for_alloc = total_costs.iter().find_map(|c| {
-            if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None }
-        }).unwrap_or_else(ManaCost::zero);
-
-        let generic_allocation = if mana_cost_for_alloc.generic_count() > 0 {
-            let mut available: Vec<(crate::types::mana::ManaType, u64)> = self.players[player_id]
-                .mana_pool.available().iter()
-                .filter(|(_, amt)| **amt > 0)
-                .map(|(mt, amt)| (*mt, *amt))
-                .collect();
-            available.sort_by_key(|(mt, _)| *mt as u8);
-            ask_choose_generic_mana_allocation(
-                decisions, self, player_id, &mana_cost_for_alloc,
-                &available, mana_cost_for_alloc.generic_count() as u64,
-            )
-        } else {
-            HashMap::new()
-        };
+        let generic_allocation = self.choose_generic_allocation(&total_costs, player_id, decisions);
 
         // The payment the player chose can be illegal even though the cost was
         // payable — a generic split that spends a color a pip still needs —
@@ -322,6 +304,11 @@ impl GameState {
         if ability.ability_type != AbilityType::Activated {
             return Err(format!("Ability at index {} is not an activated ability", ability_index));
         }
+        // CR 602.5d. The enforcement: `activatable_abilities` keeps a
+        // restricted ability out of the window, and this refuses it anyway.
+        if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery {
+            self.check_sorcery_timing(player_id)?;
+        }
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs.clone();
@@ -393,15 +380,54 @@ impl GameState {
         // triggers rollback.
         self.run_mana_ability_window(player_id, source_id, &ability_costs, decisions);
 
-        // Pay ability costs. Activation is CR 602, not a resolution.
+        // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's:
+        // check, ask how the generic part is split, then pay. Until LH-2 this
+        // passed an empty allocation, so every ability with a generic pip
+        // failed at payment and was silently blacklisted — Chainbreaker's
+        // `{3}, {T}` had never been activated in a fuzz game.
+        if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
+            self.rollback_ability_activation(ability_obj_id);
+            return Err(e);
+        }
         let actx = ActionContext::new(decisions);
-        let generic_allocation = HashMap::new();
+        let generic_allocation = self.choose_generic_allocation(&ability_costs, player_id, decisions);
         if let Err(e) = self.pay_costs(&ability_costs, player_id, source_id, &generic_allocation, &actx) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e);
         }
 
         Ok(())
+    }
+
+    /// How the player splits the generic part of `costs` across the mana
+    /// pool (CR 601.2h's "determine the total cost ... pay it"), asked of the
+    /// `DecisionProvider` when there is a generic part and answered empty
+    /// otherwise. `can_pay_costs` must already have passed: the asker asserts
+    /// that a legal split exists.
+    fn choose_generic_allocation(
+        &self,
+        costs: &[Cost],
+        player_id: PlayerId,
+        decisions: &dyn DecisionProvider,
+    ) -> HashMap<ManaType, u64> {
+        let mana_cost = costs
+            .iter()
+            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
+            .unwrap_or_else(ManaCost::zero);
+        if mana_cost.generic_count() == 0 {
+            return HashMap::new();
+        }
+        let mut available: Vec<(ManaType, u64)> = self.players[player_id]
+            .mana_pool
+            .available()
+            .iter()
+            .filter(|(_, amt)| **amt > 0)
+            .map(|(mt, amt)| (*mt, *amt))
+            .collect();
+        available.sort_by_key(|(mt, _)| *mt as u8);
+        ask_choose_generic_mana_allocation(
+            decisions, self, player_id, &mana_cost, &available, mana_cost.generic_count() as u64,
+        )
     }
 
     /// Run the 601.2g / 602.1b mana-ability window for a pending spell or
@@ -573,26 +599,34 @@ impl GameState {
         let has_flash = obj.card_data.keyword_flags.contains(&KeywordFlag::Flash);
 
         if !is_instant && !has_flash {
-            // Sorcery-speed timing
-            if player_id != self.active_player {
-                return Err("Only the active player can cast sorcery-speed spells".to_string());
-            }
-            match self.phase.phase_type {
-                PhaseType::Precombat | PhaseType::Postcombat => {}
-                _ => return Err("Sorcery-speed spells can only be cast during a main phase".to_string()),
-            }
-            // Since RC-1 the resolving object is still on the stack (CR 608.2),
-            // so this reads "not empty" throughout a resolution. Unreachable
-            // today — CR 608.2g forbids casting during one at all — but the
-            // "unless an effect instructs" half of 608.2g is what an RC-era card
-            // brings, and then this site has to say which it means: the
-            // instruction overriding timing outright, or the resolving object not
-            // counting against its own instruction. Not decided here.
-            if !self.stack.is_empty() {
-                return Err("Sorcery-speed spells can only be cast when the stack is empty".to_string());
-            }
+            self.check_sorcery_timing(player_id)?;
         }
 
+        Ok(())
+    }
+
+    /// CR 307.1's timing, as a rule other things borrow: the active player,
+    /// a main phase, an empty stack. Sorcery-speed spells (rule 117.1a) and
+    /// `ActivationRestriction::OnlyAsSorcery` (CR 602.5d) ask the same three
+    /// questions, so there is one place that asks them.
+    pub(crate) fn check_sorcery_timing(&self, player_id: PlayerId) -> Result<(), String> {
+        if player_id != self.active_player {
+            return Err("Only the active player can act at sorcery speed".to_string());
+        }
+        match self.phase.phase_type {
+            PhaseType::Precombat | PhaseType::Postcombat => {}
+            _ => return Err("Sorcery speed is only available during a main phase".to_string()),
+        }
+        // Since RC-1 the resolving object is still on the stack (CR 608.2),
+        // so this reads "not empty" throughout a resolution. Unreachable
+        // today — CR 608.2g forbids casting during one at all — but the
+        // "unless an effect instructs" half of 608.2g is what an RC-era card
+        // brings, and then this site has to say which it means: the
+        // instruction overriding timing outright, or the resolving object not
+        // counting against its own instruction. Not decided here.
+        if !self.stack.is_empty() {
+            return Err("Sorcery speed requires an empty stack".to_string());
+        }
         Ok(())
     }
 
@@ -806,6 +840,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -846,6 +881,7 @@ mod tests {
             .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -966,6 +1002,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

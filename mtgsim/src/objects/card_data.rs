@@ -59,6 +59,29 @@ pub enum AbilityType {
     Spell,
 }
 
+/// When an activated ability may be activated (CR 602.5d), beyond having
+/// priority.
+///
+/// One value, not `backlog.md` §2.8's activation-restriction surface: Equip
+/// (CR 702.6a) reads "Activate only as a sorcery", and that is the whole of
+/// what this enum can say. §2.8 owns the rest — "activate only once each
+/// turn", "only during combat", the functioning zone — and grows this enum
+/// when a card needs it, rather than this enum guessing at their shape.
+///
+/// Honoured at all three ability-index sites CLAUDE.md names:
+/// `activatable_abilities` does not offer a restricted ability out of its
+/// window, `activate_ability` refuses it (the enforcement), and
+/// `priority.rs` reaches the second through the first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivationRestriction {
+    /// Any time the player has priority (CR 602.1, the default).
+    None,
+    /// CR 602.5d — "the player must follow the timing rules for casting a
+    /// sorcery spell, though the ability isn't actually a sorcery": active
+    /// player, main phase, empty stack.
+    OnlyAsSorcery,
+}
+
 /// Definition of a single ability on a card.
 ///
 /// This is the printed ability — at runtime, activated/triggered abilities
@@ -69,6 +92,9 @@ pub struct AbilityDef {
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect: Effect,
+    /// CR 602.5d. Meaningful only when `ability_type` is `Activated`; every
+    /// other kind carries `None`.
+    pub activation_restriction: ActivationRestriction,
     /// CR 604.3 — this ability is a characteristic-defining ability.
     ///
     /// CR 604.3a lists five criteria. Four of them are properties of the
@@ -214,6 +240,7 @@ impl CardDataBuilder {
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
         self.data.abilities.push(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: crate::types::ids::new_ability_id(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],

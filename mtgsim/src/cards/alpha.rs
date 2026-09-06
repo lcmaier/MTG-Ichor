@@ -28,6 +28,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -49,6 +50,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -70,6 +72,7 @@ pub fn counterspell() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 0))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -91,6 +94,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -112,6 +116,7 @@ pub fn giant_growth() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
@@ -137,6 +142,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),

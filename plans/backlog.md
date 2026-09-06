@@ -243,9 +243,23 @@ rule-level citations this file will accumulate as it fills, not for today's text
   hand-zone or graveyard-zone static abilities (604.6), so this is the surface
   that admits them. 608.3g's stack-zone static → ETB delayed trigger (Dash,
   Blitz, Warp) also needs item 6.
-- **Blocks** — flash and every "activate only as a sorcery" ability; the
-  once-per-turn restriction that must survive a controller change (602.5b);
-  §2.3, in the sense that it is where those keywords will be expressed.
+- **Landed in part (2026-09-05, LH-2)** — `AbilityDef::activation_restriction:
+  ActivationRestriction`, with the one value Equip needed, `OnlyAsSorcery`
+  (CR 602.5d), honoured at the three ability-index sites CLAUDE.md names.
+  The surface this section owns *grows that enum* — once-per-turn, "only
+  during combat", the functioning zone — rather than starting a second one.
+  **Two look-alikes are not this section's** (review, 2026-09-06): Teferi,
+  Time Raveler's "Each opponent can cast spells only any time they could cast
+  a sorcery" is a continuous restriction on *players*, the "can't" track
+  (`cant-effects-architecture.md`, a `RestrictionDef` the cast-timing check
+  consults), and Grave Servitude's "If you cast it any time a sorcery
+  couldn't have been cast" is a *condition* about how the spell was cast,
+  read later by a delayed trigger — item 7's `Condition` AST plus item 6,
+  with the cast-time fact recorded on the object. All three ask one question,
+  and `GameState::check_sorcery_timing` is the one place that answers it.
+- **Blocks** — flash; the once-per-turn restriction that must survive a
+  controller change (602.5b); §2.3, in the sense that it is where those
+  keywords will be expressed. No longer "activate only as a sorcery".
 - **Atoms** — 14 across CR 602 (9) and CR 604 (5), not re-filed.
 - **Owner** — none yet.
 

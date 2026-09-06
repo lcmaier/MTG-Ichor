@@ -4,7 +4,7 @@
 // Used by CLI (show affordable spells), Random DP (auto-tap), and future AI.
 // All functions are read-only queries over &GameState.
 
-use crate::objects::card_data::AbilityType;
+use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::engine::targeting::spell_recipient;
@@ -333,22 +333,9 @@ fn passes_timing_check(game: &GameState, player_id: PlayerId, card_id: ObjectId)
         return true; // can cast anytime with priority
     }
 
-    // Sorcery-speed: active player, main phase, empty stack
-    if player_id != game.active_player {
-        return false;
-    }
-    let is_main = matches!(
-        game.phase.phase_type,
-        crate::state::game_state::PhaseType::Precombat | crate::state::game_state::PhaseType::Postcombat
-    );
-    if !is_main {
-        return false;
-    }
-    if !game.stack.is_empty() {
-        return false;
-    }
-
-    true
+    // Sorcery-speed: active player, main phase, empty stack — the engine's
+    // own rule, so the window and the cast agree.
+    game.check_sorcery_timing(player_id).is_ok()
 }
 
 /// Non-mana activated abilities the player can currently pay for.
@@ -376,6 +363,14 @@ pub fn activatable_abilities(
 
         for (idx, ability) in abilities.iter().enumerate() {
             if ability.ability_type != AbilityType::Activated {
+                continue;
+            }
+            // CR 602.5d — static legality, like a spell's timing: an ability
+            // that may only be activated as a sorcery is not in the window
+            // outside one. `activate_ability` refuses it regardless.
+            if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery
+                && game.check_sorcery_timing(player_id).is_err()
+            {
                 continue;
             }
 
@@ -542,6 +537,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -574,6 +570,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -606,6 +603,7 @@ mod tests {
             .power_toughness(2, 2)
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::SacrificeSelf],
@@ -689,6 +687,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Red], 1))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
@@ -721,6 +720,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
             .ability(AbilityDef {
                 is_characteristic_defining: false,
+                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),

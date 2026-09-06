@@ -51,6 +51,7 @@ fn self_anthem_creature() -> Arc<CardData> {
         .power_toughness(2, 2)
         .ability(AbilityDef {
             is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
@@ -760,6 +761,7 @@ fn test_a_multi_target_destroy_is_one_event() {
 
     let ctx = mtgsim::engine::resolve::ResolutionContext {
         source: a,
+        ability_source: None,
         controller: 0,
         targets: vec![
             mtgsim::engine::resolve::ResolvedTarget::Object(a),

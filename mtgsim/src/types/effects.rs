@@ -620,6 +620,20 @@ pub enum Primitive {
     /// (the shield is `Uses::Once` and already gone), and dies.
     RemoveAllDamage,
 
+    /// Attach the source permanent to the target (CR 701.3a) — Equip's verb,
+    /// "[Cost]: Attach this permanent to target creature you control"
+    /// (CR 702.6a).
+    ///
+    /// The *attachment* is the resolving ability's source permanent
+    /// (`ResolutionContext::ability_source`), the *host* is the recipient.
+    /// Legality is the recipient's job: CR 608.2b re-checks the target against
+    /// the filter it was chosen under, which is how "creature you control"
+    /// at resolution (CR 301.5b) and "doesn't move" against a non-creature
+    /// (CR 701.3b) both fall out with no second check here. Attaching to the
+    /// host it is already on does nothing (CR 701.3b), which the performer
+    /// decides — it is the transition that gets a timestamp (CR 613.7e) and an
+    /// event, not the state.
+    Attach,
     /// Two creatures fight (rule 701.14)
     Fight,
     /// Tap a permanent (rule 701.26)
