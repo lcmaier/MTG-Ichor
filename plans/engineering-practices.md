@@ -188,32 +188,31 @@ across months buys the timing measurement nothing.
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
-**Re-recorded 2026-09-06 for LH-2** (CR 613.7e, the timestamp split and
-Equip; `layers-architecture.md` §13a). Two new cards: Bonesplitter in both
-pools — the first Equipment, the first `Primitive::Attach` /
-`GameAction::Attach`, and the first activation restriction — and Cobbled
-Wings in `stress` only, since it opens no path Bonesplitter does not. That
-moves `performance` from 67 cards to 68 and `stress` from 76 to 78. **The
-rows are the pool's and a bugfix's, not the walk's**: the four arms below say
-which.
+**Re-recorded 2026-09-06 for LH-2** (CR 613.7e and Equip;
+`layers-architecture.md` §13a). Two new cards: Bonesplitter in both pools —
+the first Equipment, the first `Primitive::Attach` / `GameAction::Attach`,
+and the first activation restriction — and Cobbled Wings in `stress` only,
+since it opens no path Bonesplitter does not. That moves `performance` from
+67 cards to 68 and `stress` from 76 to 78. **The rows are the pool's and a
+bugfix's, not the walk's**: the four arms below say which.
 
 | | performance (68 cards) | stress (78 cards) |
 |---|---|---|
-| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 29 (58.0%) / 21 (42.0%) |
-| Avg turns | 30.7 | 31.3 |
-| Spells cast | 23.5 | 23.0 |
-| Lands played | 18.3 | 18.1 |
-| Combat w/ atk | 10.0 | 11.0 |
+| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 31 (62.0%) / 19 (38.0%) |
+| Avg turns | 30.8 | 32.3 |
+| Spells cast | 23.5 | 23.7 |
+| Lands played | 18.3 | 18.6 |
+| Combat w/ atk | 10.1 | 11.4 |
 | Creatures died | 6.6 | 4.0 |
-| Damage events | 21.7 | 24.6 |
-| Total damage | 53.5 | 58.4 |
-| Life changes | 15.7 | 16.8 |
-| **Layer walks** | **2,426** | **3,195** |
-| **Memo hits** | **93,130** | **106,474** |
-| **Layer frames** | **3,758** | **4,380** |
+| Damage events | 21.8 | 25.1 |
+| Total damage | 53.6 | 59.1 |
+| Life changes | 15.7 | 17.2 |
+| **Layer walks** | **2,425** | **3,384** |
+| **Memo hits** | **93,215** | **113,452** |
+| **Layer frames** | **3,755** | **4,629** |
 | **Frames/walk** | **1.55** | **1.37** |
-| **Replacement gathers** | **506** | **550** |
-| **Restriction queries** | **508** | **552** |
+| **Replacement gathers** | **506** | **579** |
+| **Restriction queries** | **508** | **581** |
 
 **Four arms this time, because the consumer found a bug (2026-09-06,
 LH-2).** `plans/fuzz_ab.py`, one sitting: `main` (A); LH-2's engine with the
@@ -227,28 +226,29 @@ activation — changes what Chainbreaker, a pooled card, does in a game.
 | | A: main | B: clean engine | B′: engine + fix | C: shipped |
 |---|---|---|---|---|
 | performance, 200 games, outside `=== Timing ===` | — | **A's, but `Memo hits` +4** | differs | differs |
-| performance walks (50 games) | 2,421 | 2,421 | 2,543 | 2,426 |
+| performance walks (50 games) | 2,421 | 2,421 | 2,543 | 2,425 |
 | performance frames/walk | 1.44 | 1.44 | 1.43 | 1.55 |
-| performance CPU/game median (200 games, ×3) | 12.47 ms | 12.70 ms (+1.8%) | 12.79 ms (+2.6%) | 13.98 ms (+12.1%) |
-| performance ms / 1,000 walks | 5.168 | 5.263 (+1.8%) | 5.336 (+3.3%) | 5.236 (+1.3%) |
+| performance CPU/game median (200 games, ×3) | 13.16 ms | 13.23 ms (+0.5%) | 13.65 ms (+3.7%) | 14.92 ms (+13.4%) |
+| performance ms / 1,000 walks | 5.454 | 5.483 (+0.5%) | 5.695 (+4.4%) | 5.637 (+3.4%) |
 | stress, 200 games | — | A's, but `Memo hits` +3 | **identical to C** | — |
 
 Read B against A first. Its event stream *is* `main`'s — 40-game dumps
-identical after the id masks — and the extra memo hits are the new
-`can_pay_costs` pre-check in `activate_ability` asking cached questions. The
-walk itself is `main`'s code: a re-stamp at attach time
+identical after the id masks, and the sweeps keying on a timestamp CR 613.7e
+now reassigns moved no pick in 200 games — and the extra memo hits are the
+new `can_pay_costs` pre-check in `activate_ability` asking cached questions.
+The walk itself is `main`'s code: a re-stamp at attach time
 (`retime_static_rows`) costs one registry pass per equip, not a per-frame
-sort, so B's +1.8% is a sorcery-timing check per activated ability in the
-window plus the sitting's own noise — round 1 had B faster than A. B′
-against B is Chainbreaker's ability resolving at all (85 times per 40 games,
-from 0): more stack, more resolutions. C against B′ is the card: an
-Equipment on the battlefield in 140 of 200 games, whose `Host` row walks its
-source for the existence check. That is the frames/walk 1.43 → 1.55 and the
-+12.1% of CPU/game, of which only +1.3% is per walk — the shape LH-1 measured
-for Holy Strength at 1.39 → 1.44, on a card cast about three times as often
-because it is a colorless {1}. The first version of this PR read the rows'
-timestamps live in the walk instead, and the same board then cost +9.5% per
-1,000 walks; §13a records why that shape was replaced.
+sort, and B's +0.5% is inside the sitting's own noise (round 2 had B faster
+than A). B′ against B is Chainbreaker's ability resolving at all (85 times
+per 40 games, from 0): more stack, more resolutions. C against B′ is the
+card: an Equipment on the battlefield in 140 of 200 games, whose `Host` row
+walks its source for the existence check. That is the frames/walk
+1.43 → 1.55 and the +13.4% of CPU/game, of which +3.4% is per walk — the
+shape LH-1 measured for Holy Strength at 1.39 → 1.44, on a card cast about
+three times as often because it is a colorless {1}. The first version of
+this PR read the rows' timestamps live in the walk instead, and the same
+board then cost +9.5% per 1,000 walks; §13a records why that shape was
+replaced.
 
 **Re-recorded 2026-09-04 for LH-1** (the Aura host becomes addressable;
 `layers-architecture.md` §13a). One new card, Holy Strength, in both pools —

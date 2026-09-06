@@ -20,8 +20,8 @@ Quoted verbatim from `CLAUDE.md`, which owns the ordering.
 **This section owns the ordering**, listed in route order; `plans/roadmap-v2.md` §3a is the same route end to
 end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points here. Numbers are stable labels.
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅.  7a. Epoch memoization of the layer walk — ✅ 2026-09-03
-6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 the
-   `entry_timestamp` / CR 613.7 `timestamp` split, CR 613.7e and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
+6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 CR 613.7e
+   (one timestamp, reassigned in `attach`, rows re-stamped) and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
 7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass, plus the `Condition` AST that
    conditional statics and CR 603.4 share. **Before 6** (2026-09-04: the pool already builds a 613.8 wrong
    answer, Humility + Citanul Hierophants). **Hard back-stop before Phase 8**: no dependency-ordering-sensitive cards until it lands
@@ -64,7 +64,7 @@ absent here whether or not they shipped.
 |---|---:|
 | Cards registered | 79 |
 | …of them in `PERFORMANCE_POOL` | 68 |
-| `#[test]` functions | 956 |
+| `#[test]` functions | 957 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
