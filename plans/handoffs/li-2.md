@@ -39,7 +39,10 @@ orders and the two-Opalescence board, the rulings quoted — **7c's CR 613.6
 test** (`codebase-state.md` "Before Layers" 7c); Ashaya + Blood Moon both
 orders, marked CR-derived; the 613.8b loop fixture on creature types
 (`SetSubtypes` both ways, so the two orders differ); the 613.8c chain;
-ATOM-613.8a-003; and the **row-older-than-counter order** of `test_a_counter_older_than_a_power_reading_row_applies_first`
+ATOM-613.8a-003; **the four-card board from the judge answer**
+(`plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md`:
+Opalescence → Ashaya → Blood Moon, Urborg never applies — the 613.8c
+test on printed cards); and the **row-older-than-counter order** of `test_a_counter_older_than_a_power_reading_row_applies_first`
 in `tests/phase_li_integration_test.rs`, which LI-1 deliberately left
 unpinned because 613.8 changes it (the row depends on the counter).
 ATOM-613.8-001's "all activated abilities of other creatures" is not

@@ -1511,7 +1511,7 @@ layer reads. Three boards break that, and the pool builds one of them:
 | **Blood Moon + Rootpath Purifier** — the Purifier's ruling (Scryfall, 2022-10-14): "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic" | 4 | applying the Purifier changes what Blood Moon applies to (613.8a(b)), so Blood Moon waits for it whatever the timestamps say; the walk orders by timestamp | **LI-2**: dependency ordering, the ruling's board as a named fixture (the Purifier's library clause is item 9's) |
 | **Blood Moon + Urborg, Tomb of Yawgmoth** — Urborg's ruling (Scryfall, 2021-03-19): an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply" | 4 | applying Blood Moon removes the ability that generates Urborg's effect (613.8a(b)); with Urborg's earlier timestamp the walk applies Urborg first and a basic Forest is a Forest Swamp | **LI-2**, on LI-1's existence check |
 
-**Rulings, not walkthroughs.** `codebase-state.md` item 8 spoke of "the judge walkthrough of Blood Moon + Ashaya + Opalescence + Urborg"; no such document is in the tree and the phrase has no source (it arrived in commit b2583fa). The two rulings above are what LI-2 works from, together with the Humility + Opalescence rulings (2009-10-01 and 2006-02-01), which walk layers 4, 6 and 7b with timestamps and are LI-2's CR 613.6 test. Ashaya, Soul of the Wild + Blood Moon has **no ruling**; its answer below is derived from the CR and is marked as such wherever it appears.
+**Rulings first, then the walkthrough.** The two rulings above are what LI-2 works from, together with the Humility + Opalescence rulings (2009-10-01 and 2006-02-01), which walk layers 4, 6 and 7b with timestamps and are LI-2's CR 613.6 test. The "judge walkthrough" item 8 cited from memory was recovered on 2026-09-06 — a judge's answer on a Reddit thread, Blood Moon + Urborg + Ashaya + Opalescence, all four in layer 4 — and is quoted in full in `plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md`. It is a worked procedure, not a ruling, and it states two of this section's decisions in its own words: dependencies are decided against "the current game state being built, not theoretical" (decision 3), and re-evaluated "after each effect is applied" (CR 613.8c, LI-2's loop). Its board — Opalescence, then Ashaya, then Blood Moon, Urborg never applying — is LI-2's 613.8c test. Ashaya + Blood Moon *alone* has no ruling; where its answer appears below it is derived from the CR and says so.
 
 The fourth thing the same missing frame blocks is not a wrong answer but an
 assert: "Before Layers" 7b's *Layer 6 exactly* case, a granted static ability
@@ -1565,7 +1565,11 @@ made, so it is a result of the pass, not an attribute of a row, and 7g's
 
 *The working set* W is **every object some row can reach**, and it is
 derived from the `AffectedSet` variants rather than listed: a `Filter` row
-needs the battlefield zone (RC-3's gate), a `Host` row's host is a permanent,
+needs the battlefield zone (RC-3's gate — because `PermanentFilter` is a
+filter over *permanents*; a filter over cards in a graveyard, Deeproot
+Historian's "Merfolk and Druid cards in your graveyard have retrace", is
+layers item 9's zone-reaching variant, and main item 64's `ObjectFilter`
+rename is its precursor), a `Host` row's host is a permanent,
 a `SourceOnly` row's source is a permanent (a `StaticAbility` row's source is
 on the battlefield, or is the entering object), and a `Fixed` row names what
 it names — anywhere, which is why `Fixed` is the one variant that adds
@@ -1877,8 +1881,11 @@ field-by-field account of `Board` the review asked for.
    one layer; the row-older-than-counter order of
    `test_a_counter_older_than_a_power_reading_row_applies_first`;
    ATOM-613.8-001 claimed partial or not at all, since its "all activated
-   abilities of other creatures" is not buildable. `specdb.py show` each
-   atom first.
+   abilities of other creatures" is not buildable. **And the four-card board
+   from the judge answer** — Opalescence, Ashaya, Blood Moon and Urborg all
+   in layer 4 — asserting the sequence Opalescence → Ashaya → Blood Moon with
+   Urborg never applying, which is CR 613.8c re-evaluation on a printed
+   board rather than a fixture chain. `specdb.py show` each atom first.
 
 ### LI-3 — conditional statics (~750–900 additions)
 
