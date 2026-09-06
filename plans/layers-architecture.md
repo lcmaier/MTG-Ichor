@@ -1807,6 +1807,35 @@ answering every member with the nested graveyard reads not counted as
 board walks. No card and no pool change: the consumer was already in both
 pools.
 
+**Scaling, measured before the merge (2026-09-06).** §12's synthetic board —
+N anthem creatures ("creatures you control get +1/+1", one 7c row each)
+beside N vanilla creatures — run on one machine against `main` at 650633f
+and this branch, release, µs per epoch. Two columns per arm: every member
+asked once after a write (what an SBA sweep does), and one member asked.
+
+| board (creatures + anthems) | rows | `main`, all asked | pass, all asked | `main`, one asked | pass, one asked |
+|---|---:|---:|---:|---:|---:|
+| 10 + 1 | 1 | 15.0 | **6.4** | **1.3** | 6.2 |
+| 10 + 10 | 10 | 180.0 | **33.2** | **8.7** | 27.4 |
+| 40 + 5 | 5 | 191.8 | **42.2** | **4.5** | 36.6 |
+| 40 + 40 | 40 | 2,978 | **315.5** | **41.3** | 323.5 |
+| 80 + 5 | 5 | 414.0 | **77.2** | **4.2** | 75.8 |
+| 80 + 80 | 80 | 13,476 | **1,195** | **107.2** | 1,182 |
+
+The pass is 2–11× cheaper whenever the board is asked about after a write,
+and the gap *widens* with rows: the old walk's CR 604.2 check was a sub-walk
+of the source per row per query (§12 called it superlinear), and the pass
+reads a live frame instead. What the pass pays is the single-object query
+between writes — the whole board for one answer, 5–10× the old cost on a
+row-heavy board and bounded by members × rows. The fuzz mix nets to +1.7%
+because the first case is what games do (96% of questions repeat an
+unchanged board, and the sweep after a write asks about everything).
+The levers if the second case ever dominates are all answer-preserving and
+listed above; the first two — resolving a `Fixed` modification once per row
+rather than once per target, and the look-ahead replay — are constant
+factors, and the finer memo key, which the pass makes definable because it
+knows which members each application touched, is the structural one.
+
 **Review (2026-09-06).** Two names changed — `Board passes` is `Board walks`,
 the entry's `Query` enum is `Membership` — and one rule number: the existence
 check is CR 604.2 (611.3b says the same), not CR 613.7a, which is the
