@@ -1508,8 +1508,10 @@ layer reads. Three boards break that, and the pool builds one of them:
 | Board | Layer | What the per-object walk gets wrong | Fix |
 |---|---|---|---|
 | **Humility + Citanul Hierophants** — both in `PERFORMANCE_POOL`; `test_humility_before_hierophants_does_not_yet_retire_the_grant` pins the wrong answer | 6 | the grant's CR 613.7a check reads the Hierophants as of the end of layer 5 and cannot see Humility's strip, applied earlier in layer 6; a creature under Humility taps for {G} | **LI-1**: the pass — the check reads the live frame |
-| **Blood Moon + Ashaya, Soul of the Wild** (the judge walkthrough item 8 cites; Rootpath Purifier has the same shape, see LI-2) | 4 | applying Ashaya changes what Blood Moon applies to (613.8a(b)), so Blood Moon waits for it whatever the timestamps say; the walk orders by timestamp | **LI-2**: dependency ordering |
-| **Blood Moon + Urborg, Tomb of Yawgmoth** (item 8) | 4 | applying Blood Moon removes the ability that generates Urborg's effect (613.8a(b)); with Urborg's earlier timestamp the walk applies Urborg first and a basic Forest is a Forest Swamp | **LI-2**, on LI-1's existence check |
+| **Blood Moon + Rootpath Purifier** — the Purifier's ruling (Scryfall, 2022-10-14): "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic" | 4 | applying the Purifier changes what Blood Moon applies to (613.8a(b)), so Blood Moon waits for it whatever the timestamps say; the walk orders by timestamp | **LI-2**: dependency ordering, the ruling's board as a named fixture (the Purifier's library clause is item 9's) |
+| **Blood Moon + Urborg, Tomb of Yawgmoth** — Urborg's ruling (Scryfall, 2021-03-19): an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply" | 4 | applying Blood Moon removes the ability that generates Urborg's effect (613.8a(b)); with Urborg's earlier timestamp the walk applies Urborg first and a basic Forest is a Forest Swamp | **LI-2**, on LI-1's existence check |
+
+**Rulings, not walkthroughs.** `codebase-state.md` item 8 spoke of "the judge walkthrough of Blood Moon + Ashaya + Opalescence + Urborg"; no such document is in the tree and the phrase has no source (it arrived in commit b2583fa). The two rulings above are what LI-2 works from, together with the Humility + Opalescence rulings (2009-10-01 and 2006-02-01), which walk layers 4, 6 and 7b with timestamps and are LI-2's CR 613.6 test. Ashaya, Soul of the Wild + Blood Moon has **no ruling**; its answer below is derived from the CR and is marked as such wherever it appears.
 
 The fourth thing the same missing frame blocks is not a wrong answer but an
 assert: "Before Layers" 7b's *Layer 6 exactly* case, a granted static ability
@@ -1523,7 +1525,7 @@ that assert; the card itself waits on item 6 (its draw is a trigger).
 **1. The unit of ordering inside a layer is an *application*.** Four kinds,
 one list per layer, one sort key:
 
-| Application | Where it comes from | Affected set | Existence (CR 613.7a) |
+| Application | Where it comes from | Affected set | Existence (CR 604.2) |
 |---|---|---|---|
 | a registry row (and, under a look-ahead, one of the entering object's would-be rows) | `effects_in_layer` / `Lookahead::rows` | the row's `AffectedSet` | `StaticAbility` rows: does the source's *live* frame still carry the ability; `Resolution` rows: always |
 | one object's intrinsic CDA at this layer | the member's live ability list at the start of the layer (`cda.rs`) | the object itself (CR 604.3a(3)) | does the object's live frame still carry it |
@@ -1561,15 +1563,21 @@ into rows**: CR 613.8c makes the order a function of the applications already
 made, so it is a result of the pass, not an attribute of a row, and 7g's
 `update_rows` route is not needed.
 
-*The working set* W is every battlefield entity in `battlefield_ids_ordered`
-order, then the look-ahead's object when there is one, then any object a
-`Fixed` row names that is not already a member (in row order). That is every
-object a row can reach: `Filter` and `Host` rows need the battlefield,
-`SourceOnly` rows are their own source (a `StaticAbility` row's source is a
-permanent, or the entering object), and `Fixed` rows name what they name. A
-token in the battlefield zone with no entity is never a member by zone,
-because tokens enter one at a time (`resolve.rs`, `CreateToken`) and the one
-being entered is the look-ahead's object; the pass asserts that in debug.
+*The working set* W is **every object some row can reach**, and it is
+derived from the `AffectedSet` variants rather than listed: a `Filter` row
+needs the battlefield zone (RC-3's gate), a `Host` row's host is a permanent,
+a `SourceOnly` row's source is a permanent (a `StaticAbility` row's source is
+on the battlefield, or is the entering object), and a `Fixed` row names what
+it names — anywhere, which is why `Fixed` is the one variant that adds
+members beyond the battlefield (a pump spell's target that has since died).
+So W is every battlefield entity in `battlefield_ids_ordered` order, then the
+look-ahead's object when there is one, then whatever `Fixed` rows name (in
+row order). **It is not contained to the battlefield by design, only by
+today's variants**: layers item 9's zone-reaching `AffectedSet` — Wonder's
+"as long as this card is in your graveyard" — adds one clause to
+`Board::seed`, and nothing else in the pass changes. A token in the
+battlefield zone with no entity (its entry being decided) is a member of the
+pass that asks about it and of no other; the as-built notes say why.
 **A non-member** — a card in a hand, library or graveyard, or a spell — keeps
 a walk of its own that applies no row, only its CDAs (CR 604.3, all zones),
 and reads a member's frame from the memo, or from the live board when the
@@ -1583,9 +1591,14 @@ not built.
 *The look-ahead* (CR 614.12) is a pass over W plus the entering object, whose
 own would-be rows apply to it alone — `replacement-architecture.md` §5b's
 asymmetry, pinned by `test_look_ahead_rows_reach_only_the_entering_object`.
-Every other member's frame comes out equal to the real pass's, which is what
-§5b claims and what makes a cheaper replay possible later (below). It fills
-no memo, as §12 "7a" says.
+That asymmetry is about *which objects an entering permanent's static
+abilities reach before it has entered* (none but itself: CR 604.3 makes them
+function on the battlefield, and 614.12 clause 2 asks only what "would apply
+to it"); it has nothing to do with CR 613.8's dependency check, which is
+symmetric — LI-2 asks both "does A depend on B" and "does B depend on A" of
+every pair, look-ahead or not. Every other member's frame comes out equal to
+the real pass's, which is what §5b claims and what makes a cheaper replay
+possible later (below). It fills no memo, as §12 "7a" says.
 
 **3. The hypothetical check's snapshot is a frame clone.** CR 613.8a(b) asks
 whether applying B would change what A reads. A's reads are few and named —
@@ -1652,7 +1665,7 @@ the `CountOf` arm of `evaluate_amount` (~45) and the three resolving arms of
 
 | PR | Pieces | Measured | ~additions |
 |---|---|---|---|
-| **LI-1** — the board-wide sequential pass | the `Board` and its working set (~120 new); the per-layer application list (~110); `apply_layer`, applying in list order with the live existence check, the locked 613.6 set and evaluate-then-apply for the three resolving arms (~90); the non-member walk (~60); the memo fill and a `Board passes` cost row (~40 across `diagnostics.rs`, `fuzz_games.rs`, `fuzz_ab.py`); the ~685 lines above rewritten rather than added (net ~+200) | engine ~+550 / −350; tests ~+250 (the flipped pin, a layer-6 granted static, the locked 613.6 set, signatures in the unit tests); docs ~+450 (this section, §5.2, §5, §9, `codebase-state.md` 7b/7c/8, §3's re-record, the ledger) | **~1,250** |
+| **LI-1** — the board-wide sequential pass | the `Board` and its working set (~120 new); the per-layer application list (~110); `apply_layer`, applying in list order with the live existence check, the locked 613.6 set and evaluate-then-apply for the three resolving arms (~90); the non-member walk (~60); the memo fill and a `Board walks` cost row (~40 across `diagnostics.rs`, `fuzz_games.rs`, `fuzz_ab.py`); the ~685 lines above rewritten rather than added (net ~+200) | engine ~+550 / −350; tests ~+250 (the flipped pin, a layer-6 granted static, the locked 613.6 set, signatures in the unit tests); docs ~+450 (this section, §5.2, §5, §9, `codebase-state.md` 7b/7c/8, §3's re-record, the ledger) | **~1,250** |
 | **LI-2** — CR 613.8a/b/c | the channel sets (what each `EffectModification` writes, what each read reads — the static check, ~90); the hypothetical check (~120); the ordering loop with the transitive closure, the loop rule and re-evaluation after every application (~110); `resolve_order_within_layer` as the layer driver (~30); two cards (~115); tests (~420: Urborg both orders, Ashaya + Blood Moon both orders, a 613.8b loop fixture on creature types, a 613.8c chain fixture, 613.8a-003, 7c's CR 613.6 test, the composition); docs and §3 (~380) | | **~1,300–1,500** |
 | **LI-3** — conditional statics | the `Effect::Conditional` lowering arm (~40); `layers/condition.rs`, an evaluator for the eight leaves in a static context plus one leaf the Rune shape needs (~160); the clause in the existence check (~30); Kird Ape (~50) and its tests (~120); a named fixture for the Rune-of-Flight shape (~100); docs, 7f's close and §3 (~230) | | **~750–900** |
 
@@ -1692,9 +1705,10 @@ settled first (a nonbasic Forest under Blood Moon stops being a Forest).
 6. **`FrameCache` survives** as the non-member walk's `(id, ceiling)` memo,
    with a reference to the live board when the walk is nested inside a pass.
 7. **The cost rows.** `Layer walks` keeps its meaning — a top-level miss —
-   and a new bold row, `Board passes`, says how many of them were passes;
-   `Layer frames` becomes passes × members plus the non-member frames, so
-   `Frames/walk` will read near the member count rather than 1.55. §3 says so.
+   and a new bold row, `Board walks`, says how many of them walked the whole
+   board; `Layer frames` becomes board walks × members plus the non-member
+   frames, so `Frames/walk` will read near the member count rather than 1.55.
+   §3 says so.
 8. **§5.2 rewritten** per decision 4; §5's pseudo-code and §9's interface note
    updated; `codebase-state.md` 7b's Layer 6 case and 7c's untested claim
    closed, item 8 marked "step 4 built, steps 1–3 LI-2".
@@ -1754,11 +1768,11 @@ from the pieces above, each found by a test:
 3. **`Layer walks` still counts a query for an object that does not exist**,
    as it did: the count sits before the store probe, so that case's fixture
    rows stay comparable to `main`'s.
-4. **The `Board passes` row.** Walks per game fell 2,425 → 328 on
-   `performance` at 50 games (3,129 → 366 per 200) and 236 of the 328 are
-   passes; frames rose 3,755 → 4,289 (+14%; +21% per 200 games), which is
-   passes times members. `Frames/walk` reads 13.1 where it read 1.55, and
-   the row is what makes that legible.
+4. **The `Board walks` row.** Walks per game fell 2,425 → 328 on
+   `performance` at 50 games (3,129 → 366 per 200) and 236 of the 328 walked
+   the whole board; frames rose 3,755 → 4,289 (+14%; +21% per 200 games),
+   which is board walks times members. `Frames/walk` reads 13.1 where it
+   read 1.55, and the row is what makes that legible.
 
 Two things the plan predicted and the sitting confirmed. **The A/B is
 flat**: `plans/fuzz_ab.py`, one sitting, `main` at 650633f against the
@@ -1786,7 +1800,20 @@ resolution, a +1/+1 counter interleaving with a power-reading 7c row on
 CR 613.7c's clock (the one order that stays stable under LI-2), a graveyard
 Keldon Warlord counting the board through the settled path, and one pass
 answering every member with the nested graveyard reads not counted as
-passes. No card and no pool change: the consumer was already in both pools.
+board walks. No card and no pool change: the consumer was already in both
+pools.
+
+**Review (2026-09-06).** Two names changed — `Board passes` is `Board walks`,
+the entry's `Query` enum is `Membership` — and one rule number: the existence
+check is CR 604.2 (611.3b says the same), not CR 613.7a, which is the
+timestamp rule; the label had been wrong since 2026-08-21 and a comment sweep
+is recorded in `codebase-state.md`. The "judge walkthrough" this section
+cited for the Blood Moon boards does not exist; the rulings above replace
+it, and LI-2's cards are re-planned around them. The trace page for this
+PR, `plans/traces/li-1-one-pass-per-board.html`, walks the Humility +
+Hierophants board through the old walk and the pass call by call, a
+look-ahead entry, and a graveyard Keldon Warlord, and carries the
+field-by-field account of `Board` the review asked for.
 
 ### LI-2 — CR 613.8a, 613.8b, 613.8c (~1,300–1,500 additions)
 
@@ -1811,30 +1838,47 @@ passes. No card and no pool change: the consumer was already in both pools.
    driver is `resolve_order_within_layer`, and it differs from §9's reserved
    signature in one way that 613.8c forces: it applies as it orders, because
    the order after the k-th application is a function of the first k.
-4. **Cards.** **Urborg, Tomb of Yawgmoth**, the printed Legendary Land
-   ("Each land is a Swamp in addition to its other land types"), registered
-   and in `PERFORMANCE_POOL` beside Blood Moon — the existence dependency,
-   and a land any deck drops; `phase_ld_cards::urborg_effect` stays the
-   Enchantment fixture the CR 305.6 tests rest on. **Ashaya, Soul of the
-   Wild** ("Nontoken creatures you control are Forest lands in addition to
-   their other types"; P/T a CDA counting lands you control), registered in
-   `stress` — the applies-to dependency in the direction Rootpath Purifier
-   would give, and fully expressible where the Purifier is not: its
-   "land cards in your library are basic" clause needs item 9's zone-reaching
-   `AffectedSet`, and a Purifier without it would wear a printed name while
-   behaving differently (§3). The Purifier joins with item 9; the ledger
-   says so.
+4. **Cards, and which boards a ruling backs.** **Urborg, Tomb of
+   Yawgmoth**, the printed Legendary Land ("Each land is a Swamp in addition
+   to its other land types"), registered and in `PERFORMANCE_POOL` beside
+   Blood Moon — the existence dependency, its ruling quoted above, and a land
+   any deck drops; `phase_ld_cards::urborg_effect` stays the Enchantment
+   fixture the CR 305.6 tests rest on. **The Rootpath Purifier ruling's
+   board as a named fixture** ("Lands you control are basic", an invented
+   name, §3's rule): the applies-to dependency with a ruling behind it. The
+   printed Purifier waits on item 9 for its library clause — registering it
+   without one would wear a printed name while behaving differently. **Ashaya,
+   Soul of the Wild**, registered in `stress` as the printed card of the same
+   shape ("Nontoken creatures you control are Forest lands in addition to
+   their other types"), with its expected answer **derived from the CR, no
+   ruling covering it**: Blood Moon depends on Ashaya (applying Ashaya makes
+   creatures nonbasic lands), Ashaya does not depend back (Blood Moon reaches
+   no creature before Ashaya applies), so Ashaya applies first and Blood Moon
+   then makes the creature-lands Mountains that lose their abilities (CR
+   305.7) — Ashaya's own P/T CDA included. **Opalescence** ("Each other
+   non-Aura enchantment is a creature in addition to its other types and has
+   base power and toughness each equal to its mana value"), registered: its
+   rulings with Humility (2009-10-01, both timestamp orders, layer by layer;
+   2006-02-01, two Opalescences) are 7c's CR 613.6 test with the CR's own
+   answers attached, and LI-1's pass already gives them — timestamp order
+   plus the locked set. It needs one filter leaf, `PermanentFilter::Other`
+   ("each other" is `id != source`; the self-stripping fixture's doc names
+   this gap), on both `permanent_matches_filter`s. First job of LI-2.
 5. **Tests.** Urborg + Blood Moon in both orders (a basic Forest is a Forest,
-   never a Forest Swamp; Urborg is a Mountain); Ashaya + Blood Moon in both
-   orders (the creature-lands are Mountains that tap for {R} and have lost
-   their abilities, Ashaya's own effect having already applied); a 613.8b
-   loop on creature types — "Elves are Goblins" against "Goblins are Elves",
-   `SetSubtypes` both ways so the two orders differ — applied in timestamp
-   order; a 613.8c chain where C's dependency on B appears only after A
-   applies; 613.8a-003 with a CDA and a non-CDA in one layer; 7c's CR 613.6
-   test, now that the answer is stable; ATOM-613.8-001 claimed partial or
-   not at all, since its "all activated abilities of other creatures" is not
-   buildable. `specdb.py show` each atom first.
+   never a Forest Swamp; Urborg is a Mountain — the ruling's words);
+   the Purifier fixture + Blood Moon in both orders (the ruling's words: Blood
+   Moon "can no longer apply to the lands you control"); Ashaya + Blood Moon
+   in both orders, marked CR-derived; Humility + Opalescence in both orders
+   and the two-Opalescence board, the rulings quoted in the test — 7c's
+   CR 613.6 test; a 613.8b loop on creature types — "Elves are Goblins"
+   against "Goblins are Elves", `SetSubtypes` both ways so the two orders
+   differ — applied in timestamp order; a 613.8c chain where C's dependency
+   on B appears only after A applies; 613.8a-003 with a CDA and a non-CDA in
+   one layer; the row-older-than-counter order of
+   `test_a_counter_older_than_a_power_reading_row_applies_first`;
+   ATOM-613.8-001 claimed partial or not at all, since its "all activated
+   abilities of other creatures" is not buildable. `specdb.py show` each
+   atom first.
 
 ### LI-3 — conditional statics (~750–900 additions)
 

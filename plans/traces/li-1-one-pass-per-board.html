@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch layers/li-1-board-pass at 454420a and the frozen CR `tmnt`;
+  never maintained — a later phase that changes these paths gets its own page.
+  Self-contained: fonts from Google Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>One Pass Per Board — LI-1</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226; --muted: #5B6770; --line: #D5DCDD;
+    --real: #1F6F78; --real-tint: #E3F0F1; --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B; --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+      --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+    --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0 0; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 1.15rem; margin-top: 1rem; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+  a { color: var(--real); }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.95rem; }
+  nav.toc a { text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); font-size: 0.92rem; }
+  .chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.real { color: var(--real); border-color: var(--real); background: var(--real-tint); }
+  .chip.frame { color: var(--frame); border-color: var(--frame); background: var(--frame-tint); }
+  .chip.new { color: var(--new); border-color: var(--new); background: var(--new-tint); }
+  .chip.changed { color: var(--changed); border-color: var(--changed); background: var(--changed-tint); }
+  .chip.decide { color: var(--decide); border-color: var(--decide); background: var(--decide-tint); }
+  .chip.none { color: var(--muted); border-color: var(--line); background: transparent; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); padding: 0.9rem 1rem; }
+  .card .who { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card .name { font-family: var(--display); font-size: 1.2rem; margin-top: 0.2rem; }
+  .card .text { font-size: 0.92rem; color: var(--muted); margin-top: 0.3rem; }
+  .card.moving { border-color: var(--frame); }
+  .trace { list-style: none; margin: 1.25rem 0 0; padding: 0; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
+  .step { display: grid; grid-template-columns: 2.6rem minmax(18rem, 1.1fr) 6rem minmax(20rem, 1.4fr); gap: 0 1rem; align-items: start; padding: 0.55rem 0.9rem; border-top: 1px solid var(--line); min-width: 54rem; }
+  .step:first-child { border-top: 0; }
+  .step .n { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .step .call { padding-left: calc(var(--d, 0) * 1.1rem); }
+  .step .call code { background: transparent; padding: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .step .call .loc { display: block; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .call .sub { display: block; font-size: 0.88rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .what { margin: 0; font-size: 0.95rem; }
+  .step .what em { color: var(--ink); }
+  .step[data-era="new"] { box-shadow: inset 3px 0 0 var(--new); }
+  .step[data-era="wrong"] { box-shadow: inset 3px 0 0 var(--decide); background: var(--decide-tint); }
+  .step.phase { background: var(--surface-2); }
+  .step .tags { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; padding-top: 0.15rem; }
+  .note { border-left: 3px solid var(--frame); padding: 0.2rem 0 0.2rem 1rem; margin-top: 1.25rem; max-width: 66ch; }
+  .note.real { border-left-color: var(--real); }
+  .note.changed { border-left-color: var(--changed); }
+  .note.decide { border-left-color: var(--decide); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.93rem; background: var(--surface); }
+  .tablewrap { overflow-x: auto; margin-top: 1rem; border: 1px solid var(--line); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-top: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 0; background: var(--surface-2); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); padding: 1rem; margin-top: 1.25rem; overflow-x: auto; }
+  ol.plain { padding-left: 1.2rem; } ol.plain li { margin-top: 0.5rem; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+</style>
+
+<div class="page">
+  <div class="eyebrow">MTG-Ichor · Phase LI-1 · CR 613.3, 613.6, 613.7, 604.2 · branch at 454420a · CR tmnt</div>
+  <h1>One Pass Per Board</h1>
+  <p class="lede prose">Until LI-1 the layer system walked <em>one object</em> through the ten layers, and every read it made of another object was answered as that object stood at the end of the <em>previous</em> layer. CR 613 describes a pass per layer over the whole board, in which each thing applied can see everything applied earlier in the same layer. This page is the difference, walked one call at a time: the pooled board that broke the old walk, the look-ahead for an entering permanent, and a card in a graveyard that no row can reach — plus the struct that holds a pass, field by field, because the review asked for it.</p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#map">The map</a>
+    <a href="#struct"><code>Board</code>, field by field</a>
+    <a href="#entry">The entry's three routes</a>
+    <a href="#a">A · Humility, then Hierophants</a>
+    <a href="#b">B · A look-ahead entry</a>
+    <a href="#c">C · A card in a graveyard</a>
+    <a href="#reads">Where the reads differ</a>
+    <a href="#delta">What LI-1 changed, and what it did not</a>
+  </nav>
+
+  <div class="legend">
+    <span class="chip real">state</span> reads <code>GameState</code> as it is: an entity, the registry, the object store
+    <span class="chip frame">live</span> reads a frame in the pass's map, as the pass has built it <em>so far</em>
+    <span class="chip none">ceiling</span> the old walk's sub-walk of another object to a lower layer ceiling
+    <span class="chip changed">memo</span> <code>GameState::layer_memo</code>, the cross-call cache (item 7a)
+    <span class="chip new">LI-1</span> new in this phase
+    <span class="chip decide">wrong</span> the read that produced the wrong answer
+  </div>
+
+  <h2 id="map">The map</h2>
+  <p class="prose">One entry point, three routes, one loop. <code>compute_characteristics</code> is what every oracle wrapper calls; on a memo miss it asks <code>membership</code> which route the object takes. A permanent takes the pass: <code>Board::seed</code> lays out every member's printed characteristics, and then, layer by layer, <code>applications_in_layer</code> collects what the layer applies and <code>apply_layer</code> applies it in order. Every pink node is new; every read inside the loop goes through <code>Board::frame_of</code>.</p>
+
+  <div class="mermaid">
+flowchart TD
+  CC["compute_characteristics(game, id)"] --> MEMO{"layer_memo hit<br/>at this epoch?"}
+  MEMO -- yes --> RET["return the shared frame"]
+  MEMO -- no --> MEM["membership(game, id)"]
+  MEM -- "Member: an entity, or Fixed-named" --> CB["compute_board_to(game, None, None, 10)"]
+  MEM -- "ZoneOnly: in the zone, no entity" --> CBA["compute_board_to(game, None, Some(id), 10)"]
+  MEM -- "NonMember: no row can reach it" --> NM["compute_non_member(game, Board::settled(), id, 10)"]
+  CB --> SEED["Board::seed<br/>members in walk order, frame[m] = printed + controller"]
+  CBA --> SEED
+  SEED --> LAYER["for layer in LAYER_ORDER"]
+  LAYER --> APPS["applications_in_layer<br/>CDAs · rows · would-be rows · counters<br/>sorted on (is_cda desc, timestamp, tiebreak)"]
+  APPS --> AL["apply_layer · in that order"]
+  AL --> ONE["apply_one"]
+  ONE --> EX["static_ability_still_exists<br/>frame_of(source) — live"]
+  EX --> AFF["affected_members<br/>locked set (CR 613.6) or the filter over every member"]
+  AFF --> RES["resolve_modification<br/>reads first: 'you', a dynamic amount"]
+  RES --> APP["apply_resolved<br/>then writes frame[target]"]
+  APP --> LAYER
+  LAYER -- "all ten done" --> FILL["into_frames → layer_memo.insert(m, epoch, frame) for every member"]
+  FILL --> RET
+  NM --> CDA["its own CDAs only, layer by layer;<br/>reads of other objects go through frame_of"]
+  CDA --> FILL1["layer_memo.insert(id, epoch, frame)"]
+  FILL1 --> RET
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  class MEM,CB,CBA,NM,SEED,APPS,AL,ONE,EX,AFF,RES,APP,FILL,CDA new;
+  </div>
+
+  <h2 id="struct"><code>Board</code>, field by field</h2>
+  <p class="prose">A <code>Board</code> is <em>one pass in progress</em> — everything the walk needs to answer "what does object X look like right now, mid-layer" without touching <code>GameState</code> again. It is built by <code>Board::seed</code>, mutated by <code>apply_one</code>, and consumed by <code>into_frames</code> (every member's frame goes to the memo) or <code>take</code> (one frame is kept, the rest dropped). The second way to hold one is <code>Board::settled()</code>: no members and no live frames, used only by a non-member's own walk so that its reads of permanents go to the memo instead.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Field</th><th>What it holds</th><th>Why it is here</th></tr></thead>
+    <tbody>
+      <tr><td><code>members: Vec&lt;ObjectId&gt;</code></td><td>The working set in walk order: battlefield entities by CR 613.7 timestamp, then the look-ahead's entering object, then whatever <code>Fixed</code> rows name.</td><td>The pass needs a deterministic order to walk in (CLAUDE.md, determinism): filters are evaluated over this list, and a CDA's tiebreak is its index in it. Derived from what rows can reach; a zone-reaching <code>AffectedSet</code> (item 9) adds a clause here.</td></tr>
+      <tr><td><code>entities: usize</code></td><td>How many of <code>members</code>, from the front, are battlefield entities.</td><td>A count over the battlefield (<code>CountOf</code>, Keldon Warlord) enumerates exactly this prefix — so an entering object is visible to filters and invisible to counts (§5b's boundary) without a second list.</td></tr>
+      <tr><td><code>frames: HashMap&lt;ObjectId, EffectiveCharacteristics&gt;</code></td><td>One live frame per member. Seeded from printed characteristics at layer 0 and mutated in place as applications are applied.</td><td>This <em>is</em> the board-wide state CR 613 describes. Every read mid-pass is a lookup here; nothing recomputes a member. Never iterated in an observable order (the memo fill is keyed).</td></tr>
+      <tr><td><code>live: bool</code></td><td>Whether <code>frames</code> is the answer for members (a pass) or the memo is (settled).</td><td>One <code>frame_of</code> serves both callers; this is the switch.</td></tr>
+      <tr><td><code>started: HashMap&lt;EffectGroup, Vec&lt;ObjectId&gt;&gt;</code></td><td>CR 613.6's locked sets: for each CR-level effect that has applied, the members it applied to at its first layer.</td><td>March of the Machines and Humility are one effect with rows in two layers; the later row must apply to the same objects without re-running the filter or the existence check — Humility's 7b part still sets the Hierophants to 1/1 after Humility stripped its own generating ability? No: after it stripped <em>the Hierophants'</em> ability (trace A, step 15). Keyed by group, not row.</td></tr>
+      <tr><td><code>track_started: bool</code></td><td>Whether any group has more than one row.</td><td>For a single-row group the locked set is written and never read; skipping the bookkeeping was 70% of a static-heavy walk once. Same gate the old walk had.</td></tr>
+      <tr><td><code>lookahead: Option&lt;&amp;Lookahead&gt;</code></td><td>CR 614.12's look-ahead for one entering object, when the pass is <code>compute_as_entering</code>'s.</td><td>Threaded through the board rather than passed beside it, so a frame built under one hypothetical is never served to a walk under another. Read by <code>entity</code> (the would-be entity) and <code>rows_in_layer</code> (the would-be rows).</td></tr>
+      <tr><td><code>sub: RefCell&lt;HashMap&lt;(ObjectId, usize), Arc&lt;…&gt;&gt;&gt;</code></td><td>Frames of <em>non-members</em> computed at a layer ceiling during this pass — a graveyard card Tarmogoyf counted.</td><td>The one piece of the old frame cache that survives, for the one path no row reaches. <code>RefCell</code> because reads take <code>&amp;Board</code>. Discarded with the pass.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The methods, in the order a pass uses them</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Does</th><th>Called by</th></tr></thead>
+    <tbody>
+      <tr><td><code>seed(game, lookahead, asked)</code></td><td>Builds <code>members</code> and seeds every frame from <code>CardData</code> plus the entity's controller and CR 302.6 clock (or the owner, for a member with no entity). Counts one <code>Layer frames</code> per member.</td><td><code>compute_board_to</code>, once per pass</td></tr>
+      <tr><td><code>settled()</code></td><td>The no-frames view for a non-member's own walk.</td><td><code>compute_characteristics</code>, <code>frame_at_ceiling</code></td></tr>
+      <tr><td><code>entity(game, id)</code></td><td>Accessor 1: the entity a member reads counters and its controller off — the look-ahead's would-be entity for the entering object, the real one otherwise.</td><td><code>seed</code>, <code>applications_in_layer</code> (counters, CDA timestamps)</td></tr>
+      <tr><td><code>in_battlefield_zone_or_entering(game, id)</code></td><td>The zone gate a filter row asks before matching (RC-3's rule): in the battlefield zone, or the entering object.</td><td><code>affected_members</code></td></tr>
+      <tr><td><code>battlefield_ids(game)</code></td><td>The entities, in order, for a count — <code>members[..entities]</code> live, <code>battlefield_ids_ordered()</code> settled.</td><td><code>evaluate_amount</code>'s <code>CountOf</code></td></tr>
+      <tr><td><code>frame_of(game, id, ceiling)</code></td><td><strong>The one read of another object.</strong> A member's live frame; in settled mode an entity's memoized frame (which may itself run a pass); otherwise a non-member walked to <code>ceiling</code>, cached in <code>sub</code>.</td><td>existence check, <code>FilterPlayers::you</code>, <code>CountOf</code>, <code>CardTypesAmong</code>, <code>resolve_modification</code></td></tr>
+      <tr><td><code>has_frame(id)</code></td><td>Is <code>id</code> a member (has a live frame)?</td><td><code>affected_members</code> for <code>SourceOnly</code>/<code>Fixed</code>/<code>Host</code></td></tr>
+      <tr><td><code>into_frames()</code> / <code>take(id)</code></td><td>Hand every frame to the memo, or keep one and drop the rest.</td><td><code>compute_characteristics</code>; <code>compute_characteristics_uncached</code>, <code>compute_as_entering</code>, <code>frame_at_ceiling</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="prose">Two functions beside the struct do the work. <code>applications_in_layer</code> builds the layer's list — every member's CDAs at that layer (read off its live ability list, CR 613.3), the registry's rows for the layer plus the look-ahead's would-be rows (CR 613.7), keyword counters at layer 6 and P/T counters at 7c (CR 613.7c) — and sorts it once on <code>(is_cda desc, timestamp, tiebreak)</code>. <code>apply_one</code> applies one entry: existence, then targets, then for each target <em>resolve</em> (make the reads) and <em>apply</em> (make the write).</p>
+
+  <h2 id="entry">The entry's three routes</h2>
+  <p class="prose"><code>membership(game, id)</code> answers one question: can any registry row reach this object? It reads the <code>AffectedSet</code> variants rather than a list. A <code>Filter</code> or <code>Host</code> row reaches the battlefield; a <code>SourceOnly</code> row reaches its source, a permanent; a <code>Fixed</code> row names what it names, anywhere. So:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Membership</th><th>Which objects</th><th>How it is computed</th></tr></thead>
+    <tbody>
+      <tr><td><code>Member</code></td><td>Every battlefield entity; any object a <code>Fixed</code> row names (a pump spell's target that has since died).</td><td>A pass over the whole working set. Every member's frame is stored in the memo at this epoch, so the next member asked is a hit.</td></tr>
+      <tr><td><code>ZoneOnly</code></td><td>In the battlefield zone with no entity yet — a token whose entry is being decided. Asked directly by the CR 614.17 restriction predicate mid-entry.</td><td>A pass with this object added as a member (<code>asked</code>). It is invisible to counts and no row's affected set changes for its presence, so every other member's frame is the same with it as without.</td></tr>
+      <tr><td><code>NonMember</code></td><td>A card in a hand, library or graveyard; a spell on the stack.</td><td><code>compute_non_member</code>: printed characteristics plus its own CDAs (CR 604.3 — CDAs function in all zones). Its reads of permanents go through <code>frame_of</code> to the memo.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="a">A · Humility, then Citanul Hierophants</h2>
+  <p class="prose">The board the performance pool builds, and the one that made the phase urgent. Timestamps in entry order; the query is the Bears' effective abilities.</p>
+  <div class="board">
+    <div class="card"><div class="who">P1 · ts 1</div><div class="name">Humility</div><div class="text">{2}{W}{W} Enchantment. "All creatures lose all abilities and have base power and toughness 1/1." Two registry rows, one effect: <code>LoseAllAbilities</code> at layer 6 and <code>SetPowerToughness(1,1)</code> at 7b, both over "creature".</div></div>
+    <div class="card"><div class="who">P0 · ts 2</div><div class="name">Grizzly Bears</div><div class="text">2/2 vanilla creature.</div></div>
+    <div class="card"><div class="who">P0 · ts 3</div><div class="name">Citanul Hierophants</div><div class="text">{3}{G} 3/2. "Creatures you control have '{T}: Add {G}.'" One row: <code>GrantAbility</code> at layer 6 over "creature you control".</div></div>
+  </div>
+
+  <h3>Before LI-1: one walk, one object</h3>
+  <ol class="trace">
+    <li class="step phase"><span class="n">1</span><div class="call"><code>compute_characteristics(game, bears)</code><span class="loc">compute.rs</span></div><span class="tags"><span class="chip changed">memo</span></span><p class="what">Miss at this epoch. Walk the Bears alone: <code>compute_to_ceiling(bears, 10)</code>.</p></li>
+    <li class="step"><span class="n">2</span><div class="call" style="--d:1"><code>seed</code><span class="sub">printed 2/2 creature; controller P0 off the entity</span></div><span class="tags"><span class="chip real">state</span></span><p class="what">Layer 0.</p></li>
+    <li class="step"><span class="n">3</span><div class="call" style="--d:1"><code>layers 1–5</code></div><span class="tags"><span class="chip real">state</span></span><p class="what">The registry slices are empty at these layers. Nothing applies.</p></li>
+    <li class="step phase"><span class="n">4</span><div class="call" style="--d:1"><code>layer 6 · rows_in_layer</code></div><span class="tags"><span class="chip real">state</span></span><p class="what">Two rows, in <code>(timestamp, id)</code> order: Humility's strip (ts 1), then the Hierophants' grant (ts 3).</p></li>
+    <li class="step"><span class="n">5</span><div class="call" style="--d:2"><code>effect_applies_to(Humility's row, bears)</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what">Filter "creature" against the Bears' own frame: yes.</p></li>
+    <li class="step"><span class="n">6</span><div class="call" style="--d:2"><code>static_ability_still_exists(Humility's row)</code><span class="sub">compute_to_ceiling(humility, 5) — Humility as of the end of layer 5</span></div><span class="tags"><span class="chip none">ceiling</span></span><p class="what">Humility still has its ability. Apply: the Bears lose all abilities. Mark Humility's group as started.</p></li>
+    <li class="step"><span class="n">7</span><div class="call" style="--d:2"><code>effect_applies_to(Hierophants' row, bears)</code><span class="sub">"you" = effective_controller(hierophants, 5)</span></div><span class="tags"><span class="chip frame">live</span><span class="chip none">ceiling</span></span><p class="what">Creature, controlled by P0, and "you" is P0: yes.</p></li>
+    <li class="step" data-era="wrong"><span class="n">8</span><div class="call" style="--d:2"><code>static_ability_still_exists(Hierophants' row)</code><span class="sub">compute_to_ceiling(hierophants, 5) — the Hierophants as of the end of layer 5</span></div><span class="tags"><span class="chip decide">wrong</span></span><p class="what"><em>At the end of layer 5 the Hierophants still have their grant.</em> Humility's strip is a layer-6 application, and a ceiling-5 sub-walk cannot see it. The check says the grant exists; the Bears gain "{T}: Add {G}".</p></li>
+    <li class="step"><span class="n">9</span><div class="call" style="--d:1"><code>layer 7b</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what">Humility's group is started, so its 7b row applies without re-asking: the Bears are 1/1.</p></li>
+    <li class="step"><span class="n">10</span><div class="call"><code>return</code></div><span class="tags"><span class="chip changed">memo</span></span><p class="what">A 1/1 with a mana ability. Observable in a game: a creature under Humility taps for {G}.</p></li>
+  </ol>
+  <div class="note decide"><p>The wrong read is step 8, and it is not a bug in the check but in what the check could see. CR 604.2 asks whether the Hierophants <em>have</em> the ability — now, as the layer stands — and the old walk had no "now" for another object, only "as of the end of the previous layer".</p></div>
+
+  <h3>After LI-1: one pass, three members</h3>
+  <ol class="trace">
+    <li class="step phase" data-era="new"><span class="n">1</span><div class="call"><code>compute_characteristics(game, bears)</code><span class="loc">compute.rs</span></div><span class="tags"><span class="chip changed">memo</span><span class="chip new">LI-1</span></span><p class="what">Miss. <code>membership</code>: the Bears are an entity → <code>Member</code> → <code>compute_board_to(game, None, None, 10)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">2</span><div class="call" style="--d:1"><code>Board::seed</code><span class="loc">board.rs</span></div><span class="tags"><span class="chip real">state</span></span><p class="what"><code>members = [Humility, Bears, Hierophants]</code> (timestamp order); three frames seeded from printed characteristics and each entity's controller. <code>track_started = true</code>: Humility has two rows. Three <code>Layer frames</code> counted.</p></li>
+    <li class="step" data-era="new"><span class="n">3</span><div class="call" style="--d:1"><code>layers 1–5 · applications_in_layer</code></div><span class="tags"><span class="chip real">state</span><span class="chip frame">live</span></span><p class="what">No CDAs on any member's live list, no rows, no counters. Five empty lists.</p></li>
+    <li class="step phase" data-era="new"><span class="n">4</span><div class="call" style="--d:1"><code>layer 6 · applications_in_layer</code></div><span class="tags"><span class="chip real">state</span></span><p class="what">Two applications, sorted: <code>Row(Humility's strip)</code> — not a CDA, ts 1, tiebreak <code>Row(id 1)</code>; <code>Row(Hierophants' grant)</code> — ts 3, <code>Row(id 3)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">5</span><div class="call" style="--d:2"><code>apply_one(Humility's strip)</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what"><code>started</code> has no entry for Humility's group yet.</p></li>
+    <li class="step" data-era="new"><span class="n">6</span><div class="call" style="--d:3"><code>static_ability_still_exists</code><span class="sub">frame_of(humility) → the live frame</span></div><span class="tags"><span class="chip frame">live</span></span><p class="what">Humility's live frame still carries its ability. Exists.</p></li>
+    <li class="step" data-era="new"><span class="n">7</span><div class="call" style="--d:3"><code>affected_members</code><span class="sub">filter "creature" over every member's live frame</span></div><span class="tags"><span class="chip frame">live</span></span><p class="what">Humility: not a creature. Bears: yes. Hierophants: yes. Targets <code>[Bears, Hierophants]</code>; <code>started[Humility's group] = [Bears, Hierophants]</code> — the CR 613.6 locked set.</p></li>
+    <li class="step" data-era="new"><span class="n">8</span><div class="call" style="--d:3"><code>resolve_modification · apply_resolved</code><span class="sub">for each target</span></div><span class="tags"><span class="chip frame">live</span></span><p class="what"><code>LoseAllAbilities</code> reads nothing (<code>Resolved::AsIs</code>). The Bears' frame: no abilities. <em>The Hierophants' frame: no abilities.</em></p></li>
+    <li class="step" data-era="new"><span class="n">9</span><div class="call" style="--d:2"><code>apply_one(Hierophants' grant)</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what">Single-row group, nothing locked.</p></li>
+    <li class="step" data-era="new"><span class="n">10</span><div class="call" style="--d:3"><code>static_ability_still_exists</code><span class="sub">frame_of(hierophants) → the live frame, <em>after step 8</em></span></div><span class="tags"><span class="chip frame">live</span><span class="chip new">LI-1</span></span><p class="what">The live frame has no abilities. <em>The grant does not exist.</em> Return without applying. (CR 604.2, read against what this layer has already done.)</p></li>
+    <li class="step" data-era="new"><span class="n">11</span><div class="call" style="--d:1"><code>layer 7a · applications_in_layer</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what">No member's live ability list carries a CDA. Empty.</p></li>
+    <li class="step" data-era="new"><span class="n">12</span><div class="call" style="--d:1"><code>layer 7b · apply_one(Humility's 1/1)</code><span class="sub">started[Humility's group] = [Bears, Hierophants]</span></div><span class="tags"><span class="chip frame">live</span></span><p class="what">The locked set: no filter, no existence check. <code>Resolved::SetPt(Some((1, 1)))</code> to both. Bears 1/1, Hierophants 1/1.</p></li>
+    <li class="step" data-era="new"><span class="n">13</span><div class="call" style="--d:1"><code>layers 7c, 7d</code></div><span class="tags"><span class="chip real">state</span></span><p class="what">No counters, no rows. Empty.</p></li>
+    <li class="step phase" data-era="new"><span class="n">14</span><div class="call"><code>into_frames → layer_memo.insert(…)</code></div><span class="tags"><span class="chip changed">memo</span><span class="chip new">LI-1</span></span><p class="what">All three frames stored at this epoch. The Bears' frame is returned: <em>1/1, no abilities.</em> The next question about Humility or the Hierophants is a memo hit — one <code>Board walks</code>, three <code>Layer frames</code>, no sub-walks.</p></li>
+  </ol>
+  <div class="note changed"><p>The other order — Hierophants first (ts 1), Humility later — is not shown because it was already right: the grant applies, then Humility strips the Bears (and the Hierophants) anyway. Both orders now answer "no abilities". Which is what the flipped pin, <code>test_humility_before_hierophants_retires_the_grant</code>, asserts.</p><p>Step 12 is the CR 613.6 point the review asked about: Humility's <em>own</em> generating ability is never stripped here (Humility is not a creature), so the locked set is doing the ordinary thing — applying the 7b half to the set the 6 half found. Where the lock matters is a board like Humility + Opalescence, where Humility <em>is</em> a creature by layer 6 and strips its own ability, and the 7b half still applies (the 2009-10-01 ruling says so). That board is LI-2's test.</p></div>
+
+  <h2 id="b">B · A look-ahead entry</h2>
+  <p class="prose">"What objects are entering the battlefield?" — the replacement pipeline's question. Before a permanent enters, CR 614.12 says its ETB replacement effects are decided by looking at the permanent <em>as it would exist</em> on the battlefield (enters-tapped, counters, and CR 614.17d's "can't enter"). RC-4 built that look-ahead as a perturbation of the layer walk; under LI-1 it is a pass with one extra member. The board is the RC-4 unit test's: an Anthem Bear returning from the graveyard beside a plain bear.</p>
+  <div class="board">
+    <div class="card"><div class="who">P0 · on the battlefield</div><div class="name">Other Bears</div><div class="text">2/2 vanilla creature.</div></div>
+    <div class="card moving"><div class="who">P0 · in the graveyard, entering</div><div class="name">Anthem Bear</div><div class="text">Fixture 2/2 with "Creatures you control get +1/+1" — a static ability that will register a layer-7c row over "creature you control" once it has entered.</div></div>
+  </div>
+  <ol class="trace">
+    <li class="step phase"><span class="n">1</span><div class="call"><code>compute_as_entering(game, anthem, P0, EnterMods::NONE)</code><span class="loc">lookahead.rs</span></div><span class="tags"><span class="chip real">state</span></span><p class="what">Counts a <code>Layer walks</code>. Builds the <code>Lookahead</code>: the entity the performer <em>would</em> build (controller P0, a timestamp later than every registered row), and the rows <code>register_static_effects</code> <em>would</em> write — one 7c anthem row with that timestamp.</p></li>
+    <li class="step" data-era="new"><span class="n">2</span><div class="call" style="--d:1"><code>compute_board(game, Some(&amp;lookahead))</code><span class="loc">board.rs</span></div><span class="tags"><span class="chip new">LI-1</span></span><p class="what">A full pass, no memo fill.</p></li>
+    <li class="step" data-era="new"><span class="n">3</span><div class="call" style="--d:2"><code>Board::seed</code></div><span class="tags"><span class="chip real">state</span><span class="chip frame">live</span></span><p class="what"><code>members = [Other Bears, Anthem Bear]</code>; <code>entities = 1</code>. The Anthem Bear's frame seeds from the <em>look-ahead's</em> entity (accessor 1 answers the look-ahead first). Two frames.</p></li>
+    <li class="step" data-era="new"><span class="n">4</span><div class="call" style="--d:2"><code>layer 7c · applications_in_layer</code></div><span class="tags"><span class="chip real">state</span></span><p class="what">The registry has nothing; <code>rows_in_layer</code> chains the look-ahead's would-be row after it: <code>Row { effect: anthem row, would_be: true }</code>, tiebreak <code>WouldBeRow(0)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">5</span><div class="call" style="--d:3"><code>apply_one · static_ability_still_exists</code><span class="sub">frame_of(anthem) — live</span></div><span class="tags"><span class="chip frame">live</span></span><p class="what">The would-be row's source is the Anthem Bear itself, whose live frame carries the printed ability. Exists.</p></li>
+    <li class="step" data-era="new"><span class="n">6</span><div class="call" style="--d:3"><code>affected_members</code><span class="sub">would_be → candidates = [the source] only</span></div><span class="tags"><span class="chip frame">live</span><span class="chip new">LI-1</span></span><p class="what">§5b's asymmetry: an entering permanent's static abilities reach nothing else, because CR 604.3 makes them function on the battlefield and it is not there yet. The zone gate admits the entering object; the filter "creature you control" matches it ("you" = its own live controller, P0). Target: the Anthem Bear alone.</p></li>
+    <li class="step" data-era="new"><span class="n">7</span><div class="call" style="--d:3"><code>resolve_modification · apply_resolved</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what"><code>Resolved::ModifyPt(Some(1), Some(1))</code>. The Anthem Bear's frame: 3/3. <em>Other Bears stays 2/2.</em></p></li>
+    <li class="step phase"><span class="n">8</span><div class="call"><code>take(anthem)</code></div><span class="tags"><span class="chip none">—</span></span><p class="what">3/3 — CR 614.12 clause (2): its own anthem, in its own frame. Nothing stored: the pass computed a hypothetical.</p></li>
+  </ol>
+  <div class="note real"><p>This asymmetry is <em>not</em> a statement about dependency. CR 613.8a's check is symmetric — LI-2 asks "does A depend on B" <em>and</em> "does B depend on A" of every pair — and a would-be row takes part in it like any other row. What §5b restricts is only which objects the entering permanent's own rows can reach before it has entered: itself. <code>test_look_ahead_rows_reach_only_the_entering_object</code> pins both halves: 3/3 for the entering Bear, 2/2 for the other in the same pass, and 3/3 for both once it has actually entered.</p></div>
+
+  <h2 id="c">C · A card in a graveyard</h2>
+  <p class="prose">Keldon Warlord ("power and toughness each equal to the number of non-Wall creatures you control", a CDA at layer 7a) in P0's graveyard, with two bears under P0 and one under P1 on the battlefield. No registry row can reach a graveyard card, so this is the third route.</p>
+  <ol class="trace">
+    <li class="step phase" data-era="new"><span class="n">1</span><div class="call"><code>compute_characteristics(game, warlord)</code></div><span class="tags"><span class="chip changed">memo</span><span class="chip new">LI-1</span></span><p class="what">Miss. <code>membership</code>: no entity, zone is Graveyard, no <code>Fixed</code> row names it → <code>NonMember</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">2</span><div class="call" style="--d:1"><code>compute_non_member(game, Board::settled(), warlord, 10)</code><span class="loc">compute.rs</span></div><span class="tags"><span class="chip real">state</span></span><p class="what">Seed from printed 0/0; controller = <code>base_controller</code> → the owner, P0 (a card in a graveyard has no controller). It has a CDA, so walk.</p></li>
+    <li class="step" data-era="new"><span class="n">3</span><div class="call" style="--d:1"><code>layer 7a · cda_modifications</code><span class="loc">cda.rs</span></div><span class="tags"><span class="chip frame">live</span></span><p class="what">One modification off its own ability list: <code>SetPowerToughness(CountOf(non-Wall creatures you control), same)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">4</span><div class="call" style="--d:2"><code>resolve_modification → evaluate_amount → CountOf</code><span class="sub">board.battlefield_ids(game) — settled: battlefield_ids_ordered()</span></div><span class="tags"><span class="chip real">state</span></span><p class="what">Three entities to look at. "You" is the Warlord's own controller off its frame, P0 (CR 109.5 for a CDA).</p></li>
+    <li class="step" data-era="new"><span class="n">5</span><div class="call" style="--d:3"><code>frame_of(bear, ceiling 6)</code><span class="sub">settled and an entity → compute_characteristics(bear)</span></div><span class="tags"><span class="chip changed">memo</span></span><p class="what">Each bear's frame from the memo — a hit, or one pass that fills all three. Two match "creature you control ∧ not Wall"; P1's does not. Count: 2.</p></li>
+    <li class="step" data-era="new"><span class="n">6</span><div class="call" style="--d:2"><code>apply_resolved(SetPt(Some((2, 2))))</code></div><span class="tags"><span class="chip frame">live</span></span><p class="what">The Warlord's frame: 2/2.</p></li>
+    <li class="step phase"><span class="n">7</span><div class="call"><code>layer_memo.insert(warlord, epoch, frame)</code></div><span class="tags"><span class="chip changed">memo</span></span><p class="what">Stored on its own. The next question about it is a hit until something writes a walk input.</p></li>
+  </ol>
+  <div class="note"><p>The same walk runs <em>inside</em> a pass when a member's CDA reads a non-member — Tarmogoyf on the battlefield counting card types in graveyards — except that <code>frame_of</code> then holds a live board, caches the graveyard card's frame in <code>sub</code> keyed by ceiling, and no memo is touched. That nested walk is the one recursion left, and it descends: a read at ceiling <em>c</em> only asks for ceilings below <em>c</em>. <code>test_one_pass_answers_every_member_and_nested_reads_are_not_board_walks</code> counts it: one board walk, however many graveyard cards.</p></div>
+
+  <h2 id="reads">Where the reads differ</h2>
+  <p class="prose">Every place the old walk read a characteristic of <em>another</em> object, what it read from, and what it reads from now. "End of the previous layer" was a sub-walk of that object to a lower ceiling; "live" is a lookup in the pass's map.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Read</th><th>Asked by</th><th>Before LI-1</th><th>Under the pass</th><th>Changes an answer when…</th></tr></thead>
+    <tbody>
+      <tr><td>Does the source still have the generating ability? (CR 604.2)</td><td><code>static_ability_still_exists</code>, for every <code>StaticAbility</code> row at its turn</td><td>the source at the end of the previous layer</td><td>the source's live frame</td><td>something earlier in the <em>same</em> layer removed it — trace A, step 10; Blood Moon stripping Urborg at layer 4</td></tr>
+      <tr><td>Who is "you" for a static ability? (CR 109.5)</td><td><code>FilterPlayers::you</code>, for a filter or a <code>SetController(You)</code></td><td>the source's controller at the end of the previous layer</td><td>the source's live controller</td><td>a layer-2 row earlier in layer 2 moved control of the source — the mutual case the old doc called out as CR 613.8b's</td></tr>
+      <tr><td>Does the candidate match the filter?</td><td><code>affected_members</code></td><td>the walked object's own frame, live — but only ever for that one object</td><td>every member's live frame, one row at a time</td><td>never for one object; what changes is that one application now applies to every target at once, so the next application sees all of them</td></tr>
+      <tr><td>How many permanents match? (<code>CountOf</code>)</td><td>a dynamic amount — Keldon Warlord, Ashaya</td><td>each entity at the end of the previous layer</td><td>each member's live frame; the counting member included, which is why a modification is resolved before its frame is written</td><td>a same-layer application changed what is counted — CR 613.8a(c)'s both-CDA shape, no printed card</td></tr>
+      <tr><td>Card types in graveyards (<code>CardTypesAmong</code>)</td><td>Tarmogoyf</td><td>each card at the current ceiling</td><td>unchanged: non-members, walked at that ceiling, cached in <code>sub</code></td><td>—</td></tr>
+      <tr><td>Which objects a started effect's later row applies to (CR 613.6)</td><td><code>apply_one</code></td><td>a per-walk mark: "this group has applied to <em>this object</em>"; an object the group missed at its first layer had the filter re-run at the later layer</td><td>the locked set of members the group applied to at its first layer, recorded even when empty</td><td>a later same-layer effect made more objects match the group's filter — "Forests are 2/2 creatures" beside a later "lands are Forests": the Swamp is not 2/2. No registered pair builds it</td></tr>
+      <tr><td>A +1/+1 counter's place in layer 7c (CR 613.7c)</td><td><code>applications_in_layer</code></td><td>after every row of the layer</td><td>an application on the counter's own timestamp</td><td>a 7c row reads power — <code>test_a_counter_older_than_a_power_reading_row_applies_first</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="delta">What LI-1 changed, and what it did not</h2>
+  <div class="two">
+    <div>
+      <h3>Changed</h3>
+      <ol class="plain">
+        <li><strong>The unit of computation</strong> is a board, not an object. A memo miss for any permanent computes every permanent and stores them all; <code>Layer walks</code> fell 2,425 → 328 per 50 games and <code>Board walks</code> (236) is most of what is left.</li>
+        <li><strong>Every read of another object is live.</strong> Trace A's step 10 is the whole phase. The descending-ceiling termination argument went with it (§5.2); the canary still overflows a version that re-enters the pass.</li>
+        <li><strong>Counters are applications.</strong> Keyword counters already interleaved with rows by timestamp; P/T counters now do too.</li>
+        <li><strong>CR 613.6 locks a set</strong>, not a per-object mark.</li>
+        <li><strong>A layer-6 static granted by resolution applies</strong> — the assert in <code>register_granted_static_effects</code> admits layer 6 now (Rune of Flight's shape).</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Not changed</h3>
+      <ol class="plain">
+        <li><strong>The order within a layer.</strong> Still CR 613.3 then timestamp; CR 613.8's dependency ordering is LI-2. Trace A is right only because Humility's timestamp is earlier — the Blood Moon boards in item 8 are still wrong today.</li>
+        <li><strong>What a filter reads, what an amount means, how a modification writes.</strong> <code>permanent_matches_filter</code>, <code>evaluate_amount</code> and the per-arm writes are the old code, split into a read step and a write step.</li>
+        <li><strong>The look-ahead's contract</strong> (CR 614.12, §5b): the entering object is visible to filters, invisible to counts, and its own rows reach only itself.</li>
+        <li><strong>The memo's key</strong>: one epoch, no finer key (§12 "7a"). The pass's output is what the memo stores, as that section said it would be.</li>
+        <li><strong>Determinism.</strong> Three serial runs per pool are byte-identical outside the timing block. One game in forty differs from <code>main</code> on each pool because the answer on trace A's board changed, not because anything varies between runs.</li>
+      </ol>
+    </div>
+  </div>
+  <p class="prose" style="margin-top:2rem"><span class="eyebrow">Sources</span><br>CR 604.2, 611.3b (existence); 613.3, 613.6, 613.7, 613.7c (order); 614.12 (the look-ahead); 604.3 (CDAs in all zones). Rulings quoted in <code>layers-architecture.md</code> §13b: Urborg, Tomb of Yawgmoth (2021-03-19), Rootpath Purifier (2022-10-14), Humility / Opalescence (2009-10-01, 2006-02-01), all fetched from Scryfall on 2026-09-06.</p>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = document.documentElement.dataset.theme === "dark"
+    || (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true } });
+</script>
+</body>
+</html>

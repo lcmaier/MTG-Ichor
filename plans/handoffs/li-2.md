@@ -11,6 +11,8 @@ Branch `layers/li-2-<name>` from `main` once #LI-1 is merged (or stacked on
 `layers/li-1-board-pass` if it is not). §13b's LI-2 section is the plan;
 the pieces are numbered there. What LI-1 left as hooks, in `engine/layers/board.rs`:
 
+- `board::membership` (formerly `Query`/`classify`) decides how the entry
+  computes an object; `Board::lookahead` is a `pub(super)` field.
 - `apply_layer(game, board, layer_index, apps)` applies in key order. LI-2
   replaces its body with the loop and the function becomes
   `resolve_order_within_layer` — it applies as it orders (CR 613.8c), so
@@ -31,22 +33,32 @@ the pieces are numbered there. What LI-1 left as hooks, in `engine/layers/board.
   "you" is resolved; `Board::frame_of` is the one read of another object.
 
 Tests LI-2 owes (§13b lists them; `specdb.py show` each atom first):
-Urborg + Blood Moon both orders; Ashaya + Blood Moon both orders; the
-613.8b loop fixture on creature types (`SetSubtypes` both ways, so the two
-orders differ); the 613.8c chain; ATOM-613.8a-003; **7c's CR 613.6 test**
-(`codebase-state.md` "Before Layers" 7c); and the **row-older-than-counter
-order** of `test_a_counter_older_than_a_power_reading_row_applies_first`
+Urborg + Blood Moon both orders (the ruling's words); the Purifier fixture
++ Blood Moon both orders (the ruling's words); Humility + Opalescence both
+orders and the two-Opalescence board, the rulings quoted — **7c's CR 613.6
+test** (`codebase-state.md` "Before Layers" 7c); Ashaya + Blood Moon both
+orders, marked CR-derived; the 613.8b loop fixture on creature types
+(`SetSubtypes` both ways, so the two orders differ); the 613.8c chain;
+ATOM-613.8a-003; and the **row-older-than-counter order** of `test_a_counter_older_than_a_power_reading_row_applies_first`
 in `tests/phase_li_integration_test.rs`, which LI-1 deliberately left
 unpinned because 613.8 changes it (the row depends on the counter).
 ATOM-613.8-001's "all activated abilities of other creatures" is not
 buildable — claim partial or nothing.
 
-Cards: **Urborg, Tomb of Yawgmoth** (Legendary Land; registered, and in
-`PERFORMANCE_POOL` beside Blood Moon) and **Ashaya, Soul of the Wild**
-(registered, `stress` only). Both Scryfall-verified 2026-09-06 — the texts
-are quoted in §13b. `phase_ld_cards::urborg_effect` stays the Enchantment
-fixture the CR 305.6 tests rest on. Rootpath Purifier is *not* LI-2's card:
-its library clause needs layers item 9.
+Cards and boards, worked from rulings (§13b's LI-2 piece 4 has the
+quotes): **Urborg, Tomb of Yawgmoth** (Legendary Land; registered, and in
+`PERFORMANCE_POOL` beside Blood Moon — its 2021-03-19 ruling is the
+answer); the **Rootpath Purifier ruling's board as a named fixture**
+("Lands you control are basic"; the printed Purifier waits on layers item 9
+for its library clause); **Opalescence**, registered, whose Humility rulings
+(2009-10-01, 2006-02-01) walk the layers with timestamps and are 7c's
+CR 613.6 test — it needs `PermanentFilter::Other` ("each other") on both
+`permanent_matches_filter`s, and LI-1's pass already gives the rulings'
+answers, so this is the first thing to build; and **Ashaya, Soul of the
+Wild** (registered, `stress` only) as the printed card of the applies-to
+shape, with an answer that is CR-derived and says so — no ruling covers it.
+All texts Scryfall-verified 2026-09-06. `phase_ld_cards::urborg_effect`
+stays the Enchantment fixture the CR 305.6 tests rest on.
 
 ## Then LI-3 — conditional statics
 

@@ -3359,9 +3359,9 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
 
-   - **Rootpath Purifier** ("Lands you control and land cards in your library are basic") changes the set of permanents Blood Moon affects, so Blood Moon *depends* on it and applies second regardless of timestamp — Blood Moon never touches that player's lands. We get this wrong whenever Blood Moon has the earlier timestamp.
+   - **Rootpath Purifier** ("Lands you control and land cards in your library are basic") changes the set of permanents Blood Moon affects, so Blood Moon *depends* on it and applies second regardless of timestamp — Blood Moon never touches that player's lands. Its ruling (Scryfall, 2022-10-14) says exactly this: "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic." We get this wrong whenever Blood Moon has the earlier timestamp.
 
-   - **Intra-layer re-evaluation is part of 613.8, and the written design omits it.** `layers-architecture.md` §5 orders each layer once via `resolve_order_within_layer`, then applies in that order. The CR re-evaluates dependencies **after each effect is applied** — the judge walkthrough of Blood Moon + Ashaya + Opalescence + Urborg applies one independent effect, recomputes every remaining pair, and repeats, which is how "Urborg no longer has an effect so we're done in layer 4" falls out. §9's hybrid algorithm needs to run inside that loop, not once per layer.
+   - **Intra-layer re-evaluation is part of 613.8, and the written design omits it.** `layers-architecture.md` §5 orders each layer once via `resolve_order_within_layer`, then applies in that order. The CR re-evaluates dependencies **after each effect is applied** (613.8c) — apply one independent effect, recompute every remaining pair, repeat — which is how "Urborg no longer has an effect so we're done in layer 4" falls out, and Urborg's own ruling (Scryfall, 2021-03-19) states the result: an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply". §9's hybrid algorithm needs to run inside that loop, not once per layer. (This bullet once cited "the judge walkthrough of Blood Moon + Ashaya + Opalescence + Urborg"; no such document is in the tree and the phrase had no source — corrected 2026-09-06.)
 
    - **CDAs are not in the DAG. Here is what to do if that ever costs us.** `engine/layers/cda.rs` applies characteristic-defining abilities intrinsically, so no CDA is ever a registry row. 613.8a(c)'s *first* clause — "neither effect is from a characteristic-defining ability" — therefore holds structurally, for free. Its *second* clause, both-CDA dependency, is currently unreachable, and the reason is worth stating precisely rather than filed as "can't do".
 
@@ -3400,14 +3400,18 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    **Reachability (2026-09-06):** reachable — wrong today on the two Blood
    Moon boards; the third is fixed. Step 4 is built — LI-1,
-   `engine/layers/board.rs`: Humility + Citanul Hierophants answers as the
+   `engine/layers/board.rs`, traced call by call in
+   `plans/traces/li-1-one-pass-per-board.html`: Humility + Citanul Hierophants answers as the
    CR does in both orders, and the pool's "engine, pool unchanged" A/B arm
    differs from `main` in one game in forty per pool for exactly that reason
    (`engineering-practices.md` §3). Step 1 is built with it (an
    `Application` per row, CDA or counter, carrying `is_cda`); steps 2 and 3
    — the dependency graph, 613.8b's loop rule, 613.8c's re-evaluation — are
-   LI-2, with Urborg, Tomb of Yawgmoth and Ashaya, Soul of the Wild as its
-   cards (`layers-architecture.md` §13b; Rootpath Purifier waits on item 9).
+   LI-2, worked from the rulings: Urborg, Tomb of Yawgmoth registered, the
+   Rootpath Purifier ruling's board as a named fixture (the Purifier itself
+   waits on item 9), Opalescence registered for the Humility rulings, and
+   Ashaya, Soul of the Wild as the printed card of the applies-to shape with
+   a CR-derived answer no ruling covers (`layers-architecture.md` §13b).
 
    **Sized:** LI-2, ~1,300–1,500 additions (§13b); step 4 shipped in LI-1
    at +1,013 / −775 in `src`.
@@ -3906,6 +3910,10 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    reachable at all; Commander interleave.
 
 ### Cross-cutting — keep this section honest
+
+**The existence check is CR 604.2, not CR 613.7a (2026-09-06, LI-1 review).** `static_ability_still_exists` and every comment and doc line around it have called the "does the source still have the ability" question "CR 613.7a" since 2026-08-21. 613.7a is the timestamp rule; the question is CR 604.2 — "these effects are active as long as the permanent with the ability remains on the battlefield and has the ability" — and 611.3b says the same. `engine/layers/board.rs` and `layers-architecture.md` §13b cite 604.2; the older sites (`compute.rs`, `lookahead.rs`, `resolve.rs`, `game_state.rs`, `layers/types.rs`, and the "Before Layers" items above) are a comment sweep owed, not a behaviour change. **Sized:** a grep for `613.7a` beside "exist", ~20 sites, one quiet commit.
+
+**`BattlefieldEntity` is misnamed (2026-09-06, LI-1 review).** It holds what a permanent has that its card does not — controller, the CR 613.7 timestamp, CR 110.5's status (tapped, flipped, face-down, phased out), counters, attachments, damage — and the name reads as a second kind of object beside `GameObject`. Proposed **`PermanentState`**; 93 sites in 26 files, its own quiet PR beside main item 64's rename, not this one. **Sized:** mechanical, ~100 lines of diff.
 
 **~~Summoning sickness ended one turn early (CR 302.6).~~ — ✅ fixed 2026-08-24.** `has_summoning_sickness` compared `control_since_turn >= game.turn_number`, which asks "was control gained during the turn now being played" — the same answer as the CR only on the controller's own turn. A creature you cast on your turn went unsick as soon as the turn passed, one full turn early, and at four players three turns early. Reachable in the current pool: Citanul Hierophants grants "{T}: Add {G}", and instant-speed mana activation on an opponent's turn is an ordinary play.
 

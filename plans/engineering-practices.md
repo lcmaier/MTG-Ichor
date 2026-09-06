@@ -192,10 +192,11 @@ across months buys the timing measurement nothing.
 `layers-architecture.md` §13b). No new card and no pool change — the
 consumer, Humility beside Citanul Hierophants, was already in both pools —
 so for once **every row is the engine's**, and the table gains a row,
-`Board passes`: the walks that computed the whole working set at once.
-Since LI-1 a miss for a permanent is a pass that fills the memo for every
-member, so `Layer walks` is the number of *boards* computed plus the walks
-of objects no row can reach, and `Frames/walk` reads near the board's size.
+`Board walks`: the layer walks that computed the whole working set at once.
+Since LI-1 a miss for a permanent walks the whole board and fills the memo
+for every member, so `Layer walks` is the number of *boards* computed plus
+the walks of objects no row can reach, and `Frames/walk` reads near the
+board's size.
 
 | | performance (68 cards) | stress (78 cards) |
 |---|---|---|
@@ -209,7 +210,7 @@ of objects no row can reach, and `Frames/walk` reads near the board's size.
 | Total damage | 53.6 | 60.1 |
 | Life changes | 15.7 | 17.4 |
 | **Layer walks** | **328** | **382** |
-| **Board passes** | **236** | **286** |
+| **Board walks** | **236** | **286** |
 | **Memo hits** | **95,005** | **122,108** |
 | **Layer frames** | **4,289** | **5,682** |
 | **Frames/walk** | **13.08** | **14.88** |
@@ -226,7 +227,7 @@ Hierophants' {G}.
 | | A: main | B: LI-1 |
 |---|---|---|
 | performance, 200 games, outside `=== Timing ===` | — | differs |
-| performance walks / passes (50 games) | 2,425 / — | 328 / 236 |
+| performance layer walks / board walks (50 games) | 2,425 / — | 328 / 236 |
 | performance frames, frames/walk (50 games) | 3,755, 1.55 | 4,289, 13.08 |
 | performance CPU/game median (200 games, ×3) | 14.56 ms | 14.81 ms (+1.7%) |
 | performance ms / 1,000 questions (walks + hits) | 0.146 | 0.149 (+2.1%) |
@@ -244,9 +245,9 @@ byte-identical to `main`'s. The behavioural rows move by that one game per
 pool: `performance` by a tenth of a turn, `stress` by more because its game
 20 diverged early (event 521 of 814) and ran to 1,297 events.
 
-Then the cost rows, which are the pass's shape rather than its price. Walks
-fell 7× because one pass fills the memo for every member where each member
-used to miss on its own; frames rose 14% because a pass builds one frame
+Then the cost rows, which are the pass's shape rather than its price. Layer
+walks fell 7× because one board walk fills the memo for every member where
+each member used to miss on its own; frames rose 14% because a pass builds one frame
 per member where a walk built 1.55; the two together are the +1.7% of
 CPU/game and the +2.1% per question, both inside the sitting's spread
 (round 1 read +0.5%, round 2 +4.7%, round 3 +1.7%). The look-ahead's cost —
@@ -261,11 +262,12 @@ decks did. `git worktree list` says where the source is; only a
 `cargo build --release --bin fuzz_games` in that worktree says where the
 binary is.
 
-**How to read `Board passes` from now on.** A walk is a pass or the walk of
-an object no row can reach (`board::classify`); passes × the working set is
-the bulk of `Layer frames`. A pass count that rises against unchanged walks
-means the engine started asking about permanents at more epochs; frames
-rising against unchanged passes means the boards got bigger.
+**How to read `Board walks` from now on.** A layer walk is a board walk or
+the walk of an object no row can reach (`board::membership`); board walks ×
+the working set is the bulk of `Layer frames`. A board-walk count that rises
+against unchanged layer walks means the engine started asking about
+permanents at more epochs; frames rising against unchanged board walks means
+the boards got bigger.
 
 **Re-recorded 2026-09-06 for LH-2** (CR 613.7e and Equip;
 `layers-architecture.md` §13a). Two new cards: Bonesplitter in both pools —
@@ -870,13 +872,14 @@ do; a test asserts one outcome; the page shows the **path between them**, which
 is the thing a diff cannot show and a reviewer cannot reconstruct. Both existing
 pages were written because a review asked a question the diff could not answer.
 
-Two exist, and they are the template:
+Three existed when the practice was written down, and they are the template:
 
 | Page | Phase | What it proves |
 |---|---|---|
 | `rc-4b-entering-is-one-event.html` | RC-4b | four entries through the CR 614.12 look-ahead frame, each read labelled board or frame, and what RC-4b changed trace by trace |
 | `cv-1-a-copy-is-a-snapshot.html` | CV-1 | a Cytoshape resolution from the choice to the copy row and back, and CR 707.4's re-copy tearing that row down through the existence check |
 | `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
+| `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
