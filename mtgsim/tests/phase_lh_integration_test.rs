@@ -328,7 +328,7 @@ use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::oracle::mana_helpers::activatable_abilities;
 use mtgsim::state::game_state::{Phase, PhaseType};
 use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_lh_cards::equipment_granting_flying;
+use mtgsim::cards::phase_lh_cards::cobbled_wings;
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::types::keywords::KeywordFlag;
 
@@ -503,24 +503,24 @@ fn test_equipping_the_host_it_is_already_on_does_nothing() {
 #[test]
 fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
     let mut game = setup_two_player_game();
-    let harness = put_on_battlefield(&mut game, equipment_granting_flying(), 0);
+    let wings = put_on_battlefield(&mut game, cobbled_wings(), 0);
     let humility_id = put_on_battlefield(&mut game, humility(), 1);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
-    let entered = game.battlefield[&harness].entry_timestamp;
+    let entered = game.battlefield[&wings].entry_timestamp;
 
-    equip(&mut game, 0, harness, 0).unwrap();
+    equip(&mut game, 0, wings, 0).unwrap();
 
     assert!(
-        game.battlefield[&harness].timestamp > game.battlefield[&humility_id].timestamp,
+        game.battlefield[&wings].timestamp > game.battlefield[&humility_id].timestamp,
         "CR 613.7e: the attach gave the Equipment a new timestamp"
     );
     assert!(
         has_keyword(&game, bears, KeywordFlag::Flying),
         "the grant now applies after Humility's Layer 6 strip"
     );
-    assert_eq!(game.battlefield[&harness].entry_timestamp, entered, "the determinism key is untouched");
-    assert_eq!(game.battlefield_ids_ordered(), vec![harness, humility_id, bears]);
+    assert_eq!(game.battlefield[&wings].entry_timestamp, entered, "the determinism key is untouched");
+    assert_eq!(game.battlefield_ids_ordered(), vec![wings, humility_id, bears]);
 }
 
 /// CR 301.5b — an Equipment spell resolves like any artifact and enters
@@ -553,4 +553,13 @@ fn test_an_equipment_spell_enters_unattached() {
 fn test_bonesplitter_is_registered_and_in_the_performance_pool() {
     assert!(CardRegistry::default_registry().create("Bonesplitter").is_ok());
     assert!(CardRegistry::performance_pool().create("Bonesplitter").is_ok());
+}
+
+/// Registered so a `stress` game can put it beside Humility (CR 613.7e in
+/// the wild), and deliberately not pooled: it opens no engine path
+/// Bonesplitter does not, and the pool grows one card per path.
+#[test]
+fn test_cobbled_wings_is_registered_and_not_pooled() {
+    assert!(CardRegistry::default_registry().create("Cobbled Wings").is_ok());
+    assert!(CardRegistry::performance_pool().create("Cobbled Wings").is_err());
 }

@@ -91,22 +91,30 @@ pub fn holy_strength() -> Arc<CardData> {
         .build()
 }
 
-/// "Equip {N}" — CR 702.6a's activated ability, spelled out: "{N}: Attach this
-/// permanent to target creature you control. Activate only as a sorcery."
+/// "Equip [cost]" — CR 702.6a's activated ability, spelled out: "[Cost]:
+/// Attach this permanent to target creature you control. Activate only as a
+/// sorcery."
+///
+/// `costs` is the whole `[Cost]`, not a generic count: Improvised Arsenal's
+/// equip is `{R}`, Vorpal Sword's `{B}{B}`, 33 printed Equipment mix generic
+/// and colored pips, and the "Equip—[cost]" form is any cost at all — Dark
+/// Knight's Greatsword's "Equip—Pay 3 life" (whose "Activate only once each
+/// turn" is CR 602.5a, `backlog.md` §2.8). Phyrexian and hybrid pips
+/// (Lashwrithe) are §2.18's.
 ///
 /// The recipient carries the whole of "creature you control", so CR 608.2b's
 /// re-check at resolution is what CR 301.5b means by "control of the creature
 /// matters ... when it resolves": a creature stolen in response is an illegal
-/// target and the Equipment doesn't move (CR 701.3b). The equip ability
-/// carries no equip-specific quality (CR 702.6c); that is a card-breadth
-/// variant of this filter, not a new shape.
-pub fn equip(generic: u8) -> AbilityDef {
+/// target and the Equipment doesn't move (CR 701.3b). An equip quality
+/// (CR 702.6c, "Equip Knight {1}") is one more conjunct in that filter, not
+/// a new shape; no registered card has one yet.
+pub fn equip(costs: Vec<Cost>) -> AbilityDef {
     AbilityDef {
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::OnlyAsSorcery,
         id: new_ability_id(),
         ability_type: AbilityType::Activated,
-        costs: vec![Cost::Mana(ManaCost::build(&[], generic))],
+        costs,
         effect: Effect::Atom(
             Primitive::Attach,
             EffectRecipient::Target(
@@ -176,23 +184,32 @@ Equip {1}")
                 EffectRecipient::Host,
             ),
         })
-        .ability(equip(1))
+        .ability(equip(vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
 }
 
-/// Skyhook Harness (invented) — {1}
+/// Cobbled Wings — {2}
 /// Artifact — Equipment
 ///
 /// Equipped creature has flying.
 /// Equip {1}
 ///
-/// A test fixture, never registered. CR 613.7e is unobservable through
-/// Bonesplitter alone — Layer 7c additions commute — so the rule is pinned
-/// with a Layer 6 grant against Humility's "lose all abilities": the
-/// Equipment enters first, Humility second, and only the timestamp the equip
-/// gives it (CR 613.7e) lets its grant apply after Humility.
-pub fn equipment_granting_flying() -> Arc<CardData> {
-    CardDataBuilder::new("Skyhook Harness")
+/// (Oracle text verified on Scryfall, 2026-09-06. Innistrad; reprinted.)
+///
+/// # Why this one
+///
+/// CR 613.7e is unobservable through Bonesplitter alone — Layer 7c additions
+/// commute — so the rule is pinned with a Layer 6 grant against Humility's
+/// "lose all abilities": the Equipment enters first, Humility second, and
+/// only the timestamp the equip gives it (CR 613.7e) lets its grant apply
+/// after Humility. Cobbled Wings is the printed card with exactly that text;
+/// an invented fixture was written first and replaced in review.
+///
+/// Registered, not pooled: it opens no engine path Bonesplitter does not,
+/// and it puts a CR 613.7e reordering within reach of a `stress` game, where
+/// Humility is.
+pub fn cobbled_wings() -> Arc<CardData> {
+    CardDataBuilder::new("Cobbled Wings")
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
         .mana_cost(ManaCost::build(&[], 1))
@@ -208,6 +225,6 @@ pub fn equipment_granting_flying() -> Arc<CardData> {
                 EffectRecipient::Host,
             ),
         })
-        .ability(equip(1))
+        .ability(equip(vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
 }

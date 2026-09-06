@@ -376,6 +376,7 @@ impl CardRegistry {
         // reachable from a fuzz game at all (`phase_lh_cards`).
         registry.register("Holy Strength", phase_lh_cards::holy_strength);
         registry.register("Bonesplitter", phase_lh_cards::bonesplitter);
+        registry.register("Cobbled Wings", phase_lh_cards::cobbled_wings);
 
         registry
     }
