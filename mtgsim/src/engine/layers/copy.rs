@@ -5,12 +5,13 @@
 //! > object's characteristics are its copiable values. (See rule 707.2.)
 //!
 //! So copiable values are the *output* of layer 1, not an input to it, and the
-//! capture is `compute_to_ceiling` at the ceiling just past layer 1. Every
+//! capture is a pass stopped at the ceiling just past layer 1. Every
 //! producer in `copy-effects-architecture.md` §3.3 — a resolution, an entry
 //! replacement, a token, a stack copy — captures here and differs only in what
 //! carries the result.
 
-use crate::engine::layers::compute::{compute_to_ceiling, FrameCache, LAYER_ORDER};
+use crate::engine::layers::board::frame_at_ceiling;
+use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::types::{EffectiveCharacteristics, Layer};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
@@ -22,7 +23,7 @@ use crate::types::mana::ManaCost;
 
 use std::collections::HashSet;
 
-/// The frame-cache ceiling CR 613.2c names: every layer-1 sublayer applied and
+/// The layer ceiling CR 613.2c names: every layer-1 sublayer applied and
 /// nothing after it.
 ///
 /// A named constant rather than a literal at each call site, because the
@@ -176,7 +177,6 @@ pub fn copiable_values(game: &GameState, id: ObjectId) -> Option<CopiableValues>
     // CR 613.7a's existence re-check costs. Counting it here keeps a copy-heavy
     // board honest in the same table as an anthem-heavy one.
     game.counters.record_layer_walk();
-    let mut cache = FrameCache::new(None);
-    let frame = compute_to_ceiling(game, id, END_OF_LAYER_1, &mut cache)?;
+    let frame = frame_at_ceiling(game, id, END_OF_LAYER_1)?;
     Some(CopiableValues::from_frame(frame))
 }

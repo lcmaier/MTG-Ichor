@@ -456,6 +456,7 @@ struct GameStats {
     life_changes: u32,
     // --- engine work (state/diagnostics.rs), not read off the event log ---
     layer_walks: u64,
+    board_passes: u64,
     memo_hits: u64,
     layer_frames: u64,
     replacement_gathers: u64,
@@ -650,6 +651,7 @@ struct AggregateStats {
     total_combat_with_attackers: u64,
     total_life_changes: u64,
     total_layer_walks: u64,
+    total_board_passes: u64,
     total_memo_hits: u64,
     total_layer_frames: u64,
     total_replacement_gathers: u64,
@@ -673,6 +675,7 @@ impl AggregateStats {
         self.total_combat_with_attackers += game.combat_phases_with_attackers as u64;
         self.total_life_changes += game.life_changes as u64;
         self.total_layer_walks += game.layer_walks;
+        self.total_board_passes += game.board_passes;
         self.total_memo_hits += game.memo_hits;
         self.total_layer_frames += game.layer_frames;
         self.total_replacement_gathers += game.replacement_gathers;
@@ -859,6 +862,7 @@ fn run_one_game(
                 // nothing resets them, so the final value *is* the total.
                 let c = &game.state.counters;
                 s.layer_walks = c.layer_walks();
+                s.board_passes = c.board_passes();
                 s.memo_hits = c.memo_hits();
                 s.layer_frames = c.layer_frames();
                 s.replacement_gathers = c.replacement_gathers();
@@ -1236,13 +1240,15 @@ fn main() {
         // across months — which is exactly what `ms/game` is not, and why
         // `engineering-practices.md` §3 stores these and refuses to store that.
         //
-        // **Read `Frames/walk` first.** It is the CR 613.7a existence re-check's
-        // cost per layer walk, and it is the number that moves when the layer
-        // system starts asking about other objects. `Layer walks` is the memo
-        // *miss* count since item 7a; walks plus hits is the questions asked.
+        // **Read `Board passes` beside `Layer walks` first.** A walk is a memo
+        // *miss* (item 7a); since LI-1 a miss for a permanent is a pass over the
+        // whole working set, which fills the memo for every member, so
+        // `Frames/walk` reads near the size of the board rather than near one.
+        // Walks plus hits is the questions asked.
         println!();
         println!("=== Engine Work (avg per game) ===");
         println!("  Layer walks:      {:>8.0}", agg_stats.avg(agg_stats.total_layer_walks));
+        println!("  Board passes:     {:>8.0}", agg_stats.avg(agg_stats.total_board_passes));
         println!("  Memo hits:        {:>8.0}", agg_stats.avg(agg_stats.total_memo_hits));
         println!("  Layer frames:     {:>8.0}", agg_stats.avg(agg_stats.total_layer_frames));
         println!(

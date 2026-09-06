@@ -10,6 +10,7 @@
 //! - Types: `Layer`, `ContinuousEffect`, `EffectModification`, etc.
 
 pub mod types;
+pub mod board;
 pub mod cda;
 pub mod compute;
 pub mod copy;

@@ -3,18 +3,19 @@
 //!
 //! The walk reads concrete state in two places: the `BattlefieldEntity` it
 //! seeds from (controller, CR 302.6's clock, counters) and the registry slice
-//! it applies per layer. Both go through an accessor on `FrameCache`
-//! (`entity` and `rows_in_layer` in `compute.rs`), and when the object being
-//! computed is the entering one the accessor answers from this struct — the
-//! entity the performer *would* build and the rows `register_static_effects`
-//! *would* write. For every other object it answers from the real board.
+//! it applies per layer. Both go through an accessor on the pass's `Board`
+//! (`entity` and `rows_in_layer` in `board.rs`), and for the entering object
+//! the accessor answers from this struct — the entity the performer *would*
+//! build and the rows `register_static_effects` *would* write. For every
+//! other member it answers from the real board, and the entering object's
+//! own rows apply to it alone.
 //!
 //! That one-object asymmetry is the whole design. `replacement-architecture.md`
 //! §5d has the rest: CR 614.12's three clauses against the reads they perturb,
 //! why this is not a `GameState` clone, why the entering object is invisible
 //! to a count over the battlefield, and why the frame may live on the stack.
 
-use crate::engine::layers::compute::{compute_to_ceiling, FrameCache, LAYER_ORDER};
+use crate::engine::layers::board::compute_board;
 use crate::engine::layers::types::{ContinuousEffect, EffectOrigin, EffectiveCharacteristics};
 use crate::objects::card_data::AbilityType;
 use crate::state::battlefield::BattlefieldEntity;
@@ -130,16 +131,16 @@ fn would_be_rows(
 /// CR 614.12 / 614.17d — `id`'s characteristics as it *would exist* on the
 /// battlefield under `controller`, with `pending` already applied.
 ///
-/// The read-side counterpart of `compute_characteristics`: one full layer walk
-/// of `id` with the [`Lookahead`] threaded through the walk's `FrameCache`, so
-/// that the reads CR 614.12 names answer for the would-be permanent and every
-/// read about any other object answers off the real board. Counted as a layer
-/// walk, like every other top-level frame.
+/// The read-side counterpart of `compute_characteristics`: one pass over the
+/// working set plus `id`, with the [`Lookahead`] threaded through the board,
+/// so that the reads CR 614.12 names answer for the would-be permanent and
+/// every read about any other object answers off the real board. Counted as
+/// a layer walk, like every other top-level frame; fills no memo.
 ///
 /// `id` may be anywhere: in the battlefield zone with no entity yet (the
 /// replacement pipeline's case), or still in a hand, graveyard or on the stack
 /// (a CR 614.17d "can't enter" asked at the zone change). The overlay makes it
-/// a permanent for the walk's duration either way, and answers ahead of a real
+/// a permanent for the pass's duration either way, and answers ahead of a real
 /// entity if one exists, because the caller asked about the proposal.
 pub fn compute_as_entering(
     game: &GameState,
@@ -149,6 +150,5 @@ pub fn compute_as_entering(
 ) -> Option<EffectiveCharacteristics> {
     game.counters.record_layer_walk();
     let lookahead = Lookahead::new(game, id, controller, pending);
-    let mut cache = FrameCache::new(Some(&lookahead));
-    compute_to_ceiling(game, id, LAYER_ORDER.len(), &mut cache)
+    compute_board(game, Some(&lookahead)).take(id)
 }

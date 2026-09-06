@@ -4,13 +4,14 @@
 //! affect the characteristics of any other objects", which is a criterion
 //! rather than an observation about Tarmogoyf: **every CDA applies to exactly
 //! the object that has it**. So there is nothing for an `AffectedSet` to
-//! select, no filter to evaluate, and no row to register. `compute.rs` applies
-//! them straight off the object's own effective ability list, and four things
+//! select, no filter to evaluate, and no row to register. The pass (`board.rs`)
+//! applies them straight off the object's own live ability list, and four things
 //! fall out that the registry shape would have had to build:
 //!
 //! - **CR 613.3's ordering.** "Apply effects from characteristic-defining
 //!   abilities first, then all other effects in timestamp order." Applying the
-//!   intrinsic pass before the layer's registry slice *is* that sentence.
+//!   pass sorts a CDA application ahead of the layer's rows, whatever their
+//!   timestamps — `board.rs`'s sort key *is* that sentence.
 //!
 //! - **CR 613.7a's existence check.** `chars.abilities` at Layer 7a is already
 //!   the post-Layer-6 ability set, so Humility's "creatures lose all abilities"
@@ -38,12 +39,10 @@
 //! such a card is ever printed, this pass has to publish into 613.8's ordering
 //! step; recorded in `codebase-state.md` under the 613.8 item.
 
-use crate::engine::layers::compute::{apply_modification, FrameCache};
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer, PtValue};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::state::game_state::GameState;
 use crate::types::effects::{ColorChange, Effect, EffectRecipient, Primitive};
-use crate::types::ids::ObjectId;
+use crate::types::ids::AbilityId;
 
 /// The layers a CDA can occupy.
 ///
@@ -53,47 +52,23 @@ use crate::types::ids::ObjectId;
 pub(super) const CDA_LAYERS: [Layer; 3] =
     [Layer::Layer4Type, Layer::Layer5Color, Layer::Layer7aCdaPT];
 
-/// Apply this object's own CDAs for `layer`, ahead of the layer's registry
-/// effects (CR 613.3).
+/// This object's own CDAs for `layer`, as `(ability, modification)` pairs
+/// in the order they apply — one entry per modification, several for a
+/// `ChangeType` that adds more than one subtype.
 ///
-/// Re-reads `chars.abilities` at every layer rather than caching a decision
+/// Read off `chars.abilities` at the moment of the call rather than cached
 /// from the start of the walk: that list is what earlier layers have already
 /// done to the object, and the whole correctness argument above rests on
-/// reading it late.
-pub(super) fn apply_intrinsic_cdas(
-    game: &GameState,
-    chars: &mut EffectiveCharacteristics,
-    object_id: ObjectId,
-    layer: Layer,
-    layer_index: usize,
-    cache: &mut FrameCache<'_>,
-) {
-    // Collected first because applying mutates `chars`, which we are reading.
-    // Empty `Vec` doesn't allocate, so the common case — an object with no CDA
-    // — costs one flag scan over a list that is almost always 0-2 entries long.
-    let pending = collect_modifications(chars, layer);
-
-    for modification in pending {
-        // `None`: a CDA is not a registry row (CR 604.3a(3)), so there is no
-        // `ContinuousEffect` to hand over. Only the Layer 2 arm reads it, and
-        // CR 613.4a admits no CDA there.
-        apply_modification(&modification, chars, object_id, game, layer_index, cache, None);
-    }
-}
-
-/// Does this object have any CDA at all?
+/// reading it late. The pass (`board.rs`) collects these at the start of a
+/// layer and, when each one's turn comes, re-checks that the ability is
+/// still on the object (CR 613.7a, the same question a registry row gets).
 ///
-/// Only used for the `apply_effects` fast path, where the registry is empty and
-/// the object is off the battlefield — so nothing can have added an ability and
-/// the printed list is exact.
-pub(super) fn has_any_cda(chars: &EffectiveCharacteristics) -> bool {
-    chars.abilities.iter().any(|a| a.is_characteristic_defining)
-}
-
-fn collect_modifications(
+/// Empty `Vec` doesn't allocate, so the common case — an object with no CDA
+/// — costs one flag scan over a list that is almost always 0-2 entries long.
+pub(super) fn cda_modifications(
     chars: &EffectiveCharacteristics,
     layer: Layer,
-) -> Vec<EffectModification> {
+) -> Vec<(AbilityId, EffectModification)> {
     let mut out = Vec::new();
 
     for ability in &chars.abilities {
@@ -113,18 +88,27 @@ fn collect_modifications(
             // the ability is not a CDA and was mis-flagged.
             debug_assert!(
                 matches!(recipient, EffectRecipient::Implicit),
-                "CR 604.3a(3): CDA on '{}' has a non-implicit recipient, so it \
-                 affects other objects and is not characteristic-defining",
+                "CR 604.3a(3): CDA on '{}' has a non-implicit recipient, so it                  affects other objects and is not characteristic-defining",
                 chars.name
             );
 
             if cda_layer(primitive, &chars.name) == Some(layer) {
-                push_modifications(primitive, &mut out, &chars.name);
+                let mut modifications = Vec::new();
+                push_modifications(primitive, &mut modifications, &chars.name);
+                out.extend(modifications.into_iter().map(|m| (ability.id, m)));
             }
         }
     }
 
     out
+}
+
+/// Does this object have any CDA at all?
+///
+/// The non-member walk's fast path: an object no row can reach and with no
+/// CDA is its printed characteristics, at every ceiling.
+pub(super) fn has_any_cda(chars: &EffectiveCharacteristics) -> bool {
+    chars.abilities.iter().any(|a| a.is_characteristic_defining)
 }
 
 /// Which layer a CDA's primitive belongs to, or `None` if the primitive cannot
@@ -222,6 +206,8 @@ fn atoms(ability: &AbilityDef) -> Vec<(&Primitive, &EffectRecipient)> {
 mod tests {
     use super::*;
     use crate::engine::layers::compute_characteristics;
+    use crate::state::game_state::GameState;
+    use crate::types::ids::ObjectId;
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use std::sync::Arc;
     use crate::types::card_types::CardType;
