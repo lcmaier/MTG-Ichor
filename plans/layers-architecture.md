@@ -754,7 +754,7 @@ Assignment (CR 613.7c–d):
 2. **On effect creation** — `ContinuousEffect.timestamp = game.next_timestamp();` at registration.
 3. **Re-timestamping on aura/equipment attachment** (CR 613.7e) — when an Aura moves from one creature to another (e.g., via Sun Titan returning it), the Aura's effect timestamp updates. Similarly when a permanent becomes an Aura/Equipment.
 
-   **✅ Implemented 2026-09-05 (§13a Phase LH-2).** `GameState::attach` allocates the new timestamp onto `BattlefieldEntity.timestamp` each time the permanent becomes attached to a *different* host (CR 701.3b/c: the same host is a no-op). The determinism key is the separate `entry_timestamp`, allocated once. The rows the permanent's static abilities registered are **not** re-stamped: `compute::effect_timestamp` reads the source's current timestamp at walk time, `max(row, source)` per 613.7a's clauses. The 2026-08-24 entry framed this as a contract-wording change and it was not — the field was doing two jobs, and 613.7e is what forced them apart; §13a records the split and the measurement.
+   **✅ Implemented 2026-09-05 (§13a Phase LH-2; shape settled in review 2026-09-06).** `GameState::attach` allocates the new timestamp onto `BattlefieldEntity.timestamp` each time the permanent becomes attached to a *different* host (CR 701.3b/c: the same host is a no-op), then re-stamps the rows the permanent's static abilities registered — `ContinuousEffectRegistry::retime_static_rows`, 613.7a's third sentence, in place with ids and relative order kept. The rows carry the value; the walk never reads the entity's timestamp. The determinism key is the separate `entry_timestamp`, allocated once. The 2026-08-24 entry framed this as a contract-wording change and it was not — the field was doing two jobs, and 613.7e is what forced them apart; §13a records the split and the measurement.
 
 Storage: `GameState.next_timestamp: Timestamp` — monotonic counter, never rewound. Saturation not a practical concern (u64).
 
@@ -1360,76 +1360,104 @@ activation-restriction value on `AbilityDef`, not `backlog.md` §2.8 wholesale.
 CR 613.7e's reassignment lives in `GameState::attach` (LH-1's one writer), and
 it closes the timestamp half of "Before Layers" 7g.
 
-**As built (2026-09-05, `layers/lh-2-timestamp-split`).** Four commits,
-~830 additions before the docs; the ~900 estimate held.
+**As built (2026-09-05, `layers/lh-2-timestamp-split`; shape and card settled
+in review 2026-09-06).** ~830 additions before the docs; the ~900 estimate held.
 
-1. **Where a row's timestamp is read — shape (a): the walk reads it live.**
+1. **Where a row's timestamp is read — shape (b): `attach` re-stamps the rows.**
    `register_static_effects` runs inside `place_on_battlefield`, before any
    attach, so once CR 613.7e exists a registered row's stored timestamp is
-   stale the moment its source attaches. Two shapes were weighed: (a) the
-   walk reads the source's CR 613.7 timestamp at comparison time; (b) `attach`
-   re-stamps the source's `StaticAbility` rows in place — "Before Layers"
-   7g's part (2), an in-place registry mutator that has to bump `mutations`
-   itself. **Built (a).** `compute::effect_timestamp` keys a static row on
-   `max(row.timestamp, source.timestamp)` — CR 613.7a's two clauses and its
-   third in one expression, exact because a source's timestamp only grows —
-   and `apply_effects` orders each layer's rows by that key into one scratch
-   buffer per frame; the stored `ContinuousEffect.timestamp` remains the
-   registry's storage key. Measured in one `fuzz_ab.py` sitting (200 games
-   × 3 rounds, `performance`): the split alone −0.6%, a naive
-   per-layer-allocating prototype of (a) +1.8%, the shipped (a) with the
-   Equip scaffolding +2.5% CPU/game and per 1,000 walks, all three producing
-   `main`'s event stream — inside the 2–6% spread the script prints. Why not
-   (b), beyond the number: it is the move CLAUDE.md forbids for existence,
-   reconciling the registry at a state-mutation chokepoint when the walk can
-   read the truth, and 7g's mutator would have had to bump for a change
-   `len` cannot see. Item 7's board-wide pass sorts applications per layer
-   anyway; this key is its input.
-2. **The reader table was wrong by one** — three production readers, not
+   stale the moment its source attaches. Two shapes were weighed: (a) the walk
+   reads the source's CR 613.7 timestamp at comparison time; (b) `attach`
+   re-stamps the source's `StaticAbility` rows in place — "Before Layers" 7g's
+   part (2). **(a) shipped first and was replaced in review.** Its number was
+   fine — in one sitting the split alone measured −0.6%, a naive prototype of
+   (a) +1.8% and the shipped (a) +2.5% per walk, inside the spread — so the
+   number did not decide it. What did: under (a) `ContinuousEffect.timestamp`
+   means two things by origin, exact for a resolution row and a lower bound
+   for a static one, and the registry's "already in application order" stops
+   being literally true — a trap for item 7's board-wide pass and for anyone
+   reading a row. The "don't reconcile the registry at chokepoints" rule (a)
+   leaned on is about *existence*, which depends on the walk's own output
+   layer by layer; a timestamp is a discrete write with one writer, and
+   CR 613.7a's third sentence describes (b) in so many words. **Built:**
+   `ContinuousEffectRegistry::retime_static_rows(source, ts)`, called by
+   `attach` after the entity's write, edits the source's static rows in place
+   through `DurationRegistry::update_rows` — a stable re-sort on
+   `(layer, timestamp, id)`, so ids survive and rows sharing the new timestamp
+   keep registration order, which is 613.7a's "relative order remains the
+   same". Resolution rows (613.7b) keep the timestamp of the effect that
+   created them. The walk is `main`'s again, byte for byte. Measured in one
+   sitting on `performance` (§3's table has the four arms): the clean engine
+   +1.8% CPU/game and per 1,000 walks against `main` with an identical stream
+   — round 1 had it faster than `main` — and the shipped tree +1.3% per 1,000
+   walks against its `main`, where the same board under (a) had read +9.5%:
+   an attached Equipment's rows are no longer re-sorted on every frame.
+2. **The `len` heuristic went with it.** `ContinuousEffectRegistry::mutating`
+   told a write from a no-op by comparing `len` before and after — which an
+   in-place edit cannot move, and a closure that added and removed in one
+   call would fool. `DurationRegistry` now keeps a generation counter that
+   every add, remove, retain-that-removed and `update_rows`-that-changed
+   bumps, and `mutations()` *is* that counter, the layer memo's other half. A
+   CR 514.2 pass that removes nothing still costs no frame.
+3. **The reader table was wrong by one** — three production readers, not
    four; corrected above. `battlefield_ordered` / `battlefield_ids_ordered`
    key on `entry_timestamp`, `static_effect_timestamp` on `timestamp`, and
    `tests/determinism_test.rs` pins that two reattachments leave the sweep
-   order alone.
-3. **CR 613.7e applies to Auras as well.** Holy Strength's resolution attach
-   goes through the same `attach`, so an Aura's row keys on its attach
-   timestamp from LH-2 on. Unobservable today — Layer 7c commutes — and
-   correct. Attaching to the host it is already on is CR 701.3b's "does
-   nothing": no write, no event, no new timestamp (701.3c says "a different
-   object").
-4. **Equip's shape.** `Primitive::Attach` behind
+   order alone. The entity's `timestamp` is read at registration and by
+   nothing in the walk.
+4. **CR 613.7e applies to Auras as well.** Holy Strength's resolution attach
+   goes through the same `attach`, so an Aura's rows are re-stamped at its
+   attach from LH-2 on. Unobservable today — Layer 7c commutes — and correct.
+   Attaching to the host it is already on is CR 701.3b's "does nothing": no
+   write, no event, no new timestamp (701.3c says "a different object").
+5. **Equip's shape.** `phase_lh_cards::equip(costs: Vec<Cost>)` builds
+   `Primitive::Attach` behind
    `EffectRecipient::Target(Permanent(creature ∧ you control), Exactly(1))`,
    so CR 608.2b's re-check is CR 301.5b's "control matters when it resolves"
-   and CR 701.3b's "doesn't move" with no second check. It proposes
-   `GameAction::Attach` — the proposal `codebase-state.md` item 6 said the
-   pair would want — performed through `GameState::attach`, still the one
-   writer, and announced as `GameEvent::Attached` on the transition only.
-   `ResolutionContext::ability_source` carries the ability's permanent
-   (CR 113.7a); `source` was the ephemeral stack object, which nothing could
-   attach. "Activate only as a sorcery" is `ActivationRestriction::OnlyAsSorcery`,
-   one value on `AbilityDef` (`backlog.md` §2.8 grows the enum), kept out of
-   the window by `activatable_abilities` and refused by `activate_ability`;
-   the sorcery-speed rule itself is now one function the cast path shares.
-5. **A bug the consumer found.** `activate_ability` paid every ability with
+   and CR 701.3b's "doesn't move" with no second check. `costs` is the whole
+   "[Cost]": a `u8` generic count shipped first and review widened it —
+   Improvised Arsenal's equip is `{R}`, 33 printed Equipment mix generic and
+   colored pips, and "Equip—[cost]" is any cost (Dark Knight's Greatsword,
+   "Pay 3 life"; its once-per-turn clause is `backlog.md` §2.8, Phyrexian pips
+   §2.18). It proposes `GameAction::Attach` — the proposal `codebase-state.md`
+   item 6 said the pair would want — performed through `GameState::attach`,
+   still the one writer, and announced as `GameEvent::Attached` on the
+   transition only. `ResolutionContext::ability_source` carries the ability's
+   permanent (CR 113.7a); `source` was the ephemeral stack object, which
+   nothing could attach. "Activate only as a sorcery" is
+   `ActivationRestriction::OnlyAsSorcery`, one value on `AbilityDef`
+   (`backlog.md` §2.8 grows the enum, and names the two look-alikes that are
+   not it), kept out of the window by `activatable_abilities` and refused by
+   `activate_ability`; the sorcery-speed rule itself is now one function the
+   cast path shares.
+6. **A bug the consumer found.** `activate_ability` paid every ability with
    an empty generic-mana allocation, so any ability with a generic pip failed
-   at payment and was blacklisted: Chainbreaker's `{3}, {T}` was activated
-   97 times and resolved 0 in 40 `main` games, 92 and 85 after. Fixed by
-   sharing the cast path's allocation step. Chainbreaker is pooled, so the
-   protocol's "engine, pool unchanged" arm is not `main`'s stream; a fourth
-   arm with the fix reverted and Bonesplitter unregistered is, apart from a
-   memo-hit count that moved by four per 200 games (the new `can_pay_costs`
-   pre-check asks cached questions). `engineering-practices.md` §3 records
-   the four arms.
+   at payment and was blacklisted: Chainbreaker's `{3}, {T}` was activated 97
+   times and resolved 0 in 40 `main` games, 92 and 85 after. Fixed by sharing
+   the cast path's allocation step. Chainbreaker is pooled, so the protocol's
+   "engine, pool unchanged" arm is not `main`'s stream; a fourth arm with the
+   fix reverted and the new cards unregistered is, apart from a memo-hit count
+   that moved by four per 200 games (the new `can_pay_costs` pre-check asks
+   cached questions). `engineering-practices.md` §3 records the four arms.
+7. **Cobbled Wings, not a fixture.** The CR 613.7e pin needs a Layer 6 grant
+   on an Equipment. An invented "Skyhook Harness" shipped first; review
+   pointed at the printed card with exactly that text — Cobbled Wings, `{2}`,
+   "Equipped creature has flying. Equip {1}". Registered, since the engine
+   plays it, and not pooled, since it opens no path Bonesplitter does not. It
+   puts the reorder within a `stress` game's reach: Cobbled Wings is equipped
+   in a game Humility also enters in 15 of 200.
 
 Measured, 200 games at seed 12345: Bonesplitter cast 245 / resolved 241 in
-140 of 200 `performance` games; `Attached` 494 (`performance`) and 385
-(`stress`), of which 358 and 262 are re-equips; CR 704.5p **0 → 7** per 200
-`stress` games on Equipment subjects — Mirrorform copying a non-creature onto
-the equipped creature — beside 3 catch-all detaches of Mirrorform'd Holy
-Strengths; three serial runs per pool byte-identical outside
-`=== Timing ===`, and their dumps identical after the id masks, with the
-re-equips in them. `specdb owed --phase LH` is clean; ATOM-613.7e-001 is
-claimed partial (one reattachment against Humility, not the atom's
-away-and-back against an Aura).
+140 of 200 `performance` games, Cobbled Wings 237 / 236 in 146 of 200
+`stress` games under `--require`; `Attached` 494 on `performance` (358 of
+them re-equips) and 399 + 480 on `stress` (269 + 339); CR 704.5p **0 → 17**
+per 200 `stress` games on Equipment subjects — 8 Bonesplitter, 9 Cobbled
+Wings, Mirrorform copying a non-creature onto the equipped creature — beside
+4 catch-all detaches of Mirrorform'd Holy Strengths; three serial runs per
+pool byte-identical outside `=== Timing ===`, dumps identical after the id
+masks, with the re-equips in them. `specdb owed --phase LH` is clean;
+ATOM-613.7e-001 is claimed partial (one reattachment against Humility, not
+the atom's away-and-back against an Aura).
 
 ### Exit criteria
 

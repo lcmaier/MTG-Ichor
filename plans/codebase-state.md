@@ -168,7 +168,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 702.103 | **Bestow** | ❌ |
 | 702.X | Numerous keyword abilities (Bestow, Overload, Awaken, Emerge, etc.) | ❌ (these are the ~45 `NEW-*` atomic-tests) |
 | 703 | Turn-based actions | ✅ |
-| **704.5a–w** | **State-based actions** | ✅ 704.5a (life ≤0), 704.5b (empty library draw), 704.5c (poison ≥10), 704.5d (tokens in non-BF zones), 704.5f (0 toughness), 704.5g (lethal damage with indestructible + deathtouch), 704.5h (deathtouch), 704.5i (PW 0 loyalty), 704.5j (legend rule), 704.5m (Aura illegal host), 704.5n (Equipment/Fort on illegal permanent), 704.5p 🟡 (the "attached to an illegal object" half; the *creature* clause is a TODO at `engine/sba.rs:323` — the sweep exempts every Aura/Equipment/Fortification without asking whether it is also a creature, and 704.5p's first sentence unattaches a creature regardless of what else it is. The illegal-host half fires — 7 per 200 stress games since LH-2 (2026-09-05), Mirrorform copying a non-creature onto the equipped creature; the creature clause stays unreachable: no enchantment animator), 704.5q (+1/+1 / -1/-1 annihilation). 704.5s (Saga), 704.5t (dungeon), 704.5v/w/x (battle) ❌. Commander damage ✅. | `engine/sba.rs` (1015 lines) |
+| **704.5a–w** | **State-based actions** | ✅ 704.5a (life ≤0), 704.5b (empty library draw), 704.5c (poison ≥10), 704.5d (tokens in non-BF zones), 704.5f (0 toughness), 704.5g (lethal damage with indestructible + deathtouch), 704.5h (deathtouch), 704.5i (PW 0 loyalty), 704.5j (legend rule), 704.5m (Aura illegal host), 704.5n (Equipment/Fort on illegal permanent), 704.5p 🟡 (the "attached to an illegal object" half; the *creature* clause is a TODO at `engine/sba.rs:323` — the sweep exempts every Aura/Equipment/Fortification without asking whether it is also a creature, and 704.5p's first sentence unattaches a creature regardless of what else it is. The illegal-host half fires — 17 per 200 stress games since LH-2 (2026-09-06; 8 on Bonesplitter, 9 on Cobbled Wings), Mirrorform copying a non-creature onto the equipped creature; the creature clause stays unreachable: no enchantment animator), 704.5q (+1/+1 / -1/-1 annihilation). 704.5s (Saga), 704.5t (dungeon), 704.5v/w/x (battle) ❌. Commander damage ✅. | `engine/sba.rs` (1015 lines) |
 | 705 | Flipping coins, rolling dice | ❌ |
 
 ### CR 8 — Multiplayer Rules
@@ -3011,7 +3011,7 @@ actual blocker — none of them is a card-selection problem:
 | 704.5m/n Aura SBAs; 608.3c Aura ETB attach | `engine/cast.rs` never reads `enchant_filter` (0 references). A cast Aura reaches `resolve_popped` with no targets and the Aura branch errors. **Registering an Aura today would produce fuzz errors**, not coverage. Sibling of item 8 |
 | 704.5d token cease-to-exist | `Primitive::CreateToken` is a stub |
 | 704.5q counter annihilation | `Primitive::AddCounters` / `RemoveCounters` are stubs |
-| 704.5p Equipment detach | ✅ LH-2 (2026-09-05) — 7 per 200 stress games |
+| 704.5p Equipment detach | ✅ LH-2 (2026-09-06) — 17 per 200 stress games |
 | 704.5i planeswalker zero loyalty | loyalty abilities need the special-action path, and CR 120.3c (damage → loyalty) is unimplemented, so a planeswalker can never die |
 | Mass removal; multi-member `Destroy` batches | `EffectRecipient::FilteredPermanents` is read only by `register_static_effects` — it is a *static-ability* recipient. At resolution `ctx.targets` is empty, so `Primitive::Destroy` over a filter destroys nothing. Wrath of God cannot be written. The CR 608.2f batch added 2026-08-26 is correct and reachable only from a multi-target spell, of which the pool has none |
 
@@ -3064,7 +3064,7 @@ row below is a number someone else can reproduce.
 | multi-member `Destroy` batch | ≥2 `[DestroyedBySba]` between two `StateBasedActionPerformed` | **155 batches**, largest 6 members | **none** — ordinary combat produces them |
 | 704.5q counter annihilation | `CountersAnnihilated` | **0** → **10** | **none** — a real card gap, closed below |
 | 704.5m/n Aura | `[AuraSba]` | **0** | *two* items deep — see below |
-| 704.5p Equipment detach | `EquipmentDetached` on an Equipment subject | **0** → **7** (LH-2, 2026-09-05) | **none** — Equip landed; Mirrorform copying a non-creature onto the equipped creature fires it. Count the subject: 3 more lines that sitting were the CR 704.5n catch-all on Mirrorform'd Holy Strengths |
+| 704.5p Equipment detach | `EquipmentDetached` on an Equipment subject | **0** → **17** (LH-2, 2026-09-06: 8 Bonesplitter, 9 Cobbled Wings) | **none** — Equip landed; Mirrorform copying a non-creature onto the equipped creature fires it. Count the subject: 4 more lines that sitting were the CR 704.5n catch-all on Mirrorform'd Holy Strengths |
 | 704.5i planeswalker death | `[ZeroLoyalty]` | **0** | loyalty abilities have no `AbilityType`, and CR 120.3c is unimplemented |
 
 **The two closed rows are the finding, not the two cards.** The old audit's
@@ -3140,7 +3140,7 @@ fizzle, covered by `tests/phase_lh_integration_test.rs`, went **0** in the same
 200 games with and without `--require`. The random agent never answers an Aura
 by killing its target; the closest it came was three Counterspells. That is a
 statement about the agent, recorded here so the next reader does not count the
-fizzle as fuzz-covered. The Equipment row closed with LH-2 (2026-09-05): 7 per 200 stress games on Equipment subjects, beside 3 catch-all detaches of Mirrorform'd Holy Strengths; Bonesplitter re-equips 262 times in the same 200 games.
+fizzle as fuzz-covered. The Equipment row closed with LH-2 (2026-09-06): 17 per 200 stress games on Equipment subjects (8 Bonesplitter, 9 Cobbled Wings), beside 4 catch-all detaches of Mirrorform'd Holy Strengths; the two Equipment re-equip 269 and 339 times in the same 200 games.
 
 ### Phasing (CR 702.26) — sized 2026-08-26, not started
 
@@ -3336,11 +3336,14 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **Reachability (2026-09-05):** closed — LH-2. `attach` reassigns the
     CR 613.7 timestamp (613.7e) under the bump it already had for
-    `attached_to`, and `bump_layer_epoch`'s input list names the write.
-    Part (2) did not happen and is not owed: the walk reads a static row's
-    timestamp live (`compute::effect_timestamp`), so no `DurationRegistry`
-    mutator edits a row in place and `mutating`'s `len` test is still exact.
-    Item 7's in-place order, if it stores one, still bumps itself. (History,
+    `attached_to`, then re-stamps the source's static rows in place
+    (`retime_static_rows`, 613.7a's third sentence) — part (2)'s mutator,
+    built rather than avoided (review, 2026-09-06). The `len` heuristic it
+    would have fooled is gone: `DurationRegistry` keeps a generation counter
+    that every add, remove and in-place edit bumps, and
+    `ContinuousEffectRegistry::mutations` *is* that counter, so a closure
+    that added and removed in one call, or edited a row, is seen. Item 7's
+    in-place order, if it stores one, goes through `update_rows`. (History,
     2026-09-04: (1)'s `attached_to` half landed in LH-1 — the walk reads it
     through `AffectedSet::Host`, and every writer goes through
     `GameState::attach` / `detach`, which bump.)
