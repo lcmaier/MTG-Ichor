@@ -190,10 +190,14 @@ impl GameState {
         // --- 601.2f: Assemble total cost ---
         let additional_refs: Vec<_> = chosen_additional.iter().collect();
         let total_costs = assemble_total_cost(
+            self,
+            player_id,
+            card_id,
             &base_mana_cost,
             chosen_alt.as_ref(),
             &additional_refs,
             x_value,
+            decisions,
         );
 
         // --- 601.2g: Mana ability window ---

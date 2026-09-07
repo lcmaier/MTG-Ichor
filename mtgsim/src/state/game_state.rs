@@ -304,6 +304,21 @@ pub struct GameState {
     /// inserts and `cleanup_zone_state` removes.
     pub restriction_ability_sources: HashSet<ObjectId>,
 
+    /// Objects that entered the battlefield printing a static ability whose
+    /// body is an `Effect::CostModification`, through an "as long as"
+    /// wrapper or not — `engine::cost_modification::gather`'s fast-path gate
+    /// (`cost-architecture.md` §3.1).
+    ///
+    /// The third such set, and the two above's rule applies unchanged: a new
+    /// source of static cost abilities must add a leg to the gate, or the
+    /// source is silently dead on every board the gate skips. It is the set
+    /// the gather *sweeps* — sorted by timestamp, not the whole battlefield —
+    /// which is why it holds sources rather than a count.
+    ///
+    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
+    /// inserts and `cleanup_zone_state` removes.
+    pub cost_modification_ability_sources: HashSet<ObjectId>,
+
     /// CR 614.13a/b — the two sets an auxiliary zone change is chosen against,
     /// scoped to the batch whose entries are being decided.
     ///
@@ -491,6 +506,7 @@ impl GameState {
             replacement_ability_sources: HashSet::new(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: HashSet::new(),
+            cost_modification_ability_sources: HashSet::new(),
             entry_selection: EntrySelectionScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
@@ -1076,6 +1092,15 @@ impl GameState {
                 self.restriction_ability_sources.insert(id);
             }
 
+            // CR 601.2f / 613.11 — the third shape with no rows: a cost
+            // effect applies to a cost being determined, at no layer, and
+            // `engine::cost_modification::gather` reads it off the effective
+            // list at 601.2f. Through the "as long as" wrapper, which the two
+            // tests above do not see (`cost-architecture.md` §8 item 1).
+            if ability.effect.as_cost_modification().is_some() {
+                self.cost_modification_ability_sources.insert(id);
+            }
+
             // CR 604.3a(3) — a characteristic-defining ability affects only the
             // object that has it, so it needs no `AffectedSet` and no row here.
             // `engine::layers::cda` applies it off the object's own effective
@@ -1338,6 +1363,12 @@ impl GameState {
             // Registering it here as well would be one ability applying through
             // two channels.
             Effect::Restriction(_) => Vec::new(),
+
+            // CR 601.2f / 613.11 — the third of the same shape. A cost effect
+            // has no layer and applies to no object, so it generates no row;
+            // `engine::cost_modification::gather` reads it off this object's
+            // *effective* ability list when a cost is determined.
+            Effect::CostModification(_) => Vec::new(),
 
             Effect::Sequence(effects) => {
                 let mut atoms = Vec::with_capacity(effects.len());

@@ -369,6 +369,8 @@ impl GameState {
             // a resolution's "can't" has the duration that resolution stated,
             // not the source's lifetime.
             self.restriction_ability_sources.remove(&id);
+            // And the cost-effect sweep's, for the same reason again.
+            self.cost_modification_ability_sources.remove(&id);
 
             // Collect attachment info before mutating
             let (attached_to, attached_by) = {

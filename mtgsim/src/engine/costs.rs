@@ -6,6 +6,7 @@ use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::ui::decision::DecisionProvider;
 
 /// Shared cost payment logic.
 ///
@@ -213,15 +214,23 @@ impl GameState {
 ///
 /// Starts with the base cost (either the card's mana cost or an alternative
 /// cost), adds X mana (x_value * x_count generic symbols), appends any
-/// additional costs chosen by the player, then passes through the cost
-/// modification pipeline.
+/// additional costs chosen by the player, then runs CR 601.2f's order —
+/// increases, reductions, the direct-total effects — over it
+/// (`engine::cost_modification`). What comes back is **locked in**: it is
+/// what CR 601.2h pays, and nothing between here and there re-reads the
+/// board (`cost-architecture.md` §3.3).
 ///
-/// Returns the assembled `Vec<Cost>` ready for payment.
+/// `spell` is the object whose cost this is, on the stack since CR 601.2a;
+/// `caster` is who answers CR 601.2f's reduction-order prompt, through `dp`.
 pub fn assemble_total_cost(
+    game: &GameState,
+    caster: PlayerId,
+    spell: ObjectId,
     base_mana_cost: &ManaCost,
     chosen_alt_cost: Option<&AlternativeCost>,
     chosen_additional_costs: &[&AdditionalCost],
     x_value: u64,
+    dp: &dyn DecisionProvider,
 ) -> Vec<Cost> {
     // Step 1: Determine the base cost (normal mana cost or alternative cost).
     // Alternative costs replace the mana cost entirely (rule 118.9a).
@@ -251,27 +260,8 @@ pub fn assemble_total_cost(
         base_costs.extend(additional.costs().iter().cloned());
     }
 
-    // Step 3: Cost modification pipeline (increases, reductions, floors).
-    apply_cost_modifications(base_costs)
-}
-
-/// Cost modification pipeline stub (rule 601.2f).
-///
-/// In the full implementation (L15, Phase 5 Layers), this applies:
-/// 1. **Increases** — Thalia, Guardian of Thraben; Sphere of Resistance
-/// 2. **Reductions** — Goblin Electromancer; Helm of Awakening
-/// 3. **Trinisphere floor** — total mana cost cannot be less than 3
-/// 4. **Lock** — final cost is locked, no further modifications
-///
-/// For now, this is a passthrough: returns costs unmodified.
-fn apply_cost_modifications(costs: Vec<Cost>) -> Vec<Cost> {
-    // TODO(L15): Wire continuous effects layer here.
-    // The pipeline should:
-    //   1. Collect all CostModification effects from the continuous effects layer
-    //   2. Sort by dependency (increases before reductions before floors)
-    //   3. Apply each to the mana component of `costs`
-    //   4. Return modified costs
-    costs
+    // Step 3: CR 601.2f's order over the assembled list, and the lock.
+    crate::engine::cost_modification::determine_total_cost(game, caster, spell, base_costs, dp)
 }
 
 #[cfg(test)]
@@ -472,11 +462,25 @@ mod tests {
 
     // --- assemble_total_cost tests (T18a) ---
 
+    /// `assemble_total_cost` on a board with no cost effects: a spell in
+    /// hand, an empty scripted provider, so any prompt would panic.
+    fn assemble(
+        base: &ManaCost,
+        alt: Option<&AlternativeCost>,
+        additional: &[&AdditionalCost],
+        x_value: u64,
+    ) -> Vec<Cost> {
+        use crate::test_support::{put_in_hand, setup_two_player_game, test_dp, vanilla_creature};
+        let mut game = setup_two_player_game();
+        let spell = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
+        assemble_total_cost(&game, 0, spell, base, alt, additional, x_value, &test_dp())
+    }
+
     #[test]
     fn test_assemble_normal_mana_cost() {
         // {1}{R} with no alt/additional/X → [Cost::Mana({1}{R})]
         let base = ManaCost::build(&[ManaType::Red], 1);
-        let result = assemble_total_cost(&base, None, &[], 0);
+        let result = assemble(&base, None, &[], 0);
         assert_eq!(result.len(), 1);
         if let Cost::Mana(mc) = &result[0] {
             assert_eq!(mc.mana_value(), 2);
@@ -494,7 +498,7 @@ mod tests {
             crate::types::mana::ManaSymbol::X,
             crate::types::mana::ManaSymbol::Colored(ManaType::Red),
         ]);
-        let result = assemble_total_cost(&base, None, &[], 3);
+        let result = assemble(&base, None, &[], 3);
         assert_eq!(result.len(), 1);
         if let Cost::Mana(mc) = &result[0] {
             assert_eq!(mc.colored_count(ManaType::Red), 1);
@@ -513,7 +517,7 @@ mod tests {
             crate::types::mana::ManaSymbol::X,
             crate::types::mana::ManaSymbol::Colored(ManaType::Red),
         ]);
-        let result = assemble_total_cost(&base, None, &[], 0);
+        let result = assemble(&base, None, &[], 0);
         assert_eq!(result.len(), 1);
         if let Cost::Mana(mc) = &result[0] {
             assert_eq!(mc.colored_count(ManaType::Red), 1);
@@ -531,7 +535,7 @@ mod tests {
             crate::types::mana::ManaSymbol::X,
             crate::types::mana::ManaSymbol::X,
         ]);
-        let result = assemble_total_cost(&base, None, &[], 2);
+        let result = assemble(&base, None, &[], 2);
         assert_eq!(result.len(), 1);
         if let Cost::Mana(mc) = &result[0] {
             assert_eq!(mc.generic_count(), 4); // 2 * 2 = 4
@@ -550,7 +554,7 @@ mod tests {
             "Pay 1 life".to_string(),
             vec![Cost::PayLife(1)],
         );
-        let result = assemble_total_cost(&base, Some(&alt), &[], 0);
+        let result = assemble(&base, Some(&alt), &[], 0);
         // Should contain just PayLife(1), not the original mana cost
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], Cost::PayLife(1));
@@ -559,24 +563,23 @@ mod tests {
     #[test]
     fn test_assemble_additional_cost_kicker() {
         use crate::types::costs::AdditionalCost;
-        // {1}{R} + kicker {R} → [Cost::Mana({1}{R}), Cost::Mana({R})]
+        // {1}{R} + kicker {R} → one mana component, {1}{R}{R}. CR 601.2f's
+        // "the mana component of the total cost" is singular and CR 118.8
+        // pays additional costs "at the same time"; until CM-1 the kicker
+        // was a second `Cost::Mana`, and `choose_generic_allocation` and
+        // the mana window both read only the first.
         let base = ManaCost::build(&[ManaType::Red], 1);
         let kicker = AdditionalCost::Kicker(vec![
             Cost::Mana(ManaCost::build(&[ManaType::Red], 0)),
         ]);
-        let result = assemble_total_cost(&base, None, &[&kicker], 0);
-        assert_eq!(result.len(), 2);
-        // First: base mana cost
+        let result = assemble(&base, None, &[&kicker], 0);
+        assert_eq!(result.len(), 1);
         if let Cost::Mana(mc) = &result[0] {
-            assert_eq!(mc.mana_value(), 2);
+            assert_eq!(mc.mana_value(), 3);
+            assert_eq!(mc.generic_count(), 1);
+            assert_eq!(mc.colored_count(ManaType::Red), 2);
         } else {
-            panic!("Expected Cost::Mana for base");
-        }
-        // Second: kicker mana cost
-        if let Cost::Mana(mc) = &result[1] {
-            assert_eq!(mc.colored_count(ManaType::Red), 1);
-        } else {
-            panic!("Expected Cost::Mana for kicker");
+            panic!("Expected one Cost::Mana");
         }
     }
 
@@ -593,7 +596,7 @@ mod tests {
         let kicker = AdditionalCost::Kicker(vec![
             Cost::Mana(ManaCost::build(&[ManaType::Green], 0)),
         ]);
-        let result = assemble_total_cost(&base, Some(&alt), &[&kicker], 0);
+        let result = assemble(&base, Some(&alt), &[&kicker], 0);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], Cost::PayLife(2));
         if let Cost::Mana(mc) = &result[1] {
@@ -603,17 +606,12 @@ mod tests {
         }
     }
 
+    /// A board with no cost effect leaves the assembled cost as it was —
+    /// the passthrough this used to *assert* is now the empty case.
     #[test]
-    fn test_assemble_cost_modification_passthrough() {
-        // Verify that apply_cost_modifications is a passthrough (stub)
+    fn test_assemble_with_no_cost_effects_is_the_assembled_cost() {
         let base = ManaCost::build(&[ManaType::Red], 1);
-        let result = assemble_total_cost(&base, None, &[], 0);
-        // Result should be identical to what we'd get without modification
-        assert_eq!(result.len(), 1);
-        if let Cost::Mana(mc) = &result[0] {
-            assert_eq!(mc.mana_value(), 2);
-        } else {
-            panic!("Expected Cost::Mana");
-        }
+        let result = assemble(&base, None, &[], 0);
+        assert_eq!(result, vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 1))]);
     }
 }

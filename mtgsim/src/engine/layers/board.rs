@@ -539,10 +539,12 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         Condition::LifeAtLeast(expr) | Condition::LifeAtMost(expr) => amount_reads(expr, out, you_channel),
         // A graveyard card is a non-member, which no application reaches —
         // `amount_reads`' `CardTypesAmong` arm is kept exact for the same
-        // reason. The source's zone is off `GameState`, and the two
-        // resolution-only leaves never evaluate at all.
+        // reason. The source's zone and its tapped status are off
+        // `GameState`, and the two resolution-only leaves never evaluate at
+        // all.
         Condition::CardInGraveyard(_)
         | Condition::SourceOnBattlefield
+        | Condition::SourceUntapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_) => {}
     }

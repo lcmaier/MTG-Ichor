@@ -119,6 +119,20 @@ impl GameState {
                     .to_string(),
             ),
 
+            // CR 601.2f's twin of the two arms above. A cost effect written as
+            // a static ability is read off its source's effective ability list
+            // when a cost is determined and never resolves; one a *resolution*
+            // creates needs a CR 611.2a duration this carries none of
+            // (`cost-architecture.md` §3.10).
+            Effect::CostModification(_) => Err(
+                "a cost modification created by a resolution needs a CR 611.2a \
+                 duration, which `Effect::CostModification` does not carry. A \
+                 static ability's cost effect does not resolve at all — put it on \
+                 an `AbilityType::Static` ability and \
+                 `engine::cost_modification::gather` will find it at CR 601.2f."
+                    .to_string(),
+            ),
+
             Effect::Conditional(_condition, _inner) => {
                 // Phase 6: evaluate condition, then resolve inner if true
                 Err("Conditional effects not yet implemented".to_string())

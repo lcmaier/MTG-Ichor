@@ -22,6 +22,7 @@
 //! resolution-only amounts do.
 
 use crate::engine::layers::board::Board;
+use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::state::game_state::GameState;
 use crate::types::effects::{AmountExpr, CardFilter, Condition, ObjectFilter};
@@ -125,6 +126,13 @@ pub(super) fn holds(
         // gate a filter row asks, chosen for the same reason.
         Condition::SourceOnBattlefield => board.in_battlefield_zone_or_entering(game, source),
 
+        // "As long as this artifact is untapped" — Trinisphere, Winter Orb,
+        // Static Orb. A status (CR 110.5), read off the entity — under a
+        // look-ahead, the entering one — and never off a frame, since no
+        // layer writes it. A source with no entity is not on the battlefield
+        // and so is not untapped either.
+        Condition::SourceUntapped => board.entity(game, source).is_some_and(|entity| !entity.tapped),
+
         // CR 303.4m — whatever the source is attached to *now*, re-read at
         // every layer, exactly as `AffectedSet::Host` is. An unattached
         // source matches nothing, so its conditional effect does not exist.
@@ -157,6 +165,19 @@ pub(super) fn holds(
             false
         }
     }
+}
+
+/// [`holds`] against the settled board at the full ceiling — the read-side
+/// view a top-level query takes, so every leaf answers as the live pass
+/// would have at its last layer.
+///
+/// The reader a *post-layer* consumer of `Condition` uses:
+/// `engine::cost_modification::gather` today (CR 613.11 applies cost effects
+/// after every layer, so a conditional one is asked here), and critical-path
+/// item 6's intervening "if" next. A reader, not a language — the leaves
+/// and their evaluators are [`holds`]'s, unchanged.
+pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) -> bool {
+    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
 }
 
 /// CR 109.5's "you", off the source's live frame.
@@ -239,7 +260,6 @@ fn life_compare(
 mod tests {
     use super::*;
     use crate::cards::{basic_lands, creatures};
-    use crate::engine::layers::compute::LAYER_ORDER;
     use crate::test_support::{
         card_of_type, put_in_graveyard, put_on_battlefield, setup_two_player_game, vanilla_creature,
     };
@@ -247,11 +267,17 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::effects::AmountExpr;
 
-    /// A settled board is the read-side view a top-level query takes, and
-    /// every leaf below reads `GameState` or a member's memoized frame — so
-    /// it answers exactly as the live board would.
-    fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) -> bool {
-        holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
+    /// A status leaf reads the entity, not a frame: tapping the source flips
+    /// it with no zone change and no registry write.
+    #[test]
+    fn source_untapped_reads_the_entitys_status() {
+        let mut game = setup_two_player_game();
+        let sphere = put_on_battlefield(&mut game, card_of_type("Sphere", CardType::Artifact), 0);
+        assert!(settled_holds(&Condition::SourceUntapped, &game, sphere));
+        game.battlefield.get_mut(&sphere).unwrap().tapped = true;
+        assert!(!settled_holds(&Condition::SourceUntapped, &game, sphere));
+        let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
+        assert!(!settled_holds(&Condition::SourceUntapped, &game, dead), "no entity, not untapped");
     }
 
     #[test]

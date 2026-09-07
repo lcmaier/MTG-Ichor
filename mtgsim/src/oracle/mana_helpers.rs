@@ -196,8 +196,14 @@ pub fn castable_spells(
             }
         }
 
-        // Check mana affordability
-        if let Some(ref mana_cost) = obj.card_data.mana_cost {
+        // Check mana affordability — against the cost CR 601.2f would lock
+        // in, not the printed one. Enumeration and enforcement must agree
+        // (`cost-architecture.md` §3.6): a Thalia on the board would
+        // otherwise offer spells the cast then rolls back, and an
+        // Electromancer would withhold ones the player can afford.
+        if let Some(ref printed) = obj.card_data.mana_cost {
+            let previewed = crate::engine::cost_modification::preview_mana_cost(game, card_id, printed);
+            let mana_cost = &previewed;
             // Account for mana already floating in the pool
             let pool = &game.players[player_id].mana_pool;
             if pool.can_pay(mana_cost) {

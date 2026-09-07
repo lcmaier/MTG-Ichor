@@ -314,7 +314,9 @@ impl DecisionProvider for RecordingDecisionProvider {
         _ctx: &crate::ui::choice_types::ChoiceContext,
         items: &[crate::ui::choice_types::ChoiceOption],
     ) -> Vec<usize> {
-        self.seen.borrow_mut().push("choose_ordering".to_string());
+        // The kind, as `pick_n` records it: an ordering prompt is a decision
+        // site too, and "one prompt, of the right kind" is the assertion.
+        self.seen.borrow_mut().push(format!("{:?}", _ctx.kind));
         (0..items.len()).collect()
     }
 }

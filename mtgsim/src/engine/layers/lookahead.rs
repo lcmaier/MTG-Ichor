@@ -102,7 +102,8 @@ fn would_be_rows(
         if ability.is_characteristic_defining {
             continue;
         }
-        // `Effect::Replacement` and `Effect::Restriction` lower to no atoms:
+        // `Effect::Replacement`, `Effect::Restriction` and
+        // `Effect::CostModification` lower to no atoms:
         // they are discovered off the effective ability list, not registered.
         for (primitive, recipient) in GameState::static_ability_atoms(ability, &card.name) {
             let Some(affected) = GameState::static_affected_set(recipient, &card.name) else {
