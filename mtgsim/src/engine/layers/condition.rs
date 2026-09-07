@@ -22,9 +22,9 @@
 //! resolution-only amounts do.
 
 use crate::engine::layers::board::Board;
-use crate::engine::layers::compute::{evaluate_amount, permanent_matches_filter, FilterPlayers};
+use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AmountExpr, CardFilter, Condition, PermanentFilter};
+use crate::types::effects::{AmountExpr, CardFilter, Condition, ObjectFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -136,7 +136,7 @@ pub(super) fn holds(
                 return false;
             };
             let mut players = FilterPlayers::for_source(source, game, board, layer_index);
-            permanent_matches_filter(filter, host, &chars, &mut players)
+            object_matches_filter(filter, host, &chars, &mut players)
         }
 
         // Both are answers a *resolution* had and a static ability never
@@ -179,7 +179,7 @@ fn controller_of(
 /// the battlefield, and §5b's boundary makes a merely *entering* permanent
 /// visible to filters and invisible to counts.
 fn controls_matching(
-    filter: &PermanentFilter,
+    filter: &ObjectFilter,
     game: &GameState,
     board: &Board<'_>,
     source: ObjectId,
@@ -196,7 +196,7 @@ fn controls_matching(
         // same answer in two-player and multiplayer without the type having
         // to name a player.
         (chars.controller == you) == mine
-            && permanent_matches_filter(filter, id, &chars, &mut players)
+            && object_matches_filter(filter, id, &chars, &mut players)
     })
 }
 
@@ -302,7 +302,7 @@ mod tests {
     fn the_two_control_leaves_are_each_others_complement() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let forest = PermanentFilter::BySubtype(crate::types::card_types::Subtype::Land(
+        let forest = ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
             crate::types::card_types::LandType::Forest,
         ));
 
@@ -335,17 +335,17 @@ mod tests {
         let mut game = setup_two_player_game();
         let aura = put_on_battlefield(&mut game, card_of_type("Loose Aura", CardType::Enchantment), 0);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-        assert!(!settled_holds(&Condition::HostMatches(PermanentFilter::All), &game, aura));
+        assert!(!settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura));
 
         assert!(game.attach(aura, bears));
-        assert!(settled_holds(&Condition::HostMatches(PermanentFilter::All), &game, aura));
+        assert!(settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura));
         assert!(settled_holds(
-            &Condition::HostMatches(PermanentFilter::ByType(CardType::Creature)),
+            &Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)),
             &game,
             aura
         ));
         assert!(!settled_holds(
-            &Condition::HostMatches(PermanentFilter::ByType(CardType::Artifact)),
+            &Condition::HostMatches(ObjectFilter::ByType(CardType::Artifact)),
             &game,
             aura
         ));

@@ -24,7 +24,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
-use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -37,7 +37,7 @@ use mtgsim::test_support::{
     registered, setup_two_player_game, test_dp,
 };
 
-/// Helper: cast a spell targeting a permanent with a PermanentFilter.
+/// Helper: cast a spell targeting a permanent with an ObjectFilter.
 /// If `generic_allocation` is Some, queues the allocation for generic mana.
 fn cast_and_resolve_targeted_perm_spell(
     game: &mut mtgsim::state::game_state::GameState,
@@ -45,7 +45,7 @@ fn cast_and_resolve_targeted_perm_spell(
     spell_id: mtgsim::types::ids::ObjectId,
     cast_index: usize,
     target_index: usize,
-    filter: PermanentFilter,
+    filter: ObjectFilter,
     generic_allocation: Option<Vec<u64>>,
 ) {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
@@ -99,7 +99,7 @@ fn test_liquimetal_adds_artifact_type() {
         spell_id,
         1,
         0,
-        PermanentFilter::All,
+        ObjectFilter::All,
         Some(vec![1]),
     );
 
@@ -135,7 +135,7 @@ fn test_call_to_serve_adds_angel_subtype() {
         spell_id,
         1,
         0,
-        PermanentFilter::All, // helper uses SelectionFilter::Creature via card, but DP sees All here
+        ObjectFilter::All, // helper uses SelectionFilter::Creature via card, but DP sees All here
         Some(vec![1]),
     );
 
@@ -171,7 +171,7 @@ fn test_on_serras_wings_adds_legendary() {
         spell_id,
         1,
         0,
-        PermanentFilter::All,
+        ObjectFilter::All,
         Some(vec![3]),
     );
 
@@ -212,7 +212,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
     decisions.expect_pick_n(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(
-                SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Artifact)),
+                SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
                 TargetCount::Exactly(1),
             ),
             spell_id,
@@ -263,7 +263,7 @@ fn test_type_change_expires_at_cleanup() {
         spell_id,
         1,
         0,
-        PermanentFilter::All,
+        ObjectFilter::All,
         Some(vec![1]),
     );
 

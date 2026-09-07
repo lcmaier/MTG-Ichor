@@ -36,7 +36,7 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, PermanentFilter, PlayerRef,
+    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef,
 };
 use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
@@ -129,7 +129,7 @@ pub struct ReplacementDef {
 
 /// A predicate over a proposed `GameAction`.
 ///
-/// Data rather than a closure for the same reason `PermanentFilter` is:
+/// Data rather than a closure for the same reason `ObjectFilter` is:
 /// closures cannot be compared, cloned cheaply, or inspected by a loop
 /// detector.
 ///
@@ -137,7 +137,7 @@ pub struct ReplacementDef {
 ///
 /// **Exactly one arm per `GameAction` variant, and it grows on no other axis.**
 /// Within an arm, constraints on the event's fields reuse existing vocabulary —
-/// `PermanentFilter`, `ZoneChangeCause`, `CardType` — rather than inventing
+/// `ObjectFilter`, `ZoneChangeCause`, `CardType` — rather than inventing
 /// per-mechanic predicates. A change that adds an arm here without a
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
@@ -169,7 +169,7 @@ pub enum EventPattern {
     /// watches "damage would be dealt to **this** permanent", which `affected`
     /// already says. A source-side constraint — CR 615.10's own example,
     /// Daunting Defender's "if a *red* source would deal damage to a *Cleric
-    /// you control*" — is a `PermanentFilter` field this arm grows in Phase RD,
+    /// you control*" — is an `ObjectFilter` field this arm grows in Phase RD,
     /// when there is a card to test it with.
     DealDamage,
 
@@ -194,7 +194,7 @@ pub enum EventPattern {
         /// because CR 903.9b's "if a **commander** would be put into its
         /// owner's hand or library" is a property of the object being moved
         /// while the shield is around a player's cards generally.
-        object: Option<PermanentFilter>,
+        object: Option<ObjectFilter>,
     },
 
     /// CR 122.1d. The event's subject is the permanent being untapped.
@@ -440,12 +440,12 @@ pub struct AuxiliaryMove {
     /// off the card anywhere else, which is the same split
     /// `EventPattern::ZoneChange`'s `object` filter already makes.
     ///
-    /// **`PermanentFilter` is the wrong name for what this does** and has been
+    /// **`ObjectFilter` is the wrong name for what this does** and has been
     /// since RB: CR 110.1 makes a permanent a card *on the battlefield*, and
     /// this matches creature cards in a graveyard. The type is right; the name
     /// is two phases stale, and the rename is `codebase-state.md` item 64 —
     /// ~120 mechanical call sites, no behaviour, so it wants a PR of its own.
-    pub filter: PermanentFilter,
+    pub filter: ObjectFilter,
 
     /// Where the chosen objects go, and why. The `cause` is what separates
     /// devour's sacrifice from an exile, and 278 cards care (CR 701.21).
@@ -794,11 +794,11 @@ impl ReplacementDef {
 /// against a `ResolutionContext` whose single resolved target is the event's
 /// subject.
 pub fn regeneration_rider() -> Effect {
-    use crate::types::effects::{EffectRecipient, PermanentFilter, Primitive, SelectionFilter,
+    use crate::types::effects::{EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
                                 TargetCount};
     let it = || {
         EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::All),
+            SelectionFilter::Permanent(ObjectFilter::All),
             TargetCount::Exactly(1),
         )
     };

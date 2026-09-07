@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::types::effects::{
-    AffectedSet, CounterType, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef,
+    AffectedSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -970,7 +970,7 @@ fn all_creatures_exile_watcher() -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Creature) },
+            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
@@ -1087,7 +1087,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
 
 fn any_permanent() -> EffectRecipient {
     EffectRecipient::Target(
-        SelectionFilter::Permanent(PermanentFilter::All),
+        SelectionFilter::Permanent(ObjectFilter::All),
         TargetCount::Exactly(1),
     )
 }
@@ -1424,7 +1424,7 @@ fn test_kalitas_ignores_its_controllers_own_creatures() {
 #[test]
 fn test_kalitas_ignores_tokens() {
     // "A **nontoken** creature", and the leaf this card forced into
-    // `PermanentFilter`. CR 707.2 excludes tokenness from copiable values, so
+    // `ObjectFilter`. CR 707.2 excludes tokenness from copiable values, so
     // it is a property of the `GameObject` that no layer walk can reach — which
     // is why no combination of the existing leaves could have expressed it.
     //
@@ -2457,7 +2457,7 @@ fn test_choosing_rest_in_peace_instead_exiles_without_the_zombie() {
 
 #[test]
 fn test_leyline_reads_ownership_where_kalitas_reads_control() {
-    // The reason `PermanentFilter::ByOwner` exists, and the case that makes
+    // The reason `ObjectFilter::ByOwner` exists, and the case that makes
     // `ByController` the wrong spelling rather than a near-enough one.
     //
     // P0 controls Leyline and has stolen P1's creature (CR 613.3, Layer 2 — what
@@ -2502,7 +2502,7 @@ fn test_leyline_reads_ownership_where_kalitas_reads_control() {
 #[test]
 fn test_leyline_ignores_tokens_and_rest_in_peace_does_not_discriminate() {
     // "a **card**" against "a card **or token**" — the one clause separating the
-    // two, and `PermanentFilter::All` versus `Not(Token)` is the whole encoding.
+    // two, and `ObjectFilter::All` versus `Not(Token)` is the whole encoding.
     // A single prompt would mean both applied; `test_ctx` panics on any prompt,
     // so this passing is itself the assertion that exactly one did.
     let mut game = setup_two_player_game();
@@ -2523,7 +2523,7 @@ fn test_leyline_ignores_tokens_and_rest_in_peace_does_not_discriminate() {
 fn test_rest_in_peace_exiles_a_card_headed_to_a_graveyard_from_hand() {
     // "From anywhere", and this is the clause a first draft narrowed away.
     // `EventPattern::ZoneChange { from: None }` matches every origin, and the
-    // filter — `PermanentFilter::All` — reads nothing off the layer frame, so a
+    // filter — `ObjectFilter::All` — reads nothing off the layer frame, so a
     // card that is not a permanent resolves it fine. The reachable origins today
     // are stack→graveyard (CR 608.2n's resolved spell, CR 608.3's fizzle) and
     // this one, the CR 514.1 cleanup discard. Milling would be the third and
@@ -2565,7 +2565,7 @@ fn test_kalitas_stays_battlefield_scoped_because_cr_700_4_defines_dies() {
 
 #[test]
 fn test_rest_in_peace_applies_to_a_noncreature_permanent() {
-    // `PermanentFilter::All` is wider than Kalitas's `ByType(Creature)` in the
+    // `ObjectFilter::All` is wider than Kalitas's `ByType(Creature)` in the
     // other direction too: an enchantment going to the graveyard is a card
     // going to a graveyard. Kalitas alone leaves this event untouched, so a
     // single applicable effect means no prompt — hence `test_ctx`.

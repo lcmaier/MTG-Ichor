@@ -21,7 +21,7 @@ use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype}
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -118,9 +118,9 @@ pub fn equip(costs: Vec<Cost>) -> AbilityDef {
         effect: Effect::Atom(
             Primitive::Attach,
             EffectRecipient::Target(
-                SelectionFilter::Permanent(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                SelectionFilter::Permanent(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
                 TargetCount::Exactly(1),
             ),

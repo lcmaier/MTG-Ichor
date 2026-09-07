@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    CounterType, EffectRecipient, PermanentFilter, SelectionFilter, TargetCount,
+    CounterType, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
@@ -65,7 +65,7 @@ fn cast_battlegrowth_at_the_only_creature(game: &mut GameState, player: usize) -
     decisions.expect_pick_n(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(
-                SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Creature)),
+                SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
                 TargetCount::Exactly(1),
             ),
             spell_id: id,

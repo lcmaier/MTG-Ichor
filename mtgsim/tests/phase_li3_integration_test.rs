@@ -29,7 +29,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, PermanentFilter, Primitive, TypeChange,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
@@ -288,14 +288,14 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
     /// whether the card is itself the white permanent its condition asks for.
     fn pale_rites(white: bool) -> Arc<CardData> {
         let each_creature =
-            EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature));
+            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature));
         let mut builder = CardDataBuilder::new("Pale Rites").card_type(CardType::Enchantment);
         if white {
             builder = builder.color(Color::White);
         }
         builder
             .ability(static_ability(Effect::Conditional(
-                Condition::ControlPermanent(PermanentFilter::ByColor(Color::White)),
+                Condition::ControlPermanent(ObjectFilter::ByColor(Color::White)),
                 Box::new(Effect::Sequence(vec![
                     Effect::Atom(
                         Primitive::ChangeType(

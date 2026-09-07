@@ -21,7 +21,7 @@ use mtgsim::test_support::{
     place_bare, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
 };
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -628,7 +628,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected: AffectedSet::Filter { filter: PermanentFilter::ByController(PlayerRef::You) },
+        affected: AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
     let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: Vec::new() };

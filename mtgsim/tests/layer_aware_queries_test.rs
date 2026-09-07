@@ -16,7 +16,7 @@ use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
-    CounterType, Duration, EffectRecipient, PermanentFilter, SelectionFilter, TargetCount,
+    CounterType, Duration, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::engine::resolve::ResolvedTarget;
@@ -110,7 +110,7 @@ fn test_detyped_creature_is_not_a_legal_creature_target() {
     );
 }
 
-/// `PermanentFilter::ByType` is used by every filtered effect; it must see
+/// `ObjectFilter::ByType` is used by every filtered effect; it must see
 /// Layer 4 output too.
 #[test]
 fn test_permanent_filter_by_type_sees_layer4() {
@@ -124,7 +124,7 @@ fn test_permanent_filter_by_type_sees_layer4() {
     );
 
     let recipient = EffectRecipient::Target(
-        SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Creature)),
+        SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
         TargetCount::Exactly(1),
     );
     let targets = vec![ResolvedTarget::Object(artifact_id)];

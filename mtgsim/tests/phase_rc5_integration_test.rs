@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PermanentFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive,
 };
 use mtgsim::types::ids::ObjectId;
@@ -114,12 +114,12 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
         .rules_text("Creatures entering have devour N.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Creature) },
+            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::EnterAfterMoving(AuxiliaryMove {
                 from: Zone::Battlefield,
-                filter: PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 ),
                 to: Zone::Graveyard,
                 cause: ZoneChangeCause::Sacrificed,
@@ -141,9 +141,9 @@ fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             AffectedSet::Filter {
-                filter: PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 ),
             },
             Rewrite::EnterWith(EnterModsTemplate::tapped()),
@@ -187,9 +187,9 @@ fn elf_lord(name: &str) -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                Box::new(PermanentFilter::BySubtype(Subtype::Creature(CreatureType::Elf))),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf))),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             )),
         )))
         .build()
@@ -210,10 +210,10 @@ fn grants_graveyard_exile(name: &str) -> Arc<CardData> {
         .rules_text("As a creature enters, exile any number of creature cards from your graveyard.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Creature) },
+            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::EnterAfterMoving(AuxiliaryMove {
                 from: Zone::Graveyard,
-                filter: PermanentFilter::ByType(CardType::Creature),
+                filter: ObjectFilter::ByType(CardType::Creature),
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
                 up_to: None,
@@ -246,7 +246,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::Filter { filter: PermanentFilter::ByController(PlayerRef::You) },
+            AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
             Rewrite::Prevent,
         )))))
         .build()
@@ -275,7 +275,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
                     object: None,
                 },
                 affected: AffectedSet::Filter {
-                    filter: PermanentFilter::ByController(PlayerRef::You),
+                    filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 by: Some(mtgsim::types::restriction::SourceFilter::ControlledBy(PlayerRef::You)),
             },
@@ -301,7 +301,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
                     object: None,
                 },
                 affected: AffectedSet::Filter {
-                    filter: PermanentFilter::ByController(PlayerRef::You),
+                    filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 by: None,
             },
@@ -323,9 +323,9 @@ fn anthem(name: &str) -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             )),
         )))
         .build()

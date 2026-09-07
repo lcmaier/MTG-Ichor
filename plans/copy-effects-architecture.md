@@ -540,7 +540,7 @@ pub enum CopyRoles {
     RecipientsCopyChosen(SelectionFilter),
     /// The recipient supplies the values and every permanent matching the
     /// filter becomes a copy of it. Mirrorweave, Mirrorform.
-    FilteredCopyRecipient { filter: PermanentFilter, exclude_donor: bool },
+    FilteredCopyRecipient { filter: ObjectFilter, exclude_donor: bool },
 }
 
 Copy(CopyRoles, Duration)
@@ -552,7 +552,7 @@ donor to be other than — and encoding unreachable states is how an arm
 eventually gets written for one.
 
 > **`exclude_donor` is a field because review found the card that needs it
-> `false`.** The arm shipped as `OthersCopyRecipient(PermanentFilter)`, with the
+> `false`.** The arm shipped as `OthersCopyRecipient(ObjectFilter)`, with the
 > exclusion **structural**, on the reading that a class-scoped copy always says
 > "each *other*". **Mirrorform** — "Each nonland permanent you control becomes a
 > copy of target non-Aura permanent" — prints the same shape without the word,

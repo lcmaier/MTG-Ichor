@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_object_id, ObjectId, PlayerId};
@@ -72,7 +72,7 @@ fn gain_control(
     let effect = Effect::Atom(
         Primitive::GainControl(duration),
         EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::All),
+            SelectionFilter::Permanent(ObjectFilter::All),
             TargetCount::Exactly(1),
         ),
     );
@@ -626,9 +626,9 @@ fn test_an_enchant_creature_you_control_aura_falls_off_when_the_creature_is_stol
 fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
     let mut game = setup_two_player_game();
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let filter = SelectionFilter::Permanent(PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Creature)),
-        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+    let filter = SelectionFilter::Permanent(ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
     ));
 
     assert!(

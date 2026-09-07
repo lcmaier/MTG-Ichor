@@ -249,8 +249,8 @@ The clause counts are not the work. Sorted by what each clause actually needs:
   "by artifact creatures"); the other 295 have no tail at all and are plain
   unblockability. There are **111 distinct tails** under `--decompose`'s
   normalization (reminder text, durations and the plural of "creature"
-  stripped, since a `PermanentFilter` carries none of those), and all but the
-  counting ones are `PermanentFilter`-expressible today. The counting ones
+  stripped, since an `ObjectFilter` carries none of those), and all but the
+  counting ones are `ObjectFilter`-expressible today. The counting ones
   ("by more than one creature", "except by three or more") are **48 clauses**
   and want one integer field, which is CR 509.1b's own menace shape.
 - **A duration.** **35% of Tier 1a (457 clauses), 31% of Tier 1b and 8% of
@@ -415,16 +415,16 @@ pub enum Restriction {
 
     // ---- Axis 2: a choice a player makes (one arm per `ChoiceKind`) ------
     /// CR 508.1c. `ChoiceKind::DeclareAttackers`.
-    Attack { attacker: PermanentFilter, target: Option<AttackTargetFilter> },
+    Attack { attacker: ObjectFilter, target: Option<AttackTargetFilter> },
     /// CR 509.1b, the defending player's half. `ChoiceKind::DeclareBlockers`.
-    Block { blocker: PermanentFilter },
+    Block { blocker: ObjectFilter },
     /// CR 509.1b's evasion half — a restriction the *attacker* imposes on who
     /// may block it. `min_blockers` is menace (702.111a) and the 77 clauses
     /// that count; `except_by` is flying, landwalk, protection and the 222
     /// that filter.
     BeBlocked {
-        attacker: PermanentFilter,
-        except_by: Option<PermanentFilter>,
+        attacker: ObjectFilter,
+        except_by: Option<ObjectFilter>,
         min_blockers: Option<u32>,
     },
     /// CR 601.3. `ChoiceKind::PriorityAction`.
@@ -434,7 +434,7 @@ pub enum Restriction {
     /// being put onto the battlefield by a spell or ability."
     PlayLand { player: PlayerRef, land: Option<CardFilter>, from: Option<Zone> },
     /// CR 602.5. `ChoiceKind::PriorityAction`.
-    ActivateAbility { source: PermanentFilter, ability: Option<AbilityFilter> },
+    ActivateAbility { source: ObjectFilter, ability: Option<AbilityFilter> },
     /// CR 115.6. `ChoiceKind::SelectRecipients`.
     BeTargeted { object: AffectedSet, by: Option<SourceFilter> },
     /// CR 614.17b and CR 118. The cost-payment choice kinds.
@@ -481,7 +481,7 @@ owns:
   missing item is a `ChoiceKind`.
 - **Axis 3 is closed** for the reason its own doc comment gives: one application
   site, two things the CR permits withholding.
-- **Per-card variety goes in the filters**, which are `PermanentFilter`,
+- **Per-card variety goes in the filters**, which are `ObjectFilter`,
   `CardFilter` and `PlayerRef` — vocabulary that already exists and that §2.4
   measured as sufficient for 60 of 62 observed shapes.
 
@@ -1250,7 +1250,7 @@ This is also the answer to the archive plan's L15, which proposed
 Read against §2.1 that enum is one variant per *card* wearing a rule's name:
 `CantGainLife` and `CantDrawExtraCards` are the same Tier-2 arm with different
 `EventPattern`s, and `CantActivateAbilities`' `Option<String>` card-name filter
-is a `PermanentFilter` spelled by hand. L15 was never built; this document
+is an `ObjectFilter` spelled by hand. L15 was never built; this document
 supersedes it and `codebase-state.md` records that.
 
 ### 6.3 A3 — is there a primitive per "can't" stopper?

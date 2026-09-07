@@ -242,7 +242,7 @@ pub(super) fn compute_non_member(
 ///
 /// RC-3 is where this is fixed because RC-3 is where it became askable of an
 /// *entering* permanent: `effect_applies_to` no longer stops a filter at the
-/// battlefield boundary, so `PermanentFilter::ByController` now reads this
+/// battlefield boundary, so `ObjectFilter::ByController` now reads this
 /// value for every entry. It was already wrong on the replacement path, where
 /// `set_affects` has never had a gate.
 pub(crate) fn base_controller(
@@ -272,7 +272,7 @@ pub(crate) fn base_controller(
     game.objects.get(&id).map(|obj| obj.owner)
 }
 
-/// The players a continuous effect's `PermanentFilter` can name — resolved
+/// The players a continuous effect's `ObjectFilter` can name — resolved
 /// lazily, at most once per filter tree.
 ///
 /// Laziness is load-bearing, not tidiness. A filter with no `ByController` node
@@ -315,7 +315,7 @@ pub(crate) fn base_controller(
 pub(super) struct FilterPlayers<'a, 'l> {
     effect: Option<&'a ContinuousEffect>,
     /// The object the filter is relative to — the row's source, or the
-    /// object whose CDA is counting — which is what `PermanentFilter::EachOther`
+    /// object whose CDA is counting — which is what `ObjectFilter::EachOther`
     /// is other than.
     source: ObjectId,
     game: &'a GameState,
@@ -347,7 +347,7 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
     /// The players of a *condition*'s filter (CR 604.2's "as long as", read
     /// through CR 109.5): "you" is the source's current controller off its
     /// live frame, exactly as a static row's is, and the source is what
-    /// `PermanentFilter::EachOther` is other than. Both are resolved up
+    /// `ObjectFilter::EachOther` is other than. Both are resolved up
     /// front, since there is no row to re-derive them from.
     pub(super) fn for_source(
         source: ObjectId,
@@ -411,7 +411,7 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
 /// `Owner` is the owner of the object being *moved*, not of the effect's
 /// source. Homeward Path's "each player gains control of all creatures they
 /// own" hands each creature to its own owner, which is the opposite of what the
-/// same variant means inside a `PermanentFilter`, where it describes the source.
+/// same variant means inside an `ObjectFilter`, where it describes the source.
 ///
 /// # Which player identities may stay symbolic in a row
 ///
@@ -490,21 +490,21 @@ fn resolve_set_controller(
 ///
 /// `id` is the object `chars` describes. Almost every leaf answers from the
 /// frame alone — that is what "post-layers" means — but CR 707.2 excludes
-/// tokenness from copiable values, so `PermanentFilter::Token` is a property of
+/// tokenness from copiable values, so `ObjectFilter::Token` is a property of
 /// the `GameObject` that no layer can reach and no frame can carry.
-pub(super) fn permanent_matches_filter(
-    filter: &crate::types::effects::PermanentFilter,
+pub(super) fn object_matches_filter(
+    filter: &crate::types::effects::ObjectFilter,
     id: ObjectId,
     chars: &EffectiveCharacteristics,
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
-    use crate::types::effects::{PermanentFilter, PlayerRef};
+    use crate::types::effects::{ObjectFilter, PlayerRef};
     match filter {
-        PermanentFilter::All => true,
-        PermanentFilter::ByType(t) => chars.types.contains(t),
-        PermanentFilter::BySubtype(s) => chars.subtypes.contains(s),
-        PermanentFilter::BySupertype(s) => chars.supertypes.contains(s),
-        PermanentFilter::ByColor(c) => chars.colors.contains(c),
+        ObjectFilter::All => true,
+        ObjectFilter::ByType(t) => chars.types.contains(t),
+        ObjectFilter::BySubtype(s) => chars.subtypes.contains(s),
+        ObjectFilter::BySupertype(s) => chars.supertypes.contains(s),
+        ObjectFilter::ByColor(c) => chars.colors.contains(c),
         // `chars.controller` is the *effective* controller of the object being
         // tested — Layer 2 will write it, and this comparison then costs
         // nothing to keep correct.
@@ -514,7 +514,7 @@ pub(super) fn permanent_matches_filter(
         // player in a two-player game, but CR 102.3 makes "your opponents" a
         // set in multiplayer, and "controlled by someone who isn't you" is the
         // same answer in both without the type having to lie.
-        PermanentFilter::ByController(player_ref) => match player_ref {
+        ObjectFilter::ByController(player_ref) => match player_ref {
             PlayerRef::You => chars.controller == players.you(),
             PlayerRef::Opponent => chars.controller != players.you(),
             PlayerRef::Owner => chars.controller == players.owner(),
@@ -524,13 +524,13 @@ pub(super) fn permanent_matches_filter(
         // copiable values, so no layer can change the answer and there is
         // nothing on `chars` to consult. `players.game` is the same board the
         // frame was computed against.
-        PermanentFilter::Token => {
+        ObjectFilter::Token => {
             players.game.objects.get(&id).map(|obj| obj.is_token).unwrap_or(false)
         }
         // Off the object for the same reason as `Token`: CR 108.3 ownership is
         // fixed when the game starts and no layer touches it. An object with no
         // entry cannot match anybody's ownership question.
-        PermanentFilter::ByOwner(player_ref) => {
+        ObjectFilter::ByOwner(player_ref) => {
             let Some(owner) = players.game.objects.get(&id).map(|obj| obj.owner) else {
                 return false;
             };
@@ -541,21 +541,21 @@ pub(super) fn permanent_matches_filter(
                 PlayerRef::Player(pid) => owner == *pid,
             }
         }
-        PermanentFilter::PowerLE(n) => {
+        ObjectFilter::PowerLE(n) => {
             chars.power.map(|p| p <= *n).unwrap_or(false)
         }
         // Identity, off the ids: Opalescence does not animate itself, and no
         // layer can make an object something other than itself.
-        PermanentFilter::EachOther => id != players.source,
-        PermanentFilter::And(a, b) => {
-            permanent_matches_filter(a, id, chars, players)
-                && permanent_matches_filter(b, id, chars, players)
+        ObjectFilter::EachOther => id != players.source,
+        ObjectFilter::And(a, b) => {
+            object_matches_filter(a, id, chars, players)
+                && object_matches_filter(b, id, chars, players)
         }
-        PermanentFilter::Or(a, b) => {
-            permanent_matches_filter(a, id, chars, players)
-                || permanent_matches_filter(b, id, chars, players)
+        ObjectFilter::Or(a, b) => {
+            object_matches_filter(a, id, chars, players)
+                || object_matches_filter(b, id, chars, players)
         }
-        PermanentFilter::Not(inner) => !permanent_matches_filter(inner, id, chars, players),
+        ObjectFilter::Not(inner) => !object_matches_filter(inner, id, chars, players),
     }
 }
 
@@ -607,7 +607,7 @@ pub(super) fn evaluate_amount(
     board: &Board<'_>,
     origin: Option<&ContinuousEffect>,
 ) -> Option<i32> {
-    use crate::types::effects::{AmountExpr, PermanentFilter, PlayerRef, Selector};
+    use crate::types::effects::{AmountExpr, ObjectFilter, PlayerRef, Selector};
 
     match expr {
         AmountExpr::Fixed(n) => Some(*n as i32),
@@ -644,11 +644,11 @@ pub(super) fn evaluate_amount(
         // read off `chars` as of this layer) and the row's controller for a
         // registry row, exactly as a filter leaf resolves it.
         AmountExpr::CountOf(selector) => {
-            let filter: Cow<'_, PermanentFilter> = match selector {
+            let filter: Cow<'_, ObjectFilter> = match selector {
                 Selector::PermanentsMatching(filter) => Cow::Borrowed(filter),
-                Selector::ControlledCreatures => Cow::Owned(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(crate::types::card_types::CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                Selector::ControlledCreatures => Cow::Owned(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(crate::types::card_types::CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
                 other => {
                     debug_assert!(
@@ -680,7 +680,7 @@ pub(super) fn evaluate_amount(
                 let Some(other_chars) = board.frame_of(game, other, layer_index) else {
                     continue;
                 };
-                if permanent_matches_filter(&filter, other, &other_chars, &mut players) {
+                if object_matches_filter(&filter, other, &other_chars, &mut players) {
                     count += 1;
                 }
             }
@@ -1129,7 +1129,7 @@ mod tests {
 
     #[test]
     fn test_filter_based_effect() {
-        use crate::types::effects::{Duration, PermanentFilter};
+        use crate::types::effects::{Duration, ObjectFilter};
 
         let mut game = GameState::new(2, 20);
 
@@ -1164,9 +1164,9 @@ mod tests {
             created_on_turn: 1,
             timestamp: 1,
             affected: AffectedSet::Filter {
-                filter: PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 ),
             },
             modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
@@ -1378,7 +1378,7 @@ mod tests {
 
     #[test]
     fn test_filter_based_color_effect() {
-        use crate::types::effects::{Duration, PermanentFilter};
+        use crate::types::effects::{Duration, ObjectFilter};
 
         // Static ability: "Creatures you control are also red"
         let mut game = GameState::new(2, 20);
@@ -1415,9 +1415,9 @@ mod tests {
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
             affected: AffectedSet::Filter {
-                filter: PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 ),
             },
             modification: EffectModification::AddColor(Color::Red),
@@ -1617,7 +1617,7 @@ mod tests {
     // COVERS-PARTIAL: ATOM-613.1d-001
     #[test]
     fn test_type_change_before_color_change() {
-        use crate::types::effects::{Duration, PermanentFilter};
+        use crate::types::effects::{Duration, ObjectFilter};
 
         // Test layer ordering: L4 (type) applies before L5 (color)
         // A filter-based color effect that checks types should see the
@@ -1652,7 +1652,7 @@ mod tests {
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
             affected: AffectedSet::Filter {
-                filter: PermanentFilter::ByType(CardType::Creature),
+                filter: ObjectFilter::ByType(CardType::Creature),
             },
             modification: EffectModification::AddColor(Color::Red),
         };
@@ -1678,7 +1678,7 @@ mod tests {
     use crate::objects::card_data::CardData;
     use crate::test_support::{creature_with_ability, put_on_battlefield, static_ability};
     use crate::types::effects::{
-        AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, Primitive,
+        AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
     };
     use std::sync::Arc;
 
@@ -1694,9 +1694,9 @@ mod tests {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             )),
         )
@@ -1773,9 +1773,9 @@ mod tests {
             created_on_turn: 1,
             timestamp: 1,
             affected: AffectedSet::Filter {
-                filter: PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 ),
             },
             modification: EffectModification::ModifyPowerToughness {

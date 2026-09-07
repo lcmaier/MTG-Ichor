@@ -64,7 +64,7 @@ pub enum AmountExpr {
 pub enum Selector {
     ControlledCreatures,
     CreaturesInGraveyard(PlayerRef),
-    PermanentsMatching(PermanentFilter),
+    PermanentsMatching(ObjectFilter),
     CardsInHand(PlayerRef),
     /// Cards in graveyards. `None` means **all** graveyards — Tarmogoyf's "cards
     /// in all graveyards", which includes a Tarmogoyf sitting in one of them.
@@ -90,9 +90,18 @@ pub enum PlayerRef {
     Player(PlayerId),
 }
 
-/// Filter for matching permanents (extensible)
+/// A filter over an object's characteristics — type, subtype, supertype,
+/// color, controller — plus the two object facts no layer reaches (`Token`,
+/// `ByOwner`) and one relation to the filter's source (`EachOther`).
+///
+/// Named for what it matches. It was `PermanentFilter` until 2026-09-07, and
+/// by then it had matched creature cards in a graveyard (RC-5), cards in
+/// libraries (RB) and, from CM-1 on, spells on the stack — none of which is a
+/// permanent (CR 110.1). The rename is `cost-architecture.md` §3.2 / CM-0;
+/// the zone leaf `codebase-state.md`'s layers item 9 wants on this type is
+/// still that item's.
 #[derive(Debug, Clone, PartialEq)]
-pub enum PermanentFilter {
+pub enum ObjectFilter {
     All,
     ByType(crate::types::card_types::CardType),
     BySubtype(crate::types::card_types::Subtype),
@@ -103,7 +112,7 @@ pub enum PermanentFilter {
     PowerLE(i32),
     /// CR 111.1 — the permanent is a token. "**Nontoken**" is `Not(Token)`.
     ///
-    /// The first `PermanentFilter` leaf Phase RB added, and it earns its place
+    /// The first `ObjectFilter` leaf Phase RB added, and it earns its place
     /// on breadth rather than on one card: "nontoken" is a printed quality on
     /// hundreds of cards (Kalitas, Anointed Procession's mirror image, every
     /// "nontoken creature you control" anthem), and it is not derivable from
@@ -137,7 +146,7 @@ pub enum PermanentFilter {
     /// has a source — a static ability's affected set, a CDA's count — and
     /// the selection-side matcher refuses it rather than guessing one.
     EachOther,
-    And(Box<PermanentFilter>, Box<PermanentFilter>),
+    And(Box<ObjectFilter>, Box<ObjectFilter>),
     /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
     /// over two type leaves is set *union*, which is this node.
     ///
@@ -145,8 +154,8 @@ pub enum PermanentFilter {
     /// that way: a card definition is read by whoever is checking it against
     /// the oracle text, and De Morgan's law is not something a reader should
     /// have to undo to see that a filter is right.
-    Or(Box<PermanentFilter>, Box<PermanentFilter>),
-    Not(Box<PermanentFilter>),
+    Or(Box<ObjectFilter>, Box<ObjectFilter>),
+    Not(Box<ObjectFilter>),
 }
 
 /// Selects which objects a continuous effect applies to.
@@ -156,7 +165,7 @@ pub enum AffectedSet {
     SourceOnly,
     /// A data-driven filter ("creatures you control").
     ///
-    /// **The filter is stored unresolved.** `PermanentFilter::ByController`
+    /// **The filter is stored unresolved.** `ObjectFilter::ByController`
     /// carries a `PlayerRef`, and `compute::effect_applies_to` resolves it
     /// during the layer walk against the source's *effective* controller.
     ///
@@ -166,7 +175,7 @@ pub enum AffectedSet {
     /// it's on" — so a snapshot taken when the source entered is wrong the
     /// moment control of the source changes, and Glorious Anthem kept buffing
     /// the team of whoever controlled it at ETB.
-    Filter { filter: PermanentFilter },
+    Filter { filter: ObjectFilter },
     /// A fixed set captured at effect creation time.
     /// Pump spells use this — the target is locked at resolution.
     Fixed(Vec<ObjectId>),
@@ -215,10 +224,10 @@ pub enum Duration {
 /// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
-    ControlPermanent(PermanentFilter),
+    ControlPermanent(ObjectFilter),
     LifeAtLeast(AmountExpr),
     LifeAtMost(AmountExpr),
-    OpponentControlsPermanent(PermanentFilter),
+    OpponentControlsPermanent(ObjectFilter),
     CardInGraveyard(CardFilter),
     SpellWasKicked,
     ModeChosen(usize),
@@ -231,7 +240,7 @@ pub enum Condition {
     ///
     /// False when the source is attached to nothing, which is what makes an
     /// unattached Aura's conditional effect simply not exist.
-    HostMatches(PermanentFilter),
+    HostMatches(ObjectFilter),
 }
 
 /// How many modes to choose (rule 700.2)
@@ -269,10 +278,10 @@ pub enum EffectRecipient {
     /// Applies to all permanents matching the filter. Not used at cast/resolution
     /// time — only read by the ETB hook to register continuous effects.
     /// Use `ByController(PlayerRef::You)` in the filter to express "you control".
-    /// The filter is stored verbatim; `compute::permanent_matches_filter`
+    /// The filter is stored verbatim; `compute::object_matches_filter`
     /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes
     /// a static ability's "you" the source's *current* controller.
-    FilteredPermanents(PermanentFilter),
+    FilteredPermanents(ObjectFilter),
     /// The permanent this one is attached to — "enchanted creature" on an
     /// Aura (CR 303.4m), "equipped creature" on an Equipment (CR 301.5a).
     /// Static abilities only, like `FilteredPermanents`; lowers to
@@ -294,7 +303,7 @@ pub enum SelectionFilter {
     /// "any target" — creature, player, or planeswalker
     Any,
     /// Permanent matching a filter
-    Permanent(PermanentFilter),
+    Permanent(ObjectFilter),
     /// Spell on the stack
     Spell,
 }
@@ -499,7 +508,7 @@ pub enum CopyRoles {
     FilteredCopyRecipient {
         /// Which permanents become copies, evaluated as the effect begins to
         /// apply and then locked (CR 611.2c).
-        filter: PermanentFilter,
+        filter: ObjectFilter,
         /// **Whether the donor is excluded, and it is data because the cards
         /// disagree.** Mirrorweave says "each **other** creature"; Mirrorform
         /// says "each nonland permanent you control", which *includes* the

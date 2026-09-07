@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, AmountExpr, Effect, PermanentFilter, PlayerRef};
+use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     AuxiliaryMove, EnterMods, EnterModsTemplate, GameActionTemplate, Rewrite, Uses,
@@ -336,7 +336,7 @@ pub(crate) fn apply_replacements(
 /// **A semantics-assuming shortcut, and it carries its expiry conditions**
 /// (`layers-architecture.md` §12 item 3). It goes false the day
 /// `EnterMods` gains a field that feeds a characteristic — face-down, which
-/// is Layer 1 and changes everything — or `PermanentFilter` gains a leaf that
+/// is Layer 1 and changes everything — or `ObjectFilter` gains a leaf that
 /// reads P/T, keywords or counters, or `EventPattern::EnterBattlefield` reads
 /// `mods`. `check_order_invariance` is the debug-build check that computes it
 /// the other way, and `codebase-state.md` records the three conditions.
@@ -378,22 +378,22 @@ fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
 /// by no `EnterMods` field; power is fed by `+1/+1` and `-1/-1` counters
 /// (CR 122.1a) and so `PowerLE` is not invariant. Matched exhaustively, so a
 /// new leaf has to be classified rather than defaulting to "safe".
-fn filter_is_mods_invariant(filter: &PermanentFilter) -> bool {
+fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
     match filter {
-        PermanentFilter::All
-        | PermanentFilter::ByType(_)
-        | PermanentFilter::BySubtype(_)
-        | PermanentFilter::BySupertype(_)
-        | PermanentFilter::ByColor(_)
-        | PermanentFilter::ByController(_)
-        | PermanentFilter::Token
-        | PermanentFilter::ByOwner(_)
-        | PermanentFilter::EachOther => true,
-        PermanentFilter::PowerLE(_) => false,
-        PermanentFilter::And(a, b) | PermanentFilter::Or(a, b) => {
+        ObjectFilter::All
+        | ObjectFilter::ByType(_)
+        | ObjectFilter::BySubtype(_)
+        | ObjectFilter::BySupertype(_)
+        | ObjectFilter::ByColor(_)
+        | ObjectFilter::ByController(_)
+        | ObjectFilter::Token
+        | ObjectFilter::ByOwner(_)
+        | ObjectFilter::EachOther => true,
+        ObjectFilter::PowerLE(_) => false,
+        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
             filter_is_mods_invariant(a) && filter_is_mods_invariant(b)
         }
-        PermanentFilter::Not(inner) => filter_is_mods_invariant(inner),
+        ObjectFilter::Not(inner) => filter_is_mods_invariant(inner),
     }
 }
 
@@ -425,7 +425,7 @@ fn check_order_invariance(
         debug_assert!(
             still.contains(id),
             "the CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped \
-             applying to {:?} after the chosen member applied. A `PermanentFilter` leaf \
+             applying to {:?} after the chosen member applied. A `ObjectFilter` leaf \
              or an `EnterMods` field reads something `filter_is_mods_invariant` calls \
              invariant — see `order_invariant_entry_bucket`.",
             id, next
@@ -965,7 +965,7 @@ fn auxiliary_candidates(
             if !game.entry_selection.admits(id) {
                 return false;
             }
-            if !game.permanent_matches_filter(id, &aux.filter, you).unwrap_or(false) {
+            if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
                 return false;
             }
             // CR 101.2 on the move this choice would produce — the axis-1

@@ -36,7 +36,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PermanentFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -114,9 +114,9 @@ fn anthem_bear() -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             )),
         )))
         .build()
@@ -786,7 +786,7 @@ fn restriction_creature() -> Arc<CardData> {
                     object: None,
                 },
                 affected: AffectedSet::Filter {
-                    filter: PermanentFilter::ByController(PlayerRef::You),
+                    filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),

@@ -647,7 +647,7 @@ impl GameState {
                 for _ in 0..count {
                     // CR 111.2 — a token's owner is the player who controls the
                     // effect that created it, and CR 111.1's `is_token` is what
-                    // makes CR 704.5d and `PermanentFilter::Token` able to see
+                    // makes CR 704.5d and `ObjectFilter::Token` able to see
                     // it. Both are set before it reaches the battlefield,
                     // because `register_static_effects` runs inside
                     // `place_on_battlefield` and would otherwise register
@@ -1184,7 +1184,7 @@ impl GameState {
                     .into_iter()
                     .filter(|&id| !(*exclude_donor && id == donor))
                     .filter(|&id| {
-                        self.permanent_matches_filter(id, filter, ctx.controller)
+                        self.object_matches_filter(id, filter, ctx.controller)
                             .unwrap_or(false)
                     })
                     .collect();

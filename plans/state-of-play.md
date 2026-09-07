@@ -75,15 +75,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 3925 of 4140 lines (94%) |
+| Section size | 3929 of 4144 lines (94%) |
 | Numbered items | 115 |
-| …closed, still recorded | 26 |
+| …closed, still recorded | 27 |
 | …open — unreachable, and says why | 55 |
 | **…open — reachable, wrong today** | **2** |
-| …open — reachable, not wrong (perf, a name, a harness) | 10 |
+| …open — reachable, not wrong (perf, a name, a harness) | 9 |
 | …open — nothing to build, a record for a later phase | 22 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 89 of 89 |
+| …open, carrying an explicit `**Sized:**` | 88 of 88 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

@@ -5,7 +5,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, Primitive, SelectionFilter,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
 use crate::types::ids::new_ability_id;
@@ -48,7 +48,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
                     Duration::UntilEndOfTurn,
                 ),
                 EffectRecipient::Target(
-                    SelectionFilter::Permanent(PermanentFilter::All),
+                    SelectionFilter::Permanent(ObjectFilter::All),
                     TargetCount::Exactly(1),
                 ),
             ),
@@ -92,7 +92,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
                     ),
                     // Both atoms use the same recipient — targets are shared via ctx.targets
                     EffectRecipient::Target(
-                        SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Artifact)),
+                        SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
                         TargetCount::Exactly(1),
                     ),
                 ),
@@ -103,7 +103,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
                         Duration::UntilEndOfTurn,
                     ),
                     EffectRecipient::Target(
-                        SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Artifact)),
+                        SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
                         TargetCount::Exactly(1),
                     ),
                 ),
@@ -230,10 +230,10 @@ pub fn blood_moon() -> Arc<CardData> {
     mountain_set.insert(Subtype::Land(LandType::Mountain));
 
     // Filter: Land AND NOT Basic
-    let nonbasic_land_filter = PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Land)),
-        Box::new(PermanentFilter::Not(
-            Box::new(PermanentFilter::BySupertype(Supertype::Basic)),
+    let nonbasic_land_filter = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Land)),
+        Box::new(ObjectFilter::Not(
+            Box::new(ObjectFilter::BySupertype(Supertype::Basic)),
         )),
     );
 
@@ -309,7 +309,7 @@ pub fn urborg_effect() -> Arc<CardData> {
                     },
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
             ),
         })
         .build()
@@ -384,7 +384,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
                     crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
             ),
         })
         .build()
@@ -408,9 +408,9 @@ pub fn lands_have_flying() -> Arc<CardData> {
 /// to be applied to the same set of objects in each other applicable layer".
 pub fn march_of_the_machines() -> Arc<CardData> {
     // Artifact AND NOT Creature
-    let noncreature_artifact = PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Artifact)),
-        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByType(
+    let noncreature_artifact = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Artifact)),
+        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(
             CardType::Creature,
         )))),
     );
@@ -463,7 +463,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
 ///
 /// Not "creatures you control" — the filter is a bare `ByType(Creature)` with
 /// no controller constraint, and the text says what the filter does. Adding
-/// `ByController(PlayerRef::You)` would work (`compute::permanent_matches_filter`
+/// `ByController(PlayerRef::You)` would work (`compute::object_matches_filter`
 /// resolves it), but controller scoping is not what this card is here to
 /// exercise.
 ///
@@ -495,7 +495,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
                     crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
             ),
         })
         .build()
@@ -511,7 +511,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
 /// makes each nontoken creature you control a Forest land, and Blood Moon —
 /// now a nonbasic land — strips its own ability under CR 305.7.
 ///
-/// Compressed because our `PermanentFilter` has no way to say "each **other**
+/// Compressed because our `ObjectFilter` has no way to say "each **other**
 /// non-Aura enchantment", so a modelled Opalescence would also enchant itself
 /// and put three layers of noise between the fixture and what it is testing.
 /// One card reaches the same self-reference.
@@ -527,10 +527,10 @@ pub fn self_stripping_land() -> Arc<CardData> {
     let mut mountain_set = HashSet::new();
     mountain_set.insert(Subtype::Land(LandType::Mountain));
 
-    let nonbasic_land_filter = PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Land)),
-        Box::new(PermanentFilter::Not(Box::new(
-            PermanentFilter::BySupertype(Supertype::Basic),
+    let nonbasic_land_filter = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Land)),
+        Box::new(ObjectFilter::Not(Box::new(
+            ObjectFilter::BySupertype(Supertype::Basic),
         ))),
     );
 

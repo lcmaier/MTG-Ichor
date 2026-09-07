@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, Primitive,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
     SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -122,7 +122,7 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected: AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Land) },
+        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
         by: None,
     }
 }
@@ -133,7 +133,7 @@ fn lands_cant_enter() -> Restriction {
 fn creatures_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::EnterBattlefield { cast: None },
-        affected: AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Creature) },
+        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
         by: None,
     }
 }
@@ -161,7 +161,7 @@ fn everything_is_a_land() -> Arc<CardData> {
                 },
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::All),
+            EffectRecipient::FilteredPermanents(ObjectFilter::All),
         )))
         .build()
 }
@@ -176,7 +176,7 @@ fn moonlight_shaped() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: Some(false) },
-            AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Creature) },
+            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
