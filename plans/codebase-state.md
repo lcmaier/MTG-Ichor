@@ -1290,6 +1290,53 @@ registered card returns an object.
 
     **Sized:** none.
 
+69. **Every performance number this project owns is two-player, and v1's
+    profile is four (recorded 2026-09-07).** `fuzz_games` builds
+    `Game::new(config, vec![deck1, deck2])` — a literal pair, no `--players`
+    flag — so §3's tables, `layers-architecture.md` §12's measurements and
+    §13b's scaling table all describe a board the target use case does not
+    build. `Game::new` already takes a `Vec` of decks and `GameState.players`
+    is a `Vec`, so the harness is the only thing that is two-player here.
+
+    **Why it matters more than a percentage.** Since 7a the cost model is
+    roughly *board walks × cost of one pass*, and a pass is linear in members
+    and in the applications each layer holds. Both scale with player count: a
+    four-player Commander board carries several times the permanents of a
+    pooled two-player game, and several times the static abilities. The LI-1
+    scaling table is the one to read, and it spans two orders of magnitude
+    across the range a real board covers — 6.4 µs at 10 permanents with one
+    row, 1,195 µs at 80 with 80. Which end v1 sits at is not known, and no
+    amount of two-player fuzzing will say.
+
+    **This is the measurement to bump, not the optimizations.** The two
+    remaining answer-preserving levers — the `Arc<Vec<AbilityDef>>` elision
+    (item 67) and interning `EffectGroup` (§12) — were both measured *before*
+    7a cut walks per game by ~40×, and item 67 already says re-measure before
+    paying. Optimising a two-player 70-card profile for a four-player
+    Commander target is optimising the wrong board; the fix is to be able to
+    see the right one.
+
+    **What triggers do and do not change.** Item 6 adds *queries* — a
+    characteristics read per trigger condition and per intervening "if" — and
+    since 7a most of those are memo hits against an unchanged board. What it
+    adds to the cost model is *writes*, which bump the epoch and force a fresh
+    pass. So triggers move the `Board walks` term, which the harness already
+    prints, rather than introducing a term nobody has measured. That is why
+    the board-size question can be asked now and the query-volume question
+    cannot: the first is a property of the game state, the second of a system
+    that does not exist.
+
+    **Reachability (2026-09-07):** reachable — not a wrong answer, a blind
+    spot. Nothing is mis-computed; the profile is simply invisible.
+
+    **Sized:** `--players N` on `fuzz_games` plus `random_deck` per player and
+    the two-player assumptions in the harness's own summary rows, ~80–120
+    lines. Independently owed by `CLAUDE.md`'s "write new systems N-player-shaped
+    from the start" — the harness is a system and it is not. **Blocked on CR
+    800** for a game that *runs* correctly past two players (priority passes
+    loop player0 → player1, line 189 above), so the honest order is: CR 800,
+    then this, then re-measure, then choose a lever.
+
 ### Found by the Everywhere pool change (2026-09-03)
 
 16d. **An any-color mana base turned the random agent's uniform tap into a

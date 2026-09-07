@@ -262,7 +262,13 @@ worker pool already scales to ~6.7× on eight cores, and what is open is in
 42), and search, which needs the decision-site invariant (main item 40) and
 the priority-boundary fork test (main item 41) before any refactor is priced.
 Profile-driven performance: the 7a residual (`layers-architecture.md` §12) and
-the `Arc<Vec<AbilityDef>>` lever (main item 67). Network play is a stretch
+the `Arc<Vec<AbilityDef>>` lever (main item 67). **Both are gated on a
+measurement this row does not own** — every number the project has is
+two-player, because `fuzz_games` builds a literal pair of decks, and v1's
+profile is four-player Commander (main item 69, recorded 2026-09-07). The
+harness change is small and its prerequisite is CR 800 in row D, so the order
+is: multiplayer, then a four-player fuzz profile, then pick a lever against it.
+Choosing one now would be tuning the wrong board. Network play is a stretch
 goal. Milestone: **user-ready**, which is v1.
 
 **Sizing, with §8's caveat.** Rows A and B sum to roughly the ~35–40 PRs §8

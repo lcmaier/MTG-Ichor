@@ -101,6 +101,8 @@
   table.mx tbody th.src { color: var(--changed); }
   table.mx td { border: 1px solid var(--line); width: 2.1rem; height: 1.7rem; text-align: center; padding: 0; }
   table.mx td.y { background: var(--decide-tint); color: var(--decide); }
+  table.mx td.n { color: var(--frame); background: var(--frame-tint); }
+  span.mx.n { color: var(--frame); background: var(--frame-tint); font-family: var(--mono); padding: 0 0.3rem; }
   table.mx td.s { color: var(--line); border-color: transparent; }
   span.mx.s { color: var(--muted); font-family: var(--mono); }
 </style>
@@ -119,6 +121,7 @@
     <a href="#b">B · A condition as the dependency</a>
     <a href="#c">C · A condition that is not one</a>
     <a href="#d">D · Where re-evaluation decides</a>
+    <a href="#dmatrix">…the edge that appears</a>
     <a href="#reads">Where the reads differ</a>
     <a href="#delta">What item 7 closed, and what it left</a>
   </nav>
@@ -283,6 +286,38 @@ flowchart TD
     <li class="step" data-era="new"><span class="n">D3</span><span class="call"><code>next_ready(.., pending = [C])</code> → <code>perform(C)</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what"><strong>C applies</strong> to a Goblin that exists because of the two applications before it. The Idol ends the layer an Elf Goblin <em>creature</em> — applied A, B, C, where the key order was A, C, B.</p></li>
     <li class="step" data-era="wrong"><span class="n">D′</span><span class="call">the same board, ordered once at D1<span class="loc">the counterfactual</span></span><span class="tags"><span class="chip decide">wrong</span></span><p class="what">Take round 1's graph as the answer: A and C are both independent, so after A the next by key is C — which applies to no Goblin and reaches nothing. Then B. <strong>The Idol is an Elf Goblin and not a creature.</strong> That is the failure CR 613.8c exists to prevent, and it is what LI-2's sabotage run reproduces when <code>next_ready</code> is forced to key order.</p></li>
   </ol>
+
+  <h3 id="dmatrix">The matrix, round by round — and an edge that appears</h3>
+  <p class="prose">Trace A's three matrices are the same relations shrinking. These are not: the cell at <em>C waits on B</em> is empty in round 1 and filled in round 2, with nothing between them but A being applied. That one cell is CR 613.8c.</p>
+
+  <div class="rounds">
+    <div class="round">
+      <div class="rlabel">Round 1 · key order A, C, B</div>
+      <table class="mx"><thead><tr><th></th><th>A</th><th>C</th><th>B</th></tr></thead><tbody>
+      <tr><th class="src">A elves</th><td class="s">·</td><td></td><td></td></tr>
+      <tr><th>C creatures</th><td></td><td class="s">·</td><td class="n">—</td></tr>
+      <tr><th>B goblins</th><td class="y">▪</td><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Nothing is an Elf, so nothing is a Goblin: <span class="mx n">—</span> is the cell that is about to change. A is key-first and independent, so the engine takes the fast path and builds none of this. <strong>A applies.</strong></p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 2 · key order C, B</div>
+      <table class="mx"><thead><tr><th></th><th>C</th><th>B</th></tr></thead><tbody>
+      <tr><th>C creatures</th><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">B goblins</th><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">The Idol is an Elf now, so applying B would make it a Goblin and move what C applies to. The fast path fails on C and the graph is built. <strong>B applies.</strong></p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 3 · 1 pending</div>
+      <table class="mx"><thead><tr><th></th><th>C</th></tr></thead><tbody>
+      <tr><th class="src">C creatures</th><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Short-circuit. <strong>C applies</strong> to a Goblin that exists because of the two rounds before it.</p>
+    </div>
+  </div>
+
+  <p class="prose">The engine's own work on this board is <strong>one hypothetical, in round 2</strong> — measured, per round: 0, 1, 0. Round 1 costs none because the fast path only ever asks about A, and both of A's pairs are settled without touching the board: A reads types and B writes subtypes (disjoint channels), and C affects nothing at all yet, which <code>depends_on</code> short-circuits on before any clone. So the single most expensive thing the loop does happens exactly at the moment the new edge appears, and nowhere else.</p>
 
   <div class="note changed">
     <p><strong>Why this one is a fixture and trace A is printed.</strong> Trace A's four cards are real and its answer is a published judge's walkthrough, but its order does not need re-evaluation. This board's does, and no <em>printed</em> pair in the registry builds it. The shape to look for is a three-effect chain in one layer whose middle link is created by the first — the CR's own stock example, "+1/+1 for each Elf you control" beside "creatures are Elves" beside something that makes the Elves, is the nearest printed neighbourhood. Recorded as still owed in <code>layers-architecture.md</code> §13b; the rule is tested, the <em>card</em> is not.</p>
