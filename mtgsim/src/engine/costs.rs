@@ -281,7 +281,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::costs::Cost;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::state::game_state::GameState;
     use crate::types::card_types::*;
     use crate::types::mana::{ManaCost, ManaType};
@@ -298,7 +298,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0, 0);
+        let entry = PermanentState::new(id, 0, 0, 0);
         game.battlefield.insert(id, entry);
         (game, id)
     }
@@ -395,7 +395,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0, 0, turn);
+        let mut entry = PermanentState::new(id, 0, 0, turn);
         // Start tapped so {Q} (untap) is payable resource-wise
         entry.tapped = true;
         game.battlefield.insert(id, entry);
@@ -432,7 +432,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let mut entry = BattlefieldEntity::new(id, 0, 0, 1);
+        let mut entry = PermanentState::new(id, 0, 0, 1);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 

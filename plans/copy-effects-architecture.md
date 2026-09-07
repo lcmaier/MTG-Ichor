@@ -281,7 +281,7 @@ but genuinely blocking where the draft's was not.
 | `Primitive::CreateToken` | `engine/resolve.rs:575` | Implemented (RB), but builds `CardData` from a `TokenDef` — no path takes copiable values |
 | Copiable-values capture | — | ❌ |
 | CR 712 faces on `CardData` | — | ❌ — `CardData` has one face |
-| CR 708 face-down state | — | ❌ — no `BattlefieldEntity.face_down` |
+| CR 708 face-down state | — | ❌ — no `PermanentState.face_down` |
 
 Nothing here is wrong; it is all correctly-shaped scaffolding with no producer.
 That is the same position `ReplacementClass` was in before RB.
@@ -401,7 +401,7 @@ duplication.
 channel*, and `CopyFrom` replaces every channel at once, which is what layer 1
 means. A second layer-1 arm is a claim that CR 613.2 has a third sublayer; the
 two it has are `CopyFrom` (1a) and face-down (1b), and §4.6 says why face-down
-should be derived from `BattlefieldEntity` state rather than added here.
+should be derived from `PermanentState` state rather than added here.
 
 ### 3.3 The four producers
 
@@ -463,10 +463,10 @@ implemented, and the answer is **the capture, and nowhere else**:
   copiable values are then read off that face (CR 707.8). Modelled as card data
   with two faces plus a status bit, not as a Layer 1 row (§4.5).
 - **CR 708 face-down** is Layer **1b**, a sibling sublayer, and is derived from
-  `BattlefieldEntity` state rather than registered (§4.6).
+  `PermanentState` state rather than registered (§4.6).
 - **CR 729 merging** *is* a Layer 1a copiable effect by CR 729.2a and would use
   `CopyFrom` — but it needs a permanent represented by several components, which
-  is a `BattlefieldEntity` change, not a copy change. That is **CV-7** (§6).
+  is a `PermanentState` change, not a copy change. That is **CV-7** (§6).
 - **`GameObject.is_copy`** is a *provenance* flag, not a mechanism. It should be
   set by producers 3 and 4 (a token copy, a spell copy) and stay false for 1 and
   2, whose objects are ordinary permanents with a row on them. It has no reader
@@ -505,7 +505,7 @@ Three things this must get right, each with a rule behind it:
   the captured ability list must be re-scanned for ETB replacements — which is
   §4.7's problem, appearing here for the first time.
 - **CR 707.6: choices made for the copied permanent are not copied.** The
-  capture is characteristics only; `BattlefieldEntity` is not consulted.
+  capture is characteristics only; `PermanentState` is not consulted.
 
 ### 4.2 Tier C — becomes a copy (CR 707.4 / 707.2c)
 
@@ -654,7 +654,7 @@ This tier is genuinely independent of the rest of this document, which is why
 not a copy mechanism — it is a **second card model** — and the honest framing is
 that CR 712 lands *beside* copy work and shares one seam with it.
 
-What it needs: `CardData` gains a back face; `GameObject` or `BattlefieldEntity`
+What it needs: `CardData` gains a back face; `GameObject` or `PermanentState`
 gains "which face is up"; CR 712.2's transform is a status change, not a
 characteristic effect; CR 712.3's modal faces are chosen at cast time and never
 change; CR 712.8's rules on which face's values apply in which zone.
@@ -675,7 +675,7 @@ values, so it is inside layer 1 by definition, and CR 613.2b puts it in sublayer
 1b — after 1a.
 
 The shape `layers-architecture.md` §7 already specifies is right and should be
-kept: `BattlefieldEntity.face_down: bool` is canonical, and layer 1b
+kept: `PermanentState.face_down: bool` is canonical, and layer 1b
 *synthesizes* 708.2a's 2/2 colorless no-name characteristics from the flag
 rather than registering a row. Deriving from state the engine already owns is
 the same call the 7c counter path made.
@@ -755,7 +755,7 @@ one-arm PR.
 
 > **As built (CV-1): `register_copied_static_effects`, and the "remove" half
 > turned out to be free.** These rows are `EffectOrigin::StaticAbility`, so CR
-> 613.7a re-checks at every layer whether the source still *has* the ability —
+> 604.2 re-checks at every layer whether the source still *has* the ability —
 > against a frame that includes layer 1. A copy that expired, or that a CR 707.4
 > re-copy superseded, takes the ability off that frame and the derived row stops
 > applying on the very next walk, whatever the registry still holds. Hygiene is
@@ -901,7 +901,7 @@ ships the indefinite 25 and is blocked on item 10.** §7 draws that line.
 **The tempting shortcut, and why it is refused.** Copy rows could simply
 register the *affected permanent* as `source`, buying teardown for free. Refused:
 `ContinuousEffect.source` is documented (`layers/types.rs:174`) as the object
-whose static ability generates the effect, and it is what the CR 613.7a existence
+whose static ability generates the effect, and it is what the CR 604.2 existence
 check reads. Overloading it to mean "the object this row dies with" would make
 `remove_by_source` mean two different things depending on `EffectOrigin`, and the
 next person to touch the existence check would have no way to know. **The
@@ -975,7 +975,7 @@ mutate both need a permanent represented by **several components** (CR 729.2,
 712.4), and "is this one object or several?" is a **fact**, not a feature —
 `codebase-state.md`'s own triage. Facts are unrecoverable if not captured when
 they exist, and adding one late means re-threading every system built in
-between. `BattlefieldEntity` is single-component today and every phase on the
+between. `PermanentState` is single-component today and every phase on the
 critical path writes more code against that assumption. **The cheapest moment to
 decide whether a permanent can be several objects is before Phase 8 card
 breadth, not after** — the same back-stop CR 613.8 has.
@@ -998,7 +998,7 @@ argument is about coupling, not worth:
 | Tier A — token copies | 306 | **CV-3** | Needs CV-1's capture; nothing needs it |
 | CR 712 transform + modal DFC | 496 | **CV-5** | A second card model. 486 Commander-legal and **120 can be a commander** |
 | **Face-down** (CR 708) | **304 producers** | **CV-6** | Layer 1b, and CR 707.2 makes copiable values depend on face-down status — so it is coupled to CV-1's capture ceiling and to nothing else. Its bulk is a *casting* mechanism (CR 708.4: alternative costs, a turn-face-up special action), which is why it is its own phase rather than a rider on CV-1 |
-| **Merging** (CR 729) + **meld** (CR 712.4) | 34 + 21 | **CV-7** | The multi-component `BattlefieldEntity`. Last in this track because it is the largest structural change, **and it is the one with a back-stop**: before Phase 8 card breadth, for the fact reason above |
+| **Merging** (CR 729) + **meld** (CR 712.4) | 34 + 21 | **CV-7** | The multi-component `PermanentState`. Last in this track because it is the largest structural change, **and it is the one with a back-stop**: before Phase 8 card breadth, for the fact reason above |
 | **Flip cards** (CR 710) | 25 | **CV-5** | Rides along once faces exist; CR 729.2h already couples them to merging |
 | Garth One-Eye (707.13), Magar (707.14) | 2 | **CV-4** | Cheap once the capture exists; the CR names each individually |
 
@@ -1017,7 +1017,7 @@ numbers, and the measured overlap between them:
 
 **One thing this section deliberately does not do: design CV-5 through CV-7.**
 Their rows above are populations, ordering and the coupling argument — not a
-type surface. DFC is a second card model and merging is a `BattlefieldEntity`
+type surface. DFC is a second card model and merging is a `PermanentState`
 change; each earns its own design pass **when it is next**, on the evidence
 available then. Committing a shape for them now would be designing three phases
 ahead of the first line of code, which is the failure this document is already
@@ -1041,8 +1041,8 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | **CV-3 — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `token_card_data` (`resolve.rs:1450`); **1** `Primitive::CreateToken` arm | low — no row, no layer, no duration |
 | **CV-4 — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. Defers CR 707.10b ability copies (**39** clauses) to critical-path item 6 | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
 | **CV-5 — faces (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. **Consumer: one transform creature and one modal DFC land** | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
-| **CV-6 — face-down (CR 708)** | Layer 1b, `BattlefieldEntity.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `cast.rs`'s alternative-cost sites before anyone commits a number |
-| **CV-7 — merging + meld (CR 729, 712.4)** | A multi-component `BattlefieldEntity`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
+| **CV-6 — face-down (CR 708)** | Layer 1b, `PermanentState.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `cast.rs`'s alternative-cost sites before anyone commits a number |
+| **CV-7 — merging + meld (CR 729, 712.4)** | A multi-component `PermanentState`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
 
 ### 7a. CV-1 — shipped 2026-09-02
 
@@ -1064,7 +1064,7 @@ entry producer. `owed` clean; suite green; zero warnings.
    the same recipe and its own comment named CV-1 as the owner of its third leg.
    The rule generates a leg per gate per new route to the effective ability list,
    and the *number of gates* is the term that grows.
-2. **Leg 2 needs no teardown path, and that is CR 613.7a paying for itself.** A
+2. **Leg 2 needs no teardown path, and that is CR 604.2 paying for itself.** A
    derived row whose copy expired or was superseded stops applying on the next
    walk, because the existence check reads the source's frame and the frame
    includes layer 1. Removal is hygiene, bought by giving each derived row the
@@ -1119,7 +1119,7 @@ run-to-run spread on this machine is about —4% to +6% for one binary at 200
 games (`main` read 115.2 to 124.3 ms across five rounds), and B reads *faster*
 than A on both pools while playing byte-identical games. Anything inside that
 band is jitter. **This is what `layers-architecture.md` §12's 5.2—8.0→ figure
-predicts, read correctly**: that multiplier is the CR 613.7a existence check
+predicts, read correctly**: that multiplier is the CR 604.2 existence check
 *without its gate*, and a copy row never pays it — `EffectOrigin::Resolution`
 returns `true` before any frame is computed. The phase was sized expecting its
 risk in the copy row on the hot path, and the copy row is the cheap half.
@@ -1177,14 +1177,14 @@ the hot path rather than spread across call sites.
 > **CV-4 is free** — it touches no layer, no registry and no replacement, and
 > can land at any point from today onward.
 > **CV-7 before Phase 8 card breadth**, because a multi-component
-> `BattlefieldEntity` is a fact and every phase in between writes code against
+> `PermanentState` is a fact and every phase in between writes code against
 > the single-component assumption (§6).
 
 **What each PR must not do.** CV-1 must not touch the ETB path; CV-2 must not
 touch tokens; CV-3 must not register a row; CV-4 must not touch the layer
 system; CV-5 must not attempt meld; and **CV-1 through CV-5 must not touch CR
 708 or CR 729** — those are CV-6's and CV-7's, and reaching for either early is
-how CV-1 becomes a `BattlefieldEntity` rewrite. Each is the seam where this
+how CV-1 becomes a `PermanentState` rewrite. Each is the seam where this
 becomes one 5,000-line PR again.
 
 ### 7.1 Where this sits in the interleaved order

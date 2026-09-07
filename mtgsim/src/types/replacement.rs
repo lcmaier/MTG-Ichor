@@ -344,7 +344,7 @@ pub enum Rewrite {
     /// [`EnterMods::merge`] is where the rule that each mod composes lives.
     ///
     /// The merge happens while the permanent **does not yet exist**: there is
-    /// no `BattlefieldEntity` to tap and no counter map to write, which is the
+    /// no `PermanentState` to tap and no counter map to write, which is the
     /// whole reason the modifications ride on the proposal instead of being
     /// applied as they are chosen.
     ///
@@ -621,7 +621,7 @@ impl EnterMods {
         self.tapped |= other.tapped;
         for (counter, n) in &other.counters {
             match self.counters.iter_mut().find(|(c, _)| c == counter) {
-                // Plain addition, matching `BattlefieldEntity::add_counters`,
+                // Plain addition, matching `PermanentState::add_counters`,
                 // which is where this number ends up. A saturating add here
                 // would be the only place in the engine with a different
                 // overflow story, and clamping at `u32::MAX` is not a rules
@@ -714,7 +714,7 @@ impl ReplacementClass {
 ///
 /// **There is no `CounterBacked`.** CR 122.1c/d make the counter removal the
 /// substituted event or the CR 615.5 rider, never bookkeeping, so a use that
-/// removed one would write `BattlefieldEntity.counters` from inside
+/// removed one would write `PermanentState.counters` from inside
 /// `consume_use` — off the chokepoint. Existence is asked at gather time, which
 /// is where CR 614.4 wants it asked. CR 615.7's `Shield(u64)` is real and lands
 /// with Phase RD. → `replacement-architecture.md` §3.2.

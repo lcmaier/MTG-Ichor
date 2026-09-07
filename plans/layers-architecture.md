@@ -44,7 +44,7 @@ We use these terms consistently:
 - **Timestamp** — a monotonic integer assigned to a continuous effect when it becomes active, used to break ties within a layer. CR 613.7.
 - **Dependency** — Effect A depends on Effect B if applying B changes what A affects, modifies, or produces. CR 613.8. Within a layer, dependency-ordering trumps timestamp-ordering.
 - **Affected set** — the set of objects a continuous effect applies to, determined by evaluating its predicate against the current game state.
-- **Base characteristics** — the object's printed values (`CardData`) plus zone-specific overrides that don't live in the layer system (e.g., morph face-down values are layer-system content, but `BattlefieldEntity.counters` feed into layer 7d directly).
+- **Base characteristics** — the object's printed values (`CardData`) plus zone-specific overrides that don't live in the layer system (e.g., morph face-down values are layer-system content, but `PermanentState.counters` feed into layer 7d directly).
 - **Effective characteristics** — the output of walking all applicable continuous effects in layer order. What the rest of the engine queries.
 - **Phase L[A–D]** — work phases for landing this system incrementally. Distinct from CR "layers".
 
@@ -88,9 +88,9 @@ pub enum Layer {
 }
 ```
 
-**Decision — counter effects are derived, not stored.** Counters remain written to `BattlefieldEntity.counters`. When `compute_characteristics` walks layer 7c, it synthesizes virtual `ContinuousEffect`s from the counter map. This avoids double-booking state between the counter map and the effect registry.
+**Decision — counter effects are derived, not stored.** Counters remain written to `PermanentState.counters`. When `compute_characteristics` walks layer 7c, it synthesizes virtual `ContinuousEffect`s from the counter map. This avoids double-booking state between the counter map and the effect registry.
 
-**Decision — face-down is also derived.** `BattlefieldEntity.face_down: bool` already exists. When set, `compute_characteristics` synthesizes a cluster of Layer-1a effects at compute time (set colorless, lose all abilities, become 2/2 creature with no name). No effect-registry entries needed for vanilla face-down; effects that *turn something face-down* (the action) are registered in Layer 1a, and their application side-effect is flipping the flag.
+**Decision — face-down is also derived.** `PermanentState.face_down: bool` already exists. When set, `compute_characteristics` synthesizes a cluster of Layer-1a effects at compute time (set colorless, lose all abilities, become 2/2 creature with no name). No effect-registry entries needed for vanilla face-down; effects that *turn something face-down* (the action) are registered in Layer 1a, and their application side-effect is flipping the flag.
 
 ### 3.2 `EffectiveCharacteristics`
 
@@ -138,7 +138,7 @@ pub struct EffectiveCharacteristics {
 
     // --- Derived flag (layer 1a) ---
     /// Whether the object is currently face-down. Derived from
-    /// `BattlefieldEntity.face_down`. No back-pointer to a copy source
+    /// `PermanentState.face_down`. No back-pointer to a copy source
     /// is stored: copy effects (layer 1b) lock characteristics in at
     /// resolution time (CR 707.2 — the copy's copiable values are the
     /// copied object's copiable values as they exist at the moment
@@ -147,7 +147,7 @@ pub struct EffectiveCharacteristics {
 }
 ```
 
-**Amendment (2026-08-23, Layer 2 phase) — `control_since_turn`.** CR 302.6 asks whether a creature has been under its controller's control "continuously since their most recent turn began", so the answer to "who controls this" is only half of what summoning sickness needs. `BattlefieldEntity.controller_since_turn` cannot supply the other half once Layer 2 exists: control from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation to hang a field update on and no event to hook. Computing it beside the controller it describes is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry.
+**Amendment (2026-08-23, Layer 2 phase) — `control_since_turn`.** CR 302.6 asks whether a creature has been under its controller's control "continuously since their most recent turn began", so the answer to "who controls this" is only half of what summoning sickness needs. `PermanentState.controller_since_turn` cannot supply the other half once Layer 2 exists: control from a continuous effect is *derived*, so a `Duration::UntilEndOfTurn` steal reverts at cleanup with no mutation to hang a field update on and no event to hook. Computing it beside the controller it describes is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry.
 
 The battlefield field survives as the seed, and still owns every control change that is not a Layer 2 effect (entering the battlefield, today the only one). The Layer 2 arm of `apply_modification` overwrites it **only when the controller actually changes**: CR 302.6 asks whether control was *continuous*, and gaining control of a permanent you already control is not a change.
 
@@ -247,7 +247,7 @@ pub enum AffectedSet {
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
 - `PlayerRef::Opponent` is matched as a predicate, `controller != you`, not resolved to an id: CR 102.2 gives one opponent in a two-player game but CR 102.3 gives a set in multiplayer, and the predicate is correct for both.
 
-Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
+Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 604.2 existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
 
 **Updated by the Layer 2 phase (2026-08-23).** That phase put 20 more call sites behind the same gate, so it is no longer a trim: forcing it off now costs 83.7 → 107.2 ms/game, **+28%**. The phase itself cost +4%, under the +7% this section predicted. The per-object "sharper gate" the prediction offered as a fallback was built, measured and discarded — it is not faster, because `ObjectId` is a UUID and the set probe costs a SipHash on every board to save on the rare one. Numbers and the discard argument are on `RegistryScopeSummary::any_control_changing`; the remaining lever is §12's cross-call memoization.
 
@@ -264,7 +264,7 @@ pub enum EffectModification {
     // --- Layer 1a ---
     /// Turns the affected object face-down. Registered by morph/manifest/
     /// cloak/disguise actions. Its side-effect is flipping
-    /// `BattlefieldEntity.face_down`; `compute_characteristics` then
+    /// `PermanentState.face_down`; `compute_characteristics` then
     /// synthesizes the 2/2 no-name no-colors no-abilities cluster.
     TurnFaceDown,
 
@@ -315,7 +315,7 @@ pub enum EffectModification {
     LoseAbility(AbilityId),
     LoseAllAbilities,
     // Keyword counters (CR 122.1b) are NOT here. Like the +1/+1 counters in
-    // 7c they are derived from `BattlefieldEntity::counters` during the walk
+    // 7c they are derived from `PermanentState::counters` during the walk
     // rather than registered — see `codebase-state.md` item 10 for the
     // ordering approximation that costs.
 
@@ -332,7 +332,7 @@ pub enum EffectModification {
 
     // --- Layer 7c ---
     /// +N/+N or -N/-N. Includes counter-derived modifiers synthesized
-    /// from `BattlefieldEntity.counters`.
+    /// from `PermanentState.counters`.
     ModifyPowerToughness { power: i32, toughness: i32 },
 
     // --- Layer 7d ---
@@ -546,7 +546,7 @@ The single entry point all oracle queries route through.
 - Do **not** add reconcile-the-registry machinery at state-mutation chokepoints. It was tried and discarded; it needs an iteration cap and invents oscillation the CR does not have.
 - CR 613.6 rides on the same step: once an effect has started applying, the pass records the *set of members* it applied to (keyed on `EffectGroup`, not `EffectId` — one CR-level effect is several registry rows), and its rows in later layers apply to that set without re-running the filter or the existence check.
 
-**One pass per board, not one walk per object (LI-1).** `compute_characteristics` is the memoized entry; on a miss for a permanent it runs `board::compute_board`, which walks every member of the working set — the battlefield, the entering object under a look-ahead, anything a `Fixed` row names — through the layers together, and stores every member's frame. An object no row can reach (a card in a hand or graveyard, a spell) keeps a walk of its own that applies only its CDAs (`compute_non_member`). Layer 1a is an ordinary registry slice carrying `CopyFrom` rows and 1b will read `BattlefieldEntity.face_down` from inside the loop the way 7c reads counters (§7); neither is special-cased ahead of the walk.
+**One pass per board, not one walk per object (LI-1).** `compute_characteristics` is the memoized entry; on a miss for a permanent it runs `board::compute_board`, which walks every member of the working set — the battlefield, the entering object under a look-ahead, anything a `Fixed` row names — through the layers together, and stores every member's frame. An object no row can reach (a card in a hand or graveyard, a spell) keeps a walk of its own that applies only its CDAs (`compute_non_member`). Layer 1a is an ordinary registry slice carrying `CopyFrom` rows and 1b will read `PermanentState.face_down` from inside the loop the way 7c reads counters (§7); neither is special-cased ahead of the walk.
 
 ```
 compute_board(game, lookahead) -> a frame for every member:
@@ -568,7 +568,7 @@ compute_board(game, lookahead) -> a frame for every member:
        sorted on (is_cda descending, timestamp, tiebreak)
 
        for application in that order:        // LI-2: CR 613.8's loop instead
-           if !exists(application, frames): continue      // CR 613.7a, live
+           if !exists(application, frames): continue      // CR 604.2, live
            targets = the locked set (CR 613.6), or the affected set over frames
            for t in targets:
                resolved = resolve(application.modification, frames, t)
@@ -621,7 +621,7 @@ In the common case (no Mycosynth Lattice / Painter's Servant / Leyline of the Vo
 
 ### 5.2 Termination
 
-Predicates inside the walk sometimes need to know characteristics of *other* objects. "Enchantments you control" needs to know what is an Enchantment; the CR 613.7a existence check needs the source's ability list. Naively that recurses into another walk and loops.
+Predicates inside the walk sometimes need to know characteristics of *other* objects. "Enchantments you control" needs to know what is an Enchantment; the CR 604.2 existence check needs the source's ability list. Naively that recurses into another walk and loops.
 
 **Until LI-1 (2026-09-06) the argument was a descending layer ceiling.** The walk computed one object; every read of another object was answered at the end of the *previous* layer through a per-call frame cache keyed `(ObjectId, ceiling)`; a request at ceiling `C` only ever made requests below `C`, so the recursion bottomed out at ceiling 0. That was exact while no application in a layer changed what a later one in the same layer read, and `codebase-state.md` "Before Layers" item 8 lists the three boards where it did not — one of which the pool builds.
 
@@ -657,7 +657,7 @@ Four things the registry design would have had to build fall out of this instead
 - **CR 613.3's ordering.** "Apply effects from characteristic-defining abilities first, then
   all other effects in timestamp order." Running the intrinsic pass before the registry
   slice *is* that sentence. No sort key, no partition, no `Vec` per layer per object.
-- **CR 613.7a's existence check.** `chars.abilities` at Layer 7a is already the
+- **CR 604.2's existence check.** `chars.abilities` at Layer 7a is already the
   post-Layer-6 list, so Humility removes a Tarmogoyf's CDA before 7a can read it — no
   `static_ability_still_exists` call involved. Same one layer earlier: `land_types` clears
   abilities for CR 305.7 in Layer 4, so a Blood-Mooned land has lost a color CDA before
@@ -710,7 +710,7 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 **Corrected 2026-09-02 (CV-1); this section had the two backwards.** `tmnt.txt`:
 
 - **1a — copiable effects (CR 613.2a).** Copy effects (CR 707) and the merged-permanent characteristics of CR 729.2a. **`EffectModification::CopyFrom(Box<CopiableValues>)`, the phase's one new arm**, applied at `LAYER_ORDER[0]`, replacing every characteristic channel at once — which is what layer 1 means, and why a second layer-1 arm would be a claim that CR 613.2 has a third sublayer.
-- **1b — face-down (CR 613.2b).** Morph, manifest, cloak, disguise, applied **after** copy. `BattlefieldEntity.face_down: bool` is the canonical state and the sublayer synthesizes CR 708.2a's characteristics from it — derived from state already owned, the way 7c reads counters, rather than duplicated into the registry. Phase CV-6.
+- **1b — face-down (CR 613.2b).** Morph, manifest, cloak, disguise, applied **after** copy. `PermanentState.face_down: bool` is the canonical state and the sublayer synthesizes CR 708.2a's characteristics from it — derived from state already owned, the way 7c reads counters, rather than duplicated into the registry. Phase CV-6.
 
 **The 2/2 answer does not come from the order.** All three sites that had these backwards justified it with *"a Clone copying a face-down creature must copy the 2/2 colorless characteristics, not the printed card"* — a correct conclusion from a wrong premise. The 2/2 is CR 708.2's own sentence, "Any listed characteristics are the copiable values of that object's characteristics", with CR 708.10 covering the copy-of-a-face-down case directly.
 
@@ -720,7 +720,7 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 
 —> `copy-effects-architecture.md` §5.4 (the finding), §3.2 (`CopiableValues`), §4.6 (why face-down is derived rather than registered).
 
-**Implementation note (face-down):** `BattlefieldEntity.face_down: bool` is the canonical state. In Layer 1a, `compute_characteristics` reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Actual `TurnFaceDown` effects (from morph etc.) flip the flag when they apply; they don't store separate per-object state. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
+**Implementation note (face-down):** `PermanentState.face_down: bool` is the canonical state. In Layer 1a, `compute_characteristics` reads the flag and synthesizes the vanilla-face-down characteristics (empty name, colorless, no abilities, P/T 2/2, types={Creature}). Actual `TurnFaceDown` effects (from morph etc.) flip the flag when they apply; they don't store separate per-object state. This mirrors the 7c counter approach — derive from state already owned, don't duplicate it in the registry.
 
 ---
 
@@ -728,11 +728,11 @@ produces `EffectModification`s, so that is a wrapper type rather than a redesign
 
 Assignment (CR 613.7c–d):
 
-1. **On ETB** — `BattlefieldEntity.timestamp = game.next_timestamp(); game.next_timestamp += 1;`. Existing infrastructure: the field is already populated (`state/battlefield.rs:80-84`); Phase LA starts *reading* it.
+1. **On ETB** — `PermanentState.timestamp = game.next_timestamp(); game.next_timestamp += 1;`. Existing infrastructure: the field is already populated (`state/battlefield.rs:80-84`); Phase LA starts *reading* it.
 2. **On effect creation** — `ContinuousEffect.timestamp = game.next_timestamp();` at registration.
 3. **Re-timestamping on aura/equipment attachment** (CR 613.7e) — when an Aura moves from one creature to another (e.g., via Sun Titan returning it), the Aura's effect timestamp updates. Similarly when a permanent becomes an Aura/Equipment.
 
-   **✅ Implemented 2026-09-05 (§13a Phase LH-2; shape settled in review 2026-09-06).** `GameState::attach` allocates the new timestamp onto `BattlefieldEntity.timestamp` each time the permanent becomes attached to a *different* host (CR 701.3b/c: the same host is a no-op), then re-stamps the rows the permanent's static abilities registered — `ContinuousEffectRegistry::retime_static_rows`, 613.7a's third sentence, in place with ids and relative order kept. The rows carry the value; the walk never reads the entity's timestamp, and the ordered sweeps key on it too — a reattached permanent moves to the end of them, deterministically, since the value comes from the one counter (a separate `entry_timestamp` shipped briefly and was removed in review). The 2026-08-24 entry framed this as a contract-wording change and it was not — the field was doing two jobs, and 613.7e is what forced them apart; §13a records the split and the measurement.
+   **✅ Implemented 2026-09-05 (§13a Phase LH-2; shape settled in review 2026-09-06).** `GameState::attach` allocates the new timestamp onto `PermanentState.timestamp` each time the permanent becomes attached to a *different* host (CR 701.3b/c: the same host is a no-op), then re-stamps the rows the permanent's static abilities registered — `ContinuousEffectRegistry::retime_static_rows`, 613.7a's third sentence, in place with ids and relative order kept. The rows carry the value; the walk never reads the entity's timestamp, and the ordered sweeps key on it too — a reattached permanent moves to the end of them, deterministically, since the value comes from the one counter (a separate `entry_timestamp` shipped briefly and was removed in review). The 2026-08-24 entry framed this as a contract-wording change and it was not — the field was doing two jobs, and 613.7e is what forced them apart; §13a records the split and the measurement.
 
 Storage: `GameState.next_timestamp: Timestamp` — monotonic counter, never rewound. Saturation not a practical concern (u64).
 
@@ -862,7 +862,7 @@ Worst-case cost: `O(effects × objects × layers)` per frame if every effect's p
 
 `fuzz_games` is the wrong instrument for this: exactly one card in `CardRegistry` has a static ability, so it never builds the boards that hurt. Numbers below are from a synthetic board of N anthems (static `ModifyPowerToughness` over `ByType(Creature)`) plus N creatures, µs per single characteristics query, release build:
 
-| N | frame only | full walk | walk, no 613.7a gate |
+| N | frame only | full walk | walk, no 604.2 gate |
 |---|---|---|---|
 | 10 | 0.37 | 0.55 | 6.30 |
 | 20 | 0.27 | 0.83 | 12.01 |
@@ -873,7 +873,7 @@ Four things follow, and they set the strategy:
 
 1. **Building the frame is 3% and flat.** Cloning five `HashSet`s, a `Vec<AbilityDef>` and a `String` per frame is not the problem. Copy-on-write on `EffectiveCharacteristics` is not where to start.
 2. **Per-query cost is linear in registered effects; per priority sweep it is quadratic**, because a sweep queries every permanent. 80 permanents ≈ 196 µs per sweep. That is the number to watch as card breadth grows.
-3. **The CR 613.7a existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
+3. **The CR 604.2 existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
 4. **`effects_in_layer`'s filter-and-sort is only ~10%.** Keeping the registry sorted by `(layer, timestamp, id)` and returning a slice was prototyped and measured at that; worth doing eventually, not a lever.
 
 ### The ordering that follows
@@ -929,7 +929,7 @@ counter on `GameState`. Every write to a walk input increments it, the cache sto
 `(epoch, characteristics)` per object, and a hit needs only `stored epoch == current
 epoch`. Any mutation anywhere kills the whole cache, and the next sweep recomputes each
 object once. A *fine* cache records, per object, the inputs its answer depended on — its
-own entity, the registry rows that applied to it, and, because CR 613.7a re-checks
+own entity, the registry rows that applied to it, and, because CR 604.2 re-checks
 existence on the *source*, the sources of those rows, transitively — and invalidates
 only the entries whose recorded inputs changed, so a land tapping does not cost a
 creature its answer. The fine key has to enumerate every input, a missed one is a
@@ -959,7 +959,7 @@ residual rather than in advance.
     `remove`, `remove_by_source` and both expiry paths, so one bump covers
     `register_static_effects`, resolution, the CDA rows and cleanup;
   - `place_on_battlefield` and `move_object` (`battlefield` insert and remove,
-    `obj.zone`); `BattlefieldEntity::add_counters` / `remove_counters` and its
+    `obj.zone`); `PermanentState::add_counters` / `remove_counters` and its
     timestamp write; the `objects` map, written in `cast.rs` (ability objects),
     `resolve.rs` (tokens, ceasing to exist), `sba.rs`, `stack.rs` and `game_state.rs`;
     `stack_entries` and `resolving` in `stack.rs` and `cast.rs`, because a stack
@@ -1115,8 +1115,8 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 3. Add `ContinuousEffectRegistry` + `next_timestamp` to `GameState`. Constructor defaults.
 4. Implement `compute_characteristics` such that output is identical to current `oracle/characteristics.rs` behavior:
    - Read base from `CardData`.
-   - Apply `BattlefieldEntity.power_modifier` / `toughness_modifier` shim as Layer 7c synthesized effects (the pipeline's one 7c source for now).
-   - Synthesize counter-derived 7c effects from `BattlefieldEntity.counters`.
+   - Apply `PermanentState.power_modifier` / `toughness_modifier` shim as Layer 7c synthesized effects (the pipeline's one 7c source for now).
+   - Synthesize counter-derived 7c effects from `PermanentState.counters`.
    - Zone-scope fast-path for hidden zones (§5.1).
 5. Rewire existing `oracle/characteristics.rs` wrappers to call `compute_characteristics`.
 6. **Direct-`card_data` read audit** (deferred-migration item): grep for `obj.card_data.{keyword_flags,colors,types,subtypes,power,toughness,name}` outside `oracle/characteristics.rs` and `engine/cast.rs` (cast-zone legality is pre-stack). Migrate each direct read to a wrapper call OR document why the direct read is correct. Expected output: a list commit + migration edits.
@@ -1138,7 +1138,7 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 1. Replace the `power_modifier` / `toughness_modifier` shim with real Layer 7c `ContinuousEffect`s:
    - Pump spells (`ModifyPowerToughness` primitive) register effects with `Duration::UntilEndOfTurn`.
    - Static anthems on the battlefield (e.g., Glorious Anthem) register `Duration::WhileSourceActive` effects with `AffectedSet::Filter(...)`.
-2. Delete the shim fields from `BattlefieldEntity`.
+2. Delete the shim fields from `PermanentState`.
 3. Implement Layers 7b (set P/T) and 7d (switch P/T). 7a (CDA P/T) scaffolded but no consumers yet.
 4. Cleanup-step effect deregistration wired.
 5. Intra-7c ordering verified: non-counter modifiers before counter-derived modifiers (CR 613.4c).
@@ -1156,7 +1156,7 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 
 **Scope:**
 
-1. Implement Layer 2 (Control). `SetController` effect. Updates `BattlefieldEntity.controller` via compute + a sync step (or reads through compute directly — decide in PR).
+1. Implement Layer 2 (Control). `SetController` effect. Updates `PermanentState.controller` via compute + a sync step (or reads through compute directly — decide in PR).
 
    **Decided 2026-08-23: reads through compute, no sync step.** A sync step would have to run somewhere, and there is nowhere for it: a `Duration::UntilEndOfTurn` control effect expires at cleanup by being dropped from the registry, which fires no event and mutates nothing, so a synced field would silently keep the stale controller. The battlefield field stays as CR 110.2's *default* controller — the value the frame seeds from — and 20 call sites moved to `oracle::characteristics::get_effective_controller`. This is also the answer for `control_since_turn`; see the §3.2 amendment.
 2. Implement Layer 5 (Color). `AddColor`, `SetColors`, `RemoveAllColors`.
@@ -1204,7 +1204,7 @@ layer walk:
 
 - `battlefield[source].attached_to` becomes an input (LH-1), and it is mutated
   outside the walk.
-- `BattlefieldEntity`'s CR 613.7 timestamp becomes **mutable** (LH-2).
+- `PermanentState`'s CR 613.7 timestamp becomes **mutable** (LH-2).
 
 A memo key designed without either is wrong, and retrofitting a memo key is
 strictly worse than designing against the settled shape. That is the whole
@@ -1230,7 +1230,7 @@ ordering-algorithm change, and item 7 is already the largest phase on the path.
 
 ### The finding that sets the scope: one field, two jobs
 
-`BattlefieldEntity.timestamp` had exactly **three** production readers (re-derived
+`PermanentState.timestamp` had exactly **three** production readers (re-derived
 against the tree 2026-09-05 — this table first said "four" and listed three; the
 fourth was a test, `phase_ld_integration_test.rs`, checking CR 613.7a's equality,
 and `lookahead.rs` only *constructs* the entity):
@@ -1328,7 +1328,7 @@ something, and the CR 704.5n catch-all unattaches it — four times in 200 games
 
 ### LH-2 — CR 613.7e, and the field split (~900 additions) — ✅ 2026-09-05
 
-1. Split `BattlefieldEntity.timestamp` per the table above; update the four
+1. Split `PermanentState.timestamp` per the table above; update the four
    readers, each deliberately.
 2. Reassign the CR 613.7 timestamp at the attach site, from `next_timestamp`.
 3. Restate the contract in `CLAUDE.md` and in `battlefield_ordered`'s docs:
@@ -1491,7 +1491,7 @@ the tree rather than guessed (`engineering-practices.md` §4).
 **Why it extends this document.** All three pieces are CR 613: the board-wide
 pass is the frame CR 613.3, 613.6 and 613.7a describe; the dependency
 algorithm is CR 613.8; and a conditional static's condition is an existence
-question with 613.7a's shape. Critical-path item 7, `roadmap-v2.md` §3a row A3.
+question with 604.2's shape. Critical-path item 7, `roadmap-v2.md` §3a row A3.
 
 ### The finding that sets the scope: one walk, one object
 
@@ -1507,7 +1507,7 @@ layer reads. Three boards break that, and the pool builds one of them:
 
 | Board | Layer | What the per-object walk gets wrong | Fix |
 |---|---|---|---|
-| **Humility + Citanul Hierophants** — both in `PERFORMANCE_POOL`; `test_humility_before_hierophants_does_not_yet_retire_the_grant` pins the wrong answer | 6 | the grant's CR 613.7a check reads the Hierophants as of the end of layer 5 and cannot see Humility's strip, applied earlier in layer 6; a creature under Humility taps for {G} | **LI-1**: the pass — the check reads the live frame |
+| **Humility + Citanul Hierophants** — both in `PERFORMANCE_POOL`; `test_humility_before_hierophants_does_not_yet_retire_the_grant` pins the wrong answer | 6 | the grant's CR 604.2 check reads the Hierophants as of the end of layer 5 and cannot see Humility's strip, applied earlier in layer 6; a creature under Humility taps for {G} | **LI-1**: the pass — the check reads the live frame |
 | **Blood Moon + Rootpath Purifier** — the Purifier's ruling (Scryfall, 2022-10-14): "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic" | 4 | applying the Purifier changes what Blood Moon applies to (613.8a(b)), so Blood Moon waits for it whatever the timestamps say; the walk orders by timestamp | **LI-2**: dependency ordering, the ruling's board as a named fixture (the Purifier's library clause is item 9's) |
 | **Blood Moon + Urborg, Tomb of Yawgmoth** — Urborg's ruling (Scryfall, 2021-03-19): an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply" | 4 | applying Blood Moon removes the ability that generates Urborg's effect (613.8a(b)); with Urborg's earlier timestamp the walk applies Urborg first and a basic Forest is a Forest Swamp | **LI-2**, on LI-1's existence check |
 
@@ -1839,8 +1839,9 @@ knows which members each application touched, is the structural one.
 **Review (2026-09-06).** Two names changed — `Board passes` is `Board walks`,
 the entry's `Query` enum is `Membership` — and one rule number: the existence
 check is CR 604.2 (611.3b says the same), not CR 613.7a, which is the
-timestamp rule; the label had been wrong since 2026-08-21 and a comment sweep
-is recorded in `codebase-state.md`. The "judge walkthrough" this section
+timestamp rule; the label had been wrong since 2026-08-21, and the sweep of
+the older sites landed with the `PermanentState` rename (2026-09-06) —
+`codebase-state.md`, "Cross-cutting". The "judge walkthrough" this section
 cited for the Blood Moon boards does not exist; the rulings above replace
 it, and LI-2's cards are re-planned around them. The trace page for this
 PR, `plans/traces/li-1-one-pass-per-board.html`, walks the Humility +
@@ -2147,7 +2148,7 @@ Essential reading before Phase LA starts:
 
 - CR 613 full text.
 - `mtgsim/src/oracle/characteristics.rs` (current single-point wrapper module; receive rewiring).
-- `mtgsim/src/state/battlefield.rs:12-100` (existing `BattlefieldEntity` with `timestamp`, `power_modifier`, `toughness_modifier`, `counters`).
+- `mtgsim/src/state/battlefield.rs:12-100` (existing `PermanentState` with `timestamp`, `power_modifier`, `toughness_modifier`, `counters`).
 - `mtgsim/src/types/effects.rs:290-322` (layer-annotated `Primitive` variants already defined).
 - `design_doc.md:636-664` (hybrid dependency algorithm — adopted verbatim in §9).
 - `atomic-tests/phase-index-phase-5-layers.md` (test scope grounding).

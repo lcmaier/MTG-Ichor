@@ -86,7 +86,7 @@ mod tests {
     use crate::events::event::GameEvent;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::types::card_types::CardType;
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
@@ -103,7 +103,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0, 1);
+        let entry = PermanentState::new(id, 0, 0, 1);
         game.battlefield.insert(id, entry);
         id
     }

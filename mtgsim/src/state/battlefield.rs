@@ -27,9 +27,9 @@ pub struct CounterStack {
 ///
 /// This is stored separately from the GameObject itself — the object just knows
 /// it's on the battlefield (via its `zone` field), and the engine looks up its
-/// BattlefieldEntity here for mutable state like tapped/damage/counters.
+/// PermanentState here for mutable state like tapped/damage/counters.
 #[derive(Debug, Clone)]
-pub struct BattlefieldEntity {
+pub struct PermanentState {
     pub object_id: ObjectId,
     pub controller: PlayerId,
 
@@ -109,9 +109,9 @@ pub enum AttackTarget {
     Battle(ObjectId),
 }
 
-impl BattlefieldEntity {
+impl PermanentState {
     pub fn new(object_id: ObjectId, controller: PlayerId, timestamp: u64, current_turn: u32) -> Self {
-        BattlefieldEntity {
+        PermanentState {
             object_id,
             controller,
             timestamp,
@@ -187,13 +187,13 @@ mod tests {
     use super::*;
     use uuid::Uuid;
 
-    fn make_entity() -> BattlefieldEntity {
-        BattlefieldEntity::new(Uuid::new_v4(), 0, 1, 1)
+    fn make_permanent_state() -> PermanentState {
+        PermanentState::new(Uuid::new_v4(), 0, 1, 1)
     }
 
     #[test]
     fn test_add_counters() {
-        let mut e = make_entity();
+        let mut e = make_permanent_state();
         e.add_counters(CounterType::PlusOnePlusOne, 3, 1);
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 3);
         e.add_counters(CounterType::PlusOnePlusOne, 2, 2);
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_remove_counters() {
-        let mut e = make_entity();
+        let mut e = make_permanent_state();
         e.add_counters(CounterType::PlusOnePlusOne, 3, 3);
 
         let removed = e.remove_counters(CounterType::PlusOnePlusOne, 2);
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_counter_count_default_zero() {
-        let e = make_entity();
+        let e = make_permanent_state();
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 0);
         assert_eq!(e.counter_count(CounterType::Flying), 0);
         assert_eq!(e.counter_count(CounterType::Loyalty), 0);
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_multiple_counter_types() {
-        let mut e = make_entity();
+        let mut e = make_permanent_state();
         e.add_counters(CounterType::PlusOnePlusOne, 2, 4);
         e.add_counters(CounterType::MinusOneMinusOne, 1, 5);
         e.add_counters(CounterType::Flying, 1, 6);
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_attachment_defaults_none() {
-        let e = make_entity();
+        let e = make_permanent_state();
         assert_eq!(e.attached_to, None);
         assert!(e.attached_by.is_empty());
     }

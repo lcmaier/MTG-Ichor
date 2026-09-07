@@ -269,7 +269,7 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     // until 2026-08-26.** Both halves of CR 110.2b are true at once and they name
     // different players: "the first player controls the permanent that spell
     // becomes, *but the permanent's controller by default is the player who put
-    // that spell onto the stack*." `BattlefieldEntity.controller` is the
+    // that spell onto the stack*." `PermanentState.controller` is the
     // **default** — `compute::base_controller` reads it as the value Layer 2
     // modifies — so it is P0, and the thief's control comes from the Layer 2 row
     // that CR 400.7a keeps applying on top.
@@ -463,7 +463,7 @@ fn test_control_reverts_when_the_effect_expires() {
     assert_eq!(
         get_effective_controller(&game, creature),
         Some(1),
-        "the row is gone, so the frame seeds from BattlefieldEntity again"
+        "the row is gone, so the frame seeds from PermanentState again"
     );
     assert!(
         !game.continuous_effects.summary().any_control_changing,

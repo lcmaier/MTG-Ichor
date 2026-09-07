@@ -183,7 +183,7 @@ pub enum GameEvent {
     ///
     /// Distinct from [`Self::CountersChanged`] because CR 704.5q is a
     /// state-based action that removes both kinds at once and still writes
-    /// `BattlefieldEntity` directly — it has no `GameAction` to propose through
+    /// `PermanentState` directly — it has no `GameAction` to propose through
     /// (`codebase-state.md` Deferred Migrations item 6).
     CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
 

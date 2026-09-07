@@ -490,7 +490,7 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
     use crate::types::effects::{PermanentFilter, TargetCount};
     use crate::types::zones::Zone;
@@ -506,7 +506,7 @@ mod tests {
         let id = obj.id;
         let ts = game.allocate_timestamp();
         game.add_object(obj);
-        game.battlefield.insert(id, BattlefieldEntity::new(id, 0, ts, 1));
+        game.battlefield.insert(id, PermanentState::new(id, 0, ts, 1));
         (game, id)
     }
 

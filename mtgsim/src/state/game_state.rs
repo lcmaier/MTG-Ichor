@@ -6,7 +6,7 @@ use rand::SeedableRng;
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
-use crate::state::battlefield::BattlefieldEntity;
+use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::layer_memo::LayerMemo;
 use crate::state::replacement_effects::{EntrySelectionScope, ReplacementEffectRegistry};
@@ -21,7 +21,7 @@ use crate::types::replacement::EnterMods;
 /// Metadata for a spell or ability on the stack.
 ///
 /// This is the sidecar state for stack objects, analogous to how
-/// `BattlefieldEntity` is the sidecar for battlefield permanents.
+/// `PermanentState` is the sidecar for battlefield permanents.
 /// Created when a spell is cast or ability is activated, consumed
 /// when the stack entry resolves or is removed.
 #[derive(Debug, Clone)]
@@ -120,7 +120,7 @@ pub struct AbilityIdentity {
 /// 1. Update the object's `zone` field
 /// 2. Remove its ID from the old zone's collection
 /// 3. Add its ID to the new zone's collection
-/// 4. Initialize/clean up zone-specific state (e.g. BattlefieldEntity)
+/// 4. Initialize/clean up zone-specific state (e.g. PermanentState)
 #[derive(Debug, Clone)]
 pub struct GameState {
     // --- Central object store ---
@@ -161,7 +161,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: HashMap<ObjectId, BattlefieldEntity>,
+    pub battlefield: HashMap<ObjectId, PermanentState>,
 
     /// How much work the engine has done this game — see
     /// [`EngineCounters`](crate::state::diagnostics::EngineCounters).
@@ -582,7 +582,7 @@ impl GameState {
     /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
     /// UUIDs, so the key is itself random.
     ///
-    /// `BattlefieldEntity::timestamp` — CR 613.7's — is the deterministic
+    /// `PermanentState::timestamp` — CR 613.7's — is the deterministic
     /// key. Every value of it comes from `next_timestamp`, one monotonic
     /// counter, so it is unique across the battlefield and totally orders it,
     /// and CR 613.7e's reassignment on attach keeps both properties: a
@@ -593,8 +593,8 @@ impl GameState {
     /// Order-irrelevant sweeps — "untap every permanent", "clear all damage" —
     /// may still iterate the map directly; they touch disjoint entries and emit
     /// nothing.
-    pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &BattlefieldEntity)> {
-        let mut entries: Vec<(ObjectId, &BattlefieldEntity)> =
+    pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
+        let mut entries: Vec<(ObjectId, &PermanentState)> =
             self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
         entries.sort_by_key(|(_, e)| e.timestamp);
         entries
@@ -673,7 +673,7 @@ impl GameState {
 
     /// **The performer for `GameAction::EnterBattlefield`** (CR 614.1c/d).
     ///
-    /// Creates a `BattlefieldEntity` for the object, applies the `mods` the
+    /// Creates a `PermanentState` for the object, applies the `mods` the
     /// CR 616.1 loop settled on, and announces the arrival. Returns a mutable
     /// reference to the inserted entry so callers can tweak fields without a
     /// second lookup.
@@ -696,10 +696,10 @@ impl GameState {
         id: ObjectId,
         controller: PlayerId,
         mods: &EnterMods,
-    ) -> &mut BattlefieldEntity {
+    ) -> &mut PermanentState {
         let ts = self.allocate_timestamp();
         let current_turn = self.turn_number;
-        let mut entry = BattlefieldEntity::new(id, controller, ts, current_turn);
+        let mut entry = PermanentState::new(id, controller, ts, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
         self.battlefield.insert(id, entry);
@@ -807,7 +807,7 @@ impl GameState {
     /// Put `n` counters of `counter_type` on a permanent, allocating the CR
     /// 613.7c timestamp.
     ///
-    /// The normal entry point — `BattlefieldEntity::add_counters` needs a
+    /// The normal entry point — `PermanentState::add_counters` needs a
     /// timestamp and cannot allocate one, since it has no access to the game.
     /// No-op if `id` is not on the battlefield, and no timestamp is burned in
     /// that case.
@@ -1010,7 +1010,7 @@ impl GameState {
             //
             // When those are modelled, this fallback is not the fix. CR 613.7d
             // gives an object a timestamp when it enters *any* zone, but we
-            // only store one on `BattlefieldEntity`, so a graveyard Wonder has
+            // only store one on `PermanentState`, so a graveyard Wonder has
             // nowhere to read one from. The timestamp has to move onto the
             // object. See Deferred Migrations item 9.
             None => {
@@ -1155,7 +1155,7 @@ impl GameState {
     ///
     /// # Why a stale row is inert rather than wrong
     ///
-    /// These rows are `EffectOrigin::StaticAbility`, so CR 613.7a re-checks at
+    /// These rows are `EffectOrigin::StaticAbility`, so CR 604.2 re-checks at
     /// every layer whether the source still *has* the ability — against the
     /// source's frame, which includes layer 1. A copy row that expired, or that
     /// a later CR 707.4 re-copy superseded, takes the ability off that frame and

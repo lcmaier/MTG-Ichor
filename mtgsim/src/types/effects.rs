@@ -376,7 +376,7 @@ impl CounterType {
     /// Shadow is a plain flag and just has no card needing it yet.
     ///
     /// Applied in Layer 6 by `compute::apply_effects`, read straight off
-    /// `BattlefieldEntity::counters` rather than registered as a continuous
+    /// `PermanentState::counters` rather than registered as a continuous
     /// effect -- same treatment as the +1/+1 counters in Layer 7c, and for the
     /// same reason: the state is already owned, and reconciling registry rows
     /// against every counter mutation is the pattern that turns effect
@@ -607,7 +607,7 @@ pub enum Primitive {
     ///
     /// Half of CR 701.19a's regeneration rider. Not a zone change and not
     /// CR 614-observable: no card replaces "is removed from combat", so it has
-    /// no `GameAction` and writes `BattlefieldEntity` directly, the way the
+    /// no `GameAction` and writes `PermanentState` directly, the way the
     /// cleanup step's damage wipe does.
     RemoveFromCombat,
 

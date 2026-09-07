@@ -430,7 +430,7 @@ mod tests {
     use super::*;
     use crate::objects::card_data::{AbilityDef, CardDataBuilder};
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase, PhaseType};
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
@@ -450,7 +450,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, player_id, ts, 0);
+        let entry = PermanentState::new(id, player_id, ts, 0);
         game.battlefield.insert(id, entry);
         (id, ability_id)
     }
@@ -623,7 +623,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, ts, 0);
         entry.tapped = true; // tapped — but ability doesn't require tap
         game.battlefield.insert(id, entry);
 

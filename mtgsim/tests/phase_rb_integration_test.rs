@@ -358,7 +358,7 @@ fn test_a_stun_counter_replaces_the_untap_with_removing_a_counter() {
     //
     // The counter removal is the *substituted event*, which is why `Uses` has
     // no `CounterBacked` variant: modelling it as a spent use would have
-    // written `BattlefieldEntity.counters` from inside the pipeline, invisible
+    // written `PermanentState.counters` from inside the pipeline, invisible
     // to CR 614.
     let mut game = setup_two_player_game();
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);

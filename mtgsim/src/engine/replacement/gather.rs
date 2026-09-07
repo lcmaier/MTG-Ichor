@@ -628,7 +628,7 @@ const REPLACEMENT_COUNTERS: [CounterType; 3] =
 /// would. What makes the set unsound today is that counters have more than two
 /// chokepoints: `GameState::add_counters` and `perform_action`'s `RemoveCounters`
 /// arm are two, and CR 704.5q's +1/+1 / -1/-1 annihilation is a third that writes
-/// `BattlefieldEntity` directly (`sba.rs`, `codebase-state.md` Deferred Migrations
+/// `PermanentState` directly (`sba.rs`, `codebase-state.md` Deferred Migrations
 /// item 6). A set maintained at a chokepoint that does not exist is exactly the
 /// drift, and it reads as a card that silently does nothing. The scan is a
 /// `HashMap` walk over the battlefield that skips immediately on the

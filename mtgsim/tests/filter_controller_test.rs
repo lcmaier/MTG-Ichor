@@ -7,7 +7,7 @@
 //! the object it's on". So an anthem whose controller changes has to change
 //! whose team it buffs, and a snapshot cannot.
 //!
-//! These tests write `BattlefieldEntity.controller` directly rather than going
+//! These tests write `PermanentState.controller` directly rather than going
 //! through a control-changing effect, because Layer 2 does not exist yet. That
 //! is not a fixture cheat: CR 110.2 makes that field the permanent's *default*
 //! controller, and `compute_to_ceiling` seeds `chars.controller` from it, so
@@ -123,7 +123,7 @@ fn test_anthem_control_change_is_not_one_way() {
 /// +1/+1". A `Resolution` effect over an `AffectedSet::Filter` does not do
 /// that here; it re-filters every walk. No card produces the combination (all
 /// three production `Filter` sites are static abilities, where re-filtering is
-/// correct per CR 613.7a), so this is a note rather than a Deferred Migrations
+/// correct per CR 611.3a), so this is a note rather than a Deferred Migrations
 /// item — but it is the reason the link would be a false one.
 #[test]
 fn test_resolution_effect_keeps_its_you_when_the_source_changes_hands() {

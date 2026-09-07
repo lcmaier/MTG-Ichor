@@ -74,7 +74,7 @@ impl GameState {
         self.add_to_zone_collection(id, to)?;
 
         // No `init_zone_state` counterpart to `cleanup_zone_state` any more.
-        // The one thing it did was create the `BattlefieldEntity`, and RC-2
+        // The one thing it did was create the `PermanentState`, and RC-2
         // made *entering the battlefield* a proposed event of its own
         // (CR 614.1c) — so the entity is created by
         // `GameAction::EnterBattlefield`'s performer, after the replacement
@@ -303,7 +303,7 @@ impl GameState {
     ///
     /// Per rule 400.3, objects moving to library, hand, or graveyard always go
     /// to their *owner's* zone, regardless of who controlled them. This is why
-    /// we use `obj.owner` here, not the controller from `BattlefieldEntity`.
+    /// we use `obj.owner` here, not the controller from `PermanentState`.
     fn add_to_zone_collection(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         let owner = self.get_object(id)?.owner;
 
@@ -347,7 +347,7 @@ impl GameState {
     /// Clean up zone-specific state when leaving a zone.
     ///
     /// Called BEFORE remove_from_zone_collection so we can still read
-    /// the departing entity's state. The BattlefieldEntity itself is
+    /// the departing entity's state. The PermanentState itself is
     /// removed afterwards by remove_from_zone_collection.
     fn cleanup_zone_state(&mut self, id: ObjectId, zone: Zone) {
         if zone == Zone::Battlefield {

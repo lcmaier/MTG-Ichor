@@ -40,7 +40,7 @@ use crate::engine::layers::compute::{
 };
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
-use crate::state::battlefield::BattlefieldEntity;
+use crate::state::battlefield::PermanentState;
 use crate::state::game_state::GameState;
 use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, ObjectId};
@@ -188,7 +188,7 @@ impl<'l> Board<'l> {
     ///
     /// The look-ahead answers first even when a real entity exists for the
     /// same id: the caller asked what the object would be under the proposal.
-    pub(super) fn entity<'a>(&self, game: &'a GameState, id: ObjectId) -> Option<&'a BattlefieldEntity>
+    pub(super) fn entity<'a>(&self, game: &'a GameState, id: ObjectId) -> Option<&'a PermanentState>
     where
         'l: 'a,
     {

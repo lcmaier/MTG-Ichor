@@ -797,7 +797,7 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 506.4. Writes `BattlefieldEntity` directly, because 506.4
+            // CR 506.4. Writes `PermanentState` directly, because 506.4
             // defines a *consequence* with seven causes, and this arm is one of
             // them — the other six follow from a zone change, a control change,
             // a type change, phasing or CR 701.19's regeneration. **The CR does
@@ -833,7 +833,7 @@ impl GameState {
 
             // === Counters (CR 122) ===
             //
-            // Both propose rather than writing `BattlefieldEntity.counters`.
+            // Both propose rather than writing `PermanentState.counters`.
             // A counter mutation is a CR 614-observable event in its own right
             // — CR 614.16's doublers replace it — and CR 122.1c/d's own
             // replacement effects *produce* one, since "instead remove a stun
@@ -1044,7 +1044,7 @@ impl GameState {
             for (layer, modification) in rows {
                 // A granted static ability whose own effect lands in layers
                 // 1-5 cannot apply, and it would fail silently: the grant
-                // applies AT layer 6, so at any layer below it the CR 613.7a
+                // applies AT layer 6, so at any layer below it the CR 604.2
                 // existence check reads a frame that predates the grant, and
                 // the derived effect finds no ability to justify itself.
                 // Assert at the authoring site rather than let a card quietly
@@ -1073,7 +1073,7 @@ impl GameState {
                     layer >= Layer::Layer6Ability,
                     concat!(
                         "granted static ability generates a {:?} effect. A grant ",
-                        "applies at layer 6, so the CR 613.7a existence check ",
+                        "applies at layer 6, so the CR 604.2 existence check ",
                         "reads a pre-grant frame at any layer below it and this ",
                         "effect will not apply; layers 1-5 have no CR mechanism ",
                         "and no known card."
@@ -1439,7 +1439,7 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::types::card_types::*;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
@@ -1459,7 +1459,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0, 1);
+        let entry = PermanentState::new(id, 0, 0, 1);
         game.battlefield.insert(id, entry);
 
         (game, id)
@@ -1593,7 +1593,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let target_id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(target_id, 0, 0, 1);
+        let entry = PermanentState::new(target_id, 0, 0, 1);
         game.battlefield.insert(target_id, entry);
 
         // Create a source for the destroy effect

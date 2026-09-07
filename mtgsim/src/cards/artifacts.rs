@@ -71,7 +71,7 @@ pub fn sol_ring() -> Arc<CardData> {
 /// - **Humility strips it** (all creatures lose all abilities), so the pool now
 ///   contains a Layer 6 effect that changes an SBA outcome — a live
 ///   continuous-effect × state-based-action interaction on every fuzz run,
-///   against the CR 613.7a existence check.
+///   against the CR 604.2 existence check.
 /// - It is the registry's **second artifact**, which gives March of the Machines
 ///   a subject other than Sol Ring. (March does not animate it — it is already a
 ///   creature — which is itself the correct answer to check.)

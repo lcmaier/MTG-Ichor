@@ -64,13 +64,13 @@ pub struct RegistryScopeSummary {
     /// static ability's "you" against the source's *effective* controller, and
     /// asking for that means a `compute_to_ceiling` walk of the source. When
     /// this is false, `chars.controller` provably cannot differ from the value
-    /// the walk seeds it with — `BattlefieldEntity.controller`, or the owner
+    /// the walk seeds it with — `PermanentState.controller`, or the owner
     /// off the battlefield — because Layer 2 is the only channel that writes
     /// it: no CDA lives in Layer 2 (CR 613.4a lists only 7a), and no counter
     /// touches controller. So the field read is the walk's answer, not an
     /// approximation of it.
     ///
-    /// This matters because `effect_applies_to` runs *before* the CR 613.7a
+    /// This matters because `effect_applies_to` runs *before* the CR 604.2
     /// existence check and therefore for objects the filter rejects, unlike the
     /// existence check, which only runs for effects that already matched.
     ///

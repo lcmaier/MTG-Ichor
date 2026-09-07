@@ -71,7 +71,7 @@
   - Boons are sourceless triggered abilities with optional use counters. How do they interact with the Phase 7 trigger system? See Cross-Cutting Q4.
   - Boons need storage: they persist like emblems, are owned by a player, and have trigger conditions + effects + optional use counts.
   - Can boons reuse emblem infrastructure? Emblems are planned as command-zone objects with static abilities. Boons are similar but have triggered abilities and use counters.
-- **Recommendation:** Boons should be `GameObject`s in the command zone with a `BoonState` sidecar (analogous to `BattlefieldEntity` for permanents). The sidecar holds `uses_remaining: Option<u32>` (None = unlimited). Their triggered abilities participate in the normal trigger scanner (Phase 7). This requires: (1) a `boons: HashMap<ObjectId, BoonState>` on `GameState` (or reuse the command zone), (2) the trigger scanner to check command-zone objects, not just battlefield. The trigger scanner design (delta log) naturally supports this — it scans registered trigger patterns against deltas, regardless of the trigger source's zone. **Scaffold note:** When implementing Phase 7's trigger scanner, ensure it doesn't hardcode battlefield-only sources. This is a design constraint to document now, not code to write now.
+- **Recommendation:** Boons should be `GameObject`s in the command zone with a `BoonState` sidecar (analogous to `PermanentState` for permanents). The sidecar holds `uses_remaining: Option<u32>` (None = unlimited). Their triggered abilities participate in the normal trigger scanner (Phase 7). This requires: (1) a `boons: HashMap<ObjectId, BoonState>` on `GameState` (or reuse the command zone), (2) the trigger scanner to check command-zone objects, not just battlefield. The trigger scanner design (delta log) naturally supports this — it scans registered trigger patterns against deltas, regardless of the trigger source's zone. **Scaffold note:** When implementing Phase 7's trigger scanner, ensure it doesn't hardcode battlefield-only sources. This is a design constraint to document now, not code to write now.
 
 ---
 
@@ -478,9 +478,9 @@ pub struct GameObject {       // current
 
 5. **AI game-tree search.** The roadmap mentions copy-on-write for AI. The `Vec<PerpetualMod>` could use `Arc<Vec<PerpetualMod>>` (or `im::Vector`) if clone cost becomes measurable in profiling. This is a targeted optimization for later, not an architectural concern now.
 
-### Comparison to BattlefieldEntity
+### Comparison to PermanentState
 
-For reference, `BattlefieldEntity` is already ~100+ bytes (ObjectId, PlayerId, u64 timestamp, 5 bools, u32 damage, bool deathtouch, 2× i32 modifiers, 2× Option<AttackingInfo/BlockingInfo>). `GameObject` at ~80 bytes is smaller, and there are fewer of them on average (not all objects are on the battlefield).
+For reference, `PermanentState` is already ~100+ bytes (ObjectId, PlayerId, u64 timestamp, 5 bools, u32 damage, bool deathtouch, 2× i32 modifiers, 2× Option<AttackingInfo/BlockingInfo>). `GameObject` at ~80 bytes is smaller, and there are fewer of them on average (not all objects are on the battlefield).
 
 ### Verdict
 

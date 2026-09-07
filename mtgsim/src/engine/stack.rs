@@ -48,7 +48,7 @@ impl GameState {
         // spell's instructions (CR 608.2c) and controls the permanent it
         // becomes. But "the permanent's controller **by default** is the player
         // who put that spell onto the stack" — and the default is precisely what
-        // `BattlefieldEntity.controller` holds, since `compute.rs::base_controller`
+        // `PermanentState.controller` holds, since `compute.rs::base_controller`
         // reads it as the value Layer 2 modifies. Writing the effective value
         // there double-counts the steal: right today because CR 400.7a keeps the
         // Layer 2 row applying, wrong the moment it stops (CR 800.4c, a player
@@ -452,7 +452,7 @@ mod tests {
         assert!(game.stack.is_empty());
         assert!(!game.players[0].graveyard.contains(&bears_id));
 
-        // BattlefieldEntity should have correct state
+        // PermanentState should have correct state
         let entry = game.battlefield.get(&bears_id).unwrap();
         assert_eq!(entry.controller, 0);
         assert!(!entry.tapped);
@@ -654,7 +654,7 @@ mod tests {
         game.add_object(gone);
         game.battlefield.insert(
             gone_id,
-            crate::state::battlefield::BattlefieldEntity::new(gone_id, 1, ts, 1),
+            crate::state::battlefield::PermanentState::new(gone_id, 1, ts, 1),
         );
         put_spell_on_stack(&mut game, make_bolt(), 0, vec![ResolvedTarget::Object(gone_id)]);
         game.move_object(gone_id, Zone::Graveyard).unwrap();
@@ -699,7 +699,7 @@ mod tests {
         let creature_id = creature.id;
         let ts = game.allocate_timestamp();
         game.add_object(creature);
-        game.battlefield.insert(creature_id, crate::state::battlefield::BattlefieldEntity::new(creature_id, 1, ts, 1));
+        game.battlefield.insert(creature_id, crate::state::battlefield::PermanentState::new(creature_id, 1, ts, 1));
 
         // Put Bolt on stack targeting the creature
         let bolt_id = put_spell_on_stack(

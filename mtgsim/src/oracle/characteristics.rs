@@ -37,7 +37,7 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
 
 /// The effective controller of a game object after Layer 2 (CR 613.1b).
 ///
-/// **Prefer this over `BattlefieldEntity.controller` for anything on the
+/// **Prefer this over `PermanentState.controller` for anything on the
 /// battlefield or the stack** — a stolen permanent otherwise keeps answering to
 /// the player who lost it, silently. Spells included: CR 108.4 gives one a
 /// controller too.

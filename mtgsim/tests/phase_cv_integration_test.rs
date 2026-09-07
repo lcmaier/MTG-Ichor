@@ -388,7 +388,7 @@ fn test_a_copied_anthem_pumps() {
     assert_eq!(get_effective_power(&game, anthem_source), Some(2 + 2));
 }
 
-/// CR 613.7a is what tears the derived rows down, and it does so before any
+/// CR 604.2 is what tears the derived rows down, and it does so before any
 /// registry mutation: re-copy the anthem-copy into something else and its
 /// derived row stops applying, because the ability is no longer on the source's
 /// frame.
@@ -411,7 +411,7 @@ fn test_a_superseded_copy_stops_its_derived_row_applying() {
     assert_eq!(
         get_effective_power(&game, bystander),
         Some(3),
-        "CR 613.7a — the derived row's ability is gone from the source's frame"
+        "CR 604.2 — the derived row's ability is gone from the source's frame"
     );
     // The superseded derived row is still *in* the registry; it is inert, not
     // absent. Recorded in Deferred Migrations.
