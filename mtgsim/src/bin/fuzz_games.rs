@@ -459,6 +459,7 @@ struct GameStats {
     board_walks: u64,
     memo_hits: u64,
     layer_frames: u64,
+    dependency_checks: u64,
     replacement_gathers: u64,
     restriction_queries: u64,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
@@ -654,6 +655,7 @@ struct AggregateStats {
     total_board_walks: u64,
     total_memo_hits: u64,
     total_layer_frames: u64,
+    total_dependency_checks: u64,
     total_replacement_gathers: u64,
     total_restriction_queries: u64,
     games_counted: u64,
@@ -678,6 +680,7 @@ impl AggregateStats {
         self.total_board_walks += game.board_walks;
         self.total_memo_hits += game.memo_hits;
         self.total_layer_frames += game.layer_frames;
+        self.total_dependency_checks += game.dependency_checks;
         self.total_replacement_gathers += game.replacement_gathers;
         self.total_restriction_queries += game.restriction_queries;
         if self.reach.is_empty() {
@@ -865,6 +868,7 @@ fn run_one_game(
                 s.board_walks = c.board_walks();
                 s.memo_hits = c.memo_hits();
                 s.layer_frames = c.layer_frames();
+                s.dependency_checks = c.dependency_checks();
                 s.replacement_gathers = c.replacement_gathers();
                 s.restriction_queries = c.restriction_queries();
                 s
@@ -1259,6 +1263,10 @@ fn main() {
                 agg_stats.total_layer_frames as f64 / agg_stats.total_layer_walks as f64
             }
         );
+        // CR 613.8a hypotheticals: pairs the static channel check could not
+        // settle, applied to the live board and taken back (LI-2). Zero on a
+        // board with no dependency-shaped card; read beside `Board walks`.
+        println!("  Dependency checks: {:>7.0}", agg_stats.avg(agg_stats.total_dependency_checks));
         println!("  Replacement gathers: {:>5.0}", agg_stats.avg(agg_stats.total_replacement_gathers));
         println!("  Restriction queries: {:>5.0}", agg_stats.avg(agg_stats.total_restriction_queries));
     }
