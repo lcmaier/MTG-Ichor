@@ -431,7 +431,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **§11 item 19** — CR 616.1 no longer prompts when every member of the bucket is an `EnterWith` whose applicability no `EnterMods` field can move; item 47 below has the three expiry conditions and the debug-build check. Containment Priest landed first, so the multi-candidate branch is still reached by a registered board.
 - **`GameAction::EnterBattlefield` carries the zone change that brought the object** (`None` for a token), because CR 601's "was it cast" is unrecoverable a moment later; `EventPattern::EnterBattlefield { cast }` projects it.
 - **Three cards.** Containment Priest and Dryad Arbor (stress pool), Keldon Warlord (`PERFORMANCE_POOL` 61 → 62). Wall of Stone gains the Wall subtype it always printed. Two fixes rode along: CR 205.1a in `land_types::apply_set_subtypes` — Blood Moon made Dryad Arbor a Mountain with no creature type; shown failing first, own commit — and the pool's color check reading color indicators (CR 204.1).
-- **`targeting::permanent_matches_filter` takes one layer walk per filter** instead of one per leaf, and only when a leaf reads a characteristic; the entry path matches against the frame through `permanent_matches_filter_in_frame`.
+- **`targeting::object_matches_filter` takes one layer walk per filter** instead of one per leaf, and only when a leaf reads a characteristic; the entry path matches against the frame through `object_matches_filter_in_frame`.
 
 **The measurement, three binaries.** Interleaved in one sitting, 50 games / seed 12345 / `--threads 1`, medians of seven rounds: `main` at 1045b70 (A), RC-4's engine with the pools exactly as `main` had them (B — the three cards unregistered, Keldon Warlord out of `PERFORMANCE_POOL`), and RC-4 shipped (C).
 
@@ -461,8 +461,8 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **`compute.rs::effect_applies_to` gates on the battlefield *zone*, not on `game.battlefield` membership.** `move_object` writes `obj.zone` before the `EnterBattlefield` performer builds the `PermanentState` — RC-2's one-`emit`-wide window — so an entering permanent is in the zone with no entry, and the stricter question kept CR 614.12 clause (3)'s "continuous effects that already exist and would apply to the object" away from every entry. Hidden zones are untouched: a card in hand still has `zone == Hand`, so nothing new reaches a library or a graveyard.
 - **`gather`'s source 1a admits `AffectedSet::SourceOnly` only** (`SelfScope::EnteringSelf`). CR 614.12's parenthesis — "if they affect only that permanent (as opposed to a general subset of permanents that includes it)" — is a membership rule, so it is here rather than in RC-4's overlay. Without it an entering Orb of Dreams finds its own "Permanents enter tapped" through `set_affects`, which matches a `Filter` against any object in any zone, and taps itself.
 - **RC-2's two known-wrong answers are now right.** The first is the one RC-3 named: a tapland under Blood Moon enters **untapped** (CR 305.7 strips the ability first), reachable in a fuzz game from cards already in the pool. The second was *not* Humility + Chainbreaker — that pair is a further consequence of the same line, real and tested, but RC-2 never listed it. RC-2's second was `default_enter_mods` and a filter-scoped Layer 4 effect, and RC-3's ledger misstated which direction changed (corrected 2026-09-02, RC-4): `default_enter_mods` reads *printed* loyalty and gates on the *effective* type, so "a planeswalker made one by a Layer 4 effect" has `loyalty: None` and enters with no counters either way. What the line changed is the inverse — a planeswalker whose type a filter-scoped effect **removes** now enters with **no** loyalty counters, because CR 306.5b gives the ability to "a planeswalker" and on that battlefield it is not one. `phase_rc4_integration_test::test_a_planeswalker_whose_type_a_filter_effect_removes_enters_with_no_loyalty` is the test; RC-4 routed the read through `compute_as_entering` so it is the CR 614.12 frame that answers, not `has_type` on a printed card.
-- **`base_controller` grew a `resolving` leg.** `resolve_top_of_stack` takes the `StackEntry` before it resolves anything, so the battlefield and stack probes both miss for the whole resolution and the owner fallback answered — right for a land drop, wrong for a spell cast by a non-owner (CR 110.2b). RC-3 owns it because RC-3 is what makes `PermanentFilter::ByController` askable of an entering permanent. **It fixes a wrong answer no registered card can produce**: `check_cast_legality` refuses "another player's spell", so the test builds the owner/controller disagreement after an ordinary cast. Confirmed rather than argued — event streams at 40 games are **40/40 identical on both pools** with and without the leg. The trap it removes belongs to whoever relaxes that check — the Commander track and Phase RE both want to.
-- **One card: Root Maze** (`{G}`, "Artifacts and lands enter tapped"), `PERFORMANCE_POOL` 60 → 61, plus `PermanentFilter::Or`. **Not for RC-3's own claim** — that one needed no new card and the argument is in the card's doc comment: Blood Moon and Humility were already in the pool, both are filter-scoped layer effects, and RC-2 had already put two permanents that enter modified in beside them, so the gate change widens a path the pool walks rather than opening one. Root Maze is for the gap RC-2 left by mistake (see the correction under RC-2 above): **CR 616.1's multi-candidate branch, reachable since RB merged and registered by nobody**, which is the identical failure RB shipped with Kalitas.
+- **`base_controller` grew a `resolving` leg.** `resolve_top_of_stack` takes the `StackEntry` before it resolves anything, so the battlefield and stack probes both miss for the whole resolution and the owner fallback answered — right for a land drop, wrong for a spell cast by a non-owner (CR 110.2b). RC-3 owns it because RC-3 is what makes `ObjectFilter::ByController` askable of an entering permanent. **It fixes a wrong answer no registered card can produce**: `check_cast_legality` refuses "another player's spell", so the test builds the owner/controller disagreement after an ordinary cast. Confirmed rather than argued — event streams at 40 games are **40/40 identical on both pools** with and without the leg. The trap it removes belongs to whoever relaxes that check — the Commander track and Phase RE both want to.
+- **One card: Root Maze** (`{G}`, "Artifacts and lands enter tapped"), `PERFORMANCE_POOL` 60 → 61, plus `ObjectFilter::Or`. **Not for RC-3's own claim** — that one needed no new card and the argument is in the card's doc comment: Blood Moon and Humility were already in the pool, both are filter-scoped layer effects, and RC-2 had already put two permanents that enter modified in beside them, so the gate change widens a path the pool walks rather than opening one. Root Maze is for the gap RC-2 left by mistake (see the correction under RC-2 above): **CR 616.1's multi-candidate branch, reachable since RB merged and registered by nobody**, which is the identical failure RB shipped with Kalitas.
 
 **The measurement, and it says the gate is free.** Interleaved A/B in one sitting against a same-day `main`, 50 games / seed 12345 / `--threads 1`, with a third binary carrying the gate change and *not* Root Maze so the engine and the pool could be separated (RC-2's lesson, applied):
 
@@ -475,7 +475,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 | ms/game, performance (median of 7) | 80.6 | 81.2 | 92.3 |
 | ms/game, stress (median of 7) | 63.3 | 68.1 | 72.4 |
 
-**`Frames/walk` was the number to watch and it did not move.** The fear was that admitting non-battlefield objects to filter matching would make `permanent_matches_filter` request other objects' frames, at the 5.2×–8.0× the ungated CR 604.2 existence check measures (`layers-architecture.md` §12). It does not, because the gate admits objects in the battlefield *zone* — outside a one-`emit`-wide window per entry, the same set as before. Normalised, ms per 1,000 layer walks moves **0.807 → 0.808 on `performance` (+0.1%) and 0.679 → 0.694 on `stress` (+2.2%)**, seven interleaved runs each. So the gate costs essentially nothing per walk; the `stress` walk count rises 5.2% because the games get *longer* (29.6 → 30.6 turns), which is the behaviour change paying for itself, not the predicate. The shipped column is not comparable to either, because the pool changed — §3.1.
+**`Frames/walk` was the number to watch and it did not move.** The fear was that admitting non-battlefield objects to filter matching would make `object_matches_filter` request other objects' frames, at the 5.2×–8.0× the ungated CR 604.2 existence check measures (`layers-architecture.md` §12). It does not, because the gate admits objects in the battlefield *zone* — outside a one-`emit`-wide window per entry, the same set as before. Normalised, ms per 1,000 layer walks moves **0.807 → 0.808 on `performance` (+0.1%) and 0.679 → 0.694 on `stress` (+2.2%)**, seven interleaved runs each. So the gate costs essentially nothing per walk; the `stress` walk count rises 5.2% because the games get *longer* (29.6 → 30.6 turns), which is the behaviour change paying for itself, not the predicate. The shipped column is not comparable to either, because the pool changed — §3.1.
 
 **Event-stream check, and the shape of the answer is the point.** 40 games / seed 12345, `--dump-events`, canonicalized and diffed against a same-day `main` with Root Maze unregistered. **36 of 40 `performance` games and 34 of 40 `stress` games are byte-identical**; every one of the 10 that diverge has a Humility or a Blood Moon on the battlefield before the divergence and a permanent that enters modified entering under it. Unlike RC-1's pure deletion, a real behaviour change cascades — the whole-stream diff is meaningless after the first divergence — so the checkable claim is the **first** divergence per game, and all ten are Chainbreaker not dying to CR 704.5f, Adaptive Shimmerer hitting for 3 less (its three +1/+1 counters), or an Idyllic Beachfront that never needed untapping.
 
@@ -483,7 +483,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 
 **One methodology note worth keeping.** A raw `diff` of two `--dump-events` files always fails: `ObjectId` is a per-process v4 UUID, so every line carrying one differs between runs of the *same* binary. Both the 8-hex short form and the full UUID form appear in the dump, and canonicalizing only the short form leaves four games per pool looking falsely divergent. Canonicalize both, per game, before concluding anything.
 
-**What RC-3 did not build.** No `compute_as_entering`, no accessor pair, no `GameState` clone — all RC-4's, per `replacement-architecture.md` §11 item 5. RC-3 removed a gate; RC-4 builds the frame. **ATOM-614.12-001 stays unclaimed in full** and is a type-surface gap rather than a behaviour one: its board is Yixlid Jailer ("cards in graveyards lose all abilities") and `PermanentFilter` has no zone leaf, so the scenario is inexpressible. The engine's answer is right for the right reason — `move_object` has already left the graveyard when `gather` asks — but nothing can demonstrate it, so the Blood Moon test claims it partially and the atom waits for a zone-scoped filter.
+**What RC-3 did not build.** No `compute_as_entering`, no accessor pair, no `GameState` clone — all RC-4's, per `replacement-architecture.md` §11 item 5. RC-3 removed a gate; RC-4 builds the frame. **ATOM-614.12-001 stays unclaimed in full** and is a type-surface gap rather than a behaviour one: its board is Yixlid Jailer ("cards in graveyards lose all abilities") and `ObjectFilter` has no zone leaf, so the scenario is inexpressible. The engine's answer is right for the right reason — `move_object` has already left the graveyard when `gather` asks — but nothing can demonstrate it, so the Blood Moon test claims it partially and the atom waits for a zone-scoped filter.
 
 **Status 2026-09-01: Phase RC-2 ✅ — entering the battlefield is a proposed event.** `replacement-architecture.md` §9's RC-2 subsection carries the eight findings; this is the state ledger. What landed:
 
@@ -499,7 +499,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 
 **Two known-wrong answers it leaves, both RC-3's one line** (`compute.rs`'s `game.battlefield.contains_key` gate in `effect_applies_to`): no filter-scoped `ContinuousEffect` reaches an entering permanent, so Blood Moon does not strip an entering tapland's "enters tapped" (the real ruling says it does), and `default_enter_mods` would miss a planeswalker made one by a filter-scoped Layer 4 effect. `tests/phase_rc_integration_test.rs::test_blood_moon_does_not_yet_strip_an_entering_taplands_ability` asserts the wrong answer on purpose so RC-3 has to flip it.
 
-**And one claim it got wrong, corrected 2026-09-02 before RC-3's line was written.** RC-2 recorded in four places — this block, `phase_rc_cards.rs` twice, and `replacement-architecture.md` §9 finding 7 — that *no* `AffectedSet::Filter` effect reaches an entering permanent, and concluded that CR 616.1's multi-candidate branch was unreachable until RC-3. **Both halves are false and neither was ever true.** `AffectedSet` is matched by two different functions on two different paths: `compute.rs::effect_applies_to` (`:629`) gates `ContinuousEffect` on battlefield membership, while `gather::set_affects` → `GameState::permanent_matches_filter` matches `ReplacementDef.affected` and `RestrictionDef.affected` with **no gate**. Probed on `main`: a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`, `EnterWith(tapped)`) already taps an entering Forest, and with Idyllic Beachfront entering under it the pipeline produces two candidates and `ask_choose_replacement` fires. So the branch has been reachable since RB, one registered card away, and Root Maze / Kismet / Loxodon Gatekeeper / Frozen Aether were never blocked on RC-3. **The generalisable error is naming a mechanism by its type rather than by its call path** — "an `AffectedSet::Filter` effect" reads like one thing and is two — and it cost the project the same unreachable-branch gap twice, after RB shipped Kalitas alone.
+**And one claim it got wrong, corrected 2026-09-02 before RC-3's line was written.** RC-2 recorded in four places — this block, `phase_rc_cards.rs` twice, and `replacement-architecture.md` §9 finding 7 — that *no* `AffectedSet::Filter` effect reaches an entering permanent, and concluded that CR 616.1's multi-candidate branch was unreachable until RC-3. **Both halves are false and neither was ever true.** `AffectedSet` is matched by two different functions on two different paths: `compute.rs::effect_applies_to` (`:629`) gates `ContinuousEffect` on battlefield membership, while `gather::set_affects` → `GameState::object_matches_filter` matches `ReplacementDef.affected` and `RestrictionDef.affected` with **no gate**. Probed on `main`: a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`, `EnterWith(tapped)`) already taps an entering Forest, and with Idyllic Beachfront entering under it the pipeline produces two candidates and `ask_choose_replacement` fires. So the branch has been reachable since RB, one registered card away, and Root Maze / Kismet / Loxodon Gatekeeper / Frozen Aether were never blocked on RC-3. **The generalisable error is naming a mechanism by its type rather than by its call path** — "an `AffectedSet::Filter` effect" reads like one thing and is two — and it cost the project the same unreachable-branch gap twice, after RB shipped Kalitas alone.
 
 **Status 2026-08-26: Phase RB ✅ — the CR 616.1 pipeline is live and three consumers use it.** All nine of `replacement-architecture.md` §9's RB items shipped. What landed:
 
@@ -706,7 +706,7 @@ here. None is blocking RB.
    2. **Uphill Battle** ("Creatures played by your opponents enter tapped") — a
       CR 614 replacement whose predicate is who *cast* the spell, not who
       controls it. Weak on its own: `o:"played by"` is **1 card in all of
-      Magic**, `o:"cast by"` is 2. The "played by" `PermanentFilter` leaf stays
+      Magic**, `o:"cast by"` is 2. The "played by" `ObjectFilter` leaf stays
       deferred on that count; the fact underneath it does not.
    3. **Bringer of the Last Gift** and its whole template — "When this creature
       enters, **if you cast it**, …". That is a CR 603.4 intervening-if whose
@@ -1987,17 +1987,17 @@ section never asked.
     **The sizing was wrong about "zero engine change", and the reason is worth
     keeping.** Leyline says "an opponent's **graveyard**", and CR 400.3 sends a
     card to its *owner's* graveyard — so the clause is about ownership, not
-    control, and `PermanentFilter` had only `ByController`. The two answers
+    control, and `ObjectFilter` had only `ByController`. The two answers
     diverge whenever control has moved, which the registered pool can already
     reach: Act of Treason steals a creature, it dies, and it goes to the
     graveyard of the player who owns it. Shipping it as `ByController` would
-    have been a *different card*, not a narrower one. `PermanentFilter::ByOwner`
+    have been a *different card*, not a narrower one. `ObjectFilter::ByOwner`
     is new — one variant and two match arms (`compute.rs`, `targeting.rs`), with
     ownership read off the `GameObject` for the reason `Token` gives.
 
     **"From anywhere" shipped literal, after a correction in review.** Both cards
     were first written `from: Battlefield`, on the argument that
-    `AffectedSet::Filter` carries a `PermanentFilter` and a card on the stack is
+    `AffectedSet::Filter` carries an `ObjectFilter` and a card on the stack is
     not a permanent. **That argument was wrong about these two cards.** Rest in
     Peace's filter is `All`, which reads nothing; Leyline's is `Not(Token)` and
     `ByOwner`, which read `GameObject.is_token` and `GameObject.owner` — present
@@ -2073,7 +2073,7 @@ section never asked.
 
     **Sized:** (a) one small PR computing `colors` inside `build()`
     with a color-indicator override, before Phase 8; (b) pick one reading and
-    thread `source` through `targeting::permanent_matches_filter`, ~20 lines,
+    thread `source` through `targeting::object_matches_filter`, ~20 lines,
     with the first card that reads `Owner`; (c) none — a card.
 
 ### Found by the RS-1 spine (2026-08-31)
@@ -2490,10 +2490,10 @@ section never asked.
     member of the bucket is an `EnterWith` whose applicability no `EnterMods`
     field can move, which is true today because the only characteristic the
     mods feed is power (through `+1/+1` and `-1/-1` counters, CR 122.1a) and
-    the only leaf that reads power is `PermanentFilter::PowerLE`, which the
+    the only leaf that reads power is `ObjectFilter::PowerLE`, which the
     predicate excludes. It goes false, silently, the day any of these lands:
     (a) `EnterMods` gains a field that feeds a characteristic — **face-down**,
-    which is Layer 1 and changes everything (Phase CV); (b) `PermanentFilter`
+    which is Layer 1 and changes everything (Phase CV); (b) `ObjectFilter`
     gains a leaf that reads power, toughness, keywords or counters
     (`ToughnessLE`, `HasKeyword`, `HasCounter` — RS-2/RS-3 candidates); (c)
     `EventPattern::EnterBattlefield` gains a field that reads `mods`.
@@ -2527,7 +2527,7 @@ section never asked.
     threads — one field, read in one place. The `base_controller` `resolving`
     leg RC-3 added was re-checked for this phase as the brief asked: it is
     consulted for an entering object only by the finished-board
-    `permanent_matches_filter`, which RC-4 no longer uses for an entry (the
+    `object_matches_filter`, which RC-4 no longer uses for an entry (the
     frame seeds its controller from the proposal), so the frame does not stand
     on it and it stays as RC-3 left it — right for the three roads, inert in a
     game.
@@ -2784,7 +2784,7 @@ measurement; what follows is what a later phase has to know.
 60. **Master Biomancer's Mutant clause is unimplemented, and it is not one
     field.** "…and as a Mutant in addition to its other types" wants a type on
     `EnterMods`, which fires item 47's expiry condition (a) directly:
-    `PermanentFilter`'s `ByType` and `BySubtype` leaves would stop being
+    `ObjectFilter`'s `ByType` and `BySubtype` leaves would stop being
     mods-invariant, so **every** CR 616.1 entry bucket would start prompting.
     It also needs somewhere for the type to live *after* the entry — a Layer 4
     effect with no registry row and no duration, which is a shape the layer
@@ -2869,18 +2869,21 @@ measurement; what follows is what a later phase has to know.
 
     **Sized:** ~20 lines with the card, as the entry says.
 
-64. **`PermanentFilter` filters objects in zones where nothing is a permanent,
-    and the name now lies.** CR 110.1 makes a permanent a card *on the
-    battlefield*; RC-5's `AuxiliaryMove.filter` matches creature **cards in a
-    graveyard**, and `EventPattern::ZoneChange`'s `object` filter has matched
-    cards in graveyards and libraries since RB (Grafdigger's Cage, Rest in
-    Peace). The type is right and the name is two phases stale.
-    **Sized:** a rename with ~120 mechanical call sites and no behaviour change,
-    which is why it has not happened; the cost is entirely in review noise, so
-    it wants a quiet PR of its own rather than a ride-along. Cross-cutting, not
-    blocking anything.
+64. **~~`PermanentFilter` filters objects in zones where nothing is a
+    permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter`
+    2026-09-07 (CM-0, `cost-architecture.md` §3.2).** CR 110.1 makes a
+    permanent a card *on the battlefield*; RC-5's `AuxiliaryMove.filter`
+    matched creature **cards in a graveyard**, `EventPattern::ZoneChange`'s
+    `object` filter had matched cards in graveyards and libraries since RB
+    (Grafdigger's Cage, Rest in Peace), and CM-1 applies it to spells on the
+    stack. The "~120 call sites" this item guessed were 275 in `src/` and 119
+    in `tests/` when counted; the sweep also renamed `permanent_matches_filter`
+    and its `_in_frame`/`_with` forms to `object_matches_filter*`, and left
+    `EffectRecipient::FilteredPermanents` and `SelectionFilter::Permanent`
+    alone, since both still name permanents. Zero behaviour: the suite and a
+    same-seed `fuzz_games` diff are the check.
 
-    **Reachability (2026-09-03):** reachable — not wrong; a name.
+    **Reachability (2026-09-07):** closed — renamed.
 
 65. **`order_invariant_entry_bucket` is named after its implementation, not its
     question.** The question is "does CR 616.1's ordering prompt have more than
@@ -3228,7 +3231,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    **Reachability (2026-09-03):** closed.
 
 2. **Direct `CardData` reads — ✅ done (2026-08-19).** 21 battlefield/stack call sites now route through `oracle/characteristics.rs`. New predicate helpers `has_type`, `has_subtype`, `has_supertype`, `has_permanent_type` join the existing `is_creature` / `get_effective_*` wrappers.
-   - Migrated: `engine/sba.rs` (8 — planeswalker loyalty, legend rule, Aura/Equipment/Fortification attachment SBAs), `engine/targeting.rs` (7 — creature target, creature-or-planeswalker target, the whole `PermanentFilter` match), `engine/resolve.rs` (Aura ETB), `engine/stack.rs` (2 — permanent-spell routing, Aura spell), `state/game_state.rs` (ETB loyalty counters), `ui/display.rs`, `ui/random.rs`.
+   - Migrated: `engine/sba.rs` (8 — planeswalker loyalty, legend rule, Aura/Equipment/Fortification attachment SBAs), `engine/targeting.rs` (7 — creature target, creature-or-planeswalker target, the whole `ObjectFilter` match), `engine/resolve.rs` (Aura ETB), `engine/stack.rs` (2 — permanent-spell routing, Aura spell), `state/game_state.rs` (ETB loyalty counters), `ui/display.rs`, `ui/random.rs`.
    - **Deliberately NOT migrated (6 sites):** `engine/zones.rs:144` (play a land from hand), `oracle/legality.rs:59` (playable lands in hand), `oracle/mana_helpers.rs` (×4 — castable spells in hand, instant/flash timing). These are cast-zone / play-from-hand legality, evaluated before the object is a permanent, so the layer system has nothing to contribute. Same exemption as `engine/cast.rs`. Each is tagged `// PRE-LAYER ZONE:` in source so a future grep audit doesn't re-flag it.
    - Regression coverage: `mtgsim/tests/layer_aware_queries_test.rs`, 5 tests. Verified to fail against the pre-fix tree and pass after.
 
@@ -3350,7 +3353,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
     with main item 64's rename.
 
-7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(PermanentFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
+7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
     **Dog Umbra, the worked example this item carried, is still two systems away** — "As long as another player controls enchanted creature, it can't attack or block. Otherwise, this Aura has umbra armor." The condition and the `Host` recipient both exist now (this item and LH-1); what is left is `Effect::Restriction` under a conditional, which lowers to no rows on purpose (CR 101.2 reads the effective ability list instead, so the *condition* has to be read there rather than here — RS-2's), and umbra armor, a replacement effect. (Umbra armor is CR 702.89a; 702.89b renamed the older "totem armor" wording in Oracle, so use umbra armor.)
 
@@ -3507,7 +3510,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     "can't have or gain" restriction (RS-era), and `LoseAbility(AbilityId)` has
     no natural card.
 
-9. **Abilities granted to cards outside the battlefield — ❌ inexpressible.** The layer system can only apply filter-based effects to objects in the battlefield *zone*: `effect_applies_to`'s gate is `in_battlefield_zone_or_entering` (`engine/layers/compute.rs`, since RC-3), and the filter type is `PermanentFilter`. So a whole class of real cards has no representation — Yawgmoth's Will and Underworld Breach (flashback on graveyard cards), Aminatou, Veil Piercer ("Each enchantment card in your hand has miracle"), Future Sight and Bolas's Citadel (playing off the library), foretell-style grants on face-down exile.
+9. **Abilities granted to cards outside the battlefield — ❌ inexpressible.** The layer system can only apply filter-based effects to objects in the battlefield *zone*: `effect_applies_to`'s gate is `in_battlefield_zone_or_entering` (`engine/layers/compute.rs`, since RC-3), and the filter type is `ObjectFilter`. So a whole class of real cards has no representation — Yawgmoth's Will and Underworld Breach (flashback on graveyard cards), Aminatou, Veil Piercer ("Each enchantment card in your hand has miracle"), Future Sight and Bolas's Citadel (playing off the library), foretell-style grants on face-down exile.
 
    Two pieces are needed, in this order:
    - **A card filter and a zone-aware `AffectedSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
@@ -3537,15 +3540,16 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    **Three corrections (2026-09-04, after LH-1's review).**
    1) *One filter type, not two.* "A card filter" above assumed a second type
-   beside `PermanentFilter`. CR 108.4a — a card that has no controller uses its
-   owner wherever a controller is asked for — means every existing leaf,
-   `ByController` included, reads correctly off a card in hand, so the shape is
-   one `ObjectFilter` with a zone leaf, `PermanentFilter` renamed to it and
+   beside the characteristic filter (then `PermanentFilter`). CR 108.4a — a
+   card that has no controller uses its owner wherever a controller is asked
+   for — means every existing leaf, `ByController` included, reads correctly
+   off a card in hand, so the shape is one `ObjectFilter` with a zone leaf and
    `CardFilter` (three variants, five uses, `Condition::CardInGraveyard`) folded
-   in. **The rename is its own zero-behaviour PR, immediately before this
-   item**, byte-identical on the A/B, so the behaviour PR stays readable: 301
-   mentions across 35 files (203 in `src/`, 88 of them card definitions; 98 in
-   `tests/`) and ~40 across nine plan docs. ATOM-614.12-001 (Yixlid Jailer,
+   in. **The rename landed 2026-09-07 as CM-0** (`cost-architecture.md` §3.2,
+   the first consumer that applies the filter to a spell): 275 sites in 25
+   `src/` files, 119 in 18 test files, the live plan docs, and the three
+   `permanent_matches_filter*` matchers became `object_matches_filter*`. The
+   zone leaf and the `CardFilter` fold are still this item's. ATOM-614.12-001 (Yixlid Jailer,
    "Cards in graveyards lose all abilities") is the atom the zone leaf unblocks,
    and that card is also the right **first consumer**: its source is on the
    battlefield, so it needs nothing from CR 113.6 (A5) — only the zone-scoped
@@ -3606,11 +3610,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     (`END_OF_LAYER_1` moves and its `debug_assert` fires until it does);
     quadrant ② with its first card.
 
-11. **Filter `PlayerRef` resolution — ✅ done (2026-08-23), ahead of Layer 2.** `AffectedSet::Filter` carried a `controller: Option<PlayerId>` that `register_static_effects` resolved from `PermanentFilter::ByController(PlayerRef::You)` at ETB. That is a snapshot of who controlled the source when it entered, and CR 109.5 says the opposite — "for a static ability, [you] is the *current* controller of the object it's on". Glorious Anthem kept buffing the team of whoever controlled it at ETB.
+11. **Filter `PlayerRef` resolution — ✅ done (2026-08-23), ahead of Layer 2.** `AffectedSet::Filter` carried a `controller: Option<PlayerId>` that `register_static_effects` resolved from `ObjectFilter::ByController(PlayerRef::You)` at ETB. That is a snapshot of who controlled the source when it entered, and CR 109.5 says the opposite — "for a static ability, [you] is the *current* controller of the object it's on". Glorious Anthem kept buffing the team of whoever controlled it at ETB.
 
     Demonstrable before Layer 2 exists, which is why it shipped as a bugfix rather than as scaffolding: CR 110.2 makes `PermanentState.controller` the default controller, `compute_to_ceiling` seeds `chars.controller` from it, and writing that field is the pre-Layer-2 half of gaining control. `tests/filter_controller_test.rs` was shown failing against the pre-fix tree.
 
-    - **The field is gone; `permanent_matches_filter` owns the whole question.** `ByController` used to return `true` unconditionally and defer to the `AffectedSet` field, so one question lived in two functions and only one half was re-asked during the walk. That split is what let the snapshot hide, and it had a second victim: `extract_controller_from_filter` walked only `And` nodes, so `Not(ByController(You))` silently dropped its constraint and matched nothing.
+    - **The field is gone; `object_matches_filter` owns the whole question.** `ByController` used to return `true` unconditionally and defer to the `AffectedSet` field, so one question lived in two functions and only one half was re-asked during the walk. That split is what let the snapshot hide, and it had a second victim: `extract_controller_from_filter` walked only `And` nodes, so `Not(ByController(You))` silently dropped its constraint and matched nothing.
     - **"You" is origin-dependent, and both arms are CR text.** `EffectOrigin::StaticAbility` → the source's *effective* controller, via `compute_to_ceiling(effect.source, layer_index)` (CR 109.5). `EffectOrigin::Resolution` → `effect.controller`, fixed when the effect began (CR 611.2c). Same `layer_index` ceiling `static_ability_still_exists` uses — never the full ceiling, per `layers-architecture.md` §5.2.
     - **All four `PlayerRef` variants resolve; none asserts.** `Opponent` is matched as a *predicate* (`controller != you`) rather than resolved to an id, because CR 102.2 makes it one player in a two-player game but CR 102.3 makes "your opponents" a set in multiplayer — the predicate is the same answer in both, and an `Option<PlayerId>` would have been the wrong shape for half the CR. `Owner` resolves to the source object's owner (CR 108.3 / 110.2); no card says it, but it is exactly determined, so asserting would be inventing a restriction.
     - **What Layer 2 hit — ✅ confirmed 2026-08-23, nothing needed redoing.** A Layer 2 effect whose own filter says "you control" asks at `layer_index == 1`, i.e. the frame *before* Layer 2 applied — `PermanentState.controller`. That is exact whenever the source is not itself under a control-changing effect, and it is the CR's own fallback when it is: two same-layer effects where applying one changes what the other applies to are dependent under CR 613.8a, a mutual pair is a dependency *loop*, and 613.8b resolves loops in timestamp order. The exact version needs the frame the check reads to be a partially-applied layer — item 8 step 4's board-wide sequential pass, the same missing piece a granted Layer 6 static ability already waits on. Nothing here needs redoing when it arrives; only the ceiling it asks at.
@@ -3681,11 +3685,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     resolution arm asks the `DecisionProvider` when more than one opponent
     exists, ~80–120 lines with the first of the nine cards.
 
-14. **The targeting-side `PermanentFilter` could not resolve a `PlayerRef` — ✅ done (2026-08-23).** There are two functions called `permanent_matches_filter`, and item 11 rewrote only one. `compute::permanent_matches_filter` asks whether a continuous effect applies to a permanent mid-layer-walk and reads an `EffectiveCharacteristics` frame; `targeting::permanent_matches_filter` asks whether a permanent is a legal *selection* and reads the finished board. The second still had `_ => Err("PlayerRef {:?} not supported")` for every variant but `Player(_)`, untouched since Phase LD.
+14. **The targeting-side `ObjectFilter` could not resolve a `PlayerRef` — ✅ done (2026-08-23).** There are two functions called `object_matches_filter`, and item 11 rewrote only one. `compute::object_matches_filter` asks whether a continuous effect applies to a permanent mid-layer-walk and reads an `EffectiveCharacteristics` frame; `targeting::object_matches_filter` asks whether a permanent is a legal *selection* and reads the finished board. The second still had `_ => Err("PlayerRef {:?} not supported")` for every variant but `Player(_)`, untouched since Phase LD.
 
     The consequence was silent and total: SBA 704.5n calls `validate_selection` on an Aura's host, got `Err`, and treated the Aura as validly attached. **Every "Enchant creature you control" Aura had an unenforceable restriction** — Ethereal Armor, Gryff's Boon, Angelic Destiny, the whole cycle.
 
-    Fixed by threading `you: PlayerId` through `validate_targets`, `validate_selection`, `validate_permanent_target`, `permanent_matches_filter`, `has_any_legal_choice`, `is_single_target_legal`, `any_targets_still_legal` and `enumerate_legal_selections`. Every caller had the value already: the caster in `cast.rs`, the spell's controller in `stack.rs`, the Aura's controller in `resolve::try_attach_aura_on_etb` and SBA 704.5n, the enumerating player in `mana_helpers`.
+    Fixed by threading `you: PlayerId` through `validate_targets`, `validate_selection`, `validate_permanent_target`, `object_matches_filter`, `has_any_legal_choice`, `is_single_target_legal`, `any_targets_still_legal` and `enumerate_legal_selections`. Every caller had the value already: the caster in `cast.rs`, the spell's controller in `stack.rs`, the Aura's controller in `resolve::try_attach_aura_on_etb` and SBA 704.5n, the enumerating player in `mana_helpers`.
 
     Two tests fail if either half is reverted — restoring the `Err` arm, or reading `PermanentState.controller` instead of the effective one.
 

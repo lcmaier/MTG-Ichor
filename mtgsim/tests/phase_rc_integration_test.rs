@@ -21,7 +21,7 @@ use mtgsim::test_support::{
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
-use mtgsim::types::effects::{AffectedSet, CounterType, Effect, PermanentFilter};
+use mtgsim::types::effects::{AffectedSet, CounterType, Effect, ObjectFilter};
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
@@ -378,7 +378,7 @@ fn orb_shaped() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::Filter { filter: PermanentFilter::All },
+                AffectedSet::Filter { filter: ObjectFilter::All },
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -466,7 +466,7 @@ fn test_humility_strips_an_entering_permanents_enters_with_counters() {
 /// in any zone, so without the `SelfScope` check in `gather` the entering Orb
 /// finds its own row and taps itself.
 ///
-/// The fixture is Orb-shaped rather than Orb: `PermanentFilter::All` and
+/// The fixture is Orb-shaped rather than Orb: `ObjectFilter::All` and
 /// `EnterWith(tapped)` is the whole card as far as this rule can see, and the
 /// second permanent is what proves the row is live rather than inert.
 // COVERS: ATOM-614.12-003
@@ -691,7 +691,7 @@ fn test_rc2_cards_read_as_printed() {
 /// Root Maze is on the battlefield, so it is not a look-ahead question: it is
 /// one of CR 614.12 clause (3)'s effects that "already exist". `set_affects`
 /// matches its `AffectedSet::Filter` through
-/// `GameState::permanent_matches_filter`, which has no battlefield gate — the
+/// `GameState::object_matches_filter`, which has no battlefield gate — the
 /// path RC-2's "no `Filter` effect reaches an entry" claim missed, and the
 /// reason this test passes against the pre-RC-3 tree too.
 #[test]
@@ -789,7 +789,7 @@ fn kismet_shaped() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter {
-                    filter: PermanentFilter::ByController(
+                    filter: ObjectFilter::ByController(
                         mtgsim::types::effects::PlayerRef::Opponent,
                     ),
                 },

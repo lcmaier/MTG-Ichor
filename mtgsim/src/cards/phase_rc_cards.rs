@@ -37,7 +37,7 @@
 //!   and governs **`ContinuousEffect`** — the layer registry. That is the gate
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
-//! - `gather::set_affects` → `GameState::permanent_matches_filter` governs
+//! - `gather::set_affects` → `GameState::object_matches_filter` governs
 //!   **`ReplacementDef.affected`**, and it has **no gate at all**.
 //!
 //! So a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`,
@@ -63,7 +63,7 @@ use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PermanentFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive, SelectionFilter, Selector, TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -220,7 +220,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             effect: Effect::Atom(
                 Primitive::RemoveCounters(CounterType::MinusOneMinusOne, AmountExpr::Fixed(1)),
                 EffectRecipient::Target(
-                    SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Creature)),
+                    SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
                     TargetCount::Exactly(1),
                 ),
             ),
@@ -306,7 +306,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 /// entry until RC-3 opened the gate, on the grounds that no `AffectedSet::Filter`
 /// effect could match an entering permanent. That was never true of the
 /// *replacement* pipeline: `gather::set_affects` matches a `ReplacementDef`'s
-/// filter through `GameState::permanent_matches_filter`, which has no
+/// filter through `GameState::object_matches_filter`, which has no
 /// battlefield gate and never had one. The branch has been reachable since RB
 /// merged, one registered card away, and RB left the identical gap with Kalitas
 /// — a Legendary whose two copies each apply only to the other player's
@@ -323,7 +323,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 /// # Why this card out of the four
 ///
 /// Kismet, Loxodon Gatekeeper and Frozen Aether all scope to "your opponents",
-/// which is `PermanentFilter::ByController(PlayerRef::Opponent)` — and that
+/// which is `ObjectFilter::ByController(PlayerRef::Opponent)` — and that
 /// leaf reads `chars.controller`, which for an entering permanent comes from
 /// `compute::base_controller`'s owner fallback. Right for a land drop, wrong
 /// for a permanent spell cast by a non-owner, and unowned until this phase
@@ -362,9 +362,9 @@ pub fn root_maze() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter {
-                    filter: PermanentFilter::Or(
-                        Box::new(PermanentFilter::ByType(CardType::Artifact)),
-                        Box::new(PermanentFilter::ByType(CardType::Land)),
+                    filter: ObjectFilter::Or(
+                        Box::new(ObjectFilter::ByType(CardType::Artifact)),
+                        Box::new(ObjectFilter::ByType(CardType::Land)),
                     ),
                 },
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
@@ -443,9 +443,9 @@ pub fn containment_priest() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
                 AffectedSet::Filter {
-                    filter: PermanentFilter::And(
-                        Box::new(PermanentFilter::ByType(CardType::Creature)),
-                        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::Token))),
+                    filter: ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                     ),
                 },
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
@@ -535,12 +535,12 @@ pub fn keldon_warlord() -> Arc<CardData> {
     // its two amounts by value, and this runs at registry construction, not
     // in a game.
     let non_wall_creatures_you_control =
-        AmountExpr::CountOf(Selector::PermanentsMatching(PermanentFilter::And(
-            Box::new(PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+        AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+            Box::new(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             )),
-            Box::new(PermanentFilter::Not(Box::new(PermanentFilter::BySubtype(
+            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
                 Subtype::Creature(CreatureType::Wall),
             )))),
         )));
@@ -654,9 +654,9 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                     // says a sacrifice is its controller moving it, so nothing
                     // else could be chosen. On the battlefield that has to be a
                     // filter leaf, because control and ownership diverge there.
-                    filter: PermanentFilter::And(
-                        Box::new(PermanentFilter::ByType(CardType::Creature)),
-                        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                    filter: ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     ),
                     to: Zone::Graveyard,
                     cause: ZoneChangeCause::Sacrificed,
@@ -748,7 +748,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
                     // `ByController` leaf — a player's graveyard is enumerated
                     // in its own order.
                     from: Zone::Graveyard,
-                    filter: PermanentFilter::ByType(CardType::Creature),
+                    filter: ObjectFilter::ByType(CardType::Creature),
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
                     up_to: None,
@@ -853,9 +853,9 @@ pub fn master_biomancer() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 AffectedSet::Filter {
-                    filter: PermanentFilter::And(
-                        Box::new(PermanentFilter::ByType(CardType::Creature)),
-                        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                    filter: ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     ),
                 },
                 Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(

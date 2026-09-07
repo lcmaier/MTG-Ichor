@@ -27,7 +27,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, PermanentFilter, Primitive,
+    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::{ObjectId, PlayerId};
@@ -506,9 +506,9 @@ pub(crate) fn set_affects(
         }
         AffectedSet::Filter { filter } => match frame.and_then(|f| f.frame_of(id)) {
             Some(chars) => game
-                .permanent_matches_filter_in_frame(id, filter, controller, chars)
+                .object_matches_filter_in_frame(id, filter, controller, chars)
                 .unwrap_or(false),
-            None => game.permanent_matches_filter(id, filter, controller).unwrap_or(false),
+            None => game.object_matches_filter(id, filter, controller).unwrap_or(false),
         },
     }
 }
@@ -541,7 +541,7 @@ pub(crate) fn pattern_watches(
                 && cause.map(|c| c == *actual_cause).unwrap_or(true)
                 && object
                     .as_ref()
-                    .map(|f| game.permanent_matches_filter(*moving, f, you).unwrap_or(false))
+                    .map(|f| game.object_matches_filter(*moving, f, you).unwrap_or(false))
                     .unwrap_or(true)
         }
 
@@ -566,7 +566,7 @@ pub(crate) fn pattern_watches(
                 && cause.map(|c| Some(c) == *actual_cause).unwrap_or(true)
                 && object
                     .as_ref()
-                    .map(|f| game.permanent_matches_filter(*moving, f, you).unwrap_or(false))
+                    .map(|f| game.object_matches_filter(*moving, f, you).unwrap_or(false))
                     .unwrap_or(true)
         }
 
@@ -753,7 +753,7 @@ fn counter_replacements(
 fn remove_one_counter(counter: CounterType) -> Effect {
     Effect::Atom(
         Primitive::RemoveCounters(counter, AmountExpr::Fixed(1)),
-        EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     )
 }
 

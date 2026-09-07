@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -118,7 +118,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                     object: None,
                 },
                 affected: AffectedSet::Filter {
-                    filter: PermanentFilter::ByController(PlayerRef::You),
+                    filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),

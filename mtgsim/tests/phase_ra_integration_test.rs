@@ -23,7 +23,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId};
@@ -61,9 +61,9 @@ fn self_anthem_creature() -> Arc<CardData> {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
         })

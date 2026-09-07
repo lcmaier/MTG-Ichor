@@ -23,7 +23,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    CounterType, Duration, Effect, EffectRecipient, PermanentFilter, Primitive, SelectionFilter,
+    CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::ObjectId;
@@ -46,7 +46,7 @@ fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgs
     let spell = Effect::Atom(
         Primitive::GrantAbility(Box::new(ability), Duration::UntilEndOfTurn),
         EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::ByType(CardType::Artifact)),
+            SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
             TargetCount::Exactly(1),
         ),
     );
@@ -139,9 +139,9 @@ fn test_a_counter_older_than_a_power_reading_row_applies_first() {
         created_on_turn: 1,
         timestamp,
         affected: AffectedSet::Filter {
-            filter: PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::PowerLE(2)),
+            filter: ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::PowerLE(2)),
             ),
         },
         modification: EffectModification::ModifyPowerToughness {

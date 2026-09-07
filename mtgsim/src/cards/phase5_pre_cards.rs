@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Duration, Effect, ManaOutput, PermanentFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
+use crate::types::effects::{AmountExpr, Duration, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -66,9 +66,9 @@ pub fn doom_blade() -> Arc<CardData> {
             effect: Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(SelectionFilter::Permanent(
-                    PermanentFilter::And(
-                        Box::new(PermanentFilter::ByType(CardType::Creature)),
-                        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByColor(Color::Black))))
+                    ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black))))
                     )),
                     TargetCount::Exactly(1)
                 )
@@ -113,9 +113,9 @@ pub fn glorious_anthem() -> Arc<CardData> {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
         })

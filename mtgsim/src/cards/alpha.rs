@@ -100,7 +100,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::Untap,
-                EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
             ),
         })
         .build()
@@ -149,7 +149,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
             effect: Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(SelectionFilter::Permanent(
-                    PermanentFilter::ByType(CardType::Land)),
+                    ObjectFilter::ByType(CardType::Land)),
                     TargetCount::Exactly(1),
                 ),
             ),

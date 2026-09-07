@@ -12,7 +12,7 @@ use mtgsim::engine::priority::PriorityResult;
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -193,9 +193,9 @@ fn test_doom_blade_destroys_nonblack_creature() {
     // Target: legal selections = [Object(target_id)] (only nonblack creature) → idx 0
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::Not(Box::new(PermanentFilter::ByColor(
+            SelectionFilter::Permanent(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(
                     mtgsim::types::colors::Color::Black,
                 )))),
             )),

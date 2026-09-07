@@ -754,8 +754,8 @@ not a caveat — it is the method.** Measured 2026-08-31: the performance pool r
 byte-identical game content.
 
 **That gap was A/B'd against the obvious suspect and the suspect was cleared.**
-The tree had gained `PermanentFilter::ByOwner`, a new match arm in
-`permanent_matches_filter` — which `compute.rs` calls inside the layer walk, the
+The tree had gained `ObjectFilter::ByOwner`, a new match arm in
+`object_matches_filter` — which `compute.rs` calls inside the layer walk, the
 hottest path the engine has. Two release binaries were built from the two
 commits into separate target directories and run **alternately** in one sitting,
 four runs each, on the pool whose cards are identical on both sides:
@@ -1098,7 +1098,7 @@ schedulable rather than done:
   item 5.
 - **Tier 3 — the codebase map.** One structural page: the modules and what each
   owns, the chokepoint's arms, the three gate legs a new replacement source
-  must extend, the two `permanent_matches_filter`s, the accessor pair, and the
+  must extend, the two `object_matches_filter`s, the accessor pair, and the
   decision sites item 40 tracks — everything `CLAUDE.md` states as an
   invariant, drawn once. Unblocked since the entry-hop fix landed
   (2026-09-02); a day to draw, then minutes per refresh. It wants a ten-line

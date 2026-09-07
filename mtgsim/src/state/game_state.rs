@@ -1404,7 +1404,7 @@ impl GameState {
         match recipient {
             // The filter is stored verbatim, `PlayerRef` and all. Resolving
             // "you" here would snapshot the source's controller at ETB; CR
-            // 109.5 wants its *current* one, so `compute::permanent_matches_filter`
+            // 109.5 wants its *current* one, so `compute::object_matches_filter`
             // does it per layer.
             EffectRecipient::FilteredPermanents(filter) => {
                 Some(AffectedSet::Filter { filter: filter.clone() })
@@ -1642,7 +1642,7 @@ mod tests {
         use crate::types::card_types::CardType;
         use crate::types::effects::{
             AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount,
-            PermanentFilter, Primitive, SelectionFilter, TargetCount,
+            ObjectFilter, Primitive, SelectionFilter, TargetCount,
         };
         use crate::types::ids::new_ability_id;
 
@@ -1666,7 +1666,7 @@ mod tests {
                     AmountExpr::Fixed(1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
             )
         }
 
@@ -1688,7 +1688,7 @@ mod tests {
         #[test]
         fn test_filtered_and_implicit_recipients_lower() {
             assert!(GameState::static_affected_set(
-                &EffectRecipient::FilteredPermanents(PermanentFilter::All), "T"
+                &EffectRecipient::FilteredPermanents(ObjectFilter::All), "T"
             ).is_some());
             assert!(GameState::static_affected_set(&EffectRecipient::Implicit, "T").is_some());
         }

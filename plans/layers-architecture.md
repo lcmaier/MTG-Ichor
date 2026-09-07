@@ -239,9 +239,9 @@ pub enum AffectedSet {
 
 **Decision:** reuse `SelectionFilter` (data-driven) rather than function pointers. Rationale: serialization, debugging, and the dependency-algorithm static check can inspect filter fields. Function pointers would force the dependency algorithm into the "hypothetical check" path unnecessarily often.
 
-**Amendment (2026-08-23) — the filter is stored unresolved.** As shipped, the variant is `Filter { filter: PermanentFilter }`, and it briefly also carried a `controller: Option<PlayerId>` resolved from `PermanentFilter::ByController(PlayerRef::You)` at registration. That was wrong: CR 109.5 makes a static ability's "you" the source's **current** controller, so a value snapshotted when the source entered the battlefield is stale the moment control of the source changes.
+**Amendment (2026-08-23) — the filter is stored unresolved.** As shipped, the variant is `Filter { filter: ObjectFilter }`, and it briefly also carried a `controller: Option<PlayerId>` resolved from `ObjectFilter::ByController(PlayerRef::You)` at registration. That was wrong: CR 109.5 makes a static ability's "you" the source's **current** controller, so a value snapshotted when the source entered the battlefield is stale the moment control of the source changes.
 
-`compute::permanent_matches_filter` now resolves the `PlayerRef` during the walk, which puts the whole of "does this object match" in one function instead of splitting it across the filter and a sibling field.
+`compute::object_matches_filter` now resolves the `PlayerRef` during the walk, which puts the whole of "does this object match" in one function instead of splitting it across the filter and a sibling field.
 
 - `EffectOrigin::StaticAbility` → the source's effective controller, asked at `layer_index` (§5.2's descending ceiling, never the full one — same request `static_ability_still_exists` makes).
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
@@ -365,7 +365,7 @@ It also keeps `GameState::static_primitive_rows` a pure map from primitive to ro
 
 Two per-variant decisions, both deliberate:
 
-- **`Owner` means something different here than in a filter.** In `PermanentFilter::ByController` the `PlayerRef` describes the *source*; in `SetController` it describes the object being moved. Homeward Path's "each player gains control of all creatures they own" hands each creature to *its own* owner, so routing this through `FilterPlayers::owner()` would give every creature to whoever controls the Path.
+- **`Owner` means something different here than in a filter.** In `ObjectFilter::ByController` the `PlayerRef` describes the *source*; in `SetController` it describes the object being moved. Homeward Path's "each player gains control of all creatures they own" hands each creature to *its own* owner, so routing this through `FilterPlayers::owner()` would give every creature to whoever controls the Path.
 - **`Opponent` resolves only in a two-player game**, where CR 102.2 leaves nothing to choose. Above two players it asserts — not because the case is unmodelable, but because it belongs to a different step: "an opponent gains control" does not target, and its ruling (Akroan Horse) is that *you choose the opponent as the ability resolves*. Any identity that is chosen or computed — a random player (Scrambleverse), a per-player trigger's "that player" (Risky Move), an auction winner (Illicit Auction) — is settled at resolution and stored as `Player(pid)`. Only `You` and `Owner` stay symbolic, because only they must be re-derived on every walk. `codebase-state.md` item 13 has the card breadth and the lowering gap that follows.
 
 `apply_modification` gained an `origin: Option<&ContinuousEffect>` parameter to carry the row this needs. `layers::cda` passes `None`: CR 613.4a admits no characteristic-defining ability in Layer 2 (7a is the only sublayer it lists), so the arm is unreachable from the intrinsic pass and asserts rather than guessing.
@@ -1567,7 +1567,7 @@ made, so it is a result of the pass, not an attribute of a row, and 7g's
 
 *The working set* W is **every object some row can reach**, and it is
 derived from the `AffectedSet` variants rather than listed: a `Filter` row
-needs the battlefield zone (RC-3's gate — because `PermanentFilter` is a
+needs the battlefield zone (RC-3's gate — because `ObjectFilter` is a
 filter over *permanents*; a filter over cards in a graveyard, Deeproot
 Historian's "Merfolk and Druid cards in your graveyard have retrace", is
 layers item 9's zone-reaching variant, and main item 64's `ObjectFilter`
@@ -1897,9 +1897,9 @@ field-by-field account of `Board` the review asked for.
    rulings with Humility (2009-10-01, both timestamp orders, layer by layer;
    2006-02-01, two Opalescences) are 7c's CR 613.6 test with the CR's own
    answers attached, and LI-1's pass already gives them — timestamp order
-   plus the locked set. It needs one filter leaf, `PermanentFilter::EachOther`
+   plus the locked set. It needs one filter leaf, `ObjectFilter::EachOther`
    ("each other" is `id != source`; the self-stripping fixture's doc names
-   this gap), on both `permanent_matches_filter`s. First job of LI-2.
+   this gap), on both `object_matches_filter`s. First job of LI-2.
 5. **Tests.** Urborg + Blood Moon in both orders (a basic Forest is a Forest,
    never a Forest Swamp; Urborg is a Mountain — the ruling's words);
    the Purifier fixture + Blood Moon in both orders (the ruling's words: Blood
@@ -2021,7 +2021,7 @@ the assertion, plus `test_a_power_reading_row_older_than_a_counter_waits_for_the
 — the order LI-1 left unpinned, now 3/3 — and a sabotage check: with
 `next_ready` forced to key order, seven of the fifteen fail and they
 are exactly the dependency boards, while the CR 613.6 and loop boards pass
-either way, as this section predicted. `PermanentFilter::EachOther` landed as
+either way, as this section predicted. `ObjectFilter::EachOther` landed as
 piece 4 asked, on every matcher: `compute`'s answers off
 `FilterPlayers::source`, `targeting`'s refuses it (a selection has no
 source), and `pipeline`'s mods-invariance table classifies it. Urborg is in
@@ -2103,7 +2103,7 @@ docs put the PR near 1,300. Four departures from the pieces above.
    card-file lowering test asserts each new card's rows are the inner
    atom's exactly.
 
-2. **`Condition::HostMatches` reuses `PermanentFilter`.** Piece 2 asked for
+2. **`Condition::HostMatches` reuses `ObjectFilter`.** Piece 2 asked for
    "one leaf the Rune shape needs" out of §15.1's `ObjectRef::AttachedTo`
    sketch. §15.1 spells it `ObjectHasSubtype(ObjectRef, Subtype)` — a
    predicate per characteristic, times an object reference. Built as one
@@ -2148,7 +2148,7 @@ docs put the PR near 1,300. Four departures from the pieces above.
 4. **The `effect_channels` clause is pinned by a layer-4 board, not by the
    Rune.** The handoff predicted the Rune fixture would be where the
    condition's channels bite. It is not, and the reason is a layer count:
-   layer 6 writes abilities and keywords, and no `PermanentFilter` leaf
+   layer 6 writes abilities and keywords, and no `ObjectFilter` leaf
    reads either, so a layer-6 condition cannot be flipped by a layer-6
    effect through any filter the engine has. What can be flipped in its own
    layer is a **layer-4** condition — `Simian Clause`, "as long as you
@@ -2313,7 +2313,7 @@ Samples from the reviewer's Scryfall query (~420 relevant cards after the given 
 
 Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No evaluator yet. Phase LC builds the evaluator and adds leaves for that phase's cards only.
 
-**Built 2026-09-06 by LI-3, not LC, and smaller than sketched.** The AST is the eight-variant `Condition` in `types/effects.rs` — written for CR 603.4, shared rather than duplicated (§13b decision 5) — and the evaluator is `engine/layers/condition.rs`, a static context only. One leaf was added, and mitigation 1 is what it looks like in practice: `HostMatches(PermanentFilter)` rather than the sketch's `ObjectHasType`/`ObjectHasSubtype`/`ObjectIsTapped` × `ObjectRef` grid, because reusing the filter the rest of the engine already has makes "is an Equipment", "is a creature" and every conjunction one variant instead of a family — and lets `board::condition_reads` ask `filter_reads` what a condition reads rather than enumerating it. **A new leaf is three edits, not two**: the variant, the `holds` arm, and the `condition_reads` arm. The third is the one to remember — a leaf that reads a frame and says so nowhere produces a wrong *order*, not a wrong value, and no test of the leaf alone would catch it. The Phase LC gate's count is 9 of ~25.
+**Built 2026-09-06 by LI-3, not LC, and smaller than sketched.** The AST is the eight-variant `Condition` in `types/effects.rs` — written for CR 603.4, shared rather than duplicated (§13b decision 5) — and the evaluator is `engine/layers/condition.rs`, a static context only. One leaf was added, and mitigation 1 is what it looks like in practice: `HostMatches(ObjectFilter)` rather than the sketch's `ObjectHasType`/`ObjectHasSubtype`/`ObjectIsTapped` × `ObjectRef` grid, because reusing the filter the rest of the engine already has makes "is an Equipment", "is a creature" and every conjunction one variant instead of a family — and lets `board::condition_reads` ask `filter_reads` what a condition reads rather than enumerating it. **A new leaf is three edits, not two**: the variant, the `holds` arm, and the `condition_reads` arm. The third is the one to remember — a leaf that reads a frame and says so nowhere produces a wrong *order*, not a wrong value, and no test of the leaf alone would catch it. The Phase LC gate's count is 9 of ~25.
 
 ### 15.2 Still open
 
@@ -2323,7 +2323,7 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
 
 3. **Dependency hypothetical-check snapshot performance.** Clone vs. CoW overlay for step-4 frame snapshots. Resolve in Phase LC.
 
-   **Half-resolved 2026-09-02 (RC-4), and the resolved half is the one that was actually open.** The *game-state* question — clone the game, or overlay its reads — was decided for CR 614.12 in `replacement-architecture.md` §11 item 5 and is now built (`engine/layers/lookahead.rs`): overlay, on correctness grounds rather than speed (a clone duplicates `GameState.rng` and aliases every v4 `ObjectId`). The *frame* question this item asked is smaller than it looked, because §12 already measured frame construction flat at 0.27–0.37 µs: step 4 clones `chars`, applies one `EffectModification`, re-runs `permanent_matches_filter`, and needs no overlay at all. What it does need is the accessor pair (§9), which exists. Closed when 613.8 lands and confirms the clone is as cheap in situ as it measured in isolation. **LI-1 (2026-09-06) built the frame it clones from** — the live board, §13b decision 3 — so what LI-2 confirms is the cost, not the shape.
+   **Half-resolved 2026-09-02 (RC-4), and the resolved half is the one that was actually open.** The *game-state* question — clone the game, or overlay its reads — was decided for CR 614.12 in `replacement-architecture.md` §11 item 5 and is now built (`engine/layers/lookahead.rs`): overlay, on correctness grounds rather than speed (a clone duplicates `GameState.rng` and aliases every v4 `ObjectId`). The *frame* question this item asked is smaller than it looked, because §12 already measured frame construction flat at 0.27–0.37 µs: step 4 clones `chars`, applies one `EffectModification`, re-runs `object_matches_filter`, and needs no overlay at all. What it does need is the accessor pair (§9), which exists. Closed when 613.8 lands and confirms the clone is as cheap in situ as it measured in isolation. **LI-1 (2026-09-06) built the frame it clones from** — the live board, §13b decision 3 — so what LI-2 confirms is the cost, not the shape.
 
    **Closed 2026-09-06 (LI-2).** The clone is the `Journal`'s pre-image of each frame the hypothetical writes, taken in place before its first write rather than up front, and taken back afterwards; the cost is §3's `Dependency checks` row — 23 hypotheticals per game on `performance` at 50 games with Urborg
    pooled, 13 with the pools unchanged (Humility beside a creature static), 63

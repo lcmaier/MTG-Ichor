@@ -23,7 +23,7 @@ use mtgsim::engine::layers::types::{
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::test_support::{put_land_on_battlefield, put_on_battlefield, setup_two_player_game};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{Duration, PermanentFilter, PlayerRef};
+use mtgsim::types::effects::{Duration, ObjectFilter, PlayerRef};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::state::game_state::GameState;
 
@@ -37,7 +37,7 @@ fn register_anthem(
     game: &mut GameState,
     source: ObjectId,
     controller: PlayerId,
-    filter: PermanentFilter,
+    filter: ObjectFilter,
 ) {
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
@@ -57,10 +57,10 @@ fn register_anthem(
     });
 }
 
-fn creature_and(inner: PlayerRef) -> PermanentFilter {
-    PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Creature)),
-        Box::new(PermanentFilter::ByController(inner)),
+fn creature_and(inner: PlayerRef) -> ObjectFilter {
+    ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(inner)),
     )
 }
 
@@ -202,7 +202,7 @@ fn test_explicit_player_ignores_the_source() {
 }
 
 /// A bare `ByController` with no type constraint still filters by controller.
-/// Under the old split this was the shape most at risk: `permanent_matches_filter`
+/// Under the old split this was the shape most at risk: `object_matches_filter`
 /// returned `true` for `ByController(_)`, so correctness rested entirely on the
 /// separate `controller` field — and `extract_controller_from_filter` only
 /// walked `And` nodes, so a `ByController` under a `Not` was silently dropped.
@@ -218,7 +218,7 @@ fn test_negated_controller_filter_is_honored() {
         &mut game,
         source,
         0,
-        PermanentFilter::Not(Box::new(PermanentFilter::ByController(PlayerRef::You))),
+        ObjectFilter::Not(Box::new(ObjectFilter::ByController(PlayerRef::You))),
     );
 
     assert_eq!(get_effective_power(&game, p1_bears), Some(3));

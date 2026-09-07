@@ -10,7 +10,7 @@
 //!
 //! Kalitas is the pressure. It is the only replacement effect in reach with a
 //! **two-sided filter** (a quality of the dying creature *and* whose it is), a
-//! **`then` half**, and a **`PermanentFilter` leaf that does not exist yet**
+//! **`then` half**, and a **`ObjectFilter` leaf that does not exist yet**
 //! (`nontoken`) — and it forces that leaf decision at the moment the "two
 //! customers before a variant" guard is cheapest to apply.
 
@@ -20,7 +20,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     TokenDef,
 };
 use crate::types::ids::new_ability_id;
@@ -114,11 +114,11 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                         object: None,
                     },
                     AffectedSet::Filter {
-                        filter: PermanentFilter::And(
-                            Box::new(PermanentFilter::ByType(CardType::Creature)),
-                            Box::new(PermanentFilter::And(
-                                Box::new(PermanentFilter::Not(Box::new(PermanentFilter::Token))),
-                                Box::new(PermanentFilter::ByController(PlayerRef::Opponent)),
+                        filter: ObjectFilter::And(
+                            Box::new(ObjectFilter::ByType(CardType::Creature)),
+                            Box::new(ObjectFilter::And(
+                                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
+                                Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
                             )),
                         ),
                     },
@@ -164,7 +164,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// applies first, the other stops matching — the card is on its way to exile,
 /// and both patterns want `to: Graveyard`.
 ///
-/// # `PermanentFilter::All`, deliberately
+/// # `ObjectFilter::All`, deliberately
 ///
 /// "a card **or token**" is the widest filter in the file, and the absence of
 /// `Not(Token)` is the whole difference from Leyline below. It also means this
@@ -181,9 +181,9 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// # "From anywhere" is literal, and that took a correction
 ///
 /// An earlier draft shipped this `from: Battlefield`, arguing that
-/// `AffectedSet::Filter` carries a `PermanentFilter` and a card on the stack is
+/// `AffectedSet::Filter` carries an `ObjectFilter` and a card on the stack is
 /// not a permanent. **That was wrong about this card.** The filter here is
-/// `All`, which reads nothing at all; `permanent_matches_filter` resolves it
+/// `All`, which reads nothing at all; `object_matches_filter` resolves it
 /// from `game.objects` in any zone. So `from: None` costs nothing, and the
 /// narrowing shipped a card that did not do what it says — a resolving
 /// Lightning Bolt went to the graveyard.
@@ -216,7 +216,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 },
                 // "a card or token" — no owner clause, no type clause, and
                 // no `Not(Token)`. Everything that would hit a graveyard.
-                AffectedSet::Filter { filter: PermanentFilter::All },
+                AffectedSet::Filter { filter: ObjectFilter::All },
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -249,7 +249,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
 /// already reach that — Act of Treason steals a creature, it dies, and it goes
 /// to the graveyard of the player who owns it, so a Leyline controlled by the
 /// thief's opponent should replace a death the thief is controlling.
-/// `PermanentFilter::ByOwner` is new for this card and is why this one is not
+/// `ObjectFilter::ByOwner` is new for this card and is why this one is not
 /// the "zero engine change" its sizing predicted.
 ///
 /// # What is deferred
@@ -292,12 +292,12 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     object: None,
                 },
                 AffectedSet::Filter {
-                    filter: PermanentFilter::And(
+                    filter: ObjectFilter::And(
                         // "a card" — CR 111.1, a token is not one.
-                        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::Token))),
+                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                         // "an opponent's graveyard" — CR 400.3 sends it to the
                         // owner's, so this is ownership and not control.
-                        Box::new(PermanentFilter::ByOwner(PlayerRef::Opponent)),
+                        Box::new(ObjectFilter::ByOwner(PlayerRef::Opponent)),
                     ),
                 },
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {

@@ -21,7 +21,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CopyRoles, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
+    CopyRoles, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -31,10 +31,10 @@ use crate::types::mana::{ManaCost, ManaType};
 /// with, and the reason CR 707 cards say it at all: a copy of a legend meets
 /// CR 704.5j the moment it exists, so the printed text keeps the effect from
 /// being a sacrifice.
-fn nonlegendary_creature() -> PermanentFilter {
-    PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Creature)),
-        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::BySupertype(
+fn nonlegendary_creature() -> ObjectFilter {
+    ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySupertype(
             Supertype::Legendary,
         )))),
     )
@@ -151,11 +151,11 @@ pub fn mirrorform() -> Arc<CardData> {
                         // "Each nonland permanent you control" — and no
                         // "other", which is the whole reason this card is
                         // registered.
-                        filter: PermanentFilter::And(
-                            Box::new(PermanentFilter::Not(Box::new(
-                                PermanentFilter::ByType(CardType::Land),
+                        filter: ObjectFilter::And(
+                            Box::new(ObjectFilter::Not(Box::new(
+                                ObjectFilter::ByType(CardType::Land),
                             ))),
-                            Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                            Box::new(ObjectFilter::ByController(PlayerRef::You)),
                         ),
                         exclude_donor: false,
                     },
@@ -164,8 +164,8 @@ pub fn mirrorform() -> Arc<CardData> {
                 // "target non-Aura permanent" — the donor, and the only place
                 // in CV-1 where a copy source is not required to be a creature.
                 EffectRecipient::Target(
-                    SelectionFilter::Permanent(PermanentFilter::Not(Box::new(
-                        PermanentFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
+                    SelectionFilter::Permanent(ObjectFilter::Not(Box::new(
+                        ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
                     ))),
                     TargetCount::Exactly(1),
                 ),
@@ -241,7 +241,7 @@ pub fn mirrorweave() -> Arc<CardData> {
                 // Mirrorform prints the same shape without it.
                 Primitive::Copy(
                     CopyRoles::FilteredCopyRecipient {
-                        filter: PermanentFilter::ByType(CardType::Creature),
+                        filter: ObjectFilter::ByType(CardType::Creature),
                         exclude_donor: true,
                     },
                     Duration::UntilEndOfTurn,

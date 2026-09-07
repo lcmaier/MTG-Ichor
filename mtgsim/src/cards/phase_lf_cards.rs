@@ -6,7 +6,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, PermanentFilter, PlayerRef,
+    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerRef,
     Primitive,
 };
 use crate::types::costs::Cost;
@@ -43,7 +43,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// including a Tarmogoyf, whose CDA dies in Layer 6 before Layer 7a can read
 /// it — is what the tests here exercise.
 pub fn humility() -> Arc<CardData> {
-    let creatures = EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature));
+    let creatures = EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature));
 
     CardDataBuilder::new("Humility")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
@@ -153,9 +153,9 @@ pub fn citanul_hierophants() -> Arc<CardData> {
                     Box::new(granted),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
         })

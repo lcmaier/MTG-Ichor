@@ -1,4 +1,4 @@
-use super::effects::{CardFilter, CounterType, PermanentFilter};
+use super::effects::{CardFilter, CounterType, ObjectFilter};
 use super::mana::ManaCost;
 
 /// Costs that must be paid to activate an ability or cast a spell.
@@ -19,7 +19,7 @@ pub enum Cost {
     /// Sacrifice the source permanent
     SacrificeSelf,
     /// Sacrifice N permanents matching a filter ("Sacrifice a creature")
-    Sacrifice(PermanentFilter, u32),
+    Sacrifice(ObjectFilter, u32),
     /// Discard N cards matching a filter ("Discard a card")
     Discard(CardFilter, u32),
     /// Exile N cards from your graveyard matching a filter
@@ -81,7 +81,7 @@ impl AdditionalCost {
     ///
     /// Variants without an explicit `Vec<Cost>` (e.g. `Casualty`, `Bargain`)
     /// return an empty slice **temporarily**. Both decompose into sacrifice
-    /// primitives once `PermanentFilter` supports the required predicates:
+    /// primitives once `ObjectFilter` supports the required predicates:
     /// - `Casualty(n)` → `Sacrifice(power_n_or_greater, 1)`
     /// - `Bargain` → `Sacrifice(artifact_or_enchantment_or_token, 1)`
     /// After cost primitive consolidation, every variant will return a

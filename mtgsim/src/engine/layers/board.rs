@@ -44,7 +44,7 @@ use std::sync::Arc;
 use crate::engine::layers::cda;
 use crate::engine::layers::condition;
 use crate::engine::layers::compute::{
-    apply_resolved, base_controller, compute_non_member, permanent_matches_filter,
+    apply_resolved, base_controller, compute_non_member, object_matches_filter,
     resolve_modification, seed_frame, FilterPlayers, Resolved, LAYER_ORDER,
 };
 use crate::engine::layers::lookahead::Lookahead;
@@ -53,7 +53,7 @@ use crate::state::battlefield::PermanentState;
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, PermanentFilter, PlayerRef, Selector,
+    AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerRef, Selector,
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -457,31 +457,31 @@ struct Reads {
 /// `Channels::CONTROLLER`; a resolution row's "you" was fixed when it
 /// resolved and reading it costs nothing, so the parameter is
 /// `Channels::NONE`. Only leaves that mention a player pay it.
-fn filter_reads(filter: &PermanentFilter, out: &mut Reads, you_channel: Channels) {
+fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
     match filter {
-        PermanentFilter::All | PermanentFilter::Token | PermanentFilter::EachOther => {}
-        PermanentFilter::ByType(_) => out.members |= Channels::TYPES,
-        PermanentFilter::BySubtype(_) => out.members |= Channels::SUBTYPES,
-        PermanentFilter::BySupertype(_) => out.members |= Channels::SUPERTYPES,
-        PermanentFilter::ByColor(_) => out.members |= Channels::COLORS,
-        PermanentFilter::ByController(player) => {
+        ObjectFilter::All | ObjectFilter::Token | ObjectFilter::EachOther => {}
+        ObjectFilter::ByType(_) => out.members |= Channels::TYPES,
+        ObjectFilter::BySubtype(_) => out.members |= Channels::SUBTYPES,
+        ObjectFilter::BySupertype(_) => out.members |= Channels::SUPERTYPES,
+        ObjectFilter::ByColor(_) => out.members |= Channels::COLORS,
+        ObjectFilter::ByController(player) => {
             out.members |= Channels::CONTROLLER;
             if matches!(player, PlayerRef::You | PlayerRef::Opponent) {
                 out.source |= you_channel;
             }
         }
         // Ownership is off the object, but "you" still resolves off the source.
-        PermanentFilter::ByOwner(player) => {
+        ObjectFilter::ByOwner(player) => {
             if matches!(player, PlayerRef::You | PlayerRef::Opponent) {
                 out.source |= you_channel;
             }
         }
-        PermanentFilter::PowerLE(_) => out.members |= Channels::POWER,
-        PermanentFilter::And(a, b) | PermanentFilter::Or(a, b) => {
+        ObjectFilter::PowerLE(_) => out.members |= Channels::POWER,
+        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
             filter_reads(a, out, you_channel);
             filter_reads(b, out, you_channel);
         }
-        PermanentFilter::Not(inner) => filter_reads(inner, out, you_channel),
+        ObjectFilter::Not(inner) => filter_reads(inner, out, you_channel),
     }
 }
 
@@ -872,7 +872,7 @@ fn affected_members(
                     // In the battlefield zone, checked first so a `Fixed`-named
                     // graveyard card costs no filter evaluation.
                     board.in_battlefield_zone_or_entering(game, id)
-                        && permanent_matches_filter(filter, id, &board.frames[&id], &mut players)
+                        && object_matches_filter(filter, id, &board.frames[&id], &mut players)
                 })
                 .collect()
         }

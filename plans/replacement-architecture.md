@@ -468,7 +468,7 @@ effect existence" is.
 ### 3.2a `EventPattern` — one arm per `GameAction` variant, and no other axis
 
 `EventPattern` is a predicate over a proposed `GameAction`. It is data rather
-than a closure for the same reason `PermanentFilter` is: closures cannot be
+than a closure for the same reason `ObjectFilter` is: closures cannot be
 compared, cloned cheaply, or inspected by the loop detector.
 
 **Growth contract: exactly one arm per `GameAction` variant, and it grows on no
@@ -480,7 +480,7 @@ an `EventPattern` arm without a corresponding `GameAction` change is the smell
 this contract exists to catch.
 
 Within an arm, constraints on the event's fields reuse existing vocabulary —
-`PermanentFilter`, `PlayerRef`, `ZoneChangeCause`, `CardType` — rather than
+`ObjectFilter`, `PlayerRef`, `ZoneChangeCause`, `CardType` — rather than
 inventing per-mechanic predicates. "If a *red* source would deal damage to a
 *Cleric you control*" (Daunting Defender, CR 615.10's own example) is `ByColor`
 on the source and `And(BySubtype(Cleric), ByController(You))` on the target.
@@ -1171,13 +1171,13 @@ pub fn compute_as_entering(
   | | CR 614.12 look-ahead | CR 613.8 step-4 hypothetical |
   |---|---|---|
   | What is perturbed | battlefield membership, controller, the entering object's own registry rows, pending `EnterMods` | one more `EffectModification` applied to a frame |
-  | What is re-evaluated | the whole layer walk for one object | `permanent_matches_filter(A.filter, chars, …)` |
+  | What is re-evaluated | the whole layer walk for one object | `object_matches_filter(A.filter, chars, …)` |
   | Cost of the perturbation | game-state-shaped | `EffectiveCharacteristics` clone — measured 0.37 → 0.27 µs over N=10–80, i.e. flat (`layers-architecture.md` §12) |
   | Frequency | once per entering permanent | up to O(effects²) per layer, inside a per-permanent walk |
 
   613.8's check is **frame-level**. "Recompute A's `affected` with B applied" is
   a clone of `chars`, one `EffectModification` applied to it, and one
-  `permanent_matches_filter` call — it never asks whether an object is on the
+  `object_matches_filter` call — it never asks whether an object is on the
   battlefield differently than it already is. It does not need the overlay and
   must not be built on one, because a game-state-shaped perturbation inside an
   O(effects²) loop inside a per-permanent walk is the cubic this project has
@@ -1349,7 +1349,7 @@ re-size.
 by your opponents enter tapped") looked like a demand for a "played by" filter
 leaf until it was counted: `o:"played by"` matches **1 card in all of Magic**
 (Scryfall, 2026-08-26). It stays a worked example of why CR 110.2b's default
-controller matters (`codebase-state.md` item 9) and buys no `PermanentFilter`
+controller matters (`codebase-state.md` item 9) and buys no `ObjectFilter`
 vocabulary. Apply §8c's two-customers-before-a-variant guard to interaction
 findings as well as to cards — an illuminating example is not automatically a
 breadth argument.
@@ -2024,7 +2024,7 @@ mechanism the performance story runs on.**
 ### The genuine risk, named: axis 2 becoming a mini-language
 
 The design's real exposure is not enum count. It is that `EventPattern`'s
-constraint vocabulary and the filter types it borrows (`PermanentFilter`, 9
+constraint vocabulary and the filter types it borrows (`ObjectFilter`, 9
 variants; `AmountExpr`, 9) grow one variant per awkward card until they are an
 untyped DSL nobody can review. That is the failure mode to watch, and it is the
 one this document cannot close by measurement today — it needs Phase 8 data.
@@ -2075,7 +2075,7 @@ type is written. Kalitas, Traitor of Ghet is the natural pick — "If a nontoken
 creature an opponent controls would die, instead exile that card and create a
 2/2 black Zombie creature token" exercises `EventPattern` over a zone change, `AffectedSet::Filter` with
 two clauses and an opponent-relative controller, and the `then` half, all at
-once. It also immediately demands one grammar leaf `PermanentFilter` lacks —
+once. It also immediately demands one grammar leaf `ObjectFilter` lacks —
 nontoken — which is the *point*: it is a live test of the "two customers before
 a variant" guard at the moment the guard is cheapest to apply.
 
@@ -2324,7 +2324,7 @@ and the CR 601.2a announcement above.
 7. **Consumer 3 — Kalitas, Traitor of Ghet**, added deliberately so
    `EventPattern` is not defined under trivial pressure (§8c, "should the grammar
    work move earlier?"). It is the only RB card with a two-sided filter and a
-   `then` half, and it forces the first `PermanentFilter` leaf decision
+   `then` half, and it forces the first `ObjectFilter` leaf decision
    (`nontoken`) at the moment the "two customers before a variant" guard is
    cheapest to apply. Plus the hand-read of ~50 predicate clauses described
    there.
@@ -2405,7 +2405,7 @@ next phase reads.
   of it is named by a rule: `Primitive::{Tap, RemoveFromCombat, RemoveAllDamage}`
   for CR 701.19a's rider, `Primitive::{AddCounters, RemoveCounters}` plus their
   `GameAction`s for CR 122.1, `Primitive::CreateToken` for Kalitas's rider, and
-  `PermanentFilter::Token` for its nontoken clause. `CreateTokens` as a
+  `ObjectFilter::Token` for its nontoken clause. `CreateTokens` as a
   *replaceable* event is still RE's — until a CR 614.16 doubler exists there is
   nothing to replace.
 
@@ -2641,7 +2641,7 @@ of them:
 | Path | Matcher | Governs | Battlefield gate |
 |---|---|---|---|
 | layer registry | `compute.rs::effect_applies_to` (`:629`) | `ContinuousEffect.affected` | **yes** — RC-3's line |
-| replacement pipeline | `gather::set_affects` → `GameState::permanent_matches_filter` | `ReplacementDef.affected`, `RestrictionDef.affected` | **none** |
+| replacement pipeline | `gather::set_affects` → `GameState::object_matches_filter` | `ReplacementDef.affected`, `RestrictionDef.affected` | **none** |
 
 Probed on `main` at 4f9eb94: a Root-Maze-shaped `ReplacementDef`
 (`Filter { ByType(Land) }`, `EnterWith(tapped)`) taps an entering Forest, and
@@ -2849,7 +2849,7 @@ Maze (`{G}`, "Artifacts and lands enter tapped") makes CR 616.1's
 multi-candidate branch reachable in a fuzz game, which finding 7's retraction
 above shows was never blocked on this phase. Chosen over Kismet, Loxodon
 Gatekeeper and Frozen Aether because those scope to "your opponents", which
-reads `chars.controller` — finding 5. `PermanentFilter::Or` is new, for
+reads `chars.controller` — finding 5. `ObjectFilter::Or` is new, for
 "Artifacts and lands"; its `targeting.rs` arm short-circuits where `And` does
 not, because a leaf can answer `Err` and `set_affects` collapses `Err` to
 `false`.
@@ -2868,7 +2868,7 @@ is for whoever relaxes that check.
 **Exit met.** Whole suite green (823 tests, 7 of them new), zero warnings, both `check_*.py`.
 `specdb owed` unchanged and clean for RC; ATOM-614.12-003 claimed in full,
 ATOM-614.12-001 partially and deliberately — its board is Yixlid Jailer, and
-`PermanentFilter` has no zone leaf, so the scenario is inexpressible rather than
+`ObjectFilter` has no zone leaf, so the scenario is inexpressible rather than
 unimplemented. Determinism: three 200-game runs per pool byte-identical outside
 `=== Timing ===`, and `--threads 1` vs `--threads 8` identical on the
 engine-work block. Event streams at 40 games: **36/40 `performance` and 34/40
@@ -2945,7 +2945,7 @@ basis and no pending one.
    creature type), fixed in its own commit.
 
 6. **Two engine-cost changes rode along, both attributable.**
-   `targeting::permanent_matches_filter` now takes one layer walk per filter
+   `targeting::object_matches_filter` now takes one layer walk per filter
    instead of one per leaf, and only when a leaf reads a characteristic — a
    walk-count *drop* on every targeting sweep. `CountOf` is one frame per
    permanent per query, a `Frames/walk` *rise* on every board with a Warlord.
@@ -3694,7 +3694,7 @@ rule number) — confirm the merge at labelling time.
 
    **CR 613.8's check should clone the frame, and that is already cheap.** Its
    perturbation is `EffectiveCharacteristics`-shaped: clone `chars`, apply one
-   `EffectModification`, re-run `permanent_matches_filter`. `layers-architecture.md`
+   `EffectModification`, re-run `object_matches_filter`. `layers-architecture.md`
    §12 measured frame construction at **0.37 µs at N=10 falling to 0.27 µs at
    N=80** — flat in board size, "3% and flat" in its own words, explicitly not
    the bottleneck. So the expensive thing about a

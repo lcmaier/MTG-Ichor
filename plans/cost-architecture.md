@@ -292,8 +292,8 @@ zero-behaviour PR", layers item 9). **It moves ahead of CM-1 as CM-0**:
 counted 2026-09-07, 275 occurrences in 25 `src/` files, 119 in 18 test files,
 56 in live plan documents — a mechanical sweep with `cargo build` as the
 check and no behaviour to test. The matcher that answers it,
-`targeting::permanent_matches_filter_in_frame`, keeps its body and takes the
-new name; `EachOther` and `PowerLE` answer for a spell as for any object;
+`targeting::permanent_matches_filter_in_frame`, keeps its body and becomes
+`object_matches_filter_in_frame`; `EachOther` and `PowerLE` answer for a spell as for any object;
 `Token` and `ByOwner` read the `GameObject`, which a spell also is. The
 **zone leaf** item 9 wants on the same type is not part of CM-0 — a rename
 with a semantic change in it is two PRs wearing one name.
@@ -659,9 +659,9 @@ the pipeline costs a `HashSet::is_empty` on every cast that no cost effect
 touches. Source 2 is not gated: it is one frame, already computed for the
 match.
 
-**What the spell-side match reads.** `permanent_matches_filter_in_frame(spell,
-filter, you, &frame)` — under its CM-0 name — with `frame =
-compute_characteristics(game, spell)`. For a spell on the stack that frame's
+**What the spell-side match reads.** `object_matches_filter_in_frame(spell,
+filter, you, &frame)` — `permanent_matches_filter_in_frame` until CM-0 — with
+`frame = compute_characteristics(game, spell)`. For a spell on the stack that frame's
 controller is the caster; for the preview (§3.6) it is the owner, which is
 the same player.
 
@@ -871,6 +871,15 @@ main item 13, the CM-1 entry, §8's findings as Deferred Migrations items);
   Inventor's Fair board and "after 601.2e, we don't check again".
 - Scryfall, 2026-09-07: oracle text of every card named above; the
   population counts in §3.1 and §3.10.
+
+#### CM-0 — `PermanentFilter` → `ObjectFilter` — ✅ 2026-09-07
+
+The sweep §3.2 sized, and nothing else: 275 sites in 25 `src/` files, 119 in
+18 test files, the live plan docs, and the three `permanent_matches_filter*`
+matchers renamed with it. `EffectRecipient::FilteredPermanents` and
+`SelectionFilter::Permanent` keep their names — both still name permanents.
+Zero warnings, the suite green, and a same-seed `fuzz_games` diff against
+`main` identical outside the timing block. No zone leaf (layers item 9's).
 
 #### CM-1 — the pipeline — not started
 

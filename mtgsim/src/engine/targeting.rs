@@ -5,7 +5,7 @@ use crate::objects::card_data::{AbilityType, CardData};
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, PermanentFilter, EffectRecipient, SelectionFilter, TargetCount};
+use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// What a spell targets or chooses as it is cast (CR 601.2c), read off the
@@ -126,7 +126,7 @@ impl GameState {
 
     /// Validate a single selected object/player against a SelectionFilter.
     ///
-    /// `you` resolves a `PermanentFilter::ByController(PlayerRef::You)` node
+    /// `you` resolves an `ObjectFilter::ByController(PlayerRef::You)` node
     /// (CR 109.5). Only the `Permanent` arm can contain one; the others ignore
     /// it.
     pub(crate) fn validate_selection(
@@ -205,13 +205,13 @@ impl GameState {
     fn validate_permanent_target(
         &self,
         target: &ResolvedTarget,
-        filter: &PermanentFilter,
+        filter: &ObjectFilter,
         you: PlayerId,
     ) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                if !self.permanent_matches_filter(*id, filter, you)? {
+                if !self.object_matches_filter(*id, filter, you)? {
                     return Err(format!(
                         "Target {} does not match permanent filter {:?}", id, filter
                     ));
@@ -247,9 +247,9 @@ impl GameState {
         Ok(())
     }
 
-    /// Check whether a permanent matches a `PermanentFilter`.
+    /// Check whether a permanent matches an `ObjectFilter`.
     ///
-    /// Same question as `compute::permanent_matches_filter`, asked from outside
+    /// Same question as `compute::object_matches_filter`, asked from outside
     /// the layer walk: this one queries each characteristic by id (so every
     /// read is still post-layers), while that one is handed a partially-applied
     /// frame it must not re-enter. Both must agree — "Enchant creature you
@@ -264,10 +264,10 @@ impl GameState {
     /// `you` resolves `PlayerRef::You`; `Owner` is the *selected* permanent's
     /// owner, since a selection filter describes the selection rather than the
     /// source.
-    pub(crate) fn permanent_matches_filter(
+    pub(crate) fn object_matches_filter(
         &self,
         id: ObjectId,
-        filter: &PermanentFilter,
+        filter: &ObjectFilter,
         you: PlayerId,
     ) -> Result<bool, String> {
         self.get_object(id)?;
@@ -277,7 +277,7 @@ impl GameState {
         // Before RC-4 each leaf took its own full walk.
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        self.permanent_matches_filter_with(id, filter, you, &|| {
+        self.object_matches_filter_with(id, filter, you, &|| {
             frame
                 .get_or_init(|| compute_characteristics(self, id))
                 .as_deref()
@@ -285,45 +285,45 @@ impl GameState {
         })
     }
 
-    /// [`Self::permanent_matches_filter`] against a frame the caller already
+    /// [`Self::object_matches_filter`] against a frame the caller already
     /// holds — CR 614.12's look-ahead for an entering permanent
     /// (`engine::replacement::EntryFrame`), where the finished board would
     /// answer for the card and not for the permanent it is about to become.
-    pub(crate) fn permanent_matches_filter_in_frame(
+    pub(crate) fn object_matches_filter_in_frame(
         &self,
         id: ObjectId,
-        filter: &PermanentFilter,
+        filter: &ObjectFilter,
         you: PlayerId,
         chars: &EffectiveCharacteristics,
     ) -> Result<bool, String> {
-        self.permanent_matches_filter_with(id, filter, you, &|| Ok(chars))
+        self.object_matches_filter_with(id, filter, you, &|| Ok(chars))
     }
 
     /// The leaf table, over a frame supplied on demand.
     ///
-    /// The second of the two `permanent_matches_filter`s in the engine
-    /// (`codebase-state.md` item 14): `compute::permanent_matches_filter` asks
+    /// The second of the two `object_matches_filter`s in the engine
+    /// (`codebase-state.md` item 14): `compute::object_matches_filter` asks
     /// whether a continuous effect applies mid-layer-walk and resolves
     /// `PlayerRef` through the effect's source; this one asks whether an
     /// object is a legal selection, or inside a replacement's or restriction's
     /// `AffectedSet`, and resolves it against `you`.
-    fn permanent_matches_filter_with<'f>(
+    fn object_matches_filter_with<'f>(
         &self,
         id: ObjectId,
-        filter: &PermanentFilter,
+        filter: &ObjectFilter,
         you: PlayerId,
         frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, String>,
     ) -> Result<bool, String> {
         let obj = self.get_object(id)?;
         match filter {
-            PermanentFilter::All => Ok(true),
-            PermanentFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
-            PermanentFilter::BySubtype(subtype) => Ok(frame()?.subtypes.contains(subtype)),
-            PermanentFilter::BySupertype(supertype) => {
+            ObjectFilter::All => Ok(true),
+            ObjectFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
+            ObjectFilter::BySubtype(subtype) => Ok(frame()?.subtypes.contains(subtype)),
+            ObjectFilter::BySupertype(supertype) => {
                 Ok(frame()?.supertypes.contains(supertype))
             }
-            PermanentFilter::ByColor(color) => Ok(frame()?.colors.contains(color)),
-            PermanentFilter::ByController(player_ref) => {
+            ObjectFilter::ByColor(color) => Ok(frame()?.colors.contains(color)),
+            ObjectFilter::ByController(player_ref) => {
                 use crate::types::effects::PlayerRef;
                 let controller = frame()?.controller;
                 Ok(match player_ref {
@@ -337,11 +337,11 @@ impl GameState {
             // not of its characteristics, so it is read off `GameObject` rather
             // than off the layer frame. A copy effect does not make a nontoken
             // permanent a token (CR 707.2: copiable values do not include it).
-            PermanentFilter::Token => Ok(obj.is_token),
+            ObjectFilter::Token => Ok(obj.is_token),
             // CR 108.3 / 400.3 — ownership, not control. See the variant's doc:
             // the two diverge the moment control moves, and a card always goes
             // to its *owner's* graveyard.
-            PermanentFilter::ByOwner(player_ref) => {
+            ObjectFilter::ByOwner(player_ref) => {
                 use crate::types::effects::PlayerRef;
                 Ok(match player_ref {
                     PlayerRef::You => obj.owner == you,
@@ -364,17 +364,17 @@ impl GameState {
             // has none — this function takes `you` and no source id. Refused
             // rather than answered `true`: a filter that silently included the
             // source would be the opposite of the word.
-            PermanentFilter::EachOther => Err(format!(
-                "PermanentFilter::EachOther on {} has no source to be other than in a selection context",
+            ObjectFilter::EachOther => Err(format!(
+                "ObjectFilter::EachOther on {} has no source to be other than in a selection context",
                 id
             )),
-            PermanentFilter::PowerLE(max_power) => frame()?
+            ObjectFilter::PowerLE(max_power) => frame()?
                 .power
                 .map(|p| p <= *max_power)
                 .ok_or_else(|| format!("Object {} has no power", id)),
-            PermanentFilter::And(a, b) => {
-                let matches_a = self.permanent_matches_filter_with(id, a, you, frame)?;
-                let matches_b = self.permanent_matches_filter_with(id, b, you, frame)?;
+            ObjectFilter::And(a, b) => {
+                let matches_a = self.object_matches_filter_with(id, a, you, frame)?;
+                let matches_b = self.object_matches_filter_with(id, b, you, frame)?;
                 Ok(matches_a && matches_b)
             }
             // Short-circuits, where `And` above does not, and the asymmetry is
@@ -383,14 +383,14 @@ impl GameState {
             // `false`, and a matched left arm makes the right arm's answer
             // irrelevant. Evaluating it anyway would turn a true `Or` into a
             // silent `false`.
-            PermanentFilter::Or(a, b) => {
-                if self.permanent_matches_filter_with(id, a, you, frame)? {
+            ObjectFilter::Or(a, b) => {
+                if self.object_matches_filter_with(id, a, you, frame)? {
                     return Ok(true);
                 }
-                self.permanent_matches_filter_with(id, b, you, frame)
+                self.object_matches_filter_with(id, b, you, frame)
             }
-            PermanentFilter::Not(inner) => {
-                let matches = self.permanent_matches_filter_with(id, inner, you, frame)?;
+            ObjectFilter::Not(inner) => {
+                let matches = self.object_matches_filter_with(id, inner, you, frame)?;
                 Ok(!matches)
             }
         }
@@ -500,7 +500,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
-    use crate::types::effects::{PermanentFilter, TargetCount};
+    use crate::types::effects::{ObjectFilter, TargetCount};
     use crate::types::zones::Zone;
 
     fn setup_game_with_land() -> (GameState, ObjectId) {
@@ -522,7 +522,7 @@ mod tests {
     fn test_validate_permanent_target_all() {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
-        let spec = EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, 0).is_ok());
     }
 
@@ -531,7 +531,7 @@ mod tests {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(
-            PermanentFilter::ByType(CardType::Land)),
+            ObjectFilter::ByType(CardType::Land)),
             TargetCount::Exactly(1),
         );
         assert!(game.validate_targets(&spec, &targets, 0).is_ok());
@@ -542,7 +542,7 @@ mod tests {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(
-            PermanentFilter::ByType(CardType::Creature)),
+            ObjectFilter::ByType(CardType::Creature)),
             TargetCount::Exactly(1),
         );
         assert!(game.validate_targets(&spec, &targets, 0).is_err());
@@ -588,7 +588,7 @@ mod tests {
             ResolvedTarget::Object(land_id),
             ResolvedTarget::Object(land_id),
         ];
-        let spec = EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, 0).is_err());
     }
 
@@ -596,7 +596,7 @@ mod tests {
     fn test_any_targets_still_legal_object_gone() {
         let (mut game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
-        let spec = EffectRecipient::Target(SelectionFilter::Permanent(PermanentFilter::All), TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
 
         // Target is legal while on battlefield
         assert!(game.any_targets_still_legal(&spec, &targets, 0));

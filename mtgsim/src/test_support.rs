@@ -36,7 +36,7 @@ use crate::state::game_state::{GameState, Phase, PhaseType};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive, SelectionFilter,
+    AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
@@ -174,9 +174,9 @@ pub fn aura_enchanting_your_creature(name: &str) -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
-        .enchant_filter(SelectionFilter::Permanent(PermanentFilter::And(
-            Box::new(PermanentFilter::ByType(CardType::Creature)),
-            Box::new(PermanentFilter::ByController(PlayerRef::You)),
+        .enchant_filter(SelectionFilter::Permanent(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::ByController(PlayerRef::You)),
         )))
         .build()
 }

@@ -23,7 +23,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, SelectionFilter, Selector, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
@@ -96,7 +96,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
                 adds(&[], &[Subtype::Land(LandType::Swamp)], &[]),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Land)),
+            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
         )))
         .build()
 }
@@ -116,7 +116,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// Opalescence animated by another loses this ability in layer 6, and its
 /// 7b part still applies to the set it locked in layer 4.
 ///
-/// "Each other" is `PermanentFilter::EachOther`, the leaf this card is the first
+/// "Each other" is `ObjectFilter::EachOther`, the leaf this card is the first
 /// consumer of; its 2004-10-04 ruling is the leaf's test: "Does not animate
 /// itself. But can be animated by another Opalescence."
 ///
@@ -125,14 +125,14 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// animating every enchantment in a random game would move every
 /// behavioural row of §3's table for a reason that is not the engine's.
 pub fn opalescence() -> Arc<CardData> {
-    let other_non_aura_enchantments = EffectRecipient::FilteredPermanents(PermanentFilter::And(
-        Box::new(PermanentFilter::And(
-            Box::new(PermanentFilter::ByType(CardType::Enchantment)),
-            Box::new(PermanentFilter::Not(Box::new(PermanentFilter::BySubtype(
+    let other_non_aura_enchantments = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        Box::new(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Enchantment)),
+            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
                 Subtype::Enchantment(EnchantmentType::Aura),
             )))),
         )),
-        Box::new(PermanentFilter::EachOther),
+        Box::new(ObjectFilter::EachOther),
     ));
 
     CardDataBuilder::new("Opalescence")
@@ -193,16 +193,16 @@ pub fn opalescence() -> Arc<CardData> {
 /// In `stress` only: the shape is Urborg's, measured there, and five mana
 /// is a rare cast in a random game.
 pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
-    let lands_you_control = AmountExpr::CountOf(Selector::PermanentsMatching(PermanentFilter::And(
-        Box::new(PermanentFilter::ByType(CardType::Land)),
-        Box::new(PermanentFilter::ByController(PlayerRef::You)),
+    let lands_you_control = AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Land)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
     )));
-    let nontoken_creatures_you_control = PermanentFilter::And(
-        Box::new(PermanentFilter::And(
-            Box::new(PermanentFilter::ByType(CardType::Creature)),
-            Box::new(PermanentFilter::ByController(PlayerRef::You)),
+    let nontoken_creatures_you_control = ObjectFilter::And(
+        Box::new(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::ByController(PlayerRef::You)),
         )),
-        Box::new(PermanentFilter::Not(Box::new(PermanentFilter::Token))),
+        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
     );
 
     CardDataBuilder::new("Ashaya, Soul of the Wild")
@@ -275,9 +275,9 @@ pub fn purifier_clause() -> Arc<CardData> {
                 adds(&[], &[], &[Supertype::Basic]),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Land)),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Land)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             )),
         )))
         .build()
@@ -318,7 +318,7 @@ pub fn kird_ape() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("This creature gets +1/+2 as long as you control a Forest.")
         .ability(static_ability(Effect::Conditional(
-            Condition::ControlPermanent(PermanentFilter::BySubtype(Subtype::Land(
+            Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
                 LandType::Forest,
             ))),
             Box::new(Effect::Atom(
@@ -371,9 +371,9 @@ pub fn flight_clause() -> Arc<CardData> {
         // not creature: the condition is what decides whether the grant does
         // anything, and an Aura that could only enchant creatures could not
         // have a condition worth reading.
-        .enchant_filter(SelectionFilter::Permanent(PermanentFilter::All))
+        .enchant_filter(SelectionFilter::Permanent(ObjectFilter::All))
         .ability(static_ability(Effect::Conditional(
-            Condition::HostMatches(PermanentFilter::ByType(CardType::Creature)),
+            Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)),
             Box::new(Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
                 EffectRecipient::Host,
@@ -414,7 +414,7 @@ pub fn simian_clause() -> Arc<CardData> {
              to its other types.",
         )
         .ability(static_ability(Effect::Conditional(
-            Condition::ControlPermanent(PermanentFilter::BySubtype(Subtype::Land(
+            Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
                 LandType::Forest,
             ))),
             Box::new(Effect::Atom(
@@ -422,9 +422,9 @@ pub fn simian_clause() -> Arc<CardData> {
                     adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[]),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                    Box::new(PermanentFilter::ByType(CardType::Creature)),
-                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             )),
         )))

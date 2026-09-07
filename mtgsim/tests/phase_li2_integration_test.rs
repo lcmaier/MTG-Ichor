@@ -24,7 +24,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature};
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::effects::{
-    CounterType, Duration, Effect, EffectRecipient, PermanentFilter, Primitive, TypeChange,
+    CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -52,7 +52,7 @@ fn taps_for(game: &GameState, player: PlayerId, id: ObjectId) -> Vec<ManaType> {
 }
 
 /// A layer-4 `ChangeType` static over `filter`, as a card.
-fn type_changer(name: &str, card_type: CardType, change: TypeChange, filter: PermanentFilter) -> Arc<CardData> {
+fn type_changer(name: &str, card_type: CardType, change: TypeChange, filter: ObjectFilter) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(card_type)
         .ability(static_ability(Effect::Atom(
@@ -374,7 +374,7 @@ fn test_two_opalescences_and_humility_per_the_2006_ruling() {
     all(&game, &[o1, o2, h], 4);
 }
 
-/// `PermanentFilter::EachOther` and the Aura exclusion: Blood Moon becomes a
+/// `ObjectFilter::EachOther` and the Aura exclusion: Blood Moon becomes a
 /// 3/3 enchantment creature, an Aura does not, Opalescence itself does not.
 #[test]
 fn test_opalescence_animates_each_other_non_aura_enchantment() {
@@ -406,7 +406,7 @@ fn elves_are_goblins() -> Arc<CardData> {
         "Elves Are Goblins",
         CardType::Enchantment,
         TypeChange { set_subtypes: Some(HashSet::from([Subtype::Creature(CreatureType::Goblin)])), ..no_change() },
-        PermanentFilter::BySubtype(Subtype::Creature(CreatureType::Elf)),
+        ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf)),
     )
 }
 
@@ -415,7 +415,7 @@ fn goblins_are_elves() -> Arc<CardData> {
         "Goblins Are Elves",
         CardType::Enchantment,
         TypeChange { set_subtypes: Some(HashSet::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
-        PermanentFilter::BySubtype(Subtype::Creature(CreatureType::Goblin)),
+        ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Goblin)),
     )
 }
 
@@ -460,7 +460,7 @@ fn artifacts_are_elves() -> Arc<CardData> {
         "Artifacts Are Elves",
         CardType::Enchantment,
         TypeChange { add_subtypes: vec![Subtype::Creature(CreatureType::Elf)], ..no_change() },
-        PermanentFilter::ByType(CardType::Artifact),
+        ObjectFilter::ByType(CardType::Artifact),
     )
 }
 
@@ -469,7 +469,7 @@ fn elves_are_also_goblins() -> Arc<CardData> {
         "Elves Are Also Goblins",
         CardType::Enchantment,
         TypeChange { add_subtypes: vec![Subtype::Creature(CreatureType::Goblin)], ..no_change() },
-        PermanentFilter::BySubtype(Subtype::Creature(CreatureType::Elf)),
+        ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf)),
     )
 }
 
@@ -478,7 +478,7 @@ fn goblins_are_creatures() -> Arc<CardData> {
         "Goblins Are Creatures",
         CardType::Enchantment,
         TypeChange { add_types: vec![CardType::Creature], ..no_change() },
-        PermanentFilter::BySubtype(Subtype::Creature(CreatureType::Goblin)),
+        ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Goblin)),
     )
 }
 
@@ -577,9 +577,9 @@ fn test_a_power_reading_row_older_than_a_counter_waits_for_the_counter() {
         created_on_turn: 1,
         timestamp,
         affected: AffectedSet::Filter {
-            filter: PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::PowerLE(2)),
+            filter: ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::PowerLE(2)),
             ),
         },
         modification: EffectModification::ModifyPowerToughness {

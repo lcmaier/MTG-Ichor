@@ -40,7 +40,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PermanentFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -89,7 +89,7 @@ fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> Object
 
 /// "[filter] enter tapped" — Kismet's shape over an arbitrary filter, as a
 /// white enchantment.
-fn enter_tapped_when(name: &str, filter: PermanentFilter) -> Arc<CardData> {
+fn enter_tapped_when(name: &str, filter: ObjectFilter) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
@@ -103,22 +103,22 @@ fn enter_tapped_when(name: &str, filter: PermanentFilter) -> Arc<CardData> {
 }
 
 /// "Creatures with power N or less enter tapped." No printed card says this;
-/// `PermanentFilter::PowerLE` is the one leaf that reads what the frame
+/// `ObjectFilter::PowerLE` is the one leaf that reads what the frame
 /// changes — counters (CR 122.1a) and the entering object's own anthem — so it
 /// is the fixture that can see the frame at all.
 fn small_creatures_enter_tapped(n: i32) -> Arc<CardData> {
     enter_tapped_when(
         "Small creatures enter tapped",
-        PermanentFilter::And(
-            Box::new(PermanentFilter::ByType(CardType::Creature)),
-            Box::new(PermanentFilter::PowerLE(n)),
+        ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::PowerLE(n)),
         ),
     )
 }
 
 /// Kismet's second clause: "Permanents your opponents control enter tapped."
 fn kismet_shaped() -> Arc<CardData> {
-    enter_tapped_when("Kismet-shaped", PermanentFilter::ByController(PlayerRef::Opponent))
+    enter_tapped_when("Kismet-shaped", ObjectFilter::ByController(PlayerRef::Opponent))
 }
 
 /// A 2/2 with "Creatures you control get +1/+1" — self-including, unlike
@@ -135,9 +135,9 @@ fn anthem_bear() -> Arc<CardData> {
                 AmountExpr::Fixed(1),
                 Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             )),
         )),
     )
@@ -210,7 +210,7 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected: AffectedSet::Filter { filter: PermanentFilter::ByType(CardType::Land) },
+        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
         by: None,
     }
 }
@@ -224,9 +224,9 @@ fn no_minus_counters_on_your_creatures() -> Restriction {
             adding: true,
         },
         affected: AffectedSet::Filter {
-            filter: PermanentFilter::And(
-                Box::new(PermanentFilter::ByType(CardType::Creature)),
-                Box::new(PermanentFilter::ByController(PlayerRef::You)),
+            filter: ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
             ),
         },
         by: None,
@@ -241,7 +241,7 @@ fn every_permanent(name: &str, change: TypeChange) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
             Primitive::ChangeType(change, Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredPermanents(PermanentFilter::All),
+            EffectRecipient::FilteredPermanents(ObjectFilter::All),
         )))
         .build()
 }
@@ -809,7 +809,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
             "No loyalty counters",
             Restriction::Event {
                 pattern: EventPattern::CounterChange { counter: Some(CounterType::Loyalty), adding: true },
-                affected: AffectedSet::Filter { filter: PermanentFilter::All },
+                affected: AffectedSet::Filter { filter: ObjectFilter::All },
                 by: None,
             },
         ),

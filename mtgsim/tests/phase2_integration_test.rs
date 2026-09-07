@@ -8,7 +8,7 @@ use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::priority::PriorityResult;
-use mtgsim::types::effects::{EffectRecipient, PermanentFilter, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -160,7 +160,7 @@ fn test_volcanic_upheaval_destroys_land() {
     // Target land at index 0 in [Object(target_land)] for Permanent(ByType(Land))
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::ByType(mtgsim::types::card_types::CardType::Land)),
+            SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
             TargetCount::Exactly(1),
         ),
         spell_id: upheaval_id,
@@ -209,7 +209,7 @@ fn test_burst_of_energy_untaps_land() {
     // Target land at index 0 in [Object(land_id)] for Permanent(All)
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::All),
+            SelectionFilter::Permanent(ObjectFilter::All),
             TargetCount::Exactly(1),
         ),
         spell_id: burst_id,
@@ -242,7 +242,7 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
     let decisions = ScriptedDecisionProvider::new();
 
     let upheaval_recipient = EffectRecipient::Target(
-        SelectionFilter::Permanent(PermanentFilter::ByType(mtgsim::types::card_types::CardType::Land)),
+        SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
         TargetCount::Exactly(1),
     );
 
@@ -317,7 +317,7 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::All),
+            SelectionFilter::Permanent(ObjectFilter::All),
             TargetCount::Exactly(1),
         ),
         spell_id: burst_id,
@@ -331,7 +331,7 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     decisions.expect_pick_n(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(PermanentFilter::ByType(mtgsim::types::card_types::CardType::Land)),
+            SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
             TargetCount::Exactly(1),
         ),
         spell_id: upheaval_id,
