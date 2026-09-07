@@ -1369,6 +1369,39 @@ mod tests {
         assert_eq!(game.counters.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
     }
 
+    /// LI-3 — a conditional static waits for what can falsify its condition,
+    /// and the trace is where the *order* is visible rather than only its
+    /// result. The Clause enters first and applies last; when its turn comes
+    /// the Taiga is a Mountain and it reaches nothing.
+    ///
+    /// The reverse pair is settled statically, which is why there is exactly
+    /// one hypothetical: Blood Moon reads land types and supertypes, and the
+    /// Clause writes a creature subtype on creatures.
+    #[test]
+    fn a_conditional_static_applies_after_what_falsifies_its_condition() {
+        let mut game = setup_two_player_game();
+        let taiga = put_on_battlefield(&mut game, crate::cards::dual_lands::taiga(), 0);
+        let clause = put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+
+        let before = game.counters.dependency_checks();
+        let order = layer_4_order(&game);
+        assert_eq!(
+            order.iter().map(|a| a.source).collect::<Vec<_>>(),
+            vec![moon, clause],
+            "the Clause entered first and still applies second"
+        );
+        assert_eq!(order[0].affected, vec![taiga], "Blood Moon reaches the one nonbasic land");
+        assert!(order[1].affected.is_empty(), "and by the Clause's turn there is no Forest");
+        assert_eq!(
+            game.counters.dependency_checks() - before,
+            1,
+            "one hypothetical: the Clause against Blood Moon"
+        );
+        let _ = bears;
+    }
+
     /// A layer whose applications are pairwise independent under the channel
     /// check never reaches the hypothetical: anthems write power, and nothing
     /// in layer 7c reads it.

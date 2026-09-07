@@ -189,3 +189,153 @@ fn life_compare(
         player.life_total <= threshold as i64
     }
 }
+
+// ---------------------------------------------------------------------------
+// The leaves with no registered consumer.
+//
+// Kird Ape covers `ControlPermanent` and the Flight Clause covers
+// `HostMatches`, both end to end in `tests/phase_li3_integration_test.rs`.
+// The rest are exercised here against a settled board, because a leaf no
+// card reaches is exactly the kind of code that is wrong and quiet — the
+// failure mode `static_ability_atoms`' doc is written about.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cards::{basic_lands, creatures};
+    use crate::engine::layers::compute::LAYER_ORDER;
+    use crate::test_support::{
+        card_of_type, put_in_graveyard, put_on_battlefield, setup_two_player_game, vanilla_creature,
+    };
+    use crate::types::card_types::CardType;
+    use crate::types::colors::Color;
+    use crate::types::effects::AmountExpr;
+
+    /// A settled board is the read-side view a top-level query takes, and
+    /// every leaf below reads `GameState` or a member's memoized frame — so
+    /// it answers exactly as the live board would.
+    fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) -> bool {
+        holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
+    }
+
+    #[test]
+    fn life_thresholds_read_the_source_controllers_total() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        game.players[0].life_total = 20;
+        game.players[1].life_total = 3;
+
+        assert!(settled_holds(&Condition::LifeAtLeast(AmountExpr::Fixed(20)), &game, bears));
+        assert!(!settled_holds(&Condition::LifeAtLeast(AmountExpr::Fixed(21)), &game, bears));
+        assert!(settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(20)), &game, bears));
+        assert!(!settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(19)), &game, bears));
+
+        // CR 109.5 — the *source's* controller, not either player at large.
+        let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+        assert!(settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(3)), &game, theirs));
+        assert!(!settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(3)), &game, bears));
+    }
+
+    #[test]
+    fn card_in_graveyard_reads_your_graveyard_through_the_card_filter() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        assert!(!settled_holds(&Condition::CardInGraveyard(CardFilter::All), &game, bears));
+
+        put_in_graveyard(&mut game, basic_lands::forest(), 0);
+        assert!(settled_holds(&Condition::CardInGraveyard(CardFilter::All), &game, bears));
+        assert!(settled_holds(
+            &Condition::CardInGraveyard(CardFilter::ByType(CardType::Land)),
+            &game,
+            bears
+        ));
+        assert!(!settled_holds(
+            &Condition::CardInGraveyard(CardFilter::ByType(CardType::Creature)),
+            &game,
+            bears
+        ));
+        assert!(!settled_holds(&Condition::CardInGraveyard(CardFilter::ByColor(Color::Red)), &game, bears));
+
+        // Your graveyard, not everybody's: the same card under the opponent
+        // answers for their graveyard, which is empty.
+        let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+        assert!(!settled_holds(&Condition::CardInGraveyard(CardFilter::All), &game, theirs));
+    }
+
+    #[test]
+    fn the_two_control_leaves_are_each_others_complement() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let forest = PermanentFilter::BySubtype(crate::types::card_types::Subtype::Land(
+            crate::types::card_types::LandType::Forest,
+        ));
+
+        assert!(!settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
+
+        put_on_battlefield(&mut game, basic_lands::forest(), 1);
+        assert!(!settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
+
+        put_on_battlefield(&mut game, basic_lands::forest(), 0);
+        assert!(settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(settled_holds(&Condition::OpponentControlsPermanent(forest), &game, bears));
+    }
+
+    #[test]
+    fn source_on_battlefield_is_the_zone_gate() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
+        assert!(settled_holds(&Condition::SourceOnBattlefield, &game, bears));
+        assert!(!settled_holds(&Condition::SourceOnBattlefield, &game, dead));
+    }
+
+    /// An unattached source is attached to nothing, so nothing matches — the
+    /// same answer `AffectedSet::Host` gives, and the reason an Aura's
+    /// conditional effect simply does not exist before it is attached.
+    #[test]
+    fn an_unattached_source_matches_no_host() {
+        let mut game = setup_two_player_game();
+        let aura = put_on_battlefield(&mut game, card_of_type("Loose Aura", CardType::Enchantment), 0);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        assert!(!settled_holds(&Condition::HostMatches(PermanentFilter::All), &game, aura));
+
+        assert!(game.attach(aura, bears));
+        assert!(settled_holds(&Condition::HostMatches(PermanentFilter::All), &game, aura));
+        assert!(settled_holds(
+            &Condition::HostMatches(PermanentFilter::ByType(CardType::Creature)),
+            &game,
+            aura
+        ));
+        assert!(!settled_holds(
+            &Condition::HostMatches(PermanentFilter::ByType(CardType::Artifact)),
+            &game,
+            aura
+        ));
+    }
+
+    /// A condition on an object the store has never heard of has no answer,
+    /// and says so rather than reading somebody else's frame.
+    #[test]
+    fn a_condition_on_a_missing_source_is_false() {
+        let game = setup_two_player_game();
+        assert!(!settled_holds(&Condition::SourceOnBattlefield, &game, ObjectId::from_u128(0)));
+    }
+
+    #[test]
+    #[should_panic(expected = "no static-context evaluator")]
+    fn a_resolution_only_leaf_on_a_static_is_loud() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let _ = settled_holds(&Condition::SpellWasKicked, &game, bears);
+    }
+
+    #[test]
+    #[should_panic(expected = "no static-context evaluator")]
+    fn mode_chosen_on_a_static_is_loud() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let _ = settled_holds(&Condition::ModeChosen(0), &game, bears);
+    }
+}
