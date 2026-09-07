@@ -1459,6 +1459,20 @@ bucket — it cannot produce a `CopyOnEnter` without the copy spine, so it keeps
 
 ---
 
+### 7a. RS-1 — the spine and Tier 2 — ✅ 2026-08-31
+
+**What landed**, against §7's row: `RestrictionDef` and `Restriction::Event`,
+the registry, the sweep behind its gate, `is_prohibited`, `Primitive::Restrict`
+and §4.9's candidate filter — with indestructible moved onto it,
+`CantBeRegenerated` folded in, and Sigarda no longer producing a prompt.
++1,104/−86 in `src/`; the row predicted ~+300 of *new* code and that held, which
+`codebase-state.md` item 36 records because the row was misread as a net delete.
+
+Written 2026-09-07, and the heading is the point: this doc recorded RS-1 only
+in a sizing-table cell, so the generated board could not see it and `CLAUDE.md`
+carried the status instead. The convention is a `###`/`####` heading with ✅
+(`engineering-practices.md` §1).
+
 ## 8. Testing — the atoms this owes
 
 The corpus already has the spine, and almost none of it is covered. From

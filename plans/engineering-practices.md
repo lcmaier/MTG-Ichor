@@ -45,6 +45,22 @@ the file held when it was last unambiguously worth reading end to end.
 - **A war story is not an invariant.** "This was the shape indestructible had
   before Phase RB" is history. It belongs in the commit message that changed it,
   or in the architecture doc that owns the decision.
+- **Status is not content** (added 2026-09-07). The file forbade "progress
+  snapshots or counts" and then spent its largest section on one: the critical
+  path carried ✅ marks, four dates and "RA, RB and all of RC are in", and it
+  was the one section that went stale on every merge. It now carries ordering
+  and dependencies only. **Landed status is derived** onto `state-of-play.md`
+  from a `###`/`####` architecture-doc heading carrying ✅ — the convention
+  three docs already followed. Making that true took two markers (RS-1, CV-1)
+  and one defect: `ARCH_DOCS` was a hand-maintained list that had never been
+  extended for `cost-architecture.md`, so CM-0, CM-1 and CM-2 shipped with the
+  right heading and appeared on no board. The list is a glob now.
+- **When the cap binds, choose the removal against the whole file.** The
+  cheapest edit is always to compress whatever sits next to the insertion, and
+  that optimises for shortenable rather than for least valuable. This section's
+  own trim is the example: three lines were taken from the ✅ entries for 6b and
+  7 to make room for `6a`, four hours before the ✅ entries were deleted
+  outright as the wrong kind of content.
 
 **Raising the cap is allowed and has to be typed.** `--budget N` exists so that
 a raise is a visible act with a reason attached, not a drift.

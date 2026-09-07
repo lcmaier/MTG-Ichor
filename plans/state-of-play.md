@@ -17,34 +17,36 @@ Refresh with `python plans/check_state_of_play.py --write`.
 
 Quoted verbatim from `CLAUDE.md`, which owns the ordering.
 
-**This section owns the ordering**, listed in route order; `plans/roadmap-v2.md` §3a is the same route end to
-end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points here. Numbers are stable labels.
-1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅.  7a. Epoch memoization of the layer walk — ✅ 2026-09-03
-6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 CR 613.7e
-   (one timestamp, reassigned in `attach`, rows re-stamped) and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
-7. The CR 613.8 cluster — ✅ 2026-09-06. LI-1 the board-wide sequential pass, LI-2 dependencies decided
-   against the live board and re-decided after each application, LI-3 "as long as [X]" as one more clause in
-   CR 604.2's existence check. Phase 8's back-stop is lifted. → `layers-architecture.md` §13b
-5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and **all of RC** are in; **RD then RE**, before 6
-   (commutes with 6b–7): triggers read the performed stream, which must be post-replacement truth first
-5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine. **RS-1 is in**; RS-2 any time;
-   RS-3b unblocked by 7.  5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine. **CV-1 is
-   in**; CV-2 any time; item 10 (CR 400.7) + CV-1b after CV-2; CV-7 (merging) back-stopped before Phase 8
-6. Triggered abilities (CR 603) — after 5, 6b, 7 and the CR 113.6 zone-function predicate; insertion point
-   `perform_sba_and_triggers`; takes LKI's consumers and CR 603.4's intervening "if" with it — `Condition` has
-   a static evaluator since 7, so this adds a reader, not a language. **Unsized — write its doc first**
-Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1, CM-2 ✅ 2026-09-07**, CM-3/4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
-CR 800/802) and the information model (`backlog.md` §2.9 — back-stop before Phase 8's reveal cards and
-before Phase 10). Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+**This section owns the ordering and says nothing about progress** — landed status is derived onto
+`state-of-play.md` from the architecture docs' ✅ headings, and a second copy here would go stale between
+merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same route with the *why*.
+1–4, 6b, 7, 7a — the layer system, in place. → `layers-architecture.md` §13a, §13b
+5. Replacement effects (CR 614–616), RA–RE. **RD then RE**, before 6 and commuting with 6b–7:
+   triggers read the performed stream, which must be post-replacement truth first
+5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine; RS-2 any time, RS-3b needs 7
+5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2 any time, item 10
+   (CR 400.7) + CV-1b after CV-2, CV-7 (merging) back-stopped before Phase 8
+6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
+   zone-reaching `AffectedSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
+6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
+   **Unsized — write its doc first**; what that doc must carry is `roadmap-v2.md` A6
+Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
+then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 any time) and the
+information model (`backlog.md` §2.9 — before Phase 8's reveal cards and before Phase 10). Then Phase 8
+breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
 ## Phases their architecture doc records as landed
 
-A `####` heading carrying ✅. **A lower bound** — the "can't" and copy tracks
-record phases in sizing tables with no status marker, so RS and CV phases are
-absent here whether or not they shipped.
+A `###`/`####` heading carrying ✅, in any of the five architecture docs.
+**This is where landed status lives** — `CLAUDE.md` owns the ordering and
+says nothing about progress, so there is one answer and it is derived.
 
+- `CM-0` — plans/cost-architecture.md
+- `CM-1` — plans/cost-architecture.md
+- `CM-2` — plans/cost-architecture.md
+- `CV-1` — plans/copy-effects-architecture.md
 - `LH-1` — plans/layers-architecture.md
 - `LH-2` — plans/layers-architecture.md
 - `LI-1` — plans/layers-architecture.md
@@ -60,6 +62,7 @@ absent here whether or not they shipped.
 - `RC-4` — plans/replacement-architecture.md
 - `RC-4b` — plans/replacement-architecture.md
 - `RC-5` — plans/replacement-architecture.md
+- `RS-1` — plans/cant-effects-architecture.md
 
 ## Counts
 
