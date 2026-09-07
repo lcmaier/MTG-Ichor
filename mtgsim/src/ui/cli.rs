@@ -258,7 +258,13 @@ impl DecisionProvider for CliDecisionProvider {
         context: &ChoiceContext,
         items: &[ChoiceOption],
     ) -> Vec<usize> {
-        println!("\n--- Order items ({:?}) ---", context.kind);
+        let prompt = match &context.kind {
+            ChoiceKind::OrderCostReductions { .. } => {
+                "Order the cost reductions (CR 601.2f; the first applies first):".to_string()
+            }
+            other => format!("Order items ({:?}):", other),
+        };
+        println!("\n--- {} ---", prompt);
         for (i, item) in items.iter().enumerate() {
             println!("  [{}] {:?}", i, item);
         }

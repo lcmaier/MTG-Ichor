@@ -241,6 +241,11 @@ pub enum Condition {
     /// False when the source is attached to nothing, which is what makes an
     /// unattached Aura's conditional effect simply not exist.
     HostMatches(ObjectFilter),
+    /// "As long as this artifact is untapped" — Trinisphere, Winter Orb,
+    /// Static Orb. Tapped is a status (CR 110.5), not a characteristic, so
+    /// no layer writes it and `board::condition_reads` declares nothing for
+    /// it: it can never be a CR 613.8 dependency.
+    SourceUntapped,
 }
 
 /// How many modes to choose (rule 700.2)
@@ -834,9 +839,49 @@ pub enum Effect {
     /// `Condition` a meaning, and `Condition` is not small.
     Restriction(Box<crate::types::restriction::RestrictionDef>),
 
+    /// CR 601.2f / 613.11 — this ability changes what spells cost to cast.
+    ///
+    /// The third static shape with no layer rows, and the same reasons as
+    /// the two above: a cost effect has no layer (CR 613.11 applies it after
+    /// all of them) and applies to no object — it applies to a *cost being
+    /// determined* — so `register_static_effects` skips it and
+    /// `engine::cost_determination::cost_modifications_for` reads it off the source's
+    /// *effective* ability list at CR 601.2f. That read is CR 604.2's
+    /// existence check, which is what makes Humility strip a tax for free.
+    /// Through an "as long as" wrapper too — Trinisphere's shape — which
+    /// [`Self::as_cost_modification`] peels.
+    ///
+    /// A **resolving** spell or ability does not create one through this
+    /// variant: "spells cost {1} more this turn" needs a CR 611.2a duration
+    /// this carries none of (`cost-architecture.md` §3.10).
+    CostModification(Box<crate::types::cost_modification::CostModificationDef>),
+
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),
     // ApplyPrevention(PreventionEffectDef),
     // CreateDelayedTrigger(TriggerCondition, Box<Effect>, Duration),
     // Custom(CardId),  // escape hatch
+}
+
+impl Effect {
+    /// The cost modification a static body is, with the "as long as" clause
+    /// wrapped around it if there is one.
+    ///
+    /// One peel, used by every leg of `engine::cost_determination::cost_modifications_for`'s
+    /// gate and by the gather itself, so a conditional cost effect is seen
+    /// everywhere an unconditional one is. The replacement and restriction
+    /// gates match the body without peeling `Conditional` and so miss a
+    /// conditional one — `cost-architecture.md` §8 item 1.
+    pub fn as_cost_modification(
+        &self,
+    ) -> Option<(Option<&Condition>, &crate::types::cost_modification::CostModificationDef)> {
+        match self {
+            Effect::CostModification(def) => Some((None, def)),
+            Effect::Conditional(condition, inner) => match inner.as_ref() {
+                Effect::CostModification(def) => Some((Some(condition), def)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }

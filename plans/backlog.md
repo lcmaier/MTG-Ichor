@@ -76,7 +76,10 @@ rule-level citations this file will accumulate as it fills, not for today's text
 
 ## 2. Entries
 
-### 2.1 Cost modification and the cost pipeline
+### 2.1 Cost modification and the cost pipeline — ✅ graduated 2026-09-07 to `cost-architecture.md`
+
+*Both halves are owned there: modification is CM-1 (shipped) to CM-4, payment
+is CP-1, a sized slot. The entry is kept as written for the record.*
 
 - **Rules** — CR 107.3, 107.4, 107.6; 118.6–118.9; 202.3; 601.2f–601.2h, 601.7
 - **Verdict** — `apply_cost_modifications` is a passthrough stub with a test
@@ -97,7 +100,7 @@ rule-level citations this file will accumulate as it fills, not for today's text
   atoms in CR 107/118/202 stay on their shipped phase: their `Mechanism` names a
   function that exists and does the thing (`ManaPool::spend()`, `pay_life()`,
   `check_cost_resource`), so they are missing a test, not missing behavior.
-- **Owner** — none yet.
+- **Owner** — `plans/cost-architecture.md`.
 
 ### 2.2 Linked abilities (CR 607)
 
@@ -413,7 +416,10 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   after all object layers, in timestamp order — that application point does
   not exist. `lands_per_turn` is the same shape and already dispositioned to a
   layers-owned query (§3.1's CR 305 row); this entry is the general surface
-  both should share.
+  both should share — **and owns `lands_per_turn` outright since
+  2026-09-07**: `cost-architecture.md` §3.9 took CR 613.11's cost half only
+  and sent the timestamp half's values here (`codebase-state.md` main item
+  13).
 - **Size** — small-to-medium: an effective-value/ability query beside the
   oracle layer plus one post-layer, timestamp-ordered application step; one
   production reader to migrate today. Conditional gating ("as long as…")
@@ -484,7 +490,14 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   keeping it would have subtracted the pips a second time — and the fuzz A/B
   is identical on every counter and byte-identical in the event streams, which
   is what proves the prompt now computes what the agent was computing. **What
-  is left of this entry is the reversal prompt and the oracle.**
+  is left of this entry is the reversal prompt and the oracle.** **The
+  oracle has a name and an interface now (2026-09-07):** `cost-architecture.md`
+  §3.4 and CM-4 — a `DecisionProvider` decorator, `ui::AutoPayer<D>`, that
+  answers `ManaAbilityWindow`, `GenericManaAllocation`,
+  `OrderCostReductions` and the sacrifice-choice prompt from a solver and
+  passes everything else through; and it is where the mana window's early
+  stop belongs (`codebase-state.md` main item 70). The reversal prompt is
+  main item 72.
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:

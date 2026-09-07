@@ -144,6 +144,17 @@ pub struct RegistryScopeSummary {
     /// sweeps read different ability bodies, so a shared flag would turn each
     /// one's fast path on for the other's cards.
     pub any_copied_restriction: bool,
+
+    /// True iff some row grants an ability whose body is an
+    /// `Effect::CostModification` (through an "as long as" wrapper or not),
+    /// and its copied twin — the granted and copied legs of
+    /// `engine::cost_determination::cost_modifications_for`'s gate, split from the four flags
+    /// above for their reason: the three sweeps read different ability
+    /// bodies, so a shared flag would open each one's fast path for the
+    /// others' cards. When either is on the gather sweeps every permanent
+    /// rather than its source set (`cost-architecture.md` §3.1).
+    pub any_granted_cost_modification: bool,
+    pub any_copied_cost_modification: bool,
 }
 
 impl RegistryScopeSummary {
@@ -164,11 +175,16 @@ impl RegistryScopeSummary {
             }
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
-                EffectModification::GrantAbility(def) => match def.effect {
-                    Effect::Replacement(_) => summary.any_granted_replacement = true,
-                    Effect::Restriction(_) => summary.any_granted_restriction = true,
-                    _ => {}
-                },
+                EffectModification::GrantAbility(def) => {
+                    match def.effect {
+                        Effect::Replacement(_) => summary.any_granted_replacement = true,
+                        Effect::Restriction(_) => summary.any_granted_restriction = true,
+                        _ => {}
+                    }
+                    if def.effect.as_cost_modification().is_some() {
+                        summary.any_granted_cost_modification = true;
+                    }
+                }
                 // CR 707.2a — the captured list is scanned rather than counted,
                 // because both gates ask about a *body*, not about a copy. A
                 // copy of a vanilla creature must not turn either fast path on.
@@ -178,6 +194,9 @@ impl RegistryScopeSummary {
                             Effect::Replacement(_) => summary.any_copied_replacement = true,
                             Effect::Restriction(_) => summary.any_copied_restriction = true,
                             _ => {}
+                        }
+                        if ability.effect.as_cost_modification().is_some() {
+                            summary.any_copied_cost_modification = true;
                         }
                     }
                 }

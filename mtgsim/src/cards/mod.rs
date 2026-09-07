@@ -19,3 +19,4 @@ pub mod phase_rs_cards;
 pub mod phase_sba_cards;
 pub mod phase_lh_cards;
 pub mod phase_li_cards;
+pub mod phase_cm_cards;

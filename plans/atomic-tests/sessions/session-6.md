@@ -1112,8 +1112,8 @@ Game-rule-modifying continuous effects applied after all other continuous effect
 - **Minimal Board:** Player A controls a permanent with "Red creatures can't attack." Player A controls a creature that is green (printed) but has a L5 color-changing effect making it red.
 - **Action:** Player A attempts to attack with the creature.
 - **Expected Result:** Attack is illegal. The creature's color is determined in L5 (red). Then the game-rule-modifying effect ("red creatures can't attack") is applied per 613.11 (post-layer). It sees the creature is red and prevents the attack.
-- **Phase:** Phase 5 Layers (L15 — game-rule modification)
-- **Ticket:** L15
+- **Phase:** Phase 5 Layers (CM-1 — the cost half; the attack board is RS-3a's, `cant-effects-architecture.md` §7)
+- **Ticket:** NEW — `cost-architecture.md` CM-1 covers the post-layer claim through the cost half; RS-3a builds this board
 
 **ATOM-613.11-002**
 - **Rule:** 613.11 — Cost modification effects follow 601.2f pipeline
@@ -1121,8 +1121,8 @@ Game-rule-modifying continuous effects applied after all other continuous effect
 - **Minimal Board:** Player A controls Thalia (noncreature spells cost {1} more) and Electromancer (instant/sorcery spells cost {1} less). Player A casts Lightning Bolt (cost {R}).
 - **Action:** Determine total cost.
 - **Expected Result:** Base: {R}. Increase (Thalia): {1}{R}. Reduction (Electromancer): {R}. Net: {R}. Per 601.2f, increases apply before reductions.
-- **Phase:** Phase 5 Layers (L15 — cost modification)
-- **Ticket:** L15
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 ---
 

@@ -21,7 +21,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 |---|---|
 | `plans/state-of-play.md` | **Read this first when picking up work.** Generated board — the critical path verbatim, which phases each architecture doc records as landed, card/test counts, the Deferred Migrations debt, and every half-finished phase in `plans/handoffs/`. **Never hand-edit**: `python plans/check_state_of_play.py --write` regenerates it, `--check` fails CI when it is stale, and `--flight` prints branches and open PRs |
 | `plans/codebase-state.md` | Current state; wins over every other doc. Hand-maintained — update it as part of the work that changes it. Its **Deferred Migrations** section is the one to guard: debt owed by forward-looking scaffolding, invisible to tests until the dependent system lands. Add a line for every new stub or TODO at commit time |
-| `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5). **A new subsystem extends this row, never adds one** |
+| `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5) · `cost` (601.2f–h/118.7–9/613.11's cost half/903.8, `CM-*`/`CP-*`, supersedes L15's cost half). **A new subsystem extends this row, never adds one** |
 | `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
 | `plans/backlog.md` | Everything off the critical path — one entry per mechanic: the surface that can't express the rule, rough size, what it blocks. **Not designs** — a mechanic graduates out to an architecture doc. Excluded from `orphaned`'s ownership set on purpose; §1 says why |
 | `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout, trace pages (§7) |
@@ -150,7 +150,7 @@ end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points h
 6. Triggered abilities (CR 603) — after 5, 6b, 7 and the CR 113.6 zone-function predicate; insertion point
    `perform_sba_and_triggers`; takes LKI's consumers and CR 603.4's intervening "if" with it — `Condition` has
    a static evaluator since 7, so this adds a reader, not a language. **Unsized — write its doc first**
-Beside 6 once 5 is in: the Commander interleave (cost modification, `GameConfig::commander()`, CR 903.7,
+Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1 ✅ 2026-09-07**, CM-2–4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
 CR 800/802) and the information model (`backlog.md` §2.9 — back-stop before Phase 8's reveal cards and
 before Phase 10). Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 

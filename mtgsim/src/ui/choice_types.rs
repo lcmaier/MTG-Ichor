@@ -38,6 +38,14 @@ pub enum ChoiceKind {
     /// "choose" — the `EffectRecipient` field distinguishes them).
     SelectRecipients { recipient: EffectRecipient, spell_id: ObjectId },
     GenericManaAllocation { mana_cost: ManaCost },
+    /// CR 601.2f — "if multiple cost reductions apply, the player may apply
+    /// them in any order." Asked only with two or more; the options are the
+    /// reductions' *sources*, in battlefield timestamp order, and the answer
+    /// is a permutation of them. With the symbols the engine pays today the
+    /// order never changes the total (`cost-architecture.md` §3.4), and it is
+    /// asked anyway because the CR makes it the player's; a payer
+    /// `DecisionProvider` may answer it without asking anyone.
+    OrderCostReductions { spell_id: ObjectId },
     /// 601.2g / 602.1b — "mana ability window" inside spell cast or ability
     /// activation. The player may activate mana abilities (rule 605) to cover
     /// the spell's / ability's cost. Asked repeatedly in a loop: each prompt

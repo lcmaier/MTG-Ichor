@@ -11,13 +11,13 @@
 |-------|-------|-----------|-------|-------|
 | ALREADY-IMPL | 195 | 0 | 3 | 198 |
 | Phase 5-Pre | 185 | 1 | 6 | 192 |
-| Phase 5-Layers | 138 | 0 | 13 | 151 |
+| Phase 5-Layers | 149 | 0 | 13 | 162 |
 | Phase 6 | 111 | 7 | 6 | 124 |
 | Phase 7 | 128 | 2 | 3 | 133 |
 | Phase 8 | 633 | 3 | 7 | 643 |
 | Phase 9 | 218 | 5 | 7 | 230 |
 | Post-v1 | 3 | 0 | 0 | 3 |
-| Backlog | 65 | 0 | 0 | 65 |
+| Backlog | 54 | 0 | 0 | 54 |
 | UNKNOWN | 3 | 0 | 11 | 14 |
 
 ---
@@ -428,7 +428,7 @@
 
 ## Phase 5-Layers
 
-**151 entries**
+**162 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -452,6 +452,13 @@
 | ATOM-113.10b-001 | 113.10b | Effects that remove an ability remove all instances of it | L06 | S1 |  |
 | ATOM-113.12-001 | 113.12 | A P/T CDA is applied in Layer 7a, not as a granted ability | L18 | S1 |  |
 | ATOM-113.12-002 | 113.12 | A color CDA is applied in Layer 5, not Layer 6 | L18 | S1 |  |
+| ATOM-118.7-001 | 118.7 | Cost reduced to nothing is considered {0} | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.7-002 | 118.7 | Reducing cost to {0} allows free casting | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.7a-001 | 118.7a | Effects reducing by generic mana only affect the generic component | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | NEW — `cost-architecture.md` CM-1 | S1 |  |
 | ATOM-122.1a-001 | 122.1a | +1/+1 counter adds 1 to power and 1 to toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-002 | 122.1a | -1/-1 counter subtracts 1 from power and 1 from toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-003 | 122.1a | Non-standard P/T counters (e.g., +2/+0) do NOT annihilate with +1/+1 or -1/-1 counters | L04 / L08 | S1 |  |
@@ -512,6 +519,10 @@
 | ATOM-506.4-002 | 506.4 | A permanent is removed from combat if its controller changes. | T21b — combat removal on control change (E36) | S4 |  |
 | ATOM-506.4-003 | 506.4 | A permanent is removed from combat if it stops being a creature. | T21b — combat removal on type change (E36) | S4 |  |
 | ATOM-601.2a-002 | 601.2a | Continuous effects that modify the spell's characteristics as you start casting it begin as it is put on the stack. | L15 / T18 | S5 |  |
+| ATOM-601.2f-001 | 601.2f | Total cost = base mana cost (or alt cost) + additional costs + cost increases − cost reductions. Cost can't be reduced below {0}. Then total cost is locked in. | NEW — `cost-architecture.md` CM-1 | S5 |  |
+| ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | NEW — `cost-architecture.md` CM-1 | S5 |  |
+| ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | NEW — `cost-architecture.md` CM-1 | S5 |  |
+| ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | NEW — `cost-architecture.md` CM-1 | S5 |  |
 | ATOM-601.2i-003 | 601.2i | Effects modifying spell characteristics apply at the "spell becomes cast" step. | L10 | S5 |  |
 | ATOM-601.3-001 | 601.3 | A player can begin to cast a spell only if a rule or effect allows it and no rule or effect prohibits it. | L15 | S5 |  |
 | ATOM-602.1e-001 | 602.1e | If a spell or ability modifies how a player may pay an "activation cost," that modification applies to the total cost, even if increased/decreased by other effects. | L15 | S5 |  |
@@ -574,8 +585,8 @@
 | ATOM-613.9-001 | 613.9 | Conflicting ability effects: later timestamp wins | L09 | S6 |  |
 | ATOM-613.9-002 | 613.9 | Color change causes downstream effect to apply | L08, L10 | S6 |  |
 | ATOM-613.10-001 | 613.10 | Player-affecting continuous effects applied after object characteristics | L15 | S6 |  |
-| ATOM-613.11-001 | 613.11 | Game-rule-modifying effects apply AFTER all L1–L7 characteristic effects | L15 | S6 |  |
-| ATOM-613.11-002 | 613.11 | Cost modification effects follow 601.2f pipeline | L15 | S6 |  |
+| ATOM-613.11-001 | 613.11 | Game-rule-modifying effects apply AFTER all L1–L7 characteristic effects | NEW — `cost-architecture.md` CM-1 covers the post-layer claim through the cost half; RS-3a builds this board | S6 |  |
+| ATOM-613.11-002 | 613.11 | Cost modification effects follow 601.2f pipeline | NEW — `cost-architecture.md` CM-1 | S6 |  |
 | COMP-613-HUMILITY-OPALESCENCE-001 | 613.1f + 613.1g + 613.4b + 613.7 | Humility + Opalescence timestamp interaction | L19, L20 | S6 |  |
 | COMP-613-BLOOD-MOON-URBORG-001 | 613.8a + 613.8 | Blood Moon + Urborg dependency analysis | L14, L17, L20 | S6 |  |
 | COMP-613-TARMOGOYF-HUMILITY-001 | 613.1f + 613.4a + 613.4b | Tarmogoyf under Humility | L19, L20 | S6 |  |
@@ -1754,7 +1765,7 @@
 
 ## Backlog
 
-**65 entries**
+**54 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -1768,16 +1779,9 @@
 | ATOM-107.4f-002 | 107.4f | {W/U/P} can be paid with {W}, {U}, or 2 life | NEW — Hybrid Phyrexian mana payment | S1 |  |
 | ATOM-107.4f-003 | 107.4f | {R/P} paid with mana instead of life | NEW — Phyrexian mana payment implementation | S1 |  |
 | ATOM-107.6-002 | 107.6 | Summoning-sick creature can't activate {Q} ability | T10 | S1 |  |
-| ATOM-118.7-001 | 118.7 | Cost reduced to nothing is considered {0} | T18 | S1 |  |
-| ATOM-118.7-002 | 118.7 | Reducing cost to {0} allows free casting | T18 | S1 |  |
-| ATOM-118.7a-001 | 118.7a | Effects reducing by generic mana only affect the generic component | T18 | S1 |  |
-| ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | T18 | S1 |  |
-| ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | T18 | S1 |  |
-| ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | T18 | S1 |  |
 | ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | L01 | S1 |  |
 | ATOM-118.9a-001 | 118.9a | Only one alternative cost can be applied to a spell | T18 | S1 |  |
 | ATOM-118.9c-001 | 118.9c | Alternative cost doesn't change the spell's mana cost for mana value purposes | L01 | S1 |  |
-| ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | T18 | S1 |  |
 | ATOM-202.3-001 | 202.3 | Mana value is the total amount of mana in the mana cost. | L10 | S2 |  |
 | ATOM-202.3a-001 | 202.3a | The mana value of an object with no mana cost is 0. | L10 | S2 |  |
 | ATOM-202.3e-001 | 202.3e | X is treated as 0 while the object is not on the stack. | L10 | S2 |  |
@@ -1787,10 +1791,6 @@
 | ATOM-202.3g-001 | 202.3g | Each Phyrexian mana symbol contributes 1 to mana value. | L10 | S2 |  |
 | ATOM-400.2-001 | 400.2 | Graveyard, battlefield, stack, exile, ante, and command are public zones. Library and hand are hidden zones. | NEW — zone visibility classification query | S4 |  |
 | ATOM-402.3-001 | 402.3 | A player can see and rearrange cards in their own hand but can't look at the cards in another player's hand. | NEW — hand visibility enforcement in oracle layer. Currently all `GameState` access is unrestricted; this needs a per-player visibility filter. | S4 |  |
-| ATOM-601.2f-001 | 601.2f | Total cost = base mana cost (or alt cost) + additional costs + cost increases − cost reductions. Cost can't be reduced below {0}. Then total cost is locked in. | T18, L15 | S5 |  |
-| ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | L15 | S5 |  |
-| ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | T18 | S5 |  |
-| ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | L15 | S5 |  |
 | ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | T18 | S5 |  |
 | ATOM-601.2h-003 | 601.2h | Cost payment ordering matters and is player-controlled. | T18 | S5 |  |
 | ATOM-601.7-001 | 601.7 | Casting a spell that alters costs won't affect spells and abilities that are already on the stack. | T18 | S5 |  |

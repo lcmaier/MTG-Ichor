@@ -155,7 +155,6 @@ fn validate_allocation(
 /// Checks length, index range, and uniqueness. By the pigeonhole principle,
 /// N unique values each in [0, N) IS a permutation of 0..N, so no explicit
 /// "sequential" check is needed.
-#[allow(dead_code)]
 fn validate_ordering(order: &[usize], items_len: usize, context_desc: &str) {
     assert_eq!(
         order.len(),
@@ -514,6 +513,28 @@ pub fn ask_activate_mana_ability(
     } else {
         Some(legal[indices[0]])
     }
+}
+
+/// CR 601.2f — the order in which two or more cost reductions apply.
+///
+/// `sources` are the reductions' sources in battlefield timestamp order, so
+/// the permutation returned means the same thing in every process. One
+/// reduction has no order to choose and must not reach here.
+pub fn ask_order_cost_reductions(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    spell_id: ObjectId,
+    sources: &[ObjectId],
+) -> Vec<usize> {
+    debug_assert!(sources.len() >= 2, "CR 601.2f: one reduction has no order to choose");
+    let options: Vec<ChoiceOption> = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::OrderCostReductions { spell_id },
+    };
+    let order = dp.choose_ordering(game, player, &ctx, &options);
+    validate_ordering(&order, options.len(), "order_cost_reductions");
+    order
 }
 
 /// How many of `mana_cost`'s symbols must be paid with `mana_type` specifically.

@@ -1427,7 +1427,7 @@ match. The table stays as the Track R / Track S reading; schedule from §3a.
 | 7 | **RC-3** — the membership gate | One line, hottest path; its deliverable is the measurement |
 | 8 | **RC-4** — the overlay | The join is satisfied by 3. CR 614.17d asks a question RS-1 gave it |
 | 9 | **RS-2** — casting, activating, targeting | Unlocks hexproof/shroud/protection. Independent of Track R entirely; can slot anywhere from 4 onward |
-| 10 | **Cost modification** — its own small phase | `replacement-architecture.md` §9 asks for it; commander tax runs through it; RS-4 wants it nearby |
+| 10 | ~~**Cost modification** — its own small phase~~ ✅ **CM-1 done 2026-09-07** (`plans/cost-architecture.md`; CM-2–4 and CP-1 sized there) | `replacement-architecture.md` §9 asked for it; commander tax runs through it; RS-4 wants it nearby. Not small after all: five PRs and a slot, and its own document |
 | 11 | **RS-4** — costs (CR 614.17b) | Needs RS-1 for the derived half and reads better after 10 |
 | 12 | **RS-3a** — combat, the predicate half | 1,267 of 1,277 Tier-1a clauses. Does **not** need item 7 |
 | 13 | ~~**CR 613.8** — the dependency cluster~~ ✅ **done 2026-09-06** (LI-1/LI-2/LI-3) | `CLAUDE.md` item 7, hard back-stop before Phase 8 breadth |

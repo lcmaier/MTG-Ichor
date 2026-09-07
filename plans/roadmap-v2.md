@@ -227,7 +227,7 @@ its consumer: two targets, no division, 36 real cards.
 
 | # | Do this | Why here | PRs |
 |---|---|---|---:|
-| B1 | **Cost modification** (`backlog.md` §2.1, two phases) | commander tax runs through it; RS-4 reads better after it; the 25 unjudged CR 601 atoms get their verdicts here (§7) | 2 |
+| B1 | **Cost modification** — `plans/cost-architecture.md`: **CM-0 and CM-1 ✅ 2026-09-07**; CM-2 (the spell's own cost abilities), CM-3 (sacrifice as a cost), CM-4 (the mana window and the payer), CP-1 (payment) sized there | commander tax runs through it; RS-4 reads better after it; the 25 unjudged CR 601 atoms get their verdicts here (§7); **CM-3 and CM-4 before A6**, since the Ironworks loop is item 6's integration test | 4 left |
 | B2 | **`GameConfig::commander()`** and designation, CR 903.7, `DeckLimits` validation | "Before Commander" items 2–3 and main item 32; CR 903.9a/b and 704.6d already work and wait on `is_commander` | 1 |
 | B3 | **CR 800/802**, with a `--players 4` fuzz mode | "Before Commander" item 4: the priority loop, turn rotation and APNAP are already modulo `num_players`; CR 800.4 (a player leaves) and 802's defending-player choice are not | 1 |
 | B4 | **The information model** (`backlog.md` §2.9) | a v1 blocker, not breadth: the GUI renders one player's view and an AI observation must not leak a hidden zone; **hard back-stop before Phase 8's face-down and reveal cards and before any Phase 10 work**; depends on nothing above, so it can go anywhere in A or B | 1–2 |
