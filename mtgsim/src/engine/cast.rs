@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
@@ -12,7 +10,7 @@ use crate::engine::targeting::{effect_recipient, spell_recipient};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::mana::ManaCost;
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections;
 use crate::oracle::mana_helpers::{
@@ -21,7 +19,7 @@ use crate::oracle::mana_helpers::{
 use crate::ui::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
-    ask_choose_x_value, ask_select_recipients, ask_choose_generic_mana_allocation,
+    ask_choose_x_value, ask_select_recipients,
 };
 use crate::ui::decision::DecisionProvider;
 
@@ -224,13 +222,22 @@ impl GameState {
             return Err(e);
         }
 
-        let generic_allocation = self.choose_generic_allocation(&total_costs, player_id, decisions);
+        // Every choice the payment needs, taken against the board as it stands
+        // — the generic split, and which permanents pay a sacrifice cost. No
+        // prompt is asked once `pay_costs` starts (`engine::costs` module doc).
+        let plan = match self.plan_payment(&total_costs, player_id, card_id, &actx) {
+            Ok(plan) => plan,
+            Err(e) => {
+                self.rollback_cast_to_hand(card_id)?;
+                return Err(e);
+            }
+        };
 
         // The payment the player chose can be illegal even though the cost was
         // payable — a generic split that spends a color a pip still needs —
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
-        if let Err(e) = self.pay_costs(&total_costs, player_id, card_id, &generic_allocation, &actx) {
+        if let Err(e) = self.pay_costs(&plan, player_id, card_id, &actx) {
             self.rollback_cast_to_hand(card_id)?;
             return Err(e);
         }
@@ -394,44 +401,19 @@ impl GameState {
             return Err(e);
         }
         let actx = ActionContext::new(decisions);
-        let generic_allocation = self.choose_generic_allocation(&ability_costs, player_id, decisions);
-        if let Err(e) = self.pay_costs(&ability_costs, player_id, source_id, &generic_allocation, &actx) {
+        let plan = match self.plan_payment(&ability_costs, player_id, source_id, &actx) {
+            Ok(plan) => plan,
+            Err(e) => {
+                self.rollback_ability_activation(ability_obj_id);
+                return Err(e);
+            }
+        };
+        if let Err(e) = self.pay_costs(&plan, player_id, source_id, &actx) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e);
         }
 
         Ok(())
-    }
-
-    /// How the player splits the generic part of `costs` across the mana
-    /// pool (CR 601.2h's "determine the total cost ... pay it"), asked of the
-    /// `DecisionProvider` when there is a generic part and answered empty
-    /// otherwise. `can_pay_costs` must already have passed: the asker asserts
-    /// that a legal split exists.
-    fn choose_generic_allocation(
-        &self,
-        costs: &[Cost],
-        player_id: PlayerId,
-        decisions: &dyn DecisionProvider,
-    ) -> HashMap<ManaType, u64> {
-        let mana_cost = costs
-            .iter()
-            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
-            .unwrap_or_else(ManaCost::zero);
-        if mana_cost.generic_count() == 0 {
-            return HashMap::new();
-        }
-        let mut available: Vec<(ManaType, u64)> = self.players[player_id]
-            .mana_pool
-            .available()
-            .iter()
-            .filter(|(_, amt)| **amt > 0)
-            .map(|(mt, amt)| (*mt, *amt))
-            .collect();
-        available.sort_by_key(|(mt, _)| *mt as u8);
-        ask_choose_generic_mana_allocation(
-            decisions, self, player_id, &mana_cost, &available, mana_cost.generic_count() as u64,
-        )
     }
 
     /// Run the 601.2g / 602.1b mana-ability window for a pending spell or

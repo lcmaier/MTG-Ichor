@@ -848,6 +848,40 @@ pub fn ask_choose_copy_source(
     candidates[index[0]]
 }
 
+/// Choose which permanents pay a `Cost::Sacrifice` (CR 601.2h, 701.21a).
+///
+/// `candidates` is every permanent the payer controls that matches the cost's
+/// filter, in `battlefield_ids_ordered`; `count` is how many the cost takes.
+///
+/// **Only called with more candidates than the cost needs.** With exactly
+/// `count` the payment is forced and the caller sacrifices them without
+/// asking anyone — `CLAUDE.md`'s "never prompt with fewer than two
+/// candidates", counted against the choice rather than against the list.
+pub fn ask_choose_sacrifice_for_cost(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    spell_or_ability_id: ObjectId,
+    count: u32,
+    candidates: &[ObjectId],
+) -> Vec<ObjectId> {
+    let n = count as usize;
+    assert!(
+        candidates.len() > n,
+        "ask_choose_sacrifice_for_cost: {} candidates for {} sacrifices is forced;          the caller pays it without asking",
+        candidates.len(),
+        n,
+    );
+    let options: Vec<ChoiceOption> =
+        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count },
+    };
+    let picks = dp.pick_n(game, player, &ctx, &options, (n, n));
+    validate_pick_n(&picks, options.len(), (n, n), "choose_sacrifice_for_cost");
+    picks.into_iter().map(|i| candidates[i]).collect()
+}
+
 /// Choose which legendary permanent to keep (rule 704.5j legend rule).
 pub fn ask_choose_legend_to_keep(
     dp: &dyn DecisionProvider,
