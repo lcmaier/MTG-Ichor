@@ -52,12 +52,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "plans" / "state-of-play.md"
 
-ARCH_DOCS = [
-    "plans/replacement-architecture.md",
-    "plans/cant-effects-architecture.md",
-    "plans/copy-effects-architecture.md",
-    "plans/layers-architecture.md",
-]
+# Globbed, not listed. The list form silently omitted `cost-architecture.md`
+# from the day that doc was written until 2026-09-07 -- CM-0, CM-1 and CM-2 all
+# shipped with the ✅ heading this file looks for and none of them appeared on
+# the board, because "add the new subsystem to `ARCH_DOCS`" is a step nobody
+# owns. `CLAUDE.md`'s authority row already says a new subsystem *extends* the
+# architecture-doc family rather than starting a new one, so the family is
+# knowable from the filenames and this asks the filesystem instead of a human.
+ARCH_DOCS = sorted(str(p.relative_to(ROOT)).replace("\\", "/")
+                   for p in (ROOT / "plans").glob("*-architecture.md"))
 
 
 def read(rel):
@@ -189,10 +192,13 @@ def selftest():
 def landed_phases():
     """Phase codes whose architecture-doc heading records them as landed.
 
-    A `###`/`####` heading carrying ✅ is the convention every shipped
-    replacement phase already follows. It is a *lower bound* elsewhere: the
-    "can't" and copy tracks record phases only in sizing tables, so their
-    landed phases do not appear here. See this module's docstring.
+    A `###`/`####` heading carrying ✅, optionally behind the doc's own section
+    number. **This is the whole list, not a lower bound** — it stopped being
+    one on 2026-09-07, when the "can't" and copy tracks got the marker the
+    other three already used and `CLAUDE.md` gave up carrying a second copy
+    (`engineering-practices.md` §1). A doc that does not follow the convention
+    is invisible here, which is the one way this can under-report and the
+    reason the convention is written down rather than inferred.
     """
     out = {}
     for doc in ARCH_DOCS:
@@ -200,7 +206,9 @@ def landed_phases():
             text = read(doc)
         except FileNotFoundError:
             continue
-        for m in re.finditer(r"^#{2,4} (?:Phase )?([A-Z]{2}-?[0-9]*[a-z]?) — (.+)$", text, re.M):
+        for m in re.finditer(
+            r"^#{2,4} (?:[0-9]+[a-z]?\. )?(?:Phase )?([A-Z]{2}-?[0-9]*[a-z]?) — (.+)$", text, re.M
+        ):
             code, rest = m.group(1), m.group(2)
             if "✅" in rest:
                 out[code] = doc
@@ -262,9 +270,9 @@ def render():
     L.append("")
     L.append("## Phases their architecture doc records as landed")
     L.append("")
-    L.append("A `####` heading carrying ✅. **A lower bound** — the \"can't\" and copy tracks")
-    L.append("record phases in sizing tables with no status marker, so RS and CV phases are")
-    L.append("absent here whether or not they shipped.")
+    L.append("A `###`/`####` heading carrying ✅, in any of the five architecture docs.")
+    L.append("**This is where landed status lives** — `CLAUDE.md` owns the ordering and")
+    L.append("says nothing about progress, so there is one answer and it is derived.")
     L.append("")
     if landed:
         for code in sorted(landed):

@@ -1044,7 +1044,7 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | **CV-6 — face-down (CR 708)** | Layer 1b, `PermanentState.face_down`, 708.2a's synthesized 2/2, the CR 708.4 cast-face-down path and the turn-face-up special action. **Consumer: one morph creature, cast and turned up** | **304** producers; **1** new sublayer in `LAYER_ORDER`; the bulk is the *casting* path, not the layer | medium-high — **unsized here on purpose.** The layer half is small and known; the casting half needs its own count of `cast.rs`'s alternative-cost sites before anyone commits a number |
 | **CV-7 — merging + meld (CR 729, 712.4)** | A multi-component `PermanentState`, 729.2a's topmost-component characteristics as a Layer 1a copiable effect, 729.3's component separation, 729.3b's exile timestamp ordering, and 729.3d's replacement-applies-to-all-components | 34 + 21 cards; **the largest structural change in this document** and the only one that touches a type every phase reads | **highest, and it has a back-stop** — before Phase 8 card breadth (§6). **Unsized here on purpose**; it earns its own design pass |
 
-### 7a. CV-1 — shipped 2026-09-02
+### 7a. CV-1 — the capture, the row and the two legs — ✅ 2026-09-02
 
 **What landed**, against the row above: `CopiableValues` and one capture point
 (`engine/layers/copy.rs`, with `END_OF_LAYER_1` and its `debug_assert`);

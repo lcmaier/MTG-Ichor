@@ -9,8 +9,7 @@ not approximated. Crate lives in `mtgsim/`, edition 2024.
 ```bash
 cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
-cd mtgsim && cargo run --bin cli_play     # play a game at the terminal
-cd mtgsim && cargo run --bin fuzz_games   # random-vs-random; --pool stress plays every card
+cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
 python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_state_of_play.py --check   # all must pass
 ```
@@ -28,9 +27,9 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
-| `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live — but its `L##`/`T##` labels are the **archived** plan's vocabulary (`plans/archive/implementation-plan-final.md`), **not a live queue**. A `T##` names work, never schedules it; where that work lives now is `backlog.md` §2, an architecture doc, or the critical path. Do not cite a `T##` as the owner of anything |
+| `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live — but its `L##`/`T##` labels are the **archived** plan's vocabulary, **not a queue**: a `T##` names work, never schedules it. Never cite one as the owner of anything; the owner is `backlog.md` §2, an architecture doc, or the critical path |
 | `plans/roadmap-v2.md` | The route narrative: why the spine is ordered, card stakes per segment, milestones, sizing. Ordering authority stays with **Critical path to v1** below |
-| `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md` | Historical. Still live from them: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's D## deferred-item tables — its milestones and v1 target shape moved to `roadmap-v2.md`. The §8/§11 delta-log fork was **resolved against** 2026-08-24 — trigger detection is the performed-action event stream; see `codebase-state.md`. `plans/archive/*` is superseded: do not act on it |
+| `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md`, `plans/archive/*` | **Historical — do not act on them.** Two things stayed live: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's D## deferred-item tables. The §8/§11 delta-log fork was resolved 2026-08-24 — trigger detection is the performed-action event stream (`codebase-state.md`) |
 | `plans/references/*` | Research tooling, not rules authority. Fetch card text/rulings via Bash+curl with a UA header — Scryfall 403s `WebFetch` |
 
 ## The layer-system invariant
@@ -133,52 +132,43 @@ line for line but the timing lines. → `codebase-state.md`.
 
 ## Critical path to v1
 
-**This section owns the ordering**, listed in route order; `plans/roadmap-v2.md` §3a is the same route end to
-end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points here. Numbers are stable labels.
+**This section owns the ordering and says nothing about progress** — landed status is derived onto
+`state-of-play.md` from the architecture docs' ✅ headings, and a second copy here would go stale between
+merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same route with the *why*.
 
-1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅.  7a. Epoch memoization of the layer walk — ✅ 2026-09-03
-6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 CR 613.7e
-   (one timestamp, reassigned in `attach`, rows re-stamped) and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
-7. The CR 613.8 cluster — ✅ 2026-09-06. LI-1 the board-wide sequential pass, LI-2 dependencies decided
-   against the live board and re-decided after each application, LI-3 "as long as [X]" as one more clause in
-   CR 604.2's existence check. Phase 8's back-stop is lifted. → `layers-architecture.md` §13b
-5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and **all of RC** are in; **RD then RE**, before 6
-   (commutes with 6b–7): triggers read the performed stream, which must be post-replacement truth first
-5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine. **RS-1 is in**; RS-2 any time;
-   RS-3b unblocked by 7.  5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine. **CV-1 is
-   in**; CV-2 any time; item 10 (CR 400.7) + CV-1b after CV-2; CV-7 (merging) back-stopped before Phase 8
-6. Triggered abilities (CR 603) — after 5, 6b, 7 and the CR 113.6 zone-function predicate; insertion point
-   `perform_sba_and_triggers`; takes LKI's consumers and CR 603.4's intervening "if" with it — `Condition` has
-   a static evaluator since 7, so this adds a reader, not a language. **Unsized — write its doc first**
-Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1, CM-2 ✅ 2026-09-07**, CM-3/4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
-CR 800/802) and the information model (`backlog.md` §2.9 — back-stop before Phase 8's reveal cards and
-before Phase 10). Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+1–4, 6b, 7, 7a — the layer system, in place. → `layers-architecture.md` §13a, §13b
+5. Replacement effects (CR 614–616), RA–RE. **RD then RE**, before 6 and commuting with 6b–7:
+   triggers read the performed stream, which must be post-replacement truth first
+5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine; RS-2 any time, RS-3b needs 7
+5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2 any time, item 10
+   (CR 400.7) + CV-1b after CV-2, CV-7 (merging) back-stopped before Phase 8
+6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
+   zone-reaching `AffectedSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
+6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
+   **Unsized — write its doc first**; what that doc must carry is `roadmap-v2.md` A6
+Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
+then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 any time) and the
+information model (`backlog.md` §2.9 — before Phase 8's reveal cards and before Phase 10). Then Phase 8
+breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
 ## Spec database
 
-`plans/specdb.py` joins the atomic-test corpus to the test suite and the CR, so coverage is a
-query rather than prose. `build` regenerates `spec.sqlite` and the index markdowns from
-`sessions/` — never hand-edit those; fix the session file and rebuild.
-
-**Annotate at write time** (`// COVERS:` above the `#[test]`, `// COVERS-PARTIAL:` when it does
-not build the whole atom) and **never claim an atom a test doesn't prove**. **A phase does not
-close until `owed` is clean for it** — a gate, not a report. → `engineering-practices.md` §5.
+`plans/specdb.py` joins the corpus to the test suite and the CR; `build` regenerates `spec.sqlite`
+and the index markdowns — never hand-edit those, fix the session file and rebuild.
+**Annotate at write time** (`// COVERS:` above the `#[test]`, `// COVERS-PARTIAL:` when it does not
+build the whole atom), **never claim an atom a test doesn't prove**, and **a phase does not close
+until `owed` is clean for it** — a gate, not a report. → `engineering-practices.md` §5.
 
 ## Git workflow
 
-One branch per unit of work → PR → merge to main. Merge commit or "Rebase and merge", never
-squash — the project leans on its per-commit record.
-
-**Size a phase before writing it, and split it in the doc, not in the moment.** PRs run
-1,500–2,500 additions; RB ran to +5,475 because nobody counted first. Every PR in a split
-carries at least one consumer of what it builds, and review findings go to
-`plans/handoffs/<phase>-review.md`, one theme per session. → `engineering-practices.md` §4.
-
-`gh` is installed and authenticated. Opening a PR is fine; **merging to main is the user's
-call** — hand over the URL unless they say otherwise that session.
+One branch per unit of work → PR → merge to main; merge commit or "Rebase and merge", **never
+squash** — the project leans on its per-commit record. **Size a phase before writing it, and split
+it in the doc, not in the moment** → `engineering-practices.md` §4 owns the 1,500–2,500 band, the
+one-consumer-per-PR rule and where review findings go. `gh` is installed; opening a PR is fine, but
+**merging to main is the user's call** — hand over the URL unless they say otherwise that session.
 
 ## Conventions
 
@@ -196,5 +186,7 @@ call** — hand over the URL unless they say otherwise that session.
 
 **200 lines, hard**, checked by `python plans/check_claude_md.py`. Every invariant is at most
 three lines plus a pointer — the reasoning, the war story and the rule numbers live in the
-architecture doc. **Adding a section requires removing one.** No progress snapshots or counts:
-this file loads into every session, so a stale claim here is worse than no claim. → `engineering-practices.md` §1.
+architecture doc. **Adding a section requires removing one**, and the removal is chosen against the
+whole file, not against whatever happens to sit next to the edit. **No progress snapshots, counts or
+✅ marks** — this file loads before every task, a stale claim here is worse than no claim, and status
+belongs to `state-of-play.md`, derived from the architecture docs. → `engineering-practices.md` §1.
