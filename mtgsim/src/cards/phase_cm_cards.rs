@@ -20,6 +20,15 @@
 //! and its first dynamic amount. Myr Enforcer and Frogmite are vanilla bodies
 //! with nothing else on them, so any cost either is cast for is the
 //! reduction's doing and nothing else's.
+//!
+//! **CM-3: five printed cards, in three pairs of a board.** Altar's Reap and
+//! Thunderscape Familiar are CR 601.2h's own worked example, verbatim from
+//! the rule. Krark-Clan Ironworks and Foundry Inspector are the lock-in seen
+//! through the 601.2g window (`cost-architecture.md` §3.11 steps 3–4). Mind
+//! Stone is the 732.1 board, where the vehicle of an activation is eaten out
+//! from under it — the half of that board that puts a trigger somewhere is
+//! critical-path item 6's, and this phase asserts only what both readings of
+//! it share. Oracle text read on Scryfall on 2026-09-07.
 
 use std::sync::Arc;
 
@@ -402,5 +411,253 @@ pub fn bargain_lesson() -> Arc<CardData> {
             "Pay {R} rather than pay this spell's mana cost".to_string(),
             vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))],
         ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// CM-3 — lock-in's payment side (CR 601.2h, 118.8b, 732.1)
+// ---------------------------------------------------------------------------
+
+/// Altar's Reap — {1}{B}
+/// Instant
+///
+/// As an additional cost to cast this spell, sacrifice a creature.
+/// Draw two cards.
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// **CR 601.2h prints this card.** The rule's own example is Altar's Reap
+/// sacrificing Thunderscape Familiar: the total is locked at {B} before any
+/// payment, so the Familiar's reduction is counted even though the Familiar
+/// is what pays. Nothing in the engine had a mandatory additional cost before
+/// this — `AdditionalCost` was all optional, which CR 118.8b only ever
+/// claimed of *some* of them.
+///
+/// The filter is `ByType(Creature)` and says nothing about control: CR
+/// 701.21a supplies that ("a player can't sacrifice ... a permanent they
+/// don't control"), and a card that repeated it would be claiming the rule
+/// was the card's.
+pub fn altars_reap() -> Arc<CardData> {
+    CardDataBuilder::new("Altar's Reap")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .color(Color::Black)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards.",
+        )
+        .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(
+            ObjectFilter::ByType(CardType::Creature),
+            1,
+        )]))
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(2)),
+                EffectRecipient::Controller,
+            ),
+        })
+        .build()
+}
+
+/// Thunderscape Familiar — {1}{R}
+/// Creature — Kavu, 1/1
+///
+/// First strike
+/// Black spells and green spells you cast cost {1} less to cast.
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// The other half of CR 601.2h's example. "Black spells **and** green spells"
+/// is English "and" over two colours, which is set union — `Or`, the node
+/// Root Maze's reading added — and "you cast" is CR 109.5's "you", the
+/// source's current controller.
+pub fn thunderscape_familiar() -> Arc<CardData> {
+    CardDataBuilder::new("Thunderscape Familiar")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Kavu))
+        .power_toughness(1, 1)
+        .keyword_flag(KeywordFlag::FirstStrike)
+        .rules_text("First strike\nBlack spells and green spells you cast cost {1} less to cast.")
+        .ability(
+            CostModificationDef::spells(
+                you_cast(ObjectFilter::Or(
+                    Box::new(ObjectFilter::ByColor(Color::Black)),
+                    Box::new(ObjectFilter::ByColor(Color::Green)),
+                )),
+                CostChange::Reduce(ManaCost::build(&[], 1)),
+            )
+            .into_ability(),
+        )
+        .build()
+}
+
+/// Krark-Clan Ironworks — {4}
+/// Artifact
+///
+/// Sacrifice an artifact: Add {C}{C}.
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// The mana ability whose cost is a sacrifice, and the reason CR 601.2g's
+/// window is worth anything: activated *while* another cost is being paid, it
+/// takes artifacts off the board after the total was locked. Banned in Modern
+/// in 2019 with "excessively arcane rules interactions using mana ability
+/// timing windows" named as a factor — every one of those windows is a step
+/// of CR 601.2 (`cost-architecture.md` §3.11).
+///
+/// **It can eat itself.** "An artifact" is every artifact its controller has,
+/// including this one; nothing about paying a cost excludes the permanent
+/// whose cost it is, and step 3 of the judged loop depends on that.
+pub fn krark_clan_ironworks() -> Arc<CardData> {
+    CardDataBuilder::new("Krark-Clan Ironworks")
+        .mana_cost(ManaCost::build(&[], 4))
+        .card_type(CardType::Artifact)
+        .rules_text("Sacrifice an artifact: Add {C}{C}.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Mana,
+            costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1)],
+            effect: Effect::Atom(
+                Primitive::ProduceMana(crate::types::effects::ManaOutput {
+                    mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))],
+                    special: vec![],
+                }),
+                EffectRecipient::Implicit,
+            ),
+        })
+        .build()
+}
+
+/// Foundry Inspector — {3}
+/// Artifact Creature — Construct, 3/2
+///
+/// Artifact spells you cast cost {1} less to cast.
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// The reducer for the Ironworks board: it makes the artifact being cast
+/// cheaper *before* the window opens, so the total the window's sacrifices
+/// are paid against is one the board no longer justifies by the time they are
+/// made. That is the lock-in, seen from the payment side.
+pub fn foundry_inspector() -> Arc<CardData> {
+    CardDataBuilder::new("Foundry Inspector")
+        .mana_cost(ManaCost::build(&[], 3))
+        .card_type(CardType::Artifact)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Construct))
+        .power_toughness(3, 2)
+        .rules_text("Artifact spells you cast cost {1} less to cast.")
+        .ability(
+            CostModificationDef::spells(
+                you_cast(ObjectFilter::ByType(CardType::Artifact)),
+                CostChange::Reduce(ManaCost::build(&[], 1)),
+            )
+            .into_ability(),
+        )
+        .build()
+}
+
+/// Mind Stone — {2}
+/// Artifact
+///
+/// {T}: Add {C}.
+/// {1}, {T}, Sacrifice this artifact: Draw a card.
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// **The CR 732.1 board.** Its second ability adds no mana, so it was never a
+/// mana ability under either rules text: activating it uses the stack and
+/// opens the same 601.2g window a cast does. Sacrifice Mind Stone to
+/// Krark-Clan Ironworks *inside* that window and the activation can no longer
+/// pay its own cost — the vehicle is eaten out from under it.
+///
+/// What the engine does with that is nothing, and deliberately: the cost is
+/// checked before any of it is paid, so the activation rewinds with no
+/// payment to cancel, and the Ironworks activation — legal when it happened —
+/// stands with its mana. Offering CR 732.1's *reversal* of that mana ability
+/// is `codebase-state.md` item 72's, and where the surviving trigger goes on
+/// the stack is critical-path item 6's.
+///
+/// The cost list is printed mana-first, which is the convention and not a
+/// rule; [`self_eating_engine`] is the fixture that prints it the other way.
+pub fn mind_stone() -> Arc<CardData> {
+    CardDataBuilder::new("Mind Stone")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text("{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
+        .mana_ability_single(ManaType::Colorless)
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Activated,
+            costs: vec![
+                Cost::Mana(ManaCost::build(&[], 1)),
+                Cost::Tap,
+                Cost::SacrificeSelf,
+            ],
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
+        })
+        .build()
+}
+
+/// **A fixture, and an invented name.** "As an additional cost to cast this
+/// spell, sacrifice two creatures. Draw a card." — {2}{B} Sorcery.
+///
+/// No printed card sacrifices two permanents for one cost *and* fits the
+/// pool's vocabulary, and the count is worth building: CR 601.2h pays one
+/// cost as one thing, so both creatures leave the battlefield together and a
+/// "whenever one or more creatures die" trigger will see one event. A loop
+/// could not say that (`CLAUDE.md`'s simultaneous rule).
+pub fn twin_offering() -> Arc<CardData> {
+    lesson("Twin Offering", ManaCost::build(&[ManaType::Black], 2), Color::Black, CardType::Sorcery)
+        .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(
+            ObjectFilter::ByType(CardType::Creature),
+            2,
+        )]))
+        .build()
+}
+
+/// **A fixture, and an invented name.** "Sacrifice an artifact, {T}: Draw a
+/// card." — a {2} Artifact whose ability prints its costs in the order that
+/// breaks if the engine pays them as printed.
+///
+/// Every printed card puts the mana and the tap ahead of the sacrifice, so
+/// `payment_order_rank`'s reason is invisible on real cards: paid as printed,
+/// this fixture's sacrifice takes its own source and the `{T}` then fails
+/// with a payment already made — CR 732.1's cancellation, reached by a cost
+/// list rather than by anything a player did. The engine pays object-moving
+/// costs last, so the tap happens first and the board stays consistent.
+/// Registered nowhere: it exists to make the ordering claim falsifiable.
+pub fn self_eating_engine() -> Arc<CardData> {
+    CardDataBuilder::new("Self-Eating Engine")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text("Sacrifice an artifact, {T}: Draw a card.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Activated,
+            costs: vec![
+                Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1),
+                Cost::Tap,
+            ],
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
+        })
         .build()
 }

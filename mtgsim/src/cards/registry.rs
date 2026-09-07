@@ -442,6 +442,13 @@ impl CardRegistry {
         registry.register("Myr Enforcer", phase_cm_cards::myr_enforcer);
         registry.register("Frogmite", phase_cm_cards::frogmite);
 
+        // CM-3 — lock-in's payment side (CR 601.2h, 118.8b, 732.1)
+        registry.register("Altar's Reap", phase_cm_cards::altars_reap);
+        registry.register("Thunderscape Familiar", phase_cm_cards::thunderscape_familiar);
+        registry.register("Krark-Clan Ironworks", phase_cm_cards::krark_clan_ironworks);
+        registry.register("Foundry Inspector", phase_cm_cards::foundry_inspector);
+        registry.register("Mind Stone", phase_cm_cards::mind_stone);
+
         registry
     }
 
