@@ -13,6 +13,7 @@ pub mod types;
 pub mod board;
 pub mod cda;
 pub mod compute;
+pub mod condition;
 pub mod copy;
 pub mod land_types;
 pub mod lookahead;

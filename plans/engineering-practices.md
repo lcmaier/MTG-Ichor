@@ -188,6 +188,72 @@ across months buys the timing measurement nothing.
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
+**Re-recorded 2026-09-06 for LI-3** (conditional statics;
+`layers-architecture.md` §13b). One new card in `performance` — Kird Ape,
+69 → 70 — and none in `stress`, and no new row. **Every movement below is
+the pool's**: with the registry and pools unchanged, LI-3's engine
+reproduces LI-2's table byte for byte on both pools, at 50 games and at
+200 (the middle arm of the three-arm table below), because no *registered*
+card's static ability had a condition before Kird Ape and the new branch
+in the existence check therefore never ran.
+
+| | performance (70 cards) | stress (81 cards) |
+|---|---|---|
+| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 27 (54.0%) / 23 (46.0%) |
+| Avg turns | 29.3 | 30.3 |
+| Spells cast | 22.9 | 23.2 |
+| Lands played | 17.7 | 17.7 |
+| Combat w/ atk | 10.0 | 9.8 |
+| Creatures died | 6.8 | 5.1 |
+| Damage events | 22.5 | 22.3 |
+| Total damage | 57.2 | 57.8 |
+| Life changes | 15.1 | 14.5 |
+| **Layer walks** | **321** | **361** |
+| **Board walks** | **232** | **269** |
+| **Memo hits** | **87,860** | **102,836** |
+| **Layer frames** | **4,074** | **4,975** |
+| **Frames/walk** | **12.70** | **13.79** |
+| **Dependency checks** | **21** | **44** |
+| **Replacement gathers** | **476** | **522** |
+| **Restriction queries** | **479** | **524** |
+
+**Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:
+`main` at 9011d42 (A), LI-3's engine with the registry and both pools
+unchanged (B), and LI-3 as shipped (C).
+
+| | A: main | B: engine, pools unchanged | C: LI-3 |
+|---|---|---|---|
+| performance / stress, 200 games, outside `=== Timing ===` | — | **identical** | differs — pool |
+| performance layer walks / board walks (50 games) | 334 / 241 | 334 / 241 | 321 / 232 |
+| performance frames, frames/walk (50 games) | 4,296, 12.85 | 4,296, 12.85 | 4,074, 12.70 |
+| performance dependency checks (50 games) | 23 | 23 | 21 |
+| performance CPU/game median (200 games, ×3) | 15.72 ms | 15.89 ms (+1.1%) | 16.01 ms (+1.8%) |
+| performance ms / 1,000 questions (walks + hits) | 0.163 | 0.164 (+1.1%) | 0.162 (−0.2%) |
+| performance CPU/game p99 median | 45.36 ms | 45.68 ms | 70.31 ms |
+| stress dependency checks (200 games) | 87 | 87 | 72 |
+
+**B is identical to A this time, not "identical the new row aside".**
+Every counter, every behavioural row and every cost row matches at 50 and
+at 200 games on both pools; the three serial timing rounds are identical
+line for line outside `=== Timing ===`; and on 40-game `--dump-events`
+streams with the id masks applied, the whole stream is byte-identical on
+both pools — 0 of 40 games differ. That is what a conditional-existence
+clause predicts for a pool with no conditional card: `Effect::Conditional`
+is an arm no registered ability's body reaches, so `condition::holds` is
+never called and `condition_reads` adds no channel. The claim the A/B can
+make is therefore narrow and exact — **the change is inert until a
+conditional card is in the pool** — and every row that moves in C is Kird
+Ape's.
+
+Then C. 40 of 40 games differ on each pool, the first divergence in
+`performance` being event 18, `Keldon Warlord ... Library -> Hand` against
+`Kird Ape ... Library -> Hand`: the registry's sorted name list grew by
+one, so `random_deck` draws different cards from the same seeded stream.
+Nothing in those diffs is the engine's. The p99 column is the one to read
+carefully — 45.36 → 70.31 ms is a *different set of games*, not a slower
+engine, since B's p99 sits on A's; CPU/game median moves +1.8%, inside the
+sitting's spread, and ms per 1,000 questions is flat to slightly down.
+
 **Re-recorded 2026-09-06 for LI-2** (CR 613.8a/b/c, the dependency loop;
 `layers-architecture.md` §13b). One new card in `performance` — Urborg,
 Tomb of Yawgmoth, 68 → 69 — and three in `stress` — Urborg, Opalescence,
@@ -967,13 +1033,15 @@ Three existed when the practice was written down, and they are the template:
 | `rc-4b-entering-is-one-event.html` | RC-4b | four entries through the CR 614.12 look-ahead frame, each read labelled board or frame, and what RC-4b changed trace by trace |
 | `cv-1-a-copy-is-a-snapshot.html` | CV-1 | a Cytoshape resolution from the choice to the copy row and back, and CR 707.4's re-copy tearing that row down through the existence check |
 | `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
+| `item-7-an-effect-waits-for-what-it-reads.html` | LI-2 + LI-3, closing item 7 | the CR 613.8 loop's fast and slow paths; the judge answer's four-card layer 4 step by step through `next_ready` and the journal; a condition that *is* a dependency (Simian Clause under Blood Moon, with the sabotage step that shows what `condition_reads` buys) and one that is not (Kird Ape, two layers apart); the read-by-read table |
 | `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
 share, and it is why a phase that adds a card, an enum arm or a pool entry does
 not get one. The phases that qualify were listed when the practice started:
-RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, **RS-2, critical-path item 6, item 7**. Budget
+RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, because the
+pass changed every read at once, and the close), **RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 

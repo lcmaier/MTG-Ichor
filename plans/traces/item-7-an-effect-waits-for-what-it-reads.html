@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch layers/li-3-conditional-statics at 4c31c89 and the frozen CR `tmnt`;
+  never maintained — a later phase that changes these paths gets its own page.
+  Self-contained: fonts from Google Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>An Effect Waits For What It Reads</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226; --muted: #5B6770; --line: #D5DCDD;
+    --real: #1F6F78; --real-tint: #E3F0F1; --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B; --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+      --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+    --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0 0; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 1.15rem; margin-top: 1rem; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+  a { color: var(--real); }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.95rem; }
+  nav.toc a { text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; margin-top: 1.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); font-size: 0.92rem; }
+  .chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.real { color: var(--real); border-color: var(--real); background: var(--real-tint); }
+  .chip.frame { color: var(--frame); border-color: var(--frame); background: var(--frame-tint); }
+  .chip.new { color: var(--new); border-color: var(--new); background: var(--new-tint); }
+  .chip.changed { color: var(--changed); border-color: var(--changed); background: var(--changed-tint); }
+  .chip.decide { color: var(--decide); border-color: var(--decide); background: var(--decide-tint); }
+  .chip.none { color: var(--muted); border-color: var(--line); background: transparent; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); padding: 0.9rem 1rem; }
+  .card .who { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .card .name { font-family: var(--display); font-size: 1.2rem; margin-top: 0.2rem; }
+  .card .text { font-size: 0.92rem; color: var(--muted); margin-top: 0.3rem; }
+  .card.moving { border-color: var(--frame); }
+  .trace { list-style: none; margin: 1.25rem 0 0; padding: 0; background: var(--surface); border: 1px solid var(--line); overflow-x: auto; }
+  .step { display: grid; grid-template-columns: 2.6rem minmax(18rem, 1.1fr) 6rem minmax(20rem, 1.4fr); gap: 0 1rem; align-items: start; padding: 0.55rem 0.9rem; border-top: 1px solid var(--line); min-width: 54rem; }
+  .step:first-child { border-top: 0; }
+  .step .n { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .step .call { padding-left: calc(var(--d, 0) * 1.1rem); }
+  .step .call code { background: transparent; padding: 0; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .step .call .loc { display: block; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .call .sub { display: block; font-size: 0.88rem; color: var(--muted); margin-top: 0.1rem; }
+  .step .what { margin: 0; font-size: 0.95rem; }
+  .step .what em { color: var(--ink); }
+  .step[data-era="new"] { box-shadow: inset 3px 0 0 var(--new); }
+  .step[data-era="wrong"] { box-shadow: inset 3px 0 0 var(--decide); background: var(--decide-tint); }
+  .step.phase { background: var(--surface-2); }
+  .step .tags { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; padding-top: 0.15rem; }
+  .note { border-left: 3px solid var(--frame); padding: 0.2rem 0 0.2rem 1rem; margin-top: 1.25rem; max-width: 66ch; }
+  .note.real { border-left-color: var(--real); }
+  .note.changed { border-left-color: var(--changed); }
+  .note.decide { border-left-color: var(--decide); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.93rem; background: var(--surface); }
+  .tablewrap { overflow-x: auto; margin-top: 1rem; border: 1px solid var(--line); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.8rem; border-top: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 0; background: var(--surface-2); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); padding: 1rem; margin-top: 1.25rem; overflow-x: auto; }
+  ol.plain { padding-left: 1.2rem; } ol.plain li { margin-top: 0.5rem; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+  .rounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .round { background: var(--surface); border: 1px solid var(--line); padding: 0.85rem 0.9rem; }
+  .rlabel { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .rnote { font-size: 0.88rem; color: var(--muted); margin-top: 0.6rem; }
+  table.mx { width: auto; margin-top: 0.7rem; border-collapse: collapse; font-size: 0.85rem; }
+  table.mx th { background: transparent; border-top: 0; padding: 0.2rem 0.5rem; font-size: 0.68rem; }
+  table.mx tbody th { text-align: right; font-family: var(--mono); text-transform: none; letter-spacing: 0; color: var(--muted); }
+  table.mx tbody th.src { color: var(--changed); }
+  table.mx td { border: 1px solid var(--line); width: 2.1rem; height: 1.7rem; text-align: center; padding: 0; }
+  table.mx td.y { background: var(--decide-tint); color: var(--decide); }
+  table.mx td.n { color: var(--frame); background: var(--frame-tint); }
+  span.mx.n { color: var(--frame); background: var(--frame-tint); font-family: var(--mono); padding: 0 0.3rem; }
+  table.mx td.s { color: var(--line); border-color: transparent; }
+  span.mx.s { color: var(--muted); font-family: var(--mono); }
+</style>
+
+
+<div class="page">
+  <div class="eyebrow">MTG-Ichor · critical-path item 7 · CR 613.8a/b/c, 604.2, 613.6 · branch at 4c31c89 · CR tmnt</div>
+  <h1>An Effect Waits For What It Reads</h1>
+  <p class="lede prose">CR 613.7 orders a layer by timestamp; CR 613.8 overrides that whenever applying one effect would change what another <em>reads</em> — its existence, what it applies to, or what it does. LI-1 built the board the reads run against (<a href="li-1-one-pass-per-board.html">its own page</a>); this one is the two phases that close item 7. LI-2 made the order a decision taken against the live board and re-taken after every application. LI-3 added one more thing an effect's existence can depend on — a condition — and with it a read the static check has to know about, or a whole class of pairs is settled "independent" by mistake. Four boards, walked one call at a time: the four-card layer 4 a judge's answer walks, the board where a condition is the dependency, the board where a condition is <em>not</em> one and it matters that the engine can tell, and the one board here whose <em>order</em> needs CR 613.8c rather than just its sets.</p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#map">The map</a>
+    <a href="#unit">What an application is</a>
+    <a href="#a">A · Four effects, one layer</a>
+    <a href="#matrix">…the matrix, round by round</a>
+    <a href="#b">B · A condition as the dependency</a>
+    <a href="#c">C · A condition that is not one</a>
+    <a href="#d">D · Where re-evaluation decides</a>
+    <a href="#dmatrix">…the edge that appears</a>
+    <a href="#reads">Where the reads differ</a>
+    <a href="#delta">What item 7 closed, and what it left</a>
+  </nav>
+
+  <div class="legend">
+    <span class="chip real">state</span> reads <code>GameState</code>: an entity, the registry, the object store
+    <span class="chip frame">live</span> reads a frame in the pass's map, as the pass has built it <em>so far</em>
+    <span class="chip new">LI-2</span> the dependency loop
+    <span class="chip changed">LI-3</span> the condition
+    <span class="chip decide">journal</span> a hypothetical: applied, observed, taken back
+  </div>
+
+  <h2 id="map">The map</h2>
+  <p class="prose">One loop per layer, and the loop's first line is a decision. <code>applications_in_layer</code> collects what the layer applies and sorts it on CR 613.3's key; <code>resolve_order_within_layer</code> then applies exactly one thing per iteration, asking <code>next_ready</code> which one. That is where CR 613.8 lives, and it is the whole of the phase — <code>perform</code> below it is LI-1's, unchanged.</p>
+  <p class="prose"><code>next_ready</code> has a fast path and a slow one. The fast path asks only whether the key-first application waits on anything; if not, it is next by construction and no graph is built. The slow path builds the pairwise matrix, closes it transitively, and takes the earliest member of a source component — which is CR 613.8b's loop rule and CR 613.8a's waiting rule in one line. Each pair goes to <code>depends_on</code>, which tries the static channel check first and only then clones the board under a <code>Journal</code>; the dotted edges are that answer coming back to whoever asked for it.</p>
+
+  <div class="mermaid">
+flowchart TD
+  LAYER["for layer in LAYER_ORDER"] --> APPS["applications_in_layer<br/>effects, CDAs, counters — sorted on (is_cda, timestamp, tiebreak)"]
+  APPS --> CH["effect_channels<br/>what each application reads and writes"]
+  CH --> COND["conditional_reads_of → condition_reads<br/>the condition's channels, off the source's live frame"]
+  COND --> LOOP["resolve_order_within_layer<br/>while pending is not empty"]
+  LOOP --> NR["next_ready(apps, pending)"]
+  NR --> FAST{"does the key-first<br/>application wait on anything?"}
+  FAST -- no --> PICK["it is next"]
+  FAST -- yes --> MATRIX["build the pairwise matrix<br/>Floyd–Warshall closure<br/>earliest source-component member"]
+  MATRIX --> PICK
+  FAST -.-> DEP
+  MATRIX -.-> DEP
+  DEP["depends_on(a, b)"] --> STATIC{"a.reads ∩ b.writes<br/>and does b reach a's source?"}
+  STATIC -- "disjoint" --> INDEP["no dependency<br/>no board touched"]
+  STATIC -- "overlap" --> HYP["observe(a) · perform(b) under a Journal · observe(a) · restore"]
+  HYP --> DIFF{"the two observations differ?"}
+  DIFF -- no --> INDEP
+  DIFF -- yes --> WAITS["a waits for b"]
+  INDEP -.-> NR
+  WAITS -.-> NR
+  PICK --> PERF["perform(app) — for real, no journal"]
+  PERF --> LOOP
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef cond fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+  class NR,FAST,MATRIX,DEP,STATIC,HYP,DIFF,PICK,INDEP,WAITS new;
+  class COND cond;
+  </div>
+
+  <h2 id="unit">What an application is, and why it is not a row</h2>
+  <p class="prose">The unit CR 613.8 orders is an <em>effect</em>, and every clause of the rule says so. That is not a naming detail. Ashaya's "Nontoken creatures you control are Forest lands in addition to their other types" lowers to two layer-4 registry rows — <code>AddType(Land)</code> and <code>AddSubtype(Forest)</code> — and if those were ordered separately Blood Moon could apply between them: after the first row the creatures are nonbasic lands, Blood Moon depends on nothing still pending, and the second row then paints Forest onto lands Blood Moon has just made Mountains, through the CR 613.6 set it locked. <code>Kind::Effect</code> bundles one <code>EffectGroup</code>'s rows in a layer and applies them as one thing.</p>
+
+  <div class="board">
+    <div class="card"><div class="who">Layer 4 · enchantment</div><div class="name">Opalescence</div><div class="text">Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.</div></div>
+    <div class="card"><div class="who">Layer 4 · legendary creature</div><div class="name">Ashaya, Soul of the Wild</div><div class="text">Nontoken creatures you control are Forest lands in addition to their other types.</div></div>
+    <div class="card"><div class="who">Layer 4 · enchantment</div><div class="name">Blood Moon</div><div class="text">Nonbasic lands are Mountains.</div></div>
+    <div class="card"><div class="who">Layer 4 · legendary land</div><div class="name">Urborg, Tomb of Yawgmoth</div><div class="text">Each land is a Swamp in addition to its other land types.</div></div>
+  </div>
+
+  <h2 id="a">A · Four effects, one layer</h2>
+  <p class="prose">The board above, plus a basic Forest and a Grizzly Bears, entered in the reverse of the order they apply in: Urborg first, then Blood Moon, then Ashaya, then Opalescence. Timestamp order would apply Urborg first and paint Swamp onto everything. What the CR gives instead is Opalescence → Ashaya → Blood Moon, with Urborg never applying at all — and the sequence is not computed once. Each of the four steps below re-runs <code>next_ready</code> against the board the previous step left, which is CR 613.8c.</p>
+  <p class="prose">Asserted step by step in <code>board.rs</code>'s <code>the_four_card_board_applies_opalescence_ashaya_blood_moon_and_urborg_never</code>, through the pass's trace hook.</p>
+
+  <ol class="trace">
+    <li class="step phase"><span class="n">A0</span><span class="call"><code>applications_in_layer(game, board, Layer4Type, 3)</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Four <code>Kind::Effect</code> applications, one per card, each carrying its <code>Reads</code> and <code>Channels</code>. Sorted on the key: no CDAs at layer 4, so timestamp order — <em>Urborg, Blood Moon, Ashaya, Opalescence</em>.</p></li>
+    <li class="step" data-era="new"><span class="n">A1</span><span class="call"><code>next_ready(.., pending = [U, BM, Ash, Opa])</code><span class="loc">board.rs</span><span class="sub">the fast path fails on the first row</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">Urborg is key-first, so the fast path asks only about it. <code>depends_on(U, BM)</code>: Urborg's <code>reads.source</code> is <code>ABILITIES</code> (CR 604.2), Blood Moon writes <code>SUBTYPES | ABILITIES | KEYWORDS</code> (CR 305.7), and Blood Moon <em>reaches</em> Urborg — a Legendary Land is nonbasic. Overlap, so the check goes to the board.</p></li>
+    <li class="step" data-era="new"><span class="n">A2</span><span class="call"><code>observe(U) · perform(BM, journal) · observe(U) · restore</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip decide">journal</span></span><p class="what">Before: <em>exists = true</em>, affected = every land. After Blood Moon: Urborg is a Mountain, CR 305.7 stripped its ability, <em>exists = false</em>. The observations differ, so <strong>Urborg waits for Blood Moon.</strong> The journal restores the frames it touched and the board is exactly as it was.</p></li>
+    <li class="step" data-era="new"><span class="n">A3</span><span class="call"><code>next_ready</code> — the slow path<span class="loc">board.rs</span><span class="sub">the whole matrix, then the closure</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">Urborg waits, so the graph is built over all four — the matrix below. Three more dependencies come out of it, and only one of them is an existence question: Urborg also waits for <em>Ashaya</em>, and Blood Moon waits for Ashaya, because applying Ashaya changes what each of them <em>applies to</em>; Ashaya waits for Opalescence for the same reason. <strong>Opalescence applies</strong> — the one application in a source component. It reaches Blood Moon, making it a creature.</p></li>
+    <li class="step" data-era="new"><span class="n">A4</span><span class="call"><code>next_ready(.., pending = [U, BM, Ash])</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Re-decided against a board where Blood Moon is now a creature. <strong>Ashaya applies</strong> — and because Opalescence went first she reaches Blood Moon as well as herself and the Bears. Two rows, one application, so nothing lands between <code>AddType(Land)</code> and <code>AddSubtype(Forest)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">A5</span><span class="call"><code>next_ready(.., pending = [U, BM])</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Urborg still waits on Blood Moon; Blood Moon waits on nothing left. <strong>Blood Moon applies</strong> — and it now reaches four objects, not one: Urborg, Ashaya, the Bears and itself, all nonbasic lands as of A4. CR 305.7 strips their abilities, Ashaya's own P/T CDA included.</p></li>
+    <li class="step" data-era="new"><span class="n">A6</span><span class="call"><code>perform(U)</code> → <code>row_affected</code> → <code>static_ability_still_exists</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what"><code>Affected::Gone</code>. Urborg's frame no longer carries the ability that generates its effect, so it applies to nothing — "no matter in what order those effects started to apply", as its 2021-03-19 ruling puts it.</p></li>
+  </ol>
+
+  <h3 id="matrix">The matrix, round by round</h3>
+  <p class="prose">What <code>next_ready</code> actually builds, dumped from the engine on this board. Read a row as "<em>this</em> waits for": a filled cell is a dependency <code>depends_on</code> returned true for, <span class="mx s">·</span> is the diagonal, and an empty cell is independent. Every cell here is a <em>direct</em> edge; the closure runs over them and, on this board, adds nothing a reader would miss — the direct graph is already a chain.</p>
+
+  <div class="rounds">
+    <div class="round">
+      <div class="rlabel">Round 1 · 12 pairs, 9 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th><th>BM</th><th>Ash</th><th>Opa</th></tr></thead><tbody>
+      <tr><th>Urborg</th><td class="s">·</td><td class="y">▪</td><td class="y">▪</td><td></td></tr>
+      <tr><th>Blood Moon</th><td></td><td class="s">·</td><td class="y">▪</td><td></td></tr>
+      <tr><th>Ashaya</th><td></td><td></td><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">Opalescence</th><td></td><td></td><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Opalescence's row is empty — a source component. It applies.</p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 2 · 6 pairs, 3 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th><th>BM</th><th>Ash</th></tr></thead><tbody>
+      <tr><th>Urborg</th><td class="s">·</td><td class="y">▪</td><td class="y">▪</td></tr>
+      <tr><th>Blood Moon</th><td></td><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">Ashaya</th><td></td><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Ashaya's row is empty now that Opalescence is gone from the pending set.</p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 3 · 2 pairs, 2 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th><th>BM</th></tr></thead><tbody>
+      <tr><th>Urborg</th><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">Blood Moon</th><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Blood Moon applies, to four objects rather than the one it would have reached in round 1.</p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 4 · 0 pairs, 0 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th></tr></thead><tbody>
+      <tr><th class="src">Urborg</th><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote"><code>next_ready</code> short-circuits at <code>pending.len() == 1</code>. Urborg applies and reaches nothing.</p>
+    </div>
+  </div>
+
+  <div class="note decide">
+    <p><strong>The honest reading of these four matrices: on this board CR 613.8c is not what decides the order.</strong> Round 1's graph, closed transitively, already gives Opalescence → Ashaya → Blood Moon → Urborg; rounds 2 to 4 re-derive the same relations minus the applied row and would be skippable. What re-evaluation changes here is <em>what each application reaches</em> — Ashaya reaches Blood Moon only because Opalescence went first, and Blood Moon reaches four objects only because Ashaya did — and that is a consequence of applying in order, not of re-deciding. The board where the <em>order itself</em> needs 613.8c is <a href="#d">trace D</a>, and it is a fixture rather than a printed pair. Worth saying, because the four-card board is the one the judge answer walks and it is easy to read its "re-evaluated after each effect is applied" as load-bearing for the sequence rather than for the sets.</p>
+  </div>
+
+  <p class="prose">The hypothetical counts are the engine's, not the matrix's size: 12 pairs in round 1 but 9 clones, because three pairs are settled by the channel check without touching the board. Those three are the ones where Blood Moon or Opalescence is asked whether it waits for something that writes a channel neither reads.</p>
+
+  <div class="note real">
+    <p><strong>The judge's answer states two of this phase's decisions in its own words.</strong> "The dependency has to be actual for the current game state being built, not theoretical" is A2's journal applying against the live board rather than a hypothetical one; "re-evaluated after each effect is applied" is A4 and A5 re-running the whole decision. <code>plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md</code> has it in full.</p>
+  </div>
+
+  <h2 id="b">B · A condition as the dependency</h2>
+  <p class="prose">LI-3's board. <em>Simian Clause</em> — a fixture, "As long as you control a Forest, each creature you control is an Ape in addition to its other types" — enters first, with a Taiga (a nonbasic Mountain Forest) and a Grizzly Bears; Blood Moon enters second. Both effects are layer 4. Under timestamp order the Clause applies while the Taiga is still a Forest and the Bears becomes an Ape. The CR says it does not, and the reason is the same as Urborg's: applying Blood Moon changes whether the Clause's effect <em>exists</em>.</p>
+  <p class="prose">What is new is where that existence question lives. Urborg's is an ability lookup — is the ability still on the frame. The Clause's ability is still there; what changed is the board its condition asks about. <code>static_ability_still_exists</code> answers both, and LI-3 is the second clause in it.</p>
+
+  <ol class="trace">
+    <li class="step phase"><span class="n">B0</span><span class="call"><code>effect_channels(game, board, 3, rows)</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip changed">LI-3</span></span><p class="what">The Clause is a static, so <code>reads.source |= ABILITIES</code>. Then <code>conditional_reads_of</code> finds <code>Effect::Conditional</code> on the source's live frame and adds the condition's channels: <code>ControlPermanent(BySubtype(Forest))</code> reads <code>CONTROLLER</code> on every member (the variant's own controller test) and <code>SUBTYPES</code> through the filter, plus <code>CONTROLLER</code> on the source for CR 109.5's "you".</p></li>
+    <li class="step" data-era="new"><span class="n">B1</span><span class="call"><code>depends_on(Clause, BM)</code> — the static half<span class="loc">board.rs</span></span><span class="tags"><span class="chip none">no board</span></span><p class="what"><code>on_source</code>: <code>ABILITIES | CONTROLLER</code> against Blood Moon's <code>SUBTYPES | ABILITIES | KEYWORDS</code> — overlapping, but Blood Moon does not reach the Clause, an enchantment. <code>on_members</code>: <code>TYPES | CONTROLLER | SUBTYPES</code> against the same — <strong><code>SUBTYPES</code> overlaps, and that bit is the condition's.</strong> The pair goes to the board.</p></li>
+    <li class="step" data-era="wrong"><span class="n">B1′</span><span class="call">the same call, without <code>conditional_reads_of</code><span class="loc">the sabotage run</span></span><span class="tags"><span class="chip decide">wrong</span></span><p class="what"><code>on_members</code> would be <code>TYPES | CONTROLLER</code> — the Clause's own filter, "creatures you control" — which is disjoint from what Blood Moon writes. <code>on_source</code> overlaps but Blood Moon reaches no Clause. <strong>Settled independent, no hypothetical, timestamp order, a Bears that is an Ape.</strong> Exactly one test of LI-3's six fails this way, and it is the one written for it.</p></li>
+    <li class="step" data-era="new"><span class="n">B2</span><span class="call"><code>observe(Clause)</code> → <code>row_affected</code> → <code>static_ability_still_exists</code> → <code>condition::holds</code><span class="loc">condition.rs</span></span><span class="tags"><span class="chip changed">LI-3</span><span class="chip frame">live</span></span><p class="what"><code>controls_matching</code> walks <code>Board::battlefield_ids</code>, asking each member's live frame. The Taiga's frame still carries <code>Subtype::Land(Forest)</code>; its controller is "you". <em>exists = true</em>, affected = [Bears].</p></li>
+    <li class="step" data-era="new"><span class="n">B3</span><span class="call"><code>perform(BM, journal)</code> then <code>observe(Clause)</code> again<span class="loc">board.rs</span></span><span class="tags"><span class="chip decide">journal</span></span><p class="what">Blood Moon sets the Taiga's subtypes to <code>{Mountain}</code>. <code>condition::holds</code> runs again against that frame and finds no Forest: <em>exists = false</em>, affected = []. The observations differ — <strong>the Clause depends on Blood Moon</strong> — and the journal puts the Taiga's frame back.</p></li>
+    <li class="step" data-era="new"><span class="n">B4</span><span class="call"><code>next_ready</code> returns Blood Moon; <code>perform</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Blood Moon applies for real, to the one nonbasic land. One hypothetical was run in the whole layer: the reverse pair is settled statically, since Blood Moon reads land types and supertypes and the Clause writes a creature subtype on creatures.</p></li>
+    <li class="step"><span class="n">B5</span><span class="call"><code>perform(Clause)</code> → <code>Affected::Gone</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip changed">LI-3</span></span><p class="what">By the Clause's turn there is no Forest, so its effect does not exist and it reaches nothing. The Bears is a Bear. Put a <em>basic</em> Forest on the board and B3's two observations agree — no dependency, timestamp order, and the Bears is an Ape after all, which is the control the test carries.</p></li>
+  </ol>
+
+  <h2 id="c">C · A condition that is not a dependency</h2>
+  <p class="prose">Kird Ape, a Taiga and Blood Moon. "This creature gets +1/+2 as long as you control a Forest" is a <em>layer 7c</em> effect; Blood Moon is layer 4. The Ape loses its bonus, and it is important that the engine reaches that answer without CR 613.8 having anything to say — clause (a) confines dependency to a single layer, and two effects in different layers never meet in <code>next_ready</code> at all. The condition simply reads a board where layer 4 has already happened.</p>
+
+  <ol class="trace">
+    <li class="step"><span class="n">C1</span><span class="call">layer 4: <code>resolve_order_within_layer</code>, one application<span class="loc">board.rs</span></span><span class="tags"><span class="chip none">no board</span></span><p class="what">Blood Moon alone. <code>next_ready</code> short-circuits at <code>pending.len() == 1</code> — no matrix, no hypothetical, no channel comparison. The Taiga's live frame becomes a Mountain.</p></li>
+    <li class="step"><span class="n">C2</span><span class="call">layers 5, 6, 7a, 7b<span class="loc">board.rs</span></span><span class="tags"><span class="chip none">empty</span></span><p class="what">Nothing to apply. The frames carry layer 4's answer forward, which is the whole point of the pass being sequential over one map.</p></li>
+    <li class="step" data-era="new"><span class="n">C3</span><span class="call">layer 7c: <code>row_affected(Ape's row)</code> → <code>condition::holds</code><span class="loc">condition.rs</span></span><span class="tags"><span class="chip changed">LI-3</span><span class="chip frame">live</span></span><p class="what"><code>ControlPermanent(BySubtype(Forest))</code> against the live frames: the Taiga is a Mountain and nothing else has the subtype. <em>false</em> → <code>Affected::Gone</code>. The Ape is 1/1, and <code>Dependency checks</code> is unchanged across the whole pass.</p></li>
+    <li class="step"><span class="n">C4</span><span class="call">the same board with a basic Forest added<span class="loc">the test</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Blood Moon reaches only nonbasic lands, so the basic Forest's frame keeps its subtype, the condition holds at 7c, and the Ape is 2/3. One registry row throughout — the row never changed, only the answer to whether it exists.</p></li>
+  </ol>
+
+  <div class="note changed">
+    <p><strong>Why B and C are both in this page.</strong> They are the same sentence of card text — "as long as you control a Forest" — under the same Blood Moon, and the CR treats them completely differently because of which layer the <em>effect</em> lands in. An engine that routed every condition through the dependency check would run a hypothetical on C's board and get the same answer more slowly; one that routed none would get B's board wrong. The layer index is what separates them, and it costs nothing to consult because <code>next_ready</code> only ever sees one layer's applications.</p>
+  </div>
+
+  <h2 id="d">D · The board where re-evaluation decides the order</h2>
+  <p class="prose">Trace A's order falls out of round 1's graph; this one does not. Three enchantments, all layer 4, over one Idol (a vanilla Artifact) — and the timestamps are deliberately <em>A, C, B</em>, so the key order and the answer disagree:</p>
+
+  <div class="board">
+    <div class="card"><div class="who">timestamp 1 · A</div><div class="name">Artifacts Are Elves</div><div class="text">Artifacts are Elves. <em>(<code>AddSubtype(Elf)</code> over <code>ByType(Artifact)</code>)</em></div></div>
+    <div class="card"><div class="who">timestamp 2 · C</div><div class="name">Goblins Are Creatures</div><div class="text">Goblins are creatures. <em>(<code>AddType(Creature)</code> over <code>BySubtype(Goblin)</code>)</em></div></div>
+    <div class="card"><div class="who">timestamp 3 · B</div><div class="name">Elves Are Also Goblins</div><div class="text">Elves are Goblins. <em>(<code>AddSubtype(Goblin)</code> over <code>BySubtype(Elf)</code>)</em></div></div>
+  </div>
+
+  <p class="prose">The Idol is an Artifact and nothing else. So at the start of the layer it is not an Elf, and it is not a Goblin — which means <strong>C depends on nothing yet</strong>: applying B would turn Elves into Goblins, and there are no Elves, so nothing C reads would move. The dependency C→B does not exist until A has applied. That is CR 613.8c's whole content, and this is what it looks like.</p>
+
+  <ol class="trace">
+    <li class="step" data-era="new"><span class="n">D1</span><span class="call"><code>next_ready(.., pending = [A, C, B])</code><span class="loc">board.rs</span><span class="sub">the fast path succeeds</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">A is key-first and waits on nothing — two channel comparisons and no graph. <strong>A applies</strong>, and the Idol becomes an Elf. The relations at this moment, had the whole matrix been built: B waits on A; <em>C waits on nothing.</em></p></li>
+    <li class="step" data-era="new"><span class="n">D2</span><span class="call"><code>next_ready(.., pending = [C, B])</code><span class="loc">board.rs</span><span class="sub">and now the fast path fails</span></span><span class="tags"><span class="chip decide">journal</span></span><p class="what">C is key-first. <code>depends_on(C, B)</code> now says <em>yes</em> — the Idol is an Elf, so applying B would make it a Goblin, which changes what C applies to. <strong>An edge that did not exist one application ago.</strong> The slow path runs, B is the source component, <strong>B applies</strong> and the Idol becomes a Goblin.</p></li>
+    <li class="step" data-era="new"><span class="n">D3</span><span class="call"><code>next_ready(.., pending = [C])</code> → <code>perform(C)</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what"><strong>C applies</strong> to a Goblin that exists because of the two applications before it. The Idol ends the layer an Elf Goblin <em>creature</em> — applied A, B, C, where the key order was A, C, B.</p></li>
+    <li class="step" data-era="wrong"><span class="n">D′</span><span class="call">the same board, ordered once at D1<span class="loc">the counterfactual</span></span><span class="tags"><span class="chip decide">wrong</span></span><p class="what">Take round 1's graph as the answer: A and C are both independent, so after A the next by key is C — which applies to no Goblin and reaches nothing. Then B. <strong>The Idol is an Elf Goblin and not a creature.</strong> That is the failure CR 613.8c exists to prevent, and it is what LI-2's sabotage run reproduces when <code>next_ready</code> is forced to key order.</p></li>
+  </ol>
+
+  <h3 id="dmatrix">The matrix, round by round — and an edge that appears</h3>
+  <p class="prose">Trace A's three matrices are the same relations shrinking. These are not: the cell at <em>C waits on B</em> is empty in round 1 and filled in round 2, with nothing between them but A being applied. That one cell is CR 613.8c.</p>
+
+  <div class="rounds">
+    <div class="round">
+      <div class="rlabel">Round 1 · key order A, C, B</div>
+      <table class="mx"><thead><tr><th></th><th>A</th><th>C</th><th>B</th></tr></thead><tbody>
+      <tr><th class="src">A elves</th><td class="s">·</td><td></td><td></td></tr>
+      <tr><th>C creatures</th><td></td><td class="s">·</td><td class="n">—</td></tr>
+      <tr><th>B goblins</th><td class="y">▪</td><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Nothing is an Elf, so nothing is a Goblin: <span class="mx n">—</span> is the cell that is about to change. A is key-first and independent, so the engine takes the fast path and builds none of this. <strong>A applies.</strong></p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 2 · key order C, B</div>
+      <table class="mx"><thead><tr><th></th><th>C</th><th>B</th></tr></thead><tbody>
+      <tr><th>C creatures</th><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">B goblins</th><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">The Idol is an Elf now, so applying B would make it a Goblin and move what C applies to. The fast path fails on C and the graph is built. <strong>B applies.</strong></p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 3 · 1 pending</div>
+      <table class="mx"><thead><tr><th></th><th>C</th></tr></thead><tbody>
+      <tr><th class="src">C creatures</th><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Short-circuit. <strong>C applies</strong> to a Goblin that exists because of the two rounds before it.</p>
+    </div>
+  </div>
+
+  <p class="prose">The engine's own work on this board is <strong>one hypothetical, in round 2</strong> — measured, per round: 0, 1, 0. Round 1 costs none because the fast path only ever asks about A, and both of A's pairs are settled without touching the board: A reads types and B writes subtypes (disjoint channels), and C affects nothing at all yet, which <code>depends_on</code> short-circuits on before any clone. So the single most expensive thing the loop does happens exactly at the moment the new edge appears, and nowhere else.</p>
+
+  <div class="note changed">
+    <p><strong>Why this one is a fixture and trace A is printed.</strong> Trace A's four cards are real and its answer is a published judge's walkthrough, but its order does not need re-evaluation. This board's does, and no <em>printed</em> pair in the registry builds it. The shape to look for is a three-effect chain in one layer whose middle link is created by the first — the CR's own stock example, "+1/+1 for each Elf you control" beside "creatures are Elves" beside something that makes the Elves, is the nearest printed neighbourhood. Recorded as still owed in <code>layers-architecture.md</code> §13b; the rule is tested, the <em>card</em> is not.</p>
+  </div>
+
+  <h2 id="reads">Where the reads differ</h2>
+  <p class="prose">Every read the dependency check makes, and what answers it. The column that matters is the third: a read of the <em>source</em> is a dependency only when the other application reaches that source, and a read of the <em>members</em> is a dependency whenever the other application reaches anything at all. Splitting them is what keeps Urborg's pair — where both applications touch abilities — from going to the hypothetical in both directions.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Read</th><th>Answered by</th><th>Whose frame</th><th>Channels</th><th>Phase</th></tr></thead>
+    <tbody>
+      <tr><td>Does the generating ability still exist? (CR 604.2)</td><td><code>static_ability_still_exists</code></td><td>source</td><td class="num">ABILITIES</td><td>LI-1</td></tr>
+      <tr><td>Does the "as long as" clause hold?</td><td><code>condition::holds</code></td><td>source <em>and</em> members</td><td class="num">the condition's leaves</td><td><strong>LI-3</strong></td></tr>
+      <tr><td>Who is "you"? (CR 109.5)</td><td><code>FilterPlayers::you</code></td><td>source</td><td class="num">CONTROLLER</td><td>LI-1</td></tr>
+      <tr><td>What does it apply to?</td><td><code>affected_members</code> → <code>permanent_matches_filter</code></td><td>members</td><td class="num">the filter's leaves</td><td>LI-1</td></tr>
+      <tr><td>What does it do to each? (a dynamic amount, a <code>SetController</code>)</td><td><code>resolve_modification</code></td><td>members</td><td class="num">through <code>CountOf</code></td><td>LI-2</td></tr>
+      <tr><td>Is it a CDA? (CR 613.8a(c))</td><td><code>Application::is_cda</code></td><td>—</td><td class="num">a flag</td><td>LI-2</td></tr>
+      <tr><td>Did applying the other change any of the above?</td><td><code>observe</code> · <code>perform</code> under a <code>Journal</code> · <code>observe</code></td><td>every member the other reaches</td><td class="num">—</td><td>LI-2</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="prose">And the one that is <em>not</em> re-asked. CR 613.6 locks the set an effect first applied to, and <code>row_affected</code> consults <code>Board::started</code> before it consults either existence question — so a multi-layer conditional effect whose condition goes false between its layers keeps applying to the set it locked. <code>effect_channels</code> mirrors that: when the group is locked, neither the ability read nor the condition read is added at all, because neither can be a dependency any more.</p>
+
+  <h2 id="delta">What item 7 closed, and what it left</h2>
+  <ol class="plain">
+    <li><strong>The three boards the CR's own rulings walk are answered as the CR answers them</strong>, in both timestamp orders: Blood Moon with Urborg (2021-03-19), with the Rootpath Purifier clause (2022-10-14), and Humility with Opalescence (2009-10-01, 2006-02-01). Ashaya beside Blood Moon has no ruling and its expected answer is derived from the CR, which the test says on its face.</li>
+    <li><strong>"As long as [X]" is not a new kind of row.</strong> It lowers to the inner atom's rows and the condition stays on the ability, which the existence check was already fetching. That is what kept <code>ContinuousEffect</code> from growing a field and the registry from needing a reconciliation pass — the thing <code>CLAUDE.md</code> warns against, because deciding existence outside the layer walk needs an iteration cap and invents oscillation the CR does not have.</li>
+    <li><strong>The A/B says the engine change is inert until a conditional card is in the pool</strong>, and says it exactly: with the registry unchanged, LI-3's binary reproduces <code>main</code> byte for byte on both pools — every counter, three serial timing rounds, and the whole 40-game event stream. <code>Effect::Conditional</code> was an arm no registered ability's body reached.</li>
+    <li><strong>Left open, and now written down.</strong> A static ability that <em>grants</em> a static ability still registers no continuous effect: the derived rows have exactly one producer and it is a resolution. That is why this page's fixture is Rune of Flight's third line and not its fourth, and it is <code>codebase-state.md</code> "Before Layers" item 7g.</li>
+    <li><strong>What item 6 inherits.</strong> <code>Condition</code> now has a static-context evaluator; CR 603.4's intervening "if" is the same AST read at a different moment, so the trigger phase adds a reader rather than a language. A new leaf is three edits, and the third is the one to remember: a leaf that reads a frame and does not say so in <code>condition_reads</code> produces a wrong <em>order</em>, not a wrong value, and no test of the leaf itself would catch it.</li>
+  </ol>
+
+  <p class="prose" style="margin-top:2rem"><span class="eyebrow">Sources</span><br>CR 613.8a/b/c (dependency), 613.7 (timestamps), 613.6 (a started effect keeps applying), 604.2 and 611.3b (existence), 109.5 ("you"), 305.7 (a land set to a basic land type), 102.2/102.3 ("an opponent"). Rulings and the four-effect walkthrough are quoted in <code>layers-architecture.md</code> §13b and <code>plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md</code>; Kird Ape's and Rune of Flight's oracle text verified on Scryfall, 2026-09-06.</p>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = document.documentElement.dataset.theme === "dark"
+    || (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true } });
+</script>
+</body>
+</html>

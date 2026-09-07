@@ -139,17 +139,17 @@ end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points h
 1–4. Layers core, CDAs, Layer 6, Layer 2 — ✅.  7a. Epoch memoization of the layer walk — ✅ 2026-09-03
 6b. Attachment as a layers input — ✅ 2026-09-05: LH-1 the Aura host (`AffectedSet::Host`), LH-2 CR 613.7e
    (one timestamp, reassigned in `attach`, rows re-stamped) and Equip. Both walk inputs item 7's finer key needs are settled. → `layers-architecture.md` §13a
-7. The CR 613.8 cluster — dependency algorithm + board-wide sequential pass, plus the `Condition` AST that
-   conditional statics and CR 603.4 share. **Before 6** (2026-09-04: the pool already builds a 613.8 wrong
-   answer, Humility + Citanul Hierophants). **Hard back-stop before Phase 8**: no dependency-ordering-sensitive cards until it lands
+7. The CR 613.8 cluster — ✅ 2026-09-06. LI-1 the board-wide sequential pass, LI-2 dependencies decided
+   against the live board and re-decided after each application, LI-3 "as long as [X]" as one more clause in
+   CR 604.2's existence check. Phase 8's back-stop is lifted. → `layers-architecture.md` §13b
 5. Replacement effects (CR 614–616), phases RA–RE. RA, RB and **all of RC** are in; **RD then RE**, before 6
    (commutes with 6b–7): triggers read the performed stream, which must be post-replacement truth first
 5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine. **RS-1 is in**; RS-2 any time;
-   RS-3b after 7.  5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine. **CV-1 is
+   RS-3b unblocked by 7.  5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine. **CV-1 is
    in**; CV-2 any time; item 10 (CR 400.7) + CV-1b after CV-2; CV-7 (merging) back-stopped before Phase 8
 6. Triggered abilities (CR 603) — after 5, 6b, 7 and the CR 113.6 zone-function predicate; insertion point
-   `perform_sba_and_triggers`; takes LKI's consumers and conditional statics with it. **Unsized — write its
-   architecture doc first**, as every other subsystem had
+   `perform_sba_and_triggers`; takes LKI's consumers and CR 603.4's intervening "if" with it — `Condition` has
+   a static evaluator since 7, so this adds a reader, not a language. **Unsized — write its doc first**
 Beside 6 once 5 is in: the Commander interleave (cost modification, `GameConfig::commander()`, CR 903.7,
 CR 800/802) and the information model (`backlog.md` §2.9 — back-stop before Phase 8's reveal cards and
 before Phase 10). Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.

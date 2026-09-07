@@ -45,7 +45,7 @@ use super::phase_li_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 69] = [
+const PERFORMANCE_POOL: [&str; 70] = [
     "Plains",
     "Island",
     "Swamp",
@@ -171,6 +171,12 @@ const PERFORMANCE_POOL: [&str; 69] = [
     // `Dependency checks` — live in a measured game. A land, so any deck
     // that draws it drops it.
     "Urborg, Tomb of Yawgmoth",
+    // LI-3 — the pool's first row whose *existence* is a condition rather
+    // than an ability lookup (CR 604.2), re-asked for every application in
+    // every layer of every pass. One red mana, and the pool has nine lands
+    // with the Forest subtype, so both answers happen in a measured game —
+    // including the one Blood Moon takes away two layers earlier.
+    "Kird Ape",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -396,6 +402,12 @@ impl CardRegistry {
         registry.register("Urborg, Tomb of Yawgmoth", phase_li_cards::urborg_tomb_of_yawgmoth);
         registry.register("Opalescence", phase_li_cards::opalescence);
         registry.register("Ashaya, Soul of the Wild", phase_li_cards::ashaya_soul_of_the_wild);
+
+        // LI-3 — conditional statics. Kird Ape is the cheapest printed one
+        // and pooled; `phase_li_cards::flight_clause` (Rune of Flight's third
+        // line) and `phase_li_cards::simian_clause` (a layer-4 condition
+        // another layer-4 effect flips) are fixtures registered nowhere.
+        registry.register("Kird Ape", phase_li_cards::kird_ape);
 
         registry
     }

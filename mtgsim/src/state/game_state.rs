@@ -1265,6 +1265,16 @@ impl GameState {
     /// Lower a static ability's body into the `(primitive, recipient)` atoms
     /// that become registry rows.
     ///
+    /// **"Lowering" is this project's word for the one-way translation from
+    /// *card text* to *engine rows*** — from the authored `Effect` tree a
+    /// card file writes down to the `ContinuousEffect`s the layer walk
+    /// applies, in the compiler's sense of lowering a source language to an
+    /// IR. It happens once, when the ability is registered; it is not
+    /// re-derived per query, and the rows it produces carry no back-pointer
+    /// to the text. That is why an arm that declines has to be loud: nothing
+    /// downstream can tell a card that lowered to nothing from a card that
+    /// had nothing to say.
+    ///
     /// Shared with `resolve::register_granted_static_effects` for the same
     /// reason `static_primitive_rows` is: the same card text has to behave the
     /// same whether it was printed or granted, and two copies of this match
@@ -1291,9 +1301,24 @@ impl GameState {
         ability: &'a crate::objects::card_data::AbilityDef,
         card_name: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
+        Self::atoms_of_static_body(&ability.effect, card_name)
+    }
+
+    /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
+    /// *body* rather than an ability, so `Effect::Conditional` can lower what
+    /// it wraps through the very same arms — including the loud ones.
+    ///
+    /// The public entry above stays an *ability* function because that is
+    /// what its twelve callers hold and what its name promises; only the
+    /// recursion needs an `Effect`. Collapsing the two would push
+    /// `&ability.effect` into every call site to save one line here.
+    fn atoms_of_static_body<'a>(
+        body: &'a crate::types::effects::Effect,
+        card_name: &str,
+    ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
         use crate::types::effects::Effect;
 
-        match &ability.effect {
+        match body {
             Effect::Atom(p, r) => vec![(p, r)],
 
             // CR 614.1a — a static ability that generates a replacement effect
@@ -1334,23 +1359,19 @@ impl GameState {
                 atoms
             }
 
-            // Not an authoring error — an unimplemented feature, and the
-            // largest one standing between this engine and card breadth. "As
-            // long as [X], [Y]" is one of the most common static shapes in
-            // Magic, and Layer 2 wants it specifically (Dog Umbra is a
-            // conditional static whose condition is *control*).
-            Effect::Conditional(..) => {
-                debug_assert!(
-                    false,
-                    "static ability on {} is `Effect::Conditional`, which the \
-                     lowering cannot express yet — see `codebase-state.md` \
-                     Deferred Migrations item 7f. The card would register \
-                     nothing and silently do nothing. Model it as an \
-                     unconditional static for now, or implement 7f.",
-                    card_name
-                );
-                Vec::new()
-            }
+            // "As long as [X], [Y]" — LI-3. The rows are [Y]'s, registered
+            // unconditionally; [X] stays on the ability, where CR 604.2's
+            // existence check already looks, and
+            // `board::static_ability_still_exists` evaluates it against the
+            // live board at the row's layer (`layers-architecture.md` §13b
+            // decision 5). So nothing about a row is conditional and nothing
+            // has to be carried on `ContinuousEffect`.
+            //
+            // The condition is *not* consulted here. A card whose condition
+            // is false as it enters still registers its rows; they apply to
+            // nothing until it becomes true, which is the only reading that
+            // survives a condition changing with no zone change to notice.
+            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, card_name),
 
             _ => {
                 debug_assert!(
@@ -1674,16 +1695,34 @@ mod tests {
 
         // --- the arms that decline, each proven loud ----------------------
 
-        /// The big one. "As long as [X], [Y]" is one of the most common static
-        /// shapes in Magic and the lowering cannot express it yet (Deferred
-        /// Migrations item 7f). Before this assert it registered nothing and
-        /// said nothing.
+        /// The big one, and no longer a declining arm (LI-3): "as long as
+        /// [X], [Y]" lowers to [Y]'s atoms, and [X] stays on the ability for
+        /// CR 604.2's existence check to read every layer. The rows carry
+        /// nothing about the condition, which is what decision 5 buys.
         #[test]
-        #[should_panic(expected = "item 7f")]
-        fn test_conditional_static_body_is_loud() {
+        fn test_conditional_static_body_lowers_to_the_inner_atoms() {
             let ability = static_ability(Effect::Conditional(
                 Condition::SourceOnBattlefield,
                 Box::new(anthem_atom()),
+            ));
+            let atoms = GameState::static_ability_atoms(&ability, "Test Card");
+            assert_eq!(atoms.len(), 1);
+            assert_eq!(
+                GameState::static_ability_atoms(&static_ability(anthem_atom()), "Test Card").len(),
+                1,
+                "and to exactly what the same atom lowers to unconditionally"
+            );
+        }
+
+        /// The declining arms are declining *through* the wrapper too: a
+        /// conditional body the lowering cannot express is as inert as an
+        /// unconditional one, and says so at the same volume.
+        #[test]
+        #[should_panic(expected = "cannot express")]
+        fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
+            let ability = static_ability(Effect::Conditional(
+                Condition::SourceOnBattlefield,
+                Box::new(Effect::Optional(Box::new(anthem_atom()))),
             ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }

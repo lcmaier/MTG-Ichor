@@ -42,6 +42,7 @@ use std::ops::{BitOr, BitOrAssign, Deref};
 use std::sync::Arc;
 
 use crate::engine::layers::cda;
+use crate::engine::layers::condition;
 use crate::engine::layers::compute::{
     apply_resolved, base_controller, compute_non_member, permanent_matches_filter,
     resolve_modification, seed_frame, FilterPlayers, Resolved, LAYER_ORDER,
@@ -51,7 +52,9 @@ use crate::engine::layers::types::*;
 use crate::state::battlefield::PermanentState;
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
-use crate::types::effects::{AmountExpr, CounterType, PermanentFilter, PlayerRef, Selector};
+use crate::types::effects::{
+    AmountExpr, Condition, CounterType, Effect, PermanentFilter, PlayerRef, Selector,
+};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::Zone;
@@ -445,11 +448,16 @@ struct Reads {
     members: Channels,
 }
 
-/// The channels a filter's leaves read. `you` is what resolving "you" costs
-/// on the source's frame: `CONTROLLER` for a static ability (CR 109.5 reads
-/// the source's current controller off its live frame) and nothing for a
-/// resolution row, whose "you" was fixed when it resolved.
-fn filter_reads(filter: &PermanentFilter, out: &mut Reads, you: Channels) {
+/// The channels a filter's leaves read.
+///
+/// `you_channel` is not about control-changing effects — it is what
+/// *resolving the word "you"* costs, on the source's frame. CR 109.5 makes a
+/// static ability's "you" the source's **current** controller, so reading it
+/// is a read of `CONTROLLER` on the source and the parameter is
+/// `Channels::CONTROLLER`; a resolution row's "you" was fixed when it
+/// resolved and reading it costs nothing, so the parameter is
+/// `Channels::NONE`. Only leaves that mention a player pay it.
+fn filter_reads(filter: &PermanentFilter, out: &mut Reads, you_channel: Channels) {
     match filter {
         PermanentFilter::All | PermanentFilter::Token | PermanentFilter::EachOther => {}
         PermanentFilter::ByType(_) => out.members |= Channels::TYPES,
@@ -459,21 +467,21 @@ fn filter_reads(filter: &PermanentFilter, out: &mut Reads, you: Channels) {
         PermanentFilter::ByController(player) => {
             out.members |= Channels::CONTROLLER;
             if matches!(player, PlayerRef::You | PlayerRef::Opponent) {
-                out.source |= you;
+                out.source |= you_channel;
             }
         }
         // Ownership is off the object, but "you" still resolves off the source.
         PermanentFilter::ByOwner(player) => {
             if matches!(player, PlayerRef::You | PlayerRef::Opponent) {
-                out.source |= you;
+                out.source |= you_channel;
             }
         }
         PermanentFilter::PowerLE(_) => out.members |= Channels::POWER,
         PermanentFilter::And(a, b) | PermanentFilter::Or(a, b) => {
-            filter_reads(a, out, you);
-            filter_reads(b, out, you);
+            filter_reads(a, out, you_channel);
+            filter_reads(b, out, you_channel);
         }
-        PermanentFilter::Not(inner) => filter_reads(inner, out, you),
+        PermanentFilter::Not(inner) => filter_reads(inner, out, you_channel),
     }
 }
 
@@ -481,30 +489,94 @@ fn filter_reads(filter: &PermanentFilter, out: &mut Reads, you: Channels) {
 /// arms: a count reads its filter's leaves on every member; a graveyard type
 /// count reads types (of non-members, which no application reaches — kept
 /// exact rather than clever); mana value is the affected object's own.
-fn amount_reads(expr: &AmountExpr, out: &mut Reads, you: Channels) {
+fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
     match expr {
-        AmountExpr::CountOf(Selector::PermanentsMatching(filter)) => filter_reads(filter, out, you),
+        AmountExpr::CountOf(Selector::PermanentsMatching(filter)) => filter_reads(filter, out, you_channel),
         AmountExpr::CountOf(Selector::ControlledCreatures) => {
             out.members |= Channels::TYPES | Channels::CONTROLLER;
-            out.source |= you;
+            out.source |= you_channel;
         }
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
-        AmountExpr::Plus(inner, _) => amount_reads(inner, out, you),
+        AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
         _ => {}
+    }
+}
+
+/// The channels a condition reads (LI-3). CR 604.2 makes "as long as [X]"
+/// part of the same existence question as the ability list, so this is read
+/// at the same moment and gated the same way by CR 613.6's lock.
+///
+/// `you_channel` is `filter_reads`' — the cost of resolving "you" on the
+/// source, `CONTROLLER` for a static and nothing for a resolution.
+///
+/// **Every arm is spelled out and there is no wildcard, on purpose.** A new
+/// `Condition` variant fails to compile here until it is given an arm, which
+/// is the only mechanical guard there is: a leaf that reads a frame and says
+/// nothing here produces a wrong *order*, not a wrong value, so a test of the
+/// leaf's own answer would pass.
+///
+/// **Without it a conditional effect is settled "independent" by mistake.**
+/// The existence read is `Reads::source |= ABILITIES`, and a source read is a
+/// dependency only when the other application reaches the source — so a
+/// condition that another effect in the layer flips on some *other* object
+/// would never reach the hypothetical. "Lands you control are basic" beside a
+/// layer-4 static conditioned on controlling a Forest is that board.
+fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels) {
+    match condition {
+        // The controller test is the *variant's*, not the filter's, so it
+        // reads CONTROLLER on every candidate whatever the filter says.
+        Condition::ControlPermanent(filter) | Condition::OpponentControlsPermanent(filter) => {
+            out.members |= Channels::CONTROLLER;
+            out.source |= you_channel;
+            filter_reads(filter, out, you_channel);
+        }
+        // The host is read through the filter; *which* object is the host is
+        // `attached_to`, which no layer writes.
+        Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
+        // Life totals are off `GameState`, not off any frame — only a
+        // dynamic threshold reads one.
+        Condition::LifeAtLeast(expr) | Condition::LifeAtMost(expr) => amount_reads(expr, out, you_channel),
+        // A graveyard card is a non-member, which no application reaches —
+        // `amount_reads`' `CardTypesAmong` arm is kept exact for the same
+        // reason. The source's zone is off `GameState`, and the two
+        // resolution-only leaves never evaluate at all.
+        Condition::CardInGraveyard(_)
+        | Condition::SourceOnBattlefield
+        | Condition::SpellWasKicked
+        | Condition::ModeChosen(_) => {}
+    }
+}
+
+/// `condition_reads` for whatever condition sits on the ability generating
+/// `effect` — read off the source's live frame, so a *granted* conditional
+/// static is found as a printed one is.
+fn conditional_reads_of(
+    game: &GameState,
+    board: &Board<'_>,
+    effect: &ContinuousEffect,
+    layer_index: usize,
+    out: &mut Reads,
+    you_channel: Channels,
+) {
+    let EffectOrigin::StaticAbility { ability: ability_id } = effect.origin else { return };
+    let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return };
+    let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return };
+    if let Effect::Conditional(cond, _) = &ability.effect {
+        condition_reads(cond, out, you_channel);
     }
 }
 
 /// What a modification reads while being resolved — "what it does to the
 /// things it applies to". Only the three resolving arms read anything.
-fn modification_reads(modification: &EffectModification, out: &mut Reads, you: Channels) {
+fn modification_reads(modification: &EffectModification, out: &mut Reads, you_channel: Channels) {
     match modification {
-        EffectModification::SetController(PlayerRef::You | PlayerRef::Opponent) => out.source |= you,
+        EffectModification::SetController(PlayerRef::You | PlayerRef::Opponent) => out.source |= you_channel,
         EffectModification::SetPowerToughness { power, toughness }
         | EffectModification::ModifyPowerToughness { power, toughness } => {
             for value in [power, toughness] {
                 if let PtValue::Dynamic(expr) = value {
-                    amount_reads(expr, out, you);
+                    amount_reads(expr, out, you_channel);
                 }
             }
         }
@@ -526,10 +598,15 @@ fn is_dynamic(modification: &EffectModification) -> bool {
 }
 
 /// An effect's reads and writes for the layer, from its rows.
-fn effect_channels(board: &Board<'_>, rows: &[&ContinuousEffect]) -> (Reads, Channels) {
+fn effect_channels(
+    game: &GameState,
+    board: &Board<'_>,
+    layer_index: usize,
+    rows: &[&ContinuousEffect],
+) -> (Reads, Channels) {
     let first = rows[0];
     let is_static = matches!(first.origin, EffectOrigin::StaticAbility { .. });
-    let you = if is_static { Channels::CONTROLLER } else { Channels::NONE };
+    let you_channel = if is_static { Channels::CONTROLLER } else { Channels::NONE };
     let mut reads = Reads::default();
     // CR 613.6 — an effect that started in an earlier layer has its set and
     // its existence locked; only what it does can still depend on anything.
@@ -537,14 +614,15 @@ fn effect_channels(board: &Board<'_>, rows: &[&ContinuousEffect]) -> (Reads, Cha
     if !locked {
         if is_static {
             reads.source |= Channels::ABILITIES;
+            conditional_reads_of(game, board, first, layer_index, &mut reads, you_channel);
         }
         if let AffectedSet::Filter { filter } = &first.affected {
-            filter_reads(filter, &mut reads, you);
+            filter_reads(filter, &mut reads, you_channel);
         }
     }
     let mut writes = Channels::NONE;
     for row in rows {
-        modification_reads(&row.modification, &mut reads, you);
+        modification_reads(&row.modification, &mut reads, you_channel);
         writes |= writes_of(&row.modification);
     }
     (reads, writes)
@@ -576,6 +654,7 @@ fn applications_in_layer<'a, 'l: 'a>(
     game: &'a GameState,
     board: &Board<'l>,
     layer: Layer,
+    layer_index: usize,
 ) -> Vec<Application<'a>> {
     let mut apps: Vec<Application<'a>> = Vec::new();
 
@@ -623,7 +702,7 @@ fn applications_in_layer<'a, 'l: 'a>(
             rows.iter().all(|r| r.timestamp == first.timestamp),
             "one effect's rows carry one timestamp (CR 613.7a/b)"
         );
-        let (reads, writes) = effect_channels(board, &rows);
+        let (reads, writes) = effect_channels(game, board, layer_index, &rows);
         apps.push(Application {
             kind: Kind::Effect { rows, would_be: would_be.is_some() },
             timestamp: first.timestamp,
@@ -706,6 +785,15 @@ fn applications_in_layer<'a, 'l: 'a>(
 /// `EffectOrigin::Resolution` effects (CR 613.7b) always exist: a resolution
 /// already happened and cannot be taken back.
 ///
+/// **And, since LI-3, "as long as [X]" is the same question.** A conditional
+/// static's rows are the inner atom's, registered unconditionally; the
+/// condition stays on the ability, which this function already fetches from
+/// the live frame, and the effect exists iff the condition holds there and
+/// then. That is §13b decision 5 — no field on `ContinuousEffect`, no second
+/// registry, and CR 613.6 covers the later layers of a multi-layer effect
+/// (once it has started applying, a condition going false does not retract
+/// it) because the locked set is consulted before this function is called.
+///
 /// Existence is not the same as surviving, and only existence is decided
 /// here. An instant that grants first strike until end of turn creates an
 /// effect that exists for the turn no matter what — but Humility, applying
@@ -721,10 +809,14 @@ fn static_ability_still_exists(
         EffectOrigin::Resolution => return true,
         EffectOrigin::StaticAbility { ability } => ability,
     };
-    match board.frame_of(game, effect.source, layer_index) {
-        Some(frame) => frame.abilities.iter().any(|a| a.id == ability_id),
-        // Source is gone from the object store entirely.
-        None => false,
+    // Source is gone from the object store entirely.
+    let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
+    let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
+    match &ability.effect {
+        Effect::Conditional(cond, _) => {
+            condition::holds(cond, game, board, effect.source, layer_index)
+        }
+        _ => true,
     }
 }
 
@@ -1180,7 +1272,7 @@ pub(super) fn compute_board_traced<'l>(
     game.counters.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked);
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
-        let apps = applications_in_layer(game, &board, layer);
+        let apps = applications_in_layer(game, &board, layer, layer_index);
         let layer_trace: Option<&mut Vec<TraceStep>> = match trace.as_mut() {
             Some((traced, layer_trace)) if *traced == layer_index => Some(layer_trace),
             _ => None,
@@ -1290,6 +1382,42 @@ mod tests {
         assert!(order[1].affected.is_empty(), "Urborg's ability is gone by its turn");
         assert_eq!(game.counters.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
     }
+
+    /// LI-3 — a conditional static waits for what can falsify its condition,
+    /// and the trace is where the *order* is visible rather than only its
+    /// result. The Clause enters first and applies last; when its turn comes
+    /// the Taiga is a Mountain and it reaches nothing.
+    ///
+    /// The reverse pair is settled statically, which is why there is exactly
+    /// one hypothetical: Blood Moon reads land types and supertypes, and the
+    /// Clause writes a creature subtype on creatures.
+    #[test]
+    fn a_conditional_static_applies_after_what_falsifies_its_condition() {
+        let mut game = setup_two_player_game();
+        let taiga = put_on_battlefield(&mut game, crate::cards::dual_lands::taiga(), 0);
+        let clause = put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+
+        let before = game.counters.dependency_checks();
+        let order = layer_4_order(&game);
+        assert_eq!(
+            order.iter().map(|a| a.source).collect::<Vec<_>>(),
+            vec![moon, clause],
+            "the Clause entered first and still applies second"
+        );
+        assert_eq!(order[0].affected, vec![taiga], "Blood Moon reaches the one nonbasic land");
+        assert!(order[1].affected.is_empty(), "and by the Clause's turn there is no Forest");
+        assert_eq!(
+            game.counters.dependency_checks() - before,
+            1,
+            "one hypothetical: the Clause against Blood Moon"
+        );
+        let _ = bears;
+    }
+
+
+
 
     /// A layer whose applications are pairwise independent under the channel
     /// check never reaches the hypothetical: anthems write power, and nothing
