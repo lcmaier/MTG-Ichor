@@ -313,8 +313,8 @@
 - **Minimal Board:** Player has a {3}{R} spell. A continuous effect says "spells cost {1} more." Player is paying kicker {2}.
 - **Action:** Player casts the spell with kicker.
 - **Expected Result:** Total cost = {3}{R} (base) + {2} (kicker) + {1} (increase) = {6}{R}. This is locked in.
-- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
-- **Ticket:** T18, L15
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **ATOM-601.2f-002**
 
@@ -323,8 +323,8 @@
 - **Minimal Board:** Player has a {1}{G} spell. Two effects each reduce cost by {1}. A third effect reduces cost by {G}. Total reduction = {2}{G}, but mana component is only {1} generic + {G}.
 - **Action:** Player casts the spell.
 - **Expected Result:** After reducing generic by {1} (first reduction) the generic becomes {0}. The second reduction can't reduce below {0}. After reducing by {G}, total mana cost is {0} (even though reduction is greater than the total cost). Final cost is at least {0}.
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** L15
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **ATOM-601.2f-003**
 
@@ -333,8 +333,8 @@
 - **Minimal Board:** Player casts a spell. Total cost is locked at {2}{R}. After lock-in, a new cost-increase effect enters (e.g., from a trigger resolving).
 - **Action:** Player proceeds to pay costs.
 - **Expected Result:** The new cost increase does NOT apply — the cost was already locked in. Player pays {2}{R}.
-- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 > **Note (601.2f-003):** See also ATOM-601.2h-001 which tests cost lock-in more thoroughly. This test focuses specifically on the lock-in *preventing* later modifications.
 
@@ -345,8 +345,21 @@
 - **Minimal Board:** Player controls two different cost reduction permanents (e.g., "Instant spells cost {1} less" and "Red spells cost {R} less"). Player casts a {1}{R}{R} red instant.
 - **Action:** Player chooses which reduction to apply first via DP.
 - **Expected Result:** DP is prompted for application order. Both reductions apply; final cost depends on order if reductions interact (e.g., reducing generic first vs. colored first).
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** L15
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
+
+> **Note (601.2f-004, added 2026-09-07 by CM-1):** the worked example in the
+> expected result is wrong — reducing generic first and colored first give the
+> same total. By 601.2b the mana component holds no hybrid symbol at 601.2f, and
+> under 118.7a–d every reduction's effect is a sum over the set of reductions:
+> each color loses `min(pips, Σ reductions of that color)` and generic loses the
+> generic reductions plus each color's excess, floored at zero — none of which
+> depends on the order (`cost-architecture.md` §3.4, with the proof). The order
+> changes the total only for a reduction that is itself a hybrid symbol
+> (118.7e) or one carrying a "not below one mana" floor; neither is
+> representable yet. The prompt is still asked, because the CR makes it the
+> player's, and the test asserts that, that both reductions apply, and that
+> every order gives the same answer.
 
 ---
 
@@ -377,7 +390,7 @@
 - **Minimal Board:** Player has a spell with costs: {1}{B} mana + sacrifice a creature. Player controls a creature that reduces black spell costs by {1}.
 - **Action:** Player sacrifices the creature (non-random, non-library cost), then pays mana.
 - **Expected Result:** Per the Example (Altar's Reap + Thunderscape Familiar): cost was locked in at {B} (not {1}{B}) because cost locking happened BEFORE payment. Even though the familiar is sacrificed during payment, the locked cost doesn't change.
-- **Phase:** Backlog — cost pipeline (was Phase 5 Pre-Work)
+- **Phase:** Backlog — cost pipeline (CM-3, `cost-architecture.md`: sacrifice as a cost)
 - **Ticket:** T18
 
 **ATOM-601.2h-002**

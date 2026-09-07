@@ -2447,8 +2447,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {1}{R}. An effect reduces costs by {2}.
 - **Action:** Calculate the final cost
 - **Expected Result:** Cost is {R} (generic reduced from {1} to {0}, colored component untouched per 118.7a)
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **ATOM-118.7-002**
 - **Rule:** 118.7 — Reducing cost to {0} allows free casting
@@ -2456,8 +2456,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {2}. An effect reduces costs by {3}.
 - **Action:** Calculate the final cost and cast
 - **Expected Result:** Cost is {0} (reduced from {2}; excess {1} is lost). Player can cast for free. This is distinct from 118.5 (objects that *naturally* cost {0}) — this tests that the reduction pipeline correctly produces a zero cost.
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **118.7a** — TESTABLE. Generic cost reductions only affect generic mana component.
 
@@ -2467,8 +2467,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {2}{R}{R}. Effect reduces by {3}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {R}{R} (generic {2} reduced to {0}; the extra {1} reduction doesn't affect colored)
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **118.7b** — TESTABLE. If a cost is reduced by colored/colorless mana the cost doesn't require, reduce generic instead.
 
@@ -2478,8 +2478,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {3}{R}. Effect reduces by {U}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {2}{R} (no {U} component, so {U} reduction → reduce generic by 1)
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **118.7c** — TESTABLE. Colored reduction exceeding colored component overflows to generic.
 
@@ -2489,8 +2489,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {2}{R}. Effect reduces by {R}{R}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {1} (first {R} reduces the {R} component; second {R} overflows to reduce generic by 1)
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **118.7d** — TESTABLE. Colorless reduction exceeding colorless component overflows to generic.
 
@@ -2500,8 +2500,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** Spell costs {2}{C}. Effect reduces by {C}{C}.
 - **Action:** Calculate final cost
 - **Expected Result:** Cost is {1} (first {C} removes {C}; second overflows to reduce generic by 1)
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **118.7e** — TESTABLE. Hybrid mana reduction: when a cost reduction is itself a hybrid mana symbol (e.g., an effect says "Spells cost {2/U} less to cast"), the player paying the cost chooses which half of the *reduction* to apply. This is analogous to how paying a hybrid cost works — the reduction is a hybrid symbol and you choose which half to reduce by.
 
@@ -2600,8 +2600,8 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {4}{R}{R} has alternative cost {R}{R}. An effect increases costs by {1}.
 - **Action:** Calculate final cost using alternative cost
 - **Expected Result:** Final cost is {1}{R}{R} (alternative cost {R}{R} + increase {1})
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-1 — cost modification; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-1
 
 **118.10** — TESTABLE. Each cost payment applies to only one spell/ability/effect.
 

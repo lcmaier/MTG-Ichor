@@ -217,6 +217,48 @@ in the existence check therefore never ran.
 | **Replacement gathers** | **476** | **522** |
 | **Restriction queries** | **479** | **524** |
 
+**Re-recorded 2026-09-07 for CM-1** (cost modification; `cost-architecture.md`).
+One new card in `performance` — Thalia, Guardian of Thraben, 70 → 71 — and
+three in `stress` (Thalia, Goblin Electromancer, Trinisphere; 83 → 86). **Every
+movement below is the pool's, and this time that was checked by construction
+rather than argued**: a third arm, the CM-1 engine with the three cards
+registered but the *old* `PERFORMANCE_POOL`, reproduces `main`'s 200-game
+`performance` run byte for byte outside the timing block (`fuzz_ab.py`:
+`unpooled vs main outside Timing: IDENTICAL`), because a cost pipeline gated on
+an empty source set is not there; on `stress` that arm and the pooled arm are
+identical to each other, so pooling Thalia moved `performance` and nothing else.
+Timing, 200 games, three interleaved rounds: CPU/game 15.67 → 15.70 ms
+(+0.2%), ms per 1,000 walks 46.2 → 43.0, deterministic in all three arms.
+
+Reachability, 200 games (`--require`, which since this phase re-joins a card
+name that contains its own separator — the flag split "Thalia, Guardian of
+Thraben" into two names nobody had registered): Thalia cast 210, resolved 210,
+in 131 `performance` games (66%), 1.66 copies per deck; with Humility forced
+beside her, Thalia in 138 games (69%) and Humility in 105 (52%), which is the
+stripped-source path in a measured game. `stress`, Goblin Electromancer and
+Trinisphere forced: 180 cast / 178 resolved in 126 games (63%) and 193 / 191 in
+131 games (66%), ~1.5 copies per deck each.
+
+| | performance (71 cards) | stress (86 cards) |
+|---|---|---|
+| P0 / P1 | 32 (64.0%) / 18 (36.0%) | 26 (52.0%) / 24 (48.0%) |
+| Avg turns | 29.3 | 31.4 |
+| Spells cast | 22.1 | 23.7 |
+| Lands played | 17.3 | 18.4 |
+| Combat w/ atk | 10.4 | 11.1 |
+| Creatures died | 6.4 | 5.6 |
+| Damage events | 21.4 | 25.3 |
+| Total damage | 56.1 | 67.4 |
+| Life changes | 14.7 | 15.8 |
+| **Layer walks** | **363** | **467** |
+| **Board walks** | **235** | **270** |
+| **Memo hits** | **91,298** | **105,142** |
+| **Layer frames** | **4,253** | **5,021** |
+| **Frames/walk** | **11.70** | **10.76** |
+| **Dependency checks** | **14** | **114** |
+| **Replacement gathers** | **479** | **549** |
+| **Restriction queries** | **482** | **552** |
+
 **Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:
 `main` at 9011d42 (A), LI-3's engine with the registry and both pools
 unchanged (B), and LI-3 as shipped (C).

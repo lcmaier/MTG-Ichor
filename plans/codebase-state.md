@@ -901,17 +901,22 @@ built, and none of it blocks RC-1 through RC-3.
     it. **What L15 owned that the restriction model does not:** `lands_per_turn`
     is still a raw field (`state/player.rs:23`, read directly by
     `PlayerState::can_play_land`) and is a *computed player-scoped value*, not a
-    restriction. It belongs with the cost-modification phase, the other CR 613.11
-    consumer (Before Layers item 3). Four corpus atoms still carry the `L15`
-    ticket: `ATOM-601.3-001`, `ATOM-613.10-001`, `ATOM-613.11-001/002`.
+    restriction. ~~It belongs with the cost-modification phase, the other
+    CR 613.11 consumer (Before Layers item 3).~~ **Re-homed 2026-09-07:**
+    `cost-architecture.md` §3.9 owns CR 613.11's *cost* half only and split
+    this out — a player-scoped value applied in timestamp order is the rule's
+    other sentence, and shares its surface with `max_hand_size` and player
+    hexproof, which `backlog.md` §2.15 holds as one entry. That entry owns
+    it. Two corpus atoms still carry the `L15` ticket: `ATOM-601.3-001` and
+    `ATOM-613.10-001`; `ATOM-613.11-001/002` were re-filed to CM-1.
 
     **Reachability (2026-09-03):** nothing owed here — a record.
     `lands_per_turn` is still a raw field (`player.rs:23`) and no registered
     card changes it.
 
-    **Sized:** the field becomes a computed player-scoped value
-    inside the cost-modification phase ("Before Layers" item 3), ~40 lines; the
-    four `L15` atoms move with it.
+    **Sized:** the field becomes a computed player-scoped value inside
+    `backlog.md` §2.15's surface, ~40 lines of its small-to-medium; the two
+    remaining `L15` atoms move with it.
 
 14. **A duration CR 608.2c does not give it — the scope is too *broad*.**
     ⚠️ **RELOCATED, NOT FIXED, by RS-1 (2026-08-31).** `turns.rs`'s
@@ -2902,6 +2907,95 @@ measurement; what follows is what a later phase has to know.
 
     **Sized:** none beyond item 64's PR.
 
+### Found by CM-1 — cost modification (2026-09-07)
+
+**Shipped:** CR 601.2f's order as `engine/cost_modification/`, discovered off
+effective ability lists behind a three-leg gate; `Effect::CostModification`,
+`Condition::SourceUntapped`, `ChoiceKind::OrderCostReductions`; the castability
+preview reading the locked cost; Thalia (pooled), Goblin Electromancer,
+Trinisphere. `plans/cost-architecture.md` has the design, the sizing of
+CM-2–4 and CP-1, and the Krark-Clan Ironworks loop as the casting pipeline's
+integration test; what follows is what a later phase has to know.
+
+**Measured** (`plans/fuzz_ab.py`, 2026-09-07, three arms — `main`, the CM-1
+engine with its three cards registered but not pooled, and CM-1 pooled): the
+unpooled arm reproduces `main` byte for byte on `performance` outside the
+timing block, so every counter the pooled arm moves is Thalia's doing and not
+the engine's; CPU/game 15.67 → 15.70 ms (+0.2%), deterministic in all three
+arms. Thalia forced into every `performance` deck resolves in 66% of 200
+games; with Humility forced beside her, both are on the board in 52%.
+`engineering-practices.md` §3 has the re-recorded table.
+
+70. **`run_mana_ability_window` closes the moment the pool covers the cost,
+    and CR 605.3a has no such clause.** A player may activate mana abilities
+    "whenever they are casting a spell or activating an ability that requires
+    a mana payment" — with no "until it is paid" — and the Ironworks loop's
+    step 3 is exactly the play the early return forbids (`cost-architecture.md`
+    §3.11, confirmed by a judge's walkthrough). The stop is a *payer's*
+    policy sitting in the engine's loop.
+
+    **Reachability (2026-09-07):** reachable — wrong today on any board with a
+    second mana ability worth activating after the cost is covered; invisible
+    to the fuzz harness because its provider never wants to.
+
+    **Sized:** CM-4 — the window runs until the player declines (~30
+    lines) and the stop moves into a `ui::AutoPayer<D>` decorator that the
+    random provider and the CLI wrap themselves in by default (~150), so the
+    fuzz counters stay where they are.
+
+71. **The window's opening condition is right by accident.** CR 601.2g opens
+    it only "if the total cost includes a mana payment" — casting Mox Opal
+    offers none — and `run_mana_ability_window` is called unconditionally,
+    returning at once because a zero cost is already payable. Item 70's fix
+    removes that return, so it must add the 601.2g test: open iff the locked
+    mana component is non-empty (a component reduced to nothing, "considered
+    to be {0}", read the same way — the one residual question §3.11 leaves
+    for a judge).
+
+    **Reachability (2026-09-07):** nothing owed — a record for item 70's
+    fix; the answer is right today.
+
+    **Sized:** with item 70, ~5 lines.
+
+72. **CR 732.1's reversal of mana abilities is the player's option, and the
+    engine never offers it.** "Each player may also reverse any legal mana
+    abilities that player activated while making the illegal play"; the
+    rewind keeps them every time, which is *a* legal answer and not the
+    player's. The Mind Stone variant of the Ironworks loop (§3.11) is the
+    board where it is observable, and three questions about it are left for
+    a judge there. Widens `backlog.md` §2.18's reversal entry, which already
+    named the prompt.
+
+    **Reachability (2026-09-07):** reachable — not wrong; a forced choice.
+
+    **Sized:** a `ChoiceKind` at the two rewind sites and the mana undone
+    silently, ~60 lines; with CM-4 or the trigger phase, whichever needs it.
+
+73. **A conditional replacement or restriction static is inert.**
+    `register_static_effects` inserts a gate source when `ability.effect`
+    *is* an `Effect::Replacement` or `Effect::Restriction`; a conditional
+    one — `Effect::Conditional(cond, Replacement)`, Trinisphere's shape on a
+    replacement — is never inserted, and `gather`/`is_prohibited` match the
+    body the same way. The cost gate sees through the wrapper with
+    `Effect::as_cost_modification`, which is the fix's shape for both.
+
+    **Reachability (2026-09-07):** unreachable — no registered card prints
+    a conditional replacement or restriction static.
+
+    **Sized:** an `as_replacement`/`as_restriction` peel used at the three
+    sites each, ~40 lines; with the first such card.
+
+74. **The generic split and the mana window read only the first
+    `Cost::Mana` — closed by CM-1's merge.** A kicked spell's kicker mana
+    was a second `Cost::Mana` in the assembled list, so its generic was
+    allocated against the base cost's split and the window sized itself
+    against the base cost alone. CR 601.2f's "the mana component of the total
+    cost" is singular; `determine_total_cost` merges every `Cost::Mana` into
+    one before the arithmetic. No registered card kicks, so no fuzz game had
+    reached it.
+
+    **Reachability (2026-09-07):** closed — CM-1.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
@@ -3237,23 +3331,18 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    **Reachability (2026-09-03):** closed — 2026-08-19.
 
-3. **Cost modification pipeline stub — ❌ still a passthrough. Promoted 2026-08-24: this is Commander-critical, not background debt.** `engine/costs.rs:255` `apply_cost_modifications` with `TODO(L15)`. Wires to the continuous-effects registry for Thalia/Electromancer/Trinisphere — and **commander tax is a cost modification** (CR 903.8 / 601.2f / 613.11), so under the new v1 the Commander track runs through this stub.
+3. **~~Cost modification pipeline stub — ❌ still a passthrough.~~ ✅ CM-1 (2026-09-07, `plans/cost-architecture.md`).** `engine/cost_modification/` is CR 601.2f's order — merge, gather, increases, reductions in the caster's order under CR 118.7a–d, Trinisphere, the lock — and `assemble_total_cost` calls it. **Not** "wired to the continuous-effects registry", as this item said on 2026-08-24: a cost effect has no layer and applies to no object, so it is discovered off its source's *effective* ability list at 601.2f, the way a replacement effect or a "can't" is (§3.1 of the doc has the reasoning; the sentence here was written before RB built that pattern). Thalia, Guardian of Thraben (pooled), Goblin Electromancer and Trinisphere are the consumers. **Commander tax is still a cost modification** (CR 903.8) and still has no payer: it ships with `GameConfig::commander()` as one arm in `total.rs` step 1 (§3.8).
 
    **Vocabulary gap this also owns.** Golden-Tail Trainer — "Aura and Equipment spells you cast cost {X} less to cast, where X is this creature's power" — is a static ability whose amount is read live. `AmountExpr` cannot say "this creature's power": `TargetPower` means the target of a resolving spell, and `Variable` is CR 107.3's X, chosen as a spell is cast. A `SourcePower`-style variant is needed, and the card is blocked on this item too, since cost modification is CR 613.11 / 601.2f rather than a characteristic change.
 
-   **Reachability (2026-09-03):** unreachable — `apply_cost_modifications` is
-   still the passthrough (`costs.rs:267`), no registered card modifies a cost,
-   and nothing sets `is_commander`, so commander tax has no payer. The
-   vocabulary gap moved: RC-5 added `AmountExpr::SourcePower` (main item 57),
-   but only the entry-template evaluator accepts it, so a cost-modification
-   evaluator would be item 57's third and needs its own argument about which
-   board it reads.
+   **Reachability (2026-09-07):** closed — CM-1. What is left is sized in
+   `cost-architecture.md` §6: CM-2 (the spell's own cost abilities and the
+   dynamic-amount evaluator, which is item 57's third and has its board
+   argument in §3.7), CM-3 (sacrifice as a cost, the CR 601.2h example),
+   CM-4 (the mana window and the payer), CP-1 (payment); commander tax with
+   `GameConfig::commander()`.
 
-   **Sized:** `backlog.md` §2.1 — "not small, wants splitting".
-   Modification alone — a `CostModification` row kind,
-   `apply_cost_modifications` reading the registry, CR 601.2f's lock-in and its
-   reduction-ordering choice — ~400–600 lines; commander tax ~100 on top; owned
-   by the Commander interleave, which `roadmap-v2.md` §8 puts at ~4 PRs in all.
+   **Sized:** in the doc, per phase.
 
 4. **Mana-pool persistence stub — ❌ still stubbed.** `engine/turns.rs:65,142` still pass `BlanketPersistenceSet::none()` with `TODO(T12c)`. The registry it needs now exists.
 

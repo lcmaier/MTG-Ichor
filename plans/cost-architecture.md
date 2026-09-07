@@ -2,7 +2,7 @@
 
 > **Status:** design, authored 2026-09-07 and revised the same day against the
 > owner's review (seven notes and a judge's walkthrough of the Ironworks loop;
-> each is answered where it lands and listed in §11). No code written yet.
+> each is answered where it lands and listed in §11). CM-0 and CM-1 built.
 > **Authority:** the cost pipeline — what a cost modification *is* in this
 > engine, which objects can have one, where one is discovered, the CR 601.2f
 > order as built, the lock-in, and the phase sequencing for CR 601.2f–h /
@@ -218,7 +218,8 @@ list, needs a leg on every gate** — `CLAUDE.md`'s rule, now three gates wide.
 the stack frame at 601.2f, the hand frame for the preview (113.6e says it
 functions there) — with `CostSubject::Itself`, and it needs no gate: one frame
 per cast, already computed for the filter match. **CM-2** (§6); CM-1's gather
-is written with the source slot in it and the arm refused loudly.
+has one source and `CostSubject` one arm, per `CLAUDE.md`'s rule that an
+arm the pipeline cannot apply is worse than a missing one.
 
 **Other zones** — an emblem's "spells you cast cost {1} less", Convergence of
 Dominion's graveyard abilities — are `roadmap-v2.md` A5's zone-function
@@ -253,10 +254,8 @@ pub enum CostSubject {
     /// spell's frame with "you" resolved to the source's *current* controller
     /// (CR 109.5); the spell's own controller is its caster (CR 601.2a).
     Spells(ObjectFilter),
-    /// The spell this ability is on — CR 113.6d/e, 702.41a. "This spell costs …".
-    /// CM-2; CM-1 refuses it loudly.
-    Itself,
-    // CostSubject::ActivatedAbilities(ObjectFilter) — §3.10, with its first consumer.
+    // Itself — the spell this ability is on (CR 113.6d/e, 702.41a): CM-2.
+    // ActivatedAbilities(ObjectFilter) — §3.10, with its first consumer.
 }
 
 pub enum CostChange {
@@ -264,15 +263,12 @@ pub enum CostChange {
     /// component as printed: {1} adds generic, {W} adds a white pip.
     Increase(ManaCost),
     /// "cost {N} less to cast" — a cost reduction, applied under CR 118.7a–d.
-    /// `not_below` is "this effect can't reduce the mana in that cost to less
-    /// than N mana" — a clamp on this one reduction's application, printed on
-    /// 8 cards, all of them activated-ability reducers (§3.10). It is in the
-    /// type because it changes §3.4's theorem; CM-1 refuses `Some` loudly.
-    Reduce { amount: ManaCost, not_below: Option<u8> },
-    /// "cost {X} less to cast, where X is …" — a reduction whose generic amount
-    /// is read at determination (CR 118.7a: generic only). CM-2, with the
-    /// evaluator §3.7 argues for.
-    ReduceGeneric(AmountExpr),
+    Reduce(ManaCost),
+    // ReduceGeneric(AmountExpr) — "cost {X} less, where X is …": CM-2, with
+    //   the evaluator §3.7 argues for.
+    // Reduce { not_below } — "can't reduce the mana in that cost to less than
+    //   one mana", a clamp on one reduction's application, printed on 8 cards,
+    //   all of them activated-ability reducers: with that subject (§3.10).
     /// CR 601.2f's "effects that directly affect the total cost" — Trinisphere,
     /// and only Trinisphere (§1). Raises the mana component's mana value to N
     /// with generic mana, after every increase and reduction, never lowers it.
@@ -298,13 +294,14 @@ check and no behaviour to test. The matcher that answers it,
 **zone leaf** item 9 wants on the same type is not part of CM-0 — a rename
 with a semantic change in it is two PRs wearing one name.
 
-**Why four arms and not a `Vec<ManaSymbol>` delta.** Three of them are the
-three positions in 601.2f's order, and the order is the whole rule: an
-increase is added before any reduction is subtracted, and the direct-total
-effect is applied after the floor. A signed delta could not say which of the
-three it was. The fourth is the same position as the second with a dynamic
-amount, and it is separate because its evaluator has an argument to make
-(§3.7) that a `ManaCost` literal does not.
+**Why three arms and not a `Vec<ManaSymbol>` delta.** They are the three
+positions in 601.2f's order, and the order is the whole rule: an increase is
+added before any reduction is subtracted, and the direct-total effect is
+applied after the floor. A signed delta could not say which of the three it
+was. **The commented arms are not in the enum until their phase** —
+`CLAUDE.md`'s rule that an arm the pipeline cannot apply is worse than a
+missing one applies to a field the same way — and they are written here so
+the phase that adds each knows what §3.4's theorem says it expires.
 
 ### 3.3 The pipeline as built — `engine/cost_modification/`
 
@@ -368,7 +365,8 @@ and spills its excess to generic; so for each color the pips removed are
 over the set of reductions, not a function of their order, and sequential
 flooring of subtractions equals one floor of their sum.
 
-**Two expiry conditions, and both are in the type so they cannot be missed:**
+**Two expiry conditions, named here so the phases that admit them cannot
+miss them:**
 
 - **A reduction whose own amount is a hybrid symbol** (118.7e: "the player
   paying that cost chooses one half of that symbol at the time the cost
@@ -535,9 +533,9 @@ print "this effect can't reduce the mana in that cost to less than one mana"
 — Agatha of the Vile Cauldron, Biomancer's Familiar, Convergence of Dominion,
 Forensic Gadgeteer, Heartstone, Power Artifact, Training Grounds, Zirda, the
 Dawnwaker (Scryfall, 2026-09-07) — reduces ability costs, and 12 cards reduce
-them at all. The type carries `not_below` now (§3.2) so that §3.4's theorem
-names the condition; the arm that admits `Some` lands with the subject. ~80
-lines with its first consumer, after CM-3.
+them at all. §3.4's theorem names the floor as an expiry condition; the field
+that carries it lands with the subject. ~80 lines with its first consumer,
+after CM-3.
 
 "Spells cost {1} more to cast this turn" is a cost effect *created by a
 resolution* and needs a duration (CR 611.2a). It is `Primitive::ModifyCost(def,
@@ -693,7 +691,7 @@ the same player.
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **CM-0 — `PermanentFilter → ObjectFilter`** | the rename `roadmap-v2.md` A5 scheduled, pulled forward because CM-1 is its first non-permanent consumer (§3.2). No zone leaf, no behaviour | 275 occurrences / 25 `src/` files, 119 / 18 test files, 56 plan lines; `cargo build --all-targets` and a green suite are the whole check | low — pure rename; the one hazard is a doc line left saying the old name, and grep is the test |
-| **CM-1 — the pipeline** | §3.1–3.6: the type, the gate, the sweep over sources, 601.2f's order, the prompt, the preview, `SourceUntapped`, `Itself` and `not_below` refused loudly. **Consumers:** Thalia, Guardian of Thraben (increase, **pooled**), Goblin Electromancer (reduction), Trinisphere (direct-total, conditional). Fixtures: a self-tapping sphere for lock-in across 601.2g; a kicked spell; an alternative-cost spell; three small reducers for the floor | §5's 11 sites; ~400 new engine lines in `cost_modification/`, ~250 across the sites, ~350 of cards, ~600 of tests | **medium** — the first cast-time sweep; the preview is the site that can disagree with the engine, and the merge step touches every cast |
+| **CM-1 — the pipeline** | §3.1–3.6: the type, the gate, the sweep over sources, 601.2f's order, the prompt, the preview, `SourceUntapped`; no `Itself`, no `ReduceGeneric`, no `not_below` (their phases'). **Consumers:** Thalia, Guardian of Thraben (increase, **pooled**), Goblin Electromancer (reduction), Trinisphere (direct-total, conditional). Fixtures: a self-tapping sphere for lock-in across 601.2g; a kicked spell; an alternative-cost spell; three small reducers for the floor | §5's 11 sites; ~400 new engine lines in `cost_modification/`, ~250 across the sites, ~350 of cards, ~600 of tests | **medium** — the first cast-time sweep; the preview is the site that can disagree with the engine, and the merge step touches every cast |
 | **CM-2 — the spell's own cost abilities** | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
 | **CM-3 — lock-in's payment side** | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); mana paid *last* among 601.2h's first group so a failed split leaves nothing sacrificed (CR 732.1). **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — today it also stops the moment the pool covers the cost, which is a payer's policy in the engine's loop (§3.11, §8). The policy moves to `ui::AutoPayer<D>`, a `DecisionProvider` decorator that answers `ManaAbilityWindow` (stop when covered), `GenericManaAllocation`, `OrderCostReductions` and CM-3's sacrifice choice from a solver and passes everything else through; `RandomDecisionProvider` and the CLI wrap themselves in it by default, with a flag off. **Consumers:** the loop's step 3 with CM-3's cards; the fuzz harness, which must reproduce today's counters with the payer on | ~30 in the window, ~150 decorator, ~30 wiring, ~150 tests: ~400 | medium — every cast's prompt sequence passes through it; the A/B is the check that the default reproduces `main` |
@@ -881,7 +879,9 @@ matchers renamed with it. `EffectRecipient::FilteredPermanents` and
 Zero warnings, the suite green, and a same-seed `fuzz_games` diff against
 `main` identical outside the timing block. No zone leaf (layers item 9's).
 
-#### CM-1 — the pipeline — not started
+#### CM-1 — the pipeline — ✅ 2026-09-07
 
-Built as §3 says once CM-0 lands. What changes from the design while building
-is recorded in `codebase-state.md`'s CM-1 entry, not here.
+Built as §3 says. What the building changed is in `codebase-state.md`'s CM-1
+entry (main items 70–74): the merge step closed a latent kicker defect (item
+74), and the recording test provider now records an ordering prompt's *kind*.
+Thalia is pooled; the §3 table is re-recorded in `engineering-practices.md`.

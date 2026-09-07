@@ -3517,7 +3517,9 @@ than sequencing against it. `GameConfig::commander()`, commander designation,
 commander tax (CR 903.8, needs cost modification), and CR 800 priority rotation
 are not gated on this doc beyond RB items 7–8.
 
-**Cost modification needs a phase marker of its own** (audit 2026-08-25):
+**~~Cost modification needs a phase marker of its own~~** — ✅ it has a
+document, `plans/cost-architecture.md` (2026-09-07), and CM-1 is in. The
+paragraph below is kept as written. (Audit 2026-08-25):
 "interleaved" has left it with no home, and it is not small — the
 `apply_cost_modifications` stub, the `SourcePower`-class `AmountExpr` gap, and
 CR 613.11/601.2f sequencing all live there (`codebase-state.md`, Before
