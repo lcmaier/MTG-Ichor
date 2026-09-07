@@ -23,6 +23,7 @@ use super::phase_rs_cards;
 use super::phase_sba_cards;
 use super::phase_lh_cards;
 use super::phase_li_cards;
+use super::phase_cm_cards;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -45,7 +46,7 @@ use super::phase_li_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 70] = [
+const PERFORMANCE_POOL: [&str; 71] = [
     "Plains",
     "Island",
     "Swamp",
@@ -177,6 +178,12 @@ const PERFORMANCE_POOL: [&str; 70] = [
     // with the Forest subtype, so both answers happen in a measured game —
     // including the one Blood Moon takes away two layers earlier.
     "Kird Ape",
+    // CM-1 — the pool's first cost effect, so the first card that populates
+    // `cost_modification_ability_sources` and makes CR 601.2f's sweep run in
+    // a measured game; she taxes both players' noncreature spells, and with
+    // Humility already here the stripped-source path runs too. Electromancer
+    // and Trinisphere are registered and stay out: the same engine path.
+    "Thalia, Guardian of Thraben",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -408,6 +415,15 @@ impl CardRegistry {
         // line) and `phase_li_cards::simian_clause` (a layer-4 condition
         // another layer-4 effect flips) are fixtures registered nowhere.
         registry.register("Kird Ape", phase_li_cards::kird_ape);
+
+        // CM-1 — cost modification, one card per position in CR 601.2f's
+        // order: an increase (pooled), a reduction, and the one printed card
+        // that "directly affects the total cost". The fixtures in
+        // `phase_cm_cards` — the reducers, the lessons, the locked sphere —
+        // are registered nowhere.
+        registry.register("Thalia, Guardian of Thraben", phase_cm_cards::thalia_guardian_of_thraben);
+        registry.register("Goblin Electromancer", phase_cm_cards::goblin_electromancer);
+        registry.register("Trinisphere", phase_cm_cards::trinisphere);
 
         registry
     }
