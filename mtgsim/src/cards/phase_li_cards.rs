@@ -77,7 +77,7 @@ fn static_ability(effect: Effect) -> AbilityDef {
 /// has been in the pool since Phase LD — and a land, so every deck that
 /// draws it drops it. `random_deck` fills nonbasic land slots from the
 /// registry's nonbasic lands, which is how it reaches a game at all. That
-/// makes the dependency loop's slow path (`board::next_application`) live in
+/// makes the dependency loop's slow path (`board::next_ready`) live in
 /// a measured game, where before this card every layer in the pool was
 /// pairwise independent under the static check.
 pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
@@ -110,7 +110,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// Opalescence animated by another loses this ability in layer 6, and its
 /// 7b part still applies to the set it locked in layer 4.
 ///
-/// "Each other" is `PermanentFilter::Other`, the leaf this card is the first
+/// "Each other" is `PermanentFilter::EachOther`, the leaf this card is the first
 /// consumer of; its 2004-10-04 ruling is the leaf's test: "Does not animate
 /// itself. But can be animated by another Opalescence."
 ///
@@ -126,7 +126,7 @@ pub fn opalescence() -> Arc<CardData> {
                 Subtype::Enchantment(EnchantmentType::Aura),
             )))),
         )),
-        Box::new(PermanentFilter::Other),
+        Box::new(PermanentFilter::EachOther),
     ));
 
     CardDataBuilder::new("Opalescence")

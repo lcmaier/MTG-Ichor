@@ -17,8 +17,8 @@ pieces are numbered there. What LI-2 left as the seams LI-3 touches, in
   generating ability on the source's live frame. LI-3's clause goes there: if
   the ability's body is `Effect::Conditional(cond, inner)`, evaluate `cond`
   against the live board then and there, and the effect exists iff it holds.
-  `plan_row` is the one caller; a `Gone` plan is what "the condition fails"
-  becomes, and nothing else in the loop needs to know.
+  `row_affected` is the one caller; `Affected::Gone` is what "the condition
+  fails" becomes, and nothing else in the loop needs to know.
 - The dependency check already treats existence as a read of the source's
   frame (`Reads::source`, `Channels::ABILITIES`). A condition reads more —
   `ControlPermanent(filter)` reads every member's frame through the filter's
@@ -88,6 +88,6 @@ Done: item 8 closed in Deferred Migrations (LI-2); 7c's test written (LI-2);
 lines (it is at 200 today — a line has to be traded); `roadmap-v2.md` A3 ✅;
 `check_state_of_play.py --write`; the trace page for the phase
 (`engineering-practices.md` §7 lists item 7 — the four-card board through
-`board::next_application` is its natural trace, with the LI-1 page's
+`board::next_ready` is its natural trace, with the LI-1 page's
 Humility + Hierophants walk beside it). Delete this file in the PR that
 lands LI-3.

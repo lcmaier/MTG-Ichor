@@ -136,7 +136,7 @@ pub enum PermanentFilter {
     /// object id and no layer can change it. Meaningful only where the filter
     /// has a source — a static ability's affected set, a CDA's count — and
     /// the selection-side matcher refuses it rather than guessing one.
-    Other,
+    EachOther,
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
     /// over two type leaves is set *union*, which is this node.

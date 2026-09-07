@@ -37,7 +37,11 @@
 //! lower-layer information (Nightmare and Master of Etherium read Layer 4 type
 //! counts at Layer 7a), and none of those can be dependent under 613.8a(a). If
 //! such a card is ever printed, this pass has to publish into 613.8's ordering
-//! step; recorded in `codebase-state.md` under the 613.8 item.
+//! step; recorded in `codebase-state.md` under the 613.8 item. (Owner,
+//! 2026-09-06: a search beyond Scryfall found the same — no tournament-legal
+//! card reaches the both-CDA clause, and the rules community treats it as
+//! having no defined case. LI-2's loop admits the pair and runs the same
+//! check on it; nothing pins an answer, because there is none to pin.)
 
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer, PtValue};
 use crate::objects::card_data::{AbilityDef, AbilityType};

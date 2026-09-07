@@ -789,7 +789,7 @@ For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep
 
 **LI-1 (2026-09-06) built the frame this runs against and superseded the signature.** The layer driver is `board::apply_layer`, applying in key order over `Application`s — rows, CDAs, counters, with `is_cda` on each for 613.8a(c) — and the live board is the `frame` argument above. LI-2 replaces the driver's body with the loop, and the function it becomes, `resolve_order_within_layer`, *applies as it orders*: CR 613.8c makes the order after the k-th application a function of the first k, so no `Vec<EffectId>` can be returned up front (§13b, LI-2 piece 3).
 
-**LI-2 (2026-09-06) built the loop.** `board::resolve_order_within_layer` is the driver, `board::depends_on` the pair check — the static half over `Channels`, the hypothetical over a `Journal` — and `board::next_application` the candidate rule. Steps 3–6 above are as built, with two corrections: the static check compares *whose* frame a read is of as well as which field (a read of the effect's own source is a dependency only if the other effect reaches that source), and there is no topological sort — the next application is the earliest source-component member by the layer's key, re-decided after every application (CR 613.8c). The unit of ordering is an effect's rows in the layer, not a row. §13b's LI-2 as-built has the departures.
+**LI-2 (2026-09-06) built the loop.** `board::resolve_order_within_layer` is the driver, `board::depends_on` the pair check — the static half over `Channels`, the hypothetical over a `Journal` — and `board::next_ready` the candidate rule. Steps 3–6 above are as built, with two corrections: the static check compares *whose* frame a read is of as well as which field (a read of the effect's own source is a dependency only if the other effect reaches that source), and there is no topological sort — the next application is the earliest source-component member by the layer's key, re-decided after every application (CR 613.8c). The unit of ordering is an effect's rows in the layer, not a row. §13b's LI-2 as-built has the departures.
 
 **The seam this shares with CR 614.12, recorded 2026-09-02 (RC-4).** The look-ahead frame is built, and it is *not* this snapshot — `replacement-architecture.md` §5 separates the two and §11 item 5 decided the shape: a read-side overlay, never a `GameState` clone. What 613.8 inherits is the accessor pair `compute.rs` now routes its concrete-state reads through — `FrameCache::entity` (controller, CR 302.6's clock, counters) and `rows_in_layer` (the registry slice plus an entering object's would-be rows) — so a step-4 hypothetical never has to re-plumb the walk. The `Lookahead` is threaded through `FrameCache` itself rather than passed beside it, because a frame memoized under one hypothetical must never be served to a walk under another; the step-4 snapshot, when it is built, wants the same discipline.
 
@@ -1897,7 +1897,7 @@ field-by-field account of `Board` the review asked for.
    rulings with Humility (2009-10-01, both timestamp orders, layer by layer;
    2006-02-01, two Opalescences) are 7c's CR 613.6 test with the CR's own
    answers attached, and LI-1's pass already gives them — timestamp order
-   plus the locked set. It needs one filter leaf, `PermanentFilter::Other`
+   plus the locked set. It needs one filter leaf, `PermanentFilter::EachOther`
    ("each other" is `id != source`; the self-stripping fixture's doc names
    this gap), on both `permanent_matches_filter`s. First job of LI-2.
 5. **Tests.** Urborg + Blood Moon in both orders (a basic Forest is a Forest,
@@ -1955,13 +1955,13 @@ departures from the pieces above, each with the board that forced it:
 3. **The hypothetical applies in place under a journal.** Decision 3 said
    "clone the frame of each member B affects, apply B to the clone,
    re-evaluate A on it". Built as: apply B to the live board through
-   `apply_app` — the function the real application uses — with a `Journal`
+   `perform` — the function the real application uses — with a `Journal`
    saving each frame's pre-image before its first write and each CR 613.6
    lock it records; observe A; restore. The clone is the same clone at a
    different moment, and every read A makes — existence, "you", the filter,
    a count — goes through the function it always goes through rather than a
    second evaluator over an overlay. `Observation` is 613.8a(b)'s three
-   questions as data — `exists`, `targets`, the resolved outcome of every
+   questions as data — `exists`, `affected`, the resolved outcome of every
    resolving arm per target — and a dependency is two observations that
    differ. §15.2 item 3 closes on this.
 4. **The loop has a fast path, and the graph is built only when it fails.**
@@ -1973,17 +1973,27 @@ departures from the pieces above, each with the board that forced it:
    hypothetical (`a_pairwise_independent_layer_runs_no_hypothetical`), and
    the Floyd–Warshall closure runs over a handful. **`Dependency checks`** is
    the new cost row in §3: the hypotheticals a game ran.
-5. **"What it does" is the resolved outcome, not the result.** Humility's 7b
-   part and Opalescence's do not depend on each other though each changes
-   the other's *result*: 613.8a(b) asks whether applying one changes what
-   the other *does*, and "set to 1/1" is what Humility does either way. So
-   `Observation::does` holds `resolve_modification`'s answer for the three
-   resolving arms — `SetController`'s player, a dynamic amount's number —
-   and nothing for a modification that carries its own answer. That is what
-   keeps the Humility rulings on timestamp order.
-6. **A trace hook.** `compute_board_traced` takes a layer index and a sink,
-   and `resolve_order_within_layer` pushes what each application reached, in
-   the order applied. The four-card board's sequence — Opalescence reaching
+5. **"What it does" is the effect's own act, not the board after it.**
+   613.8a(b)'s third arm — "what it does to any of the things it applies
+   to" — is read as the modification the effect would write, resolved:
+   `SetController`'s player, a dynamic amount's number. It is *not* read as
+   the characteristic an object is left with after both effects apply, and
+   the reason is a reductio: under that reading any two effects *setting*
+   the same field on a shared object would depend on each other, every
+   set-against-set pair would be a loop, and CR 613.8b would hand exactly
+   the boards the rulings walk back to timestamps — the dependency system
+   would decide nothing there. The Humility + Opalescence
+   rulings do not separate the two readings (a two-effect loop is applied
+   in timestamp order too, so both give the rulings' numbers); what
+   separates them is the third arm's stock example, "+1/+1 for each Elf you
+   control" beside "creatures are Elves", where the *number* one effect
+   writes is what the other changes. So `Observation::does` holds
+   `resolve_modification`'s answer for the three resolving arms and nothing
+   for a modification that carries its own answer.
+6. **A trace hook.** `compute_board_traced` takes a layer index and a `Vec`
+   to record into, and `resolve_order_within_layer` pushes a `TraceStep` —
+   the application and what it affected — per application, in the order
+   applied. The four-card board's sequence — Opalescence reaching
    Blood Moon; Ashaya reaching herself, Blood Moon and the Bears; Blood Moon
    reaching all four nonbasic lands; Urborg reaching nothing — is asserted
    step by step in `board.rs`'s unit tests through it, and
@@ -1991,9 +2001,17 @@ departures from the pieces above, each with the board that forced it:
    entry orders.
 7. **ATOM-613.8-001 claims nothing**, as piece 5 allowed: its buildable board
    (flying granted, then all abilities lost, both by resolution on one
-   creature) is not a dependency — neither row reads anything — and its
-   dependency board ("all activated abilities of other creatures") is not
-   buildable. ATOM-613.8a-003 is claimed partial: its own board is a 7a CDA
+   creature) is not a dependency, and its dependency board ("all activated
+   abilities of other creatures") is not buildable. The first board looks
+   like an existence dependency and is not: "the existence of the first
+   effect" is the *effect's*, and a resolution's effect lasts as long as its
+   text says (CR 611.2a) whatever happens to the ability it granted — losing
+   all abilities after a granted flying removes the flying, and the granting
+   effect still exists, which is why the later timestamp wins there (a
+   creature that gains flying after Humility entered keeps it) and no
+   dependency is involved. The atom's own text concedes this for its first
+   board; its second board's reasoning is the "result" reading piece 5
+   rejects. ATOM-613.8a-003 is claimed partial: its own board is a 7a CDA
    beside a 7c pump, two layers, which clause (a) settles before (c) is
    asked; the test builds the same-layer pair — a layer-4 subtype CDA beside
    a row reading that subtype — and shows no hypothetical ran.
@@ -2001,9 +2019,9 @@ departures from the pieces above, each with the board that forced it:
 The tests are piece 5's, each in both orders with the ruling quoted beside
 the assertion, plus `test_a_power_reading_row_older_than_a_counter_waits_for_the_counter`
 — the order LI-1 left unpinned, now 3/3 — and a sabotage check: with
-`next_application` forced to key order, seven of the fifteen fail and they
+`next_ready` forced to key order, seven of the fifteen fail and they
 are exactly the dependency boards, while the CR 613.6 and loop boards pass
-either way, as this section predicted. `PermanentFilter::Other` landed as
+either way, as this section predicted. `PermanentFilter::EachOther` landed as
 piece 4 asked, on every matcher: `compute`'s answers off
 `FilterPlayers::source`, `targeting`'s refuses it (a selection has no
 source), and `pipeline`'s mods-invariance table classifies it. Urborg is in

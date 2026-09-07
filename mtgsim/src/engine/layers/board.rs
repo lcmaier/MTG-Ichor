@@ -264,7 +264,10 @@ impl<'l> Board<'l> {
     }
 }
 
-/// One thing a layer applies — CR 613.8's unit of ordering.
+/// One thing a layer applies — CR 613.8's unit of ordering: an effect's rows
+/// in this layer, one member's CDA, or one of its counters. The word means
+/// exactly this throughout the module; what one of them did, once applied,
+/// is a [`TraceStep`], and applying one is [`perform`].
 pub(super) struct Application<'a> {
     kind: Kind<'a>,
     timestamp: Timestamp,
@@ -434,7 +437,7 @@ fn writes_of(modification: &EffectModification) -> Channels {
 ///
 /// The split is what makes the static check sharp. A source read can only
 /// change if the other application *reaches the source*, which is a
-/// membership test on the other's targets; a member read can change if the
+/// membership test on what the other affects; a member read can change if the
 /// other reaches anything at all.
 #[derive(Debug, Clone, Copy, Default)]
 struct Reads {
@@ -448,7 +451,7 @@ struct Reads {
 /// resolution row, whose "you" was fixed when it resolved.
 fn filter_reads(filter: &PermanentFilter, out: &mut Reads, you: Channels) {
     match filter {
-        PermanentFilter::All | PermanentFilter::Token | PermanentFilter::Other => {}
+        PermanentFilter::All | PermanentFilter::Token | PermanentFilter::EachOther => {}
         PermanentFilter::ByType(_) => out.members |= Channels::TYPES,
         PermanentFilter::BySubtype(_) => out.members |= Channels::SUBTYPES,
         PermanentFilter::BySupertype(_) => out.members |= Channels::SUPERTYPES,
@@ -784,8 +787,8 @@ fn affected_members(
     }
 }
 
-/// Where a row's members come from, right now.
-enum RowPlan {
+/// The members a row affects right now, and where that answer came from.
+enum Affected {
     /// The generating ability is gone (CR 604.2): the row applies to nothing.
     Gone,
     /// CR 613.6 — the effect started in an earlier layer, or an earlier row
@@ -796,31 +799,31 @@ enum RowPlan {
     Fresh(Vec<ObjectId>),
 }
 
-fn plan_row(
+fn row_affected(
     game: &GameState,
     board: &Board<'_>,
     effect: &ContinuousEffect,
     would_be: bool,
     layer_index: usize,
-) -> RowPlan {
+) -> Affected {
     if board.track_started {
         if let Some(locked) = board.started.get(&effect.group()) {
-            return RowPlan::Locked(locked.clone());
+            return Affected::Locked(locked.clone());
         }
     }
     if !static_ability_still_exists(game, board, effect, layer_index) {
-        return RowPlan::Gone;
+        return Affected::Gone;
     }
-    RowPlan::Fresh(affected_members(game, board, effect, would_be, layer_index))
+    Affected::Fresh(affected_members(game, board, effect, would_be, layer_index))
 }
 
 /// What `app` would apply to if it applied now. Empty when its ability is
 /// gone, when its filter matches nothing, or when a CDA has been stripped.
-fn targets_of(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Application<'_>) -> Vec<ObjectId> {
+fn affected_by(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Application<'_>) -> Vec<ObjectId> {
     match &app.kind {
-        Kind::Effect { rows, would_be } => match plan_row(game, board, rows[0], *would_be, layer_index) {
-            RowPlan::Gone => Vec::new(),
-            RowPlan::Locked(t) | RowPlan::Fresh(t) => t,
+        Kind::Effect { rows, would_be } => match row_affected(game, board, rows[0], *would_be, layer_index) {
+            Affected::Gone => Vec::new(),
+            Affected::Locked(t) | Affected::Fresh(t) => t,
         },
         Kind::Own { object, cda, .. } => {
             if cda.is_some_and(|a| !cda_still_there(board, *object, a)) {
@@ -866,18 +869,18 @@ impl Journal {
     }
 }
 
-/// Apply one modification to `targets`, resolving each against the board
-/// before any frame is written.
-fn write_targets(
+/// Apply one modification to the members it affects, resolving each against
+/// the board before any frame is written.
+fn write_affected(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     modification: &EffectModification,
     origin: Option<&ContinuousEffect>,
-    targets: &[ObjectId],
+    affected: &[ObjectId],
     journal: &mut Option<Journal>,
 ) {
-    for &target in targets {
+    for &target in affected {
         // Resolved before the frame is mutated: a dynamic amount may read the
         // member being modified — a creature counting "creatures you control"
         // counts itself — and a half-applied frame must not be what it sees.
@@ -890,30 +893,31 @@ fn write_targets(
     }
 }
 
-/// One application, applied: what it belonged to and what it reached.
+/// One step of a layer's sequence, for the trace: the application (by the
+/// object it belongs to) and the members it affected.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Applied {
+pub(super) struct TraceStep {
     pub(super) source: ObjectId,
-    pub(super) targets: Vec<ObjectId>,
+    pub(super) affected: Vec<ObjectId>,
 }
 
 /// Apply `app` to every member it affects — for real, or under a `journal`
 /// that lets it be taken back.
-fn apply_app(
+fn perform(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     app: &Application<'_>,
     journal: &mut Option<Journal>,
-) -> Applied {
+) -> TraceStep {
     match &app.kind {
         Kind::Effect { rows, would_be } => {
             let mut reached: Vec<ObjectId> = Vec::new();
             for row in rows {
-                let (targets, lock) = match plan_row(game, board, row, *would_be, layer_index) {
-                    RowPlan::Gone => continue,
-                    RowPlan::Locked(targets) => (targets, None),
-                    RowPlan::Fresh(targets) => (targets, board.track_started.then(|| row.group())),
+                let (affected, lock) = match row_affected(game, board, row, *would_be, layer_index) {
+                    Affected::Gone => continue,
+                    Affected::Locked(affected) => (affected, None),
+                    Affected::Fresh(affected) => (affected, board.track_started.then(|| row.group())),
                 };
                 if let Some(group) = lock {
                     // Recorded even when empty: CR 613.6 locks the set at the
@@ -922,23 +926,23 @@ fn apply_app(
                     if let Some(journal) = journal.as_mut() {
                         journal.locks.push((group, board.started.get(&group).cloned()));
                     }
-                    board.started.insert(group, targets.clone());
+                    board.started.insert(group, affected.clone());
                 }
-                write_targets(game, board, layer_index, &row.modification, Some(row), &targets, journal);
-                for target in targets {
+                write_affected(game, board, layer_index, &row.modification, Some(row), &affected, journal);
+                for target in affected {
                     if !reached.contains(&target) {
                         reached.push(target);
                     }
                 }
             }
-            Applied { source: rows[0].source, targets: reached }
+            TraceStep { source: rows[0].source, affected: reached }
         }
         Kind::Own { object, cda, modification } => {
             if cda.is_some_and(|a| !cda_still_there(board, *object, a)) {
-                return Applied { source: *object, targets: Vec::new() };
+                return TraceStep { source: *object, affected: Vec::new() };
             }
-            write_targets(game, board, layer_index, modification, None, &[*object], journal);
-            Applied { source: *object, targets: vec![*object] }
+            write_affected(game, board, layer_index, modification, None, &[*object], journal);
+            TraceStep { source: *object, affected: vec![*object] }
         }
     }
 }
@@ -964,24 +968,24 @@ enum Outcome {
 #[derive(Debug, PartialEq)]
 struct Observation {
     exists: bool,
-    targets: Vec<ObjectId>,
+    affected: Vec<ObjectId>,
     does: Vec<Outcome>,
 }
 
 fn observe(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Application<'_>) -> Observation {
-    let (exists, targets, modifications): (bool, Vec<ObjectId>, Vec<(&EffectModification, Option<&ContinuousEffect>)>) =
+    let (exists, affected, modifications): (bool, Vec<ObjectId>, Vec<(&EffectModification, Option<&ContinuousEffect>)>) =
         match &app.kind {
             Kind::Effect { rows, would_be } => {
-                let (exists, targets) = match plan_row(game, board, rows[0], *would_be, layer_index) {
-                    RowPlan::Gone => (false, Vec::new()),
-                    RowPlan::Locked(t) | RowPlan::Fresh(t) => (true, t),
+                let (exists, affected) = match row_affected(game, board, rows[0], *would_be, layer_index) {
+                    Affected::Gone => (false, Vec::new()),
+                    Affected::Locked(t) | Affected::Fresh(t) => (true, t),
                 };
-                (exists, targets, rows.iter().map(|r| (&r.modification, Some(*r))).collect())
+                (exists, affected, rows.iter().map(|r| (&r.modification, Some(*r))).collect())
             }
             Kind::Own { object, cda, modification } => {
                 let exists = !cda.is_some_and(|a| !cda_still_there(board, *object, a));
-                let targets = if exists { vec![*object] } else { Vec::new() };
-                (exists, targets, vec![(modification, None)])
+                let affected = if exists { vec![*object] } else { Vec::new() };
+                (exists, affected, vec![(modification, None)])
             }
         };
     let mut does = Vec::new();
@@ -989,7 +993,7 @@ fn observe(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Applic
         if !is_dynamic(modification) {
             continue;
         }
-        for &target in &targets {
+        for &target in &affected {
             let outcome = match resolve_modification(modification, game, board, target, layer_index, origin) {
                 Resolved::AsIs(_) => continue,
                 Resolved::Controller(c) => Outcome::Controller(c),
@@ -999,7 +1003,7 @@ fn observe(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Applic
             does.push(outcome);
         }
     }
-    Observation { exists, targets, does }
+    Observation { exists, affected, does }
 }
 
 /// CR 613.8a — does `a` depend on `b`?
@@ -1014,14 +1018,14 @@ fn observe(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Applic
 /// judge answer in `plans/references/`): Blood Moon depends on Ashaya only
 /// while there is a nontoken creature for Ashaya to reach.
 ///
-/// `b_targets` memoizes `b`'s targets across the pairs of one iteration.
+/// `b_affected` memoizes what `b` affects across the pairs of one iteration.
 fn depends_on(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     a: &Application<'_>,
     b: &Application<'_>,
-    b_targets: &mut Option<Vec<ObjectId>>,
+    b_affected: &mut Option<Vec<ObjectId>>,
 ) -> bool {
     // CR 613.8a(c).
     if a.is_cda() != b.is_cda() {
@@ -1032,18 +1036,18 @@ fn depends_on(
     if !on_source && !on_members {
         return false;
     }
-    let targets = b_targets.get_or_insert_with(|| targets_of(game, board, layer_index, b));
-    if targets.is_empty() {
+    let affected = b_affected.get_or_insert_with(|| affected_by(game, board, layer_index, b));
+    if affected.is_empty() {
         return false;
     }
-    if !on_members && !targets.contains(&a.source_object()) {
+    if !on_members && !affected.contains(&a.source_object()) {
         return false;
     }
 
     game.counters.record_dependency_check();
     let before = observe(game, board, layer_index, a);
     let mut journal = Some(Journal::default());
-    apply_app(game, board, layer_index, b, &mut journal);
+    perform(game, board, layer_index, b, &mut journal);
     let after = observe(game, board, layer_index, a);
     journal.expect("the journal was handed in").restore(board);
     before != after
@@ -1065,7 +1069,7 @@ fn depends_on(
 /// hypothetical, and then it is next. Only when it does depend on something
 /// is the whole graph built — over a handful of applications, so the closure
 /// is Floyd–Warshall rather than anything cleverer.
-fn next_application(
+fn next_ready(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
@@ -1076,13 +1080,13 @@ fn next_application(
     if m == 1 {
         return 0;
     }
-    let mut targets: Vec<Option<Vec<ObjectId>>> = (0..m).map(|_| None).collect();
+    let mut affected: Vec<Option<Vec<ObjectId>>> = (0..m).map(|_| None).collect();
     let mut depends = vec![vec![false; m]; m];
 
     let head = &apps[pending[0]];
     let mut head_waits = false;
     for j in 1..m {
-        depends[0][j] = depends_on(game, board, layer_index, head, &apps[pending[j]], &mut targets[j]);
+        depends[0][j] = depends_on(game, board, layer_index, head, &apps[pending[j]], &mut affected[j]);
         head_waits |= depends[0][j];
     }
     if !head_waits {
@@ -1093,7 +1097,7 @@ fn next_application(
         for j in 0..m {
             if i != j {
                 depends[i][j] =
-                    depends_on(game, board, layer_index, &apps[pending[i]], &apps[pending[j]], &mut targets[j]);
+                    depends_on(game, board, layer_index, &apps[pending[i]], &apps[pending[j]], &mut affected[j]);
             }
         }
     }
@@ -1132,13 +1136,13 @@ fn resolve_order_within_layer(
     board: &mut Board<'_>,
     layer_index: usize,
     apps: Vec<Application<'_>>,
-    mut trace: Option<&mut Vec<Applied>>,
+    mut trace: Option<&mut Vec<TraceStep>>,
 ) {
     let mut pending: Vec<usize> = (0..apps.len()).collect();
     while !pending.is_empty() {
-        let next = next_application(game, board, layer_index, &apps, &pending);
+        let next = next_ready(game, board, layer_index, &apps, &pending);
         let index = pending.remove(next);
-        let applied = apply_app(game, board, layer_index, &apps[index], &mut None);
+        let applied = perform(game, board, layer_index, &apps[index], &mut None);
         if let Some(trace) = trace.as_deref_mut() {
             trace.push(applied);
         }
@@ -1171,17 +1175,17 @@ pub(super) fn compute_board_traced<'l>(
     lookahead: Option<&'l Lookahead>,
     asked: Option<ObjectId>,
     ceiling: usize,
-    mut trace: Option<(usize, &mut Vec<Applied>)>,
+    mut trace: Option<(usize, &mut Vec<TraceStep>)>,
 ) -> Board<'l> {
     game.counters.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked);
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
         let apps = applications_in_layer(game, &board, layer);
-        let sink: Option<&mut Vec<Applied>> = match trace.as_mut() {
-            Some((traced, sink)) if *traced == layer_index => Some(sink),
+        let layer_trace: Option<&mut Vec<TraceStep>> = match trace.as_mut() {
+            Some((traced, layer_trace)) if *traced == layer_index => Some(layer_trace),
             _ => None,
         };
-        resolve_order_within_layer(game, &mut board, layer_index, apps, sink);
+        resolve_order_within_layer(game, &mut board, layer_index, apps, layer_trace);
     }
     board
 }
@@ -1232,7 +1236,7 @@ mod tests {
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
     /// The order layer 4 applied its effects in, as `(source, reached)`.
-    fn layer_4_order(game: &GameState) -> Vec<Applied> {
+    fn layer_4_order(game: &GameState) -> Vec<TraceStep> {
         let mut trace = Vec::new();
         let layer_4 = LAYER_ORDER.iter().position(|l| *l == Layer::Layer4Type).unwrap();
         compute_board_traced(game, None, None, LAYER_ORDER.len(), Some((layer_4, &mut trace)));
@@ -1257,7 +1261,7 @@ mod tests {
         let sources: Vec<ObjectId> = order.iter().map(|a| a.source).collect();
         assert_eq!(sources, vec![opalescence, ashaya, moon, urborg]);
 
-        let reached = |i: usize| -> HashSet<ObjectId> { order[i].targets.iter().copied().collect() };
+        let reached = |i: usize| -> HashSet<ObjectId> { order[i].affected.iter().copied().collect() };
         assert_eq!(reached(0), HashSet::from([moon]), "Opalescence makes Blood Moon a creature");
         assert_eq!(
             reached(1),
@@ -1283,7 +1287,7 @@ mod tests {
         let before = game.counters.dependency_checks();
         let order = layer_4_order(&game);
         assert_eq!(order.iter().map(|a| a.source).collect::<Vec<_>>(), vec![moon, urborg]);
-        assert!(order[1].targets.is_empty(), "Urborg's ability is gone by its turn");
+        assert!(order[1].affected.is_empty(), "Urborg's ability is gone by its turn");
         assert_eq!(game.counters.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
     }
 

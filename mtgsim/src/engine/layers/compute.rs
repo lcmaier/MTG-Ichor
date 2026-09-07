@@ -315,7 +315,7 @@ pub(crate) fn base_controller(
 pub(super) struct FilterPlayers<'a, 'l> {
     effect: Option<&'a ContinuousEffect>,
     /// The object the filter is relative to — the row's source, or the
-    /// object whose CDA is counting — which is what `PermanentFilter::Other`
+    /// object whose CDA is counting — which is what `PermanentFilter::EachOther`
     /// is other than.
     source: ObjectId,
     game: &'a GameState,
@@ -527,7 +527,7 @@ pub(super) fn permanent_matches_filter(
         }
         // Identity, off the ids: Opalescence does not animate itself, and no
         // layer can make an object something other than itself.
-        PermanentFilter::Other => id != players.source,
+        PermanentFilter::EachOther => id != players.source,
         PermanentFilter::And(a, b) => {
             permanent_matches_filter(a, id, chars, players)
                 && permanent_matches_filter(b, id, chars, players)

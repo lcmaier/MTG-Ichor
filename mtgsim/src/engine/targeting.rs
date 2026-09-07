@@ -364,8 +364,8 @@ impl GameState {
             // has none — this function takes `you` and no source id. Refused
             // rather than answered `true`: a filter that silently included the
             // source would be the opposite of the word.
-            PermanentFilter::Other => Err(format!(
-                "PermanentFilter::Other on {} has no source to be other than in a selection context",
+            PermanentFilter::EachOther => Err(format!(
+                "PermanentFilter::EachOther on {} has no source to be other than in a selection context",
                 id
             )),
             PermanentFilter::PowerLE(max_power) => frame()?

@@ -391,7 +391,7 @@ impl CardRegistry {
         // dependency and pooled; Ashaya is the applies-to dependency on a
         // printed card, with a CR-derived answer; Opalescence is the CR 613.6
         // test with the Humility rulings' answers, and the first "each other"
-        // (`PermanentFilter::Other`). The Rootpath Purifier ruling's board is
+        // (`PermanentFilter::EachOther`). The Rootpath Purifier ruling's board is
         // `phase_li_cards::purifier_clause`, a fixture registered nowhere.
         registry.register("Urborg, Tomb of Yawgmoth", phase_li_cards::urborg_tomb_of_yawgmoth);
         registry.register("Opalescence", phase_li_cards::opalescence);

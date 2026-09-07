@@ -374,7 +374,7 @@ fn test_two_opalescences_and_humility_per_the_2006_ruling() {
     all(&game, &[o1, o2, h], 4);
 }
 
-/// `PermanentFilter::Other` and the Aura exclusion: Blood Moon becomes a
+/// `PermanentFilter::EachOther` and the Aura exclusion: Blood Moon becomes a
 /// 3/3 enchantment creature, an Aura does not, Opalescence itself does not.
 #[test]
 fn test_opalescence_animates_each_other_non_aura_enchantment() {
@@ -514,6 +514,9 @@ fn test_dependencies_are_re_evaluated_after_each_application() {
 // layers and so independent under clause (a) before (c) is reached; this is
 // the same-layer pair — a layer 4 subtype CDA beside a layer 4 row that reads
 // the subtype — where clause (c) is what settles it. Partial for that reason.
+// The clause's other half, two CDAs depending on each other, has no card: no
+// tournament-legal card reaches it (owner's search, 2026-09-06, and
+// `cda.rs`), so there is no answer to pin and this test does not try.
 // ---------------------------------------------------------------------------
 
 // COVERS-PARTIAL: ATOM-613.8a-003
@@ -609,7 +612,7 @@ fn test_a_power_reading_row_older_than_a_counter_waits_for_the_counter() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_the_four_card_board_from_the_judge_answer() {
+fn test_urborg_never_applies_beside_blood_moon_ashaya_and_opalescence() {
     for reversed in [false, true] {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
