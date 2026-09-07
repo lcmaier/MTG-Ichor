@@ -109,7 +109,7 @@
 <div class="page">
   <div class="eyebrow">MTG-Ichor · critical-path item 7 · CR 613.8a/b/c, 604.2, 613.6 · branch at 4c31c89 · CR tmnt</div>
   <h1>An Effect Waits For What It Reads</h1>
-  <p class="lede prose">CR 613.7 orders a layer by timestamp; CR 613.8 overrides that whenever applying one effect would change what another <em>reads</em> — its existence, what it applies to, or what it does. LI-1 built the board the reads run against (<a href="li-1-one-pass-per-board.html">its own page</a>); this one is the two phases that close item 7. LI-2 made the order a decision taken against the live board and re-taken after every application. LI-3 added one more thing an effect's existence can depend on — a condition — and with it a read the static check has to know about, or a whole class of pairs is settled "independent" by mistake. Three boards, walked one call at a time: the four-card layer 4 a judge's answer walks, the board where a condition is the dependency, and the board where a condition is <em>not</em> one and it matters that the engine can tell.</p>
+  <p class="lede prose">CR 613.7 orders a layer by timestamp; CR 613.8 overrides that whenever applying one effect would change what another <em>reads</em> — its existence, what it applies to, or what it does. LI-1 built the board the reads run against (<a href="li-1-one-pass-per-board.html">its own page</a>); this one is the two phases that close item 7. LI-2 made the order a decision taken against the live board and re-taken after every application. LI-3 added one more thing an effect's existence can depend on — a condition — and with it a read the static check has to know about, or a whole class of pairs is settled "independent" by mistake. Four boards, walked one call at a time: the four-card layer 4 a judge's answer walks, the board where a condition is the dependency, the board where a condition is <em>not</em> one and it matters that the engine can tell, and the one board here whose <em>order</em> needs CR 613.8c rather than just its sets.</p>
 
   <nav class="toc" aria-label="Sections">
     <a href="#map">The map</a>
@@ -118,6 +118,7 @@
     <a href="#matrix">…the matrix, round by round</a>
     <a href="#b">B · A condition as the dependency</a>
     <a href="#c">C · A condition that is not one</a>
+    <a href="#d">D · Where re-evaluation decides</a>
     <a href="#reads">Where the reads differ</a>
     <a href="#delta">What item 7 closed, and what it left</a>
   </nav>
@@ -228,7 +229,7 @@ flowchart TD
   </div>
 
   <div class="note decide">
-    <p><strong>The honest reading of these four matrices: on this board CR 613.8c is not what decides the order.</strong> Round 1's graph, closed transitively, already gives Opalescence → Ashaya → Blood Moon → Urborg; rounds 2 to 4 re-derive the same relations minus the applied row and would be skippable. What re-evaluation changes here is <em>what each application reaches</em> — Ashaya reaches Blood Moon only because Opalescence went first, and Blood Moon reaches four objects only because Ashaya did — and that is a consequence of applying in order, not of re-deciding. The board where the <em>order itself</em> needs 613.8c is a fixture, not a printed pair: <code>test_dependencies_are_re_evaluated_after_each_application</code>, where C's dependency on B does not exist until A has applied. Worth saying, because the four-card board is the one the judge answer walks and it is easy to read its "re-evaluated after each effect is applied" as load-bearing for the sequence rather than for the sets.</p>
+    <p><strong>The honest reading of these four matrices: on this board CR 613.8c is not what decides the order.</strong> Round 1's graph, closed transitively, already gives Opalescence → Ashaya → Blood Moon → Urborg; rounds 2 to 4 re-derive the same relations minus the applied row and would be skippable. What re-evaluation changes here is <em>what each application reaches</em> — Ashaya reaches Blood Moon only because Opalescence went first, and Blood Moon reaches four objects only because Ashaya did — and that is a consequence of applying in order, not of re-deciding. The board where the <em>order itself</em> needs 613.8c is <a href="#d">trace D</a>, and it is a fixture rather than a printed pair. Worth saying, because the four-card board is the one the judge answer walks and it is easy to read its "re-evaluated after each effect is applied" as load-bearing for the sequence rather than for the sets.</p>
   </div>
 
   <p class="prose">The hypothetical counts are the engine's, not the matrix's size: 12 pairs in round 1 but 9 clones, because three pairs are settled by the channel check without touching the board. Those three are the ones where Blood Moon or Opalescence is asked whether it waits for something that writes a channel neither reads.</p>
@@ -263,6 +264,28 @@ flowchart TD
 
   <div class="note changed">
     <p><strong>Why B and C are both in this page.</strong> They are the same sentence of card text — "as long as you control a Forest" — under the same Blood Moon, and the CR treats them completely differently because of which layer the <em>effect</em> lands in. An engine that routed every condition through the dependency check would run a hypothetical on C's board and get the same answer more slowly; one that routed none would get B's board wrong. The layer index is what separates them, and it costs nothing to consult because <code>next_ready</code> only ever sees one layer's applications.</p>
+  </div>
+
+  <h2 id="d">D · The board where re-evaluation decides the order</h2>
+  <p class="prose">Trace A's order falls out of round 1's graph; this one does not. Three enchantments, all layer 4, over one Idol (a vanilla Artifact) — and the timestamps are deliberately <em>A, C, B</em>, so the key order and the answer disagree:</p>
+
+  <div class="board">
+    <div class="card"><div class="who">timestamp 1 · A</div><div class="name">Artifacts Are Elves</div><div class="text">Artifacts are Elves. <em>(<code>AddSubtype(Elf)</code> over <code>ByType(Artifact)</code>)</em></div></div>
+    <div class="card"><div class="who">timestamp 2 · C</div><div class="name">Goblins Are Creatures</div><div class="text">Goblins are creatures. <em>(<code>AddType(Creature)</code> over <code>BySubtype(Goblin)</code>)</em></div></div>
+    <div class="card"><div class="who">timestamp 3 · B</div><div class="name">Elves Are Also Goblins</div><div class="text">Elves are Goblins. <em>(<code>AddSubtype(Goblin)</code> over <code>BySubtype(Elf)</code>)</em></div></div>
+  </div>
+
+  <p class="prose">The Idol is an Artifact and nothing else. So at the start of the layer it is not an Elf, and it is not a Goblin — which means <strong>C depends on nothing yet</strong>: applying B would turn Elves into Goblins, and there are no Elves, so nothing C reads would move. The dependency C→B does not exist until A has applied. That is CR 613.8c's whole content, and this is what it looks like.</p>
+
+  <ol class="trace">
+    <li class="step" data-era="new"><span class="n">D1</span><span class="call"><code>next_ready(.., pending = [A, C, B])</code><span class="loc">board.rs</span><span class="sub">the fast path succeeds</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">A is key-first and waits on nothing — two channel comparisons and no graph. <strong>A applies</strong>, and the Idol becomes an Elf. The relations at this moment, had the whole matrix been built: B waits on A; <em>C waits on nothing.</em></p></li>
+    <li class="step" data-era="new"><span class="n">D2</span><span class="call"><code>next_ready(.., pending = [C, B])</code><span class="loc">board.rs</span><span class="sub">and now the fast path fails</span></span><span class="tags"><span class="chip decide">journal</span></span><p class="what">C is key-first. <code>depends_on(C, B)</code> now says <em>yes</em> — the Idol is an Elf, so applying B would make it a Goblin, which changes what C applies to. <strong>An edge that did not exist one application ago.</strong> The slow path runs, B is the source component, <strong>B applies</strong> and the Idol becomes a Goblin.</p></li>
+    <li class="step" data-era="new"><span class="n">D3</span><span class="call"><code>next_ready(.., pending = [C])</code> → <code>perform(C)</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what"><strong>C applies</strong> to a Goblin that exists because of the two applications before it. The Idol ends the layer an Elf Goblin <em>creature</em> — applied A, B, C, where the key order was A, C, B.</p></li>
+    <li class="step" data-era="wrong"><span class="n">D′</span><span class="call">the same board, ordered once at D1<span class="loc">the counterfactual</span></span><span class="tags"><span class="chip decide">wrong</span></span><p class="what">Take round 1's graph as the answer: A and C are both independent, so after A the next by key is C — which applies to no Goblin and reaches nothing. Then B. <strong>The Idol is an Elf Goblin and not a creature.</strong> That is the failure CR 613.8c exists to prevent, and it is what LI-2's sabotage run reproduces when <code>next_ready</code> is forced to key order.</p></li>
+  </ol>
+
+  <div class="note changed">
+    <p><strong>Why this one is a fixture and trace A is printed.</strong> Trace A's four cards are real and its answer is a published judge's walkthrough, but its order does not need re-evaluation. This board's does, and no <em>printed</em> pair in the registry builds it. The shape to look for is a three-effect chain in one layer whose middle link is created by the first — the CR's own stock example, "+1/+1 for each Elf you control" beside "creatures are Elves" beside something that makes the Elves, is the nearest printed neighbourhood. Recorded as still owed in <code>layers-architecture.md</code> §13b; the rule is tested, the <em>card</em> is not.</p>
   </div>
 
   <h2 id="reads">Where the reads differ</h2>

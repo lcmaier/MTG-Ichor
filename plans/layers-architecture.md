@@ -875,7 +875,7 @@ Four things follow, and they set the strategy:
 
 1. **Building the frame is 3% and flat.** Cloning five `HashSet`s, a `Vec<AbilityDef>` and a `String` per frame is not the problem. Copy-on-write on `EffectiveCharacteristics` is not where to start.
 2. **Per-query cost is linear in registered effects; per priority sweep it is quadratic**, because a sweep queries every permanent. 80 permanents ≈ 196 µs per sweep. That is the number to watch as card breadth grows.
-3. **The CR 604.2 existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (Deferred Migrations 7f) — **and that date arrived, 2026-09-06**: the check now also answers a condition, so nothing computed off the registry alone can predict it.
+3. **The CR 604.2 existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (Deferred Migrations 7f) — **and that date arrived, 2026-09-06**: the check now also answers a condition, whose truth is a function of the board rather than of what the registry writes, so the gate's premise no longer implies existence. `codebase-state.md` 7f has the worked failure and why a repaired gate is not worth having.
 4. **`effects_in_layer`'s filter-and-sort is only ~10%.** Keeping the registry sorted by `(layer, timestamp, id)` and returning a slice was prototyped and measured at that; worth doing eventually, not a lever.
 
 ### The ordering that follows
@@ -2184,6 +2184,21 @@ the loop's two paths, the judge answer's four-card layer 4 walked through
 `next_ready` and the journal, the Simian Clause board with the sabotage step
 that shows what `condition_reads` buys, and Kird Ape as the same card text two
 layers apart with no dependency in it.
+
+**What the cluster still owes: a *printed* board whose order needs CR
+613.8c.** The rule is tested — `test_dependencies_are_re_evaluated_after_each_application`,
+three fixtures over one Idol, where C's dependency on B does not exist until A
+has applied and key order would leave the Idol a non-creature — and the trace
+page walks it as D. But every *registered* pair answers the same with one
+ordering pass: the four-card judge board's round-1 closure already gives
+Opalescence → Ashaya → Blood Moon → Urborg, and rounds 2–4 only re-confirm it.
+So the loop's most distinctive line is carried by fixtures alone, which is the
+gap `engineering-practices.md` §3 asks a phase to name rather than leave
+implicit. The shape to search for is a three-effect chain in one layer whose
+middle link is *created* by the first; the CR's own stock example — "+1/+1 for
+each Elf you control" beside "creatures are Elves" — is the nearest printed
+neighbourhood, and it wants a third card to make the Elves. Not a back-stop and
+not scheduled: a card want, to be filled by the first Phase 8 pair that fits.
 
 **What the phase leaves for item 6.** The `Condition` AST now has an
 evaluator in a static context, which is half of what CR 603.4's intervening

@@ -99,23 +99,30 @@ pub(super) fn holds(
             })
         }
 
-        // The same gate a filter row asks, and chosen rather than defaulted
-        // to: CR 614.12 asks what an entering permanent *would* be on the
-        // battlefield, so under a look-ahead the entering object counts as
-        // there — it is still in its source zone while its entry is being
-        // decided (RC-4b), and a plain zone equality would make its own
-        // conditional static not exist for the one question 614.12 is asking.
+        // **Always true when a static ability asks it, and the reason is
+        // `cleanup_zone_state`, not this arm.** Leaving the battlefield calls
+        // `remove_by_source`, which drops *every* row of that source
+        // whatever its duration — so by the time the existence check could
+        // want a `false` here, there is no row left to check. This is not a
+        // second spelling of `Duration::WhileSourceOnBattlefield`: the
+        // duration decides whether the row is in the registry, and this leaf
+        // would decide whether the effect exists given that it is. They
+        // agree today because the first question is answered destructively.
         //
-        // **Near-tautological today, and that is a fact about the registry
-        // rather than about this leaf.** A static ability's rows carry
-        // `Duration::WhileSourceOnBattlefield` and `remove_by_source` drops
-        // them on the way out, so a source this is asked about is on the
-        // battlefield already. The leaf earns its keep in two places that do
-        // not exist yet: CR 603.4's intervening "if", which is what
-        // `Condition` was written for, and a static ability that functions in
-        // another zone — an emblem, or a commander's eminence (§15.1) —
-        // where the answer is genuinely `false`. Not deleted for that reason,
-        // and not asserted, because a card author writing it is not wrong.
+        // The arm is written for the caller that does not exist yet.
+        // `Condition` is CR 603.4's enum, shared rather than duplicated
+        // (§13b decision 5), and an intervening "if" is checked twice — on
+        // trigger and again on resolution (CR 603.4) — against a source that
+        // may well be in a graveyard by the second check. Item 6 points that
+        // caller at this function; nothing else needs to change here.
+        //
+        // The gate is `in_battlefield_zone_or_entering` rather than zone
+        // equality, and the two differ in exactly one place: under a CR
+        // 614.12 look-ahead the entering object is still in its source zone,
+        // and 614.12 asks what it *would* be on the battlefield — so equality
+        // would answer `false` for the one question that is being asked
+        // counterfactually. No registered card reaches it; it is the same
+        // gate a filter row asks, chosen for the same reason.
         Condition::SourceOnBattlefield => board.in_battlefield_zone_or_entering(game, source),
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
