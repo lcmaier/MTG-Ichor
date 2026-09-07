@@ -344,8 +344,27 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         }
     }
 
+    /// The players of a *condition*'s filter (CR 604.2's "as long as", read
+    /// through CR 109.5): "you" is the source's current controller off its
+    /// live frame, exactly as a static row's is, and the source is what
+    /// `PermanentFilter::EachOther` is other than. Both are resolved up
+    /// front, since there is no row to re-derive them from.
+    pub(super) fn for_source(
+        source: ObjectId,
+        game: &'a GameState,
+        board: &'a Board<'l>,
+        layer_index: usize,
+    ) -> Self {
+        let owner = game.objects.get(&source).map(|obj| obj.owner);
+        let you = board
+            .frame_of(game, source, layer_index)
+            .map(|frame| frame.controller)
+            .or(owner);
+        FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
+    }
+
     /// CR 109.5's "you".
-    fn you(&mut self) -> PlayerId {
+    pub(super) fn you(&mut self) -> PlayerId {
         if let Some(you) = self.you {
             return you;
         }
@@ -579,7 +598,7 @@ pub(super) fn evaluate_pt_value(
 /// and it keeps the one recursion left bounded — a non-member read at ceiling
 /// `layer_index` is strictly below the ceiling of the walk that made it. A
 /// Tarmogoyf in a graveyard counting itself bottoms out for exactly that reason.
-fn evaluate_amount(
+pub(super) fn evaluate_amount(
     expr: &crate::types::effects::AmountExpr,
     game: &GameState,
     chars: &EffectiveCharacteristics,

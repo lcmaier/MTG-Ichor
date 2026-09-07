@@ -42,6 +42,7 @@ use std::ops::{BitOr, BitOrAssign, Deref};
 use std::sync::Arc;
 
 use crate::engine::layers::cda;
+use crate::engine::layers::condition;
 use crate::engine::layers::compute::{
     apply_resolved, base_controller, compute_non_member, permanent_matches_filter,
     resolve_modification, seed_frame, FilterPlayers, Resolved, LAYER_ORDER,
@@ -51,7 +52,9 @@ use crate::engine::layers::types::*;
 use crate::state::battlefield::PermanentState;
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
-use crate::types::effects::{AmountExpr, CounterType, PermanentFilter, PlayerRef, Selector};
+use crate::types::effects::{
+    AmountExpr, Condition, CounterType, Effect, PermanentFilter, PlayerRef, Selector,
+};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::Zone;
@@ -495,6 +498,61 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you: Channels) {
     }
 }
 
+/// The channels a condition reads (LI-3). CR 604.2 makes "as long as [X]"
+/// part of the same existence question as the ability list, so this is read
+/// at the same moment and gated the same way by CR 613.6's lock.
+///
+/// **Without it a conditional effect is settled "independent" by mistake.**
+/// The existence read is `Reads::source |= ABILITIES`, and a source read is a
+/// dependency only when the other application reaches the source — so a
+/// condition that another effect in the layer flips on some *other* object
+/// would never reach the hypothetical. "Lands you control are basic" beside a
+/// layer-4 static conditioned on controlling a Forest is that board.
+fn condition_reads(condition: &Condition, out: &mut Reads, you: Channels) {
+    match condition {
+        // The controller test is the *variant's*, not the filter's, so it
+        // reads CONTROLLER on every candidate whatever the filter says.
+        Condition::ControlPermanent(filter) | Condition::OpponentControlsPermanent(filter) => {
+            out.members |= Channels::CONTROLLER;
+            out.source |= you;
+            filter_reads(filter, out, you);
+        }
+        // The host is read through the filter; *which* object is the host is
+        // `attached_to`, which no layer writes.
+        Condition::HostMatches(filter) => filter_reads(filter, out, you),
+        // Life totals are off `GameState`, not off any frame — only a
+        // dynamic threshold reads one.
+        Condition::LifeAtLeast(expr) | Condition::LifeAtMost(expr) => amount_reads(expr, out, you),
+        // A graveyard card is a non-member, which no application reaches —
+        // `amount_reads`' `CardTypesAmong` arm is kept exact for the same
+        // reason. The source's zone is off `GameState`, and the two
+        // resolution-only leaves never evaluate at all.
+        Condition::CardInGraveyard(_)
+        | Condition::SourceOnBattlefield
+        | Condition::SpellWasKicked
+        | Condition::ModeChosen(_) => {}
+    }
+}
+
+/// `condition_reads` for whatever condition sits on the ability generating
+/// `effect` — read off the source's live frame, so a *granted* conditional
+/// static is found as a printed one is.
+fn conditional_reads_of(
+    game: &GameState,
+    board: &Board<'_>,
+    effect: &ContinuousEffect,
+    layer_index: usize,
+    out: &mut Reads,
+    you: Channels,
+) {
+    let EffectOrigin::StaticAbility { ability: ability_id } = effect.origin else { return };
+    let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return };
+    let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return };
+    if let Effect::Conditional(cond, _) = &ability.effect {
+        condition_reads(cond, out, you);
+    }
+}
+
 /// What a modification reads while being resolved — "what it does to the
 /// things it applies to". Only the three resolving arms read anything.
 fn modification_reads(modification: &EffectModification, out: &mut Reads, you: Channels) {
@@ -526,7 +584,12 @@ fn is_dynamic(modification: &EffectModification) -> bool {
 }
 
 /// An effect's reads and writes for the layer, from its rows.
-fn effect_channels(board: &Board<'_>, rows: &[&ContinuousEffect]) -> (Reads, Channels) {
+fn effect_channels(
+    game: &GameState,
+    board: &Board<'_>,
+    layer_index: usize,
+    rows: &[&ContinuousEffect],
+) -> (Reads, Channels) {
     let first = rows[0];
     let is_static = matches!(first.origin, EffectOrigin::StaticAbility { .. });
     let you = if is_static { Channels::CONTROLLER } else { Channels::NONE };
@@ -537,6 +600,7 @@ fn effect_channels(board: &Board<'_>, rows: &[&ContinuousEffect]) -> (Reads, Cha
     if !locked {
         if is_static {
             reads.source |= Channels::ABILITIES;
+            conditional_reads_of(game, board, first, layer_index, &mut reads, you);
         }
         if let AffectedSet::Filter { filter } = &first.affected {
             filter_reads(filter, &mut reads, you);
@@ -576,6 +640,7 @@ fn applications_in_layer<'a, 'l: 'a>(
     game: &'a GameState,
     board: &Board<'l>,
     layer: Layer,
+    layer_index: usize,
 ) -> Vec<Application<'a>> {
     let mut apps: Vec<Application<'a>> = Vec::new();
 
@@ -623,7 +688,7 @@ fn applications_in_layer<'a, 'l: 'a>(
             rows.iter().all(|r| r.timestamp == first.timestamp),
             "one effect's rows carry one timestamp (CR 613.7a/b)"
         );
-        let (reads, writes) = effect_channels(board, &rows);
+        let (reads, writes) = effect_channels(game, board, layer_index, &rows);
         apps.push(Application {
             kind: Kind::Effect { rows, would_be: would_be.is_some() },
             timestamp: first.timestamp,
@@ -706,6 +771,15 @@ fn applications_in_layer<'a, 'l: 'a>(
 /// `EffectOrigin::Resolution` effects (CR 613.7b) always exist: a resolution
 /// already happened and cannot be taken back.
 ///
+/// **And, since LI-3, "as long as [X]" is the same question.** A conditional
+/// static's rows are the inner atom's, registered unconditionally; the
+/// condition stays on the ability, which this function already fetches from
+/// the live frame, and the effect exists iff the condition holds there and
+/// then. That is §13b decision 5 — no field on `ContinuousEffect`, no second
+/// registry, and CR 613.6 covers the later layers of a multi-layer effect
+/// (once it has started applying, a condition going false does not retract
+/// it) because the locked set is consulted before this function is called.
+///
 /// Existence is not the same as surviving, and only existence is decided
 /// here. An instant that grants first strike until end of turn creates an
 /// effect that exists for the turn no matter what — but Humility, applying
@@ -721,10 +795,14 @@ fn static_ability_still_exists(
         EffectOrigin::Resolution => return true,
         EffectOrigin::StaticAbility { ability } => ability,
     };
-    match board.frame_of(game, effect.source, layer_index) {
-        Some(frame) => frame.abilities.iter().any(|a| a.id == ability_id),
-        // Source is gone from the object store entirely.
-        None => false,
+    // Source is gone from the object store entirely.
+    let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
+    let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
+    match &ability.effect {
+        Effect::Conditional(cond, _) => {
+            condition::holds(cond, game, board, effect.source, layer_index)
+        }
+        _ => true,
     }
 }
 
@@ -1180,7 +1258,7 @@ pub(super) fn compute_board_traced<'l>(
     game.counters.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked);
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
-        let apps = applications_in_layer(game, &board, layer);
+        let apps = applications_in_layer(game, &board, layer, layer_index);
         let layer_trace: Option<&mut Vec<TraceStep>> = match trace.as_mut() {
             Some((traced, layer_trace)) if *traced == layer_index => Some(layer_trace),
             _ => None,

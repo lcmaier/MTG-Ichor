@@ -206,6 +206,13 @@ pub enum Duration {
 }
 
 /// Conditions for Conditional effects (rule 603.4 intervening "if")
+///
+/// Shared with a static ability's "as long as [X]" (CR 604.2): a conditional
+/// static's effect exists exactly while its condition holds, and
+/// `engine::layers::condition::holds` is the evaluator that says so during
+/// the layer pass. That sharing is `layers-architecture.md` §13b decision 5 —
+/// the enum is extended, never duplicated, and grows a leaf only when a
+/// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
     ControlPermanent(PermanentFilter),
@@ -216,6 +223,15 @@ pub enum Condition {
     SpellWasKicked,
     ModeChosen(usize),
     SourceOnBattlefield,
+    /// "as long as enchanted/equipped [permanent] is [X]" — a predicate on
+    /// whatever the source is attached to (CR 303.4m reads it fresh, as
+    /// `AffectedSet::Host` does). Rune of Flight's two clauses are both this
+    /// leaf. `Host` rather than `AttachedTo` for the reason §13a decision 4
+    /// gives: one word for one relationship across the whole engine.
+    ///
+    /// False when the source is attached to nothing, which is what makes an
+    /// unattached Aura's conditional effect simply not exist.
+    HostMatches(PermanentFilter),
 }
 
 /// How many modes to choose (rule 700.2)
