@@ -4,7 +4,8 @@ use std::sync::Arc;
 use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::effects::{AmountExpr, Effect, ManaOutput, Primitive, EffectRecipient, SelectionFilter};
+use crate::types::cost_modification::{CostChange, CostModificationDef};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, EffectRecipient, SelectionFilter, Selector};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
@@ -223,6 +224,33 @@ impl CardDataBuilder {
     pub fn keyword_flag(mut self, keyword: KeywordFlag) -> Self {
         self.data.keyword_flags.insert(keyword);
         self
+    }
+
+    /// **Affinity for [text]** — CR 702.41a: "This spell costs {1} less to
+    /// cast for each [text] you control."
+    ///
+    /// The first keyword a builder writes that is not a [`KeywordFlag`], and
+    /// the reason [`Self::keyword_flag`] is no longer called `keyword`. The
+    /// rule *defines* affinity as that sentence, so the card carries the
+    /// sentence and nothing in the engine knows the word: a static ability
+    /// whose subject is the spell itself (CR 113.6d) and whose change is a
+    /// generic reduction of a count.
+    ///
+    /// `filter` is the "[text]" — `ObjectFilter::ByType(CardType::Artifact)`
+    /// for affinity for artifacts. "You control" is added here, so a card
+    /// writes the noun and no more. CR 702.41b — "if a spell has multiple
+    /// instances of affinity, each of them applies" — is calling this twice.
+    pub fn affinity_for(self, filter: ObjectFilter) -> Self {
+        let you_control = ObjectFilter::And(
+            Box::new(filter),
+            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        );
+        self.ability(
+            CostModificationDef::itself(CostChange::ReduceGeneric(AmountExpr::CountOf(
+                Selector::PermanentsMatching(you_control),
+            )))
+            .into_ability(),
+        )
     }
 
     pub fn color_indicator(mut self, colors: Vec<Color>) -> Self {

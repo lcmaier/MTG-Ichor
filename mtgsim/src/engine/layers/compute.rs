@@ -727,6 +727,42 @@ pub(super) fn evaluate_amount(
     }
 }
 
+/// [`evaluate_amount`] against the settled board at the full ceiling — the
+/// read-side view a *post-layer* consumer takes, so every leaf answers as the
+/// live pass would have at its last layer. The mirror of
+/// [`condition::settled_holds`](crate::engine::layers::condition::settled_holds),
+/// and the same one line.
+///
+/// `object` is the object the amount is *about*, which for the one caller
+/// today — `engine::cost_determination`, at CR 601.2f — is always the cost
+/// ability's own source: the permanent for a `Spells` subject, the spell
+/// itself for `Itself`.
+///
+/// **That identity is `codebase-state.md` item 57's answer.** The item warned
+/// that a cost evaluator for `SourcePower` would be a *third* evaluator whose
+/// entitlement nobody had argued. It is instead a third **caller** of the one
+/// leaf table, and the entitlement is argued once (`cost-architecture.md`
+/// §3.7): CR 613.11 applies cost effects after every other continuous effect,
+/// so no hypothetical frame is in play and `Board::settled()` is the board the
+/// rule describes — the memo for a member's frame, the real battlefield for a
+/// count.
+///
+/// **`SourcePower` still has no arm anywhere**, because no registered card
+/// needs one. When it gets one — Golden-Tail Trainer, which waits on
+/// critical-path item 6 — the arm belongs *here* and not in
+/// [`evaluate_amount`]: `object` being the source means this caller reads
+/// `chars.power` and makes no cross-object read at all, where the walk would
+/// have to reach a *different* object's frame mid-pass, which is the CR 613.8
+/// dependency it refuses on purpose.
+pub fn settled_amount(
+    expr: &crate::types::effects::AmountExpr,
+    game: &GameState,
+    object: ObjectId,
+) -> Option<i32> {
+    let chars = compute_characteristics(game, object)?;
+    evaluate_amount(expr, game, &chars, object, LAYER_ORDER.len(), &Board::settled(), None)
+}
+
 /// A modification with its reads already made, ready to be written to a
 /// frame without touching the board again.
 ///
@@ -1828,5 +1864,48 @@ mod tests {
         let frame = compute_as_entering(&game, anthem, 0, &EnterMods::NONE).unwrap();
         assert_eq!(frame.power, Some(1), "Humility's 1/1 at 7b, and no anthem at 7c: the ability was gone at layer 6");
         assert!(frame.abilities.is_empty());
+    }
+
+    /// `settled_amount` is `evaluate_amount` over `Board::settled()`: a count
+    /// enumerates the *real* battlefield, and "you" is the asking object's own
+    /// controller. That is exactly what a cost effect at CR 601.2f is
+    /// entitled to, since CR 613.11 leaves it a finished board
+    /// (`cost-architecture.md` §3.7).
+    #[test]
+    fn settled_amount_counts_the_real_battlefield_with_you_the_objects_controller() {
+        use crate::test_support::{card_of_type, put_in_hand, setup_two_player_game, vanilla_creature};
+        use crate::types::effects::{AmountExpr, ObjectFilter, Selector};
+
+        let mut game = setup_two_player_game();
+        let expr = AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Artifact)),
+            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        )));
+
+        // A card in hand has no controller of its own, so "you" is its owner
+        // (CR 108.4a) — the prospective caster, which is the whole reason the
+        // castability preview can ask this at all.
+        let mine = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
+        let theirs = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 1);
+        assert_eq!(settled_amount(&expr, &game, mine), Some(0));
+
+        put_on_battlefield(&mut game, card_of_type("Rock", CardType::Artifact), 0);
+        put_on_battlefield(&mut game, card_of_type("Their Rock", CardType::Artifact), 1);
+        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        assert_eq!(settled_amount(&expr, &game, mine), Some(1), "P0's artifacts, not P1's and not a bear");
+        assert_eq!(settled_amount(&expr, &game, theirs), Some(1), "and P1's, P1's");
+    }
+
+    /// **`SourcePower` deliberately has no arm**, here or in the walk: no
+    /// registered card needs one, and Golden-Tail Trainer — the card that
+    /// would — waits on critical-path item 6. This pins that, so adding the
+    /// arm is a deliberate act with a card behind it rather than a silent
+    /// widening (`cost-architecture.md` §3.7).
+    #[test]
+    #[should_panic(expected = "no static-context evaluator")]
+    fn settled_amount_refuses_source_power_until_a_card_needs_it() {
+        let mut game = crate::test_support::setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let _ = settled_amount(&crate::types::effects::AmountExpr::SourcePower, &game, bears);
     }
 }
