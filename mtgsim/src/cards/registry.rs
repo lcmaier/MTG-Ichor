@@ -425,6 +425,14 @@ impl CardRegistry {
         registry.register("Goblin Electromancer", phase_cm_cards::goblin_electromancer);
         registry.register("Trinisphere", phase_cm_cards::trinisphere);
 
+        // CM-2 — affinity for artifacts (CR 702.41a): the spell's own cost
+        // ability, the gather's second source and its first dynamic amount.
+        // Myr Enforcer is pooled; Frogmite is the second copy of the same
+        // path, which buys a wider stress board and not a slower measured
+        // one (`engineering-practices.md` §3).
+        registry.register("Myr Enforcer", phase_cm_cards::myr_enforcer);
+        registry.register("Frogmite", phase_cm_cards::frogmite);
+
         registry
     }
 

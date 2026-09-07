@@ -558,7 +558,7 @@ mod tests {
     /// An artifact creature with `instances` copies of affinity for
     /// artifacts. Its own name is invented and it is registered nowhere
     /// (`engineering-practices.md` §3); the printed cards are
-    /// `cards::phase_cm2_cards`.
+    /// `cards::phase_cm_cards`.
     fn affinity_spell(mana: &[ManaSymbol], instances: usize) -> std::sync::Arc<CardData> {
         let mut builder = CardDataBuilder::new("Affinity Lesson")
             .mana_cost(cost(mana))
