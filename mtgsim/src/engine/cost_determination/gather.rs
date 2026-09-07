@@ -43,9 +43,11 @@ pub struct CostModificationInstance {
 /// whose controller is its owner and so the prospective caster (CR 108.4a).
 /// No layer ceiling is chosen and no dependency question arises.
 ///
-/// **Which zone licenses which read.** CR 113.6d puts a cost ability of the
-/// object being cast on the *stack*, full stop — and CR 702.41a says the same
-/// of affinity by name. So the hand-frame read is not a zone-function claim:
+/// **Which zone licenses which read.** CR 113.6d says a cost ability of the
+/// object being cast *functions* on the stack, full stop — and CR 702.41a says
+/// the same of affinity by name. The ability is never anywhere: it is the
+/// spell that is on the stack, and 113.6 is a rule about where an ability's
+/// effect is live. So the hand-frame read is not a zone-function claim:
 /// it is the castability preview asking what the spell *would* cost, and it
 /// reads the spell's own abilities because enumeration has to agree with
 /// enforcement (§3.6). The CR never has to answer that question; the engine
@@ -92,7 +94,7 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
         for id in candidates {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             for ability in get_effective_abilities(game, id) {
-                collect(game, &ability, id, controller, spell, &frame, &mut out);
+                push_if_applies(game, &ability, id, controller, spell, &frame, &mut out);
             }
         }
     }
@@ -102,14 +104,14 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
     // spell's controller, which is its caster on the stack (CR 601.2a) and
     // its owner in the preview (CR 108.4a) — the same player either way.
     for ability in frame.abilities.iter() {
-        collect(game, ability, spell, frame.controller, spell, &frame, &mut out);
+        push_if_applies(game, ability, spell, frame.controller, spell, &frame, &mut out);
     }
 
     out
 }
 
-/// Take one ability's cost modification, if it has one that applies.
-fn collect(
+/// Push one ability's cost modification, if it has one that applies.
+fn push_if_applies(
     game: &GameState,
     ability: &AbilityDef,
     source: ObjectId,
@@ -140,9 +142,13 @@ fn collect(
 
 /// Does this modification's subject include the spell?
 ///
-/// The two arms partition the two sources by construction, which is why
-/// neither caller passes a flag saying which one it is: `source == spell`
-/// exactly when the ability came off the spell's own list.
+/// **`source == spell` is what separates the two gather sources**, and it does
+/// the separating on its own — neither caller passes a flag saying which one
+/// it is, because the identity is the fact. That holds however many subjects
+/// the enum grows: CR 602.2b's activated abilities (§3.10) join `Spells` on
+/// the battlefield side of the same test, and would arrive with their own
+/// call site anyway, since `activate_ability` pays `ability.costs` and never
+/// reaches this function.
 fn applies_to(
     game: &GameState,
     def: &CostModificationDef,

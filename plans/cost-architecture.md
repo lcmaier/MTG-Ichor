@@ -219,9 +219,9 @@ effective ability list with `CostSubject::Itself`, an identity test no
 permanent can satisfy, which is what partitions the two sources with no flag
 passed anywhere.
 
-**Which zone, and the correction CM-2 made.** CR 113.6d puts an ability that
-"otherwise modifies what that particular object costs to cast" on the
-**stack**, full stop — no zone list — and CR 702.41a says the same of affinity
+**Which zone, and the correction CM-2 made.** CR 113.6d says an ability that
+"otherwise modifies what that particular object costs to cast" **functions on
+the stack**, full stop — no zone list — and CR 702.41a says the same of affinity
 by name ("functions while the spell with affinity is on the stack"). 113.6e's
 "any zone from which it could be played or cast" is the neighbouring rule, for
 abilities that restrict or modify *how* an object is cast, and this document

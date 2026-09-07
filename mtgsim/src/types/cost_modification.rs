@@ -114,8 +114,9 @@ impl CostSubject {
     /// the battlefield?
     ///
     /// [`Self::Itself`] cannot, and the answer is not merely an optimization:
-    /// CR 113.6d puts a spell's own cost ability on the *stack*, and the
-    /// subject is an identity test no permanent can satisfy. Saying so keeps
+    /// a spell's own cost ability *functions* only on the stack (CR 113.6d),
+    /// and the subject is an identity test no permanent can satisfy. Saying so
+    /// keeps
     /// an affinity creature out of `cost_modification_ability_sources`, so
     /// having one on the battlefield does not widen CR 601.2f's sweep on
     /// every cast for a match that cannot succeed.
