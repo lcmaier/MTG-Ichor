@@ -1302,11 +1302,17 @@ For these: ALREADY-IMPLEMENTED sub-rules go in the classification table only. Su
 - **Minimal Board:** P0 has a spell with "Affinity for artifacts" (base cost {6}). P0 controls 4 artifacts.
 - **Action:** P0 casts the spell. Total cost is {6} - {4} = {2}.
 - **Expected Result:** The spell costs {2} to cast. The cost reduction applies to generic mana in the total cost.
-- **Phase:** Phase 8
-- **Ticket:** DEFERRED — Phase 8. Requires cost modification framework (cross-ref T17).
+- **Phase:** Phase 5 Layers (CM-2 — the spell's own cost abilities; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-2
 - **Tags:** affinity, cost-reduction, T17
 
 **702.41b** — Multiple instances of affinity each apply. DEFERRED — Phase 8. One-liner.
+
+> **Note (702.41b, added 2026-09-07 by CM-2):** the engine reached this without
+> an atom to name it. Affinity lowers to one static ability per instance, and
+> `cost_modifications_for` returns one instance per ability, so "each of them
+> applies" is the gather's shape rather than a case. Covered by
+> `total.rs::two_instances_of_affinity_each_apply`, which claims no atom.
 
 ### 702.42 — Entwine
 

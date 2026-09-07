@@ -11,10 +11,10 @@
 |-------|-------|-----------|-------|-------|
 | ALREADY-IMPL | 195 | 0 | 3 | 198 |
 | Phase 5-Pre | 185 | 1 | 6 | 192 |
-| Phase 5-Layers | 149 | 0 | 13 | 162 |
+| Phase 5-Layers | 150 | 0 | 13 | 163 |
 | Phase 6 | 111 | 7 | 6 | 124 |
 | Phase 7 | 128 | 2 | 3 | 133 |
-| Phase 8 | 633 | 3 | 7 | 643 |
+| Phase 8 | 632 | 3 | 7 | 642 |
 | Phase 9 | 218 | 5 | 7 | 230 |
 | Post-v1 | 3 | 0 | 0 | 3 |
 | Backlog | 54 | 0 | 0 | 54 |
@@ -428,7 +428,7 @@
 
 ## Phase 5-Layers
 
-**162 entries**
+**163 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -592,6 +592,7 @@
 | COMP-613-TARMOGOYF-HUMILITY-001 | 613.1f + 613.4a + 613.4b | Tarmogoyf under Humility | L19, L20 | S6 |  |
 | COMP-613-SVOGTHOS-001 | 613.6 + 613.4a | Svogthos multi-layer activation | L04, L05, L10 | S6 |  |
 | COMP-7A-006 |  | Double P/T + layer ordering with set-P/T effect (701.10a + 613.4b/c) |  | S7a |  |
+| ATOM-702.41a-001 | 702.41a | "Affinity for [text]" means "This spell costs {1} less to cast for each [text] you control." | NEW — `cost-architecture.md` CM-2 | S7b | affinity, cost-reduction, T17 |
 | ATOM-702.90d-001 | 702.90d | If source changes zones before dealing damage, LKI determines if it had infect | L18 (LKI system) | S8 |  |
 | ATOM-704.8-001 | 704.8 | LKI of a permanent leaving via SBA is from the game state before any SBAs in that batch. | L18 (LKI) | S9a |  |
 
@@ -868,7 +869,7 @@
 
 ## Phase 8
 
-**643 entries**
+**642 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -1221,7 +1222,6 @@
 | ATOM-702.38a-001 | 702.38a | "Amplify N" means "As this object enters, reveal any number of cards from your hand that share a creature type with it. This permanent enters with N +1/+1 counters on it for each card revealed." | DEFERRED — Phase 8. Requires ETB replacement + hand reveal + creature type sharing. | S7b | amplify, counters, ETB, DEFERRED |
 | ATOM-702.39a-001 | 702.39a | "Provoke" means "Whenever this creature attacks, you may choose to have target creature defending player controls block this creature this combat if able. If you do, untap that creature." | DEFERRED — Phase 8. Requires forced-block constraint + untap on trigger. | S7b | provoke, triggered-ability, forced-block, DEFERRED |
 | ATOM-702.40a-001 | 702.40a | "Storm" means "When you cast this spell, copy it for each other spell that was cast before it this turn. If the spell has any targets, you may choose new targets for any of the copies." | DEFERRED — Phase 8. Requires spell-cast-this-turn counter + spell copying. | S7b | storm, triggered-ability, copy, spell-count |
-| ATOM-702.41a-001 | 702.41a | "Affinity for [text]" means "This spell costs {1} less to cast for each [text] you control." | DEFERRED — Phase 8. Requires cost modification framework (cross-ref T17). | S7b | affinity, cost-reduction, T17 |
 | ATOM-702.42a-001 | 702.42a | "Entwine [cost]" means "You may choose all modes of this spell instead of just the number specified. If you do, you pay an additional [cost]." | DEFERRED — Phase 8. Requires modal spell framework + additional cost. | S7b | entwine, modal, additional-cost, DEFERRED |
 | ATOM-702.43a-001 | 702.43a | "Modular N" means "This permanent enters with N +1/+1 counters on it" and "When this permanent is put into a graveyard from the battlefield, you may put a +1/+1 counter on target artifact creature for each +1/+1 counter on this permanent." | DEFERRED — Phase 8. Requires ETB counters + death trigger + LKI counter count. | S7b | modular, counters, death-trigger, DEFERRED |
 | ATOM-702.43a-002 | 702.43a | "Modular N" means "This permanent enters with N +1/+1 counters on it." | DEFERRED — Phase 8. Requires ETB counter placement. | S7b | modular, counters, ETB, DEFERRED |

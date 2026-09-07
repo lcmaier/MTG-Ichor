@@ -150,7 +150,7 @@ end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points h
 6. Triggered abilities (CR 603) — after 5, 6b, 7 and the CR 113.6 zone-function predicate; insertion point
    `perform_sba_and_triggers`; takes LKI's consumers and CR 603.4's intervening "if" with it — `Condition` has
    a static evaluator since 7, so this adds a reader, not a language. **Unsized — write its doc first**
-Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1 ✅ 2026-09-07**, CM-2–4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
+Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1, CM-2 ✅ 2026-09-07**, CM-3/4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
 CR 800/802) and the information model (`backlog.md` §2.9 — back-stop before Phase 8's reveal cards and
 before Phase 10). Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 
