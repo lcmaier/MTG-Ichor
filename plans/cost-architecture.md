@@ -682,8 +682,12 @@ keeps mana abilities (`CLAUDE.md`, `// CAST-ROLLBACK:`) and never offers the
 reversal (§8). The Hobbit update touched 605.1a and nothing in 601.2, 605.3
 or 732 (§12), so the puzzle reads the same under both texts.
 
-**The one question left for a judge** (asked in a judge forum 2026-09-07;
-pending), with the board on which its two answers differ. After the reversal, 732.2 says the player "retains" priority
+**The one question left for a judge**, with the board on which its two
+answers differ. Asked in a judge forum 2026-09-07; the answer — "if you
+aren't reversing the Ironworks activation, how is Mind Stone returning?" —
+confirms the reversal's shape above, and the owner closed the matter on it
+and on the card's history (a mana loop this cheap would still be played).
+Placement itself stays item 6's, under either reading. After the reversal, 732.2 says the player "retains" priority
 — no opponent acts first. CR 603.3 puts a trigger on the stack "the next time
 a player would receive priority", and 117.3c grants priority after an ability
 is activated; whether a *reversed* activation counts is the question. Board:
