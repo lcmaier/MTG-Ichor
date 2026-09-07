@@ -189,7 +189,7 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(power, toughness);
     for kw in keywords {
-        builder = builder.keyword(*kw);
+        builder = builder.keyword_flag(*kw);
     }
     builder.build()
 }

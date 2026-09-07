@@ -82,6 +82,6 @@ pub fn darksteel_myr() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Myr))
         .mana_cost(ManaCost::build(&[], 3))
         .power_toughness(0, 1)
-        .keyword(KeywordFlag::Indestructible)
+        .keyword_flag(KeywordFlag::Indestructible)
         .build()
 }

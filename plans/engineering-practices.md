@@ -259,6 +259,55 @@ Trinisphere forced: 180 cast / 178 resolved in 126 games (63%) and 193 / 191 in
 | **Replacement gathers** | **479** | **549** |
 | **Restriction queries** | **482** | **552** |
 
+**Re-recorded 2026-09-07 for CM-2** (the spell's own cost abilities;
+`cost-architecture.md`). One new card in `performance` — Myr Enforcer, 71 → 72
+— and two in `stress` (Myr Enforcer and Frogmite; 86 → 88). The middle arm —
+CM-2's engine, both cards registered, the *old* `PERFORMANCE_POOL` — is
+`IDENTICAL` to `main` on `performance` outside the timing block, so every
+movement below is the pool's.
+
+**It was not identical on the first run, and that is the whole reason the arm
+exists.** +5 layer walks and +5 layer frames per 200 games, with every gameplay
+counter unchanged — five non-member frames computed and thrown away. The cause:
+source 2's gate asked "does this card print a cost ability", which is true of a
+**Thalia in hand**, so her frame was computed at every castability preview and
+then refused because her subject is other spells. The gate now asks the
+subject. Nobody would have found five walks by reading the diff, and nobody
+needed to.
+
+Timing, 200 games, three interleaved rounds: CPU/game 16.63 ms `main` → 16.50
+ms registered (−0.8%, inside the sitting's ~2–6% spread) → 15.01 ms pooled;
+`deterministic` yes in all three arms, and three shell runs at one seed match
+line for line on both pools. **The pooled column is a re-record, not a
+speed-up**: never A/B a number across a pool change.
+
+Reachability, 200 games: Myr Enforcer cast 167, resolved 166, in 113
+`performance` games (56%), **1.74 copies per deck** — so the board where one
+Enforcer counts the one already on the battlefield is routine rather than
+contrived. `stress` with Trinisphere forced beside it: 158 / 157 in 108 games
+(54%) and 193 / 192 in 136 games (68%), ~1.5 copies per deck each, which is
+affinity's reduction and a direct-total effect meeting on one spell.
+
+| | performance (72 cards) | stress (88 cards) |
+|---|---|---|
+| P0 / P1 | 27 (54.0%) / 23 (46.0%) | 24 (48.0%) / 26 (52.0%) |
+| Avg turns | 28.4 | 30.0 |
+| Spells cast | 21.5 | 22.9 |
+| Lands played | 17.3 | 17.7 |
+| Combat w/ atk | 9.3 | 10.5 |
+| Creatures died | 6.3 | 4.2 |
+| Damage events | 20.3 | 23.7 |
+| Total damage | 47.6 | 59.6 |
+| Life changes | 13.5 | 15.2 |
+| **Layer walks** | **352** | **433** |
+| **Board walks** | **220** | **254** |
+| **Memo hits** | **80,262** | **99,787** |
+| **Layer frames** | **3,602** | **4,734** |
+| **Frames/walk** | **10.24** | **10.94** |
+| **Dependency checks** | **11** | **73** |
+| **Replacement gathers** | **449** | **527** |
+| **Restriction queries** | **451** | **530** |
+
 **Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:
 `main` at 9011d42 (A), LI-3's engine with the registry and both pools
 unchanged (B), and LI-3 as shipped (C).

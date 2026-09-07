@@ -263,8 +263,8 @@ mod tests {
             .color(Color::White)
             .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
             .power_toughness(4, 4)
-            .keyword(KeywordFlag::Flying)
-            .keyword(KeywordFlag::Vigilance)
+            .keyword_flag(KeywordFlag::Flying)
+            .keyword_flag(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;

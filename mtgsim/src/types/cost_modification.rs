@@ -13,18 +13,17 @@
 //! # The growth contract
 //!
 //! [`CostSubject`] says *which* spells; it grows one arm per CR 601.2f/602.2b
-//! subject the pipeline can determine a cost for — the spell itself
-//! (CR 113.6d, affinity) and activated abilities (CR 602.2b) are the two
-//! arms named and not yet built, and each lands with its first consumer.
-//! [`CostChange`] is the three positions of CR 601.2f's order and nothing
-//! else; a dynamic amount ("cost {X} less, where X is …") is the reduction
-//! position with an [`AmountExpr`](crate::types::effects::AmountExpr) and
-//! lands with its evaluator (§3.7). Matched exhaustively, deliberately not
+//! subject the pipeline can determine a cost for — activated abilities
+//! (CR 602.2b) are the one arm named and not yet built, and it lands with its
+//! first consumer. [`CostChange`] is the three positions of CR 601.2f's order
+//! and nothing else; a dynamic amount ("cost {X} less, where X is …") is the
+//! reduction position with an [`AmountExpr`], read through
+//! `engine::layers::compute::settled_amount` (§3.7). Matched exhaustively, deliberately not
 //! `#[non_exhaustive]`: an arm the pipeline cannot apply is a card that
 //! silently does nothing (`CLAUDE.md`, the growth contracts).
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
-use crate::types::effects::{Condition, Effect, ObjectFilter};
+use crate::types::effects::{AmountExpr, Condition, Effect, ObjectFilter};
 use crate::types::ids::new_ability_id;
 use crate::types::mana::ManaCost;
 
@@ -42,6 +41,14 @@ impl CostModificationDef {
     /// "[Spells matching `filter`] cost … to cast."
     pub fn spells(filter: ObjectFilter, change: CostChange) -> Self {
         CostModificationDef { applies_to: CostSubject::Spells(filter), change }
+    }
+
+    /// "This spell costs … to cast" — the ability is on the object being cast
+    /// (CR 113.6d). What [`CardDataBuilder::affinity_for`] writes.
+    ///
+    /// [`CardDataBuilder::affinity_for`]: crate::objects::card_data::CardDataBuilder::affinity_for
+    pub fn itself(change: CostChange) -> Self {
+        CostModificationDef { applies_to: CostSubject::Itself, change }
     }
 
     /// The static ability whose whole text is this modification — what a
@@ -86,8 +93,74 @@ pub enum CostSubject {
     /// `ObjectFilter` rather than a spell-specific filter because the leaves
     /// are characteristic predicates and a spell has every characteristic a
     /// permanent has (CR 601.2a) — the type was renamed for exactly this
-    /// consumer (CM-0).
+    /// the type was renamed for exactly this consumer (CM-0).
     Spells(ObjectFilter),
+    /// **This spell** — an ability on the object being cast, modifying what
+    /// *that particular object* costs (CR 113.6d). Affinity is the
+    /// population: "Affinity for [text]" means "This spell costs {1} less to
+    /// cast for each [text] you control" (CR 702.41a), which is
+    /// [`CostChange::ReduceGeneric`] over a count.
+    ///
+    /// No filter and no controller to resolve — the subject is an identity
+    /// test against the spell whose cost is being determined, which only the
+    /// spell's own ability list can satisfy (a permanent on the battlefield
+    /// is not the object being cast). "You", where the change needs one, is
+    /// the spell's controller: its caster (CR 601.2a).
+    Itself,
+}
+
+impl CostSubject {
+    /// # Why these two are methods and not `matches!` at the call site
+    ///
+    /// They are exhaustiveness anchors, not routers. A `matches!` compiles
+    /// fine when a subject is added and is then silently wrong at *both*
+    /// gates; a wildcard-free `match` refuses to build until the new subject
+    /// answers each question. Same instrument as `condition::holds` and
+    /// `board::condition_reads`, for the same reason. They also name the
+    /// question rather than the shape, which is the one place a reader has to
+    /// notice that the two gates ask *different* things — assuming one
+    /// question where there are two is the bug this pair was written after.
+    ///
+    /// **Do not collapse them into one predicate and a `!`.** They are not
+    /// each other's negation: CR 602.2b's activated abilities (§3.10) answer
+    /// `true` to the first and `false` to the second.
+
+    /// Can an ability with this subject modify a cost while its source sits on
+    /// the battlefield?
+    ///
+    /// [`Self::Itself`] cannot, and the answer is not merely an optimization:
+    /// a spell's own cost ability *functions* only on the stack (CR 113.6d),
+    /// and the subject is an identity test no permanent can satisfy. Saying so
+    /// keeps
+    /// an affinity creature out of `cost_modification_ability_sources`, so
+    /// having one on the battlefield does not widen CR 601.2f's sweep on
+    /// every cast for a match that cannot succeed.
+    ///
+    /// Matched exhaustively, so a new subject has to decide: CR 602.2b's
+    /// activated abilities (§3.10) will answer `true`.
+    pub fn applies_from_battlefield(&self) -> bool {
+        match self {
+            CostSubject::Spells(_) => true,
+            CostSubject::Itself => false,
+        }
+    }
+
+    /// Can an ability with this subject modify what its *own* object costs —
+    /// CR 113.6d's "that particular object"?
+    ///
+    /// The mirror of [`Self::applies_from_battlefield`], and not its negation:
+    /// CR 602.2b's activated abilities (§3.10) will answer `false` to this and
+    /// `true` to that. It is what the gather's second gate asks, because
+    /// "prints a cost ability" is the wrong question there — Thalia prints
+    /// one, and a Thalia *in hand* is not modifying her own cost. Asking the
+    /// body alone cost five non-member layer walks per 200 measured games,
+    /// which is how it was found.
+    pub fn applies_to_its_own_object(&self) -> bool {
+        match self {
+            CostSubject::Spells(_) => false,
+            CostSubject::Itself => true,
+        }
+    }
 }
 
 /// What a cost modification does to the mana component of a total cost.
@@ -113,6 +186,19 @@ pub enum CostChange {
     /// mana" is a clamp every printed carrier puts on an *ability* cost
     /// (`cost-architecture.md` §3.10), so it arrives with that subject.
     Reduce(ManaCost),
+    /// "cost {N} less to cast, where N is …" — a reduction of *generic* mana
+    /// (CR 118.7a) by an amount read off the board when the cost is
+    /// determined. Affinity's shape (CR 702.41a's "{1} less for each [text]
+    /// you control" is one generic reduction of that count, since generic
+    /// saturates at zero either way), and Golden-Tail Trainer's.
+    ///
+    /// Evaluated through `engine::layers::compute::settled_amount` against
+    /// the finished board CR 613.11 puts cost effects after: `CountOf`
+    /// enumerates the real battlefield and "you" is the source's controller
+    /// (`cost-architecture.md` §3.7). An amount with no static evaluator
+    /// reduces nothing — the assert is `evaluate_amount`'s — rather than
+    /// guessing a number.
+    ReduceGeneric(AmountExpr),
     /// CR 601.2f's "effects that directly affect the total cost" — the mana
     /// component's mana value is raised to N with generic mana, after every
     /// increase and reduction, and never lowered.

@@ -19,6 +19,7 @@
 //! between. Payment stays in `engine::costs`.
 
 use super::gather::{cost_modifications_for, CostModificationInstance};
+use crate::engine::layers::compute::settled_amount;
 use crate::state::game_state::GameState;
 use crate::types::cost_modification::CostChange;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
@@ -95,11 +96,11 @@ fn modify(
     // theorem), and the prompt is asked anyway because CR 601.2f makes it
     // the player's; the two conditions under which it would matter — a
     // hybrid reduction symbol, a floored reduction — are refused below and
-    // not yet representable, respectively.
-    let reductions: Vec<&CostModificationInstance> = instances
-        .iter()
-        .filter(|inst| matches!(inst.def.change, CostChange::Reduce(_)))
-        .collect();
+    // not yet representable, respectively. A dynamic amount does not add a
+    // third: nothing in this step touches the board, so every `ReduceGeneric`
+    // reads the same board whenever it is applied.
+    let reductions: Vec<&CostModificationInstance> =
+        instances.iter().filter(|inst| is_reduction(inst)).collect();
     let order: Vec<usize> = if reductions.len() >= 2 {
         let sources: Vec<ObjectId> = reductions.iter().map(|inst| inst.source).collect();
         ask_order_cost_reductions(dp, game, caster, spell, &sources)
@@ -107,9 +108,7 @@ fn modify(
         (0..reductions.len()).collect()
     };
     for idx in order {
-        if let CostChange::Reduce(amount) = &reductions[idx].def.change {
-            apply_reduction(&mut mana, amount);
-        }
+        apply_one_reduction(game, &mut mana, reductions[idx]);
     }
 
     // Step 5 — "any effects that directly affect the total cost". Two
@@ -145,8 +144,8 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
         }
     }
     for inst in &instances {
-        if let CostChange::Reduce(amount) = &inst.def.change {
-            apply_reduction(&mut mana, amount);
+        if is_reduction(inst) {
+            apply_one_reduction(game, &mut mana, inst);
         }
     }
     for inst in &instances {
@@ -216,6 +215,40 @@ fn pip_type(symbol: &ManaSymbol) -> Option<ManaType> {
 }
 
 /// "cost {N} more to cast": add the symbols as printed.
+/// Is this instance a cost reduction — CR 601.2f's second position, and so a
+/// candidate for its ordering prompt?
+///
+/// A [`CostChange::ReduceGeneric`] that evaluates to zero is still a
+/// reduction that *applies*: the rule orders the reductions, not the ones
+/// that would change the answer.
+fn is_reduction(inst: &CostModificationInstance) -> bool {
+    matches!(inst.def.change, CostChange::Reduce(_) | CostChange::ReduceGeneric(_))
+}
+
+/// One reduction, at its position in the player's order.
+///
+/// A dynamic amount is read *here* rather than at gather. The two moments are
+/// one — nothing between them touches the board — and reading it at
+/// application keeps a `CostModificationInstance` the definition that was
+/// gathered rather than a definition plus a snapshot of a number, which is
+/// one fewer thing that can disagree with itself.
+fn apply_one_reduction(game: &GameState, mana: &mut ManaCost, inst: &CostModificationInstance) {
+    match &inst.def.change {
+        CostChange::Reduce(amount) => apply_reduction(mana, amount),
+        // CR 118.7a — generic only, whatever the count, and generic saturates
+        // at zero. `settled_amount` returning `None` is an amount with no
+        // static evaluator, whose own assert has already fired: reduce
+        // nothing rather than guess a number.
+        CostChange::ReduceGeneric(expr) => {
+            let n = settled_amount(expr, game, inst.source).unwrap_or(0).max(0) as usize;
+            if n > 0 {
+                apply_reduction(mana, &ManaCost::from_symbols(vec![ManaSymbol::Generic; n]));
+            }
+        }
+        CostChange::Increase(_) | CostChange::TotalAtLeast(_) => {}
+    }
+}
+
 fn apply_increase(mana: &mut ManaCost, amount: &ManaCost) {
     let mut symbols = std::mem::take(&mut mana.symbols);
     for symbol in &amount.symbols {
@@ -299,7 +332,13 @@ fn representable(symbol: &ManaSymbol, what: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{put_in_hand, setup_two_player_game, test_dp, vanilla_creature};
+    use crate::objects::card_data::{CardData, CardDataBuilder};
+    use crate::test_support::{
+        card_of_type, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp,
+        vanilla_creature,
+    };
+    use crate::types::card_types::CardType;
+    use crate::types::effects::ObjectFilter;
 
     fn cost(s: &[ManaSymbol]) -> ManaCost {
         ManaCost::from_symbols(s.to_vec())
@@ -512,5 +551,104 @@ mod tests {
             determine(&base, Some(&alt), &[&kicker], 0),
             vec![Cost::Mana(ManaCost::build(&[ManaType::Green], 0)), Cost::PayLife(2)]
         );
+    }
+
+    // --- CM-2: the spell's own cost abilities (CR 113.6d, 702.41a) ---------
+
+    /// An artifact creature with `instances` copies of affinity for
+    /// artifacts. Its own name is invented and it is registered nowhere
+    /// (`engineering-practices.md` §3); the printed cards are
+    /// `cards::phase_cm_cards`.
+    fn affinity_spell(mana: &[ManaSymbol], instances: usize) -> std::sync::Arc<CardData> {
+        let mut builder = CardDataBuilder::new("Affinity Lesson")
+            .mana_cost(cost(mana))
+            .card_type(CardType::Artifact)
+            .card_type(CardType::Creature)
+            .power_toughness(1, 1)
+            .rules_text("Affinity for artifacts");
+        for _ in 0..instances {
+            builder = builder.affinity_for(ObjectFilter::ByType(CardType::Artifact));
+        }
+        builder.build()
+    }
+
+    /// What the castability preview says the spell costs with `artifacts`
+    /// artifacts on P0's battlefield. The spell stays in hand, where the
+    /// preview reads it.
+    fn previewed(mana: &[ManaSymbol], artifacts: usize, instances: usize) -> String {
+        let mut game = setup_two_player_game();
+        for n in 0..artifacts {
+            put_on_battlefield(&mut game, card_of_type(&format!("Rock {n}"), CardType::Artifact), 0);
+        }
+        let spell = put_in_hand(&mut game, affinity_spell(mana, instances), 0);
+        preview_mana_cost(&game, spell, &cost(mana)).to_string()
+    }
+
+    /// CR 702.41a — "This spell costs {1} less to cast for each [text] you
+    /// control", read off the finished board at CR 601.2f.
+    // COVERS-PARTIAL: ATOM-702.41a-001
+    #[test]
+    fn affinity_reduces_generic_by_the_count_it_names() {
+        assert_eq!(previewed(&[G, G, G, G, G, G], 4, 1), "{2}", "the atom's board: {{6}}, four artifacts");
+        // The spell is itself an artifact card and it is in hand: `CountOf`
+        // enumerates the battlefield, so it never counts itself.
+        assert_eq!(previewed(&[G, G, G, G, G, G], 0, 1), "{6}", "nothing on the battlefield to count");
+    }
+
+    /// Generic saturates at zero (CR 601.2f) and only generic moves
+    /// (CR 118.7a): affinity never eats a colored pip.
+    #[test]
+    fn affinity_saturates_at_zero_and_leaves_the_pips_alone() {
+        assert_eq!(previewed(&[G, G, R], 9, 1), "{R}");
+        assert_eq!(previewed(&[R, R], 3, 1), "{R}{R}", "no generic to reduce");
+        assert_eq!(previewed(&[G, G, G, G], 4, 1), "", "a component reduced to nothing is {{0}}");
+    }
+
+    /// CR 702.41b — "if a spell has multiple instances of affinity, each of
+    /// them applies". Two abilities on the effective list are two instances
+    /// in the gather, and the second reduces what the first left.
+    #[test]
+    fn two_instances_of_affinity_each_apply() {
+        assert_eq!(previewed(&[G, G, G, G, G, G], 2, 1), "{4}");
+        assert_eq!(previewed(&[G, G, G, G, G, G], 2, 2), "{2}");
+    }
+
+    /// **The gate's third leg** (`cost-architecture.md` §3.1). A board with no
+    /// cost source asks the layer system *nothing* about a card in hand that
+    /// cannot modify its own cost. Without this, source 2 would put a frame
+    /// on every card in hand at every castability preview, on every board — a
+    /// layer walk per hand card per epoch, bought for a mechanic the card
+    /// does not have.
+    ///
+    /// **The subject is half the question.** Thalia prints a cost ability and
+    /// a Thalia in hand modifies nothing of her own, so the leg asks
+    /// `CostSubject::applies_to_its_own_object` rather than "prints one at
+    /// all". Asking the body alone cost five non-member walks per 200
+    /// measured games — small, and exactly what the `fuzz_ab` arm that must
+    /// reproduce `main` is for.
+    #[test]
+    fn the_preview_asks_the_layer_system_nothing_for_a_card_that_cannot_reduce_itself() {
+        let mut game = setup_two_player_game();
+        let plain = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
+        let printed = ManaCost::build(&[ManaType::Red], 1);
+
+        let queries = |g: &GameState| g.counters.layer_walks() + g.counters.memo_hits();
+        let before = queries(&game);
+        assert_eq!(preview_mana_cost(&game, plain, &printed), printed);
+        assert_eq!(queries(&game), before, "the gate skipped the frame entirely");
+
+        // Thalia prints a cost ability whose subject is other spells, and she
+        // is in hand rather than on the battlefield: nothing to ask.
+        let thalia = put_in_hand(&mut game, crate::cards::phase_cm_cards::thalia_guardian_of_thraben(), 0);
+        let before = queries(&game);
+        let _ = preview_mana_cost(&game, thalia, &printed);
+        assert_eq!(queries(&game), before, "a `Spells` subject in hand is not source 2's");
+
+        // And the leg that opens it, on the same board: a printed cost
+        // ability is what makes the frame worth computing.
+        let affinity = put_in_hand(&mut game, affinity_spell(&[G], 1), 0);
+        let before = queries(&game);
+        let _ = preview_mana_cost(&game, affinity, &printed);
+        assert!(queries(&game) > before, "the spell's own ability list was read");
     }
 }

@@ -46,7 +46,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 71] = [
+const PERFORMANCE_POOL: [&str; 72] = [
     "Plains",
     "Island",
     "Swamp",
@@ -172,6 +172,15 @@ const PERFORMANCE_POOL: [&str; 71] = [
     // `Dependency checks` — live in a measured game. A land, so any deck
     // that draws it drops it.
     "Urborg, Tomb of Yawgmoth",
+    // CM-2 — the pool's first cost ability that is the *spell's own*
+    // (CR 113.6d), so the first measured game in which CR 601.2f's gather has
+    // a second source, the castability preview reads a hand card's own
+    // ability list, and an `AmountExpr::CountOf` runs at cast time rather
+    // than inside a layer walk. Colorless, so every deck can cast it; an
+    // artifact, so a second copy counts the first. Frogmite is registered and
+    // stays out: it opens the same path, and a second copy of one path buys a
+    // slower fuzz run rather than a wider one.
+    "Myr Enforcer",
     // LI-3 — the pool's first row whose *existence* is a condition rather
     // than an ability lookup (CR 604.2), re-asked for every application in
     // every layer of every pass. One red mana, and the pool has nine lands
@@ -424,6 +433,14 @@ impl CardRegistry {
         registry.register("Thalia, Guardian of Thraben", phase_cm_cards::thalia_guardian_of_thraben);
         registry.register("Goblin Electromancer", phase_cm_cards::goblin_electromancer);
         registry.register("Trinisphere", phase_cm_cards::trinisphere);
+
+        // CM-2 — affinity for artifacts (CR 702.41a): the spell's own cost
+        // ability, the gather's second source and its first dynamic amount.
+        // Myr Enforcer is pooled; Frogmite is the second copy of the same
+        // path, which buys a wider stress board and not a slower measured
+        // one (`engineering-practices.md` §3).
+        registry.register("Myr Enforcer", phase_cm_cards::myr_enforcer);
+        registry.register("Frogmite", phase_cm_cards::frogmite);
 
         registry
     }

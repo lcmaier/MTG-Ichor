@@ -1610,7 +1610,7 @@ mod tests {
         let data = CardDataBuilder::new("Darksteel Colossus")
             .card_type(CardType::Creature)
             .power_toughness(11, 11)
-            .keyword(crate::types::keywords::KeywordFlag::Indestructible)
+            .keyword_flag(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;

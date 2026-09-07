@@ -836,7 +836,7 @@ This is the single read-side chokepoint. All wrappers route through `compute_cha
 
 ### 11.2 Cast pipeline
 
-Cost modification (CR 601.2f) isn't part of the layer system, but some cost-modifying effects are continuous effects (e.g., "spells cost 1 more to cast"). ~~Phase 6 (replacement effects) covers this; `CostRestriction` registry exists already.~~ `plans/cost-architecture.md` owns it (2026-09-07): a cost effect is discovered off its source's *effective* ability list at CR 601.2f — the frame it reads is this system's finished output (CR 613.11) — and is never a registry row. Layers don't touch it.
+Cost modification (CR 601.2f) isn't part of the layer system, but some cost-modifying effects are continuous effects (e.g., "spells cost 1 more to cast"). ~~Phase 6 (replacement effects) covers this; `CostRestriction` registry exists already.~~ `plans/cost-architecture.md` owns it (2026-09-07): a cost effect is discovered off its source's *effective* ability list at CR 601.2f — the frame it reads is this system's finished output (CR 613.11) — and is never a registry row. Layers don't touch it — but they now *serve* it twice: `condition::settled_holds` (CM-1) and `compute::settled_amount` (CM-2) are read-side views of this system at the full ceiling, one line each, for a post-layer consumer that has no pass of its own. Critical-path item 6's intervening "if" is the third caller of the first; a `SourcePower` arm, when a card wants one, goes in the second and not in `evaluate_amount` (`cost-architecture.md` §3.7).
 
 **Exception:** effects that change whether something is a creature (Layer 4) affect what can be targeted by a cast spell. The cast pipeline already calls `is_creature` → wrappers → layers. Works transparently after Phase LA.
 

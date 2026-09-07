@@ -288,7 +288,7 @@ mod tests {
         let data = CardDataBuilder::new("Raging Cougar")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .keyword(KeywordFlag::Haste)
+            .keyword_flag(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -388,7 +388,7 @@ mod tests {
         let data = CardDataBuilder::new("Wall of Stone")
             .card_type(CardType::Creature)
             .power_toughness(0, 8)
-            .keyword(KeywordFlag::Defender)
+            .keyword_flag(KeywordFlag::Defender)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;

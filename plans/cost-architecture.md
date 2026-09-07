@@ -211,15 +211,39 @@ permanent per cast" was the widened case described as the default, and this
 paragraph replaces it. **A new gather source, or a new route to the effective
 list, needs a leg on every gate** — `CLAUDE.md`'s rule, now three gates wide.
 
-**The spell itself is a source too** (CR 113.6d/e, 702.41a). "This spell costs
-{1} less to cast for each …" is 289 printed cards and affinity is 75 more
-(Scryfall, 2026-09-07), against 249 battlefield reducers and 9 increases with
-"costs … more". It is discovered off the spell's own effective ability list —
-the stack frame at 601.2f, the hand frame for the preview (113.6e says it
-functions there) — with `CostSubject::Itself`, and it needs no gate: one frame
-per cast, already computed for the filter match. **CM-2** (§6); CM-1's gather
-has one source and `CostSubject` one arm, per `CLAUDE.md`'s rule that an
-arm the pipeline cannot apply is worse than a missing one.
+**The spell itself is a source too** (CR 113.6d, 702.41a) — **CM-2, built**.
+"This spell costs {1} less to cast for each …" is 289 printed cards and
+affinity is 75 more (Scryfall, 2026-09-07), against 249 battlefield reducers
+and 9 increases with "costs … more". It is discovered off the spell's own
+effective ability list with `CostSubject::Itself`, an identity test no
+permanent can satisfy, which is what partitions the two sources with no flag
+passed anywhere.
+
+**Which zone, and the correction CM-2 made.** CR 113.6d says an ability that
+"otherwise modifies what that particular object costs to cast" **functions on
+the stack**, full stop — no zone list — and CR 702.41a says the same of affinity
+by name ("functions while the spell with affinity is on the stack"). 113.6e's
+"any zone from which it could be played or cast" is the neighbouring rule, for
+abilities that restrict or modify *how* an object is cast, and this document
+cited it here and in §3.6 for a cost ability, which was wrong. Nothing in the
+code turned on it: the castability preview reads the hand frame because
+enumeration has to agree with enforcement (§3.6), which is an engine
+requirement and not a rules permission. The CR never has to answer "what would
+this cost if I cast it"; the engine does.
+
+**And it is gated, which this section also had wrong.** "It needs no gate: one
+frame per cast, already computed for the filter match" assumed a frame that is
+not there — the gather returns *before* computing one when no cost source is on
+the board, which is the common board. Ungated, source 2 puts one
+`compute_characteristics` on every card in hand at every castability preview,
+forever. So the third gate gets a third leg: the spell's own printed abilities,
+OR'd with the two summary flags. It is exact today, because `compute_non_member`
+applies no registry rows — a non-member's effective ability list *is* its
+printed list, so neither a Layer 6 grant nor a Layer 1 copy can reach a spell on
+the stack or a card in hand (§8 item 7). **The leg asks the subject, not the
+body**: Thalia prints a cost ability and a Thalia in hand modifies nothing of
+her own, and asking the body alone cost five non-member walks per 200 measured
+games — found by the A/B arm, not by argument (§8 item 8).
 
 **Other zones** — an emblem's "spells you cast cost {1} less", Convergence of
 Dominion's graveyard abilities — are `roadmap-v2.md` A5's zone-function
@@ -461,11 +485,14 @@ player could afford — the disagreement `cant-effects-architecture.md` §4.3
 names for RS-2, one phase early. `castable_spells` now previews the total
 through the same `total.rs` (no prompt, §3.4's theorem) against the card's
 in-hand frame, whose controller is its owner (CR 108.4a) and so the
-prospective caster; CR 113.6e is what licenses reading the card's own cost
-abilities there in CM-2. `find_mana_sources` then reasons about the previewed
+prospective caster. **Nothing licenses that read but this section.** A cost
+ability functions on the stack (CR 113.6d, 702.41a; §3.1), so the preview is
+not claiming the card's affinity works in hand — it is predicting the total the
+cast will lock, using the one arithmetic that will lock it. Enumeration and
+enforcement agreeing is the requirement; the CR has no rule about it. `find_mana_sources` then reasons about the previewed
 component as it did about the printed one.
 
-### 3.7 The dynamic-amount evaluator, and `SourcePower`'s third reader — the argument, made once
+### 3.7 The dynamic-amount evaluator, and `SourcePower`'s third reader — the argument, made once (built, CM-2)
 
 `codebase-state.md` main item 57 warns that a cost-modification evaluator for
 `SourcePower` would be its third, and that "the answer depends on which board
@@ -481,7 +508,51 @@ the source's memoized frame for `SourcePower` and the real battlefield for
 own ability — and nothing else is defensible. That argument is the whole of
 the design.
 
-**It lands in CM-2 with affinity**, not with Golden-Tail Trainer. Affinity is
+**Built as a reader, not a third leaf table** (CM-2).
+`engine::layers::compute::settled_amount` is `evaluate_amount` over
+`Board::settled()` at the full ceiling — the one line
+`condition::settled_holds` already was, and for the same reason. That board
+*is* §3.7's two entitlements with nothing added: `battlefield_ids` returns the
+real battlefield when the board is not live, and `frame_of` answers a member
+from the memo. `CountOf` needed no new arm at all; with `origin: None` it
+already resolves "you" to the frame's controller.
+
+**So item 57 closes with "there is no third evaluator".** There is a third
+*caller* of one leaf table. The sharper form of the item's warning — the answer
+depends on which board the caller is entitled to — resolves into a statement
+about which *object* the caller means by "source": the cost pipeline always
+hands the evaluator **the ability's own source** (the permanent for a `Spells`
+subject, the spell for `Itself`), so `object == source`, and `SourcePower`
+would read `chars.power` with no cross-object read at all. The walk cannot say
+that — there `object_id` is the *affected* object and `origin.source` is
+somewhere else, which is the CR 613.8 dependency it refuses on purpose.
+
+**`SourcePower` is answered in the reader and still refused by the walk**, and
+the pair of tests is the argument above stated twice. The first draft of this
+section shipped no arm at all, on the grounds that Golden-Tail Trainer waits for
+item 6 — but that was an argument about the *card*, and
+`engineering-practices.md` §3 lets a fixture with its own name be a consumer.
+`phase_cm_cards::power_reducer` is that fixture, and its board is the
+entitlement claim made observable: an anthem on the reducer makes it reduce
+more, because the amount is read off the source's **effective** frame.
+
+**What the arm is actually worth, counted before it was written** (Scryfall,
+2026-09-07). "This spell costs {X} less to cast, where X is …" is **33** printed
+cards. Of those, **2** read a creature's power, and one of the two — Maelstrom
+Muse — is a trigger-created effect with a duration, so it is §3.10's
+`Primitive::ModifyCost` and not this arm. `SourcePower` therefore serves
+**one** printed static: Golden-Tail Trainer. The population is not the reason to
+build it; the argument is.
+
+**And the 33 are blocked on leaves, not on this one.** Only two of them are a
+plain `CountOf` ("the number of …"); the rest want "your devotion to black",
+"the total mana value of noncreature artifacts you control", "the greatest power
+among creatures you control", "the number of differently named lands you
+control". `ReduceGeneric` is built and general; what Phase 8 owes it is
+`AmountExpr` leaves, one per shape, each with a static evaluator. Affinity's 75
+cards are the `CountOf` population and they are covered.
+
+**It landed in CM-2 with affinity**, not with Golden-Tail Trainer. Affinity is
 `Itself` + `ReduceGeneric(CountOf(PermanentsMatching(…you control)))`
 (702.41a), Myr Enforcer and Frogmite are vanilla bodies with nothing else on
 them, and 75 + 289 cards is the population. Golden-Tail Trainer's arm
@@ -725,15 +796,30 @@ Mirror of `replacement::gather` and `restriction::is_prohibited`, narrower.
 | # | Source | What | Order | Phase |
 |---|---|---|---|---|
 | 1 | **the sources** | every object in `cost_modification_ability_sources` — or every permanent while a summary flag is on (§3.1) — its effective ability list read once, each static ability whose body `as_cost_modification` accepts, its condition (if any) checked through `settled_holds`, its `applies_to` matched against the spell's frame with "you" = the source's current controller | `PermanentState::timestamp` — CR 613.7's, process-independent | CM-1 |
-| 2 | **the spell itself** | its own effective ability list (stack frame at 601.2f, hand frame for the preview), `CostSubject::Itself` only | last | CM-2 |
+| 2 | **the spell itself** | its own effective ability list (stack frame at 601.2f, hand frame for the preview), `CostSubject::Itself` only — a `Spells` subject printed on the object being cast is *not* consulted, since CR 113.6d licenses only "that particular object" | last | CM-2 ✅ |
 | 4 | a registry | §3.10's resolution-created cost effects | registration order | later |
 | — | other zones | emblems, graveyard cost abilities | — | with A5 |
 
 The fast-path gate: the source set non-empty, or either summary flag. When
 all three are false the sweep is skipped — the common board, and the reason
 the pipeline costs a `HashSet::is_empty` on every cast that no cost effect
-touches. Source 2 is not gated: it is one frame, already computed for the
-match.
+touches.
+
+**Source 2 is gated too** (§3.1's correction): the spell's own printed
+abilities are the third leg, OR'd with the same two flags, and the leg asks
+`CostSubject::applies_to_its_own_object` rather than "prints a cost ability".
+Only when some leg opens is a frame computed at all — and when source 1's
+sweep is running, that frame is the one it was already going to compute.
+
+**Two predicates, one per gate, and they are not each other's negation.**
+`applies_from_battlefield` decides whether `register_static_effects` records a
+permanent as a source at all — an affinity creature is a source of nothing,
+because its subject is an identity test a permanent can never satisfy, and
+recording it widened the sweep on every cast for a match that could not
+succeed. `applies_to_its_own_object` is source 2's leg. CR 602.2b's activated
+abilities (§3.10) will answer `true` to the first and `false` to the second,
+which is why one predicate could not do both jobs; both are matched
+exhaustively, so a new subject has to answer each.
 
 **What the spell-side match reads.** `object_matches_filter_in_frame(spell,
 filter, you, &frame)` — `permanent_matches_filter_in_frame` until CM-0 — with
@@ -758,6 +844,17 @@ the same player.
 | `types/effects.rs` | `Effect::CostModification(Box<_>)`, `Effect::as_cost_modification`, `Condition::SourceUntapped` |
 | `ui/choice_types.rs`, `ui/ask.rs`, `ui/cli.rs` | `OrderCostReductions`, `ask_order_cost_reductions`, the label |
 
+**CM-2 adds five, and changes one of CM-1's** (2026-09-07):
+
+| Site | Change |
+|---|---|
+| `engine/layers/compute.rs` | `settled_amount` — `evaluate_amount` over `Board::settled()`, `pub`, one line and a paragraph of why (§3.7) |
+| `engine/cost_determination/gather.rs` | source 2, its gate leg, and `collect`/`applies_to` shared by both sources |
+| `engine/cost_determination/total.rs` | `is_reduction` and `apply_one_reduction` — `ReduceGeneric` joins the ordering prompt and reads its amount at application |
+| `types/cost_modification.rs` | `CostSubject::Itself`, `CostChange::ReduceGeneric`, `CostModificationDef::itself`, and the two gate predicates |
+| `objects/card_data.rs` | `CardDataBuilder::affinity_for`, and `keyword` → `keyword_flag` (45 sites) so the two can coexist |
+| `state/game_state.rs` | `register_static_effects` records a source only when its subject can apply from the battlefield |
+
 ---
 
 ## 6. Sizing and the phase plan
@@ -769,7 +866,7 @@ the same player.
 |---|---|---|---|
 | **CM-0 — `PermanentFilter → ObjectFilter`** | the rename `roadmap-v2.md` A5 scheduled, pulled forward because CM-1 is its first non-permanent consumer (§3.2). No zone leaf, no behaviour | 275 occurrences / 25 `src/` files, 119 / 18 test files, 56 plan lines; `cargo build --all-targets` and a green suite are the whole check | low — pure rename; the one hazard is a doc line left saying the old name, and grep is the test |
 | **CM-1 — the pipeline** | §3.1–3.6: the type, the gate, the sweep over sources, 601.2f's order, the prompt, the preview, `SourceUntapped`; no `Itself`, no `ReduceGeneric`, no `not_below` (their phases'). **Consumers:** Thalia, Guardian of Thraben (increase, **pooled**), Goblin Electromancer (reduction), Trinisphere (direct-total, conditional). Fixtures: a self-tapping sphere for lock-in across 601.2g; a kicked spell; an alternative-cost spell; three small reducers for the floor | §5's 11 sites; ~400 new engine lines in `cost_modification/`, ~250 across the sites, ~350 of cards, ~600 of tests | **medium** — the first cast-time sweep; the preview is the site that can disagree with the engine, and the merge step touches every cast |
-| **CM-2 — the spell's own cost abilities** | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
+| **CM-2 — the spell's own cost abilities** ✅ | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
 | **CM-3 — lock-in's payment side** | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" is what CM-3 must add for a sacrifice paid before a later cost fails. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — today it also stops the moment the pool covers the cost, which is a payer's policy in the engine's loop (§3.11, §8). The policy moves to `ui::AutoPayer<D>`, a `DecisionProvider` decorator that answers `ManaAbilityWindow` (stop when covered), `GenericManaAllocation`, `OrderCostReductions` and CM-3's sacrifice choice from a solver and passes everything else through; `RandomDecisionProvider` and the CLI wrap themselves in it by default, with a flag off. **Consumers:** the loop's step 3 with CM-3's cards; the fuzz harness, which must reproduce today's counters with the payer on | ~30 in the window, ~150 decorator, ~30 wiring, ~150 tests: ~400 | medium — every cast's prompt sequence passes through it; the A/B is the check that the default reproduces `main` |
 | **CP-1 — payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint); `find_mana_sources` and `remaining_cost_after_pool` for them (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-colour costs follow the colour wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
@@ -830,6 +927,7 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 | `ATOM-118.7-001`, `-002` | reduced to nothing is {0}; free to cast | CM-1: {1}{R} reduced by {2} is {R}; a spell reduced to {0} casts from an empty pool | COVERS |
 | `ATOM-118.7a/b/c/d-001` | the arithmetic | CM-1: unit tests in `total.rs` | COVERS |
 | `ATOM-118.9d-001` | modifications apply to an alternative cost | CM-1: an alternative cost of {R} under Thalia pays {1}{R} | COVERS |
+| `ATOM-702.41a-001` | affinity reduces generic by the count it names | CM-2: Myr Enforcer cast from an exact pool at four artifact counts, an opponent's not counted, and seven artifacts casting it free | COVERS; the `{6}`/4 arithmetic is `total.rs`'s COVERS-PARTIAL, since it computes and does not cast |
 | `ATOM-601.2h-001` | the Altar's Reap example | **CM-3** | stays `Backlog`, labelled CM-3 |
 | `ATOM-107.4e/f-*`, `ATOM-202.3*` | payment | **CP-1** | stay `Backlog`, labelled CP-1 |
 
@@ -837,11 +935,28 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 `ATOM-601.7-001` stay in `Backlog`: the first three are CP-1's symbols, the
 last is structural and observes nothing.
 
+**CR 113.6d and 113.6e have no atoms**, and CM-2 checked rather than assumed:
+session-1 records both as PURE-DEF ("Framework"), so there was nothing to
+re-file for either and this document is the only place the zone question is
+written down. **CR 702.41b has no atom either** — the corpus has it as a
+deferred one-liner — and the engine reached it anyway: affinity lowers to one
+static ability per instance and the gather returns one instance per ability, so
+"each of them applies" is the gather's shape rather than a case.
+`total.rs::two_instances_of_affinity_each_apply` covers it and claims no atom;
+the session file carries a note saying so.
+
 **Reachability, not just coverage** (`engineering-practices.md` §3.3). Thalia
 is pooled, so the sweep and the increase run in every measured game; Humility
 is pooled, so the strip path does. Electromancer and Trinisphere are in the
 stress pool, and two Electromancers in one deck is what makes the ordering
 prompt reachable from a fuzz game at all.
+
+Myr Enforcer is pooled for CM-2, so source 2, the hand-frame preview and a
+cast-time `CountOf` run in measured games: cast 167 / resolved 166 in 113 of
+200 (56%), **1.74 copies per deck**, which is what makes "one Enforcer counts
+the one already on the battlefield" routine rather than contrived. On `stress`
+with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 136
+— affinity's reduction and a direct-total effect meet on one spell.
 
 ---
 
@@ -877,7 +992,36 @@ prompt reachable from a fuzz game at all.
    or the payer, whichever needs it first.
 5. **`ATOM-601.2f-004`'s worked example is wrong** (§3.4). Noted in the
    session file, not rewritten — the corpus is authored.
-6. **"Is a mana ability" is an author's classification, and the rule it
+6a. **A gate that reads a body and not its subject is a gate for the wrong
+   question** (CM-2, §3.1/§4). Two of them, found on the same day and from
+   opposite directions. `register_static_effects` recorded any static whose
+   body is a cost modification, so an affinity permanent became a "source"
+   that widened CR 601.2f's sweep on every cast for a match no permanent can
+   satisfy. Source 2's gate asked whether the card prints a cost ability,
+   which is true of a Thalia *in hand*, so her frame was computed at every
+   castability preview and refused — five non-member walks per 200 measured
+   games, found by `fuzz_ab.py`'s middle arm and by nothing else. Both fixed
+   by asking `CostSubject` a question (`applies_from_battlefield`,
+   `applies_to_its_own_object`), matched exhaustively so a new subject decides
+   both. **The general shape**: `Effect::as_…` tells you what kind of thing an
+   ability is, never where it can apply from, and every one of the three gates
+   is about *where*.
+7. **A registry row cannot reach a non-member, so CR 113.6e's second sentence
+   has nothing to build on** (CM-2, §3.1). `compute_non_member` applies CDAs
+   and no rows at all, so a card in hand or a spell on the stack has exactly
+   its printed ability list. That is what makes source 2's printed gate leg
+   *exact* rather than an over-approximation — and it means "an ability that
+   grants it another ability that restricts or modifies how that particular
+   object can be played or cast functions only on the stack" is unreachable
+   today. Recorded as a Deferred Migrations item with the gate's flag legs
+   named as what catches it when it stops being unreachable.
+8. **Affinity is the first mechanic that reduces a component to nothing on a
+   printed card**, which makes item 71's board (CR 601.2g's "if the total cost
+   includes a mana payment", read against a component reduced to nothing)
+   reachable from a measured game for the first time. The window's opening
+   condition is still right today and still CM-4's to make explicit; only its
+   reachability moved.
+9. **"Is a mana ability" is an author's classification, and the rule it
    applies moved after the freeze** (§3.11). `AbilityType::Mana` is CR
    605.1a applied by whoever writes the card, and the Hobbit update added
    a criterion to that rule. A rules-version knob would make the
@@ -895,8 +1039,12 @@ prompt reachable from a fuzz game at all.
   and **resolution-created cost effects**: §3.10, with their shapes.
 - **Commander tax**: §3.8, with B2.
 - **`lands_per_turn`, `max_hand_size`, player hexproof**: `backlog.md` §2.15.
-- **Golden-Tail Trainer**: §3.7, with item 6; the evaluator it needs lands in
-  CM-2.
+- **Golden-Tail Trainer**: the *card*, with item 6 — its second ability is an
+  attack trigger, and a card wearing its name with half its text is what
+  `engineering-practices.md` §3 forbids. Its *mechanism* is in:
+  `settled_amount` answers `SourcePower` and `phase_cm_cards::power_reducer`
+  is the fixture that consumes it (§3.7). Registering the printed card is then
+  a card change with no engine change behind it.
 - **Cost abilities in other zones** (emblems, Convergence of Dominion): §3.1,
   with A5.
 - **The Ironworks board's trigger half and the 732.1 reversal choice**:
@@ -985,3 +1133,21 @@ Built as §3 says. What the building changed is in `codebase-state.md`'s CM-1
 entry (main items 70–74): the merge step closed a latent kicker defect (item
 74), and the recording test provider now records an ordering prompt's *kind*.
 Thalia is pooled; the §3 table is re-recorded in `engineering-practices.md`.
+
+#### CM-2 — the spell's own cost abilities — ✅ 2026-09-07
+
+Built as §3.7 argued, with three corrections to this document that the
+building forced, each marked in place: **113.6d and not 113.6e** is affinity's
+zone rule and the preview is licensed by §3.6's engine requirement rather than
+by either (§3.1); **source 2 is gated**, because the frame §3.1 called "already
+computed" is not computed on the common board (§3.1, §4); and the evaluator is
+a **reader over one leaf table**, so `codebase-state.md` item 57 closes with
+"there is no third evaluator" rather than with a third one (§3.7).
+
+`SourcePower` is answered in the reader and refused by the walk, with a test
+each way and a fixture — `power_reducer` — consuming it, since the objection
+to Golden-Tail Trainer was always about the card's *name* and never about the
+arm. Myr Enforcer is pooled and Frogmite registered; the `keyword` →
+`keyword_flag` rename went first, alone. The A/B's middle arm is `IDENTICAL` to
+`main` on `performance` — on the second run: the first found two gates asking
+about a body where the question was about a subject (§8 items 6a and 7).

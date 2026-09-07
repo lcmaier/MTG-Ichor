@@ -326,7 +326,7 @@ mod tests {
             .card_type(CardType::Creature)
             .power_toughness(2, 2);
         for kw in keywords {
-            builder = builder.keyword(kw);
+            builder = builder.keyword_flag(kw);
         }
         let data = builder.build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);

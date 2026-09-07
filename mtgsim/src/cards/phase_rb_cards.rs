@@ -92,7 +92,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Vampire))
         .subtype(Subtype::Creature(CreatureType::Warrior))
         .power_toughness(3, 4)
-        .keyword(KeywordFlag::Lifelink)
+        .keyword_flag(KeywordFlag::Lifelink)
         .rules_text(
             "Lifelink\n\
              If a nontoken creature an opponent controls would die, instead exile that \

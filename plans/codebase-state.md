@@ -2733,9 +2733,24 @@ measurement; what follows is what a later phase has to know.
     evaluator is the thing to be careful about**: the answer depends on which
     board the caller is entitled to, and only the entry path knows.
 
-    **Reachability (2026-09-03):** nothing owed — a warning for the third
-    evaluator; cost modification ("Before Layers" item 3) is the one that will
-    want it.
+    **Reachability (2026-09-07):** closed — CM-2, and the answer is that
+    there is no third evaluator. `engine::layers::compute::settled_amount` is
+    a third *caller* of the one leaf table: `evaluate_amount` over
+    `Board::settled()` at the full ceiling, the same line
+    `condition::settled_holds` already was. The item's warning was that the
+    answer depends on which board the caller is entitled to; the sharper form
+    is that it depends on which **object** the caller means by "source". The
+    cost pipeline always hands the evaluator the ability's *own* source — the
+    permanent for a `Spells` subject, the spell for `Itself` — so
+    `object == source` and `SourcePower` would read `chars.power` with no
+    cross-object read at all. The walk cannot say that: there `object_id` is
+    the affected object and `origin.source` is elsewhere on the board, which
+    is the CR 613.8 dependency it refuses on purpose. So `SourcePower` is
+    **answered in the reader and still refused by the walk**, with a test each
+    way and `phase_cm_cards::power_reducer` — a fixture, since the objection to
+    Golden-Tail Trainer was about the card's name and never about the arm — as
+    its consumer. Its board is the entitlement claim made observable: an anthem
+    on the source moves the amount. → `cost-architecture.md` §3.7.
 
     **Sized:** none here.
 
@@ -2954,7 +2969,12 @@ games; with Humility forced beside her, both are on the board in 52%.
     for a judge).
 
     **Reachability (2026-09-07):** nothing owed — a record for item 70's
-    fix; the answer is right today.
+    fix; the answer is right today, re-derived after CM-2. What moved is the
+    *board*: affinity is the first printed mechanic that reduces a mana
+    component to nothing, so "a component reduced to nothing, considered to be
+    {0}" is now reachable from a measured game (a pooled Myr Enforcer behind
+    seven artifacts) rather than only from a fixture. The reading is still
+    cheap to flip and still CM-4's to make explicit.
 
     **Sized:** with item 70, ~5 lines.
 
@@ -3000,6 +3020,103 @@ games; with Humility forced beside her, both are on the board in 52%.
     reached it.
 
     **Reachability (2026-09-07):** closed — CM-1.
+
+### Found by CM-2 — the spell's own cost abilities (2026-09-07)
+
+**Shipped:** CR 113.6d and 702.41a — a spell's own cost ability as CR 601.2f's
+second gather source (`CostSubject::Itself`), `CostChange::ReduceGeneric` with
+`engine::layers::compute::settled_amount` behind it, `CardDataBuilder::
+affinity_for`, and the `keyword` → `keyword_flag` rename that made room for it;
+Myr Enforcer (pooled) and Frogmite. Three of `cost-architecture.md`'s claims
+were corrected in place by the building, and §3.7's argument survived intact.
+Main item 57 closes here.
+
+**Measured** (`plans/fuzz_ab.py`, 2026-09-07, three arms — `main`, CM-2's
+engine with both cards registered but not pooled, and CM-2 pooled): the middle
+arm is `IDENTICAL` to `main` on `performance` outside the timing block, so
+every counter the pooled arm moves is the pool's. CPU/game 16.63 → 16.50 ms
+for the middle arm (−0.8%, inside the sitting's spread); deterministic in all
+three arms, and three shell runs at one seed match on both pools. Myr Enforcer
+forced into every `performance` deck: cast 167, resolved 166, in 56% of 200
+games, 1.74 copies per deck. `engineering-practices.md` §3 has the re-recorded
+table.
+
+75. **A registry row cannot reach an object off the battlefield, so a granted
+    or copied cost ability on a spell is unreachable.** `compute_non_member`
+    applies CDAs and no rows at all, so a card in hand or a spell on the stack
+    has exactly its printed ability list. Two consequences, and the first is
+    load-bearing: source 2's printed gate leg is *exact* rather than an
+    over-approximation, which is why reading `card_data.abilities` there is a
+    gate and not an answer. The second is a gap — CR 113.6e's second sentence
+    ("an object's ability that grants it another ability that restricts or
+    modifies how that particular object can be played or cast functions only
+    on the stack") has nothing to grant with, and neither has CR 707.10's copy
+    of a spell.
+
+    **Reachability (2026-09-07):** unreachable — no route exists to put a row
+    on a non-member, and no registered card asks for one.
+
+    **Sized:** none here; when a route exists, the gather's two summary flags
+    (`any_granted_cost_modification`, `any_copied_cost_modification`) are
+    already OR'd into source 2's gate and are what catches it, so the cost of
+    forgetting is bounded to whatever builds the route.
+
+76. **`Effect::as_…` says what an ability *is*, never where it applies from,
+    and all three cost gates are about where.** Two gates got this wrong on
+    the same day, from opposite directions. `register_static_effects` recorded
+    any static whose body is a cost modification, so an affinity permanent
+    became a battlefield "source" that widened CR 601.2f's sweep on every cast
+    for a match no permanent can satisfy (`CostSubject::Itself` is an identity
+    test). Source 2's gate asked whether the card prints a cost ability, which
+    is true of a Thalia *in hand*, so her frame was computed at every
+    castability preview and then refused. Both now ask `CostSubject` a
+    question — `applies_from_battlefield` and `applies_to_its_own_object`,
+    matched exhaustively and **not** each other's negation, since CR 602.2b's
+    activated abilities will answer `true` and `false` respectively.
+
+    **Reachability (2026-09-07):** closed — CM-2. Neither was ever a wrong
+    *answer*; both were wasted work, and the second was found only by the A/B
+    arm that must reproduce `main` (+5 layer walks per 200 games, every
+    gameplay counter identical). That is the arm's whole justification: a
+    five-walk regression is not worth finding by argument.
+
+77. **The ordered battlefield sweeps cost ~5% of runtime, and it is the
+    deriving, not the sorting.** `CLAUDE.md`'s determinism invariant routes
+    every order-observable battlefield read through `battlefield_ids_ordered`
+    / `battlefield_ordered`, and each call collects a `Vec<(u64, ObjectId)>`,
+    sorts it, and maps into a second `Vec`. Measured 2026-09-07 on the
+    `performance` pool: **5,744 calls per game at a mean n of 15.9**, and at
+    n=16 one call is **127 ns** against **27 ns** to clone a Vec that was
+    already in order and **0.2 ns** to hand out a slice of one. That is
+    0.73 ms per game against a 14.2 ms game — **~5%**, of which ~4% is
+    recoverable by cloning a maintained order and ~5% by lending it.
+
+    **The sort is not the expensive part**; two heap allocations per call are.
+    So the design that recovers it is not "sort less" but "derive less": keep
+    the ordered vector on `GameState`, maintained at the three places the
+    order can change — `place_on_battlefield` (append; entry timestamps are
+    monotonic), removal, and `attach`, where CR 613.7e reassigns a timestamp
+    and LH-2 already re-stamps rows — and hand out a slice. Debug-mode
+    re-derivation and comparison is the guard, exactly as `audit_memo_hit` is
+    for the layer memo.
+
+    **Do not "fix" this by auditing which call sites observe order.** Some do
+    not (`steps.rs`'s `any` over first strike, for one), but the invariant is
+    blunt on purpose, and re-litigating observability at 52 call sites is how
+    it gets decided wrong once. Maintaining the order makes the blunt rule
+    free instead of making it negotiable.
+
+    **Reachability (2026-09-07):** reachable — not wrong; a measured
+    performance cost, and the numbers above are the measurement rather than an
+    estimate.
+
+    **Sized:** one field, three maintenance points, one debug audit, and a
+    mechanical return-type change across 52 call sites (most become a borrow,
+    the ones that mutate while iterating become the 27 ns clone). ~1 PR,
+    medium risk — the risk is drift between the kept order and the truth,
+    which is what the debug audit is for. Nothing depends on it; take it when
+    ~5% is worth a PR, or fold it into whatever next touches
+    `place_on_battlefield`.
 
 ### Was the critical path complete? — audited 2026-08-27
 

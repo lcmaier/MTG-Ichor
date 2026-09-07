@@ -1602,7 +1602,7 @@ mod tests {
             .card_type(CardType::Creature)
             .subtype(Subtype::Creature(CreatureType::Myr))
             .power_toughness(0, 1)
-            .keyword(crate::types::keywords::KeywordFlag::Indestructible)
+            .keyword_flag(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let target_id = obj.id;
@@ -1656,7 +1656,7 @@ fn token_card_data(
         builder = builder.subtype(subtype.clone());
     }
     for keyword in &def.keyword_flags {
-        builder = builder.keyword(*keyword);
+        builder = builder.keyword_flag(*keyword);
     }
     builder.build()
 }

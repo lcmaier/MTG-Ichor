@@ -727,6 +727,50 @@ pub(super) fn evaluate_amount(
     }
 }
 
+/// [`evaluate_amount`] against the settled board at the full ceiling — the
+/// read-side view a *post-layer* consumer takes, so every leaf answers as the
+/// live pass would have at its last layer. The mirror of
+/// [`condition::settled_holds`](crate::engine::layers::condition::settled_holds),
+/// and the same one line.
+///
+/// `object` is the object the amount is *about*, which for the one caller
+/// today — `engine::cost_determination`, at CR 601.2f — is always the cost
+/// ability's own source: the permanent for a `Spells` subject, the spell
+/// itself for `Itself`.
+///
+/// **That identity is `codebase-state.md` item 57's answer.** The item warned
+/// that a cost evaluator for `SourcePower` would be a *third* evaluator whose
+/// entitlement nobody had argued. It is instead a third **caller** of the one
+/// leaf table, and the entitlement is argued once (`cost-architecture.md`
+/// §3.7): CR 613.11 applies cost effects after every other continuous effect,
+/// so no hypothetical frame is in play and `Board::settled()` is the board the
+/// rule describes — the memo for a member's frame, the real battlefield for a
+/// count.
+///
+/// **`SourcePower` is answered here and refused by [`evaluate_amount`]**, and
+/// that split is the whole point. `object` being the source means this caller
+/// reads its own `chars.power` — the *effective* one, so an anthem on the
+/// source moves the amount — and makes no cross-object read at all. The walk
+/// cannot do that: there `object_id` is the affected object and the row's
+/// source is somewhere else on the board, so answering would be a
+/// cross-object read mid-pass, which is the CR 613.8 dependency it refuses on
+/// purpose. Same leaf, two callers, one of which is entitled to it.
+pub fn settled_amount(
+    expr: &crate::types::effects::AmountExpr,
+    game: &GameState,
+    object: ObjectId,
+) -> Option<i32> {
+    let chars = compute_characteristics(game, object)?;
+    // The one leaf this reader answers itself. `None` — a source with no
+    // power at all, an enchantment or a creature that stopped being one — is
+    // "no amount", which every consumer reads as "reduce nothing" rather than
+    // as zero-by-assumption.
+    if matches!(expr, crate::types::effects::AmountExpr::SourcePower) {
+        return chars.power;
+    }
+    evaluate_amount(expr, game, &chars, object, LAYER_ORDER.len(), &Board::settled(), None)
+}
+
 /// A modification with its reads already made, ready to be written to a
 /// frame without touching the board again.
 ///
@@ -1059,8 +1103,8 @@ mod tests {
         let data = CardDataBuilder::new("Serra Angel")
             .card_type(CardType::Creature)
             .power_toughness(4, 4)
-            .keyword(KeywordFlag::Flying)
-            .keyword(KeywordFlag::Vigilance)
+            .keyword_flag(KeywordFlag::Flying)
+            .keyword_flag(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -1828,5 +1872,76 @@ mod tests {
         let frame = compute_as_entering(&game, anthem, 0, &EnterMods::NONE).unwrap();
         assert_eq!(frame.power, Some(1), "Humility's 1/1 at 7b, and no anthem at 7c: the ability was gone at layer 6");
         assert!(frame.abilities.is_empty());
+    }
+
+    /// `settled_amount` is `evaluate_amount` over `Board::settled()`: a count
+    /// enumerates the *real* battlefield, and "you" is the asking object's own
+    /// controller. That is exactly what a cost effect at CR 601.2f is
+    /// entitled to, since CR 613.11 leaves it a finished board
+    /// (`cost-architecture.md` §3.7).
+    #[test]
+    fn settled_amount_counts_the_real_battlefield_with_you_the_objects_controller() {
+        use crate::test_support::{card_of_type, put_in_hand, setup_two_player_game, vanilla_creature};
+        use crate::types::effects::{AmountExpr, ObjectFilter, Selector};
+
+        let mut game = setup_two_player_game();
+        let expr = AmountExpr::CountOf(Selector::PermanentsMatching(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Artifact)),
+            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        )));
+
+        // A card in hand has no controller of its own, so "you" is its owner
+        // (CR 108.4a) — the prospective caster, which is the whole reason the
+        // castability preview can ask this at all.
+        let mine = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
+        let theirs = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 1);
+        assert_eq!(settled_amount(&expr, &game, mine), Some(0));
+
+        put_on_battlefield(&mut game, card_of_type("Rock", CardType::Artifact), 0);
+        put_on_battlefield(&mut game, card_of_type("Their Rock", CardType::Artifact), 1);
+        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        assert_eq!(settled_amount(&expr, &game, mine), Some(1), "P0's artifacts, not P1's and not a bear");
+        assert_eq!(settled_amount(&expr, &game, theirs), Some(1), "and P1's, P1's");
+    }
+
+    /// `SourcePower` off the source's **effective** frame, which is what
+    /// CR 613.11 entitles a cost effect to: an anthem on the source moves the
+    /// amount, and a source with no power at all has no amount rather than
+    /// zero.
+    #[test]
+    fn settled_amount_answers_source_power_off_the_effective_frame() {
+        use crate::types::effects::AmountExpr::SourcePower;
+        let mut game = crate::test_support::setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        assert_eq!(settled_amount(&SourcePower, &game, bears), Some(2));
+
+        put_on_battlefield(&mut game, crate::cards::phase5_pre_cards::glorious_anthem(), 0);
+        assert_eq!(settled_amount(&SourcePower, &game, bears), Some(3), "the anthem is in the frame");
+
+        let rock = put_on_battlefield(&mut game, crate::test_support::card_of_type("Rock", CardType::Artifact), 0);
+        assert_eq!(settled_amount(&SourcePower, &game, rock), None, "no power at all is not zero");
+    }
+
+    /// And the walk still refuses it. The reader may answer `SourcePower`
+    /// because its `object` *is* the source; `evaluate_amount` is handed an
+    /// affected object whose row's source is elsewhere, and reaching that
+    /// object's frame mid-pass is the CR 613.8 dependency it declines to
+    /// invent (`cost-architecture.md` §3.7).
+    #[test]
+    #[should_panic(expected = "no static-context evaluator")]
+    fn the_walks_evaluator_still_refuses_source_power() {
+        use crate::engine::layers::board::Board;
+        let mut game = crate::test_support::setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let chars = compute_characteristics(&game, bears).unwrap();
+        let _ = evaluate_amount(
+            &crate::types::effects::AmountExpr::SourcePower,
+            &game,
+            &chars,
+            bears,
+            LAYER_ORDER.len(),
+            &Board::settled(),
+            None,
+        );
     }
 }

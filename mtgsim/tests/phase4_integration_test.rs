@@ -366,8 +366,8 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     let data = CardDataBuilder::new("Test Trampler")
         .card_type(CardType::Creature)
         .power_toughness(4, 4)
-        .keyword(KeywordFlag::Trample)
-        .keyword(KeywordFlag::Deathtouch)
+        .keyword_flag(KeywordFlag::Trample)
+        .keyword_flag(KeywordFlag::Deathtouch)
         .build();
     let obj = GameObject::new(data, 0, Zone::Battlefield);
     let trampler = obj.id;

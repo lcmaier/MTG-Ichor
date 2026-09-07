@@ -1,7 +1,7 @@
-//! Cards for Phase CM-1 — cost modification (CR 601.2f, 613.11;
+//! Cards for the CM phases — cost modification (CR 601.2f, 613.11;
 //! `plans/cost-architecture.md`).
 //!
-//! **Three printed cards, one per position in CR 601.2f's order**, because
+//! **CM-1: three printed cards, one per position in CR 601.2f's order**, because
 //! the order is the whole rule and one card alone tests none of it: Thalia
 //! (an increase, and in `PERFORMANCE_POOL`), Goblin Electromancer (a
 //! reduction) and Trinisphere (the one card the "effects that directly affect
@@ -14,6 +14,12 @@
 //! exist because the corpus atoms name boards no three printed cards build —
 //! three reductions on one {1}{G} spell, a kicked spell under a tax, a spell
 //! that taps its own Trinisphere for mana between the lock and the payment.
+//!
+//! **CM-2: two printed cards, both affinity for artifacts** (CR 702.41a) —
+//! the spell's own cost ability, which is the pipeline's second gather source
+//! and its first dynamic amount. Myr Enforcer and Frogmite are vanilla bodies
+//! with nothing else on them, so any cost either is cast for is the
+//! reduction's doing and nothing else's.
 
 use std::sync::Arc;
 
@@ -65,7 +71,7 @@ pub fn thalia_guardian_of_thraben() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .subtype(Subtype::Creature(CreatureType::Soldier))
         .power_toughness(2, 1)
-        .keyword(KeywordFlag::FirstStrike)
+        .keyword_flag(KeywordFlag::FirstStrike)
         .rules_text("First strike\nNoncreature spells cost {1} more to cast.")
         .ability(
             CostModificationDef::spells(
@@ -150,6 +156,77 @@ pub fn trinisphere() -> Arc<CardData> {
 }
 
 // ---------------------------------------------------------------------------
+// CM-2 — the spell's own cost abilities (CR 113.6d, 702.41a)
+// ---------------------------------------------------------------------------
+
+/// Myr Enforcer — {7}
+/// Artifact Creature — Myr, 4/4
+///
+/// Affinity for artifacts (This spell costs {1} less to cast for each artifact
+/// you control.)
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// That is the whole card: a body and the keyword. CR 702.41a *defines*
+/// affinity as "This spell costs {1} less to cast for each [text] you
+/// control", so [`CardDataBuilder::affinity_for`] writes that sentence and
+/// nothing in the engine knows the word.
+///
+/// # In `PERFORMANCE_POOL`, and why
+///
+/// The pool's first cost ability that is the *spell's own*, so the first
+/// measured game in which CR 601.2f's gather has a second source, the
+/// castability preview reads a hand card's own ability list, and an
+/// `AmountExpr::CountOf` runs at cast time rather than inside a layer walk.
+/// Colorless, so every deck in the pool can cast it; an artifact itself, so
+/// a second copy in a deck counts the first. Its `{7}` is why it is the one
+/// pooled and Frogmite is not: the reduction has room to be large enough to
+/// see, where a `{4}` body is castable without ever asking.
+///
+/// [`CardDataBuilder::affinity_for`]: crate::objects::card_data::CardDataBuilder::affinity_for
+pub fn myr_enforcer() -> Arc<CardData> {
+    CardDataBuilder::new("Myr Enforcer")
+        .mana_cost(ManaCost::build(&[], 7))
+        .card_type(CardType::Artifact)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Myr))
+        .power_toughness(4, 4)
+        .rules_text(
+            "Affinity for artifacts (This spell costs {1} less to cast for each artifact \
+             you control.)",
+        )
+        .affinity_for(ObjectFilter::ByType(CardType::Artifact))
+        .build()
+}
+
+/// Frogmite — {4}
+/// Artifact Creature — Frog, 2/2
+///
+/// Affinity for artifacts (This spell costs {1} less to cast for each artifact
+/// you control.)
+///
+/// (Oracle text verified on Scryfall, 2026-09-07.)
+///
+/// The same ability on a smaller body, registered and not pooled. Two
+/// affinity cards is what lets a test put one on the battlefield and count it
+/// for the other — the board on which a self-reduction reads a board the
+/// first copy is standing on.
+pub fn frogmite() -> Arc<CardData> {
+    CardDataBuilder::new("Frogmite")
+        .mana_cost(ManaCost::build(&[], 4))
+        .card_type(CardType::Artifact)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Frog))
+        .power_toughness(2, 2)
+        .rules_text(
+            "Affinity for artifacts (This spell costs {1} less to cast for each artifact \
+             you control.)",
+        )
+        .affinity_for(ObjectFilter::ByType(CardType::Artifact))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
 // Fixtures — invented names, registered nowhere
 // ---------------------------------------------------------------------------
 
@@ -228,6 +305,39 @@ pub fn red_reducer() -> Arc<CardData> {
         ManaCost::build(&[ManaType::Red], 0),
         "Red spells you cast cost {R} less to cast.",
     )
+}
+
+/// Power Reducer — {2}{W}
+/// Creature — Human Soldier, 2/2
+///
+/// **A fixture, and an invented name.** "Spells you cast cost {X} less to
+/// cast, where X is this creature's power." Golden-Tail Trainer prints that
+/// shape and cannot be registered yet — its second ability is an attack
+/// trigger (critical-path item 6), and a card wearing its name with half its
+/// text is what `engineering-practices.md` §3 forbids. The *arm* has no such
+/// problem, so this fixture is its consumer.
+///
+/// It is a creature because the amount reads a power, and the reduction is
+/// read off the **effective** frame: an anthem on this makes it reduce more,
+/// which is the whole of `cost-architecture.md` §3.7's entitlement argument
+/// stated as a board.
+pub fn power_reducer() -> Arc<CardData> {
+    CardDataBuilder::new("Power Reducer")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Soldier))
+        .power_toughness(2, 2)
+        .rules_text("Spells you cast cost {X} less to cast, where X is this creature's power.")
+        .ability(
+            CostModificationDef::spells(
+                you_cast(ObjectFilter::All),
+                CostChange::ReduceGeneric(AmountExpr::SourcePower),
+            )
+            .into_ability(),
+        )
+        .build()
 }
 
 /// A spell fixture: "Draw a card." with the given cost, color and type. The

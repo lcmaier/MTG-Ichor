@@ -96,7 +96,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
         .supertype(Supertype::Legendary)
         .subtype(Subtype::Creature(CreatureType::Angel))
         .power_toughness(5, 5)
-        .keyword(KeywordFlag::Flying)
+        .keyword_flag(KeywordFlag::Flying)
         .rules_text(
             "Flying\n\
              Spells and abilities your opponents control can't cause you to \

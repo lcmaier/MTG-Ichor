@@ -33,8 +33,8 @@ pub fn serra_angel() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
         .power_toughness(4, 4)
-        .keyword(KeywordFlag::Flying)
-        .keyword(KeywordFlag::Vigilance)
+        .keyword_flag(KeywordFlag::Flying)
+        .keyword_flag(KeywordFlag::Vigilance)
         .build()
 }
 
@@ -47,8 +47,8 @@ pub fn thornweald_archer() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 1)
-        .keyword(KeywordFlag::Reach)
-        .keyword(KeywordFlag::Deathtouch)
+        .keyword_flag(KeywordFlag::Reach)
+        .keyword_flag(KeywordFlag::Deathtouch)
         .build()
 }
 
@@ -61,7 +61,7 @@ pub fn raging_cougar() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .power_toughness(2, 2)
-        .keyword(KeywordFlag::Haste)
+        .keyword_flag(KeywordFlag::Haste)
         .build()
 }
 
@@ -78,7 +78,7 @@ pub fn wall_of_stone() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 1))
         .power_toughness(0, 8)
-        .keyword(KeywordFlag::Defender)
+        .keyword_flag(KeywordFlag::Defender)
         .build()
 }
 
@@ -91,7 +91,7 @@ pub fn elvish_archers() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 1)
-        .keyword(KeywordFlag::FirstStrike)
+        .keyword_flag(KeywordFlag::FirstStrike)
         .build()
 }
 
@@ -104,7 +104,7 @@ pub fn ridgetop_raptor() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
         .power_toughness(2, 1)
-        .keyword(KeywordFlag::DoubleStrike)
+        .keyword_flag(KeywordFlag::DoubleStrike)
         .build()
 }
 
@@ -117,7 +117,7 @@ pub fn war_mammoth() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
-        .keyword(KeywordFlag::Trample)
+        .keyword_flag(KeywordFlag::Trample)
         .build()
 }
 
@@ -130,8 +130,8 @@ pub fn knight_of_meadowgrain() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 0))
         .power_toughness(2, 2)
-        .keyword(KeywordFlag::FirstStrike)
-        .keyword(KeywordFlag::Lifelink)
+        .keyword_flag(KeywordFlag::FirstStrike)
+        .keyword_flag(KeywordFlag::Lifelink)
         .build()
 }
 
@@ -150,7 +150,7 @@ pub fn rhox_war_monk() -> Arc<CardData> {
             ManaSymbol::Colored(ManaType::Blue),
         ] })
         .power_toughness(3, 4)
-        .keyword(KeywordFlag::Lifelink)
+        .keyword_flag(KeywordFlag::Lifelink)
         .build()
 }
 
@@ -163,7 +163,7 @@ pub fn giant_spider() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(2, 4)
-        .keyword(KeywordFlag::Reach)
+        .keyword_flag(KeywordFlag::Reach)
         .build()
 }
 
@@ -176,9 +176,9 @@ pub fn vampire_nighthawk() -> Arc<CardData> {
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 1))
         .power_toughness(2, 3)
-        .keyword(KeywordFlag::Flying)
-        .keyword(KeywordFlag::Lifelink)
-        .keyword(KeywordFlag::Deathtouch)
+        .keyword_flag(KeywordFlag::Flying)
+        .keyword_flag(KeywordFlag::Lifelink)
+        .keyword_flag(KeywordFlag::Deathtouch)
         .build()
 }
 

@@ -33,7 +33,7 @@ end with the *why*, past the spine to v1; `specdb.py`'s `CRITICAL_PATH` points h
 6. Triggered abilities (CR 603) — after 5, 6b, 7 and the CR 113.6 zone-function predicate; insertion point
    `perform_sba_and_triggers`; takes LKI's consumers and CR 603.4's intervening "if" with it — `Condition` has
    a static evaluator since 7, so this adds a reader, not a language. **Unsized — write its doc first**
-Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1 ✅ 2026-09-07**, CM-2–4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
+Beside 6 once 5 is in: the Commander interleave (cost modification — `cost-architecture.md`, **CM-1, CM-2 ✅ 2026-09-07**, CM-3/4 and CP-1 sized there; `GameConfig::commander()`, CR 903.7,
 CR 800/802) and the information model (`backlog.md` §2.9 — back-stop before Phase 8's reveal cards and
 before Phase 10). Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
@@ -65,9 +65,9 @@ absent here whether or not they shipped.
 
 | | |
 |---|---:|
-| Cards registered | 86 |
-| …of them in `PERFORMANCE_POOL` | 71 |
-| `#[test]` functions | 1020 |
+| Cards registered | 88 |
+| …of them in `PERFORMANCE_POOL` | 72 |
+| `#[test]` functions | 1033 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -75,15 +75,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 4023 of 4238 lines (94%) |
-| Numbered items | 120 |
-| …closed, still recorded | 29 |
-| …open — unreachable, and says why | 55 |
+| Section size | 4140 of 4355 lines (95%) |
+| Numbered items | 123 |
+| …closed, still recorded | 31 |
+| …open — unreachable, and says why | 56 |
 | **…open — reachable, wrong today** | **3** |
-| …open — reachable, not wrong (perf, a name, a harness) | 10 |
-| …open — nothing to build, a record for a later phase | 23 |
+| …open — reachable, not wrong (perf, a name, a harness) | 11 |
+| …open — nothing to build, a record for a later phase | 22 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 91 of 91 |
+| …open, carrying an explicit `**Sized:**` | 92 of 92 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
