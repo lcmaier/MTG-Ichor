@@ -1374,7 +1374,10 @@ the RC/RD/RE line entirely.
 **RS-3b should not start before the CR 613.8 dependency cluster** (`CLAUDE.md`
 critical-path item 7): evasion is cumulative (CR 509.1b), so a solver reading
 effective characteristics under timestamp-only ordering will produce answers
-that change when 613.8 lands. **RS-3a does not have that problem** — a
+that change when 613.8 lands. **✅ Unblocked 2026-09-06** — the cluster landed
+whole (LI-1's board-wide pass, LI-2's dependency loop, LI-3's conditional
+statics), so an effective characteristic a solver reads is now the CR's answer
+and will not move under it. RS-3b is schedulable. **RS-3a does not have that problem** — a
 per-creature predicate reads the same frame every other combat check already
 reads today — which is the second reason to split RS-3 in two rather than the
 first. The split lets 1,267 of 1,277 clauses land without waiting on item 7.
@@ -1427,8 +1430,8 @@ match. The table stays as the Track R / Track S reading; schedule from §3a.
 | 10 | **Cost modification** — its own small phase | `replacement-architecture.md` §9 asks for it; commander tax runs through it; RS-4 wants it nearby |
 | 11 | **RS-4** — costs (CR 614.17b) | Needs RS-1 for the derived half and reads better after 10 |
 | 12 | **RS-3a** — combat, the predicate half | 1,267 of 1,277 Tier-1a clauses. Does **not** need item 7 |
-| 13 | **CR 613.8** — the dependency cluster | `CLAUDE.md` item 7, hard back-stop before Phase 8 breadth |
-| 14 | **RS-3b** — combat, the solver half | After 13, because evasion is cumulative |
+| 13 | ~~**CR 613.8** — the dependency cluster~~ ✅ **done 2026-09-06** (LI-1/LI-2/LI-3) | `CLAUDE.md` item 7, hard back-stop before Phase 8 breadth |
+| 14 | **RS-3b** — combat, the solver half | After 13, because evasion is cumulative. **13 is done; this is unblocked** |
 | 15 | **RD**, then **RE** | Damage/prevention, then the remaining event kinds. RD gives Tier 3's other half something to withhold |
 | 16 | **CR 603** — triggers | `CLAUDE.md` item 6; consumes the performed-event stream both tracks feed |
 

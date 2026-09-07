@@ -1286,11 +1286,14 @@ battlefield").
 (corrected 2026-09-02, before RC-4's first test was written). Grist's "as long
 as Grist isn't on the battlefield" and Thassa's "as long as your devotion to
 blue is less than five" are both `Effect::Conditional` **static** abilities,
-which `register_static_effects` cannot lower and `debug_assert!`s on — Deferred
-Migrations item 7f — and Thassa additionally needs a `Condition` arm for a
-numeric comparison and an `AmountExpr` that counts mana symbols, none of which
-exist. The devotion arithmetic was the cheapest part of the God, not the
-expensive one. RC-4 did not pull 7f in. Clause (2) is tested with a fixture
+which `register_static_effects` could not lower and `debug_assert!`d on —
+Deferred Migrations item 7f. **7f closed with LI-3 (2026-09-06) and neither
+card is unlocked by it**, which is worth recording because the item read as
+though it were the blocker: Thassa needs a `Condition` leaf for a numeric
+comparison and an `AmountExpr` that counts mana symbols, and Grist needs a
+condition about a zone the source is *not* in, which no leaf expresses. The
+devotion arithmetic was the cheapest part of the God, not the expensive one.
+RC-4 did not pull 7f in. Clause (2) is tested with a fixture
 instead — a 2/2 whose own "creatures you control get +1/+1" makes it 3/3 to a
 "creatures with power 2 or less enter tapped" — and the count boundary with
 Keldon Warlord, above. When 7f lands, `test_grist_entering_is_not_a_creature`
@@ -2931,7 +2934,8 @@ basis and no pending one.
    `cant-effects-architecture.md` §5.3 carries it.
 
 5. **The consumers were not the ones the plan named.** Grist and Thassa are
-   `Effect::Conditional` statics (item 7f) and Master Biomancer needs a dynamic
+   `Effect::Conditional` statics (item 7f, closed 2026-09-06 — but each still
+   wants a `Condition` leaf nothing has needed yet) and Master Biomancer needs a dynamic
    counter amount (RC-5). What was buildable: an anthem creature for clause
    (2), Keldon Warlord for the count boundary, Containment Priest as the first
    replacement whose *filter* reads the frame — a Sol Ring returned under March

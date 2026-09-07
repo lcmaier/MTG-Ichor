@@ -2051,7 +2051,7 @@ CPU/game median 15.42 → 15.89 (B, +3.0%) → 15.72 ms (C, +1.9%), inside the
 sitting's spread — round 3 had B faster than A; ms per 1,000 questions
 0.155 → 0.160 → 0.163. `engineering-practices.md` §3 has the tables.
 
-### LI-3 — conditional statics (~750–900 additions)
+### LI-3 — conditional statics (~750–900 additions) — ✅ 2026-09-06
 
 1. **Lowering.** `static_ability_atoms` gains an `Effect::Conditional(cond,
    inner)` arm that lowers `inner`'s atoms exactly as today; nothing about
@@ -2083,6 +2083,102 @@ sitting's spread — round 3 had B faster than A; ms per 1,000 questions
    static over `Host`. Three things at once, and each exists after LI-1
    (the layer-6 grant), LH-2 (Equip) and this PR (the condition). Rune of
    Flight itself is registered when item 6 gives it its draw trigger.
+
+**As built (2026-09-06, `layers/li-3-conditional-statics`).** +1,065 / −38
+across nine files before the docs: `engine/layers/condition.rs` is new (+341
+with its unit tests), `board.rs` +127, `phase_li_cards.rs` +180,
+`game_state.rs` +72 / −34, and `tests/phase_li3_integration_test.rs` +329.
+The ~750–900 estimate was for the code and held there; the tests and the
+docs put the PR near 1,300. Four departures from the pieces above.
+
+1. **The lowering recurses over the effect *body*, not the ability.**
+   Piece 1 said `static_ability_atoms` gains a `Conditional` arm; built as
+   `atoms_of_static_body`, with `static_ability_atoms` a one-line wrapper
+   over `&ability.effect`. The difference matters at exactly one place: a
+   conditional wrapping something the lowering cannot express — a `Modal`,
+   an `Optional` — must be as loud as an unconditional one, and recursion
+   into the same `match` is what guarantees that rather than a second copy
+   of the declining arms. `test_a_conditional_wrapping_an_unlowerable_body_is_loud`
+   is the pin. Nothing in the rows changes, as decision 5 promised, and the
+   card-file lowering test asserts each new card's rows are the inner
+   atom's exactly.
+
+2. **`Condition::HostMatches` reuses `PermanentFilter`.** Piece 2 asked for
+   "one leaf the Rune shape needs" out of §15.1's `ObjectRef::AttachedTo`
+   sketch. §15.1 spells it `ObjectHasSubtype(ObjectRef, Subtype)` — a
+   predicate per characteristic, times an object reference. Built as one
+   variant carrying the filter the rest of the engine already uses, so
+   "is an Equipment", "is a creature" and every conjunction of them are one
+   leaf rather than a family, and `condition_reads` can ask `filter_reads`
+   what it reads instead of enumerating. `Host` rather than `AttachedTo`
+   for §13a decision 4's reason: one word for one relationship.
+
+3. **The Rune-of-Flight fixture is Rune of Flight's *third* line, not its
+   fourth.** Piece 5 named the Equipment clause — "as long as enchanted
+   permanent is an Equipment, it has 'Equipped creature has flying'" — as
+   the fixture. It is not registerable, and the blocker is neither the
+   condition nor the layer-6 grant: **a static ability that grants a static
+   ability registers no continuous effect at all.**
+   `register_static_effects` lowers `Primitive::GrantAbility` to a layer-6
+   row and stops; `register_granted_static_effects`, which derives the rows
+   the *granted* ability generates, has exactly one caller and it is a
+   resolution (`resolve.rs`). So the ability lands on the host's frame and
+   does nothing — the inert-card failure this codebase names. Verified on
+   the board before the fixture was written, and recorded as
+   `codebase-state.md` "Before Layers" item 7g; the printed card is three
+   things away rather than two. What ships is the line above it, "as long
+   as enchanted permanent is a creature, it has flying", which is the same
+   shape — a conditional static granting over `Host` at layer 6 — with a
+   keyword instead of an ability, and it is fully live.
+
+4. **The `effect_channels` clause is pinned by a layer-4 board, not by the
+   Rune.** The handoff predicted the Rune fixture would be where the
+   condition's channels bite. It is not, and the reason is a layer count:
+   layer 6 writes abilities and keywords, and no `PermanentFilter` leaf
+   reads either, so a layer-6 condition cannot be flipped by a layer-6
+   effect through any filter the engine has. What can be flipped in its own
+   layer is a **layer-4** condition — `Simian Clause`, "as long as you
+   control a Forest, each creature you control is an Ape", beside Blood
+   Moon, which writes subtypes. Without the clause that pair is settled
+   independent (the Clause's only shared read is of its *own* source's
+   ability list, and Blood Moon does not reach the Clause), applies in
+   timestamp order, and makes an Ape out of a creature the CR says it
+   should not; with it the pair reaches the hypothetical, one check, and
+   the Clause waits. Shown by sabotage: with `conditional_reads_of` removed
+   exactly that one test of the six fails, and with the existence clause
+   removed five of six do.
+
+**The A/B (2026-09-06).** `plans/fuzz_ab.py`, one sitting, three arms:
+`main` at 9011d42 (A), LI-3's engine with the registry and both pools
+unchanged (B), and the shipped tree (C). **B is byte-identical to A** —
+every counter, behavioural and cost row at 50 and 200 games on both pools,
+the three serial timing rounds line for line outside `=== Timing ===`, and
+the whole 40-game `--dump-events` stream on both pools. Not "identical the
+new row aside", as LI-1 and LI-2 each had to say: this PR adds no counter,
+and its engine change is an arm no registered ability's body reached
+before Kird Ape. So the A/B's claim is narrow and exact — **the change is
+inert until a conditional card is in the pool** — and every row that moves
+in C is Kird Ape's, every divergent game diverging at the draw that hands
+somebody a Kird Ape where `main` handed them a Keldon Warlord. CPU/game
+median 15.72 → 15.89 (B, +1.1%) → 16.01 ms (C, +1.8%), inside the
+sitting's spread; ms per 1,000 questions 0.163 → 0.164 → 0.162.
+`engineering-practices.md` §3 has the tables and the p99 caveat.
+
+**The trace page for the phase's close** is
+`plans/traces/item-7-an-effect-waits-for-what-it-reads.html`, beside LI-1's:
+the loop's two paths, the judge answer's four-card layer 4 walked through
+`next_ready` and the journal, the Simian Clause board with the sabotage step
+that shows what `condition_reads` buys, and Kird Ape as the same card text two
+layers apart with no dependency in it.
+
+**What the phase leaves for item 6.** The `Condition` AST now has an
+evaluator in a static context, which is half of what CR 603.4's intervening
+"if" needs; the other half is a resolution context, where `SpellWasKicked`
+and `ModeChosen` stop asserting and start reading a cast. Adding a leaf is
+still a variant plus one `match` arm plus one `condition_reads` arm — the
+third is the one a new leaf must not forget, since a leaf that reads a
+frame and says so nowhere is a wrong *order*, not a wrong value, and no
+test of the leaf itself would catch it.
 
 ### Every PR carries
 
@@ -2187,6 +2283,8 @@ Samples from the reviewer's Scryfall query (~420 relevant cards after the given 
 4. **Deferred decision point.** If by Phase LC the AST growth rate suggests it *is* ossifying, we revisit with a different model (e.g., a tiny embedded script language or a trait-based predicate). Phase LC gate: count leaf variants needed for the atomic-test phase-index cards; if it exceeds ~25 or the list looks uncategorizable, escalate.
 
 Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No evaluator yet. Phase LC builds the evaluator and adds leaves for that phase's cards only.
+
+**Built 2026-09-06 by LI-3, not LC, and smaller than sketched.** The AST is the eight-variant `Condition` in `types/effects.rs` — written for CR 603.4, shared rather than duplicated (§13b decision 5) — and the evaluator is `engine/layers/condition.rs`, a static context only. One leaf was added, and mitigation 1 is what it looks like in practice: `HostMatches(PermanentFilter)` rather than the sketch's `ObjectHasType`/`ObjectHasSubtype`/`ObjectIsTapped` × `ObjectRef` grid, because reusing the filter the rest of the engine already has makes "is an Equipment", "is a creature" and every conjunction one variant instead of a family — and lets `board::condition_reads` ask `filter_reads` what a condition reads rather than enumerating it. **A new leaf is three edits, not two**: the variant, the `holds` arm, and the `condition_reads` arm. The third is the one to remember — a leaf that reads a frame and says so nowhere produces a wrong *order*, not a wrong value, and no test of the leaf alone would catch it. The Phase LC gate's count is 9 of ~25.
 
 ### 15.2 Still open
 

@@ -243,7 +243,7 @@ on `plans/state-of-play.md`, which derives them and is checked in CI; these are
 the dated snapshots on either side of the triage. The parser changed between
 the two columns and the change is itself a finding: the old one counted any
 column-0 `N.` line, so it took this block's own four-step list and two lists in
-prose for items, and it could not see the lettered sub-items (`7a`–`7g`,
+prose for items, and it could not see the lettered sub-items (`7a`–`7h`,
 `16b`–`16e`) at all. It now counts `Na.` too, the prose lists use the `)`
 delimiter, and it reads the dated `**Reachability (YYYY-MM-DD):**` verdict every
 open item now carries.
@@ -1229,7 +1229,7 @@ lands. Absorbed here and the file deleted; the corrections (A1–A6) and answers
 no item: **C2** (ATOM-702.131b-002, Ascend mid-resolution) found the mechanism
 already right — nothing memoizes across a resolution — and its two missing
 features have owners, the city's blessing designation at Phase 8 and conditional
-statics at "Before Layers" item 7f; **C4** (reachability is thin) is done —
+statics at "Before Layers" item 7f (closed 2026-09-06); **C4** (reachability is thin) is done —
 `--require` shipped with CV-1, Everywhere landed as PR #91, and the defect it
 found is 16c; **C6** (promote CR 400.7?) was answered by PR #93 — main item 10
 is CV-1b's first commit, not a critical-path row — and its claim that Giant
@@ -3261,7 +3261,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     **The two halves of that limitation are not one problem, and only one is waiting on anything.**
 
     - **Layer 6 exactly** — Rune of Flight, "As long as enchanted permanent is an Equipment, it has 'Equipped creature has flying.'" The CR resolves this purely by timestamp within layer 6, and our *ordering* is already correct for it: clause 2 makes the derived timestamp `max(grantee, grant)`, which is ≥ the grant's, and on a tie the grant row is registered first so it wins the `EffectId` tiebreak in `effects_in_layer`. The grant therefore always sorts at-or-before its own derived effect. The single missing piece is that `static_ability_still_exists` asks `compute_to_ceiling(source, layer_index)` — the frame as of the *end of the previous layer* — and so cannot see a partially-applied current layer. Item 8 step 4's board-wide sequential pass is exactly that frame: apply a layer over its ordered applications, mutating a per-object map, and the check at position *k* sees everything applied earlier in the same layer. That is the same change 613.8b's loop rule needs to become exact, which is why they belong in one phase. Nothing about the Layer 6 work needs redoing — only the frame the check reads.
-      (Rune of Flight additionally needs Equip and item 7f's conditional statics, so it is three things away, not one.)
+      (Rune of Flight additionally needs Equip and item 7f's conditional statics, so it is three things away, not one. **Two of the three landed** — Equip with LH-2, the condition with LI-3 — and the third turned out to be item 7g, not this: the Equipment clause grants a *static ability* from a static ability, and only a resolution derives those rows. LI-3's `phase_li_cards::flight_clause` is the line above it, "as long as enchanted permanent is a creature, it has flying", which needs none of that.)
 
     - **Layers 1–5** — a layer 6 grant whose ability generates a layer 4 or 5 effect. This is *not* scheduled, and not because it is hard. CR 613.8a(a) confines dependency to a single layer, so the CR itself supplies no mechanism for a later layer to reach back into an earlier one; any ordering we picked would be invented rather than implemented. Searched Scryfall for granted statics that define a type, color or subtype — every hit is a false positive (quoted text inside a granted *activated* ability, plus Animate Dead's enchant clause). Real grants are of triggered abilities, activated abilities, keywords, or layer 7 statics. Revisit if a card ever appears; there is nothing to build against today.
 
@@ -3303,30 +3303,33 @@ The layer system's designated single-point change site is `oracle/characteristic
     struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
     with main item 64's rename.
 
-7f. **Conditional static abilities are unmodeled.** `register_static_effects` handles `Effect::Atom` and `Effect::Sequence` and asserts on everything else, so `Effect::Conditional` — "as long as [X], this has [Y]" — registers nothing and now says so loudly. Wanted by a large class of real cards.
+7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(PermanentFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
-    **Layer 2 shipped without it (2026-08-23), and it was not in the way after all.** The worked example below, Dog Umbra, is three systems away rather than one: it needs this item, *and* an "enchanted permanent" `AffectedSet` (which does not exist — `EffectRecipient` has `FilteredPermanents` and `Implicit`, neither of which names an attachment's host), *and* umbra armor, which is a replacement effect and therefore CR 614 work. No card in Layer 2's reach is conditional: Act of Treason and Threaten are unconditional, and Mind Control's "You control enchanted creature" is blocked on the attachment recipient, not on this. Still the largest item standing between the engine and card breadth; no longer coupled to any specific layer. **Dog Umbra** is the worked example: "As long as another player controls enchanted creature, it can't attack or block. Otherwise, this Aura has umbra armor." A conditional static whose condition is *control*, so applying a Layer 2 effect changes which abilities the Aura has. (Umbra armor is CR 702.89a; 702.89b renamed the older "totem armor" wording in Oracle, so use umbra armor.)
+    **Dog Umbra, the worked example this item carried, is still two systems away** — "As long as another player controls enchanted creature, it can't attack or block. Otherwise, this Aura has umbra armor." The condition and the `Host` recipient both exist now (this item and LH-1); what is left is `Effect::Restriction` under a conditional, which lowers to no rows on purpose (CR 101.2 reads the effective ability list instead, so the *condition* has to be read there rather than here — RS-2's), and umbra armor, a replacement effect. (Umbra armor is CR 702.89a; 702.89b renamed the older "totem armor" wording in Oracle, so use umbra armor.)
+
+    **What the arm does *not* do, and why that is the right reading.** The condition is not consulted at registration: a card whose condition is false as it enters still registers its rows, and they apply to nothing until it becomes true. Consulting it at ETB would need a re-registration hook on every board change a condition can read, which is the reconciliation `CLAUDE.md` warns about — existence is decided in the layer walk or it is decided in an oscillating loop outside it.
 
     Historical note, because it cost a round trip: an `EffectModification::can_change_abilities()` gate briefly skipped the CR 604.2 existence check when nothing in the registry could change an ability set. It was worth 5-8x, and it was **removed** — it was valid only while no static ability is conditional, and it would have failed globally rather than arm by arm once they are. A rules engine has nothing to trade for a silently wrong answer. `layers-architecture.md` §12 records the measurements and the answer-preserving alternatives.
 
-    **Reachability (2026-09-03):** unreachable — no registered card is
-    conditional, and it cannot become one silently: `card_pool_lowering_test`
-    puts every registered card onto the battlefield under the `debug_assert` at
-    `game_state.rs:1271`.
-
-    **Sized:** `Effect::Conditional` lowers to rows carrying a
-    `Condition` that the walk re-evaluates at the row's layer with
-    existence-check semantics (CR 604.2-shaped), ~300–500 lines, plus the
-    attachment-host `AffectedSet` that LH brings; critical-path item 6 takes it,
-    as `CLAUDE.md` says.
-
+    **Built as sized**, and the size was right: ~340 lines for the evaluator
+    with its tests, ~90 in the existence check and the channel table, ~25 in the
+    lowering. The attachment-host `AffectedSet` LH brought is what
+    `HostMatches` reads through.
 7e. **Derivation silently drops non-`Fixed` amounts — ✅ done (2026-08-22).** `EffectModification::{SetPowerToughness, ModifyPowerToughness}` now carry a `PtValue`: `Fixed(i32)` for a signed literal, `Dynamic(AmountExpr)` for an expression re-evaluated at every layer by `compute::evaluate_pt_value`. Two variants rather than one because `AmountExpr::Fixed` is `u64` and `ModifyPowerToughness { power: -1 }` needs a sign. Resolution-time effects stay `Fixed` (CR 608.2h locks a resolving spell's value in); it is static abilities that must stay live (CR 604.7). March of the Machines is back to its printed "equal to its mana value" via `AmountExpr::AffectedManaValue`.
 
     Residue, now loud instead of silent: the evaluator returns `Option<i32>` and `debug_assert!`s on an amount with no static-context meaning. `Variable` genuinely cannot appear on a static ability (CR 107.3's X is chosen as a spell is cast), but the `Target*` family points at a real vocabulary gap — see item 3.
 
     **Reachability (2026-09-03):** closed — 2026-08-22.
 
-7g. **Two epoch bumps the 7a memo is owed (recorded 2026-09-03).** The memo's
+7g. **A static ability that grants a static ability registers no continuous effect (found 2026-09-06, LI-3).** `register_static_effects` lowers `Primitive::GrantAbility` to a layer-6 row and stops. The rows the *granted* ability itself generates are `resolve::register_granted_static_effects`' job, and that function has exactly one caller — `Primitive::GrantAbility` resolving. So an Aura reading "enchanted permanent has 'Equipped creature has flying'" puts the ability on the host's frame and nothing else happens: the equipped creature does not fly. Verified on the board before LI-3's fixture was written, which is why the fixture is Rune of Flight's *third* line rather than its fourth.
+
+    **Not a missing call.** A resolution knows its grantees — `collect_battlefield_targets` names them once and they never change. A static ability's grantees are its `AffectedSet`, decided per pass: `Host` moves when the Aura is reattached, `Filter` gains and loses members every time the board does. So the derived rows would have to be re-derived per pass rather than registered once, which is a new kind of row (one whose source is another row) and a new question for CR 613.7a clause 2's timestamp. **Related to but not the same as** item 9's zone-reaching `AffectedSet`.
+
+    **Reachability:** unreachable — no registered card is a static ability granting a static ability, and it cannot become one quietly for the *lowering*, which is loud; it becomes one quietly for the *behaviour*, which is exactly this item. **Cards it blocks:** Rune of Flight's Equipment clause, and the "enchanted/equipped permanent has '[static]'" shape generally.
+
+    **Sized:** a per-pass derivation step in `board::applications_in_layer` that reads layer 6's granted abilities off the live frames and produces their rows in the same layer, plus the CR 613.7a clause-2 timestamp for a source that is itself a row, ~150–250 lines. Its own PR, and it wants a test board where the grant and the derived effect are ordered against a third layer-6 effect.
+
+7h. **Two epoch bumps the 7a memo is owed (recorded 2026-09-03).** The memo's
     key is one epoch, and a walk input written without a bump is a stale
     answer that only the debug audit can see, and only when a hit is served.
     (1) **LH** makes `attached_to` / `attached_by` and the CR 613.7 timestamp
@@ -3426,7 +3429,9 @@ The layer system's designated single-point change site is `oracle/characteristic
    (`engineering-practices.md` §3). Step 1 is built with it (an
    `Application` per row, CDA or counter, carrying `is_cda`); steps 2 and 3
    — the dependency graph, 613.8b's loop rule, 613.8c's re-evaluation — are
-   LI-2, worked from the rulings: Urborg, Tomb of Yawgmoth registered, the
+   LI-2 — walked call by call in
+   `plans/traces/item-7-an-effect-waits-for-what-it-reads.html`, with LI-3's
+   conditional-existence board beside it — worked from the rulings: Urborg, Tomb of Yawgmoth registered, the
    Rootpath Purifier ruling's board as a named fixture (the Purifier itself
    waits on item 9), Opalescence registered for the Humility rulings, and
    Ashaya, Soul of the Wild as the printed card of the applies-to shape with
@@ -3437,7 +3442,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 12. **The card → registry lowering is loud — ✅ done (2026-08-23).** `register_static_effects` had five arms that declined to lower something and `continue`d, registering nothing and saying nothing. Every one now `debug_assert!`s first.
 
-    **Why this class is worth its own item.** A dropped atom produces a card that is *inert* — it panics nothing, computes nothing wrong, and stays perfectly deterministic. `fuzz_games` structurally cannot see it: it catches crashes and non-determinism, and a card that does nothing exhibits neither. This codebase has already paid for the pattern twice (item 7e was a `continue` on a non-`Fixed` amount that "silently dropped the whole atom and failed no test"; item 7f is the same shape still open). Refusing to be quiet at the door is the only check that catches it.
+    **Why this class is worth its own item.** A dropped atom produces a card that is *inert* — it panics nothing, computes nothing wrong, and stays perfectly deterministic. `fuzz_games` structurally cannot see it: it catches crashes and non-determinism, and a card that does nothing exhibits neither. This codebase has already paid for the pattern twice (item 7e was a `continue` on a non-`Fixed` amount that "silently dropped the whole atom and failed no test"; item 7f was the same shape until LI-3 closed it, and item 7g is a third variant — loud at the door and silent afterwards, which is why it took a board to find). Refusing to be quiet at the door is the only check that catches it.
 
     - **The two lowering steps are now shared,** as `GameState::static_ability_atoms` and `GameState::static_affected_set`, and `resolve::register_granted_static_effects` routes through both. They had been two hand-copied matches, which is the drift `static_primitive_rows`' doc comment already warns about: identical card text must behave identically whether printed or granted.
     - **`debug_assert!` rather than a hard error,** matching the existing asserts in `register_granted_static_effects` and `compute::evaluate_pt_value`. A card author running the suite is stopped; release keeps the old skip-and-carry-on rather than panicking mid-game.
