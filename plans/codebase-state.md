@@ -3080,6 +3080,44 @@ table.
     gameplay counter identical). That is the arm's whole justification: a
     five-walk regression is not worth finding by argument.
 
+77. **The ordered battlefield sweeps cost ~5% of runtime, and it is the
+    deriving, not the sorting.** `CLAUDE.md`'s determinism invariant routes
+    every order-observable battlefield read through `battlefield_ids_ordered`
+    / `battlefield_ordered`, and each call collects a `Vec<(u64, ObjectId)>`,
+    sorts it, and maps into a second `Vec`. Measured 2026-09-07 on the
+    `performance` pool: **5,744 calls per game at a mean n of 15.9**, and at
+    n=16 one call is **127 ns** against **27 ns** to clone a Vec that was
+    already in order and **0.2 ns** to hand out a slice of one. That is
+    0.73 ms per game against a 14.2 ms game — **~5%**, of which ~4% is
+    recoverable by cloning a maintained order and ~5% by lending it.
+
+    **The sort is not the expensive part**; two heap allocations per call are.
+    So the design that recovers it is not "sort less" but "derive less": keep
+    the ordered vector on `GameState`, maintained at the three places the
+    order can change — `place_on_battlefield` (append; entry timestamps are
+    monotonic), removal, and `attach`, where CR 613.7e reassigns a timestamp
+    and LH-2 already re-stamps rows — and hand out a slice. Debug-mode
+    re-derivation and comparison is the guard, exactly as `audit_memo_hit` is
+    for the layer memo.
+
+    **Do not "fix" this by auditing which call sites observe order.** Some do
+    not (`steps.rs`'s `any` over first strike, for one), but the invariant is
+    blunt on purpose, and re-litigating observability at 52 call sites is how
+    it gets decided wrong once. Maintaining the order makes the blunt rule
+    free instead of making it negotiable.
+
+    **Reachability (2026-09-07):** reachable — not wrong; a measured
+    performance cost, and the numbers above are the measurement rather than an
+    estimate.
+
+    **Sized:** one field, three maintenance points, one debug audit, and a
+    mechanical return-type change across 52 call sites (most become a borrow,
+    the ones that mutate while iterating become the 27 ns clone). ~1 PR,
+    medium risk — the risk is drift between the kept order and the truth,
+    which is what the debug audit is for. Nothing depends on it; take it when
+    ~5% is worth a PR, or fold it into whatever next touches
+    `place_on_battlefield`.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
