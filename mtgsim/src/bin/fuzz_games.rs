@@ -969,7 +969,7 @@ fn run_games(
 }
 
 fn main() {
-    let args = parse_args();
+    let mut args = parse_args();
 
     // Determine master seed: explicit or random
     let master_seed = args.seed.unwrap_or_else(|| {
@@ -994,6 +994,34 @@ fn main() {
     // Resolved once, up front, and **fatal on a miss**. A typo that silently
     // required nothing would report the same thin reachability the mode exists
     // to fix, which is the failure this whole flag is a response to.
+    // A card's own name may contain the flag's separator — "Thalia, Guardian
+    // of Thraben" — so a piece that names no card is re-joined with the next
+    // one, comma and space, for as long as that keeps naming none; the first
+    // join that is a card wins. Resolved against the full registry, so an
+    // unpooled card still reaches its own message below rather than being
+    // glued to its neighbour. Order and deduplication are the parser's.
+    let full = CardRegistry::default_registry();
+    let mut names: Vec<String> = Vec::new();
+    let mut at = 0;
+    while at < args.require.len() {
+        let mut name = args.require[at].clone();
+        let mut end = at;
+        while full.create(&name).is_err() && end + 1 < args.require.len() {
+            end += 1;
+            name = format!("{}, {}", name, args.require[end]);
+        }
+        if full.create(&name).is_err() {
+            // Nothing joined into a card: report the piece, not the pile.
+            name = args.require[at].clone();
+            end = at;
+        }
+        if !names.contains(&name) {
+            names.push(name);
+        }
+        at = end + 1;
+    }
+    // Every later reader — the deck builder, the report — reads `args.require`.
+    args.require = names;
     let required: Vec<Arc<CardData>> = args
         .require
         .iter()
