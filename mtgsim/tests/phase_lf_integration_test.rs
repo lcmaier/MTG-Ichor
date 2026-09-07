@@ -194,7 +194,7 @@ fn test_granting_an_ability_clears_its_characteristic_defining_flag() {
 // ---------------------------------------------------------------------------
 
 /// A keyword counter grants its keyword in layer 6, and is derived from
-/// `BattlefieldEntity::counters` rather than registered — so it works with an
+/// `PermanentState::counters` rather than registered — so it works with an
 /// empty continuous-effect registry, which is what this asserts by never adding
 /// a row.
 // COVERS: ATOM-122.1b-001
@@ -237,7 +237,7 @@ fn test_keyword_counters_are_live_and_only_keyword_counters_grant() {
 
 /// CR 613.1f puts keyword counters in layer 6 alongside ability-removing
 /// effects, so the two meet in one layer and CR 613.7 decides by timestamp:
-/// CR 613.7c timestamps each counter as it is put on, and `BattlefieldEntity`
+/// CR 613.7c timestamps each counter as it is put on, and `PermanentState`
 /// stores it.
 ///
 /// Strip *after* the counter, so the strip wins and the flying goes away.

@@ -527,7 +527,7 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase};
     use crate::types::card_types::CardType;
     use crate::types::zones::Zone;
@@ -554,7 +554,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let display = format_permanent(&game, id);
@@ -572,7 +572,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, ts, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 
@@ -620,7 +620,7 @@ mod tests {
         let bears_id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(bears_id, 0, ts, 0);
+        let entry = PermanentState::new(bears_id, 0, ts, 0);
         game.battlefield.insert(bears_id, entry);
 
         // Add a land
@@ -633,7 +633,7 @@ mod tests {
         let forest_id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(forest_id, 0, ts, 0);
+        let entry = PermanentState::new(forest_id, 0, ts, 0);
         game.battlefield.insert(forest_id, entry);
 
         let output = format_battlefield(&game, 0);
@@ -746,7 +746,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let display = format_permanent(&game, id);

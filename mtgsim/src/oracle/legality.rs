@@ -228,7 +228,7 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::types::card_types::CardType;
     use crate::types::zones::Zone;
 
@@ -261,7 +261,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         assert!(can_attack(&game, id));
@@ -374,7 +374,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let attackers = legal_attackers(&game, 0);
@@ -394,7 +394,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         assert!(legal_attackers(&game, 0).is_empty());
@@ -411,7 +411,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, ts, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 
@@ -431,7 +431,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let blockers = legal_blockers(&game, 0);
@@ -449,7 +449,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let mut entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, ts, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 

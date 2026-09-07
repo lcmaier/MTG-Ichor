@@ -269,7 +269,7 @@ rule-level citations this file will accumulate as it fills, not for today's text
   (hand), 404.2 (graveyard)
 - **Verdict** — **nothing in the tree answers "can player N see this object?"**
   A grep of `mtgsim/src` for a visibility predicate returns exactly one piece of
-  hidden-information state: `BattlefieldEntity.face_down: bool`.
+  hidden-information state: `PermanentState.face_down: bool`.
   `Zone::is_public()` exists as the coarse, viewer-independent classification —
   **and nothing calls it** (the fifth no-consumer find, 2026-08-31) — while no
   query takes a viewing player at all. The per-viewer query is the gap, and it

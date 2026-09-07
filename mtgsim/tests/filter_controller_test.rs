@@ -7,7 +7,7 @@
 //! the object it's on". So an anthem whose controller changes has to change
 //! whose team it buffs, and a snapshot cannot.
 //!
-//! These tests write `BattlefieldEntity.controller` directly rather than going
+//! These tests write `PermanentState.controller` directly rather than going
 //! through a control-changing effect, because Layer 2 does not exist yet. That
 //! is not a fixture cheat: CR 110.2 makes that field the permanent's *default*
 //! controller, and `compute_to_ceiling` seeds `chars.controller` from it, so

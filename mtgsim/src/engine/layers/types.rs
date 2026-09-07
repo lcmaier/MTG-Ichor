@@ -74,7 +74,7 @@ pub enum Layer {
     /// Layer 7b — effects that set P/T to specific values (CR 613.4b).
     Layer7bSetPT,
     /// Layer 7c — P/T modifications: +N/+N pumps, anthems (CR 613.4c).
-    /// Counters are also applied here but read directly from BattlefieldEntity,
+    /// Counters are also applied here but read directly from PermanentState,
     /// not stored as registered effects.
     Layer7cModifyPT,
     /// Layer 7d — switch P/T (CR 613.4d).
@@ -135,7 +135,7 @@ pub enum EffectModification {
     /// *characteristic channel*, and this one replaces every channel at once,
     /// which is what layer 1 means. A second layer-1 arm is a claim that CR
     /// 613.2 has a third sublayer; it has two, and the other is face-down,
-    /// which CV-6 derives from `BattlefieldEntity` state rather than from a row
+    /// which CV-6 derives from `PermanentState` state rather than from a row
     /// (`copy-effects-architecture.md` §4.6).
     CopyFrom(Box<crate::engine::layers::copy::CopiableValues>),
 
@@ -293,7 +293,7 @@ pub struct EffectiveCharacteristics {
     /// mutates nothing and fires no event, so there is no moment at which a
     /// stored field could be put back.
     ///
-    /// Seeded from `BattlefieldEntity.controller_since_turn`, which still owns
+    /// Seeded from `PermanentState.controller_since_turn`, which still owns
     /// every control change that is not a Layer 2 effect. The Layer 2 arm
     /// overwrites it only when the controller actually changes — gaining control
     /// of your own permanent must not restart the clock.

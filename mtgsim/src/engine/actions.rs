@@ -163,7 +163,7 @@ pub enum GameAction {
     ///
     /// `n` is a maximum: removing three counters from a permanent that has one
     /// removes one, which is CR 701.2's "as much as it can" and what
-    /// `BattlefieldEntity::remove_counters` already reports.
+    /// `PermanentState::remove_counters` already reports.
     RemoveCounters {
         object: ObjectId,
         counter: CounterType,

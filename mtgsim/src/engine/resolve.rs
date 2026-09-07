@@ -797,7 +797,7 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 506.4. Writes `BattlefieldEntity` directly, because 506.4
+            // CR 506.4. Writes `PermanentState` directly, because 506.4
             // defines a *consequence* with seven causes, and this arm is one of
             // them — the other six follow from a zone change, a control change,
             // a type change, phasing or CR 701.19's regeneration. **The CR does
@@ -833,7 +833,7 @@ impl GameState {
 
             // === Counters (CR 122) ===
             //
-            // Both propose rather than writing `BattlefieldEntity.counters`.
+            // Both propose rather than writing `PermanentState.counters`.
             // A counter mutation is a CR 614-observable event in its own right
             // — CR 614.16's doublers replace it — and CR 122.1c/d's own
             // replacement effects *produce* one, since "instead remove a stun
@@ -1439,7 +1439,7 @@ mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::types::card_types::*;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
@@ -1459,7 +1459,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(id, 0, 0, 1);
+        let entry = PermanentState::new(id, 0, 0, 1);
         game.battlefield.insert(id, entry);
 
         (game, id)
@@ -1593,7 +1593,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let target_id = obj.id;
         game.add_object(obj);
-        let entry = BattlefieldEntity::new(target_id, 0, 0, 1);
+        let entry = PermanentState::new(target_id, 0, 0, 1);
         game.battlefield.insert(target_id, entry);
 
         // Create a source for the destroy effect

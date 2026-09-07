@@ -17,7 +17,7 @@ use mtgsim::engine::combat::validation::{
 use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::battlefield::{AttackTarget, AttackingInfo, BattlefieldEntity, BlockingInfo};
+use mtgsim::state::battlefield::{AttackTarget, AttackingInfo, PermanentState, BlockingInfo};
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -373,7 +373,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     let trampler = obj.id;
     game.add_object(obj);
     let ts = game.allocate_timestamp();
-    let entry = BattlefieldEntity::new(trampler, 0, ts, 0);
+    let entry = PermanentState::new(trampler, 0, ts, 0);
     game.battlefield.insert(trampler, entry);
 
     let blocker = place_creature(&mut game, 1, creatures::grizzly_bears); // 2/2

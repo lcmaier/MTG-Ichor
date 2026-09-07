@@ -72,7 +72,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 enum defined; hybrid/Phyrexian/X payment = `NotImplemented` | `types/mana.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
-| 110 | Permanents | ✅ `BattlefieldEntity` + attachment | `state/battlefield.rs` |
+| 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
 | 111 | Tokens — cease-to-exist | ✅ SBA 704.5d | `engine/sba.rs:332+` |
 | 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/cast.rs` |
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
@@ -458,7 +458,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 
 **Status 2026-09-02: Phase RC-3 ✅ — CR 614.12's membership rule, both directions.** `replacement-architecture.md` §9's RC-3 subsection carries the findings; this is the state ledger. What landed:
 
-- **`compute.rs::effect_applies_to` gates on the battlefield *zone*, not on `game.battlefield` membership.** `move_object` writes `obj.zone` before the `EnterBattlefield` performer builds the `BattlefieldEntity` — RC-2's one-`emit`-wide window — so an entering permanent is in the zone with no entry, and the stricter question kept CR 614.12 clause (3)'s "continuous effects that already exist and would apply to the object" away from every entry. Hidden zones are untouched: a card in hand still has `zone == Hand`, so nothing new reaches a library or a graveyard.
+- **`compute.rs::effect_applies_to` gates on the battlefield *zone*, not on `game.battlefield` membership.** `move_object` writes `obj.zone` before the `EnterBattlefield` performer builds the `PermanentState` — RC-2's one-`emit`-wide window — so an entering permanent is in the zone with no entry, and the stricter question kept CR 614.12 clause (3)'s "continuous effects that already exist and would apply to the object" away from every entry. Hidden zones are untouched: a card in hand still has `zone == Hand`, so nothing new reaches a library or a graveyard.
 - **`gather`'s source 1a admits `AffectedSet::SourceOnly` only** (`SelfScope::EnteringSelf`). CR 614.12's parenthesis — "if they affect only that permanent (as opposed to a general subset of permanents that includes it)" — is a membership rule, so it is here rather than in RC-4's overlay. Without it an entering Orb of Dreams finds its own "Permanents enter tapped" through `set_affects`, which matches a `Filter` against any object in any zone, and taps itself.
 - **RC-2's two known-wrong answers are now right.** The first is the one RC-3 named: a tapland under Blood Moon enters **untapped** (CR 305.7 strips the ability first), reachable in a fuzz game from cards already in the pool. The second was *not* Humility + Chainbreaker — that pair is a further consequence of the same line, real and tested, but RC-2 never listed it. RC-2's second was `default_enter_mods` and a filter-scoped Layer 4 effect, and RC-3's ledger misstated which direction changed (corrected 2026-09-02, RC-4): `default_enter_mods` reads *printed* loyalty and gates on the *effective* type, so "a planeswalker made one by a Layer 4 effect" has `loyalty: None` and enters with no counters either way. What the line changed is the inverse — a planeswalker whose type a filter-scoped effect **removes** now enters with **no** loyalty counters, because CR 306.5b gives the ability to "a planeswalker" and on that battlefield it is not one. `phase_rc4_integration_test::test_a_planeswalker_whose_type_a_filter_effect_removes_enters_with_no_loyalty` is the test; RC-4 routed the read through `compute_as_entering` so it is the CR 614.12 frame that answers, not `has_type` on a printed card.
 - **`base_controller` grew a `resolving` leg.** `resolve_top_of_stack` takes the `StackEntry` before it resolves anything, so the battlefield and stack probes both miss for the whole resolution and the owner fallback answered — right for a land drop, wrong for a spell cast by a non-owner (CR 110.2b). RC-3 owns it because RC-3 is what makes `PermanentFilter::ByController` askable of an entering permanent. **It fixes a wrong answer no registered card can produce**: `check_cast_legality` refuses "another player's spell", so the test builds the owner/controller disagreement after an ordinary cast. Confirmed rather than argued — event streams at 40 games are **40/40 identical on both pools** with and without the leg. The trap it removes belongs to whoever relaxes that check — the Commander track and Phase RE both want to.
@@ -488,7 +488,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 **Status 2026-09-01: Phase RC-2 ✅ — entering the battlefield is a proposed event.** `replacement-architecture.md` §9's RC-2 subsection carries the eight findings; this is the state ledger. What landed:
 
 - **`GameAction::EnterBattlefield { object, controller, mods }`**, proposed by `perform_action`'s `ZoneChange` arm the statement after it emits, and performed by `place_on_battlefield`. `EventPattern::EnterBattlefield`, `Rewrite::EnterWith(EnterMods)`, and `EnterMods { tapped, counters }` with a `merge` that is CR 616.1f's accumulation — status is `|=`, counters are `+` per kind.
-- **`init_zone_state` is deleted.** It created the `BattlefieldEntity` from inside `move_object`, below the chokepoint. CR 110.2b's default controller — `GameState::resolving`'s only reader since RC-1 — is now `GameState::default_enter_controller`, read at the proposal. The field still has exactly one reader.
+- **`init_zone_state` is deleted.** It created the `PermanentState` from inside `move_object`, below the chokepoint. CR 110.2b's default controller — `GameState::resolving`'s only reader since RC-1 — is now `GameState::default_enter_controller`, read at the proposal. The field still has exactly one reader.
 - **`init_etb_counters` is deleted.** CR 306.5b's loyalty is `GameState::default_enter_mods`, which *seeds the proposal* — so Phase RE's counter doublers will replace it with no further work. It is the first thing in the engine to be modelled as "what the rules say this permanent enters with" rather than as a direct write.
 - **One emitter.** `GameEvent::PermanentEnteredBattlefield` was emitted by `stack.rs` for a resolving permanent spell and by `resolve.rs` for a token, and **not at all for a land drop** — the most frequent entry in the game. The performer emits it now, once, with the *effective* controller (CR 400.7a's Layer 2 row has already moved a stolen permanent spell by then).
 - **`gather` grew source 1a and a gate leg**: the entering permanent itself, read off its effective ability list, ahead of the fast-path gate. Without it every "this permanent enters tapped" is dead text, because `replacement_ability_sources` is written by `register_static_effects` *inside* the performer. `chooser_for_event` reads CR 616.1's chooser off the proposal, because an entering permanent has no controller for `controller_or_owner` to find.
@@ -595,7 +595,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
    forward event. Item 51 recorded the closure under its own number; this is the
    same fix.
 
-6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `BattlefieldEntity` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6) — **the attach half landed with LH-2 (2026-09-05): `GameAction::Attach`, performed through `GameState::attach`, emitting `Attached` on the transition; the SBA detach (704.5n/p and the catch-all) still calls `detach` directly and stays here.** Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep was also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`; closed 2026-09-04 (83333e9):** `engine/sba.rs`'s 704.5d gather iterated `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emitted `TokenCeasedToExist` in per-process order. It was invisible to `fuzz_games`' summary, which counts no such ordering, and showed up only in a `--dump-events` diff on the `stress` pool (adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. **The fix is a key, not the routing.** `GameObject.zone_change_epoch` orders the gather: `move_object` stamps it on every move, one tick per move, so tokens leaving in one batch carry distinct ticks in batch order, and a token is only ever created *in* the battlefield zone, so one reaching the sweep has moved. Routing was the obvious fix and is the wrong one — a token ceasing to exist is not a zone change (CR 704.5d removes it from the game), so the sweep has nothing to propose and needed an order, not a batch. **Measured.** At 200 `stress` games / seed 12345 the run holds exactly one multi-token sweep — game 108, three of Kalitas's Zombies sacrificed at once — and three same-binary `--dump-events` runs of the pre-fix tree order them **three different ways**, while four runs of the fixed tree give one order, the order the three tokens left the battlefield. The two streams are otherwise identical line for line (101,214 lines), so no event count moves and `engineering-practices.md` §3's fixture table is confirmed rather than re-recorded. The other three direct writes are untouched, and so is the routing they are recorded for.
+6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `PermanentState` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6) — **the attach half landed with LH-2 (2026-09-05): `GameAction::Attach`, performed through `GameState::attach`, emitting `Attached` on the transition; the SBA detach (704.5n/p and the catch-all) still calls `detach` directly and stays here.** Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep was also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`; closed 2026-09-04 (83333e9):** `engine/sba.rs`'s 704.5d gather iterated `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emitted `TokenCeasedToExist` in per-process order. It was invisible to `fuzz_games`' summary, which counts no such ordering, and showed up only in a `--dump-events` diff on the `stress` pool (adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. **The fix is a key, not the routing.** `GameObject.zone_change_epoch` orders the gather: `move_object` stamps it on every move, one tick per move, so tokens leaving in one batch carry distinct ticks in batch order, and a token is only ever created *in* the battlefield zone, so one reaching the sweep has moved. Routing was the obvious fix and is the wrong one — a token ceasing to exist is not a zone change (CR 704.5d removes it from the game), so the sweep has nothing to propose and needed an order, not a batch. **Measured.** At 200 `stress` games / seed 12345 the run holds exactly one multi-token sweep — game 108, three of Kalitas's Zombies sacrificed at once — and three same-binary `--dump-events` runs of the pre-fix tree order them **three different ways**, while four runs of the fixed tree give one order, the order the three tokens left the battlefield. The two streams are otherwise identical line for line (101,214 lines), so no event count moves and `engineering-practices.md` §3's fixture table is confirmed rather than re-recorded. The other three direct writes are untouched, and so is the routing they are recorded for.
 
    **Reachability (2026-09-04):** unreachable — the one wrong part is fixed and
    the three that remain are right today. The CR 704.5d sweep's `HashMap` order
@@ -664,7 +664,7 @@ here. None is blocking RB.
 9. **CR 110.2b: a permanent spell's default controller is its *caster* — ✅ FIXED
    2026-08-26 (found and fixed the same day).** `stack.rs` hands
    `get_effective_controller(spell)` to `place_on_battlefield`, so
-   `BattlefieldEntity.controller` — which `compute.rs::base_controller` treats as
+   `PermanentState.controller` — which `compute.rs::base_controller` treats as
    the *default*, the value Layer 2 modifies — becomes the player who stole the
    spell. CR 110.2b says the opposite: "the first player controls the permanent
    that spell becomes, **but the permanent's controller by default is the player
@@ -737,7 +737,7 @@ here. None is blocking RB.
    reads "if you cast it".
 
    **Sized:** one `cast_by: Option<PlayerId>` on
-   `BattlefieldEntity`, written by the entry performer off the proposal (since
+   `PermanentState`, written by the entry performer off the proposal (since
    RC-4 `GameAction::EnterBattlefield` carries the zone change that brought the
    object, so "was it cast" is already there and only "by whom" is missing), ~30
    lines; lands with the first "if you cast it" trigger, critical-path item 6.
@@ -1483,7 +1483,7 @@ registered card returns an object.
 
 22. **`gather`'s counter fast path is a full battlefield scan, and it stays one
     until CR 704.5q joins the chokepoint (`rb-review.md` D2).**
-    `any_replacement_counter` walks every `BattlefieldEntity` on **every
+    `any_replacement_counter` walks every `PermanentState` on **every
     proposed action**, checking three counter kinds. Cheap at 15 permanents and
     it has never shown up in a profile, but it is the one part of the fast path
     that is not O(1). The review's correction is right and was recorded in the
@@ -1492,7 +1492,7 @@ registered card returns an object.
     `replacement_ability_sources` is. **What actually blocks the set is that
     counters have three mutation sites, not two** —
     `GameState::add_counters`, `perform_action`'s `RemoveCounters` arm, and CR
-    704.5q's +1/+1 / -1/-1 annihilation, which writes `BattlefieldEntity`
+    704.5q's +1/+1 / -1/-1 annihilation, which writes `PermanentState`
     directly (item 6). A set maintained at a chokepoint that does not exist is
     exactly the drift, and it reads as a card silently doing nothing.
     **Sized:** a `HashSet<ObjectId>` beside `replacement_ability_sources`,
@@ -1507,14 +1507,14 @@ registered card returns an object.
 
 23. **Counters cannot exist on an object that is not on the battlefield, and
     three separate rules want them to (`rb-review.md` F1).** The map lives on
-    `BattlefieldEntity` and `perform_action`'s `AddCounters` arm errors for
+    `PermanentState` and `perform_action`'s `AddCounters` arm errors for
     anything else. CR 122.1a and 122.1b are both written for "a card in a zone
     other than the battlefield"; **71 suspend cards** (CR 702.62) put time
     counters on a card in exile; and CR 122.2's exception — "counters remain on
     this as it moves to any zone other than a player's hand or library" — is
     printed on two cards, Skullbriar, the Walking Grave and Me, the Immortal.
     **Sized:** move `counters: HashMap<CounterType, CounterStack>` from
-    `BattlefieldEntity` to `GameObject`. 12 direct `.counters` sites outside
+    `PermanentState` to `GameObject`. 12 direct `.counters` sites outside
     `src/cards`, plus the `add_counters` / `remove_counters` / `counter_count`
     accessors — contained. The part that needs thought is
     `CounterStack.timestamp`: CR 613.7c timestamps a counter as it is put on,
@@ -1726,7 +1726,7 @@ section never asked.
     `pay_with_plan` call, drained after one read.
 
     **Sized: the `x_value` rail.** A cast-time value carried from `StackEntry`
-    to `BattlefieldEntity` on resolution is a shape this codebase already has,
+    to `PermanentState` on resolution is a shape this codebase already has,
     so this rides it rather than re-threading anything — and the rail survives
     RC-2's ETB rewrite either way, which is why RC is not the gate. The part
     that needs thought is what a spent *object* is once it has left: Fling
@@ -3149,7 +3149,7 @@ the shape:** "A permanent's status is its physical state. There are four status
 categories, each of which has two possible values: tapped/untapped,
 flipped/unflipped, face up/face down, and **phased in/phased out**."
 
-`BattlefieldEntity` already carries all four — `tapped`, `flipped`, `face_down`,
+`PermanentState` already carries all four — `tapped`, `flipped`, `face_down`,
 `phased_out`. The state is modelled; the behavior is not. Three consequences
 worth having written down before someone re-derives them anxiously:
 
@@ -3176,7 +3176,7 @@ replacement pipeline beyond the boundary §5a already needs.
 
 The layer system's designated single-point change site is `oracle/characteristics.rs`. Status as of 2026-08-19, after Phases LA–LD:
 
-1. **Pre-layer P/T shim — ✅ done.** `BattlefieldEntity.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.
+1. **Pre-layer P/T shim — ✅ done.** `PermanentState.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.
 
    **Reachability (2026-09-03):** closed.
 
@@ -3214,7 +3214,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    registry (a `ManaPersistence` row kind) at the two sites, ~40–60 lines, with
    T12c.
 
-5. **Timestamps — ✅ live.** `BattlefieldEntity.timestamp` is now read by the layer system for 613.7 ordering (4 read sites). The CR 613.8 *dependency* algorithm is still unimplemented; ordering is timestamp-only.
+5. **Timestamps — ✅ live.** `PermanentState.timestamp` is now read by the layer system for 613.7 ordering (4 read sites). The CR 613.8 *dependency* algorithm is still unimplemented; ordering is timestamp-only.
 
    **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
    is item 8 below.
@@ -3440,7 +3440,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    Two pieces are needed, in this order:
    - **A card filter and a zone-aware `AffectedSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
-   - **Timestamps must move off `BattlefieldEntity` and onto the object.** CR 613.7d gives an object a timestamp when it enters *any* zone; we store one only on `BattlefieldEntity`. Wonder ("as long as this card is in your graveyard and you control an Island, creatures you control have flying" — a static ability functioning from the graveyard, CR 113.6b) has nowhere to read one from, so `GameState::static_effect_timestamp` has no answer for it. Its `None` arm is unreachable today only because `register_static_effects` is called from `place_on_battlefield`.
+   - **Timestamps must move off `PermanentState` and onto the object.** CR 613.7d gives an object a timestamp when it enters *any* zone; we store one only on `PermanentState`. Wonder ("as long as this card is in your graveyard and you control an Island, creatures you control have flying" — a static ability functioning from the graveyard, CR 113.6b) has nowhere to read one from, so `GameState::static_effect_timestamp` has no answer for it. Its `None` arm is unreachable today only because `register_static_effects` is called from `place_on_battlefield`.
 
    - **A `reachable_zones` bitmask on `ContinuousEffectRegistry`,** maintained on add/remove. **This now has a home:** `RegistryScopeSummary` exists (`state/continuous_effects.rs`), recomputed on every `add`/`remove`, carrying the one field the CR 613.7a existence check needed. `layers-architecture.md` §5.1 already specifies `touches_hidden_zones` / `touches_stack` / `has_active_cdas` on that same struct — extend it rather than adding a parallel counter. `compute_characteristics` checks the object's zone against it and returns base characteristics on a miss. This keeps the cost at zero until someone actually plays a zone-reaching card, and even then confines it to the one zone that card reaches — queried on demand at castability-check time, never as an eager sweep over every card in the game.
 
@@ -3510,7 +3510,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **~~Keyword counters carry no timestamp.~~ ✅ fixed (2026-08-23), in the same PR that introduced it.** CR 122.1b keyword counters are layer 6 effects and CR 613.7c timestamps every counter, so they have to interleave with the layer's registry rows rather than follow them — Humility with a later timestamp than a flying counter really does strip that flying.
 
-    `BattlefieldEntity::counters` is now `HashMap<CounterType, CounterStack>`, carrying a count and a timestamp. CR 613.7c's second sentence — "each counter of that kind receives a new timestamp identical to that of the new counter" — is what makes one timestamp *per kind* exact rather than a simplification, and it is applied on every add. `GameState::add_counters(id, kind, n)` is the entry point; `BattlefieldEntity::add_counters` still takes an explicit timestamp because it cannot allocate one.
+    `PermanentState::counters` is now `HashMap<CounterType, CounterStack>`, carrying a count and a timestamp. CR 613.7c's second sentence — "each counter of that kind receives a new timestamp identical to that of the new counter" — is what makes one timestamp *per kind* exact rather than a simplification, and it is applied on every add. `GameState::add_counters(id, kind, n)` is the entry point; `PermanentState::add_counters` still takes an explicit timestamp because it cannot allocate one.
 
     The sizing that made this look expensive was wrong and worth recording as a lesson: "17 `add_counters` call sites" counted 16 tests as if they were cost. There was **one** production caller (planeswalker loyalty at ETB) and **one** direct `.counters` reader outside `battlefield.rs`. Count production call sites, not grep hits.
 
@@ -3537,7 +3537,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 11. **Filter `PlayerRef` resolution — ✅ done (2026-08-23), ahead of Layer 2.** `AffectedSet::Filter` carried a `controller: Option<PlayerId>` that `register_static_effects` resolved from `PermanentFilter::ByController(PlayerRef::You)` at ETB. That is a snapshot of who controlled the source when it entered, and CR 109.5 says the opposite — "for a static ability, [you] is the *current* controller of the object it's on". Glorious Anthem kept buffing the team of whoever controlled it at ETB.
 
-    Demonstrable before Layer 2 exists, which is why it shipped as a bugfix rather than as scaffolding: CR 110.2 makes `BattlefieldEntity.controller` the default controller, `compute_to_ceiling` seeds `chars.controller` from it, and writing that field is the pre-Layer-2 half of gaining control. `tests/filter_controller_test.rs` was shown failing against the pre-fix tree.
+    Demonstrable before Layer 2 exists, which is why it shipped as a bugfix rather than as scaffolding: CR 110.2 makes `PermanentState.controller` the default controller, `compute_to_ceiling` seeds `chars.controller` from it, and writing that field is the pre-Layer-2 half of gaining control. `tests/filter_controller_test.rs` was shown failing against the pre-fix tree.
 
     - **The field is gone; `permanent_matches_filter` owns the whole question.** `ByController` used to return `true` unconditionally and defer to the `AffectedSet` field, so one question lived in two functions and only one half was re-asked during the walk. That split is what let the snapshot hide, and it had a second victim: `extract_controller_from_filter` walked only `And` nodes, so `Not(ByController(You))` silently dropped its constraint and matched nothing.
     - **"You" is origin-dependent, and both arms are CR text.** `EffectOrigin::StaticAbility` → the source's *effective* controller, via `compute_to_ceiling(effect.source, layer_index)` (CR 109.5). `EffectOrigin::Resolution` → `effect.controller`, fixed when the effect began (CR 611.2c). Same `layer_index` ceiling `static_ability_still_exists` uses — never the full ceiling, per `layers-architecture.md` §5.2.
@@ -3585,11 +3585,11 @@ The layer system's designated single-point change site is `oracle/characteristic
       A new `PlayerRef` variant is **not** the fix for the computed cases and would be the wrong shape for them: "the player with the highest life total", an auction winner, or a random player are computations over game state at one instant, and re-running them on every layer walk would let the answer drift between walks of an unchanged registry.
 
 
-    - **`BattlefieldEntity.controller` was read directly at 20 sites; all 20 migrated** to `oracle::characteristics::get_effective_controller` / `controls`. Same shape and same silent-failure mode as Phase LD Part B's 21 `card_data` reads. **No `// PRE-LAYER ZONE:` exemptions were tagged** — that class is cast-zone and play-from-hand legality, which runs before the object is a permanent, and every site here asks about something already on the battlefield or the stack.
+    - **`PermanentState.controller` was read directly at 20 sites; all 20 migrated** to `oracle::characteristics::get_effective_controller` / `controls`. Same shape and same silent-failure mode as Phase LD Part B's 21 `card_data` reads. **No `// PRE-LAYER ZONE:` exemptions were tagged** — that class is cast-zone and play-from-hand legality, which runs before the object is a permanent, and every site here asks about something already on the battlefield or the stack.
 
       Two needed more than a substitution. `stack.rs::resolve_top_of_stack` reads the controller *before* the pop, because a spell's controller lives on the `StackEntry` and the pop destroys it — one value now feeds both the `ResolutionContext` (CR 608.2) and the entering permanent's controller (CR 110.2b). `turns.rs`'s untap sweep needs two passes, since the predicate is a `&self` layer query and the untap is a `&mut self` write.
 
-    - **CR 302.6 lives in the frame, not on the battlefield.** `BattlefieldEntity.controller_since_turn` could not be maintained: control from a continuous effect is derived, so an `UntilEndOfTurn` steal reverts at cleanup with no mutation to hang an update on and no event to hook. `EffectiveCharacteristics.control_since_turn` is computed beside the controller it describes, which is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry. The battlefield field survives as the seed, owning every control change that is *not* a Layer 2 effect (entering the battlefield, today the only one).
+    - **CR 302.6 lives in the frame, not on the battlefield.** `PermanentState.controller_since_turn` could not be maintained: control from a continuous effect is derived, so an `UntilEndOfTurn` steal reverts at cleanup with no mutation to hang an update on and no event to hook. `EffectiveCharacteristics.control_since_turn` is computed beside the controller it describes, which is what makes reversion need nothing at all — the value stops being computed when the row leaves the registry. The battlefield field survives as the seed, owning every control change that is *not* a Layer 2 effect (entering the battlefield, today the only one).
 
       The Layer 2 arm advances it only when control actually moves, because CR 302.6 asks whether control was *continuous* and gaining control of your own creature is not a change. Act of Treason legally targets your own creature and would have hidden this behind its haste clause.
 
@@ -3616,7 +3616,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     Fixed by threading `you: PlayerId` through `validate_targets`, `validate_selection`, `validate_permanent_target`, `permanent_matches_filter`, `has_any_legal_choice`, `is_single_target_legal`, `any_targets_still_legal` and `enumerate_legal_selections`. Every caller had the value already: the caster in `cast.rs`, the spell's controller in `stack.rs`, the Aura's controller in `resolve::try_attach_aura_on_etb` and SBA 704.5n, the enumerating player in `mana_helpers`.
 
-    Two tests fail if either half is reverted — restoring the `Err` arm, or reading `BattlefieldEntity.controller` instead of the effective one.
+    Two tests fail if either half is reverted — restoring the `Err` arm, or reading `PermanentState.controller` instead of the effective one.
 
     **Reachability (2026-09-03):** closed — 2026-08-23.
 
@@ -3652,7 +3652,7 @@ twice, Pacifism twice, `set_attacking` three times.
 invite a "cleanup" that quietly changes what a test runs against:**
 
 - `put_on_battlefield` (routes through `place_on_battlefield`, so ETB counters and
-  static-effect registration fire) vs `place_bare` (inserts a `BattlefieldEntity` directly,
+  static-effect registration fire) vs `place_bare` (inserts a `PermanentState` directly,
   firing neither). The combat tests need the second; collapsing them would put rows in the
   continuous-effects registry those tests do not expect.
 - `put_on_battlefield` backdates entry to turn 0 (not summoning-sick) vs
@@ -3730,7 +3730,7 @@ first.
    `Charge` across the line, ~80 lines, with the first card that needs a named
    counter.
 
-4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `BattlefieldEntity.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
+4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `PermanentState.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
 
    Unreachable today — Equip is unimplemented and Auras attach only at ETB — but the day any reattachment path lands, every equip silently re-orders Layers 6 and 7. **Corrected and scheduled 2026-09-01 -- "unreachable today" was the wrong frame, and so was "restate the contract".** Reattachment is not exotic: Aura Finesse (`{U}` Instant, "Attach target Aura you control to target creature") and Equip both do it with no new subsystem behind them. And the field is doing **two jobs** -- `battlefield_ordered` and `battlefield_ids_ordered` read it as *determinism / decision order*, `static_effect_timestamp` reads it as CR 613.7a. Four production readers, counted. Reassigning it makes a reattached Aura jump to the end of every ordered sweep, so the work is a **field split** -- a stable entry timestamp and a CR 613.7 timestamp -- not a reassignment plus a doc edit. Bounded by an in-tree precedent: CR 613.7c already reassigns `CounterStack.timestamp` from the same monotonic counter (`state/battlefield.rs:144`). Now **Phase LH-2**, `layers-architecture.md` §13a, scheduled before critical-path item 7. Original entry: **Do these together:** reassign from the same monotonic counter (still deterministic — that is the point), restate the contract as "never reassigned *except by CR 613.7e*" in CLAUDE.md and in `battlefield_ordered`, and re-audit every site that reads `timestamp` as a proxy for ETB order. Caught by audit before it had a reproducer; the two before it were found by their reproducers.
 
@@ -3988,7 +3988,7 @@ The original entry named `HashMap` iteration order as the cause. That was real b
 What landed:
 
 - **Randomness is owned, not ambient.** `GameState.rng: StdRng` (seeded to `DEFAULT_RNG_SEED` — a fixed value, so an unseeded game is still reproducible) with `reseed` / `reseed_from_entropy`, and `GameState::shuffle_library` as the one shuffle entry point. `RandomDecisionProvider` holds its own `StdRng`; `::new()` is entropy-seeded, `::seeded(u64)` is not. `fuzz_games` derives three independent streams per game from `master_seed + game_num`; `cli_play` reseeds from entropy, since an identical opening hand every session would be the bug.
-- **`GameState::battlefield_ordered` / `battlefield_ids_ordered`** — every sweep whose order is observable now goes through them: `oracle/{legality,mana_helpers,board}.rs`, all of `engine/sba.rs` (including the legend-rule grouping, now a `BTreeMap`), `engine/combat/{steps,resolution}.rs`, `ui/display.rs`. Sorting by `ObjectId` would *not* have worked — ids are v4 UUIDs, so the key is itself random per run. The deterministic key is `BattlefieldEntity::timestamp`, which `place_on_battlefield` allocates once from a monotonic counter and never reassigns, and which is CR 613.7's order anyway. Order-irrelevant sweeps (untap-all, clear-all-damage) still iterate the map directly.
+- **`GameState::battlefield_ordered` / `battlefield_ids_ordered`** — every sweep whose order is observable now goes through them: `oracle/{legality,mana_helpers,board}.rs`, all of `engine/sba.rs` (including the legend-rule grouping, now a `BTreeMap`), `engine/combat/{steps,resolution}.rs`, `ui/display.rs`. Sorting by `ObjectId` would *not* have worked — ids are v4 UUIDs, so the key is itself random per run. The deterministic key is `PermanentState::timestamp`, which `place_on_battlefield` allocates once from a monotonic counter and never reassigns, and which is CR 613.7's order anyway. Order-irrelevant sweeps (untap-all, clear-all-damage) still iterate the map directly.
 - `tests/determinism_test.rs` holds the regression. Both halves were shown failing against the pre-fix tree.
 
 **Cost: none measurable.** 200 games / seed 12345, median of five, ms/turn: 1.124 → 1.131 (+0.7%), inside run-to-run noise — the per-sweep `Vec` + sort is nothing next to the `compute_characteristics` walk it wraps. A `BTreeMap` swap was considered and not needed. Wall-clock spread over those five runs collapsed from 5.64–6.43 s to 6.20–6.29 s, because the runs now do identical work.

@@ -1,7 +1,7 @@
 //! CR 614.12 / 614.17d — one object computed as it *would exist* on the
 //! battlefield, as a read-side overlay on the layer walk.
 //!
-//! The walk reads concrete state in two places: the `BattlefieldEntity` it
+//! The walk reads concrete state in two places: the `PermanentState` it
 //! seeds from (controller, CR 302.6's clock, counters) and the registry slice
 //! it applies per layer. Both go through an accessor on the pass's `Board`
 //! (`entity` and `rows_in_layer` in `board.rs`), and for the entering object
@@ -18,7 +18,7 @@
 use crate::engine::layers::board::compute_board;
 use crate::engine::layers::types::{ContinuousEffect, EffectOrigin, EffectiveCharacteristics};
 use crate::objects::card_data::AbilityType;
-use crate::state::battlefield::BattlefieldEntity;
+use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::RegistryScopeSummary;
 use crate::state::game_state::GameState;
 use crate::types::effects::Duration;
@@ -34,7 +34,7 @@ pub struct Lookahead {
     /// The entity `place_on_battlefield` would build: the proposed controller,
     /// CR 302.6's clock started this turn, and CR 122.6a's counters from the
     /// pending `EnterMods` — CR 614.12 clause (1).
-    pub(super) entity: BattlefieldEntity,
+    pub(super) entity: PermanentState,
     /// CR 614.12 clause (2): the registry rows its own static abilities would
     /// generate, exactly as `register_static_effects` would write them.
     pub(super) rows: Vec<ContinuousEffect>,
@@ -54,7 +54,7 @@ impl Lookahead {
         // own static-ability effects and CR 613.7c its counters.
         let entity_timestamp = game.next_timestamp;
         let mut entity =
-            BattlefieldEntity::new(object, controller, entity_timestamp, game.turn_number);
+            PermanentState::new(object, controller, entity_timestamp, game.turn_number);
         entity.tapped = mods.tapped;
         let mut next = entity_timestamp + 1;
         for &(kind, n) in &mods.counters {

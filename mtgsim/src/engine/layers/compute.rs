@@ -220,7 +220,7 @@ pub(super) fn compute_non_member(
 /// or the one CR 614.12's entering object would enter under.
 ///
 /// Past the look-ahead arm, the arms are CR 108.4's sentence in order: a permanent reads
-/// `BattlefieldEntity`, a spell reads its `StackEntry`, and a card in a hand or
+/// `PermanentState`, a spell reads its `StackEntry`, and a card in a hand or
 /// graveyard has no controller at all — owner is what this reports for it,
 /// because `EffectiveCharacteristics.controller` is not an `Option`.
 ///

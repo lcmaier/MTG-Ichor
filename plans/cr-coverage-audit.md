@@ -134,8 +134,8 @@ Run 2026-08-31, before the sweep:
 | Known fact | Surface | Rediscovered? |
 |---|---|---|
 | Provenance of an event | `ActionContext` | ✅ `new()` means "no resolution"; nothing names a source |
-| Multi-component permanent (CR 729) | `BattlefieldEntity` | ✅ one `object_id` per entity |
-| Counters off the battlefield (CR 122.1a/b) | `GameObject` vs `BattlefieldEntity` | ✅ `counters` is on the battlefield sidecar only |
+| Multi-component permanent (CR 729) | `PermanentState` | ✅ one `object_id` per entity |
+| Counters off the battlefield (CR 122.1a/b) | `GameObject` vs `PermanentState` | ✅ `counters` is on the battlefield sidecar only |
 | A second card face (CR 712) | `CardData` | ✅ flat, single-face struct |
 | N-player from day one | `GameState.players`, APNAP | ✅ correctly reports **no gap** — already a `Vec` with `apnap_index` |
 | **Casting from a non-hand zone** | `check_cast_legality` | ⚠️ **not at the field level** |
@@ -159,7 +159,7 @@ question. Run 2026-08-31.
 | Type | What the CR wants that it can't say | Verdict |
 |---|---|---|
 | `GameObject` | face-down state in a non-battlefield zone (foretell, CR 702.143) | feature — a flag, same shape as `is_token` |
-| `BattlefieldEntity` | CR 729 components; counters elsewhere | **known facts**, already owned |
+| `PermanentState` | CR 729 components; counters elsewhere | **known facts**, already owned |
 | `CardData` | a back face (CR 712) | **known fact**, phase CV-5 |
 | `AbilityDef` | a trigger condition; activation restrictions (CR 602.5d); functioning zone (CR 113.6) | trigger condition is **critical-path item 6**; the rest additive |
 | `GameAction` | `Sacrifice`, `Exile`, `LoseGame`, … | feature **by contract** — one arm per variant, `CLAUDE.md` |
@@ -244,7 +244,7 @@ mana half — the engine knows it needs *something* here and drains it after one
 `pay_with_plan` call.
 
 **Not a rewrite.** `x_value` is the precedent and the rail: captured at cast,
-carried `StackEntry` → `BattlefieldEntity` on resolution. This rides it, and
+carried `StackEntry` → `PermanentState` on resolution. This rides it, and
 the rail survives RC-2's ETB rewrite either way.
 
 → **Owner: `codebase-state.md` Deferred Migrations item 30. Capture is

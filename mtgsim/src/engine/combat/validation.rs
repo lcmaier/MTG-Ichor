@@ -406,7 +406,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::oracle::characteristics::has_keyword;
-    use crate::state::battlefield::BattlefieldEntity;
+    use crate::state::battlefield::PermanentState;
     use crate::types::card_types::CardType;
     use crate::types::keywords::KeywordFlag;
     use crate::types::mana::{ManaCost, ManaType};
@@ -432,7 +432,7 @@ mod tests {
         obj.id = id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, owner, ts, 0);
+        let entry = PermanentState::new(id, owner, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }
@@ -480,7 +480,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, ts, 0);
         game.battlefield.insert(id, entry);
 
         let result = validate_attackers(
@@ -698,7 +698,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let ts = game.allocate_timestamp();
-        let entry = BattlefieldEntity::new(id, owner, ts, 0);
+        let entry = PermanentState::new(id, owner, ts, 0);
         game.battlefield.insert(id, entry);
         id
     }

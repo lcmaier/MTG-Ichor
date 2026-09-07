@@ -18,7 +18,7 @@
 //! [`put_on_battlefield`] routes through [`GameState::place_on_battlefield`] with the
 //! [`EnterMods`] the rules give it, so CR 306.5b's loyalty counters and
 //! `register_static_effects` both fire and the arrival is announced.
-//! [`place_bare`] inserts a [`BattlefieldEntity`] directly and does none of it —
+//! [`place_bare`] inserts a [`PermanentState`] directly and does none of it —
 //! which is what a fixture wants when the test counts the events its own action
 //! emitted.
 //!
@@ -31,7 +31,7 @@ use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::objects::object::GameObject;
-use crate::state::battlefield::{AttackTarget, AttackingInfo, BattlefieldEntity, BlockingInfo};
+use crate::state::battlefield::{AttackTarget, AttackingInfo, PermanentState, BlockingInfo};
 use crate::state::game_state::{GameState, Phase, PhaseType};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -366,7 +366,7 @@ pub fn put_land_on_battlefield(
 }
 
 /// Put a permanent onto the battlefield **without ETB hooks**, by inserting a
-/// [`BattlefieldEntity`] directly. No ETB counters, no static-effect registration.
+/// [`PermanentState`] directly. No ETB counters, no static-effect registration.
 ///
 /// `entered_battlefield_turn` is 0, so the permanent is not summoning-sick.
 ///
@@ -376,7 +376,7 @@ pub fn place_bare(game: &mut GameState, card_data: Arc<CardData>, owner: PlayerI
     let id = obj.id;
     game.add_object(obj);
     let ts = game.allocate_timestamp();
-    let entry = BattlefieldEntity::new(id, owner, ts, 0);
+    let entry = PermanentState::new(id, owner, ts, 0);
     game.battlefield.insert(id, entry);
     id
 }

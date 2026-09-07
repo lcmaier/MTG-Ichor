@@ -5,7 +5,7 @@
 //! replacement that modifies an entry can change the permanent's *status*
 //! (CR 110.5b) or give it *counters* (CR 122.6a), and those are two fields of
 //! `EnterMods` with two separate performer paths behind them — one writes
-//! `BattlefieldEntity.tapped` before anything can look, the other allocates a
+//! `PermanentState.tapped` before anything can look, the other allocates a
 //! CR 613.7c timestamp per kind and puts counters on. A phase that shipped only
 //! the first would leave the second exactly as reachable as CR 616.1's
 //! multi-candidate branch was after RB shipped Kalitas alone: covered by a test,

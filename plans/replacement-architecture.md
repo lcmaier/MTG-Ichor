@@ -443,7 +443,7 @@ It was specified here as "applying removes one counter; the effect exists while
 at least one remains". CR 122.1c and 122.1d state their effects verbatim, and in
 both the counter removal is the *substituted event* — "instead remove a stun
 counter from it" — or the CR 615.5 rider, never bookkeeping. Modelling it as a
-use would have written `BattlefieldEntity.counters` from inside `consume_use`,
+use would have written `PermanentState.counters` from inside `consume_use`,
 which is exactly the invisible-to-CR-614 write the chokepoint invariant exists
 to prevent. Existence is asked at gather time instead ("does this permanent have
 at least one such counter"), which is where CR 614.4 wants it asked. The CR's
@@ -739,7 +739,7 @@ the failure mode that shows up as a card silently doing nothing:
    the registry, with `Uses::Once` or `Uses::Shield(n)`.
 5. **Counters.** CR 122.1c (shield), 122.1d (stun), 122.1h (finality). These
    come from the *counter*, not from any ability — nothing on the card says so.
-   Synthesized during the sweep from `BattlefieldEntity.counters`.
+   Synthesized during the sweep from `PermanentState.counters`.
 
 Source 5 is why Phase RB can ship a working pipeline with **zero new card-text
 machinery**: three counter types, 164 printed cards, and they exercise untap
@@ -1424,7 +1424,7 @@ concrete state. There are two, and each sits behind one accessor in
 
 | Accessor | Reads | Answers from the overlay when… |
 |---|---|---|
-| `FrameCache::entity` | the `BattlefieldEntity` the walk seeds from — controller, CR 302.6's clock, the counters layers 6 and 7c read | the object being computed is the entering one: `Lookahead::entity`, the entity `place_on_battlefield` would build |
+| `FrameCache::entity` | the `PermanentState` the walk seeds from — controller, CR 302.6's clock, the counters layers 6 and 7c read | the object being computed is the entering one: `Lookahead::entity`, the entity `place_on_battlefield` would build |
 | `rows_in_layer` | the registry's slice for a layer, in CR 613.7 order | the object being computed is the entering one: the registry's rows, then `Lookahead::rows`, the rows `register_static_effects` would write |
 
 `base_controller` has the matching arm, so the seed and `effective_controller`'s
@@ -1676,7 +1676,7 @@ existing variants.
 
 The section above asks what the vocabulary is *missing*. The mirror question is
 what it deliberately leaves out: `Primitive::RemoveFromCombat` and
-`Primitive::RemoveAllDamage` both write `BattlefieldEntity` directly, and both
+`Primitive::RemoveAllDamage` both write `PermanentState` directly, and both
 justified it as "no card replaces this". An absence of cards is not a reason —
 this design's premise is that any event the engine performs should be
 replaceable — so the two were re-checked against Scryfall on 2026-08-30. **They
@@ -2337,7 +2337,7 @@ next phase reads.
 - **`Uses::CounterBacked` is gone; `Uses` ships as `{ Static, Once }`.** §3.2
   now carries the reasoning. The short form: CR 122.1c/d state their effects
   verbatim and the counter removal is the substituted event or the rider, never
-  a spent use — and a use would have written `BattlefieldEntity.counters` from
+  a spent use — and a use would have written `PermanentState.counters` from
   inside `consume_use`, off the chokepoint.
 
 - **CR 122.1c is two effects, and its replacement half is narrower than it
@@ -2579,7 +2579,7 @@ and this is the second RC row in a row whose count was a measurement with a date
 on it (RC-1's `stack.is_empty()` was the first).
 
 **2. `init_zone_state` is gone, not rewritten.** Its whole body was the
-battlefield branch, and the branch was the `BattlefieldEntity` creation — which
+battlefield branch, and the branch was the `PermanentState` creation — which
 now belongs to the `EnterBattlefield` performer. CR 110.2b's default controller,
 the question RC-1 deliberately left as `GameState::resolving`'s only reader,
 moved out as `GameState::default_enter_controller` and is read at the *proposal*
@@ -2591,7 +2591,7 @@ announced the entry *before* the `ZoneChange` — a reordering, and the criterio
 for this phase was "the new events and nothing reordered". The proposal is
 instead the statement after `perform_action`'s `ZoneChange` emit, which leaves a
 window one `emit` wide in which the object is in the battlefield *zone* with no
-`BattlefieldEntity`. Both facts are commented at the site; neither is
+`PermanentState`. Both facts are commented at the site; neither is
 comfortable, and the alternative was worse.
 
 **4. The only intended addition to the event stream is one `ETB` per land drop,
@@ -2765,7 +2765,7 @@ most consequential number.**
   discard. Clone pressure is a real axis here — a tree search clones
   `GameState`, and this loop runs inside every proposal.
 - **`EnterMods::merge` uses plain addition**, matching
-  `BattlefieldEntity::add_counters`, which is where the number ends up. The
+  `PermanentState::add_counters`, which is where the number ends up. The
   `saturating_add` it replaced picked a clamp width the type has no business
   choosing and would have been the only place in the engine with a different
   overflow story.
@@ -2810,7 +2810,7 @@ the measurement as the behavior.
 
 **1. The predicate is the battlefield *zone*, and that is what makes it free.**
 `move_object` writes `obj.zone` before the `EnterBattlefield` performer builds
-the `BattlefieldEntity` — RC-2's one-`emit`-wide window, documented in the
+the `PermanentState` — RC-2's one-`emit`-wide window, documented in the
 `ZoneChange` arm — so an entering permanent is already *in* the zone. Swapping
 `game.battlefield.contains_key` for `obj.zone == Battlefield` admits exactly the
 entering object and nothing else: hidden zones keep their own zone tag, so no
@@ -3238,7 +3238,7 @@ changes (RC-4)" as one of the two things that make APNAP timestamps reachable.
 Measured: **it is not one of them.** 613.7m is about objects that "receive a
 timestamp simultaneously, such as by entering a zone simultaneously or becoming
 attached simultaneously". In this engine an object receives a timestamp in
-exactly one production place — `place_on_battlefield`, one `BattlefieldEntity`
+exactly one production place — `place_on_battlefield`, one `PermanentState`
 per entry (`game_state.rs:671`; the other production caller, `:789`, is
 CR 613.7c's per-counter-kind stack, which is not an object and is unchanged
 here). **CR 614.13's auxiliary zone changes allocate none of them**: devour's
@@ -3798,7 +3798,7 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
 
    **And it is not this phase's to build**, because the layer system needs the
    identical facility for the identical cards: `codebase-state.md`'s layers
-   section already records that timestamps must move off `BattlefieldEntity`
+   section already records that timestamps must move off `PermanentState`
    onto `GameObject` precisely because Wonder — a *continuous* effect
    functioning from a graveyard, CR 113.6b — has no timestamp to read. Two
    systems, one missing facility, and building half of it inside RA–RE would
@@ -3820,11 +3820,11 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
     battlefield, and that has a real constituency: **71 suspend cards** put
     time counters on a card in exile, and CR 122.1a and 122.1b are written for
     "a card in a zone other than the battlefield" in their own words. The
-    engine can express none of it — `counters` lives on `BattlefieldEntity`,
+    engine can express none of it — `counters` lives on `PermanentState`,
     and `perform_action`'s `AddCounters` arm errors for anything else.
 
     **So: do not honour Skullbriar on its own.** The change is one move, the
-    `counters` map from `BattlefieldEntity` to `GameObject`, and it is contained
+    `counters` map from `PermanentState` to `GameObject`, and it is contained
     — 12 direct `.counters` sites outside `src/cards`, plus the
     `add_counters` / `remove_counters` / `counter_count` accessors. The one part
     needing thought is `CounterStack.timestamp`: CR 613.7c timestamps a counter

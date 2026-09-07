@@ -41,7 +41,7 @@ two-player game is a checkpoint on the way, not the destination.
 │  (characteristics, legality, board, mana_helpers)           │
 ├─────────────────────────────────────────────────────────────┤
 │  state/ — GameState, GameConfig, PlayerState,               │
-│           ContinuousEffectRegistry, BattlefieldEntity       │
+│           ContinuousEffectRegistry, PermanentState          │
 │  objects/ — GameObject, CardData                            │
 │  types/ — Enums and value types (no logic)                  │
 │  events/ — EventLog for game history                        │
@@ -80,7 +80,7 @@ and each is stated in full in [`CLAUDE.md`](CLAUDE.md).
    into a fixpoint that invents oscillation the CR does not have.
 3. **Determinism at the decision boundary.** A `DecisionProvider` picks by *index*, so the
    order a sweep returns in is part of the decision. Sweeps that reach a choice go through
-   `battlefield_ordered` / `battlefield_ids_ordered`, ordered by `BattlefieldEntity::timestamp`
+   `battlefield_ordered` / `battlefield_ids_ordered`, ordered by `PermanentState::timestamp`
    — which is CR 613.7's order anyway. Never raw `HashMap` order, and never `ObjectId`, which
    is a v4 UUID. Randomness is owned, never ambient: draw from `GameState.rng`, not
    `rand::rng()`.
