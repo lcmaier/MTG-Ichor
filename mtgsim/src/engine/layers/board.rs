@@ -1225,3 +1225,97 @@ pub(super) fn frame_at_ceiling(game: &GameState, id: ObjectId, ceiling: usize) -
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cards::{basic_lands, creatures, phase5_pre_cards, phase_ld_cards, phase_li_cards};
+    use crate::test_support::{put_on_battlefield, setup_two_player_game};
+
+    /// The order layer 4 applied its effects in, as `(source, reached)`.
+    fn layer_4_order(game: &GameState) -> Vec<Applied> {
+        let mut trace = Vec::new();
+        let layer_4 = LAYER_ORDER.iter().position(|l| *l == Layer::Layer4Type).unwrap();
+        compute_board_traced(game, None, None, LAYER_ORDER.len(), Some((layer_4, &mut trace)));
+        trace
+    }
+
+    /// The judge answer's board, entered in the reverse of the order it
+    /// applies in: Opalescence, then Ashaya, then Blood Moon, and Urborg
+    /// with nothing left to apply to — three rounds, six pairs, exactly as
+    /// the answer walks it.
+    #[test]
+    fn the_four_card_board_applies_opalescence_ashaya_blood_moon_and_urborg_never() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let _forest = put_on_battlefield(&mut game, basic_lands::forest(), 0);
+        let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
+        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
+        let ashaya = put_on_battlefield(&mut game, phase_li_cards::ashaya_soul_of_the_wild(), 0);
+        let opalescence = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
+
+        let order = layer_4_order(&game);
+        let sources: Vec<ObjectId> = order.iter().map(|a| a.source).collect();
+        assert_eq!(sources, vec![opalescence, ashaya, moon, urborg]);
+
+        let reached = |i: usize| -> HashSet<ObjectId> { order[i].targets.iter().copied().collect() };
+        assert_eq!(reached(0), HashSet::from([moon]), "Opalescence makes Blood Moon a creature");
+        assert_eq!(
+            reached(1),
+            HashSet::from([ashaya, moon, bears]),
+            "Ashaya adds Forest Land to herself, Blood Moon and any other nontoken creatures"
+        );
+        assert_eq!(
+            reached(2),
+            HashSet::from([urborg, ashaya, moon, bears]),
+            "Blood Moon changes all nonbasic lands to type Mountain, affecting Ashaya and Urborg and any other nontoken creatures"
+        );
+        assert!(reached(3).is_empty(), "Urborg no longer has an effect so we're done in layer 4");
+    }
+
+    /// The two Blood Moon pairs, one hypothetical each way: Urborg reaches
+    /// the check and depends; Blood Moon's reads never overlap Urborg's
+    /// writes on any member, so its side is settled statically.
+    #[test]
+    fn urborg_waits_for_blood_moon_and_the_reverse_pair_is_settled_statically() {
+        let mut game = setup_two_player_game();
+        let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
+        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+        let before = game.counters.dependency_checks();
+        let order = layer_4_order(&game);
+        assert_eq!(order.iter().map(|a| a.source).collect::<Vec<_>>(), vec![moon, urborg]);
+        assert!(order[1].targets.is_empty(), "Urborg's ability is gone by its turn");
+        assert_eq!(game.counters.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
+    }
+
+    /// A layer whose applications are pairwise independent under the channel
+    /// check never reaches the hypothetical: anthems write power, and nothing
+    /// in layer 7c reads it.
+    #[test]
+    fn a_pairwise_independent_layer_runs_no_hypothetical() {
+        let mut game = setup_two_player_game();
+        for _ in 0..3 {
+            put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+            put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+        }
+        let before = game.counters.dependency_checks();
+        compute_board(&game, None);
+        assert_eq!(game.counters.dependency_checks(), before);
+    }
+
+    /// CR 305.7 in the channel table: setting a land to a basic land type
+    /// writes its abilities, which is the whole of Urborg's dependency.
+    #[test]
+    fn set_subtypes_to_a_basic_land_type_writes_abilities() {
+        use crate::types::card_types::{CreatureType, LandType};
+        let mountain = EffectModification::SetSubtypes(HashSet::from([Subtype::Land(LandType::Mountain)]));
+        assert!(writes_of(&mountain).intersects(Channels::ABILITIES));
+        let goblin = EffectModification::SetSubtypes(HashSet::from([Subtype::Creature(CreatureType::Goblin)]));
+        assert!(!writes_of(&goblin).intersects(Channels::ABILITIES));
+        assert!(writes_of(&goblin).intersects(Channels::SUBTYPES));
+        assert!(!writes_of(&EffectModification::ModifyPowerToughness {
+            power: PtValue::Fixed(1),
+            toughness: PtValue::Fixed(1),
+        })
+        .intersects(Channels::TYPES));
+    }
+}

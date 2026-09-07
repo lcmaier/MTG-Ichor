@@ -35,13 +35,13 @@ use crate::types::mana::{ManaCost, ManaType};
 /// layer. That is why this card, unlike `phase_ld_cards::moonlit_steppe`, needs
 /// nothing from the frame-cache termination argument.
 ///
-/// **What it cannot do yet.** Humility + Opalescence is the famous case, and it
-/// is out of reach: it needs a second Layer 7b effect whose order against
-/// Humility's is decided by CR 613.8 dependency plus intra-7b timestamp. See
-/// the Scryfall rulings and `codebase-state.md` item 8. Humility against a
-/// single opponent's creatures — including a Tarmogoyf, whose CDA dies in
-/// Layer 6 before Layer 7a can read it — is fully in scope and is what the
-/// tests exercise.
+/// **Humility + Opalescence** is the famous case, and since LI-2 it is in
+/// reach: `phase_li_cards::opalescence` is registered, and its rulings
+/// (2009-10-01, 2006-02-01) are asserted in `tests/phase_li2_integration_test.rs`
+/// — the two 7b parts apply in timestamp order, each to the set it locked in
+/// layer 4 (CR 613.6). Humility against a single opponent's creatures —
+/// including a Tarmogoyf, whose CDA dies in Layer 6 before Layer 7a can read
+/// it — is what the tests here exercise.
 pub fn humility() -> Arc<CardData> {
     let creatures = EffectRecipient::FilteredPermanents(PermanentFilter::ByType(CardType::Creature));
 

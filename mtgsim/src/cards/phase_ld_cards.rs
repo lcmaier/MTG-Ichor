@@ -280,7 +280,9 @@ pub fn blood_moon() -> Arc<CardData> {
 /// CR 613.8a(b), so Blood Moon wins regardless of timestamps. Modeling it as an
 /// enchantment keeps that dependency out of the 305.6 tests, which are about the
 /// additive clause rather than about effect ordering. Do not use this card to
-/// reason about the real Blood Moon / Urborg interaction.
+/// reason about the real Blood Moon / Urborg interaction — that is
+/// `phase_li_cards::urborg_tomb_of_yawgmoth`, the printed Land, registered
+/// since LI-2 with its ruling asserted in `tests/phase_li2_integration_test.rs`.
 pub fn urborg_effect() -> Arc<CardData> {
     CardDataBuilder::new("Urborg Effect")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
