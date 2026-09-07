@@ -95,7 +95,7 @@ fn colossus() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 4))
         .power_toughness(5, 5)
-        .keyword(KeywordFlag::Flying)
+        .keyword_flag(KeywordFlag::Flying)
         .build()
 }
 

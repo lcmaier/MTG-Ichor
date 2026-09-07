@@ -1119,7 +1119,7 @@ mod tests {
             .color(crate::types::colors::Color::White)
             .card_type(CardType::Creature)
             .power_toughness(2, 3)
-            .keyword(KeywordFlag::Lifelink)
+            .keyword_flag(KeywordFlag::Lifelink)
             .build();
 
         let obj = GameObject::new(data, 0, Zone::Battlefield);
@@ -1230,7 +1230,7 @@ mod tests {
                 .color(crate::types::colors::Color::White)
                 .card_type(CardType::Creature)
                 .power_toughness(2, 2)
-                .keyword(KeywordFlag::Lifelink)
+                .keyword_flag(KeywordFlag::Lifelink)
                 .build();
             let obj = GameObject::new(data, 0, Zone::Battlefield);
             let id = obj.id;

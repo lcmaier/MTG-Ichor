@@ -267,7 +267,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Insect))
         .power_toughness(0, 0)
-        .keyword(KeywordFlag::Flash)
+        .keyword_flag(KeywordFlag::Flash)
         .rules_text("Flash\nThis creature enters with three +1/+1 counters on it.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
@@ -430,7 +430,7 @@ pub fn containment_priest() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .subtype(Subtype::Creature(CreatureType::Cleric))
         .power_toughness(2, 2)
-        .keyword(KeywordFlag::Flash)
+        .keyword_flag(KeywordFlag::Flash)
         .rules_text(
             "Flash\nIf a nontoken creature would enter and it wasn't cast, exile it instead.",
         )
@@ -726,7 +726,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Zombie))
         // `*/*` with its CDA unimplemented — see the doc comment. CR 607.
         .power_toughness(0, 0)
-        .keyword(KeywordFlag::Trample)
+        .keyword_flag(KeywordFlag::Trample)
         .rules_text(
             "Trample\n\
              As this creature enters, exile any number of creature cards from your \

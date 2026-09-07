@@ -65,7 +65,7 @@ pub fn thalia_guardian_of_thraben() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .subtype(Subtype::Creature(CreatureType::Soldier))
         .power_toughness(2, 1)
-        .keyword(KeywordFlag::FirstStrike)
+        .keyword_flag(KeywordFlag::FirstStrike)
         .rules_text("First strike\nNoncreature spells cost {1} more to cast.")
         .ability(
             CostModificationDef::spells(

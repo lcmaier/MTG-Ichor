@@ -691,7 +691,7 @@ mod tests {
             .card_type(CardType::Creature)
             .power_toughness(power, toughness);
         for kw in keywords {
-            builder = builder.keyword(*kw);
+            builder = builder.keyword_flag(*kw);
         }
         let data = builder.build();
         let obj = GameObject::new(data, owner, Zone::Battlefield);
@@ -713,8 +713,8 @@ mod tests {
             .color(Color::White)
             .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
             .power_toughness(4, 4)
-            .keyword(KeywordFlag::Flying)
-            .keyword(KeywordFlag::Vigilance)
+            .keyword_flag(KeywordFlag::Flying)
+            .keyword_flag(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -820,7 +820,7 @@ mod tests {
         let data = CardDataBuilder::new("Raging Cougar")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .keyword(KeywordFlag::Haste)
+            .keyword_flag(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
@@ -854,7 +854,7 @@ mod tests {
         let data = CardDataBuilder::new("Haste Tapper")
             .card_type(CardType::Creature)
             .power_toughness(1, 1)
-            .keyword(KeywordFlag::Haste)
+            .keyword_flag(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;

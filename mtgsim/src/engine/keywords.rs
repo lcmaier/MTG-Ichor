@@ -97,7 +97,7 @@ mod tests {
             .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(2, 3);
         for kw in keywords {
-            builder = builder.keyword(*kw);
+            builder = builder.keyword_flag(*kw);
         }
         let data = builder.build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);

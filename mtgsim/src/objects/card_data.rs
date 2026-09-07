@@ -220,7 +220,7 @@ impl CardDataBuilder {
         self
     }
 
-    pub fn keyword(mut self, keyword: KeywordFlag) -> Self {
+    pub fn keyword_flag(mut self, keyword: KeywordFlag) -> Self {
         self.data.keyword_flags.insert(keyword);
         self
     }
