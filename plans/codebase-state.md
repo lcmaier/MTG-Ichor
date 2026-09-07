@@ -2745,11 +2745,12 @@ measurement; what follows is what a later phase has to know.
     `object == source` and `SourcePower` would read `chars.power` with no
     cross-object read at all. The walk cannot say that: there `object_id` is
     the affected object and `origin.source` is elsewhere on the board, which
-    is the CR 613.8 dependency it refuses on purpose. `SourcePower` still has
-    **no arm anywhere**, pinned by
-    `compute::tests::settled_amount_refuses_source_power_until_a_card_needs_it`;
-    when Golden-Tail Trainer lands (item 6) the arm goes in the reader.
-    → `cost-architecture.md` §3.7.
+    is the CR 613.8 dependency it refuses on purpose. So `SourcePower` is
+    **answered in the reader and still refused by the walk**, with a test each
+    way and `phase_cm_cards::power_reducer` — a fixture, since the objection to
+    Golden-Tail Trainer was about the card's name and never about the arm — as
+    its consumer. Its board is the entitlement claim made observable: an anthem
+    on the source moves the amount. → `cost-architecture.md` §3.7.
 
     **Sized:** none here.
 

@@ -307,6 +307,39 @@ pub fn red_reducer() -> Arc<CardData> {
     )
 }
 
+/// Power Reducer — {2}{W}
+/// Creature — Human Soldier, 2/2
+///
+/// **A fixture, and an invented name.** "Spells you cast cost {X} less to
+/// cast, where X is this creature's power." Golden-Tail Trainer prints that
+/// shape and cannot be registered yet — its second ability is an attack
+/// trigger (critical-path item 6), and a card wearing its name with half its
+/// text is what `engineering-practices.md` §3 forbids. The *arm* has no such
+/// problem, so this fixture is its consumer.
+///
+/// It is a creature because the amount reads a power, and the reduction is
+/// read off the **effective** frame: an anthem on this makes it reduce more,
+/// which is the whole of `cost-architecture.md` §3.7's entitlement argument
+/// stated as a board.
+pub fn power_reducer() -> Arc<CardData> {
+    CardDataBuilder::new("Power Reducer")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Soldier))
+        .power_toughness(2, 2)
+        .rules_text("Spells you cast cost {X} less to cast, where X is this creature's power.")
+        .ability(
+            CostModificationDef::spells(
+                you_cast(ObjectFilter::All),
+                CostChange::ReduceGeneric(AmountExpr::SourcePower),
+            )
+            .into_ability(),
+        )
+        .build()
+}
+
 /// A spell fixture: "Draw a card." with the given cost, color and type. The
 /// effect is the least a spell can do; the fixture is its cost.
 fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> CardDataBuilder {

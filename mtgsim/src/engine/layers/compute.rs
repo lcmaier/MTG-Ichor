@@ -747,19 +747,27 @@ pub(super) fn evaluate_amount(
 /// rule describes — the memo for a member's frame, the real battlefield for a
 /// count.
 ///
-/// **`SourcePower` still has no arm anywhere**, because no registered card
-/// needs one. When it gets one — Golden-Tail Trainer, which waits on
-/// critical-path item 6 — the arm belongs *here* and not in
-/// [`evaluate_amount`]: `object` being the source means this caller reads
-/// `chars.power` and makes no cross-object read at all, where the walk would
-/// have to reach a *different* object's frame mid-pass, which is the CR 613.8
-/// dependency it refuses on purpose.
+/// **`SourcePower` is answered here and refused by [`evaluate_amount`]**, and
+/// that split is the whole point. `object` being the source means this caller
+/// reads its own `chars.power` — the *effective* one, so an anthem on the
+/// source moves the amount — and makes no cross-object read at all. The walk
+/// cannot do that: there `object_id` is the affected object and the row's
+/// source is somewhere else on the board, so answering would be a
+/// cross-object read mid-pass, which is the CR 613.8 dependency it refuses on
+/// purpose. Same leaf, two callers, one of which is entitled to it.
 pub fn settled_amount(
     expr: &crate::types::effects::AmountExpr,
     game: &GameState,
     object: ObjectId,
 ) -> Option<i32> {
     let chars = compute_characteristics(game, object)?;
+    // The one leaf this reader answers itself. `None` — a source with no
+    // power at all, an enchantment or a creature that stopped being one — is
+    // "no amount", which every consumer reads as "reduce nothing" rather than
+    // as zero-by-assumption.
+    if matches!(expr, crate::types::effects::AmountExpr::SourcePower) {
+        return chars.power;
+    }
     evaluate_amount(expr, game, &chars, object, LAYER_ORDER.len(), &Board::settled(), None)
 }
 
@@ -1896,16 +1904,44 @@ mod tests {
         assert_eq!(settled_amount(&expr, &game, theirs), Some(1), "and P1's, P1's");
     }
 
-    /// **`SourcePower` deliberately has no arm**, here or in the walk: no
-    /// registered card needs one, and Golden-Tail Trainer — the card that
-    /// would — waits on critical-path item 6. This pins that, so adding the
-    /// arm is a deliberate act with a card behind it rather than a silent
-    /// widening (`cost-architecture.md` §3.7).
+    /// `SourcePower` off the source's **effective** frame, which is what
+    /// CR 613.11 entitles a cost effect to: an anthem on the source moves the
+    /// amount, and a source with no power at all has no amount rather than
+    /// zero.
     #[test]
-    #[should_panic(expected = "no static-context evaluator")]
-    fn settled_amount_refuses_source_power_until_a_card_needs_it() {
+    fn settled_amount_answers_source_power_off_the_effective_frame() {
+        use crate::types::effects::AmountExpr::SourcePower;
         let mut game = crate::test_support::setup_two_player_game();
         let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
-        let _ = settled_amount(&crate::types::effects::AmountExpr::SourcePower, &game, bears);
+        assert_eq!(settled_amount(&SourcePower, &game, bears), Some(2));
+
+        put_on_battlefield(&mut game, crate::cards::phase5_pre_cards::glorious_anthem(), 0);
+        assert_eq!(settled_amount(&SourcePower, &game, bears), Some(3), "the anthem is in the frame");
+
+        let rock = put_on_battlefield(&mut game, crate::test_support::card_of_type("Rock", CardType::Artifact), 0);
+        assert_eq!(settled_amount(&SourcePower, &game, rock), None, "no power at all is not zero");
+    }
+
+    /// And the walk still refuses it. The reader may answer `SourcePower`
+    /// because its `object` *is* the source; `evaluate_amount` is handed an
+    /// affected object whose row's source is elsewhere, and reaching that
+    /// object's frame mid-pass is the CR 613.8 dependency it declines to
+    /// invent (`cost-architecture.md` §3.7).
+    #[test]
+    #[should_panic(expected = "no static-context evaluator")]
+    fn the_walks_evaluator_still_refuses_source_power() {
+        use crate::engine::layers::board::Board;
+        let mut game = crate::test_support::setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let chars = compute_characteristics(&game, bears).unwrap();
+        let _ = evaluate_amount(
+            &crate::types::effects::AmountExpr::SourcePower,
+            &game,
+            &chars,
+            bears,
+            LAYER_ORDER.len(),
+            &Board::settled(),
+            None,
+        );
     }
 }

@@ -103,8 +103,13 @@ fn bolt() -> Arc<CardData> {
 /// A {1} artifact with no text — a colorless spell for the lock-in board,
 /// whose generic-only cost keeps the payment's split trivial.
 fn tin_trinket() -> Arc<CardData> {
+    tin_trinket_costing(1)
+}
+
+/// The same fixture at any generic cost, for a total that is all generic.
+fn tin_trinket_costing(n: u8) -> Arc<CardData> {
     CardDataBuilder::new("Tin Trinket")
-        .mana_cost(ManaCost::build(&[], 1))
+        .mana_cost(ManaCost::build(&[], n))
         .card_type(CardType::Artifact)
         .build()
 }
@@ -607,5 +612,42 @@ fn test_castable_spells_offers_an_enforcer_the_board_made_affordable() {
     assert!(
         !castable_spells(&game, 0).iter().any(|(id, _)| *id == enforcer),
         "no artifacts: {{7}} is not payable from {{3}}"
+    );
+}
+
+/// `CostChange::ReduceGeneric(SourcePower)` — Golden-Tail Trainer's shape, on
+/// a fixture, because the printed card's other half is an attack trigger.
+///
+/// The claim is `cost-architecture.md` §3.7's, stated as a board: the amount
+/// is read off the source's **effective** frame at CR 601.2f, so an anthem on
+/// the reducer makes it reduce more. Nothing about that is available to the
+/// layer walk, which is handed an affected object and refuses the leaf.
+#[test]
+fn test_a_reduction_by_source_power_reads_the_effective_frame() {
+    let board = |anthem: bool| {
+        move || {
+            let mut game = setup_two_player_game();
+            put_on_battlefield(&mut game, phase_cm_cards::power_reducer(), 0);
+            if anthem {
+                put_on_battlefield(&mut game, mtgsim::cards::phase5_pre_cards::glorious_anthem(), 0);
+            }
+            game
+        }
+    };
+    // A 2/2 reducer takes {4} to {2}.
+    assert_costs_exactly(
+        board(false),
+        || tin_trinket_costing(4),
+        &[(ManaType::Colorless, 2)],
+        ManaType::Colorless,
+        "a 2/2 reducer",
+    );
+    // The anthem makes it a 3/3, and the reduction follows.
+    assert_costs_exactly(
+        board(true),
+        || tin_trinket_costing(4),
+        &[(ManaType::Colorless, 1)],
+        ManaType::Colorless,
+        "a 3/3 reducer under its own anthem",
     );
 }

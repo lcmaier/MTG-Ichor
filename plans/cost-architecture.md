@@ -527,11 +527,30 @@ would read `chars.power` with no cross-object read at all. The walk cannot say
 that — there `object_id` is the *affected* object and `origin.source` is
 somewhere else, which is the CR 613.8 dependency it refuses on purpose.
 
-**`SourcePower` therefore ships with no arm anywhere**, and a test pins that.
-`CLAUDE.md`'s rule that an arm the pipeline cannot apply is worse than a missing
-one applies to an evaluator arm the same way. When Golden-Tail Trainer lands
-(after critical-path item 6) the arm goes in `settled_amount` and not in
-`evaluate_amount`, and the paragraph above is why.
+**`SourcePower` is answered in the reader and still refused by the walk**, and
+the pair of tests is the argument above stated twice. The first draft of this
+section shipped no arm at all, on the grounds that Golden-Tail Trainer waits for
+item 6 — but that was an argument about the *card*, and
+`engineering-practices.md` §3 lets a fixture with its own name be a consumer.
+`phase_cm_cards::power_reducer` is that fixture, and its board is the
+entitlement claim made observable: an anthem on the reducer makes it reduce
+more, because the amount is read off the source's **effective** frame.
+
+**What the arm is actually worth, counted before it was written** (Scryfall,
+2026-09-07). "This spell costs {X} less to cast, where X is …" is **33** printed
+cards. Of those, **2** read a creature's power, and one of the two — Maelstrom
+Muse — is a trigger-created effect with a duration, so it is §3.10's
+`Primitive::ModifyCost` and not this arm. `SourcePower` therefore serves
+**one** printed static: Golden-Tail Trainer. The population is not the reason to
+build it; the argument is.
+
+**And the 33 are blocked on leaves, not on this one.** Only two of them are a
+plain `CountOf` ("the number of …"); the rest want "your devotion to black",
+"the total mana value of noncreature artifacts you control", "the greatest power
+among creatures you control", "the number of differently named lands you
+control". `ReduceGeneric` is built and general; what Phase 8 owes it is
+`AmountExpr` leaves, one per shape, each with a static evaluator. Affinity's 75
+cards are the `CountOf` population and they are covered.
 
 **It landed in CM-2 with affinity**, not with Golden-Tail Trainer. Affinity is
 `Itself` + `ReduceGeneric(CountOf(PermanentsMatching(…you control)))`
@@ -1020,9 +1039,12 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
   and **resolution-created cost effects**: §3.10, with their shapes.
 - **Commander tax**: §3.8, with B2.
 - **`lands_per_turn`, `max_hand_size`, player hexproof**: `backlog.md` §2.15.
-- **Golden-Tail Trainer**: §3.7, with item 6. The evaluator it needs landed in
-  CM-2 as `settled_amount`; what it still wants is one `SourcePower` arm *in
-  that reader*, which ships with the card and not before.
+- **Golden-Tail Trainer**: the *card*, with item 6 — its second ability is an
+  attack trigger, and a card wearing its name with half its text is what
+  `engineering-practices.md` §3 forbids. Its *mechanism* is in:
+  `settled_amount` answers `SourcePower` and `phase_cm_cards::power_reducer`
+  is the fixture that consumes it (§3.7). Registering the printed card is then
+  a card change with no engine change behind it.
 - **Cost abilities in other zones** (emblems, Convergence of Dominion): §3.1,
   with A5.
 - **The Ironworks board's trigger half and the 732.1 reversal choice**:
@@ -1122,8 +1144,10 @@ computed" is not computed on the common board (§3.1, §4); and the evaluator is
 a **reader over one leaf table**, so `codebase-state.md` item 57 closes with
 "there is no third evaluator" rather than with a third one (§3.7).
 
-`SourcePower` ships with no arm and a test pinning that. Myr Enforcer is
-pooled and Frogmite registered; the `keyword` → `keyword_flag` rename went
-first, alone. The A/B's middle arm is `IDENTICAL` to `main` on `performance`
-— on the second run: the first found two gates asking about a body where the
-question was about a subject (§8 items 6a and 7).
+`SourcePower` is answered in the reader and refused by the walk, with a test
+each way and a fixture — `power_reducer` — consuming it, since the objection
+to Golden-Tail Trainer was always about the card's *name* and never about the
+arm. Myr Enforcer is pooled and Frogmite registered; the `keyword` →
+`keyword_flag` rename went first, alone. The A/B's middle arm is `IDENTICAL` to
+`main` on `performance` — on the second run: the first found two gates asking
+about a body where the question was about a subject (§8 items 6a and 7).

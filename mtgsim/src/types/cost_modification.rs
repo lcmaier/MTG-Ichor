@@ -110,6 +110,21 @@ pub enum CostSubject {
 }
 
 impl CostSubject {
+    /// # Why these two are methods and not `matches!` at the call site
+    ///
+    /// They are exhaustiveness anchors, not routers. A `matches!` compiles
+    /// fine when a subject is added and is then silently wrong at *both*
+    /// gates; a wildcard-free `match` refuses to build until the new subject
+    /// answers each question. Same instrument as `condition::holds` and
+    /// `board::condition_reads`, for the same reason. They also name the
+    /// question rather than the shape, which is the one place a reader has to
+    /// notice that the two gates ask *different* things — assuming one
+    /// question where there are two is the bug this pair was written after.
+    ///
+    /// **Do not collapse them into one predicate and a `!`.** They are not
+    /// each other's negation: CR 602.2b's activated abilities (§3.10) answer
+    /// `true` to the first and `false` to the second.
+
     /// Can an ability with this subject modify a cost while its source sits on
     /// the battlefield?
     ///
