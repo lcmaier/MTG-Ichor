@@ -128,6 +128,23 @@ impl CostSubject {
             CostSubject::Itself => false,
         }
     }
+
+    /// Can an ability with this subject modify what its *own* object costs —
+    /// CR 113.6d's "that particular object"?
+    ///
+    /// The mirror of [`Self::applies_from_battlefield`], and not its negation:
+    /// CR 602.2b's activated abilities (§3.10) will answer `false` to this and
+    /// `true` to that. It is what the gather's second gate asks, because
+    /// "prints a cost ability" is the wrong question there — Thalia prints
+    /// one, and a Thalia *in hand* is not modifying her own cost. Asking the
+    /// body alone cost five non-member layer walks per 200 measured games,
+    /// which is how it was found.
+    pub fn applies_to_its_own_object(&self) -> bool {
+        match self {
+            CostSubject::Spells(_) => false,
+            CostSubject::Itself => true,
+        }
+    }
 }
 
 /// What a cost modification does to the mana component of a total cost.

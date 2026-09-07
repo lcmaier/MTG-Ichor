@@ -175,7 +175,14 @@ fn applies_to(
 }
 
 /// The gate's printed leg for source 2: does this object's *card* carry a
-/// static cost ability at all?
+/// static cost ability that could modify *its own* cost?
+///
+/// **The subject is part of the question, not just the body.** Thalia prints
+/// a cost ability and a Thalia in hand modifies nothing of her own, so a gate
+/// that asked "prints a cost ability" opened for her at every castability
+/// preview and computed a frame source 2 then refused. That was five
+/// non-member layer walks per 200 measured games, and the A/B is what found
+/// it.
 ///
 /// **This reads `card_data` for an object on the stack**, which the
 /// layer-system invariant otherwise forbids — and it is a gate, not an
@@ -197,7 +204,10 @@ fn prints_cost_ability(game: &GameState, spell: ObjectId) -> bool {
     game.objects.get(&spell).is_some_and(|obj| {
         obj.card_data.abilities.iter().any(|ability| {
             ability.ability_type == AbilityType::Static
-                && ability.effect.as_cost_modification().is_some()
+                && ability
+                    .effect
+                    .as_cost_modification()
+                    .is_some_and(|(_, def)| def.applies_to.applies_to_its_own_object())
         })
     })
 }

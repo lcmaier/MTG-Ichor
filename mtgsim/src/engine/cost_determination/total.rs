@@ -614,13 +614,20 @@ mod tests {
     }
 
     /// **The gate's third leg** (`cost-architecture.md` §3.1). A board with no
-    /// cost source and a card that prints no cost ability asks the layer
-    /// system *nothing*. Without this, source 2 would put a frame on every
-    /// card in hand at every castability preview, on every board — a layer
-    /// walk per hand card per epoch, bought for a mechanic the card does not
-    /// have.
+    /// cost source asks the layer system *nothing* about a card in hand that
+    /// cannot modify its own cost. Without this, source 2 would put a frame
+    /// on every card in hand at every castability preview, on every board — a
+    /// layer walk per hand card per epoch, bought for a mechanic the card
+    /// does not have.
+    ///
+    /// **The subject is half the question.** Thalia prints a cost ability and
+    /// a Thalia in hand modifies nothing of her own, so the leg asks
+    /// `CostSubject::applies_to_its_own_object` rather than "prints one at
+    /// all". Asking the body alone cost five non-member walks per 200
+    /// measured games — small, and exactly what the `fuzz_ab` arm that must
+    /// reproduce `main` is for.
     #[test]
-    fn the_preview_asks_the_layer_system_nothing_for_a_card_with_no_cost_ability() {
+    fn the_preview_asks_the_layer_system_nothing_for_a_card_that_cannot_reduce_itself() {
         let mut game = setup_two_player_game();
         let plain = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
         let printed = ManaCost::build(&[ManaType::Red], 1);
@@ -629,6 +636,13 @@ mod tests {
         let before = queries(&game);
         assert_eq!(preview_mana_cost(&game, plain, &printed), printed);
         assert_eq!(queries(&game), before, "the gate skipped the frame entirely");
+
+        // Thalia prints a cost ability whose subject is other spells, and she
+        // is in hand rather than on the battlefield: nothing to ask.
+        let thalia = put_in_hand(&mut game, crate::cards::phase_cm_cards::thalia_guardian_of_thraben(), 0);
+        let before = queries(&game);
+        let _ = preview_mana_cost(&game, thalia, &printed);
+        assert_eq!(queries(&game), before, "a `Spells` subject in hand is not source 2's");
 
         // And the leg that opens it, on the same board: a printed cost
         // ability is what makes the frame worth computing.
