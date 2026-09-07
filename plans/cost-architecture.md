@@ -303,18 +303,24 @@ was. **The commented arms are not in the enum until their phase** —
 missing one applies to a field the same way — and they are written here so
 the phase that adds each knows what §3.4's theorem says it expires.
 
-### 3.3 The pipeline as built — `engine/cost_modification/`
+### 3.3 The pipeline as built — `engine/cost_determination/`
 
-`mod.rs` declares; `gather.rs` finds the effects that apply to this spell;
-`total.rs` is CR 601.2f's arithmetic. `costs.rs::assemble_total_cost` calls
-`determine_total_cost(game, caster, spell, base, dp)`:
+`mod.rs` declares; `gather.rs` finds the effects that apply to this spell
+(`cost_modifications_for`); `total.rs` owns the whole step as
+`determine_total_cost` — the assembly of CR 601.2b's choices and the
+arithmetic in one function, the one call `cast_spell` makes at 601.2f.
+`engine::costs` keeps *payment* (601.2h). The steps:
 
 1. **Merge.** Every `Cost::Mana` in the assembled list — the base or
    alternative cost, an X expansion, a kicker's mana — becomes **one** mana
    component. CR 601.2f speaks of "the mana component of the total cost" in
    the singular, and CR 118.8 says additional costs are paid "at the same
-   time". The non-mana costs keep their order; the component takes the first
-   mana cost's place. This is also what fixes the two latent defects in §2.
+   time". The non-mana costs keep their order behind it; **the component goes
+   first**, because CR 601.2h lets the first group's costs be paid "in any
+   order", the engine picks one, and the mana payment is the one that can
+   still fail after `can_pay_costs` (an illegal generic split) — a failure
+   mid-list leaves what came before it paid. This is also what fixes the two
+   latent defects in §2.
 2. **Gather** (§4): every applying `CostModificationInstance` — source,
    definition, controller — sources in battlefield timestamp order, the spell
    itself last.
@@ -566,13 +572,48 @@ artifact card from your graveyard to your hand"), Mox Opal ("Metalcraft —
 artifacts"), Chromatic Sphere ("{1}, {T}, Sacrifice this artifact: Add one
 mana of any color. Draw a card. (Activate only as an instant.)").
 
+**The rules moved under this board one month ago, and the engine's frozen
+CR did not.** The Hobbit update (August 2026; §12) added a criterion to
+CR 605.1a — a mana ability's "cost and effect don't move any card to or
+from a library" — and ten cards stopped being mana abilities, Chromatic
+Sphere among them; its "(Activate only as an instant.)" is that errata's
+reminder text, and it now uses the stack and cannot be activated while
+casting or paying. The judge's walkthrough below is eight years older than
+the change. Two things follow, and the owner checked the first with judges
+on 2026-09-07:
+
+- **The core of the loop is unchanged.** Casting the Sphere, or activating
+  its ability, still opens the mana window in which Ironworks is activated
+  before the cost is paid — the Sphere's *own* ability being a mana
+  ability or not has no bearing on which mana abilities may be activated
+  while paying for it. Steps 2–4 read the same under both rules texts.
+- **Steps 5–6 reorder.** Under the frozen CR (`tmnt.txt`, and the
+  walkthrough) the Sphere's ability resolves at once and the sacrifice
+  triggers go on the stack after it; under the current CR the ability goes
+  on the stack, the triggers go on top of it, and the returns resolve
+  *before* the draw and its mana. The loop nets the same either way.
+
+**The engine targets the frozen CR**, so `phase` cards classify the Sphere's
+ability as `AbilityType::Mana` and the loop below is the one to test; the
+reordered variant is the second board, written down so that whoever moves
+the baseline knows what flips. Nothing here builds it: the only piece it
+needs that the frozen loop does not is the CR 605.1a criterion itself,
+which is a card *classification* today — an author marks an ability
+`Mana` or `Activated` by applying 605.1a — and would become a rule the
+engine applies ("could add mana, no target, not loyalty, moves no library
+card") on the day a rules version is a knob. That is the whole cost of
+"play as the rules were": one predicate per rules version where the
+classification lives, not a second engine. It is worth having for
+exactly this kind of board and for nothing before the modern CR's
+vocabulary (the owner's limit), and it is not v1's.
+
 | # | The play | The rule | Who owns the step |
 |---|---|---|---|
 | 1 | With priority, tap Mox Opal for one mana of any color, then sacrifice it to Ironworks: three mana | 605.3a (a mana ability whenever you have priority); metalcraft is an activation restriction with a count condition | `backlog.md` §2.8 (the restriction), §2.19 (any-color mana); CM-3 (the sacrifice cost) |
 | 2 | Announce Chromatic Sphere's ability. 602.2b runs 601.2f: the total cost, {1}, is locked; 601.2g opens the mana window because the cost includes a mana payment | 601.2f, 601.2g | **this document** (the lock); CM-4 (the window) |
 | 3 | In the window, sacrifice Myr Retriever to Ironworks, then Ironworks to itself: seven mana. "Obviously you don't need any more mana to activate Chromatic Sphere, but there's nothing saying you can't take advantage of that rule here to make some more" | 605.3a — "whenever they are … activating an ability that requires a mana payment", with no "until it is paid". Each activation is its own event, in order: Trawler sees both leave; Retriever's own trigger fires | CM-3 (Ironworks sacrificing itself is `Cost::Sacrifice(Artifact, 1)` choosing the source); **CM-4** — today the window closes the moment the pool covers {1}, so step 3 is impossible (§8) |
 | 4 | Pay {1}, tap and sacrifice the Sphere: six mana. Trawler sees the Sphere die | 601.2h, after the window | CM-3 |
-| 5 | The mana ability resolves at once: one mana of any color, draw a card. Seven mana | 605.3b — no stack, no priority in between | §2.19; a draw inside a mana ability's effect, which `mana.rs::resolve_mana_effect` must carry (noted for §2.19's owner) |
+| 5 | The mana ability resolves at once: one mana of any color, draw a card. Seven mana | 605.3b — no stack, no priority in between. **Frozen CR only**: under the current 605.1a the Sphere's ability uses the stack, and step 6's triggers go on top of it | §2.19; a draw inside a mana ability's effect, which `mana.rs::resolve_mana_effect` must carry (noted for §2.19's owner) |
 | 6 | "All these triggered abilities don't go on the stack right away; they wait until a player is about to get priority, which in this case means right after we finish resolving Chromatic Sphere's ability." Targets are chosen as each goes on the stack, so Retriever, Ironworks and the Sphere are all in the graveyard: Trawler's trigger from Ironworks (mana value 4) returns Retriever (2), its trigger from Retriever returns the Sphere (1), its trigger from the Sphere returns Mox Opal (0), and Retriever's own trigger returns Ironworks | 603.3, 603.3b (the controller orders them), 603.3d (targets chosen as the ability is put on the stack) | critical-path item 6. **A vocabulary gap for it:** "with lesser mana value" is a graveyard target compared against the *trigger's source*, a selection leaf relative to the ability's origin, which no filter says today |
 | 7 | Recast Ironworks, Retriever and the Sphere with the seven mana: the starting board, one card up | ordinary casts; the pool persists within the phase | nothing new |
 
@@ -612,9 +653,13 @@ activated while making the illegal play" — so, not reversed, the Ironworks
 activation stands: {C}{C} in the pool, Mind Stone in the graveyard, its
 triggers not "a result of an undone action". The engine's rollback already
 keeps mana abilities (`CLAUDE.md`, `// CAST-ROLLBACK:`) and never offers the
-reversal (§8). **The judged loop needs none of this** — every step above is
-a legal action — so the three questions below gate only a test of this
-variant, not item 6, and are left for a judge rather than guessed at:
+reversal (§8). The Hobbit update touched 605.1a and nothing in 601.2, 605.3
+or 732 (§12, the second pass), so this variant reads the same under both
+rules texts: Mind Stone's sacrifice ability never added mana and was never
+a mana ability, and Ironworks moves no library card and still is one.
+**The judged loop needs none of this** — every step above is a legal
+action — so the three questions below gate only a test of this variant,
+not item 6, and are left for a judge rather than guessed at:
 
 1. After a 732.1 reversal, do the triggers from the un-reversed mana
    abilities go on the stack before the player's next action? 603.3 says
@@ -669,8 +714,7 @@ the same player.
 
 | Site | Change |
 |---|---|
-| `engine/costs.rs::assemble_total_cost` | gains `(game, caster, spell, dp)`; calls the pipeline; the passthrough and its test go. 1 production caller, 8 test call sites |
-| `engine/costs.rs::apply_cost_modifications` | deleted; `cost_modification::determine_total_cost` replaces it |
+| `engine/costs.rs::assemble_total_cost` and `apply_cost_modifications` | both deleted; `cost_determination::determine_total_cost` is the whole of CR 601.2f, assembly included, and `costs.rs` keeps payment. 1 production caller, 8 tests moved |
 | `engine/cast.rs` 601.2f | passes the new arguments |
 | `oracle/mana_helpers.rs::castable_spells` | previews the total (§3.6) |
 | `state/game_state.rs` | `cost_modification_ability_sources`; `register_static_effects` inserts through `as_cost_modification`; `atoms_of_static_body` gains the no-rows arm |
@@ -692,10 +736,10 @@ the same player.
 |---|---|---|---|
 | **CM-0 — `PermanentFilter → ObjectFilter`** | the rename `roadmap-v2.md` A5 scheduled, pulled forward because CM-1 is its first non-permanent consumer (§3.2). No zone leaf, no behaviour | 275 occurrences / 25 `src/` files, 119 / 18 test files, 56 plan lines; `cargo build --all-targets` and a green suite are the whole check | low — pure rename; the one hazard is a doc line left saying the old name, and grep is the test |
 | **CM-1 — the pipeline** | §3.1–3.6: the type, the gate, the sweep over sources, 601.2f's order, the prompt, the preview, `SourceUntapped`; no `Itself`, no `ReduceGeneric`, no `not_below` (their phases'). **Consumers:** Thalia, Guardian of Thraben (increase, **pooled**), Goblin Electromancer (reduction), Trinisphere (direct-total, conditional). Fixtures: a self-tapping sphere for lock-in across 601.2g; a kicked spell; an alternative-cost spell; three small reducers for the floor | §5's 11 sites; ~400 new engine lines in `cost_modification/`, ~250 across the sites, ~350 of cards, ~600 of tests | **medium** — the first cast-time sweep; the preview is the site that can disagree with the engine, and the merge step touches every cast |
-| **CM-2 — the spell's own cost abilities** | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
-| **CM-3 — lock-in's payment side** | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); mana paid *last* among 601.2h's first group so a failed split leaves nothing sacrificed (CR 732.1). **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
+| **CM-2 — the spell's own cost abilities** | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
+| **CM-3 — lock-in's payment side** | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" is what CM-3 must add for a sacrifice paid before a later cost fails. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — today it also stops the moment the pool covers the cost, which is a payer's policy in the engine's loop (§3.11, §8). The policy moves to `ui::AutoPayer<D>`, a `DecisionProvider` decorator that answers `ManaAbilityWindow` (stop when covered), `GenericManaAllocation`, `OrderCostReductions` and CM-3's sacrifice choice from a solver and passes everything else through; `RandomDecisionProvider` and the CLI wrap themselves in it by default, with a flag off. **Consumers:** the loop's step 3 with CM-3's cards; the fuzz harness, which must reproduce today's counters with the payer on | ~30 in the window, ~150 decorator, ~30 wiring, ~150 tests: ~400 | medium — every cast's prompt sequence passes through it; the A/B is the check that the default reproduces `main` |
-| **CP-1 — payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint); `find_mana_sources` and `remaining_cost_after_pool` for them (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
+| **CP-1 — payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint); `find_mana_sources` and `remaining_cost_after_pool` for them (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-colour costs follow the colour wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
 
 **Why the modification/payment seam is where it is** (the owner's question,
 §11 note 7). CP-1 is *sequenced*, not deferred: it sits at 601.2b and 601.2h,
@@ -800,6 +844,13 @@ prompt reachable from a fuzz game at all.
    or the payer, whichever needs it first.
 5. **`ATOM-601.2f-004`'s worked example is wrong** (§3.4). Noted in the
    session file, not rewritten — the corpus is authored.
+6. **"Is a mana ability" is an author's classification, and the rule it
+   applies moved after the freeze** (§3.11). `AbilityType::Mana` is CR
+   605.1a applied by whoever writes the card, and the Hobbit update added
+   a criterion to that rule. A rules-version knob would make the
+   classification the engine's — one predicate over the ability's cost
+   and effect — and re-read every registered card through it. Not v1's;
+   recorded so the CR sync that moves the baseline knows the Sphere flips.
 
 ---
 
@@ -869,6 +920,22 @@ main item 13, the CM-1 entry, §8's findings as Deferred Migrations items);
   Inventor's Fair board and "after 601.2e, we don't check again".
 - Scryfall, 2026-09-07: oracle text of every card named above; the
   population counts in §3.1 and §3.10.
+- **The second pass, narrowed to August 2026** (the owner's request after
+  the Sphere's reminder text was noticed): Wizards of the Coast, *The
+  Hobbit Update Bulletin*
+  (magic.wizards.com/en/news/announcements/the-hobbit-update-bulletin) —
+  CR 605.1a gains "its cost and effect don't move any card to or from a
+  library. Do not take into account replacement effects that may apply,
+  other than self-replacement effects"; ten cards lose mana-ability status
+  (Chromatic Sphere, Selvala, Explorer Returned, Millikin, Deranged
+  Assistant, Charmed Pendant and the five Eggs) and gain "(Activate only as
+  an instant.)"; the stated reason is that "it can be disruptive for cards
+  to be moving in and out of hidden zones" during casting and resolution.
+  Draftsim, *3 New MTG Rules Changes You Might've Missed*
+  (draftsim.com/mtg-hob-3-rule-changes/) lists the release's rules
+  changes; none touches 601.2, 605.3 or 732. The owner's judges,
+  2026-09-07: "Sphere is unaffected by the change" as far as activating
+  mana abilities while casting it or paying for its ability goes.
 
 #### CM-0 — `PermanentFilter` → `ObjectFilter` — ✅ 2026-09-07
 

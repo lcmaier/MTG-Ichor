@@ -67,7 +67,7 @@ absent here whether or not they shipped.
 |---|---:|
 | Cards registered | 86 |
 | …of them in `PERFORMANCE_POOL` | 71 |
-| `#[test]` functions | 1023 |
+| `#[test]` functions | 1020 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -75,7 +75,7 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 4018 of 4233 lines (94%) |
+| Section size | 4019 of 4234 lines (94%) |
 | Numbered items | 120 |
 | …closed, still recorded | 29 |
 | …open — unreachable, and says why | 55 |

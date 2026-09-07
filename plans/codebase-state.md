@@ -76,7 +76,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 111 | Tokens — cease-to-exist | ✅ SBA 704.5d | `engine/sba.rs:332+` |
 | 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/cast.rs` |
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
-| 118.8–118.9 | Alternative / additional cost resolution | 🟡 assemble_total_cost + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/cast.rs`, `engine/costs.rs` |
+| 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/cast.rs`, `engine/costs.rs` |
 | 119 | Life changes | ✅ with source attribution | `events/event.rs`, `engine/actions.rs` |
 | 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅; infect/wither/toxic ❌ (T21c pending); **120.3c ❌ — damage to a planeswalker does not remove loyalty counters** (audit 2026-08-25: `perform_action(DealDamage)` marks damage on any battlefield object and nothing reads it off a planeswalker, while SBA 704.5i reads only the counter count, so a planeswalker can never die to damage. Unreachable — no planeswalker registered, combat can't attack one — but Lightning Bolt's "any target" already validates them, so the first registered planeswalker makes it live. Fix scheduled with Phase RD's CR 120.3 decomposition, `replacement-architecture.md` §9) | `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
 | 121 | Drawing | ✅ basic | `engine/actions.rs` |
@@ -132,7 +132,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/cast.rs:130–152`, `ui/ask.rs` |
 | 601.2d | Distribution (damage/counters among targets) | ❌ literal placeholder at `engine/cast.rs:154` (single-line comment, no code) | `engine/cast.rs` |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/cast.rs:175–182` |
-| 601.2f | Determine total cost | ✅ | `engine/costs.rs` `assemble_total_cost` |
+| 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
 | 601.2h | Pay costs (with rollback on failure) | ✅ for `Cost::SacrificeSelf`, `Cost::Tap`, `Cost::PayLife`, `Cost::Mana`; **`Cost::Sacrifice(filter, count)` = `NotImplemented`** (T18c) | `engine/costs.rs` |
 | 601.2i | Spell becomes cast | ✅ | `engine/cast.rs` |
@@ -2909,7 +2909,8 @@ measurement; what follows is what a later phase has to know.
 
 ### Found by CM-1 — cost modification (2026-09-07)
 
-**Shipped:** CR 601.2f's order as `engine/cost_modification/`, discovered off
+**Shipped:** CR 601.2f whole — assembly and modification — as
+`engine/cost_determination/`, the cost effects discovered off
 effective ability lists behind a three-leg gate; `Effect::CostModification`,
 `Condition::SourceUntapped`, `ChoiceKind::OrderCostReductions`; the castability
 preview reading the locked cost; Thalia (pooled), Goblin Electromancer,
@@ -3331,7 +3332,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    **Reachability (2026-09-03):** closed — 2026-08-19.
 
-3. **~~Cost modification pipeline stub — ❌ still a passthrough.~~ ✅ CM-1 (2026-09-07, `plans/cost-architecture.md`).** `engine/cost_modification/` is CR 601.2f's order — merge, gather, increases, reductions in the caster's order under CR 118.7a–d, Trinisphere, the lock — and `assemble_total_cost` calls it. **Not** "wired to the continuous-effects registry", as this item said on 2026-08-24: a cost effect has no layer and applies to no object, so it is discovered off its source's *effective* ability list at 601.2f, the way a replacement effect or a "can't" is (§3.1 of the doc has the reasoning; the sentence here was written before RB built that pattern). Thalia, Guardian of Thraben (pooled), Goblin Electromancer and Trinisphere are the consumers. **Commander tax is still a cost modification** (CR 903.8) and still has no payer: it ships with `GameConfig::commander()` as one arm in `total.rs` step 1 (§3.8).
+3. **~~Cost modification pipeline stub — ❌ still a passthrough.~~ ✅ CM-1 (2026-09-07, `plans/cost-architecture.md`).** `engine/cost_determination/` is CR 601.2f's order — merge, gather, increases, reductions in the caster's order under CR 118.7a–d, Trinisphere, the lock — and `assemble_total_cost` calls it. **Not** "wired to the continuous-effects registry", as this item said on 2026-08-24: a cost effect has no layer and applies to no object, so it is discovered off its source's *effective* ability list at 601.2f, the way a replacement effect or a "can't" is (§3.1 of the doc has the reasoning; the sentence here was written before RB built that pattern). Thalia, Guardian of Thraben (pooled), Goblin Electromancer and Trinisphere are the consumers. **Commander tax is still a cost modification** (CR 903.8) and still has no payer: it ships with `GameConfig::commander()` as one arm in `total.rs` step 1 (§3.8).
 
    **Vocabulary gap this also owns.** Golden-Tail Trainer — "Aura and Equipment spells you cast cost {X} less to cast, where X is this creature's power" — is a static ability whose amount is read live. `AmountExpr` cannot say "this creature's power": `TargetPower` means the target of a resolving spell, and `Variable` is CR 107.3's X, chosen as a spell is cast. A `SourcePower`-style variant is needed, and the card is blocked on this item too, since cost modification is CR 613.11 / 601.2f rather than a characteristic change.
 
@@ -3968,7 +3969,7 @@ first.
 
 9. **`can_pay_costs` checks each `Cost::Mana` against the whole pool, and
    `pay_costs` is not atomic across them (found 2026-09-02, closing 16c).**
-   `assemble_total_cost` appends an additional cost's mana as its *own*
+   `assemble_total_cost` (folded into `determine_total_cost` on review) appended an additional cost's mana as its *own*
    `Cost::Mana` entry, and `check_cost_resource` asks "can the pool pay this
    one" per entry — so `{1}{R}` with kicker `{R}` passes against a pool of
    `{R}{R}`, the 601.2g window stops tapping the moment it passes, `pay_costs`
