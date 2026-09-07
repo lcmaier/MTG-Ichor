@@ -497,7 +497,17 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `OrderCostReductions` and the sacrifice-choice prompt from a solver and
   passes everything else through; and it is where the mana window's early
   stop belongs (`codebase-state.md` main item 70). The reversal prompt is
-  main item 72.
+  main item 72. **And a third thing lives here now (2026-09-07, CM-3):**
+  the *staged* payment Arena offers — delve exiles, convoke taps, a sacrifice,
+  all shown and take-back-able until the player confirms the cast. CM-3 made
+  that possible without any engine facility by separating deciding from
+  performing: every payment prompt is asked against one board before anything
+  moves (`cost-architecture.md` §3.12), so a client can buffer the answers and
+  let the player revise them, and the engine never holds a half-performed
+  payment to undo. It is Phase 10 GUI work, not engine work, and the thing to
+  protect is the invariant rather than the UI — a phase that asks a payment
+  prompt *after* a payment would take the staging away and make CR 732.1's
+  cancellation mandatory.
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:

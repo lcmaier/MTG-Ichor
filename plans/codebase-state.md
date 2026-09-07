@@ -3118,6 +3118,92 @@ table.
     ~5% is worth a PR, or fold it into whatever next touches
     `place_on_battlefield`.
 
+### Found by CM-3 — lock-in's payment side (2026-09-07)
+
+**Shipped:** CR 601.2h's payment as decide-then-perform — `plan_payment` takes
+every choice against one board and `pay_costs` performs it asking nobody
+(`engine::costs`); `payment_order_rank`, the engine's pick of CR 601.2h's "in
+any order"; `Cost::Sacrifice(ObjectFilter, n)` paid through the chokepoint as
+one `execute_actions` batch with `ChoiceKind::ChooseSacrificeForCost`;
+`AdditionalCost::Mandatory` and `is_optional` (CR 118.8b/118.8c), with 601.2b
+announcing the optional costs alone; and `castable_spells` refusing a spell
+whose mandatory additional cost cannot be paid. Altar's Reap (pooled),
+Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind Stone.
+
+**CR 732.1 is answered by construction, and this is where that is recorded.**
+The rule's first sentence — "any payments already made are canceled" — has an
+empty set to act on, and the reason is a property rather than a rewind:
+
+- The order is chosen so nothing that can fail is paid after something that
+  cannot be taken back. `Cost::Mana` is the only cost whose payment can fail
+  on a player's choice and it is rank 0; rank-1 costs read state no rank-0
+  payment changes; a rank-2 cost's own payment cannot fail, because
+  `plan_payment` enumerated its candidates and `validate_pick_n` bounds the
+  answer. A `debug_assert!` on `pay_costs`'s failure path enforces it.
+- The Mind Stone puzzle (`cost-architecture.md` §3.11) reaches the check and
+  not the payment: with the vehicle sacrificed inside its own 601.2g window,
+  `can_pay_costs` refuses the `Cost::Tap` before any cost is paid, and
+  `rollback_ability_activation` has nothing to cancel. The Ironworks
+  activation stands with its mana and its cost, which is what both readings of
+  the open judge question agree on.
+- **No second chokepoint exemption.** `// CAST-ROLLBACK:` stays the only one.
+  Un-sacrificing would mean retracting an emitted, already-replaced
+  `ZoneChange` from the stream the trigger phase reads, and restoring a
+  `PermanentState` the move destroyed — a system, not an arm. `CLAUDE.md`'s
+  chokepoint section is unchanged by this phase.
+
+**Measured** (`plans/fuzz_ab.py`, 2026-09-07, three arms — `main`, CM-3's
+engine with all five cards registered and the old pool, and CM-3 pooled): the
+middle arm is `IDENTICAL` to `main` on `performance` at 200 games, so the
+engine change moves no counter and changes no seeded stream. `cost-
+architecture.md` §6's claim that CM-3 "opens no new path a pooled card would
+measure" was right about the engine and wrong about the pool: `Cost::Sacrifice`
+is a path the 72 could not reach, so `PERFORMANCE_POOL` gains Altar's Reap
+(72 → 73) and the CPU/game re-record is +19.5%, all of it the card's gameplay.
+Zero errors, zero panics, zero `Uncast resolved` in all three arms on both
+pools. `engineering-practices.md` §3 has the re-recorded table.
+
+**A fix that came with it:** a mana ability whose cost has a generic component
+now gets a real allocation prompt. `activate_mana_ability` passed an empty map,
+so such an ability would have failed at payment; no registered mana ability has
+one, so nothing was wrong in practice and nothing moved.
+
+78. **`can_pay_costs` checks each cost against the same board, so two
+    object-moving costs in one list can both pass and only one be payable.**
+    "Sacrifice a creature" twice with one creature answers yes twice. The
+    first is paid, the second fails, and the mana ahead of them is gone —
+    which is the one board on which CR 732.1's cancellation would be needed
+    after all, reached by a cost list rather than by anything a player did.
+
+    **Reachability (2026-09-07):** unreachable — no registered card prints
+    two object-moving costs in one list, and none of the five CM-3 added
+    does. `payment_order_rank` does not help here: both costs are rank 2, and
+    the failure is in the pre-check rather than in the order.
+
+    **Sized:** the honest fix is a set-cover pre-check — filters can overlap
+    without being equal ("an artifact" and "a creature" over one artifact
+    creature), so summing counts per filter is wrong. ~80 lines and a
+    matching `plan_payment` change, with the first card that prints two.
+
+79. **CR 601.2h's payment order is the player's and the engine takes it.**
+    "First, they pay all costs that don't involve random elements or moving
+    objects from the library to a public zone, **in any order**" — the engine
+    picks one order for everyone (`payment_order_rank`). `ATOM-601.2h-003`
+    is the atom: Omnath, Locus of Mana plus Momentous Fall, where sacrificing
+    before paying and paying before sacrificing give different draws, because
+    Omnath's power is read off the pool.
+
+    **Reachability (2026-09-07):** reachable — not wrong; a forced choice.
+    No registered card makes the two orders differ, and Omnath is not
+    registered.
+
+    **Sized:** a `ChoiceKind` over the orderings of one rank, ~70 lines. **The
+    constraint it must keep:** only orders that complete may be offered, which
+    is CR 601.2h's own "unpayable costs can't be paid" applied to the order.
+    Offering an order that bricks the payment is what would make 732.1's
+    cancellation load-bearing, and building the cancellation is the
+    alternative to that constraint rather than a companion to it.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem
