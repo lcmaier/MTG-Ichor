@@ -1839,8 +1839,9 @@ knows which members each application touched, is the structural one.
 **Review (2026-09-06).** Two names changed — `Board passes` is `Board walks`,
 the entry's `Query` enum is `Membership` — and one rule number: the existence
 check is CR 604.2 (611.3b says the same), not CR 613.7a, which is the
-timestamp rule; the label had been wrong since 2026-08-21 and a comment sweep
-is recorded in `codebase-state.md`. The "judge walkthrough" this section
+timestamp rule; the label had been wrong since 2026-08-21, and the sweep of
+the older sites landed with the `PermanentState` rename (2026-09-06) —
+`codebase-state.md`, "Cross-cutting". The "judge walkthrough" this section
 cited for the Blood Moon boards does not exist; the rulings above replace
 it, and LI-2's cards are re-planned around them. The trace page for this
 PR, `plans/traces/li-1-one-pass-per-board.html`, walks the Humility +
