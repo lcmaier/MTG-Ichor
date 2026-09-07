@@ -15,6 +15,13 @@
 //! **CM-2** adds the spell's own cost abilities (CR 113.6d, 702.41a) at the
 //! end of this file: Myr Enforcer and Frogmite, the gather's second source,
 //! and the first reduction whose amount is read off the board.
+//!
+//! **CM-3** adds the payment side (CR 601.2h, 118.8b, 732.1): a sacrifice
+//! paid through the chokepoint, a mandatory additional cost, and the boards
+//! where a reducer leaves *after* the total is locked. The exact-pool
+//! discipline above is what makes the lock-in observable — a cost recomputed
+//! after the window would be payable from the same pool and would leave a
+//! different amount of mana behind.
 
 use std::cell::RefCell;
 
@@ -650,4 +657,320 @@ fn test_a_reduction_by_source_power_reads_the_effective_frame() {
         ManaType::Colorless,
         "a 3/3 reducer under its own anthem",
     );
+}
+
+
+// ---------------------------------------------------------------------------
+// CM-3 — lock-in's payment side (CR 601.2h, 118.8b, 732.1)
+// ---------------------------------------------------------------------------
+
+/// The board CR 601.2h's own example is written on.
+fn familiar_board() -> GameState {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
+    game
+}
+
+/// The ability index of a permanent's `n`th effective ability.
+fn ability_id_at(game: &GameState, id: ObjectId, index: usize) -> mtgsim::types::ids::AbilityId {
+    mtgsim::oracle::characteristics::get_effective_abilities(game, id)[index].id
+}
+
+/// CR 601.2h's worked example, verbatim: "You cast Altar's Reap, which costs
+/// {1}{B} and has an additional cost of sacrificing a creature. You sacrifice
+/// Thunderscape Familiar, whose effect makes your black spells cost {1} less
+/// to cast. Because a spell's total cost is 'locked in' before payments are
+/// actually made, you pay {B}, not {1}{B}, even though you're sacrificing the
+/// Familiar."
+///
+/// The exact pool is the whole assertion: {B} pays for it, and the Familiar
+/// is gone by the time the payment finishes.
+// COVERS: ATOM-601.2h-001
+#[test]
+fn test_altars_reap_pays_the_cost_the_creature_it_sacrifices_reduced() {
+    assert_costs_exactly(
+        familiar_board,
+        phase_cm_cards::altars_reap,
+        &[(ManaType::Black, 1)],
+        ManaType::Black,
+        "Altar's Reap under its own sacrifice",
+    );
+
+    // ...and the Familiar is what paid for it.
+    let mut game = familiar_board();
+    let familiar = *game.battlefield.keys().next().unwrap();
+    let dp = RecordingDecisionProvider::picking(0);
+    let reap = cast_from_pool(
+        &mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp,
+    )
+    .expect("castable for {B}");
+
+    assert!(game.stack.contains(&reap), "the spell is on the stack");
+    assert!(!game.battlefield.contains_key(&familiar), "the Familiar was sacrificed");
+    assert!(game.players[0].graveyard.contains(&familiar));
+    // One creature to sacrifice is a forced payment, so nobody was asked.
+    assert_eq!(dp.prompts(), 0, "asked {:?}", dp.kinds());
+}
+
+/// CR 118.8d — an additional cost does not change the spell's mana cost.
+/// Altar's Reap sacrifices a creature and is still a two-drop.
+// COVERS: ATOM-118.8d-001
+#[test]
+fn test_a_mandatory_additional_cost_does_not_change_the_mana_cost() {
+    let mut game = familiar_board();
+    let reap = cast_from_pool(
+        &mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)],
+        &RecordingDecisionProvider::picking(0),
+    )
+    .expect("castable for {B}");
+
+    let printed = game.get_object(reap).unwrap().card_data.mana_cost.clone().unwrap();
+    assert_eq!(printed.mana_value(), 2, "{{1}}{{B}} is mana value 2, sacrifice or no");
+}
+
+/// CR 118.8b/118.8c — a mandatory additional cost is not announced, because
+/// there is no intention to declare. The optional-cost prompt is not asked at
+/// all when every additional cost the card has is mandatory.
+#[test]
+fn test_a_mandatory_additional_cost_is_not_offered() {
+    let mut game = familiar_board();
+    let dp = RecordingDecisionProvider::picking(0);
+    cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
+        .expect("castable");
+    assert!(
+        !dp.kinds().iter().any(|k| k.starts_with("ChooseAdditionalCosts")),
+        "a mandatory cost was offered as a choice: {:?}", dp.kinds(),
+    );
+}
+
+/// Two creatures is a choice, and the payment takes the one chosen.
+#[test]
+fn test_sacrificing_for_a_cost_is_the_payers_choice() {
+    let mut game = familiar_board();
+    let familiar = *game.battlefield.keys().next().unwrap();
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    // Candidates are in battlefield timestamp order: the Familiar, then the
+    // bear. Index 1 keeps the reducer on the board.
+    dp.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: familiar, count: 1 },
+        vec![1],
+    );
+    let reap = put_in_hand(&mut game, phase_cm_cards::altars_reap(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, reap, &dp).expect("castable for {B}");
+
+    assert!(game.battlefield.contains_key(&familiar), "the reducer was not the one chosen");
+    assert!(!game.battlefield.contains_key(&bear), "the bear was");
+}
+
+/// CR 601.2h — "unpayable costs can't be paid", and `cost-architecture.md`
+/// §3.6 — enumeration and enforcement must agree. Altar's Reap with no
+/// creature is not offered by the priority loop *and* not castable, and the
+/// failed attempt spends nothing.
+#[test]
+fn test_altars_reap_is_uncastable_and_unoffered_with_no_creature() {
+    let mut game = setup_two_player_game();
+    let reap = put_in_hand(&mut game, phase_cm_cards::altars_reap(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.players[0].mana_pool.add(ManaType::Colorless, 1);
+
+    let offered = castable_spells(&game, 0);
+    assert!(
+        !offered.iter().any(|(id, _)| *id == reap),
+        "offered a spell whose mandatory cost cannot be paid",
+    );
+
+    let attempt = game.cast_spell(0, reap, &RecordingDecisionProvider::picking(0));
+    assert!(attempt.is_err(), "cast succeeded with nothing to sacrifice");
+    assert!(game.players[0].hand.contains(&reap), "the card is back in hand");
+    assert_eq!(game.players[0].mana_pool.total(), 2, "nothing was paid");
+}
+
+/// `cost-architecture.md` §3.11 steps 3–4, and the completion of
+/// `ATOM-601.2f-003`: the reducer leaves the battlefield *inside* CR 601.2g's
+/// window, after the total was locked and before it was paid.
+///
+/// Foundry Inspector makes Mind Stone cost {1}. Krark-Clan Ironworks then eats
+/// the Inspector for {C}{C} while the cast is still in its mana window. The
+/// engine pays {1} — the total nothing re-read — and one colorless is left
+/// over. A cost recomputed after the window would be {2} and would leave none,
+/// which is what makes the leftover mana the assertion.
+// COVERS: ATOM-601.2f-003
+#[test]
+fn test_a_reducer_eaten_inside_the_mana_window_does_not_raise_the_locked_cost() {
+    let mut game = setup_two_player_game();
+    let inspector = put_on_battlefield(&mut game, phase_cm_cards::foundry_inspector(), 0);
+    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let stone = put_in_hand(&mut game, phase_cm_cards::mind_stone(), 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::build(&[], 1),
+        },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![0],
+    );
+    dp.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[], 1) },
+        vec![1],
+    );
+
+    game.cast_spell(0, stone, &dp).expect("Mind Stone costs {1} under the Inspector");
+
+    assert!(!game.battlefield.contains_key(&inspector), "the Inspector paid for the mana");
+    assert_eq!(
+        game.players[0].mana_pool.amount(ManaType::Colorless), 1,
+        "{{1}} was paid, not {{2}}: the total was locked before the window",
+    );
+    assert!(game.stack.contains(&stone));
+}
+
+/// `cost-architecture.md` §3.11 step 3 — "Ironworks to itself". The filter is
+/// "an artifact", the source is an artifact, and nothing about paying a cost
+/// excludes the permanent whose cost it is.
+#[test]
+fn test_ironworks_pays_its_own_cost_with_itself() {
+    let mut game = setup_two_player_game();
+    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let ability = ability_id_at(&game, ironworks, 0);
+
+    // The only artifact is the source, so the payment is forced.
+    let dp = ScriptedDecisionProvider::new();
+    game.activate_mana_ability(0, ironworks, ability, &mtgsim::engine::actions::ActionContext::new(&dp))
+        .expect("Ironworks can eat itself");
+
+    assert!(!game.battlefield.contains_key(&ironworks));
+    assert!(game.players[0].graveyard.contains(&ironworks));
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
+}
+
+/// The CR 732.1 board (`cost-architecture.md` §3.11): Mind Stone's activation
+/// has its own vehicle eaten in its mana window and cannot pay its cost.
+///
+/// **The engine cancels nothing, and needs to cancel nothing.** The cost is
+/// checked before any of it is paid, so the activation rewinds with no
+/// payment made — 732.1's first sentence has an empty set to act on. The
+/// Ironworks activation was legal when it happened, so it stands: the mana is
+/// in the pool and Mind Stone is in the graveyard. Offering 732.1's
+/// *reversal* of that mana ability is `codebase-state.md` item 72's, and
+/// where the resulting trigger goes on the stack is critical-path item 6's —
+/// this asserts only what both readings of that question share.
+#[test]
+fn test_an_activation_whose_vehicle_is_eaten_rewinds_and_the_mana_stands() {
+    let mut game = setup_two_player_game();
+    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    let hand_before = game.players[0].hand.len();
+
+    let dp = ScriptedDecisionProvider::new();
+    // In the window: activate Ironworks (offered first, by timestamp)...
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::build(&[], 1),
+        },
+        vec![0],
+    );
+    // ...paying it with Mind Stone, the vehicle of the pending activation.
+    dp.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![1],
+    );
+    // The window offers again — Ironworks can still eat itself — and stops.
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::build(&[], 0),
+        },
+        vec![],
+    );
+
+    // Ability 1 is "{1}, {T}, Sacrifice this artifact: Draw a card"; ability 0
+    // is the mana ability.
+    let attempt = game.activate_ability(0, stone, 1, &dp);
+
+    assert!(attempt.is_err(), "the activation cannot pay a cost its vehicle owed");
+    assert!(game.stack.is_empty(), "the ability object is off the stack");
+    assert_eq!(game.players[0].hand.len(), hand_before, "no card was drawn");
+    assert_eq!(
+        game.players[0].mana_pool.amount(ManaType::Colorless), 2,
+        "the mana ability was legal when activated, and CR 732.1 leaves it standing",
+    );
+    assert!(game.players[0].graveyard.contains(&stone), "and so does its cost");
+    assert!(game.battlefield.contains_key(&ironworks));
+}
+
+/// The order CR 601.2h leaves to the player, and the engine picks: an
+/// object-moving cost is paid last, so a cost list that prints the sacrifice
+/// first does not eat its own source and then fail the tap.
+///
+/// Paid as printed, this activation would sacrifice the Engine and then find
+/// nothing to tap — a payment already made, with nothing in the engine that
+/// could cancel it (CR 732.1). `payment_order_rank` is what makes that
+/// unreachable, and this fixture is the only board on which it is visible:
+/// every printed card puts its mana and tap first by convention.
+#[test]
+fn test_an_object_moving_cost_is_paid_after_the_tap_it_would_break() {
+    let mut game = setup_two_player_game();
+    let engine = put_on_battlefield(&mut game, phase_cm_cards::self_eating_engine(), 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    game.activate_ability(0, engine, 0, &dp)
+        .expect("the tap is paid before the sacrifice that would break it");
+
+    assert!(!game.battlefield.contains_key(&engine), "the sacrifice was paid too");
+    assert!(game.players[0].graveyard.contains(&engine));
+    assert_eq!(game.stack.len(), 1, "the ability is on the stack, fully paid");
+}
+
+/// One cost that takes two permanents takes them as one event (CR 601.2h pays
+/// a cost, not a list of them), which is what a "whenever one or more
+/// creatures die" trigger will read.
+#[test]
+fn test_one_cost_taking_two_creatures_is_one_event() {
+    let mut game = setup_two_player_game();
+    let a = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let b = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let c = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    // The plan takes the mana split first, then the sacrifices — one pass
+    // over the ordered costs, and the mana component is first in it.
+    dp.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[ManaType::Black], 2) },
+        // Buckets sorted by discriminant: Black, Colorless. The Black is owed
+        // to the pip, so both generic come from the colorless.
+        vec![0, 2],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: a, count: 2 },
+        vec![0, 1],
+    );
+
+    let offering = put_in_hand(&mut game, phase_cm_cards::twin_offering(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.players[0].mana_pool.add(ManaType::Colorless, 2);
+    let before = game.events.len();
+    game.cast_spell(0, offering, &dp).expect("castable for {2}{B} with two creatures");
+
+    assert!(!game.battlefield.contains_key(&a));
+    assert!(!game.battlefield.contains_key(&b));
+    assert!(game.battlefield.contains_key(&c), "only the two chosen");
+
+    let batches: std::collections::HashSet<_> = game.events.records_from(before)
+        .iter()
+        .filter(|r| matches!(
+            r.event,
+            mtgsim::events::event::GameEvent::ZoneChange { cause: ZoneChangeCause::Sacrificed, .. },
+        ))
+        .map(|r| r.batch())
+        .collect();
+    assert_eq!(batches.len(), 1, "two sacrifices for one cost are one event");
 }
