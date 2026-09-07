@@ -2962,10 +2962,11 @@ games; with Humility forced beside her, both are on the board in 52%.
     engine never offers it.** "Each player may also reverse any legal mana
     abilities that player activated while making the illegal play"; the
     rewind keeps them every time, which is *a* legal answer and not the
-    player's. The Mind Stone variant of the Ironworks loop (§3.11) is the
-    board where it is observable, and three questions about it are left for
-    a judge there. Widens `backlog.md` §2.18's reversal entry, which already
-    named the prompt.
+    player's. The Mind Stone puzzle (`cost-architecture.md` §3.11) is the
+    board where it is observable; the one question left for a judge there
+    is where the surviving trigger goes after the rewind, not whether the
+    reversal is offered. Widens `backlog.md` §2.18's reversal entry, which
+    already named the prompt.
 
     **Reachability (2026-09-07):** reachable — not wrong; a forced choice.
 

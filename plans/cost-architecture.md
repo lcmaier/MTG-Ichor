@@ -643,35 +643,57 @@ each of which the engine must reproduce:
   step where you pay costs". 601.2g then 601.2h, which is the engine's order
   already.
 
-**The Mind Stone variant, and what stays open.** A second, older Ironworks
-trick uses an *illegal* action: announce Mind Stone's "{1}, {T}, Sacrifice
-this artifact: Draw a card", sacrifice Mind Stone itself to Ironworks in the
-window, and let the activation fail at 601.2h ("unpayable costs can't be
-paid"). CR 732.1 reverses the activation and cancels its payments, and
-"each player **may** also reverse any legal mana abilities that player
-activated while making the illegal play" — so, not reversed, the Ironworks
-activation stands: {C}{C} in the pool, Mind Stone in the graveyard, its
-triggers not "a result of an undone action". The engine's rollback already
+**Mind Stone as the vehicle, and the puzzle it makes.** Mind Stone's "{1},
+{T}, Sacrifice this artifact: Draw a card" adds no mana, so it was never a
+mana ability under either rules text: activating it uses the stack, and the
+window at 602.2b is the same window the Sphere opens. Used as the loop's
+vehicle instead of the Sphere, it gives the *reordered* loop under the frozen
+CR — the sacrifice triggers go on the stack above its draw and resolve first,
+which is exactly what the current CR makes the Sphere do. So both orderings
+are reachable under `tmnt.txt`, one per vehicle, and the rules-version knob
+above decides only which vehicle gives which.
+
+The puzzle is the case where Ironworks eats the vehicle itself: announce Mind
+Stone's ability, sacrifice Mind Stone to Ironworks in the window, and the
+activation cannot pay its own sacrifice at 601.2h. Two actions are in play,
+and 732.1 treats them differently. **Action one** is the activation of Mind
+Stone's ability — the illegal one, whose cost of {1}, {T} and the sacrifice
+was never completed; 732.1 reverses it and "any payments already made are
+canceled". **Action two** is the activation of Ironworks' mana ability, legal
+when it happened, whose cost was Mind Stone; 732.1 lets the player "reverse
+any legal mana abilities that player activated while making the illegal
+play", and a reversal not taken leaves it standing — {C}{C} in the pool, Mind
+Stone in the graveyard, Scrap Trawler triggered, none of it "a result of an
+undone action". Taken, it undoes action two whole: the mana leaves the pool,
+Mind Stone is back, and the trigger never happened; the rule's "unless mana
+from those abilities … was spent on another mana ability that wasn't
+reversed" cannot bind here, because nothing was spent on a mana ability
+between the two activations. **This gains the player nothing** — sacrificing
+Mind Stone to Ironworks with priority reaches the same board legally — unless
+the one question below has its second answer. The engine's rollback already
 keeps mana abilities (`CLAUDE.md`, `// CAST-ROLLBACK:`) and never offers the
 reversal (§8). The Hobbit update touched 605.1a and nothing in 601.2, 605.3
-or 732 (§12, the second pass), so this variant reads the same under both
-rules texts: Mind Stone's sacrifice ability never added mana and was never
-a mana ability, and Ironworks moves no library card and still is one.
-**The judged loop needs none of this** — every step above is a legal
-action — so the three questions below gate only a test of this variant,
-not item 6, and are left for a judge rather than guessed at:
+or 732 (§12), so the puzzle reads the same under both texts.
 
-1. After a 732.1 reversal, do the triggers from the un-reversed mana
-   abilities go on the stack before the player's next action? 603.3 says
-   "the next time a player would receive priority"; 732.2 says the player
-   "retains" priority.
-2. Is the sacrifice paid to Ironworks a "payment already made" of the
-   reversed action (canceled by 732.1's first sentence), or the cost of a
-   separate action whose reversal is optional? This document reads it as the
-   second, from the rule's own structure.
-3. When the reversal *is* taken, what reverses with it — the sacrifice, the
-   mana, the triggers — and does "unless mana from those abilities … was
-   spent on another mana ability that wasn't reversed" ever bind here?
+**The one question left for a judge**, with the board on which its two
+answers differ. After the reversal, 732.2 says the player "retains" priority
+— no opponent acts first. CR 603.3 puts a trigger on the stack "the next time
+a player would receive priority", and 117.3c grants priority after an ability
+is activated; whether a *reversed* activation counts is the question. Board:
+Ironworks, Scrap Trawler, Mind Stone (mana value 2) and Chromatic Star (mana
+value 1) on the battlefield, an empty graveyard. The player attempts the
+puzzle and keeps the Ironworks activation. *Reading A* — retaining priority
+is receiving it: Trawler's trigger for Mind Stone goes on the stack at once,
+finds no artifact card of lesser mana value in the graveyard, and is removed
+(603.3d). *Reading B* — it is not: the trigger waits; the player casts a spell
+and sacrifices the Star to Ironworks in its window; after the cast, both
+triggers go on the stack together and Mind Stone's returns the Star. Under A
+the puzzle is worthless; under B it banks a trigger, which is the overpay play
+through a side door. This document builds nothing on either answer. **The
+judged loop needs none of this** — every step of it is a legal action — and
+CM-3's test of the puzzle asserts what both readings share: the activation
+rewinds, the Ironworks sacrifice and its mana stand, the trigger fires. Where
+it goes on the stack is item 6's, under whichever reading the judges give.
 
 **What this document guarantees the board, and what it leaves.** The
 pipeline reads the board exactly once, before the window opens, and returns
@@ -890,14 +912,14 @@ main item 13, the CM-1 entry, §8's findings as Deferred Migrations items);
 
 | Note | Where |
 |---|---|
-| Krark-Clan Ironworks as the integration test | §3.11, §8 items 3–4, three judge questions; CM-3's consumers |
+| Krark-Clan Ironworks as the integration test | §3.11, §8 items 3–4, one judge question with the board its answers split on; CM-3's consumers |
 | The last 601.2f clause is Trinisphere's alone | §1 consequence 2, §3.2 |
 | Why sweep every permanent, and should it be objects | §3.1: the sweep is over sources; the widening is the unattributed flags; the candidates are 113.6's objects, so the spell itself is source 2 (CM-2) and other zones are A5's |
 | `Spells(PermanentFilter)` is nominally wrong | §3.2: CM-0 renames it first |
 | Agatha's one-mana floor | §3.2 `not_below`, §3.4 second expiry condition with the worked example, §3.10: all eight carriers are ability reducers |
 | An auto-payer middleware pre-v1 | §3.4's third consequence, §8 item 3 |
 | Why defer payment | §6 "Why the seam is where it is": sequenced, sized, disjoint sites |
-| The judged Ironworks loop (transcript) | §3.11 rewritten around it: seven steps with owners, the three warnings as engine decisions, the 732.1 variant demoted to a non-blocking question; CM-4 added |
+| The judged Ironworks loop (transcript) | §3.11 rewritten around it: seven steps with owners, the three warnings as engine decisions, the Mind Stone case reduced to a puzzle with one open question; CM-4 added |
 
 ---
 
