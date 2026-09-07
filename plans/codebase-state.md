@@ -3280,16 +3280,19 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7c. **CR 613.6 "existence persists once started" — implemented, untested.** The `started` set in `apply_effects` keys on `EffectGroup`, so an effect that has begun applying keeps applying even if a later layer removes its ability. No test: every construction available today puts the strip in the *same* layer as the effect's first part, so the correct answer depends on 613.8 dependency ordering, and a test now would pin the timestamp-only answer that 613.8 must change. See item 8.
 
-    **Reachability (2026-09-06):** unreachable as a test until LI-2. LI-1's
-    pass records the set of members an effect first applied to
-    (`Board::started`, per `EffectGroup`) and applies the group's later rows
-    to that set — CR 613.6's locked set, where the per-object walk re-ran
-    the filter for objects the group had missed. The boards that separate
-    the two answers are same-layer strip-plus-effect constructions, whose
-    order is CR 613.8's, so the test is LI-2's (`layers-architecture.md`
-    §13b).
+    **Reachability (2026-09-06):** closed — LI-2, tested. Humility +
+    Opalescence in both orders and the two-Opalescence board
+    (`tests/phase_li2_integration_test.rs`, the 2009-10-01 and 2006-02-01
+    rulings quoted beside the assertions): an Opalescence animated by
+    another loses its ability in layer 6 and its 7b part still applies to
+    the set it locked in layer 4; Humility animated by Opalescence loses its
+    own and its 7b part still applies. `// COVERS: ATOM-613.6-003`. (History:
+    LI-1's pass built the locked set — `Board::started`, per `EffectGroup` —
+    and the boards that separate the two answers are same-layer
+    strip-plus-effect constructions whose order is CR 613.8's, which is why
+    the test waited for LI-2.)
 
-    **Sized:** one test in LI-2, ~40 lines.
+    **Sized:** done.
 
 7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, 16 sites (recounted 2026-08-24).** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
 
@@ -3357,7 +3360,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     `attached_to` that was LH-1; item 7's in-place mutator bumps itself, in
     item 7's PR.
 
-8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon.** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
+8. **CR 613.8 dependency — two known-wrong cases, both Blood Moon — ✅ done (2026-09-06, LI-1 + LI-2).** Under timestamp-only ordering the engine gets both of these wrong. They are the concrete motivating cases for the 613.8 phase, and together they show why 305.7 is applied per-effect: dependency detection needs effect identity to hang a relation on.
 
    - **Rootpath Purifier** ("Lands you control and land cards in your library are basic") changes the set of permanents Blood Moon affects, so Blood Moon *depends* on it and applies second regardless of timestamp — Blood Moon never touches that player's lands. Its ruling (Scryfall, 2022-10-14) says exactly this: "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic." We get this wrong whenever Blood Moon has the earlier timestamp.
 
@@ -3382,7 +3385,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
    - **Urborg, Tomb of Yawgmoth.** Urborg is itself a Legendary — therefore nonbasic — Land, so Blood Moon turns Urborg into a Mountain and CR 305.7 strips the ability generating Urborg's effect. Applying Blood Moon changes the *existence* of Urborg's effect (613.8a(b)), so Urborg is dependent and applied last, by which point it does nothing. **Blood Moon wins in both orders.** There is no reverse dependency: Urborg grants the Swamp subtype, never the `Basic` supertype, and CR 305.8 makes a land nonbasic on the supertype alone. We currently produce order-dependent results here. Fixing it needs 613.8 *and* item 7 (a stripped static ability must retire the effect it registered at ETB) — 613.8 alone is not sufficient. `phase_ld_cards::urborg_effect()` is deliberately an Enchantment so the 305.6 tests don't depend on any of this.
 
-   **Reachability (2026-09-03):** reachable — wrong today, on a third board the
+   **Reachability as recorded 2026-09-03, superseded below:** reachable — wrong today, on a third board the
    pool can build; the two above cannot be (Rootpath Purifier is not in the
    tree; `urborg_effect` is an unregistered Enchantment fixture). The third is
    **Humility + Citanul Hierophants**, both in `PERFORMANCE_POOL`, probed
@@ -3398,7 +3401,23 @@ The layer system's designated single-point change site is `oracle/characteristic
    Layer 5 (item 7b's limitation). With the Hierophants first the answer is
    right. Observable in a game: a creature under Humility taps for mana.
 
-   **Reachability (2026-09-06):** reachable — wrong today on the two Blood
+   **Reachability (2026-09-06):** closed — LI-2. Steps 1–4 are built:
+   `engine/layers/board.rs`'s `resolve_order_within_layer` decides
+   dependencies against the live board (`depends_on`: a static channel check,
+   then a hypothetical applied under a journal and taken back), applies the
+   earliest application that waits on nothing pending — or, in a loop, the
+   earliest of the loop (613.8b) — and re-decides after every application
+   (613.8c). The three boards answer as the rulings do, in both timestamp
+   orders (`tests/phase_li2_integration_test.rs`): Urborg, Tomb of Yawgmoth
+   is registered and pooled (its 2021-03-19 ruling); the Rootpath Purifier
+   ruling's board is `phase_li_cards::purifier_clause`; Ashaya, Soul of the
+   Wild is registered with a CR-derived answer; and the judge answer's
+   four-card board applies Opalescence, Ashaya, Blood Moon and never Urborg,
+   asserted step by step through the pass's trace hook. One departure from
+   the steps below: the unit of ordering is an *effect's rows in the layer*,
+   not a row — Ashaya's two layer-4 rows must not be split by Blood Moon —
+   and item 16 records what that keying leaves. History, kept for the
+   reasoning — the older paragraph read: reachable — wrong today on the two Blood
    Moon boards; the third is fixed. Step 4 is built — LI-1,
    `engine/layers/board.rs`, traced call by call in
    `plans/traces/li-1-one-pass-per-board.html`: Humility + Citanul Hierophants answers as the
@@ -3413,8 +3432,8 @@ The layer system's designated single-point change site is `oracle/characteristic
    Ashaya, Soul of the Wild as the printed card of the applies-to shape with
    a CR-derived answer no ruling covers (`layers-architecture.md` §13b).
 
-   **Sized:** LI-2, ~1,300–1,500 additions (§13b); step 4 shipped in LI-1
-   at +1,013 / −775 in `src`.
+   **Sized:** done — LI-2 (`layers-architecture.md` §13b, as-built); step 4
+   shipped in LI-1 at +1,013 / −775 in `src`.
 
 12. **The card → registry lowering is loud — ✅ done (2026-08-23).** `register_static_effects` had five arms that declined to lower something and `continue`d, registering nothing and saying nothing. Every one now `debug_assert!`s first.
 
@@ -3625,6 +3644,29 @@ The layer system's designated single-point change site is `oracle/characteristic
     **The general lesson is worth more than the fix.** The corpus is authored from a close read of the CR, but its *boards* were written against a plan document rather than against Scryfall, so a card name in an atom is not evidence the card exists. Verify before building to one.
 
     **Reachability (2026-09-03):** closed — a record; the corpus was corrected.
+
+16. **One `EffectGroup` per static ability, so one locked set and one
+    CR 613.8 application — a static whose atoms have different recipients
+    would share them.** `Board::started` (CR 613.6) and `board::Kind::Effect`
+    (CR 613.8's unit of ordering, LI-2) both key on
+    `EffectGroup::StaticAbility(source, ability)`, so an ability authored as
+    one `Sequence` over two filters — "creatures you control get +1/+1 and
+    creatures you don't control get -1/-1" as one `AbilityDef` — is one
+    effect, one bundle and one locked set, and its second atom would apply to
+    the first's set. The CR reads such text as two effects.
+
+    **Reachability (2026-09-06):** unreachable — every registered static
+    ability whose body is a `Sequence` (Humility, March of the Machines,
+    Opalescence) has one recipient across its atoms; the other `Sequence`s in `src/cards` are
+    resolutions, which lower through a different path. Authoring the shape
+    as two `AbilityDef`s gives the CR's answer today, and the loud lowering
+    (item 12) does not catch this one because both atoms lower fine.
+
+    **Sized:** `EffectGroup::StaticAbility` gains the atom's index in the
+    ability (~30 lines: `ContinuousEffect::group`, the two static
+    registrations, `would_be_rows`, `register_copied_static_effects`), or
+    the lowering splits a multi-recipient `Sequence` into one group per
+    recipient; with the first card that needs it.
 
 ### ~~Test-support duplication — cross-cutting~~ ✅ done (2026-08-22)
 

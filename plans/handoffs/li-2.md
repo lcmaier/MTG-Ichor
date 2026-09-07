@@ -1,100 +1,93 @@
-# Phase LI — where to resume after LI-1 (2026-09-06)
+# Phase LI — where to resume after LI-2 (2026-09-06)
 
-LI-1, the board-wide sequential pass, is on `layers/li-1-board-pass` as a
-PR against `main`. The plan for the whole phase is `layers-architecture.md`
-§13b, written before LI-1 and carrying LI-1's as-built record; this file is
-the shorter "what to pick up next" and is deleted when LI-3 lands.
+LI-1 (the board-wide sequential pass, #103) and LI-2 (CR 613.8a/b/c,
+`layers/li-2-dependency`) are in, or on a PR against `main`. The plan for
+the whole phase is `layers-architecture.md` §13b, carrying both as-built
+records; this file is the shorter "what to pick up next" and is deleted
+when LI-3 lands.
 
-## Resume with LI-2 — CR 613.8a/b/c
+## Resume with LI-3 — conditional statics
 
-Branch `layers/li-2-<name>` from `main` once #LI-1 is merged (or stacked on
-`layers/li-1-board-pass` if it is not). §13b's LI-2 section is the plan;
-the pieces are numbered there. What LI-1 left as hooks, in `engine/layers/board.rs`:
+Branch from `main` once the LI-2 PR is merged (or stack on
+`layers/li-2-dependency` if it is not). §13b's LI-3 section is the plan; the
+pieces are numbered there. What LI-2 left as the seams LI-3 touches, in
+`engine/layers/board.rs` and `state/game_state.rs`:
 
-- `board::membership` (formerly `Query`/`classify`) decides how the entry
-  computes an object; `Board::lookahead` is a `pub(super)` field.
-- `apply_layer(game, board, layer_index, apps)` applies in key order. LI-2
-  replaces its body with the loop and the function becomes
-  `resolve_order_within_layer` — it applies as it orders (CR 613.8c), so
-  §9's reserved `Vec<EffectId>` return is superseded; §9 says so.
-- `Application { kind, timestamp, tiebreak }` with `Application::is_cda()`
-  for 613.8a(c), and `Kind::Row { effect, would_be } | Kind::Own { object,
-  cda, modification }`. Every kind reads and writes through the same two
-  functions: `affected_members` (what it applies to) and
-  `static_ability_still_exists` (existence, rows only; a CDA's existence
-  check is inline in `apply_one`).
-- The hypothetical check (§13b decision 3) clones `board.frames[m]` for
-  each member `m` that B affects, applies B to the clone through
-  `compute::resolve_modification` + `apply_resolved`, and re-evaluates A's
-  read. The channel sets (what a modification writes, what a read reads)
-  are the static check that prunes almost every pair; `SetSubtypes` on a
-  land also writes abilities (CR 305.7, `land_types::apply_set_subtypes`).
-- `FilterPlayers::for_row(effect, game, board, layer_index)` is how a row's
-  "you" is resolved; `Board::frame_of` is the one read of another object.
+- `static_ability_still_exists(game, board, effect, layer_index)` finds the
+  generating ability on the source's live frame. LI-3's clause goes there: if
+  the ability's body is `Effect::Conditional(cond, inner)`, evaluate `cond`
+  against the live board then and there, and the effect exists iff it holds.
+  `plan_row` is the one caller; a `Gone` plan is what "the condition fails"
+  becomes, and nothing else in the loop needs to know.
+- The dependency check already treats existence as a read of the source's
+  frame (`Reads::source`, `Channels::ABILITIES`). A condition reads more —
+  `ControlPermanent(filter)` reads every member's frame through the filter's
+  leaves, with the source's controller as "you" — so `effect_channels`
+  gains: for a conditional ability, `filter_reads(cond's filter, ..)` into
+  `reads.members` (and `reads.source |= CONTROLLER` for a static). Without
+  that a condition that flips when another effect applies would be settled
+  "independent" by the static check and never reach the hypothetical. Kird
+  Ape under Blood Moon does *not* need it (7c reads layer 4's output, two
+  layers) — the Rune-of-Flight fixture, a layer-6 condition on the host
+  beside a layer-6 grant, is where it bites.
+- `GameState::static_ability_atoms` asserts on `Effect::Conditional`; the
+  lowering arm lowers `inner`'s atoms exactly as today (piece 1). Rows carry
+  no condition — it lives on the ability, which the existence check already
+  fetches (decision 5). `lookahead::would_be_rows` goes through the same
+  function, so the CR 614.12 look-ahead needs nothing.
+- `engine/layers/condition.rs` is new: `holds(cond, game, board, source,
+  layer_index) -> bool` for the eight leaves, plus the one host predicate the
+  Rune shape needs. `Board::frame_of`, `Board::battlefield_ids` and
+  `FilterPlayers::for_row`-style resolution are the reads it has; nothing
+  it needs is private to `board.rs` today except `frames`, which
+  `frame_of` covers.
 
-Tests LI-2 owes (§13b lists them; `specdb.py show` each atom first):
-Urborg + Blood Moon both orders (the ruling's words); the Purifier fixture
-+ Blood Moon both orders (the ruling's words); Humility + Opalescence both
-orders and the two-Opalescence board, the rulings quoted — **7c's CR 613.6
-test** (`codebase-state.md` "Before Layers" 7c); Ashaya + Blood Moon both
-orders, marked CR-derived; the 613.8b loop fixture on creature types
-(`SetSubtypes` both ways, so the two orders differ); the 613.8c chain;
-ATOM-613.8a-003; **the four-card board from the judge answer**
-(`plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md`:
-Opalescence → Ashaya → Blood Moon, Urborg never applies — the 613.8c
-test on printed cards); and the **row-older-than-counter order** of `test_a_counter_older_than_a_power_reading_row_applies_first`
-in `tests/phase_li_integration_test.rs`, which LI-1 deliberately left
-unpinned because 613.8 changes it (the row depends on the counter).
-ATOM-613.8-001's "all activated abilities of other creatures" is not
-buildable — claim partial or nothing.
-
-Cards and boards, worked from rulings (§13b's LI-2 piece 4 has the
-quotes): **Urborg, Tomb of Yawgmoth** (Legendary Land; registered, and in
-`PERFORMANCE_POOL` beside Blood Moon — its 2021-03-19 ruling is the
-answer); the **Rootpath Purifier ruling's board as a named fixture**
-("Lands you control are basic"; the printed Purifier waits on layers item 9
-for its library clause); **Opalescence**, registered, whose Humility rulings
-(2009-10-01, 2006-02-01) walk the layers with timestamps and are 7c's
-CR 613.6 test — it needs `PermanentFilter::Other` ("each other") on both
-`permanent_matches_filter`s, and LI-1's pass already gives the rulings'
-answers, so this is the first thing to build; and **Ashaya, Soul of the
-Wild** (registered, `stress` only) as the printed card of the applies-to
-shape, with an answer that is CR-derived and says so — no ruling covers it.
-All texts Scryfall-verified 2026-09-06. `phase_ld_cards::urborg_effect`
-stays the Enchantment fixture the CR 305.6 tests rest on.
-
-## Then LI-3 — conditional statics
-
-§13b's LI-3 section: the `Effect::Conditional` lowering arm, an evaluator
-in `engine/layers/condition.rs` over the live board, the clause in the
-existence check, Kird Ape ({R}, "This creature gets +1/+2 as long as you
-control a Forest" — verified 2026-09-06) in `PERFORMANCE_POOL`, and the
-Rune-of-Flight shape as a named fixture. Rune of Flight itself waits on
-item 6 (its draw is a trigger).
+Tests LI-3 owes (§13b lists them; `specdb.py show` each atom first): Kird
+Ape with and without a Forest, and under Blood Moon beside a Breeding-Pool
+shape (a nonbasic Forest stops being a Forest at layer 4, the Ape loses its
+bonus at 7c — no dependency involved); the Rune-of-Flight fixture in both
+orders against Humility; a condition whose flip is itself a dependency (so
+the `effect_channels` clause above is what a test pins). Kird Ape's text,
+verified 2026-09-06: {R}, 1/1, "This creature gets +1/+2 as long as you
+control a Forest." Kird Ape goes in `PERFORMANCE_POOL`: the first row whose
+existence is a condition, a new path in the check.
 
 ## The A/B protocol, as run this session
 
-- Rebuild `main`'s binary in the worktree before the sitting:
-  `cd ../mtgsim_v2_main/mtgsim && cargo build --release --bin fuzz_games`.
-  The binary there was a day stale and every game differed from its first
-  draw; §3 now says so.
-- `python plans/fuzz_ab.py --arm main=<exe> --arm new=<exe>` alone on the
-  CPU (~20 s for two arms). The 50-game §3 rows come out of the same run.
-- Attribution: 40-game `--dump-events` per pool per binary at `--threads
-  1`, then a per-game masked diff (the three masks in the memory note:
-  8-hex id prefix, full UUIDs, the LKI annotation on zone changes). LI-2's
-  "engine, pool unchanged" arm will differ from `main` on any game where
-  Blood Moon met Urborg in the pool; count those games and say why.
-- Three serial runs per pool outside `=== Timing ===` for determinism.
-- `specdb owed` — the default scope. `owed --phase LH` in LH-2's record
-  matched no atom and was vacuous; do not repeat the claim.
+- Sync and rebuild `main`'s binary before the sitting: `git -C
+  ../mtgsim_v2_main pull --ff-only && (cd ../mtgsim_v2_main/mtgsim && cargo
+  build --release --bin fuzz_games)`. The worktree was four commits behind
+  `origin/main` this session; a worktree synced to a commit is not a binary
+  built at it.
+- Three arms, not two: `main`, the new engine with the registry and pools
+  unchanged (patch `registry.rs`, build, copy the exe aside, restore), and
+  the shipped tree. The middle arm is the one that proves the engine change
+  alone: for LI-2 it reproduced `main` byte for byte outside `=== Timing ===`
+  on both pools once the new `Dependency checks` line was ignored —
+  `fuzz_ab.py` reports "differ" for a new counter row, so diff the raw
+  outputs under `--out` minus that line.
+- `python plans/fuzz_ab.py --arm main=<exe> --arm engine=<exe> --arm
+  new=<exe> --out <dir>` alone on the CPU (~35 s for three arms). The
+  50-game §3 rows come out of the same run.
+- Attribution: 40-game `--dump-events` per pool per binary at `--threads 1`,
+  then a per-game masked diff (full UUIDs, 8-hex id prefixes, the `[was ..]`
+  LKI annotation). A pool change diverges every game from its first draw —
+  the registry's name list changes `random_deck`'s stream — so the middle
+  arm is the only one whose diff attributes anything.
+- Three serial runs per pool outside `=== Timing ===` for determinism
+  (`fuzz_ab.py` covers `performance`; run `stress` by hand).
+- `specdb owed` — the default scope, diffed against `main`'s output, which
+  is the only way it says anything for a Phase 5-Layers PR.
 
-## Phase exit (unchanged from the prompt)
+## Phase exit (what is left after LI-2)
 
-Item 8 and 7f closed in Deferred Migrations; 7c's test written (LI-2);
-§5.2 rewritten (done in LI-1); `resolve_order_within_layer` real (LI-2);
-RS-3b unblocked in `cant-effects-architecture.md` §7.1; item 7 ✅ in
-`CLAUDE.md` within its 200 lines (it is at 200 today — a line has to be
-traded); `roadmap-v2.md` A3 ✅; `check_state_of_play.py --write`; a trace
-page for the phase (`engineering-practices.md` §7 lists item 7). Delete
-this file in the PR that lands LI-3.
+Done: item 8 closed in Deferred Migrations (LI-2); 7c's test written (LI-2);
+§5.2 rewritten (LI-1); `resolve_order_within_layer` real (LI-2); §9 updated;
+§15.2 item 3 closed. Left for LI-3: item 7f closed; RS-3b unblocked in
+`cant-effects-architecture.md` §7.1; item 7 ✅ in `CLAUDE.md` within its 200
+lines (it is at 200 today — a line has to be traded); `roadmap-v2.md` A3 ✅;
+`check_state_of_play.py --write`; the trace page for the phase
+(`engineering-practices.md` §7 lists item 7 — the four-card board through
+`board::next_application` is its natural trace, with the LI-1 page's
+Humility + Hierophants walk beside it). Delete this file in the PR that
+lands LI-3.

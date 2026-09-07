@@ -188,6 +188,89 @@ across months buys the timing measurement nothing.
   and in the results block. The two pools are not comparable to each other, so a
   pasted stats block without its pool name is not evidence of anything.
 
+**Re-recorded 2026-09-06 for LI-2** (CR 613.8a/b/c, the dependency loop;
+`layers-architecture.md` §13b). One new card in `performance` — Urborg,
+Tomb of Yawgmoth, 68 → 69 — and three in `stress` — Urborg, Opalescence,
+Ashaya, Soul of the Wild, 78 → 81 — and a new bold row, **`Dependency
+checks`**: the CR 613.8a hypotheticals a game ran, which are the pairs the
+static channel check could not settle. **Every movement below is the
+pool's**: with the registry and pools unchanged, LI-2's engine reproduces
+LI-1's table row for row on both pools (the middle arm of the three-arm
+table), so what moved is Urborg dropping into `performance` decks and, in
+`stress`, three new names in the list `random_deck` draws from — every
+stress game's deck changed, and that column is not comparable to LI-1's
+beyond the fact that the engine did not move it.
+
+| | performance (69 cards) | stress (81 cards) |
+|---|---|---|
+| P0 / P1 | 26 (52.0%) / 24 (48.0%) | 30 (60.0%) / 20 (40.0%) |
+| Avg turns | 31.2 | 28.5 |
+| Spells cast | 23.9 | 21.7 |
+| Lands played | 18.4 | 17.4 |
+| Combat w/ atk | 11.0 | 9.6 |
+| Creatures died | 7.2 | 4.1 |
+| Damage events | 23.7 | 20.8 |
+| Total damage | 58.0 | 54.6 |
+| Life changes | 16.6 | 14.1 |
+| **Layer walks** | **334** | **334** |
+| **Board walks** | **241** | **247** |
+| **Memo hits** | **95,297** | **93,311** |
+| **Layer frames** | **4,296** | **4,452** |
+| **Frames/walk** | **12.85** | **13.34** |
+| **Dependency checks** | **23** | **63** |
+| **Replacement gathers** | **513** | **483** |
+| **Restriction queries** | **516** | **486** |
+
+**Three arms, and the middle one is `main` (2026-09-06, LI-2).**
+`plans/fuzz_ab.py`, one sitting: `main` at a6f2ed8 (A), LI-2's engine with
+the registry and pools unchanged (B), and LI-2 as shipped (C).
+
+| | A: main | B: engine, pools unchanged | C: LI-2 |
+|---|---|---|---|
+| performance, 200 games, outside `=== Timing ===` | — | identical (the new row aside) | differs — pool |
+| performance layer walks / board walks (50 games) | 328 / 236 | 328 / 236 | 334 / 241 |
+| performance frames, frames/walk (50 games) | 4,289, 13.08 | 4,289, 13.08 | 4,296, 12.85 |
+| performance dependency checks (50 games) | — | 13 | 23 |
+| performance CPU/game median (200 games, ×3) | 15.42 ms | 15.89 ms (+3.0%) | 15.72 ms (+1.9%) |
+| performance ms / 1,000 questions (walks + hits) | 0.155 | 0.160 (+3.0%) | 0.163 (+4.8%) |
+| performance CPU/game p99 median | 48.12 ms | 49.25 ms | 45.45 ms |
+| stress, 200 games | — | identical (the new row aside) | differs — pool |
+| stress dependency checks (200 games) | — | 7 | 87 |
+
+Read B first, because it is the finding. **The engine change alone changes
+no game in either pool**: every counter and every behavioural row matches
+A at 50 and at 200 games, the three serial timing rounds are identical
+line for line outside `=== Timing ===`, and on 40-game `--dump-events`
+streams with the id masks applied, 0 of 40 games differ on `performance`
+and 0 of 40 on `stress`. That is CR 613.8's prediction for this pool: its
+only dependency-shaped pairs are Humility beside a creature's static
+ability, and the dependency's answer there was already timestamp order's
+in both directions (LI-1's flipped pin). B's 8 hypotheticals per game at
+200 games are exactly those pairs, each confirming a dependency that
+changes nothing. (`fuzz_ab.py` prints "differ" for B against A because the
+new counter row is a new line; the raw outputs under `--out` minus that
+line are what "identical" means here.)
+
+Then C. 29 of 40 `performance` games and 40 of 40 `stress` games differ
+from A, every one first at a `Library -> Hand` draw event: the registry's
+sorted name list changed, so `random_deck` draws different cards from the
+same seeded stream. Nothing in those diffs is the engine's. The cost rows
+move with the pool too — `Dependency checks` 13 → 23 on `performance` is
+Blood Moon meeting Urborg — and CPU/game is flat inside the sitting's
+spread: B +3.0% and C +1.9% against A, with round 3 reading B *faster*
+than A. The loop's fast path is why: a layer whose applications are
+pairwise independent under the channel check costs N² bit-ands and no
+hypothetical, which is every layer of every board that has no
+dependency-shaped card.
+
+**How to read `Dependency checks` from now on.** It is the CR 613.8 loop's
+slow path — pairs the static check could not settle, each a frame clone
+per member the other application reaches, applied and taken back. Zero
+means every pair in every layer was settled statically. Read it beside
+`Board walks`: checks per board walk is how many pairs per pass reached
+the expensive half, and a rise against unchanged board walks means a
+dependency-shaped card started meeting another more often.
+
 **Re-recorded 2026-09-06 for LI-1** (the board-wide sequential pass;
 `layers-architecture.md` §13b). No new card and no pool change — the
 consumer, Humility beside Citanul Hierophants, was already in both pools —
@@ -482,6 +565,11 @@ the gap this closes — not "make it fast", but "notice".
 - **Frames/walk** is what CR 613.7a's existence re-check costs — a walk needing
   no sub-frame is 1.00, and `layers-architecture.md` §5.2's descending ceiling is
   what bounds this number instead of letting it iterate.
+- **Dependency checks** is the CR 613.8 loop's slow path (LI-2): the
+  hypotheticals a game ran, each a frame clone per member reached. Zero
+  means the static channel check settled every pair in every layer; with
+  Urborg pooled it reads ~23 per game, nearly all Blood Moon beside Urborg
+  and Humility beside a creature static.
 - **Replacement gathers** and **restriction queries** are the two sweeps that
   *multiply* into layer walks: one gather can be one walk per permanent. Reading
   them beside the walk count is how you tell "a sweep got greedy" from "the game
