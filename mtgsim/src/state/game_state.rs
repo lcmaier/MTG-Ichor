@@ -1097,7 +1097,16 @@ impl GameState {
             // `engine::cost_determination::cost_modifications_for` reads it off the effective
             // list at 601.2f. Through the "as long as" wrapper, which the two
             // tests above do not see (`cost-architecture.md` §8 item 1).
-            if ability.effect.as_cost_modification().is_some() {
+            //
+            // **Only a subject that can apply from here.** A spell's own cost
+            // ability functions on the stack (CR 113.6d), so an affinity
+            // permanent is a source of nothing and recording it would widen
+            // the sweep on every cast for a match that can never succeed.
+            if ability
+                .effect
+                .as_cost_modification()
+                .is_some_and(|(_, def)| def.applies_to.applies_from_battlefield())
+            {
                 self.cost_modification_ability_sources.insert(id);
             }
 

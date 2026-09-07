@@ -586,7 +586,7 @@ mod tests {
 
     /// CR 702.41a — "This spell costs {1} less to cast for each [text] you
     /// control", read off the finished board at CR 601.2f.
-    // COVERS: ATOM-702.41a-001
+    // COVERS-PARTIAL: ATOM-702.41a-001
     #[test]
     fn affinity_reduces_generic_by_the_count_it_names() {
         assert_eq!(previewed(&[G, G, G, G, G, G], 4, 1), "{2}", "the atom's board: {{6}}, four artifacts");

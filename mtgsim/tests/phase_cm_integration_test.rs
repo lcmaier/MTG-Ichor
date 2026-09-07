@@ -11,6 +11,10 @@
 //! Three printed cards, one per position in the order, and the fixtures in
 //! `phase_cm_cards` for the boards the corpus names that no three printed
 //! cards build.
+//!
+//! **CM-2** adds the spell's own cost abilities (CR 113.6d, 702.41a) at the
+//! end of this file: Myr Enforcer and Frogmite, the gather's second source,
+//! and the first reduction whose amount is read off the board.
 
 use std::cell::RefCell;
 
@@ -444,4 +448,164 @@ fn test_the_phases_cards_are_registered() {
         let id = put_on_battlefield(&mut game, card, 1);
         assert!(game.cost_modification_ability_sources.contains(&id), "{name} is a source");
     }
+    // CM-2's two are not: a spell's own cost ability functions on the stack
+    // (CR 113.6d), so an affinity creature standing on the battlefield is a
+    // source of nothing and must not widen the sweep on every cast.
+    for name in ["Myr Enforcer", "Frogmite"] {
+        let card = registry.create(name).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let mut game = setup_two_player_game();
+        let id = put_on_battlefield(&mut game, card, 1);
+        assert!(!game.cost_modification_ability_sources.contains(&id), "{name} is not a source");
+        assert!(game.cost_modification_ability_sources.is_empty(), "{name} left the set empty");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CM-2 — the spell's own cost abilities (CR 113.6d, 702.41a)
+// ---------------------------------------------------------------------------
+
+/// `n` artifacts on `player`'s battlefield, each with no text of its own, so
+/// the only thing they contribute is being counted.
+fn artifacts(game: &mut GameState, n: usize, player: PlayerId) {
+    for _ in 0..n {
+        put_on_battlefield(game, tin_trinket(), player);
+    }
+}
+
+fn artifact_board(n: usize, player: PlayerId) -> GameState {
+    let mut game = setup_two_player_game();
+    artifacts(&mut game, n, player);
+    game
+}
+
+/// CR 702.41a — "This spell costs {1} less to cast for each [text] you
+/// control". Myr Enforcer is {7} and nothing else, so what it is castable
+/// for *is* the count, and the reduction comes off generic (CR 118.7a).
+///
+/// The last board is CR 601.2f's "reduced to nothing … considered to be
+/// {0}": seven artifacts and the Enforcer is free.
+// COVERS: ATOM-702.41a-001
+#[test]
+fn test_myr_enforcer_costs_one_less_for_each_artifact_you_control() {
+    for (owned, pay) in [(0, 7), (1, 6), (4, 3)] {
+        assert_costs_exactly(
+            move || artifact_board(owned, 0),
+            phase_cm_cards::myr_enforcer,
+            &[(ManaType::Colorless, pay)],
+            ManaType::Colorless,
+            &format!("{owned} artifacts"),
+        );
+    }
+    // "You control" — an opponent's artifacts are not yours to count.
+    assert_costs_exactly(
+        || artifact_board(4, 1),
+        phase_cm_cards::myr_enforcer,
+        &[(ManaType::Colorless, 7)],
+        ManaType::Colorless,
+        "their artifacts",
+    );
+
+    // Seven artifacts: the component is reduced to nothing, and an empty
+    // pool pays it.
+    let mut game = artifact_board(7, 0);
+    let cast = cast_from_pool(&mut game, 0, phase_cm_cards::myr_enforcer(), &[], &RecordingDecisionProvider::picking(0));
+    assert!(cast.is_ok(), "seven artifacts is {{0}}: {cast:?}");
+}
+
+/// The same ability on a second printed card, and the board two copies of one
+/// card reach in a real deck: the first Enforcer is an artifact, so the
+/// second one counts it. Frogmite's {4} is reduced by the pair.
+#[test]
+fn test_a_resolved_affinity_creature_counts_for_the_next_one() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    let cast = cast_from_pool(&mut game, 0, phase_cm_cards::myr_enforcer(), &[(ManaType::Colorless, 6)], &RecordingDecisionProvider::picking(0));
+    assert!(cast.is_ok(), "one Enforcer out: the next is {{6}}: {cast:?}");
+
+    assert_costs_exactly(
+        || {
+            let mut game = setup_two_player_game();
+            put_on_battlefield(&mut game, phase_cm_cards::myr_enforcer(), 0);
+            put_on_battlefield(&mut game, phase_cm_cards::frogmite(), 0);
+            game
+        },
+        phase_cm_cards::frogmite,
+        &[(ManaType::Colorless, 2)],
+        ManaType::Colorless,
+        "Frogmite behind an Enforcer and a Frogmite",
+    );
+}
+
+/// A reduction from the battlefield and the spell's own meet on one spell, so
+/// CR 601.2f's "if multiple cost reductions apply" is asked — with the
+/// *spell* as one of the candidates, offered last (`cost-architecture.md`
+/// §4). Both orders leave {4}: two artifacts is {2} off, the Generic Reducer
+/// is {1} more off, and generic subtraction commutes.
+#[test]
+fn test_affinity_joins_the_ordering_prompt_and_is_offered_last() {
+    for order in [vec![0, 1], vec![1, 0]] {
+        let mut game = setup_two_player_game();
+        let reducer = put_on_battlefield(&mut game, phase_cm_cards::generic_reducer(), 0);
+        artifacts(&mut game, 2, 0);
+        let dp = OrderingDp { order: order.clone(), offered: RefCell::new(Vec::new()) };
+        let spell = cast_from_pool(&mut game, 0, phase_cm_cards::myr_enforcer(), &[(ManaType::Colorless, 4)], &dp);
+        let spell = spell.unwrap_or_else(|e| panic!("order {order:?}: {e}"));
+        assert_eq!(game.players[0].mana_pool.total(), 0, "order {order:?}: {{4}} either way");
+        let offered = dp.offered.borrow();
+        assert_eq!(offered.len(), 1, "asked exactly once");
+        let ids: Vec<ObjectId> = offered[0]
+            .iter()
+            .map(|o| match o {
+                ChoiceOption::Object(id) => *id,
+                other => panic!("a source is an object: {other:?}"),
+            })
+            .collect();
+        assert_eq!(ids, vec![reducer, spell], "the battlefield's source first, the spell's own last");
+    }
+}
+
+/// CR 601.2f's positions 2 and 3 on one spell: affinity takes the Enforcer
+/// below three, and Trinisphere puts it back. Trinisphere is itself an
+/// artifact, so it is one of the five the reduction counts.
+#[test]
+fn test_trinisphere_applies_after_affinity_has_reduced() {
+    let board = || {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, phase_cm_cards::trinisphere(), 0);
+        artifacts(&mut game, 4, 0);
+        game
+    };
+    // {7} less five artifacts is {2}; "each spell that would cost less than
+    // three mana to cast costs three mana to cast".
+    assert_costs_exactly(
+        board,
+        phase_cm_cards::myr_enforcer,
+        &[(ManaType::Colorless, 3)],
+        ManaType::Colorless,
+        "affinity under Trinisphere",
+    );
+}
+
+/// Enumeration agrees with enforcement for source 2 as well (§3.6): the
+/// castability preview reads the card's own ability list in hand, so an
+/// Enforcer the board has made affordable is offered. It is not a claim that
+/// the ability *functions* in hand — CR 113.6d and CR 702.41a both put it on
+/// the stack — it is the preview answering what the cast will lock in.
+#[test]
+fn test_castable_spells_offers_an_enforcer_the_board_made_affordable() {
+    let mut game = artifact_board(4, 0);
+    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 3);
+    assert!(
+        castable_spells(&game, 0).iter().any(|(id, _)| *id == enforcer),
+        "{{7}} less four artifacts is {{3}}, and {{3}} is in the pool"
+    );
+
+    let mut game = setup_two_player_game();
+    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 3);
+    assert!(
+        !castable_spells(&game, 0).iter().any(|(id, _)| *id == enforcer),
+        "no artifacts: {{7}} is not payable from {{3}}"
+    );
 }

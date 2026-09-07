@@ -109,6 +109,27 @@ pub enum CostSubject {
     Itself,
 }
 
+impl CostSubject {
+    /// Can an ability with this subject modify a cost while its source sits on
+    /// the battlefield?
+    ///
+    /// [`Self::Itself`] cannot, and the answer is not merely an optimization:
+    /// CR 113.6d puts a spell's own cost ability on the *stack*, and the
+    /// subject is an identity test no permanent can satisfy. Saying so keeps
+    /// an affinity creature out of `cost_modification_ability_sources`, so
+    /// having one on the battlefield does not widen CR 601.2f's sweep on
+    /// every cast for a match that cannot succeed.
+    ///
+    /// Matched exhaustively, so a new subject has to decide: CR 602.2b's
+    /// activated abilities (§3.10) will answer `true`.
+    pub fn applies_from_battlefield(&self) -> bool {
+        match self {
+            CostSubject::Spells(_) => true,
+            CostSubject::Itself => false,
+        }
+    }
+}
+
 /// What a cost modification does to the mana component of a total cost.
 ///
 /// Three arms because CR 601.2f has three positions: increases are added,
