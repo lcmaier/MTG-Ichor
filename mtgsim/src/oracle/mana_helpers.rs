@@ -7,6 +7,7 @@
 use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
+use crate::types::costs::Cost;
 use crate::engine::targeting::spell_recipient;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -194,6 +195,30 @@ pub fn castable_spells(
             if !game.has_any_legal_choice(f, None, player_id) {
                 continue;
             }
+        }
+
+        // A mandatory additional cost is part of what casting takes, so a
+        // spell whose is unpayable is not castable (CR 601.2h, "unpayable
+        // costs can't be paid"). Enumeration and enforcement must agree
+        // (`cost-architecture.md` §3.6): without this, Altar's Reap is offered
+        // with no creature on the board and the cast rolls back. Optional
+        // costs are not checked — declining one is always available.
+        //
+        // Only the non-mana part: a mandatory cost's own mana is inside the
+        // total `preview_mana_cost` returns below, and asking `can_pay_costs`
+        // about it here would test it against a pool that has not been filled
+        // by 601.2g yet.
+        let mandatory_non_mana: Vec<Cost> = obj.card_data.additional_costs
+            .iter()
+            .filter(|c| !c.is_optional())
+            .flat_map(|c| c.costs().iter())
+            .filter(|c| !matches!(c, Cost::Mana(_)))
+            .cloned()
+            .collect();
+        if !mandatory_non_mana.is_empty()
+            && game.can_pay_costs(&mandatory_non_mana, player_id, card_id).is_err()
+        {
+            continue;
         }
 
         // Check mana affordability — against the cost CR 601.2f would lock

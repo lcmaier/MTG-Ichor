@@ -2,7 +2,7 @@ use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::objects::card_data::{AbilityType, ActivationRestriction};
-use crate::types::costs::Cost;
+use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
@@ -105,19 +105,35 @@ impl GameState {
             }
         }
 
-        let chosen_additional_cost_indices = if !card_data.additional_costs.is_empty() {
-            ask_choose_additional_costs(decisions, self, player_id, &card_data.additional_costs)
+        // CR 601.2b announces "their intentions to pay any or all of those
+        // costs" — of the *optional* ones. A mandatory additional cost
+        // (CR 118.8b/118.8c) has no intention to declare: it is simply in the
+        // total, so it is not offered and cannot be declined.
+        // Positions in the card's printed list, so that two identical optional
+        // costs stay distinguishable and the paid list keeps printed order.
+        let offered_positions: Vec<usize> = card_data.additional_costs
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.is_optional())
+            .map(|(i, _)| i)
+            .collect();
+        let chosen_offered_indices = if !offered_positions.is_empty() {
+            let offered: Vec<AdditionalCost> = offered_positions
+                .iter()
+                .map(|&i| card_data.additional_costs[i].clone())
+                .collect();
+            ask_choose_additional_costs(decisions, self, player_id, &offered)
         } else {
             Vec::new()
         };
 
         // Validate additional cost indices are in range
-        for &idx in &chosen_additional_cost_indices {
-            if idx >= card_data.additional_costs.len() {
+        for &idx in &chosen_offered_indices {
+            if idx >= offered_positions.len() {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(format!(
-                    "Additional cost index {} out of range (card has {})",
-                    idx, card_data.additional_costs.len()
+                    "Additional cost index {} out of range (card offers {})",
+                    idx, offered_positions.len()
                 ));
             }
         }
@@ -156,8 +172,17 @@ impl GameState {
 
         // --- Create StackEntry with all proposal data ---
         let chosen_alt = chosen_alt_cost_idx.map(|idx| card_data.alternative_costs[idx].clone());
-        let chosen_additional: Vec<_> = chosen_additional_cost_indices.iter()
-            .map(|&idx| card_data.additional_costs[idx].clone())
+        // Printed order, mandatory costs included whether or not anything was
+        // offered — `additional_costs_paid` is what was paid, not what was
+        // announced.
+        let announced: std::collections::HashSet<usize> = chosen_offered_indices
+            .iter()
+            .map(|&idx| offered_positions[idx])
+            .collect();
+        let chosen_additional: Vec<_> = card_data.additional_costs.iter()
+            .enumerate()
+            .filter(|(i, c)| !c.is_optional() || announced.contains(i))
+            .map(|(_, c)| c.clone())
             .collect();
 
         let entry = StackEntry {
