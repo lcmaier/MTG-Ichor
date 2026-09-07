@@ -127,6 +127,16 @@ pub enum PermanentFilter {
     /// `Token` gives — ownership is not a characteristic, so no layer can
     /// change the answer and there is nothing on `chars` to consult.
     ByOwner(PlayerRef),
+    /// "Each **other** ..." — every permanent but the effect's own source.
+    ///
+    /// Opalescence's "each other non-Aura enchantment", and the word on
+    /// Mirrorweave's shape that `CopyRoles::exclude_donor` carries as a
+    /// field; here it is a leaf because it composes with the rest of the
+    /// filter. Identity is not a characteristic, so it is answered from the
+    /// object id and no layer can change it. Meaningful only where the filter
+    /// has a source — a static ability's affected set, a CDA's count — and
+    /// the selection-side matcher refuses it rather than guessing one.
+    Other,
     And(Box<PermanentFilter>, Box<PermanentFilter>),
     /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
     /// over two type leaves is set *union*, which is this node.

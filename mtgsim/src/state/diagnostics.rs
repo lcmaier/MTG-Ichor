@@ -51,6 +51,7 @@ pub struct EngineCounters {
     board_walks: Cell<u64>,
     memo_hits: Cell<u64>,
     layer_frames: Cell<u64>,
+    dependency_checks: Cell<u64>,
     replacement_gathers: Cell<u64>,
     restriction_queries: Cell<u64>,
 }
@@ -106,6 +107,18 @@ impl EngineCounters {
         self.layer_frames.set(self.layer_frames.get() + 1);
     }
 
+    /// One CR 613.8a hypothetical — an application applied to the live board
+    /// and taken back, to see whether another application's reads changed
+    /// (`layers::board::depends_on`).
+    ///
+    /// The static channel check decides almost every pair for free; this
+    /// counts the pairs it could not. Read against [`Self::board_walks`]: the
+    /// ratio is how many pairs per pass reached the expensive half, and a
+    /// board with no dependency-shaped cards reads zero.
+    pub fn record_dependency_check(&self) {
+        self.dependency_checks.set(self.dependency_checks.get() + 1);
+    }
+
     /// One `engine::replacement::gather` — a proposed action that reached the
     /// CR 616.1 pipeline and asked what applies to it.
     pub fn record_replacement_gather(&self) {
@@ -138,14 +151,19 @@ impl EngineCounters {
     /// debug build's counters differ from a release build's. The one setter,
     /// and it does not exist in release.
     #[cfg(debug_assertions)]
-    pub(crate) fn rewind_layer_work(&self, walks: u64, board_walks: u64, frames: u64) {
+    pub(crate) fn rewind_layer_work(&self, walks: u64, board_walks: u64, frames: u64, checks: u64) {
         self.layer_walks.set(walks);
         self.board_walks.set(board_walks);
         self.layer_frames.set(frames);
+        self.dependency_checks.set(checks);
     }
 
     pub fn layer_frames(&self) -> u64 {
         self.layer_frames.get()
+    }
+
+    pub fn dependency_checks(&self) -> u64 {
+        self.dependency_checks.get()
     }
 
     pub fn replacement_gathers(&self) -> u64 {

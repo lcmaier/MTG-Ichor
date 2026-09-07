@@ -387,7 +387,8 @@ fn filter_is_mods_invariant(filter: &PermanentFilter) -> bool {
         | PermanentFilter::ByColor(_)
         | PermanentFilter::ByController(_)
         | PermanentFilter::Token
-        | PermanentFilter::ByOwner(_) => true,
+        | PermanentFilter::ByOwner(_)
+        | PermanentFilter::Other => true,
         PermanentFilter::PowerLE(_) => false,
         PermanentFilter::And(a, b) | PermanentFilter::Or(a, b) => {
             filter_is_mods_invariant(a) && filter_is_mods_invariant(b)
