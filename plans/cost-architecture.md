@@ -668,15 +668,22 @@ undone action". Taken, it undoes action two whole: the mana leaves the pool,
 Mind Stone is back, and the trigger never happened; the rule's "unless mana
 from those abilities … was spent on another mana ability that wasn't
 reversed" cannot bind here, because nothing was spent on a mana ability
-between the two activations. **This gains the player nothing** — sacrificing
+between the two activations. **Why that reading is not optional** (the
+owner's reductio, 2026-09-07): were the sacrifice instead a payment of
+action one, canceled by 732.1's first sentence while Ironworks' mana stood,
+the puzzle would be infinite colorless mana from two cards — sacrifice,
+rewind, Mind Stone returns, {C}{C} stays, repeat. A reversal is of an
+action whole: cost and mana undone together, or kept together. The engine
+keeps both today, and the offer item 72 adds must undo both.
+**This gains the player nothing** — sacrificing
 Mind Stone to Ironworks with priority reaches the same board legally — unless
 the one question below has its second answer. The engine's rollback already
 keeps mana abilities (`CLAUDE.md`, `// CAST-ROLLBACK:`) and never offers the
 reversal (§8). The Hobbit update touched 605.1a and nothing in 601.2, 605.3
 or 732 (§12), so the puzzle reads the same under both texts.
 
-**The one question left for a judge**, with the board on which its two
-answers differ. After the reversal, 732.2 says the player "retains" priority
+**The one question left for a judge** (asked in a judge forum 2026-09-07;
+pending), with the board on which its two answers differ. After the reversal, 732.2 says the player "retains" priority
 — no opponent acts first. CR 603.3 puts a trigger on the stack "the next time
 a player would receive priority", and 117.3c grants priority after an ability
 is activated; whether a *reversed* activation counts is the question. Board:

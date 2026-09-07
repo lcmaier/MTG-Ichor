@@ -2972,6 +2972,9 @@ games; with Humility forced beside her, both are on the board in 52%.
 
     **Sized:** a `ChoiceKind` at the two rewind sites and the mana undone
     silently, ~60 lines; with CM-4 or the trigger phase, whichever needs it.
+    **The invariant it must keep:** a taken reversal undoes the ability's
+    cost and its mana together — one without the other is infinite colorless
+    mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
 
 73. **A conditional replacement or restriction static is inert.**
     `register_static_effects` inserts a gate source when `ability.effect`
