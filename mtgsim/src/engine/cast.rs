@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
-use crate::engine::costs::assemble_total_cost;
+use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::types::costs::Cost;
@@ -189,7 +189,7 @@ impl GameState {
 
         // --- 601.2f: Assemble total cost ---
         let additional_refs: Vec<_> = chosen_additional.iter().collect();
-        let total_costs = assemble_total_cost(
+        let total_costs = determine_total_cost(
             self,
             player_id,
             card_id,

@@ -7,7 +7,7 @@
 //! ability list, at the moment CR 601.2f determines a total cost — and it is
 //! never a registry row: it has no layer and applies to no object
 //! (`plans/cost-architecture.md` §3.1). The arithmetic and the order live in
-//! `engine::cost_modification`; this module is data, so a card file can
+//! `engine::cost_determination`; this module is data, so a card file can
 //! write one without reaching into the engine.
 //!
 //! # The growth contract
@@ -23,7 +23,9 @@
 //! `#[non_exhaustive]`: an arm the pipeline cannot apply is a card that
 //! silently does nothing (`CLAUDE.md`, the growth contracts).
 
-use crate::types::effects::ObjectFilter;
+use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use crate::types::effects::{Condition, Effect, ObjectFilter};
+use crate::types::ids::new_ability_id;
 use crate::types::mana::ManaCost;
 
 /// One cost-modifying effect: what it applies to, and what it does.
@@ -40,6 +42,34 @@ impl CostModificationDef {
     /// "[Spells matching `filter`] cost … to cast."
     pub fn spells(filter: ObjectFilter, change: CostChange) -> Self {
         CostModificationDef { applies_to: CostSubject::Spells(filter), change }
+    }
+
+    /// The static ability whose whole text is this modification — what a
+    /// card file writes for Thalia or Goblin Electromancer.
+    pub fn into_ability(self) -> AbilityDef {
+        self.into_ability_body(None)
+    }
+
+    /// "As long as [condition], …" — the same ability with the clause on it:
+    /// Trinisphere's "as long as this artifact is untapped". The condition
+    /// is read against the settled board when a cost is determined.
+    pub fn into_ability_while(self, condition: Condition) -> AbilityDef {
+        self.into_ability_body(Some(condition))
+    }
+
+    fn into_ability_body(self, condition: Option<Condition>) -> AbilityDef {
+        let body = Effect::CostModification(Box::new(self));
+        AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: match condition {
+                Some(condition) => Effect::Conditional(condition, Box::new(body)),
+                None => body,
+            },
+            activation_restriction: ActivationRestriction::None,
+            is_characteristic_defining: false,
+        }
     }
 }
 

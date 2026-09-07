@@ -148,7 +148,7 @@ pub struct RegistryScopeSummary {
     /// True iff some row grants an ability whose body is an
     /// `Effect::CostModification` (through an "as long as" wrapper or not),
     /// and its copied twin — the granted and copied legs of
-    /// `engine::cost_modification::gather`'s gate, split from the four flags
+    /// `engine::cost_determination::cost_modifications_for`'s gate, split from the four flags
     /// above for their reason: the three sweeps read different ability
     /// bodies, so a shared flag would open each one's fast path for the
     /// others' cards. When either is on the gather sweeps every permanent

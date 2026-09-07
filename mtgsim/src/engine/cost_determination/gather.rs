@@ -39,7 +39,7 @@ pub struct CostModificationInstance {
 /// before reaching 601.2f — or, for the castability preview, its hand frame,
 /// whose controller is its owner and so the prospective caster (CR 108.4a).
 /// No layer ceiling is chosen and no dependency question arises.
-pub fn gather(game: &GameState, spell: ObjectId) -> Vec<CostModificationInstance> {
+pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModificationInstance> {
     // The fast-path gate, the same instrument as `replacement_ability_sources`
     // and carrying the same rule: a new source of static cost abilities, or a
     // new route onto the effective list, needs a leg here or it is silently

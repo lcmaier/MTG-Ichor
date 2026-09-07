@@ -172,7 +172,7 @@ pub(super) fn holds(
 /// would have at its last layer.
 ///
 /// The reader a *post-layer* consumer of `Condition` uses:
-/// `engine::cost_modification::gather` today (CR 613.11 applies cost effects
+/// `engine::cost_determination::cost_modifications_for` today (CR 613.11 applies cost effects
 /// after every layer, so a conditional one is asked here), and critical-path
 /// item 6's intervening "if" next. A reader, not a language — the leaves
 /// and their evaluators are [`holds`]'s, unchanged.

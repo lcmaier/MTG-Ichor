@@ -202,7 +202,7 @@ pub fn castable_spells(
         // otherwise offer spells the cast then rolls back, and an
         // Electromancer would withhold ones the player can afford.
         if let Some(ref printed) = obj.card_data.mana_cost {
-            let previewed = crate::engine::cost_modification::preview_mana_cost(game, card_id, printed);
+            let previewed = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
             let mana_cost = &previewed;
             // Account for mana already floating in the pool
             let pool = &game.players[player_id].mana_pool;

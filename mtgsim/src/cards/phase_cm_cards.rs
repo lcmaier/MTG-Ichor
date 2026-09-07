@@ -29,18 +29,6 @@ use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
-/// A static ability whose whole body is one cost modification.
-fn cost_ability(def: CostModificationDef) -> AbilityDef {
-    AbilityDef {
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: new_ability_id(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::CostModification(Box::new(def)),
-    }
-}
-
 /// "Spells you cast" — CR 109.5's "you" is the source's current controller,
 /// and a spell's controller is its caster.
 fn you_cast(filter: ObjectFilter) -> ObjectFilter {
@@ -79,10 +67,13 @@ pub fn thalia_guardian_of_thraben() -> Arc<CardData> {
         .power_toughness(2, 1)
         .keyword(KeywordFlag::FirstStrike)
         .rules_text("First strike\nNoncreature spells cost {1} more to cast.")
-        .ability(cost_ability(CostModificationDef::spells(
-            ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature))),
-            CostChange::Increase(ManaCost::build(&[], 1)),
-        )))
+        .ability(
+            CostModificationDef::spells(
+                ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature))),
+                CostChange::Increase(ManaCost::build(&[], 1)),
+            )
+            .into_ability(),
+        )
         .build()
 }
 
@@ -108,13 +99,16 @@ pub fn goblin_electromancer() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Wizard))
         .power_toughness(2, 2)
         .rules_text("Instant and sorcery spells you cast cost {1} less to cast.")
-        .ability(cost_ability(CostModificationDef::spells(
-            you_cast(ObjectFilter::Or(
-                Box::new(ObjectFilter::ByType(CardType::Instant)),
-                Box::new(ObjectFilter::ByType(CardType::Sorcery)),
-            )),
-            CostChange::Reduce(ManaCost::build(&[], 1)),
-        )))
+        .ability(
+            CostModificationDef::spells(
+                you_cast(ObjectFilter::Or(
+                    Box::new(ObjectFilter::ByType(CardType::Instant)),
+                    Box::new(ObjectFilter::ByType(CardType::Sorcery)),
+                )),
+                CostChange::Reduce(ManaCost::build(&[], 1)),
+            )
+            .into_ability(),
+        )
         .build()
 }
 
@@ -148,16 +142,10 @@ pub fn trinisphere() -> Arc<CardData> {
             "As long as this artifact is untapped, each spell that would cost less than \
              three mana to cast costs three mana to cast.",
         )
-        .ability(AbilityDef {
-            effect: Effect::Conditional(
-                Condition::SourceUntapped,
-                Box::new(Effect::CostModification(Box::new(CostModificationDef::spells(
-                    ObjectFilter::All,
-                    CostChange::TotalAtLeast(3),
-                )))),
-            ),
-            ..cost_ability(CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3)))
-        })
+        .ability(
+            CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3))
+                .into_ability_while(Condition::SourceUntapped),
+        )
         .build()
 }
 
@@ -183,16 +171,10 @@ pub fn locked_sphere() -> Arc<CardData> {
             "As long as this artifact is untapped, each spell that would cost less than \
              three mana to cast costs three mana to cast.\n{T}: Add {C}.",
         )
-        .ability(AbilityDef {
-            effect: Effect::Conditional(
-                Condition::SourceUntapped,
-                Box::new(Effect::CostModification(Box::new(CostModificationDef::spells(
-                    ObjectFilter::All,
-                    CostChange::TotalAtLeast(3),
-                )))),
-            ),
-            ..cost_ability(CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3)))
-        })
+        .ability(
+            CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3))
+                .into_ability_while(Condition::SourceUntapped),
+        )
         .build()
 }
 
@@ -204,7 +186,7 @@ fn reducer(name: &str, color: Color, mana: ManaType, filter: ObjectFilter, less:
         .color(color)
         .card_type(CardType::Enchantment)
         .rules_text(text)
-        .ability(cost_ability(CostModificationDef::spells(you_cast(filter), CostChange::Reduce(less))))
+        .ability(CostModificationDef::spells(you_cast(filter), CostChange::Reduce(less)).into_ability())
         .build()
 }
 

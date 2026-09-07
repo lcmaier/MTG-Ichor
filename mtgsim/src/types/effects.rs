@@ -845,7 +845,7 @@ pub enum Effect {
     /// the two above: a cost effect has no layer (CR 613.11 applies it after
     /// all of them) and applies to no object — it applies to a *cost being
     /// determined* — so `register_static_effects` skips it and
-    /// `engine::cost_modification::gather` reads it off the source's
+    /// `engine::cost_determination::cost_modifications_for` reads it off the source's
     /// *effective* ability list at CR 601.2f. That read is CR 604.2's
     /// existence check, which is what makes Humility strip a tax for free.
     /// Through an "as long as" wrapper too — Trinisphere's shape — which
@@ -867,7 +867,7 @@ impl Effect {
     /// The cost modification a static body is, with the "as long as" clause
     /// wrapped around it if there is one.
     ///
-    /// One peel, used by every leg of `engine::cost_modification::gather`'s
+    /// One peel, used by every leg of `engine::cost_determination::cost_modifications_for`'s
     /// gate and by the gather itself, so a conditional cost effect is seen
     /// everywhere an unconditional one is. The replacement and restriction
     /// gates match the body without peeling `Conditional` and so miss a

@@ -306,7 +306,7 @@ pub struct GameState {
 
     /// Objects that entered the battlefield printing a static ability whose
     /// body is an `Effect::CostModification`, through an "as long as"
-    /// wrapper or not — `engine::cost_modification::gather`'s fast-path gate
+    /// wrapper or not — `engine::cost_determination::cost_modifications_for`'s fast-path gate
     /// (`cost-architecture.md` §3.1).
     ///
     /// The third such set, and the two above's rule applies unchanged: a new
@@ -1094,7 +1094,7 @@ impl GameState {
 
             // CR 601.2f / 613.11 — the third shape with no rows: a cost
             // effect applies to a cost being determined, at no layer, and
-            // `engine::cost_modification::gather` reads it off the effective
+            // `engine::cost_determination::cost_modifications_for` reads it off the effective
             // list at 601.2f. Through the "as long as" wrapper, which the two
             // tests above do not see (`cost-architecture.md` §8 item 1).
             if ability.effect.as_cost_modification().is_some() {
@@ -1366,7 +1366,7 @@ impl GameState {
 
             // CR 601.2f / 613.11 — the third of the same shape. A cost effect
             // has no layer and applies to no object, so it generates no row;
-            // `engine::cost_modification::gather` reads it off this object's
+            // `engine::cost_determination::cost_modifications_for` reads it off this object's
             // *effective* ability list when a cost is determined.
             Effect::CostModification(_) => Vec::new(),
 

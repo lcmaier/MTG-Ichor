@@ -1,4 +1,4 @@
-//! CR 601.2f — the total cost, in the rule's order.
+//! CR 601.2f — determining the total cost, in the rule's order.
 //!
 //! > The total cost is the mana cost or alternative cost (as determined in
 //! > rule 601.2b), plus all additional costs and cost increases, and minus
@@ -9,38 +9,79 @@
 //! > determined, any effects that directly affect the total cost are applied.
 //! > Then the resulting total cost becomes "locked in."
 //!
-//! Six steps (`cost-architecture.md` §3.3): merge the mana component, gather,
-//! increases, reductions in the player's order under CR 118.7a–d, the
-//! direct-total effects, and the lock — which is that the value returned is
-//! what CR 601.2h pays and nothing re-reads the board in between.
+//! One entry point, [`determine_total_cost`], which is the whole of the step
+//! (`cost-architecture.md` §3.3): assemble what CR 601.2b chose — the base or
+//! alternative cost with X expanded, then the additional costs — merge every
+//! mana cost into the one mana component, gather the cost effects that apply,
+//! add the increases, subtract the reductions in the player's order under
+//! CR 118.7a–d, apply the direct-total effects, and lock — which is that the
+//! value returned is what CR 601.2h pays and nothing re-reads the board in
+//! between. Payment stays in `engine::costs`.
 
-use super::gather::{gather, CostModificationInstance};
+use super::gather::{cost_modifications_for, CostModificationInstance};
 use crate::state::game_state::GameState;
 use crate::types::cost_modification::CostChange;
-use crate::types::costs::Cost;
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::ask_order_cost_reductions;
 use crate::ui::decision::DecisionProvider;
 
-/// CR 601.2f, from the assembled costs to the locked total.
+/// CR 601.2f, whole: from the choices CR 601.2b recorded to the locked total.
 ///
-/// `assembled` is the base or alternative cost, an X expansion and the
-/// chosen additional costs, as `costs::assemble_total_cost` lists them; the
-/// non-mana costs come back in their order, and every `Cost::Mana` among
-/// them comes back as **one** — CR 601.2f's "the mana component of the total
-/// cost" is singular and CR 118.8 pays additional costs "at the same time".
-/// The caster is asked to order the reductions when two or more apply
-/// (CR 601.2f, "in any order"); one reduction asks nothing.
+/// `spell` is the object whose cost this is, on the stack since CR 601.2a;
+/// `caster` is who answers the reduction-order prompt, through `dp`, when two
+/// or more reductions apply (CR 601.2f, "in any order"); one asks nothing.
+/// The non-mana costs come back in their order behind **one** mana component
+/// — CR 601.2f's "the mana component of the total cost" is singular and
+/// CR 118.8 pays additional costs "at the same time".
 pub fn determine_total_cost(
+    game: &GameState,
+    caster: PlayerId,
+    spell: ObjectId,
+    base_mana_cost: &ManaCost,
+    chosen_alt_cost: Option<&AlternativeCost>,
+    chosen_additional_costs: &[&AdditionalCost],
+    x_value: u64,
+    dp: &dyn DecisionProvider,
+) -> Vec<Cost> {
+    // Step 1 — the base. An alternative cost replaces the mana cost entirely
+    // (CR 118.9a); otherwise the printed cost with every X expanded into the
+    // generic mana CR 601.2b's announced value is worth (CR 107.3).
+    let mut assembled: Vec<Cost> = match chosen_alt_cost {
+        Some(alt) => alt.costs().to_vec(),
+        None => {
+            let x_count = base_mana_cost.x_count() as usize;
+            let mut symbols: Vec<ManaSymbol> = base_mana_cost
+                .symbols
+                .iter()
+                .filter(|s| !matches!(s, ManaSymbol::X))
+                .copied()
+                .collect();
+            symbols.extend(std::iter::repeat(ManaSymbol::Generic).take(x_value as usize * x_count));
+            vec![Cost::Mana(ManaCost::from_symbols(symbols))]
+        }
+    };
+
+    // Step 2 — the additional costs the player chose (CR 118.8), whichever
+    // base was chosen: CR 118.9d applies them to an alternative cost too.
+    for additional in chosen_additional_costs {
+        assembled.extend(additional.costs().iter().cloned());
+    }
+
+    modify(game, caster, spell, assembled, dp)
+}
+
+/// Steps 3–6: the modifications, and the lock.
+fn modify(
     game: &GameState,
     caster: PlayerId,
     spell: ObjectId,
     assembled: Vec<Cost>,
     dp: &dyn DecisionProvider,
 ) -> Vec<Cost> {
-    let (mut mana, others, slot) = split_mana_component(assembled);
-    let instances = gather(game, spell);
+    let (mut mana, others, had_mana) = split_mana_component(assembled);
+    let instances = cost_modifications_for(game, spell);
 
     // Step 3 — increases. Addition commutes; the gather order is for the log.
     for inst in &instances {
@@ -80,7 +121,7 @@ pub fn determine_total_cost(
     }
 
     // Step 6 — locked in: this value is paid, and nothing re-reads the board.
-    rebuild(mana, others, slot)
+    rebuild(mana, others, had_mana)
 }
 
 /// The mana component `castable_spells` should expect for `card` (its
@@ -93,7 +134,7 @@ pub fn determine_total_cost(
 /// Thalia on the board no longer offers spells the cast then rolls back, and
 /// an Electromancer no longer withholds ones the player can afford.
 pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -> ManaCost {
-    let instances = gather(game, card);
+    let instances = cost_modifications_for(game, card);
     if instances.is_empty() {
         return printed.clone();
     }
@@ -120,36 +161,36 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
 // The mana component
 // ---------------------------------------------------------------------------
 
-/// Split the assembled costs into one mana component, the non-mana costs in
-/// their order, and where the component sat among them (`None` when there
-/// was no mana cost at all — an alternative cost of "pay 2 life").
-fn split_mana_component(costs: Vec<Cost>) -> (ManaCost, Vec<Cost>, Option<usize>) {
+/// Split the assembled costs into one mana component and the non-mana costs
+/// in their order; the flag says whether there was any mana cost at all (an
+/// alternative cost of "pay 2 life" has none).
+fn split_mana_component(costs: Vec<Cost>) -> (ManaCost, Vec<Cost>, bool) {
     let mut symbols: Vec<ManaSymbol> = Vec::new();
     let mut others = Vec::new();
-    let mut slot = None;
+    let mut had_mana = false;
     for cost in costs {
         match cost {
             Cost::Mana(mc) => {
-                if slot.is_none() {
-                    slot = Some(others.len());
-                }
+                had_mana = true;
                 symbols.extend(mc.symbols);
             }
             other => others.push(other),
         }
     }
-    (canonical(symbols), others, slot)
+    (canonical(symbols), others, had_mana)
 }
 
-/// Put the component back where the first mana cost was. A component that
-/// appeared from nothing — an increase on an alternative cost with no mana
-/// in it (CR 118.9d) — goes last; one that was there and is now {0} stays,
-/// because "considered to be {0}" is still a mana cost of {0}.
-fn rebuild(mana: ManaCost, mut others: Vec<Cost>, slot: Option<usize>) -> Vec<Cost> {
-    match slot {
-        Some(at) => others.insert(at, Cost::Mana(mana)),
-        None if !mana.symbols.is_empty() => others.push(Cost::Mana(mana)),
-        None => {}
+/// The total, with the mana component **first**. CR 601.2h lets the player
+/// pay the first group's costs "in any order" and the engine picks one: the
+/// mana payment is the one that can still fail after `can_pay_costs` — an
+/// illegal generic split — and a failure mid-list leaves the costs before it
+/// paid, so the fallible payment goes first. A component that was there and
+/// is now {0} stays, because "considered to be {0}" is still a mana cost of
+/// {0}; one that appeared from nothing — an increase on a mana-less
+/// alternative cost (CR 118.9d) — is added only if it has something in it.
+fn rebuild(mana: ManaCost, mut others: Vec<Cost>, had_mana: bool) -> Vec<Cost> {
+    if had_mana || !mana.symbols.is_empty() {
+        others.insert(0, Cost::Mana(mana));
     }
     others
 }
@@ -258,6 +299,7 @@ fn representable(symbol: &ManaSymbol, what: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{put_in_hand, setup_two_player_game, test_dp, vanilla_creature};
 
     fn cost(s: &[ManaSymbol]) -> ManaCost {
         ManaCost::from_symbols(s.to_vec())
@@ -274,6 +316,21 @@ mod tests {
         mana.to_string()
     }
 
+    /// `determine_total_cost` on a board with no cost effects: a spell in
+    /// hand, an empty scripted provider, so any prompt would panic.
+    fn determine(
+        base: &ManaCost,
+        alt: Option<&AlternativeCost>,
+        additional: &[&AdditionalCost],
+        x_value: u64,
+    ) -> Vec<Cost> {
+        let mut game = setup_two_player_game();
+        let spell = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
+        determine_total_cost(&game, 0, spell, base, alt, additional, x_value, &test_dp())
+    }
+
+    // --- the arithmetic (CR 118.7) --------------------------------------
+
     // COVERS: ATOM-118.7a-001
     #[test]
     fn a_generic_reduction_touches_only_the_generic_component() {
@@ -286,7 +343,7 @@ mod tests {
     #[test]
     fn a_colored_reduction_the_cost_has_no_pip_for_comes_off_generic() {
         assert_eq!(reduced(&[G, R], &[GR]), "{R}");
-        assert_eq!(reduced(&[G, G, R], &[W, W], ), "{R}");
+        assert_eq!(reduced(&[G, G, R], &[W, W]), "{R}");
     }
 
     // COVERS: ATOM-118.7c-001
@@ -349,39 +406,6 @@ mod tests {
         assert_eq!(mana.to_string(), "{3}");
     }
 
-    /// CR 601.2f's "the mana component of the total cost", singular: a base
-    /// cost and a kicker's mana are one component, and it sits where the
-    /// first mana cost sat.
-    #[test]
-    fn every_mana_cost_in_the_assembled_list_is_one_component() {
-        let (mana, others, slot) = split_mana_component(vec![
-            Cost::PayLife(2),
-            Cost::Mana(cost(&[G, R])),
-            Cost::Tap,
-            Cost::Mana(cost(&[R])),
-        ]);
-        assert_eq!(mana.to_string(), "{1}{R}{R}");
-        assert_eq!(others, vec![Cost::PayLife(2), Cost::Tap]);
-        assert_eq!(slot, Some(1));
-        assert_eq!(
-            rebuild(mana.clone(), others, slot),
-            vec![Cost::PayLife(2), Cost::Mana(mana), Cost::Tap]
-        );
-    }
-
-    /// An alternative cost with no mana in it gains a component only when a
-    /// modification puts something in it (CR 118.9d).
-    #[test]
-    fn a_component_appears_only_when_a_modification_gives_it_something() {
-        assert_eq!(rebuild(cost(&[]), vec![Cost::PayLife(2)], None), vec![Cost::PayLife(2)]);
-        assert_eq!(
-            rebuild(cost(&[G]), vec![Cost::PayLife(2)], None),
-            vec![Cost::PayLife(2), Cost::Mana(cost(&[G]))]
-        );
-        // And one that was there stays, even at {0}.
-        assert_eq!(rebuild(cost(&[]), vec![], Some(0)), vec![Cost::Mana(cost(&[]))]);
-    }
-
     /// §3.4's theorem, checked the other way: for every pair of reductions
     /// the engine can represent, both orders give one answer.
     #[test]
@@ -401,5 +425,92 @@ mod tests {
                 }
             }
         }
+    }
+
+    // --- the component ------------------------------------------------------
+
+    /// CR 601.2f's "the mana component of the total cost", singular: a base
+    /// cost and a kicker's mana are one component, and it goes first.
+    #[test]
+    fn every_mana_cost_in_the_assembled_list_is_one_component_and_it_goes_first() {
+        let (mana, others, had_mana) = split_mana_component(vec![
+            Cost::PayLife(2),
+            Cost::Mana(cost(&[G, R])),
+            Cost::Tap,
+            Cost::Mana(cost(&[R])),
+        ]);
+        assert_eq!(mana.to_string(), "{1}{R}{R}");
+        assert_eq!(others, vec![Cost::PayLife(2), Cost::Tap]);
+        assert!(had_mana);
+        assert_eq!(
+            rebuild(mana.clone(), others, had_mana),
+            vec![Cost::Mana(mana), Cost::PayLife(2), Cost::Tap]
+        );
+    }
+
+    /// An alternative cost with no mana in it gains a component only when a
+    /// modification puts something in it (CR 118.9d); one that was there
+    /// stays, even at {0}.
+    #[test]
+    fn a_component_appears_only_when_a_modification_gives_it_something() {
+        assert_eq!(rebuild(cost(&[]), vec![Cost::PayLife(2)], false), vec![Cost::PayLife(2)]);
+        assert_eq!(
+            rebuild(cost(&[G]), vec![Cost::PayLife(2)], false),
+            vec![Cost::Mana(cost(&[G])), Cost::PayLife(2)]
+        );
+        assert_eq!(rebuild(cost(&[]), vec![], true), vec![Cost::Mana(cost(&[]))]);
+    }
+
+    // --- the assembly (CR 601.2b's choices, 107.3, 118.8, 118.9) -----------
+
+    #[test]
+    fn a_plain_mana_cost_is_one_component() {
+        let base = ManaCost::build(&[ManaType::Red], 1);
+        assert_eq!(determine(&base, None, &[], 0), vec![Cost::Mana(base)]);
+    }
+
+    /// CR 107.3 — X is the value announced at CR 601.2b, in generic mana,
+    /// once per X in the cost, and the X symbols themselves are gone.
+    #[test]
+    fn x_expands_into_generic_for_each_x_symbol() {
+        let one_x = ManaCost::from_symbols(vec![ManaSymbol::X, R]);
+        assert_eq!(determine(&one_x, None, &[], 3), vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 3))]);
+        assert_eq!(determine(&one_x, None, &[], 0), vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))]);
+        let two_x = ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::X]);
+        assert_eq!(determine(&two_x, None, &[], 2), vec![Cost::Mana(ManaCost::build(&[], 4))]);
+    }
+
+    /// CR 118.9a — an alternative cost replaces the mana cost entirely.
+    #[test]
+    fn an_alternative_cost_replaces_the_mana_cost() {
+        let base = ManaCost::build(&[ManaType::Red], 2);
+        let alt = AlternativeCost::Custom("Pay 1 life".to_string(), vec![Cost::PayLife(1)]);
+        assert_eq!(determine(&base, Some(&alt), &[], 0), vec![Cost::PayLife(1)]);
+    }
+
+    /// CR 118.8 — a kicker's mana joins the base cost's in one component.
+    /// Until CM-1 it was a second `Cost::Mana` that the generic split and the
+    /// mana window both read past.
+    #[test]
+    fn a_kickers_mana_joins_the_one_component() {
+        let base = ManaCost::build(&[ManaType::Red], 1);
+        let kicker = AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))]);
+        assert_eq!(
+            determine(&base, None, &[&kicker], 0),
+            vec![Cost::Mana(ManaCost::build(&[ManaType::Red, ManaType::Red], 1))]
+        );
+    }
+
+    /// CR 118.9d — additional costs apply to an alternative cost as well, and
+    /// the mana among them comes first.
+    #[test]
+    fn additional_costs_apply_to_an_alternative_cost_too() {
+        let base = ManaCost::build(&[ManaType::Red], 3);
+        let alt = AlternativeCost::Custom("Pay 2 life".to_string(), vec![Cost::PayLife(2)]);
+        let kicker = AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[ManaType::Green], 0))]);
+        assert_eq!(
+            determine(&base, Some(&alt), &[&kicker], 0),
+            vec![Cost::Mana(ManaCost::build(&[ManaType::Green], 0)), Cost::PayLife(2)]
+        );
     }
 }

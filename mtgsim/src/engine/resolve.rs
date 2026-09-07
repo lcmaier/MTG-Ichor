@@ -129,7 +129,7 @@ impl GameState {
                  duration, which `Effect::CostModification` does not carry. A \
                  static ability's cost effect does not resolve at all — put it on \
                  an `AbilityType::Static` ability and \
-                 `engine::cost_modification::gather` will find it at CR 601.2f."
+                 `engine::cost_determination::cost_modifications_for` will find it at CR 601.2f."
                     .to_string(),
             ),
 
