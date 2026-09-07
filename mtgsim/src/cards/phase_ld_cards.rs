@@ -514,7 +514,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
 /// and put three layers of noise between the fixture and what it is testing.
 /// One card reaches the same self-reference.
 ///
-/// What it is for: proving the CR 613.7a existence check terminates. The check
+/// What it is for: proving the CR 604.2 existence check terminates. The check
 /// asks whether this land still has its static ability, which is a
 /// characteristics query on the land, which runs the check again. It resolves
 /// because the question is asked at a strictly lower layer ceiling each time

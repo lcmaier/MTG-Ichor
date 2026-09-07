@@ -73,7 +73,7 @@ impl Lookahead {
 /// `controller` — the same lowering, with no side effects and no assertions.
 ///
 /// Printed abilities on purpose, as the real registration reads them: whether
-/// the object still *has* each ability on the battlefield is CR 613.7a's
+/// the object still *has* each ability on the battlefield is CR 604.2's
 /// question, and `static_ability_still_exists` re-asks it at every layer
 /// against this object's own frame — which is how Humility or Blood Moon strip
 /// an entering permanent's static ability before it can apply to itself.

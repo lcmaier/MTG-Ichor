@@ -489,7 +489,7 @@ pub fn equipment(name: &str) -> Arc<CardData> {
 ///
 /// The row is `EffectOrigin::Resolution` and `Duration::UntilEndOfTurn` — a pump-spell
 /// shaped effect, not a static ability. Tests that need a static ability's origin (so the
-/// CR 613.7a existence check has something to ask about) must build their own row.
+/// CR 604.2 existence check has something to ask about) must build their own row.
 pub fn registered(
     id: ObjectId,
     layer: Layer,

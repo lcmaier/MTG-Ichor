@@ -123,7 +123,7 @@ fn test_anthem_control_change_is_not_one_way() {
 /// +1/+1". A `Resolution` effect over an `AffectedSet::Filter` does not do
 /// that here; it re-filters every walk. No card produces the combination (all
 /// three production `Filter` sites are static abilities, where re-filtering is
-/// correct per CR 613.7a), so this is a note rather than a Deferred Migrations
+/// correct per CR 611.3a), so this is a note rather than a Deferred Migrations
 /// item — but it is the reason the link would be a false one.
 #[test]
 fn test_resolution_effect_keeps_its_you_when_the_source_changes_hands() {

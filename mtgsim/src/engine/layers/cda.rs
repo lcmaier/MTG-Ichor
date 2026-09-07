@@ -13,7 +13,7 @@
 //!   pass sorts a CDA application ahead of the layer's rows, whatever their
 //!   timestamps — `board.rs`'s sort key *is* that sentence.
 //!
-//! - **CR 613.7a's existence check.** `chars.abilities` at Layer 7a is already
+//! - **CR 604.2's existence check.** `chars.abilities` at Layer 7a is already
 //!   the post-Layer-6 ability set, so Humility's "creatures lose all abilities"
 //!   removes a Tarmogoyf's CDA before 7a can read it — Tarmogoyf is 1/1, with
 //!   no `static_ability_still_exists` call involved. The same holds one layer
@@ -61,7 +61,7 @@ pub(super) const CDA_LAYERS: [Layer; 3] =
 /// done to the object, and the whole correctness argument above rests on
 /// reading it late. The pass (`board.rs`) collects these at the start of a
 /// layer and, when each one's turn comes, re-checks that the ability is
-/// still on the object (CR 613.7a, the same question a registry row gets).
+/// still on the object (CR 604.2, the same question a registry row gets).
 ///
 /// Empty `Vec` doesn't allocate, so the common case — an object with no CDA
 /// — costs one flag scan over a list that is almost always 0-2 entries long.

@@ -364,7 +364,7 @@ fn test_humility_does_not_strip_itself() {
     assert_eq!(
         get_effective_abilities(&game, humility).len(),
         1,
-        "Humility is an Enchantment; its filter is creatures, so CR 613.7a finds          its ability intact at every layer"
+        "Humility is an Enchantment; its filter is creatures, so CR 604.2 finds          its ability intact at every layer"
     );
     assert!(!has_keyword(&game, bear, KeywordFlag::Flying));
     assert_eq!(
@@ -476,7 +476,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
 /// The existence half, which the same rows give for free. The derived effect is
 /// `EffectOrigin::StaticAbility` keyed on the granted ability's id, so stripping
 /// that ability retires the effect it generated — no bookkeeping, just CR
-/// 613.7a's existence check doing its job one layer later.
+/// 604.2's existence check doing its job one layer later.
 #[test]
 fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     let mut game = setup_two_player_game();
@@ -513,7 +513,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     assert_eq!(
         (get_effective_power(&game, creature), get_effective_toughness(&game, creature)),
         (Some(2), Some(2)),
-        "CR 613.7a: registry membership is not existence — the ability is gone,          so the effect it generated no longer applies"
+        "CR 604.2: registry membership is not existence — the ability is gone,          so the effect it generated no longer applies"
     );
 }
 
@@ -702,7 +702,7 @@ fn test_humility_before_hierophants_retires_the_grant() {
 
     assert!(
         get_effective_abilities(&game, bears).is_empty(),
-        "CR 613.7a read against the live board: Humility stripped the Hierophants          earlier in layer 6, so the grant no longer exists when its turn comes"
+        "CR 604.2 read against the live board: Humility stripped the Hierophants          earlier in layer 6, so the grant no longer exists when its turn comes"
     );
     assert!(get_effective_abilities(&game, hierophants).is_empty());
 

@@ -709,7 +709,7 @@ fn test_march_of_the_machines_pt_equals_mana_value() {
 }
 
 // ===========================================================================
-// CR 613.7a / Deferred Migrations item 7 — a static ability stripped by CR
+// CR 604.2 / Deferred Migrations item 7 — a static ability stripped by CR
 // 305.7 must also retire the continuous effect it generated.
 // ===========================================================================
 
@@ -833,7 +833,7 @@ fn test_static_ability_does_not_function_from_the_graveyard() {
     );
 }
 
-// The CR 613.7a existence check asks whether an effect's source still has the
+// The CR 604.2 existence check asks whether an effect's source still has the
 // ability that generates it — which is itself a characteristics query on that
 // source. When the source is what its own effect strips, that question is
 // self-referential, and the only reason it terminates is that each round asks

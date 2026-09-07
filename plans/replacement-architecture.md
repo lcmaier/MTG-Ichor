@@ -758,7 +758,7 @@ It differs in two ways, both because replacement effects are not layered:
 
 - **No `Layer`, no timestamp ordering.** CR 616.1 orders by *player choice*, not
   by timestamp. There is no analogue of `effects_in_layer`.
-- **No per-layer existence re-check.** CR 613.7a's re-check exists because a
+- **No per-layer existence re-check.** CR 604.2's re-check exists because a
   layer walk asks the same question nine times. A replacement effect is asked
   once, at the instant the event is proposed, which is when CR 614.4 wants it
   asked. Source 1's discovery-from-effective-abilities gives the same guarantee
@@ -2801,7 +2801,7 @@ taken away.
 
 **One line of code, and it is in the hottest path in the engine.** That is the
 whole reason it is separated: `compute_characteristics` is what every layer
-query runs, `layers-architecture.md` §12 measured the ungated CR 613.7a
+query runs, `layers-architecture.md` §12 measured the ungated CR 604.2
 existence check at 5.2×–8.0×, and a gate that starts admitting non-battlefield
 objects changes what that walk does on every board. RC-3's deliverable is as much
 the measurement as the behavior.
@@ -3700,7 +3700,7 @@ rule number) — confirm the merge at labelling time.
    That matters because of where the check sits: up to O(effects²) candidate
    pairs per layer, inside a walk that runs per permanent, inside a sweep that
    runs per priority check. §12's table already shows this shape going
-   superlinear when a per-effect cost is added — the ungated CR 613.7a existence
+   superlinear when a per-effect cost is added — the ungated CR 604.2 existence
    check ran 5.2× at N=10 and 8.0× at N=80 for exactly this reason. A
    game-state-shaped snapshot in that position is not a slow path, it is a
    different complexity class.

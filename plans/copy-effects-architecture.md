@@ -755,7 +755,7 @@ one-arm PR.
 
 > **As built (CV-1): `register_copied_static_effects`, and the "remove" half
 > turned out to be free.** These rows are `EffectOrigin::StaticAbility`, so CR
-> 613.7a re-checks at every layer whether the source still *has* the ability —
+> 604.2 re-checks at every layer whether the source still *has* the ability —
 > against a frame that includes layer 1. A copy that expired, or that a CR 707.4
 > re-copy superseded, takes the ability off that frame and the derived row stops
 > applying on the very next walk, whatever the registry still holds. Hygiene is
@@ -901,7 +901,7 @@ ships the indefinite 25 and is blocked on item 10.** §7 draws that line.
 **The tempting shortcut, and why it is refused.** Copy rows could simply
 register the *affected permanent* as `source`, buying teardown for free. Refused:
 `ContinuousEffect.source` is documented (`layers/types.rs:174`) as the object
-whose static ability generates the effect, and it is what the CR 613.7a existence
+whose static ability generates the effect, and it is what the CR 604.2 existence
 check reads. Overloading it to mean "the object this row dies with" would make
 `remove_by_source` mean two different things depending on `EffectOrigin`, and the
 next person to touch the existence check would have no way to know. **The
@@ -1064,7 +1064,7 @@ entry producer. `owed` clean; suite green; zero warnings.
    the same recipe and its own comment named CV-1 as the owner of its third leg.
    The rule generates a leg per gate per new route to the effective ability list,
    and the *number of gates* is the term that grows.
-2. **Leg 2 needs no teardown path, and that is CR 613.7a paying for itself.** A
+2. **Leg 2 needs no teardown path, and that is CR 604.2 paying for itself.** A
    derived row whose copy expired or was superseded stops applying on the next
    walk, because the existence check reads the source's frame and the frame
    includes layer 1. Removal is hygiene, bought by giving each derived row the
@@ -1119,7 +1119,7 @@ run-to-run spread on this machine is about —4% to +6% for one binary at 200
 games (`main` read 115.2 to 124.3 ms across five rounds), and B reads *faster*
 than A on both pools while playing byte-identical games. Anything inside that
 band is jitter. **This is what `layers-architecture.md` §12's 5.2—8.0→ figure
-predicts, read correctly**: that multiplier is the CR 613.7a existence check
+predicts, read correctly**: that multiplier is the CR 604.2 existence check
 *without its gate*, and a copy row never pays it — `EffectOrigin::Resolution`
 returns `true` before any frame is computed. The phase was sized expecting its
 risk in the copy row on the hot path, and the copy row is the cheap half.

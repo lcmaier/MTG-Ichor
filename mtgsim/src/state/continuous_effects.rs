@@ -70,7 +70,7 @@ pub struct RegistryScopeSummary {
     /// touches controller. So the field read is the walk's answer, not an
     /// approximation of it.
     ///
-    /// This matters because `effect_applies_to` runs *before* the CR 613.7a
+    /// This matters because `effect_applies_to` runs *before* the CR 604.2
     /// existence check and therefore for objects the filter rejects, unlike the
     /// existence check, which only runs for effects that already matched.
     ///

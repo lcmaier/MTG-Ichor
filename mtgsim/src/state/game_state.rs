@@ -1155,7 +1155,7 @@ impl GameState {
     ///
     /// # Why a stale row is inert rather than wrong
     ///
-    /// These rows are `EffectOrigin::StaticAbility`, so CR 613.7a re-checks at
+    /// These rows are `EffectOrigin::StaticAbility`, so CR 604.2 re-checks at
     /// every layer whether the source still *has* the ability — against the
     /// source's frame, which includes layer 1. A copy row that expired, or that
     /// a later CR 707.4 re-copy superseded, takes the ability off that frame and

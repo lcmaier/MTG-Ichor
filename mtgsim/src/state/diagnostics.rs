@@ -97,7 +97,7 @@ impl EngineCounters {
     /// One frame actually computed — a `compute_to_ceiling` body that ran rather
     /// than a cache hit.
     ///
-    /// Read against [`Self::layer_walks`]: the ratio is how much CR 613.7a's
+    /// Read against [`Self::layer_walks`]: the ratio is how much CR 604.2's
     /// existence re-check costs. A walk that needs no sub-frame is 1:1; one that
     /// asks whether five other objects still have their static abilities is not.
     /// That ratio is the thing `layers-architecture.md` §5.2's descending ceiling

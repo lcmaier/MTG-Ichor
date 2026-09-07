@@ -369,7 +369,7 @@ fn test_an_entering_creatures_own_anthem_is_in_its_own_frame() {
     assert_eq!(get_effective_power(&game, bears), Some(3), "the row is registered now and reaches the bear too");
 }
 
-/// The would-be row is subject to CR 613.7a like a registered one: Humility
+/// The would-be row is subject to CR 604.2 like a registered one: Humility
 /// strips the Anthem Bear's ability at layer 6, so its anthem does not exist by
 /// the time layer 7c would apply it, and the frame is Humility's 1/1.
 #[test]
@@ -381,7 +381,7 @@ fn test_humility_strips_the_entering_creatures_own_anthem_before_it_applies() {
     let anthem = reanimate(&mut game, anthem_bear(), 0);
     assert!(
         game.battlefield.get(&anthem).unwrap().tapped,
-        "1/1 in the frame: Humility took the anthem away at layer 6 (CR 613.7a)"
+        "1/1 in the frame: Humility took the anthem away at layer 6 (CR 604.2)"
     );
 }
 

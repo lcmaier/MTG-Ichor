@@ -1775,7 +1775,7 @@ mod tests {
         assert_eq!(compute_characteristics(&game, other).unwrap().power, Some(3), "and after the entry it is a plain registered row");
     }
 
-    /// A would-be row is subject to CR 613.7a exactly like a registered one.
+    /// A would-be row is subject to CR 604.2 exactly like a registered one.
     #[test]
     fn test_look_ahead_row_is_stripped_by_humility_before_it_applies() {
         let mut game = GameState::new(2, 20);

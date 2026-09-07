@@ -1044,7 +1044,7 @@ impl GameState {
             for (layer, modification) in rows {
                 // A granted static ability whose own effect lands in layers
                 // 1-5 cannot apply, and it would fail silently: the grant
-                // applies AT layer 6, so at any layer below it the CR 613.7a
+                // applies AT layer 6, so at any layer below it the CR 604.2
                 // existence check reads a frame that predates the grant, and
                 // the derived effect finds no ability to justify itself.
                 // Assert at the authoring site rather than let a card quietly
@@ -1073,7 +1073,7 @@ impl GameState {
                     layer >= Layer::Layer6Ability,
                     concat!(
                         "granted static ability generates a {:?} effect. A grant ",
-                        "applies at layer 6, so the CR 613.7a existence check ",
+                        "applies at layer 6, so the CR 604.2 existence check ",
                         "reads a pre-grant frame at any layer below it and this ",
                         "effect will not apply; layers 1-5 have no CR mechanism ",
                         "and no known card."

@@ -31,7 +31,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// re-filter against a board the 6 half had already changed.
 ///
 /// **It does not strip itself.** Humility is an Enchantment and its filter is
-/// creatures, so CR 613.7a's existence check finds its ability intact at every
+/// creatures, so CR 604.2's existence check finds its ability intact at every
 /// layer. That is why this card, unlike `phase_ld_cards::moonlit_steppe`, needs
 /// nothing from the frame-cache termination argument.
 ///
@@ -109,7 +109,7 @@ mod tests {
 /// **Why this one works when "a static ability granting a static ability over a
 /// filter" does not** (`codebase-state.md` item 7, the open filter half): the
 /// granted ability here is a *mana* ability, so it generates no continuous
-/// effect of its own. There is nothing to derive, nothing for CR 613.7a to
+/// effect of its own. There is nothing to derive, nothing for CR 604.2 to
 /// re-check, and the whole card is one Layer 6 row over a filter. Swap the
 /// granted body for a static one and it lands in the open case immediately.
 ///

@@ -247,7 +247,7 @@ pub enum AffectedSet {
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
 - `PlayerRef::Opponent` is matched as a predicate, `controller != you`, not resolved to an id: CR 102.2 gives one opponent in a two-player game but CR 102.3 gives a set in multiplayer, and the predicate is correct for both.
 
-Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 613.7a existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
+Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 604.2 existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
 
 **Updated by the Layer 2 phase (2026-08-23).** That phase put 20 more call sites behind the same gate, so it is no longer a trim: forcing it off now costs 83.7 → 107.2 ms/game, **+28%**. The phase itself cost +4%, under the +7% this section predicted. The per-object "sharper gate" the prediction offered as a fallback was built, measured and discarded — it is not faster, because `ObjectId` is a UUID and the set probe costs a SipHash on every board to save on the rare one. Numbers and the discard argument are on `RegistryScopeSummary::any_control_changing`; the remaining lever is §12's cross-call memoization.
 
@@ -568,7 +568,7 @@ compute_board(game, lookahead) -> a frame for every member:
        sorted on (is_cda descending, timestamp, tiebreak)
 
        for application in that order:        // LI-2: CR 613.8's loop instead
-           if !exists(application, frames): continue      // CR 613.7a, live
+           if !exists(application, frames): continue      // CR 604.2, live
            targets = the locked set (CR 613.6), or the affected set over frames
            for t in targets:
                resolved = resolve(application.modification, frames, t)
@@ -621,7 +621,7 @@ In the common case (no Mycosynth Lattice / Painter's Servant / Leyline of the Vo
 
 ### 5.2 Termination
 
-Predicates inside the walk sometimes need to know characteristics of *other* objects. "Enchantments you control" needs to know what is an Enchantment; the CR 613.7a existence check needs the source's ability list. Naively that recurses into another walk and loops.
+Predicates inside the walk sometimes need to know characteristics of *other* objects. "Enchantments you control" needs to know what is an Enchantment; the CR 604.2 existence check needs the source's ability list. Naively that recurses into another walk and loops.
 
 **Until LI-1 (2026-09-06) the argument was a descending layer ceiling.** The walk computed one object; every read of another object was answered at the end of the *previous* layer through a per-call frame cache keyed `(ObjectId, ceiling)`; a request at ceiling `C` only ever made requests below `C`, so the recursion bottomed out at ceiling 0. That was exact while no application in a layer changed what a later one in the same layer read, and `codebase-state.md` "Before Layers" item 8 lists the three boards where it did not — one of which the pool builds.
 
@@ -657,7 +657,7 @@ Four things the registry design would have had to build fall out of this instead
 - **CR 613.3's ordering.** "Apply effects from characteristic-defining abilities first, then
   all other effects in timestamp order." Running the intrinsic pass before the registry
   slice *is* that sentence. No sort key, no partition, no `Vec` per layer per object.
-- **CR 613.7a's existence check.** `chars.abilities` at Layer 7a is already the
+- **CR 604.2's existence check.** `chars.abilities` at Layer 7a is already the
   post-Layer-6 list, so Humility removes a Tarmogoyf's CDA before 7a can read it — no
   `static_ability_still_exists` call involved. Same one layer earlier: `land_types` clears
   abilities for CR 305.7 in Layer 4, so a Blood-Mooned land has lost a color CDA before
@@ -862,7 +862,7 @@ Worst-case cost: `O(effects × objects × layers)` per frame if every effect's p
 
 `fuzz_games` is the wrong instrument for this: exactly one card in `CardRegistry` has a static ability, so it never builds the boards that hurt. Numbers below are from a synthetic board of N anthems (static `ModifyPowerToughness` over `ByType(Creature)`) plus N creatures, µs per single characteristics query, release build:
 
-| N | frame only | full walk | walk, no 613.7a gate |
+| N | frame only | full walk | walk, no 604.2 gate |
 |---|---|---|---|
 | 10 | 0.37 | 0.55 | 6.30 |
 | 20 | 0.27 | 0.83 | 12.01 |
@@ -873,7 +873,7 @@ Four things follow, and they set the strategy:
 
 1. **Building the frame is 3% and flat.** Cloning five `HashSet`s, a `Vec<AbilityDef>` and a `String` per frame is not the problem. Copy-on-write on `EffectiveCharacteristics` is not where to start.
 2. **Per-query cost is linear in registered effects; per priority sweep it is quadratic**, because a sweep queries every permanent. 80 permanents ≈ 196 µs per sweep. That is the number to watch as card breadth grows.
-3. **The CR 613.7a existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
+3. **The CR 604.2 existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
 4. **`effects_in_layer`'s filter-and-sort is only ~10%.** Keeping the registry sorted by `(layer, timestamp, id)` and returning a slice was prototyped and measured at that; worth doing eventually, not a lever.
 
 ### The ordering that follows
@@ -929,7 +929,7 @@ counter on `GameState`. Every write to a walk input increments it, the cache sto
 `(epoch, characteristics)` per object, and a hit needs only `stored epoch == current
 epoch`. Any mutation anywhere kills the whole cache, and the next sweep recomputes each
 object once. A *fine* cache records, per object, the inputs its answer depended on — its
-own entity, the registry rows that applied to it, and, because CR 613.7a re-checks
+own entity, the registry rows that applied to it, and, because CR 604.2 re-checks
 existence on the *source*, the sources of those rows, transitively — and invalidates
 only the entries whose recorded inputs changed, so a land tapping does not cost a
 creature its answer. The fine key has to enumerate every input, a missed one is a
@@ -1491,7 +1491,7 @@ the tree rather than guessed (`engineering-practices.md` §4).
 **Why it extends this document.** All three pieces are CR 613: the board-wide
 pass is the frame CR 613.3, 613.6 and 613.7a describe; the dependency
 algorithm is CR 613.8; and a conditional static's condition is an existence
-question with 613.7a's shape. Critical-path item 7, `roadmap-v2.md` §3a row A3.
+question with 604.2's shape. Critical-path item 7, `roadmap-v2.md` §3a row A3.
 
 ### The finding that sets the scope: one walk, one object
 
@@ -1507,7 +1507,7 @@ layer reads. Three boards break that, and the pool builds one of them:
 
 | Board | Layer | What the per-object walk gets wrong | Fix |
 |---|---|---|---|
-| **Humility + Citanul Hierophants** — both in `PERFORMANCE_POOL`; `test_humility_before_hierophants_does_not_yet_retire_the_grant` pins the wrong answer | 6 | the grant's CR 613.7a check reads the Hierophants as of the end of layer 5 and cannot see Humility's strip, applied earlier in layer 6; a creature under Humility taps for {G} | **LI-1**: the pass — the check reads the live frame |
+| **Humility + Citanul Hierophants** — both in `PERFORMANCE_POOL`; `test_humility_before_hierophants_does_not_yet_retire_the_grant` pins the wrong answer | 6 | the grant's CR 604.2 check reads the Hierophants as of the end of layer 5 and cannot see Humility's strip, applied earlier in layer 6; a creature under Humility taps for {G} | **LI-1**: the pass — the check reads the live frame |
 | **Blood Moon + Rootpath Purifier** — the Purifier's ruling (Scryfall, 2022-10-14): "if an opponent controls Blood Moon … and you play Rootpath Purifier, Blood Moon can no longer apply to the lands you control because they are all basic" | 4 | applying the Purifier changes what Blood Moon applies to (613.8a(b)), so Blood Moon waits for it whatever the timestamps say; the walk orders by timestamp | **LI-2**: dependency ordering, the ruling's board as a named fixture (the Purifier's library clause is item 9's) |
 | **Blood Moon + Urborg, Tomb of Yawgmoth** — Urborg's ruling (Scryfall, 2021-03-19): an effect "such as that of Magus of the Moon" that sets it to a basic land type not in addition to its others means "it won't turn lands into Swamps, no matter in what order those effects started to apply" | 4 | applying Blood Moon removes the ability that generates Urborg's effect (613.8a(b)); with Urborg's earlier timestamp the walk applies Urborg first and a basic Forest is a Forest Swamp | **LI-2**, on LI-1's existence check |
 

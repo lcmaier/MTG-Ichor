@@ -174,7 +174,7 @@ pub fn copiable_values(game: &GameState, id: ObjectId) -> Option<CopiableValues>
     );
 
     // A capture is a walk, and the measurement's frames-per-walk ratio is what
-    // CR 613.7a's existence re-check costs. Counting it here keeps a copy-heavy
+    // CR 604.2's existence re-check costs. Counting it here keeps a copy-heavy
     // board honest in the same table as an anthem-heavy one.
     game.counters.record_layer_walk();
     let frame = frame_at_ceiling(game, id, END_OF_LAYER_1)?;
