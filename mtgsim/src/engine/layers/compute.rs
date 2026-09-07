@@ -133,13 +133,14 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
 /// build's `Layer walks` and `Layer frames` are the release build's.
 #[cfg(debug_assertions)]
 fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
-    let (walks, board_walks, frames) = (
+    let (walks, board_walks, frames, checks) = (
         game.counters.layer_walks(),
         game.counters.board_walks(),
         game.counters.layer_frames(),
+        game.counters.dependency_checks(),
     );
     let fresh = compute_characteristics_uncached(game, id);
-    game.counters.rewind_layer_work(walks, board_walks, frames);
+    game.counters.rewind_layer_work(walks, board_walks, frames, checks);
     debug_assert_eq!(
         fresh.as_ref(),
         Some(served),
@@ -313,6 +314,10 @@ pub(crate) fn base_controller(
 /// construction error, and `expect`s.
 pub(super) struct FilterPlayers<'a, 'l> {
     effect: Option<&'a ContinuousEffect>,
+    /// The object the filter is relative to — the row's source, or the
+    /// object whose CDA is counting — which is what `PermanentFilter::EachOther`
+    /// is other than.
+    source: ObjectId,
     game: &'a GameState,
     board: &'a Board<'l>,
     layer_index: usize,
@@ -328,7 +333,15 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         board: &'a Board<'l>,
         layer_index: usize,
     ) -> Self {
-        FilterPlayers { effect: Some(effect), game, board, layer_index, you: None, owner: None }
+        FilterPlayers {
+            effect: Some(effect),
+            source: effect.source,
+            game,
+            board,
+            layer_index,
+            you: None,
+            owner: None,
+        }
     }
 
     /// CR 109.5's "you".
@@ -512,6 +525,9 @@ pub(super) fn permanent_matches_filter(
         PermanentFilter::PowerLE(n) => {
             chars.power.map(|p| p <= *n).unwrap_or(false)
         }
+        // Identity, off the ids: Opalescence does not animate itself, and no
+        // layer can make an object something other than itself.
+        PermanentFilter::EachOther => id != players.source,
         PermanentFilter::And(a, b) => {
             permanent_matches_filter(a, id, chars, players)
                 && permanent_matches_filter(b, id, chars, players)
@@ -631,7 +647,15 @@ fn evaluate_amount(
                     Some(game.objects.get(&object_id).map(|obj| obj.owner).unwrap_or(chars.controller)),
                 ),
             };
-            let mut players = FilterPlayers { effect: origin, game, board, layer_index, you, owner };
+            let mut players = FilterPlayers {
+                effect: origin,
+                source: origin.map(|e| e.source).unwrap_or(object_id),
+                game,
+                board,
+                layer_index,
+                you,
+                owner,
+            };
             let mut count = 0;
             for other in board.battlefield_ids(game) {
                 let Some(other_chars) = board.frame_of(game, other, layer_index) else {

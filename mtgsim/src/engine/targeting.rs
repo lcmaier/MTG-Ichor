@@ -360,6 +360,14 @@ impl GameState {
                     PlayerRef::Player(pid) => obj.owner == *pid,
                 })
             }
+            // "Each other" is relative to an effect's source, and a selection
+            // has none — this function takes `you` and no source id. Refused
+            // rather than answered `true`: a filter that silently included the
+            // source would be the opposite of the word.
+            PermanentFilter::EachOther => Err(format!(
+                "PermanentFilter::EachOther on {} has no source to be other than in a selection context",
+                id
+            )),
             PermanentFilter::PowerLE(max_power) => frame()?
                 .power
                 .map(|p| p <= *max_power)

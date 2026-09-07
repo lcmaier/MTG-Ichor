@@ -22,6 +22,7 @@ use super::phase_cv_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
 use super::phase_lh_cards;
+use super::phase_li_cards;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -44,7 +45,7 @@ use super::phase_lh_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 68] = [
+const PERFORMANCE_POOL: [&str; 69] = [
     "Plains",
     "Island",
     "Swamp",
@@ -162,6 +163,14 @@ const PERFORMANCE_POOL: [&str; 68] = [
     // fizzle and CR 704.5m/n in front of a random game.
     "Holy Strength",
     "Bonesplitter",
+    // LI-2 — the pool's first effect that can depend on another's (CR 613.8):
+    // Blood Moon strips the ability that generates Urborg's effect, so Urborg
+    // waits for it whatever the timestamps say. Every pooled layer was
+    // pairwise independent under the static channel check until this card,
+    // which is what makes the loop's slow path — the hypothetical, counted as
+    // `Dependency checks` — live in a measured game. A land, so any deck
+    // that draws it drops it.
+    "Urborg, Tomb of Yawgmoth",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -377,6 +386,16 @@ impl CardRegistry {
         registry.register("Holy Strength", phase_lh_cards::holy_strength);
         registry.register("Bonesplitter", phase_lh_cards::bonesplitter);
         registry.register("Cobbled Wings", phase_lh_cards::cobbled_wings);
+
+        // LI-2 — the CR 613.8 boards the rulings walk. Urborg is the existence
+        // dependency and pooled; Ashaya is the applies-to dependency on a
+        // printed card, with a CR-derived answer; Opalescence is the CR 613.6
+        // test with the Humility rulings' answers, and the first "each other"
+        // (`PermanentFilter::EachOther`). The Rootpath Purifier ruling's board is
+        // `phase_li_cards::purifier_clause`, a fixture registered nowhere.
+        registry.register("Urborg, Tomb of Yawgmoth", phase_li_cards::urborg_tomb_of_yawgmoth);
+        registry.register("Opalescence", phase_li_cards::opalescence);
+        registry.register("Ashaya, Soul of the Wild", phase_li_cards::ashaya_soul_of_the_wild);
 
         registry
     }

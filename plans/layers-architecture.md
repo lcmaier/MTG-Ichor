@@ -789,6 +789,8 @@ For performance, the snapshot is a thin overlay (CoW) over the frame, not a deep
 
 **LI-1 (2026-09-06) built the frame this runs against and superseded the signature.** The layer driver is `board::apply_layer`, applying in key order over `Application`s — rows, CDAs, counters, with `is_cda` on each for 613.8a(c) — and the live board is the `frame` argument above. LI-2 replaces the driver's body with the loop, and the function it becomes, `resolve_order_within_layer`, *applies as it orders*: CR 613.8c makes the order after the k-th application a function of the first k, so no `Vec<EffectId>` can be returned up front (§13b, LI-2 piece 3).
 
+**LI-2 (2026-09-06) built the loop.** `board::resolve_order_within_layer` is the driver, `board::depends_on` the pair check — the static half over `Channels`, the hypothetical over a `Journal` — and `board::next_ready` the candidate rule. Steps 3–6 above are as built, with two corrections: the static check compares *whose* frame a read is of as well as which field (a read of the effect's own source is a dependency only if the other effect reaches that source), and there is no topological sort — the next application is the earliest source-component member by the layer's key, re-decided after every application (CR 613.8c). The unit of ordering is an effect's rows in the layer, not a row. §13b's LI-2 as-built has the departures.
+
 **The seam this shares with CR 614.12, recorded 2026-09-02 (RC-4).** The look-ahead frame is built, and it is *not* this snapshot — `replacement-architecture.md` §5 separates the two and §11 item 5 decided the shape: a read-side overlay, never a `GameState` clone. What 613.8 inherits is the accessor pair `compute.rs` now routes its concrete-state reads through — `FrameCache::entity` (controller, CR 302.6's clock, counters) and `rows_in_layer` (the registry slice plus an entering object's would-be rows) — so a step-4 hypothetical never has to re-plumb the walk. The `Lookahead` is threaded through `FrameCache` itself rather than passed beside it, because a frame memoized under one hypothetical must never be served to a walk under another; the step-4 snapshot, when it is built, wants the same discipline.
 
 ---
@@ -1849,7 +1851,7 @@ Hierophants board through the old walk and the pass call by call, a
 look-ahead entry, and a graveyard Keldon Warlord, and carries the
 field-by-field account of `Board` the review asked for.
 
-### LI-2 — CR 613.8a, 613.8b, 613.8c (~1,300–1,500 additions)
+### LI-2 — CR 613.8a, 613.8b, 613.8c (~1,300–1,500 additions) — ✅ 2026-09-06
 
 1. **Channels.** `writes(&EffectModification) -> Channels` — types, subtypes,
    supertypes, colors, abilities, keywords, controller, power, toughness, and
@@ -1895,7 +1897,7 @@ field-by-field account of `Board` the review asked for.
    rulings with Humility (2009-10-01, both timestamp orders, layer by layer;
    2006-02-01, two Opalescences) are 7c's CR 613.6 test with the CR's own
    answers attached, and LI-1's pass already gives them — timestamp order
-   plus the locked set. It needs one filter leaf, `PermanentFilter::Other`
+   plus the locked set. It needs one filter leaf, `PermanentFilter::EachOther`
    ("each other" is `id != source`; the self-stripping fixture's doc names
    this gap), on both `permanent_matches_filter`s. First job of LI-2.
 5. **Tests.** Urborg + Blood Moon in both orders (a basic Forest is a Forest,
@@ -1916,6 +1918,138 @@ field-by-field account of `Board` the review asked for.
    in layer 4 — asserting the sequence Opalescence → Ashaya → Blood Moon with
    Urborg never applying, which is CR 613.8c re-evaluation on a printed
    board rather than a fixture chain. `specdb.py show` each atom first.
+
+**As built (2026-09-06, `layers/li-2-dependency`).** Code and tests came to +1,893: `src` +1,201 / −99 across twelve
+files, of which `board.rs` is +769 / −84 — the rewrite of LI-1's application
+half, with `Application` carrying its reads and writes and `apply_layer`
+become the loop — and `phase_li_cards.rs` the next largest;
+`tests/phase_li2_integration_test.rs` is +692. The ~1,300–1,500 estimate
+was for the code, and the docs put the PR near 2,600 — the top of §4's
+band, and the reason LI-3 stays its own PR. Seven
+departures from the pieces above, each with the board that forced it:
+
+1. **The unit of ordering is the effect, not the row.** Piece 1's
+   "application" was LI-1's — one registry row. Ashaya's second ability
+   lowers to two layer-4 rows (`AddType(Land)`, `AddSubtype(Forest)`), and
+   ordered as two applications Blood Moon slips between them: after the
+   first row the creatures are nonbasic lands, Blood Moon depends on nothing
+   still pending and applies, and the second row then adds Forest to the
+   locked set (CR 613.6) — Forest Mountains that tap for {G}. CR 613.8 says
+   "effect" in every clause and the judge answer applies Ashaya as one step,
+   so `Kind::Effect` bundles one `EffectGroup`'s rows in a layer, in id
+   order, applied as one thing; its key is the first row's. A resolution's
+   rows bundle the same way. The lock stays keyed on the group, which is the
+   caveat `codebase-state.md` "Before Layers" item 16 records.
+2. **The static check reads two frames, not one set.** Piece 1's "disjoint
+   sets" would send Blood-Moon-depends-on-Urborg to the hypothetical on every
+   pass: both touch abilities. What Blood Moon reads of *abilities* is its own
+   source's (CR 604.2), and Urborg's targets are lands, so `Reads { source,
+   members }` splits the question and a source-read is a dependency only
+   when the other application's targets contain the source. That pair is
+   settled statically; the reverse — Urborg's source is a nonbasic land —
+   reaches the hypothetical, and `board.rs`'s unit test counts exactly one.
+   `Channels` is ten bits over `EffectiveCharacteristics`' fields; `writes_of`
+   is exhaustive over `EffectModification` and over-approximates where the
+   target decides (`AddSubtype(Forest)` writes an ability on a land and
+   nothing on a creature, and the check has no target in hand).
+3. **The hypothetical applies in place under a journal.** Decision 3 said
+   "clone the frame of each member B affects, apply B to the clone,
+   re-evaluate A on it". Built as: apply B to the live board through
+   `perform` — the function the real application uses — with a `Journal`
+   saving each frame's pre-image before its first write and each CR 613.6
+   lock it records; observe A; restore. The clone is the same clone at a
+   different moment, and every read A makes — existence, "you", the filter,
+   a count — goes through the function it always goes through rather than a
+   second evaluator over an overlay. `Observation` is 613.8a(b)'s three
+   questions as data — `exists`, `affected`, the resolved outcome of every
+   resolving arm per target — and a dependency is two observations that
+   differ. §15.2 item 3 closes on this.
+4. **The loop has a fast path, and the graph is built only when it fails.**
+   Piece 3's "dependencies over the pending set, the transitive closure" runs
+   when the key-first pending application depends on something. When it
+   depends on nothing — one row of the matrix, almost always settled by the
+   channel check — it is the next application, being the earliest candidate
+   by construction. So a layer of N anthems costs N² bit-ands and no
+   hypothetical (`a_pairwise_independent_layer_runs_no_hypothetical`), and
+   the Floyd–Warshall closure runs over a handful. **`Dependency checks`** is
+   the new cost row in §3: the hypotheticals a game ran.
+5. **"What it does" is the effect's own act, not the board after it.**
+   613.8a(b)'s third arm — "what it does to any of the things it applies
+   to" — is read as the modification the effect would write, resolved:
+   `SetController`'s player, a dynamic amount's number. It is *not* read as
+   the characteristic an object is left with after both effects apply, and
+   the reason is a reductio: under that reading any two effects *setting*
+   the same field on a shared object would depend on each other, every
+   set-against-set pair would be a loop, and CR 613.8b would hand exactly
+   the boards the rulings walk back to timestamps — the dependency system
+   would decide nothing there. The Humility + Opalescence
+   rulings do not separate the two readings (a two-effect loop is applied
+   in timestamp order too, so both give the rulings' numbers); what
+   separates them is the third arm's stock example, "+1/+1 for each Elf you
+   control" beside "creatures are Elves", where the *number* one effect
+   writes is what the other changes. So `Observation::does` holds
+   `resolve_modification`'s answer for the three resolving arms and nothing
+   for a modification that carries its own answer.
+6. **A trace hook.** `compute_board_traced` takes a layer index and a `Vec`
+   to record into, and `resolve_order_within_layer` pushes a `TraceStep` —
+   the application and what it affected — per application, in the order
+   applied. The four-card board's sequence — Opalescence reaching
+   Blood Moon; Ashaya reaching herself, Blood Moon and the Bears; Blood Moon
+   reaching all four nonbasic lands; Urborg reaching nothing — is asserted
+   step by step in `board.rs`'s unit tests through it, and
+   `tests/phase_li2_integration_test.rs` asserts the board it leaves in both
+   entry orders.
+7. **ATOM-613.8-001 claims nothing**, as piece 5 allowed: its buildable board
+   (flying granted, then all abilities lost, both by resolution on one
+   creature) is not a dependency, and its dependency board ("all activated
+   abilities of other creatures") is not buildable. The first board looks
+   like an existence dependency and is not: "the existence of the first
+   effect" is the *effect's*, and a resolution's effect lasts as long as its
+   text says (CR 611.2a) whatever happens to the ability it granted — losing
+   all abilities after a granted flying removes the flying, and the granting
+   effect still exists, which is why the later timestamp wins there (a
+   creature that gains flying after Humility entered keeps it) and no
+   dependency is involved. The atom's own text concedes this for its first
+   board; its second board's reasoning is the "result" reading piece 5
+   rejects. ATOM-613.8a-003 is claimed partial: its own board is a 7a CDA
+   beside a 7c pump, two layers, which clause (a) settles before (c) is
+   asked; the test builds the same-layer pair — a layer-4 subtype CDA beside
+   a row reading that subtype — and shows no hypothetical ran.
+
+The tests are piece 5's, each in both orders with the ruling quoted beside
+the assertion, plus `test_a_power_reading_row_older_than_a_counter_waits_for_the_counter`
+— the order LI-1 left unpinned, now 3/3 — and a sabotage check: with
+`next_ready` forced to key order, seven of the fifteen fail and they
+are exactly the dependency boards, while the CR 613.6 and loop boards pass
+either way, as this section predicted. `PermanentFilter::EachOther` landed as
+piece 4 asked, on every matcher: `compute`'s answers off
+`FilterPlayers::source`, `targeting`'s refuses it (a selection has no
+source), and `pipeline`'s mods-invariance table classifies it. Urborg is in
+`PERFORMANCE_POOL`; Opalescence and Ashaya are `stress` only, since neither
+opens a path Urborg does not and Opalescence in a random game would move
+every behavioural row for a reason that is not the engine's; the Purifier
+fixture is `phase_li_cards::purifier_clause`, registered nowhere. 7c's
+CR 613.6 test and the real `resolve_order_within_layer` are the two exit
+items this PR owed.
+
+**The A/B (2026-09-06).** `plans/fuzz_ab.py`, one sitting, three arms:
+`main` at a6f2ed8 (A), LI-2's engine with the registry and both pools
+unchanged (B), and the shipped tree (C). **B reproduces A on every row of
+both pools** — walks, board walks, frames, memo hits, gathers, and every
+behavioural row, at 50 and at 200 games — and the three serial timing
+rounds are identical line for line outside `=== Timing ===`; on 40-game
+`--dump-events` streams with the id masks applied, **no game differs on
+either pool**. That is what CR 613.8 predicts for a pool whose only
+dependency-shaped pairs — Humility beside a creature static — already gave
+the dependency's answer under timestamp order in both directions; the 8
+hypotheticals B runs per game are those pairs, and each confirms a
+dependency that changes nothing. C differs from A because the pool did:
+Urborg in `performance` (68 → 69 cards) and three cards in `stress`
+(78 → 81), and every divergent game diverges at a `Library -> Hand` draw,
+since the registry's sorted name list is what `random_deck` draws from.
+CPU/game median 15.42 → 15.89 (B, +3.0%) → 15.72 ms (C, +1.9%), inside the
+sitting's spread — round 3 had B faster than A; ms per 1,000 questions
+0.155 → 0.160 → 0.163. `engineering-practices.md` §3 has the tables.
 
 ### LI-3 — conditional statics (~750–900 additions)
 
@@ -2063,6 +2197,10 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
 3. **Dependency hypothetical-check snapshot performance.** Clone vs. CoW overlay for step-4 frame snapshots. Resolve in Phase LC.
 
    **Half-resolved 2026-09-02 (RC-4), and the resolved half is the one that was actually open.** The *game-state* question — clone the game, or overlay its reads — was decided for CR 614.12 in `replacement-architecture.md` §11 item 5 and is now built (`engine/layers/lookahead.rs`): overlay, on correctness grounds rather than speed (a clone duplicates `GameState.rng` and aliases every v4 `ObjectId`). The *frame* question this item asked is smaller than it looked, because §12 already measured frame construction flat at 0.27–0.37 µs: step 4 clones `chars`, applies one `EffectModification`, re-runs `permanent_matches_filter`, and needs no overlay at all. What it does need is the accessor pair (§9), which exists. Closed when 613.8 lands and confirms the clone is as cheap in situ as it measured in isolation. **LI-1 (2026-09-06) built the frame it clones from** — the live board, §13b decision 3 — so what LI-2 confirms is the cost, not the shape.
+
+   **Closed 2026-09-06 (LI-2).** The clone is the `Journal`'s pre-image of each frame the hypothetical writes, taken in place before its first write rather than up front, and taken back afterwards; the cost is §3's `Dependency checks` row — 23 hypotheticals per game on `performance` at 50 games with Urborg
+   pooled, 13 with the pools unchanged (Humility beside a creature static), 63
+   on `stress` — at a CPU/game delta inside the sitting's spread. The static check (`Channels`, split by whose frame a read is of) is what keeps that number small: almost every pair never clones anything.
 
 4. **`AbilityOrigin` enum variants — CLOSED at Phase LD kickoff: not built, not needed.**
    The premise was that CR 305.7 must strip selectively (rules-text and old-land-type
