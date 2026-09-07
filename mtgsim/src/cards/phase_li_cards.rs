@@ -11,6 +11,11 @@
 //! the CR 305.6 tests rest on. It was an Enchantment precisely so that those
 //! tests would not depend on this phase; now that the real Land exists, the
 //! two are different fixtures for different rules, not two spellings of one.
+//!
+//! LI-3's are the conditional statics: Kird Ape, the cheapest printed "as
+//! long as" there is, and two fixtures for shapes whose printed cards are out
+//! of reach — one Aura clause of Rune of Flight, and a layer-4 condition that
+//! another effect in the same layer flips.
 
 use std::sync::Arc;
 
@@ -18,9 +23,10 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef, Primitive,
-    Selector, TypeChange,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, PermanentFilter, PlayerRef,
+    Primitive, SelectionFilter, Selector, TypeChange,
 };
+use crate::types::keywords::KeywordFlag;
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -277,6 +283,154 @@ pub fn purifier_clause() -> Arc<CardData> {
         .build()
 }
 
+/// Kird Ape — {R}
+/// Creature — Ape, 1/1
+/// This creature gets +1/+2 as long as you control a Forest.
+///
+/// (Oracle text verified on Scryfall, 2026-09-06.)
+///
+/// **The cheapest printed conditional static there is**, and the one that
+/// needs no new condition leaf: `ControlPermanent(BySubtype(Forest))` over an
+/// `Implicit` recipient, which is one layer-7c row whose *existence* is a
+/// question asked every pass (CR 604.2, `board::static_ability_still_exists`).
+/// Asymmetric, so a row applied twice or transposed fails an assertion.
+///
+/// It reads LI-2's board without depending on anything. A Taiga is a Forest
+/// until Blood Moon sets it to Mountain in layer 4, and the Ape's condition
+/// is read at 7c against a board where that has already happened — so the
+/// bonus is simply gone, two layers later, with no dependency involved
+/// (CR 613.8a(a) confines dependency to one layer).
+///
+/// # In `PERFORMANCE_POOL`, and why
+///
+/// The pool's first row whose existence is a *condition* rather than an
+/// ability lookup, which is a new path in the check and one that runs for
+/// every application in every layer of every pass the Ape is on the board
+/// for. A one-mana creature any red deck casts on turn one, and the pool
+/// already has five basic Forests and four nonbasic lands with the subtype,
+/// so both answers happen in a measured game.
+pub fn kird_ape() -> Arc<CardData> {
+    CardDataBuilder::new("Kird Ape")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 0))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Ape))
+        .power_toughness(1, 1)
+        .rules_text("This creature gets +1/+2 as long as you control a Forest.")
+        .ability(static_ability(Effect::Conditional(
+            Condition::ControlPermanent(PermanentFilter::BySubtype(Subtype::Land(
+                LandType::Forest,
+            ))),
+            Box::new(Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(1),
+                    AmountExpr::Fixed(2),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::Implicit,
+            )),
+        )))
+        .build()
+}
+
+/// Flight Clause — {1}{U}
+/// Enchantment — Aura
+/// Enchant permanent
+/// As long as enchanted permanent is a creature, it has flying.
+///
+/// **A fixture, and an invented name** (`engineering-practices.md` §3's
+/// rule): the third line of Rune of Flight, whose printed text is
+/// "Enchant permanent / When this Aura enters, draw a card. / As long as
+/// enchanted permanent is a creature, it has flying. / As long as enchanted
+/// permanent is an Equipment, it has 'Equipped creature has flying.'"
+/// (Scryfall, 2026-09-06). Two of those four lines are out of reach — the
+/// draw is a trigger (critical-path item 6), and the Equipment clause grants
+/// a *static* ability from a static ability, which registers no continuous
+/// effect (`codebase-state.md` "Before Layers" item 7g). Registering the
+/// printed card with either missing would wear its name while behaving
+/// differently, so this one wears its own.
+///
+/// It is CR 613.7a's own worked example one line short, and three phases
+/// meet on it: the layer-6 grant over `Host` (LH-1), an Aura whose host can
+/// be reattached (LH-2), and the condition (LI-3). Against Humility in either
+/// timestamp order it is the one board where all three are observable at
+/// once — Humility strips at layer 6 and this grants at layer 6, so the
+/// timestamps decide, and the condition decides whether there is anything to
+/// order at all.
+pub fn flight_clause() -> Arc<CardData> {
+    CardDataBuilder::new("Flight Clause")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
+        .color(Color::Blue)
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .rules_text(
+            "Enchant permanent\nAs long as enchanted permanent is a creature, it has flying.",
+        )
+        // CR 702.5a — "Enchant permanent" is this Aura's targeting
+        // restriction, and CR 303.4a makes it the spell's target. Permanent,
+        // not creature: the condition is what decides whether the grant does
+        // anything, and an Aura that could only enchant creatures could not
+        // have a condition worth reading.
+        .enchant_filter(SelectionFilter::Permanent(PermanentFilter::All))
+        .ability(static_ability(Effect::Conditional(
+            Condition::HostMatches(PermanentFilter::ByType(CardType::Creature)),
+            Box::new(Effect::Atom(
+                Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
+                EffectRecipient::Host,
+            )),
+        )))
+        .build()
+}
+
+/// Simian Clause — {1}{G}
+/// Enchantment
+/// As long as you control a Forest, each creature you control is an Ape in
+/// addition to its other types.
+///
+/// **A fixture, and an invented name** (`engineering-practices.md` §3's
+/// rule), for a shape no printed card in reach has: a *layer-4* effect whose
+/// condition another layer-4 effect flips. Blood Moon sets a Taiga to
+/// Mountain, the Forest goes away, and this effect stops existing — so it
+/// depends on Blood Moon (CR 613.8a(b), the existence clause) and waits for
+/// it whatever the timestamps say.
+///
+/// **It is the board `board::condition_reads` exists for.** Without the
+/// condition's channels the pair is settled independent by the static check
+/// and never reaches the hypothetical: this card's own reads would be its
+/// filter's (types, controller), Blood Moon writes subtypes and abilities,
+/// and the one read they share — the ability list, for CR 604.2 — is of
+/// *this* card's source, which Blood Moon does not reach. The condition is
+/// what reads a subtype off another object.
+///
+/// Kird Ape's board is the same shape two layers apart and needs none of
+/// that, which is why this one is not the Ape.
+pub fn simian_clause() -> Arc<CardData> {
+    CardDataBuilder::new("Simian Clause")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "As long as you control a Forest, each creature you control is an Ape in addition \
+             to its other types.",
+        )
+        .ability(static_ability(Effect::Conditional(
+            Condition::ControlPermanent(PermanentFilter::BySubtype(Subtype::Land(
+                LandType::Forest,
+            ))),
+            Box::new(Effect::Atom(
+                Primitive::ChangeType(
+                    adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[]),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::FilteredPermanents(PermanentFilter::And(
+                    Box::new(PermanentFilter::ByType(CardType::Creature)),
+                    Box::new(PermanentFilter::ByController(PlayerRef::You)),
+                )),
+            )),
+        )))
+        .build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,7 +439,7 @@ mod tests {
     /// registers are what the tests reason about.
     #[test]
     fn each_card_lowers_to_the_rows_its_text_describes() {
-        use crate::engine::layers::types::{EffectModification, Layer};
+        use crate::engine::layers::types::{EffectModification, Layer, PtValue};
         use crate::state::game_state::GameState;
 
         let rows = |card: Arc<CardData>| -> Vec<(Layer, EffectModification)> {
@@ -317,6 +471,26 @@ mod tests {
         assert_eq!(rows(purifier_clause()), vec![(
             Layer::Layer4Type,
             EffectModification::AddSupertype(Supertype::Basic)
+        )]);
+
+        // LI-3 — a conditional static lowers to exactly the rows its inner
+        // atom does. The condition is nowhere in this list, which is the
+        // whole of §13b decision 5: it stays on the ability, and CR 604.2's
+        // existence check reads it there every layer.
+        assert_eq!(rows(kird_ape()), vec![(
+            Layer::Layer7cModifyPT,
+            EffectModification::ModifyPowerToughness {
+                power: PtValue::Fixed(1),
+                toughness: PtValue::Fixed(2),
+            }
+        )]);
+        assert_eq!(rows(flight_clause()), vec![(
+            Layer::Layer6Ability,
+            EffectModification::GrantKeywordFlag(KeywordFlag::Flying)
+        )]);
+        assert_eq!(rows(simian_clause()), vec![(
+            Layer::Layer4Type,
+            EffectModification::AddSubtype(Subtype::Creature(CreatureType::Ape))
         )]);
 
         let ashaya = ashaya_soul_of_the_wild();
