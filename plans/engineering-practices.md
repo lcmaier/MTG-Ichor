@@ -324,6 +324,76 @@ affinity's reduction and a direct-total effect meeting on one spell.
 | **Replacement gathers** | **449** | **527** |
 | **Restriction queries** | **451** | **530** |
 
+**Re-recorded 2026-09-07 for CM-3** (lock-in's payment side;
+`cost-architecture.md`). One new card in `performance` — Altar's Reap,
+72 → 73 — and five in `stress` (Altar's Reap, Thunderscape Familiar,
+Krark-Clan Ironworks, Foundry Inspector, Mind Stone; 88 → 93).
+
+**`cost-architecture.md` §6 said CM-3 "opens no new path a pooled card would
+measure". The A/B says the first half and disproves the second.** The middle
+arm — CM-3's engine with all five cards registered and the *old* pool — is
+`IDENTICAL` to `main` on `performance` at 200 games, so the payment order,
+the plan/pay split, the mandatory-cost announcement and the castability gate
+cost the pool nothing and change no seeded stream. But `Cost::Sacrifice`
+*is* a new engine path, and no card in the 72 could reach it: that is the
+`PERFORMANCE_POOL` doc's own failure mode, "a gated subsystem no card in the
+pool could open", and its rule is that a phase which opens a path adds one
+card deliberately. So the pool gains one and §6's second clause was wrong.
+
+Altar's Reap is the card because it opens four things at once — the first
+non-mana cost paid through `pay_costs`, the first mandatory additional cost
+(CR 118.8b), the first castability answer that turns on something other than
+the mana cost, and the first payment prompt that is not an allocation — and
+because black with creatures on board is ordinary rather than contrived.
+The other four stay registered and out: the Familiar and the Inspector open
+the path Thalia already opens, and the Ironworks pair's window is CM-4's to
+measure once the window stops closing early.
+
+Timing, 200 games, three interleaved rounds: CPU/game 14.24 ms `main` → 14.29
+ms registered (+0.4%, inside the sitting's spread) → 17.02 ms pooled (+19.5%);
+`deterministic` yes in all three arms, and three shell runs at one seed match
+line for line outside the timing lines on both pools.
+
+**The +19.5% is the card's gameplay, and the counters say where it went.**
+Altar's Reap draws two, so the pooled arm's games are bigger, not slower per
+unit of work: avg turns 30.1 → 31.1, spells cast 22.4 → 24.2, creatures died
+6.7 → 7.6, and layer frames 3,998 → 4,870 (+22%) with frames/walk 10.79 →
+12.32. ms/1,000 walks rises 12.0% and ms/1,000 questions 4.7% — both smaller
+than the frames-per-walk rise that produced them. It is the largest re-record
+the pool has taken for one card, and it is a permanent tax on every A/B from
+here; it is worth it on the pool doc's own terms, because the alternative is
+a pool that measures a shrinking fraction of the engine. **Never A/B across
+it**: the pooled column is a re-record.
+
+Reachability, 200 games with Altar's Reap forced into every `performance`
+deck: cast 223, resolved 220, in 123 games (62%), **1.61 copies per deck** —
+so a sacrifice paid at CR 601.2h happens in most measured games, and the
+three-fifths of them in which the payer had a choice of creature exercise the
+prompt as well as the payment. Zero errors, zero panics and zero
+`Uncast resolved` in all three arms on both pools, which is the statement
+that matters most for a new payment arm.
+
+| | performance (73 cards) | stress (93 cards) |
+|---|---|---|
+| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 28 (56.0%) / 22 (44.0%) |
+| Avg turns | 30.7 | 28.7 |
+| Spells cast | 24.2 | 23.3 |
+| Lands played | 18.2 | 17.3 |
+| Combat w/ atk | 11.2 | 10.3 |
+| Creatures died | 7.8 | 4.2 |
+| Damage events | 24.0 | 24.3 |
+| Total damage | 64.8 | 68.2 |
+| Life changes | 14.4 | 17.4 |
+| **Layer walks** | **388** | **452** |
+| **Board walks** | **247** | **266** |
+| **Memo hits** | **99,640** | **97,135** |
+| **Layer frames** | **4,655** | **4,991** |
+| **Frames/walk** | **12.01** | **11.05** |
+| **Dependency checks** | **5** | **42** |
+| **Replacement gathers** | **521** | **510** |
+| **Restriction queries** | **523** | **513** |
+
+
 **Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:
 `main` at 9011d42 (A), LI-3's engine with the registry and both pools
 unchanged (B), and LI-3 as shipped (C).

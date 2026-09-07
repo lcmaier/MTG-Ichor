@@ -46,7 +46,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 72] = [
+const PERFORMANCE_POOL: [&str; 73] = [
     "Plains",
     "Island",
     "Swamp",
@@ -193,6 +193,17 @@ const PERFORMANCE_POOL: [&str; 72] = [
     // Humility already here the stripped-source path runs too. Electromancer
     // and Trinisphere are registered and stay out: the same engine path.
     "Thalia, Guardian of Thraben",
+    // CM-3 — the pool's first cost that is not mana. Its sacrifice is the
+    // first payment routed through the chokepoint from `pay_costs`, the first
+    // mandatory additional cost (CR 118.8b), the first castability answer
+    // that turns on something other than the mana cost, and the first payment
+    // prompt that is not an allocation. Black, and every deck in the pool has
+    // creatures, so it is both castable and payable in a measured game.
+    // Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind
+    // Stone are registered and stay out: the Familiar and the Inspector open
+    // the path Thalia already opens, and the Ironworks pair's window is
+    // CM-4's to measure once the window stops closing early.
+    "Altar's Reap",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
