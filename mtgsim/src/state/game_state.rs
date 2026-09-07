@@ -1265,6 +1265,16 @@ impl GameState {
     /// Lower a static ability's body into the `(primitive, recipient)` atoms
     /// that become registry rows.
     ///
+    /// **"Lowering" is this project's word for the one-way translation from
+    /// *card text* to *engine rows*** — from the authored `Effect` tree a
+    /// card file writes down to the `ContinuousEffect`s the layer walk
+    /// applies, in the compiler's sense of lowering a source language to an
+    /// IR. It happens once, when the ability is registered; it is not
+    /// re-derived per query, and the rows it produces carry no back-pointer
+    /// to the text. That is why an arm that declines has to be loud: nothing
+    /// downstream can tell a card that lowered to nothing from a card that
+    /// had nothing to say.
+    ///
     /// Shared with `resolve::register_granted_static_effects` for the same
     /// reason `static_primitive_rows` is: the same card text has to behave the
     /// same whether it was printed or granted, and two copies of this match
@@ -1297,6 +1307,11 @@ impl GameState {
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
     /// *body* rather than an ability, so `Effect::Conditional` can lower what
     /// it wraps through the very same arms — including the loud ones.
+    ///
+    /// The public entry above stays an *ability* function because that is
+    /// what its twelve callers hold and what its name promises; only the
+    /// recursion needs an `Effect`. Collapsing the two would push
+    /// `&ability.effect` into every call site to save one line here.
     fn atoms_of_static_body<'a>(
         body: &'a crate::types::effects::Effect,
         card_name: &str,

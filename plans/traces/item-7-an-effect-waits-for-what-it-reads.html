@@ -91,6 +91,18 @@
   .mermaid { background: var(--surface); border: 1px solid var(--line); padding: 1rem; margin-top: 1.25rem; overflow-x: auto; }
   ol.plain { padding-left: 1.2rem; } ol.plain li { margin-top: 0.5rem; }
   .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+  .rounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .round { background: var(--surface); border: 1px solid var(--line); padding: 0.85rem 0.9rem; }
+  .rlabel { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .rnote { font-size: 0.88rem; color: var(--muted); margin-top: 0.6rem; }
+  table.mx { width: auto; margin-top: 0.7rem; border-collapse: collapse; font-size: 0.85rem; }
+  table.mx th { background: transparent; border-top: 0; padding: 0.2rem 0.5rem; font-size: 0.68rem; }
+  table.mx tbody th { text-align: right; font-family: var(--mono); text-transform: none; letter-spacing: 0; color: var(--muted); }
+  table.mx tbody th.src { color: var(--changed); }
+  table.mx td { border: 1px solid var(--line); width: 2.1rem; height: 1.7rem; text-align: center; padding: 0; }
+  table.mx td.y { background: var(--decide-tint); color: var(--decide); }
+  table.mx td.s { color: var(--line); border-color: transparent; }
+  span.mx.s { color: var(--muted); font-family: var(--mono); }
 </style>
 
 
@@ -103,6 +115,7 @@
     <a href="#map">The map</a>
     <a href="#unit">What an application is</a>
     <a href="#a">A · Four effects, one layer</a>
+    <a href="#matrix">…the matrix, round by round</a>
     <a href="#b">B · A condition as the dependency</a>
     <a href="#c">C · A condition that is not one</a>
     <a href="#reads">Where the reads differ</a>
@@ -119,7 +132,7 @@
 
   <h2 id="map">The map</h2>
   <p class="prose">One loop per layer, and the loop's first line is a decision. <code>applications_in_layer</code> collects what the layer applies and sorts it on CR 613.3's key; <code>resolve_order_within_layer</code> then applies exactly one thing per iteration, asking <code>next_ready</code> which one. That is where CR 613.8 lives, and it is the whole of the phase — <code>perform</code> below it is LI-1's, unchanged.</p>
-  <p class="prose"><code>next_ready</code> has a fast path and a slow one. The fast path asks only whether the key-first application waits on anything; if not, it is next by construction and no graph is built. The slow path builds the pairwise matrix, closes it transitively, and takes the earliest member of a source component — which is CR 613.8b's loop rule and CR 613.8a's waiting rule in one line. Each pair goes to <code>depends_on</code>, which tries the static channel check first and only then clones the board under a <code>Journal</code>.</p>
+  <p class="prose"><code>next_ready</code> has a fast path and a slow one. The fast path asks only whether the key-first application waits on anything; if not, it is next by construction and no graph is built. The slow path builds the pairwise matrix, closes it transitively, and takes the earliest member of a source component — which is CR 613.8b's loop rule and CR 613.8a's waiting rule in one line. Each pair goes to <code>depends_on</code>, which tries the static channel check first and only then clones the board under a <code>Journal</code>; the dotted edges are that answer coming back to whoever asked for it.</p>
 
   <div class="mermaid">
 flowchart TD
@@ -132,16 +145,21 @@ flowchart TD
   FAST -- no --> PICK["it is next"]
   FAST -- yes --> MATRIX["build the pairwise matrix<br/>Floyd–Warshall closure<br/>earliest source-component member"]
   MATRIX --> PICK
-  NR --> DEP["depends_on(a, b)"]
-  DEP --> STATIC{"a.reads ∩ b.writes<br/>and does b reach a's source?"}
-  STATIC -- "disjoint" --> INDEP["independent — no board touched"]
+  FAST -.-> DEP
+  MATRIX -.-> DEP
+  DEP["depends_on(a, b)"] --> STATIC{"a.reads ∩ b.writes<br/>and does b reach a's source?"}
+  STATIC -- "disjoint" --> INDEP["no dependency<br/>no board touched"]
   STATIC -- "overlap" --> HYP["observe(a) · perform(b) under a Journal · observe(a) · restore"]
   HYP --> DIFF{"the two observations differ?"}
+  DIFF -- no --> INDEP
+  DIFF -- yes --> WAITS["a waits for b"]
+  INDEP -.-> NR
+  WAITS -.-> NR
   PICK --> PERF["perform(app) — for real, no journal"]
   PERF --> LOOP
   classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
   classDef cond fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
-  class NR,FAST,MATRIX,DEP,STATIC,HYP,DIFF,PICK new;
+  class NR,FAST,MATRIX,DEP,STATIC,HYP,DIFF,PICK,INDEP,WAITS new;
   class COND cond;
   </div>
 
@@ -161,13 +179,59 @@ flowchart TD
 
   <ol class="trace">
     <li class="step phase"><span class="n">A0</span><span class="call"><code>applications_in_layer(game, board, Layer4Type, 3)</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Four <code>Kind::Effect</code> applications, one per card, each carrying its <code>Reads</code> and <code>Channels</code>. Sorted on the key: no CDAs at layer 4, so timestamp order — <em>Urborg, Blood Moon, Ashaya, Opalescence</em>.</p></li>
-    <li class="step" data-era="new"><span class="n">A1</span><span class="call"><code>next_ready(.., pending = [U, BM, Ash, Opa])</code><span class="loc">board.rs</span><span class="sub">the fast path fails on the first row</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">Urborg is key-first. <code>depends_on(U, BM)</code>: Urborg's <code>reads.source</code> is <code>ABILITIES</code> (CR 604.2), Blood Moon writes <code>SUBTYPES | ABILITIES | KEYWORDS</code> (CR 305.7), and Blood Moon <em>reaches</em> Urborg — a Legendary Land is nonbasic. Overlap, so the check goes to the board.</p></li>
-    <li class="step" data-era="new"><span class="n">A2</span><span class="call"><code>observe(U) · perform(BM, journal) · observe(U) · restore</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip decide">journal</span></span><p class="what">Before: <em>exists = true</em>, affected = every land. After Blood Moon: Urborg is a Mountain, CR 305.7 stripped its ability, <em>exists = false</em>. The observations differ, so <strong>Urborg depends on Blood Moon.</strong> The journal restores four frames and the board is exactly as it was.</p></li>
-    <li class="step" data-era="new"><span class="n">A3</span><span class="call"><code>next_ready</code> — the slow path<span class="loc">board.rs</span><span class="sub">the whole matrix, then the closure</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">Urborg waits, so the graph is built over all four. Opalescence is in a source component — nothing it reads is written by anything pending that reaches its source — and it is not the earliest by key, but it is the earliest <em>candidate</em>. <strong>Opalescence applies.</strong> It reaches Blood Moon, making it a creature.</p></li>
-    <li class="step" data-era="new"><span class="n">A4</span><span class="call"><code>next_ready(.., pending = [U, BM, Ash])</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Re-decided against a board where Blood Moon is now a creature. Ashaya's "nontoken creatures you control" reaches it. <strong>Ashaya applies</strong>, to herself, to Blood Moon and to the Bears — two rows, one application, so no other effect can land between <code>AddType(Land)</code> and <code>AddSubtype(Forest)</code>.</p></li>
+    <li class="step" data-era="new"><span class="n">A1</span><span class="call"><code>next_ready(.., pending = [U, BM, Ash, Opa])</code><span class="loc">board.rs</span><span class="sub">the fast path fails on the first row</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">Urborg is key-first, so the fast path asks only about it. <code>depends_on(U, BM)</code>: Urborg's <code>reads.source</code> is <code>ABILITIES</code> (CR 604.2), Blood Moon writes <code>SUBTYPES | ABILITIES | KEYWORDS</code> (CR 305.7), and Blood Moon <em>reaches</em> Urborg — a Legendary Land is nonbasic. Overlap, so the check goes to the board.</p></li>
+    <li class="step" data-era="new"><span class="n">A2</span><span class="call"><code>observe(U) · perform(BM, journal) · observe(U) · restore</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip decide">journal</span></span><p class="what">Before: <em>exists = true</em>, affected = every land. After Blood Moon: Urborg is a Mountain, CR 305.7 stripped its ability, <em>exists = false</em>. The observations differ, so <strong>Urborg waits for Blood Moon.</strong> The journal restores the frames it touched and the board is exactly as it was.</p></li>
+    <li class="step" data-era="new"><span class="n">A3</span><span class="call"><code>next_ready</code> — the slow path<span class="loc">board.rs</span><span class="sub">the whole matrix, then the closure</span></span><span class="tags"><span class="chip new">LI-2</span></span><p class="what">Urborg waits, so the graph is built over all four — the matrix below. Three more dependencies come out of it, and only one of them is an existence question: Urborg also waits for <em>Ashaya</em>, and Blood Moon waits for Ashaya, because applying Ashaya changes what each of them <em>applies to</em>; Ashaya waits for Opalescence for the same reason. <strong>Opalescence applies</strong> — the one application in a source component. It reaches Blood Moon, making it a creature.</p></li>
+    <li class="step" data-era="new"><span class="n">A4</span><span class="call"><code>next_ready(.., pending = [U, BM, Ash])</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Re-decided against a board where Blood Moon is now a creature. <strong>Ashaya applies</strong> — and because Opalescence went first she reaches Blood Moon as well as herself and the Bears. Two rows, one application, so nothing lands between <code>AddType(Land)</code> and <code>AddSubtype(Forest)</code>.</p></li>
     <li class="step" data-era="new"><span class="n">A5</span><span class="call"><code>next_ready(.., pending = [U, BM])</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what">Urborg still waits on Blood Moon; Blood Moon waits on nothing left. <strong>Blood Moon applies</strong> — and it now reaches four objects, not one: Urborg, Ashaya, the Bears and itself, all nonbasic lands as of A4. CR 305.7 strips their abilities, Ashaya's own P/T CDA included.</p></li>
     <li class="step" data-era="new"><span class="n">A6</span><span class="call"><code>perform(U)</code> → <code>row_affected</code> → <code>static_ability_still_exists</code><span class="loc">board.rs</span></span><span class="tags"><span class="chip frame">live</span></span><p class="what"><code>Affected::Gone</code>. Urborg's frame no longer carries the ability that generates its effect, so it applies to nothing — "no matter in what order those effects started to apply", as its 2021-03-19 ruling puts it.</p></li>
   </ol>
+
+  <h3 id="matrix">The matrix, round by round</h3>
+  <p class="prose">What <code>next_ready</code> actually builds, dumped from the engine on this board. Read a row as "<em>this</em> waits for": a filled cell is a dependency <code>depends_on</code> returned true for, <span class="mx s">·</span> is the diagonal, and an empty cell is independent. Every cell here is a <em>direct</em> edge; the closure runs over them and, on this board, adds nothing a reader would miss — the direct graph is already a chain.</p>
+
+  <div class="rounds">
+    <div class="round">
+      <div class="rlabel">Round 1 · 12 pairs, 9 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th><th>BM</th><th>Ash</th><th>Opa</th></tr></thead><tbody>
+      <tr><th>Urborg</th><td class="s">·</td><td class="y">▪</td><td class="y">▪</td><td></td></tr>
+      <tr><th>Blood Moon</th><td></td><td class="s">·</td><td class="y">▪</td><td></td></tr>
+      <tr><th>Ashaya</th><td></td><td></td><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">Opalescence</th><td></td><td></td><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Opalescence's row is empty — a source component. It applies.</p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 2 · 6 pairs, 3 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th><th>BM</th><th>Ash</th></tr></thead><tbody>
+      <tr><th>Urborg</th><td class="s">·</td><td class="y">▪</td><td class="y">▪</td></tr>
+      <tr><th>Blood Moon</th><td></td><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">Ashaya</th><td></td><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Ashaya's row is empty now that Opalescence is gone from the pending set.</p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 3 · 2 pairs, 2 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th><th>BM</th></tr></thead><tbody>
+      <tr><th>Urborg</th><td class="s">·</td><td class="y">▪</td></tr>
+      <tr><th class="src">Blood Moon</th><td></td><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote">Blood Moon applies, to four objects rather than the one it would have reached in round 1.</p>
+    </div>
+    <div class="round">
+      <div class="rlabel">Round 4 · 0 pairs, 0 hypotheticals</div>
+      <table class="mx"><thead><tr><th></th><th>Urb</th></tr></thead><tbody>
+      <tr><th class="src">Urborg</th><td class="s">·</td></tr>
+      </tbody></table>
+      <p class="rnote"><code>next_ready</code> short-circuits at <code>pending.len() == 1</code>. Urborg applies and reaches nothing.</p>
+    </div>
+  </div>
+
+  <div class="note decide">
+    <p><strong>The honest reading of these four matrices: on this board CR 613.8c is not what decides the order.</strong> Round 1's graph, closed transitively, already gives Opalescence → Ashaya → Blood Moon → Urborg; rounds 2 to 4 re-derive the same relations minus the applied row and would be skippable. What re-evaluation changes here is <em>what each application reaches</em> — Ashaya reaches Blood Moon only because Opalescence went first, and Blood Moon reaches four objects only because Ashaya did — and that is a consequence of applying in order, not of re-deciding. The board where the <em>order itself</em> needs 613.8c is a fixture, not a printed pair: <code>test_dependencies_are_re_evaluated_after_each_application</code>, where C's dependency on B does not exist until A has applied. Worth saying, because the four-card board is the one the judge answer walks and it is easy to read its "re-evaluated after each effect is applied" as load-bearing for the sequence rather than for the sets.</p>
+  </div>
+
+  <p class="prose">The hypothetical counts are the engine's, not the matrix's size: 12 pairs in round 1 but 9 clones, because three pairs are settled by the channel check without touching the board. Those three are the ones where Blood Moon or Opalescence is asked whether it waits for something that writes a channel neither reads.</p>
 
   <div class="note real">
     <p><strong>The judge's answer states two of this phase's decisions in its own words.</strong> "The dependency has to be actual for the current game state being built, not theoretical" is A2's journal applying against the live board rather than a hypothetical one; "re-evaluated after each effect is applied" is A4 and A5 re-running the whole decision. <code>plans/references/blood-moon-urborg-ashaya-opalescence-judge-answer.md</code> has it in full.</p>

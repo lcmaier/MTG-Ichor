@@ -48,6 +48,14 @@ pub(super) fn holds(
         return false;
     }
 
+    // **A new leaf lands here and in `board::condition_reads`.** Both matches
+    // are exhaustive with no wildcard, so the compiler refuses to build until
+    // each has an arm — but it can only make you *write* the second one, not
+    // get it right. An arm here that reads a frame and a `condition_reads`
+    // arm that declares nothing gives a correct answer in the wrong *order*:
+    // the pair is settled "independent" by the static check and never reaches
+    // CR 613.8's hypothetical. `phase_li3_integration_test`'s Simian Clause
+    // board is what that failure looks like.
     match condition {
         // "as long as you control a Forest" / "as long as an opponent
         // controls a creature". The controller test is the *variant's*, not
@@ -60,6 +68,14 @@ pub(super) fn holds(
             controls_matching(filter, game, board, source, layer_index, false)
         }
 
+        // Both halves are printed. "Or more" is Divinity of Pride, Angel of
+        // Vitality, Caduceus; "or less" is the **fateful hour** cycle —
+        // Gavony Ironwright, Thraben Doomsayer and Village Survivors are all
+        // "as long as you have 5 or less life", and Phyrexian Unlife is "as
+        // long as you have 0 or less life" (Scryfall, 2026-09-07). Neither is
+        // a speculative arm. What *is* missing is the opponent's total —
+        // Bloodghast's "as long as an opponent has 10 or less life" — which
+        // wants its own leaf, since these two read the source's controller.
         Condition::LifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
         Condition::LifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
 
@@ -83,10 +99,23 @@ pub(super) fn holds(
             })
         }
 
-        // The zone gate a filter row asks, for the same reason: under a CR
-        // 614.12 look-ahead the entering object's own conditional static has
-        // to function, and it is still in its source zone while its entry is
-        // being decided (RC-4b).
+        // The same gate a filter row asks, and chosen rather than defaulted
+        // to: CR 614.12 asks what an entering permanent *would* be on the
+        // battlefield, so under a look-ahead the entering object counts as
+        // there — it is still in its source zone while its entry is being
+        // decided (RC-4b), and a plain zone equality would make its own
+        // conditional static not exist for the one question 614.12 is asking.
+        //
+        // **Near-tautological today, and that is a fact about the registry
+        // rather than about this leaf.** A static ability's rows carry
+        // `Duration::WhileSourceOnBattlefield` and `remove_by_source` drops
+        // them on the way out, so a source this is asked about is on the
+        // battlefield already. The leaf earns its keep in two places that do
+        // not exist yet: CR 603.4's intervening "if", which is what
+        // `Condition` was written for, and a static ability that functions in
+        // another zone — an emblem, or a commander's eminence (§15.1) —
+        // where the answer is genuinely `false`. Not deleted for that reason,
+        // and not asserted, because a card author writing it is not wrong.
         Condition::SourceOnBattlefield => board.in_battlefield_zone_or_entering(game, source),
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at

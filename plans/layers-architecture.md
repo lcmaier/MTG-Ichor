@@ -875,7 +875,7 @@ Four things follow, and they set the strategy:
 
 1. **Building the frame is 3% and flat.** Cloning five `HashSet`s, a `Vec<AbilityDef>` and a `String` per frame is not the problem. Copy-on-write on `EffectiveCharacteristics` is not where to start.
 2. **Per-query cost is linear in registered effects; per priority sweep it is quadratic**, because a sweep queries every permanent. 80 permanents ≈ 196 µs per sweep. That is the number to watch as card breadth grows.
-3. **The CR 604.2 existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (see Deferred Migrations 7f).
+3. **The CR 604.2 existence check without its gate is superlinear** — 5.2x at N=10 rising to 8.0x at N=80, because each gathered effect triggers a frame computation for its source. It is not optional, and its multiplier grows with board size. Which is unfortunate, because the gate is the one optimization here with an expiry date (Deferred Migrations 7f) — **and that date arrived, 2026-09-06**: the check now also answers a condition, so nothing computed off the registry alone can predict it.
 4. **`effects_in_layer`'s filter-and-sort is only ~10%.** Keeping the registry sorted by `(layer, timestamp, id)` and returning a slice was prototyped and measured at that; worth doing eventually, not a lever.
 
 ### The ordering that follows
@@ -884,7 +884,7 @@ When this needs to get faster, in order of value per unit of correctness risk:
 
 1. **Answer-preserving structural work first.** Sorted registry (measured 10%); interning `EffectGroup` to a dense integer so CR 613.6 bookkeeping is a bitset rather than SipHash over two UUIDs. Neither can produce a wrong answer.
 2. **Cross-call memoization** — §12 item 2, keyed on a game version bumped by any characteristic-affecting mutation. This is the big one, because a priority sweep asks the same questions repeatedly against an unchanged board. Its risk is a missed invalidation, and that risk is *testable*: a debug-only mode that recomputes uncached and asserts equality turns the whole suite into an invalidation audit. Build the paranoid mode in the same commit as the cache, not later.
-3. **Semantics-assuming shortcuts last, and preferably never.** `can_change_abilities()` was one — worth 5-8x, valid exactly while no static ability is conditional, and removed in the same session it was written for that reason. The failure mode is a silently wrong answer rather than a slow one, and a rules engine has nothing to trade for that. If one is ever genuinely necessary, the expiry condition goes in the code and in Deferred Migrations, and it comes with a debug-mode check that computes both ways and asserts equality.
+3. **Semantics-assuming shortcuts last, and preferably never.** `can_change_abilities()` was one — worth 5-8x, valid exactly while no static ability is conditional, and removed in the same session it was written for that reason. **Its expiry condition fired on 2026-09-06**, when LI-3 registered Kird Ape: a gate that skipped the CR 604.2 check when no registry row could change an ability set would now skip a check whose answer moves with a Forest, and it would do so silently on the pool's own board. The shortcut was removed a fortnight before the card that would have broken it existed, which is the whole argument for the ordering in this list. The failure mode is a silently wrong answer rather than a slow one, and a rules engine has nothing to trade for that. If one is ever genuinely necessary, the expiry condition goes in the code and in Deferred Migrations, and it comes with a debug-mode check that computes both ways and asserts equality.
 
 ### Where the remaining cost is
 
@@ -2127,9 +2127,23 @@ docs put the PR near 1,300. Four departures from the pieces above.
    the board before the fixture was written, and recorded as
    `codebase-state.md` "Before Layers" item 7g; the printed card is three
    things away rather than two. What ships is the line above it, "as long
-   as enchanted permanent is a creature, it has flying", which is the same
-   shape — a conditional static granting over `Host` at layer 6 — with a
-   keyword instead of an ability, and it is fully live.
+   as enchanted permanent is a creature, it has flying".
+
+   **That is a different clause, not a cheaper spelling of the same one, and
+   the difference is what stays untested.** The two clauses are nearly
+   disjoint by construction — one fires when the host is a creature, the
+   other when it is an Equipment, and an Equipment is not normally a
+   creature — so the shipped fixture exercises neither the Equipment
+   condition nor the thing that makes that clause interesting: a grant whose
+   payload is itself a static ability, reaching a *third* object. The
+   untested board is Rune of Flight on Colossus Hammer ("Equipped creature
+   gets +10/+10 and loses flying"), where the Rune's granted "Equipped
+   creature has flying" and the Hammer's own "loses flying" are two layer-6
+   effects on one creature and CR 613.7's timestamps decide. Nothing in this
+   PR says what the engine would do there, because item 7g means the Rune's
+   half generates no effect at all. What the fixture *does* carry is the
+   condition and the layer-6 grant over `Host` in both timestamp orders
+   against Humility, which is what LI-3 built; the rest arrives with 7g.
 
 4. **The `effect_channels` clause is pinned by a layer-4 board, not by the
    Rune.** The handoff predicted the Rune fixture would be where the

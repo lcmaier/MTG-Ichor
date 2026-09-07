@@ -138,6 +138,13 @@ fn test_blood_moon_takes_kird_apes_forest_away_two_layers_earlier() {
 // reattaching the Aura moves both the condition and the grant.
 // ---------------------------------------------------------------------------
 
+/// **One host, and the condition is the only thing that changes.** Two hosts
+/// would prove less than it looks: "the artifact has no flying" is true of
+/// every artifact on every board, so an engine that never granted anything
+/// would pass. Here the same permanent, with the same Aura attached the whole
+/// time, gains flying the moment a layer-4 effect makes it a creature — which
+/// is also a layer-6 condition reading layer 4's output, Kird Ape's shape one
+/// layer pair over.
 #[test]
 fn test_the_flight_clause_grants_only_while_its_host_is_a_creature() {
     let mut game = setup_two_player_game();
@@ -149,7 +156,24 @@ fn test_the_flight_clause_grants_only_while_its_host_is_a_creature() {
 
     assert!(game.attach(aura, rock));
     assert!(!has_keyword(&game, rock, KeywordFlag::Flying), "an artifact is not a creature");
-    assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
+
+    // March of the Machines' shape: the host becomes a creature in layer 4,
+    // and nothing about the Aura or the attachment moves.
+    let timestamp = game.allocate_timestamp();
+    game.continuous_effects.add(registered(
+        rock,
+        Layer::Layer4Type,
+        timestamp,
+        EffectModification::AddType(CardType::Creature),
+    ));
+    assert!(
+        has_keyword(&game, rock, KeywordFlag::Flying),
+        "the condition is read at layer 6, against a board where layer 4 has already run"
+    );
+
+    // And back: the same object, the same Aura, the condition alone.
+    game.continuous_effects.remove_by_source(rock);
+    assert!(!has_keyword(&game, rock, KeywordFlag::Flying));
 
     assert!(game.attach(aura, bears));
     assert!(has_keyword(&game, bears, KeywordFlag::Flying));
