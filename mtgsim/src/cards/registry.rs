@@ -200,10 +200,19 @@ const PERFORMANCE_POOL: [&str; 73] = [
     // prompt that is not an allocation. Black, and every deck in the pool has
     // creatures, so it is both castable and payable in a measured game.
     // Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind
-    // Stone are registered and stay out: the Familiar and the Inspector open
-    // the path Thalia already opens, and the Ironworks pair's window is
+    //
+    // **Bone Splinters and not Altar's Reap, which opens the identical set.**
+    // Altar's Reap draws two, so it made every measured game bigger — +20.2%
+    // CPU/game against +13.8% for coverage the two share exactly, measured
+    // 2026-09-08 on three arms. A pooled card is charged to every future A/B
+    // sitting, so between two cards that open the same path the cheaper board
+    // wins. Altar's Reap stays registered: it is CR 601.2h's own example.
+    //
+    // Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind
+    // Stone are registered and stay out too: the Familiar and the Inspector
+    // open the path Thalia already opens, and the Ironworks pair's window is
     // CM-4's to measure once the window stops closing early.
-    "Altar's Reap",
+    "Bone Splinters",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -455,6 +464,7 @@ impl CardRegistry {
 
         // CM-3 — lock-in's payment side (CR 601.2h, 118.8b, 732.1)
         registry.register("Altar's Reap", phase_cm_cards::altars_reap);
+        registry.register("Bone Splinters", phase_cm_cards::bone_splinters);
         registry.register("Thunderscape Familiar", phase_cm_cards::thunderscape_familiar);
         registry.register("Krark-Clan Ironworks", phase_cm_cards::krark_clan_ironworks);
         registry.register("Foundry Inspector", phase_cm_cards::foundry_inspector);

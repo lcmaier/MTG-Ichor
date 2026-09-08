@@ -612,6 +612,59 @@ pub fn mind_stone() -> Arc<CardData> {
         .build()
 }
 
+/// Bone Splinters — {B}
+/// Sorcery
+///
+/// As an additional cost to cast this spell, sacrifice a creature.
+/// Destroy target creature.
+///
+/// (Oracle text and rulings verified on Scryfall, 2026-09-08.)
+///
+/// **The pooled carrier of `Cost::Sacrifice`**, chosen over Altar's Reap for
+/// what it does *not* do: Altar's Reap draws two, which makes every measured
+/// game bigger and cost the A/B ~20% of its wall clock for engine coverage it
+/// shares with this card exactly. Bone Splinters opens the same four paths —
+/// a mandatory additional cost, a sacrifice paid through the chokepoint, a
+/// castability answer that turns on something other than mana, and a payment
+/// prompt that is not an allocation — and removes a creature instead of adding
+/// two cards. Altar's Reap stays registered: it is CR 601.2h's own example and
+/// its tests are the rule's.
+///
+/// Its two rulings are the two this phase already tests on Altar's Reap, which
+/// is the same code path: "you must sacrifice exactly one creature … you can't
+/// sacrifice additional creatures", and "once you begin to cast Bone Splinters,
+/// no player may take actions until you're done."
+pub fn bone_splinters() -> Arc<CardData> {
+    CardDataBuilder::new("Bone Splinters")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 0))
+        .color(Color::Black)
+        .card_type(CardType::Sorcery)
+        .rules_text(
+            "As an additional cost to cast this spell, sacrifice a creature.\nDestroy target creature.",
+        )
+        .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(
+            ObjectFilter::ByType(CardType::Creature),
+            1,
+        )]))
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::Destroy,
+                EffectRecipient::Target(
+                    crate::types::effects::SelectionFilter::Permanent(ObjectFilter::ByType(
+                        CardType::Creature,
+                    )),
+                    crate::types::effects::TargetCount::Exactly(1),
+                ),
+            ),
+        })
+        .build()
+}
+
 /// **A fixture, and an invented name.** "As an additional cost to cast this
 /// spell, sacrifice two creatures. Draw a card." — {2}{B} Sorcery.
 ///

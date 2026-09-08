@@ -1224,3 +1224,28 @@ fn test_the_familiar_reduces_green_too_and_only_for_its_controller() {
         "a black spell under an opponent's Familiar",
     );
 }
+
+/// Bone Splinters end to end — the card the pool carries.
+///
+/// Its two rulings (2022-09-09) are the two already asserted on Altar's Reap,
+/// which is the same code path: "you must sacrifice exactly one creature …
+/// you can't sacrifice additional creatures", and "once you begin to cast Bone
+/// Splinters, no player may take actions until you're done." What is new here
+/// is only that the card itself works: {B} plus a creature, and a creature
+/// dies at the other end.
+#[test]
+fn test_bone_splinters_costs_a_creature_and_a_black_mana() {
+    let mut game = setup_two_player_game();
+    let fodder = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    let splinters = put_in_hand(&mut game, phase_cm_cards::bone_splinters(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, splinters, &RecordingDecisionProvider::picking(0))
+        .expect("{B} and a creature");
+
+    assert!(!game.battlefield.contains_key(&fodder), "the fodder paid the cost");
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{B}}, and no more");
+    assert!(game.battlefield.contains_key(&victim), "the target dies on resolution");
+    assert!(game.stack.contains(&splinters));
+}
