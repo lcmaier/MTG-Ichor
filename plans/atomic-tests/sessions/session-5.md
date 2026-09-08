@@ -377,6 +377,25 @@
 - **Phase:** Phase 5 Pre-Work (T18 — noted as TODO for explicit mana ability window)
 - **Ticket:** T18
 
+> **Note (601.2g-001, added 2026-09-08 by CM-4):** covered, and **left in
+> `Phase 5-Pre` on purpose**. CM-1 through CM-3 re-filed their atoms out of
+> `Backlog` so `specdb owed` would gate them; this one was never in `Backlog`,
+> and `owed` selects on a `NEW` ticket, so covering it here shrinks
+> `owed --all` while re-filing it would change no gate.
+>
+> **601.2g's negative has no atom, and CM-4's test for it claims none.** The
+> rule is a conditional — "*if* the total cost includes a mana payment" — and
+> the corpus wrote only the true branch. The false branch is the judge's first
+> warning on the Krark-Clan Ironworks board (`cost-architecture.md` §3.11):
+> casting Mox Opal opens no window, so no artifact can be sacrificed for mana
+> while you cast it. CM-4 decided the residual reading with it — a mana
+> component *reduced* to nothing by CR 601.2f is "considered to be {0}" and
+> reads the same as a printed {0}, because by 601.2g the total is locked and
+> carries no record of how it got there.
+> `test_a_zero_cost_spell_opens_no_mana_window` and
+> `test_a_component_reduced_to_nothing_opens_no_mana_window` are those two
+> boards; neither claims an atom.
+
 ---
 
 ### 601.2h — Pay total cost
@@ -1975,6 +1994,20 @@
 - **Expected Result:** Legal — mana abilities can be activated during the casting process, not just during priority.
 - **Phase:** ALREADY-IMPLEMENTED (priority.rs + mana ability window in cast flow)
 - **Ticket:** N/A
+
+> **Note (605.3a-001, added 2026-09-08 by CM-4):** covered by a cast that taps
+> a land inside the window. **What this atom does not say, and CM-4 needed:**
+> that the window keeps offering *after* the cost is covered. 605.3a's text has
+> no "until it is paid", and the engine had an early return that ended the
+> window the moment the pool covered the total — a payer's policy in the
+> engine's loop, and the thing that made the Ironworks loop's step 3
+> impossible ("there's nothing saying you can't take advantage of that rule
+> here to make some more"). The overpay test —
+> `test_the_window_keeps_offering_after_the_cost_is_covered`, two Ironworks
+> activations for one `{1}` and three colorless left floating — claims this
+> atom only as COVERS-PARTIAL, because the atom's scenario is one activation.
+> An atom for the overpay itself would be a new one and the corpus is
+> authored, so it is named here rather than written.
 
 **ATOM-605.3a-002**
 

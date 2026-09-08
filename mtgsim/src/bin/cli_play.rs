@@ -1,6 +1,22 @@
 // CLI play binary — Human (CLI) vs Random bot.
 //
 // Usage: cargo run --bin cli_play
+//        cargo run --bin cli_play -- --no-auto-pay
+//
+// **The two seats stack different decorators, and that is the point of a
+// stack.** The human seat takes `AutoPayer` over `ManaWindowStop`: it has no
+// payment policy of its own, so the generic split and the reduction order are
+// answered for it and CR 601.2g's window closes once the cost is covered. It
+// still *picks* which land to tap — `ManaWindowStop` only ever declines. The
+// bot seat takes the stop alone; `RandomDecisionProvider` has its own tap
+// preference and generic split and a payer answering those would be replacing
+// the agent rather than paying for it.
+//
+// `--no-auto-pay` drops both, which is what CR 605.3a actually offers: the
+// window keeps asking after the cost is covered, so you can float mana
+// mid-cast — tap a fourth land while paying for a three-drop, or sacrifice to
+// Krark-Clan Ironworks after its mana is already spoken for. That was
+// unreachable before CM-4.
 
 use std::sync::Arc;
 
@@ -8,8 +24,10 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::{Game, GameResult};
 use mtgsim::state::game_config::GameConfig;
+use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::cli::CliDecisionProvider;
-use mtgsim::ui::decision::DispatchDecisionProvider;
+use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
 /// Build a simple test deck: lands + creatures + spells.
@@ -60,10 +78,21 @@ fn main() {
     // A `GameState` is seeded to a fixed default so tests replay; an actual game
     // of Magic wants a different shuffle every time.
     game.reseed_from_entropy();
-    let dp = DispatchDecisionProvider::new(vec![
-        Box::new(CliDecisionProvider::new()),
-        Box::new(RandomDecisionProvider::new()),
-    ]);
+    let auto_pay = !std::env::args().any(|a| a == "--no-auto-pay");
+    if !auto_pay {
+        println!("Auto-pay off: the mana window keeps asking after your cost is covered.");
+    }
+    let human: Box<dyn DecisionProvider> = if auto_pay {
+        Box::new(AutoPayer::new(ManaWindowStop::new(CliDecisionProvider::new())))
+    } else {
+        Box::new(CliDecisionProvider::new())
+    };
+    let bot: Box<dyn DecisionProvider> = if auto_pay {
+        Box::new(ManaWindowStop::new(RandomDecisionProvider::new()))
+    } else {
+        Box::new(RandomDecisionProvider::new())
+    };
+    let dp = DispatchDecisionProvider::new(vec![human, bot]);
 
     game.setup(&dp).expect("Failed to setup game");
 

@@ -491,13 +491,38 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   is identical on every counter and byte-identical in the event streams, which
   is what proves the prompt now computes what the agent was computing. **What
   is left of this entry is the reversal prompt and the oracle.** **The
-  oracle has a name and an interface now (2026-09-07):** `cost-architecture.md`
-  §3.4 and CM-4 — a `DecisionProvider` decorator, `ui::AutoPayer<D>`, that
-  answers `ManaAbilityWindow`, `GenericManaAllocation`,
-  `OrderCostReductions` and the sacrifice-choice prompt from a solver and
-  passes everything else through; and it is where the mana window's early
-  stop belongs (`codebase-state.md` main item 70). The reversal prompt is
-  main item 72. **And a third thing lives here now (2026-09-07, CM-3):**
+  oracle is built (2026-09-08, CM-4), and it is two decorators rather than
+  one.** `ui::ManaWindowStop<D>` declines `ManaAbilityWindow` once the locked
+  mana component is covered — the stop that used to sit in the engine's loop
+  (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
+  `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
+  Clients compose the stack they want; `cli_play`'s human seat takes both, its
+  bot seat and `fuzz_games` take the stop alone, and `--no-auto-pay` drops it.
+  **The stack invariant is one decorator per `ChoiceKind`**, so composition
+  commutes and stack order carries no meaning — that is what a third
+  automation (priority passing, auto-block) extends rather than a scope enum
+  inside the payer.
+  **The criterion is strict: a payer answers a prompt only when it has exactly
+  one legal answer.** So the sacrifice choice is out — which creature dies is
+  strategy, and belongs to whatever stacks a decorator for it. So is the generic
+  split whenever the pool has anything spare, since which mana pays the generic
+  decides what is left up for the rest of the step; the payer takes it only when
+  the caps admit one allocation. `OrderCostReductions` is the one prompt it
+  always answers, because §3.4's theorem says every order gives the same total.
+  §3.4 has the argument, matched exhaustively so a new payment prompt has to
+  pick a side.
+  **What is left of the oracle here is the solver half**, which CM-4 did not
+  build: the bipartite matching between pips and the colours each ability can
+  make, so a client can be told *which* sources to tap rather than answering
+  one window prompt at a time. `ManaWindowStop` only ever declines; it never
+  picks, which is what keeps a human's taps the human's. **§2.22 sizes and
+  schedules it** beside every other middleware v1 wants, because the solver's
+  hard half is the Arena auto-tapper problem and that is a policy question
+  rather than a payment one.
+  The reversal prompt is main item 72, and CM-4 placed it with critical-path
+  item 6 rather than here: reversing a mana ability fails the payer's own
+  criterion, and the board it is observable on is waiting for the trigger
+  phase. **And a third thing lives here now (2026-09-07, CM-3):**
   the *staged* payment Arena offers — delve exiles, convoke taps, a sacrifice,
   all shown and take-back-able until the player confirms the cast. CM-3 made
   that possible without any engine facility by separating deciding from
@@ -642,6 +667,86 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   in LH-1's review: the `effect_recipient` doc had described the first-atom
   rule as "the convention of every card written so far", and the reviewer
   asked for the whole pool.)
+
+### 2.22 Which `DecisionProvider` middleware v1 ships with — the census, then the stack
+
+- **Rules** — none. An engine-interface question like §2.21, and written down
+  for the same reason: nothing in the CR fails if we get it wrong.
+- **Verdict** — CM-4 built the first two decorators (`ui::ManaWindowStop`,
+  `ui::AutoPayer`) and settled the composition rules, but it built them one at a
+  time against one phase's need. **What is missing is the census**: which
+  middleware v1's two use cases actually want, sized, and scheduled against each
+  other rather than each arriving with whatever phase happens to trip over it.
+  That ordering matters because two of them are counterweights — an automation
+  that skips a prompt and the toggle that puts it back — and shipping either
+  alone is worse than shipping neither.
+- **There is prior art and it is half-stale.**
+  `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`
+  §4 anticipated the pattern (`AutoPayDP`, `AutoYieldDP`,
+  `AutoOrderTriggersDP`, per-wrapper toggling as "full control generalized",
+  the Arena auto-tapper problem). It predates Phase 5, so the census's first
+  job is to re-derive it against what CM-4 actually built. Three of its claims
+  moved:
+  - Its **wrapper-ordering open question is answered**: at most one decorator
+    answers any one prompt, so composition commutes and order carries no
+    meaning (`ui/mana_window_stop.rs`).
+  - Its `AutoPayDP` **solves the generic split outright**; CM-4 decided the
+    payer may take that only when the split is forced, because which mana pays
+    the generic decides what is left up for the rest of the step
+    (`cost-architecture.md` §3.4).
+  - Its `Box<dyn DecisionProvider>` inner is a **generic parameter** as built,
+    which is what lets a caller reach the wrapped provider (`inner()`).
+- **The candidates so far**, as the census's starting list rather than its
+  answer:
+
+  | Middleware | Answers | Status |
+  |---|---|---|
+  | `ManaWindowStop` | `ManaAbilityWindow` (decline when covered) | built, CM-4 |
+  | `AutoPayer` | `OrderCostReductions`; `GenericManaAllocation` when forced | built, CM-4 |
+  | tap solver | `ManaAbilityWindow` (*picks*) | §2.18's oracle half; the Arena problem lives here |
+  | auto-yield | `PriorityAction` in known-pass spots | unsized; **creates the tell full control answers** |
+  | full control | everything — bypasses the stack | sized below |
+  | auto-order triggers | trigger ordering when the order cannot matter | with critical-path item 6 |
+  | combat defaults | damage assignment, trample overflow | `codebase-state.md` item 84's two callerless helpers are its body |
+  | auto-sacrifice | `ChooseSacrificeForCost` | the AI harness's, deliberately not the payer's |
+  | reversal policy | CR 732.1's offer (`codebase-state.md` item 72) | the census must decide whether a middleware may answer it |
+  | staged payment | buffers answers so a client can revise them | §2.18; GUI-side, needs no engine facility |
+
+- **Full control mode, sized (2026-09-08)** — **~200 lines plus ~90 of tests**,
+  and the reason it is that small is worth recording because it is not obvious:
+  **the engine asks the `DecisionProvider` at every priority point.**
+  `candidate_priority_actions` always offers `Pass`, so `ask_choose_priority_
+  action` is always reached (`engine/priority.rs`). The toggle therefore needs
+  no asynchronous keystroke and no input loop running beside the engine — it is
+  one more command at a prompt the player is already sitting at, which is the
+  same granularity Arena gives. The pieces: a `FullControl` handle
+  (`Rc<Cell<bool>>`, ~35), one check in `ManaWindowStop` and two in `AutoPayer`
+  (~25), the CLI intercepting the command before it parses an index (~45),
+  wiring (~10).
+- **And it is scheduled with the first prompt-skipping middleware, not with the
+  GUI.** The strongest argument for it is the owner's (review, 2026-09-08):
+  fast-forwarding a turn when a player has nothing to do is itself a signal
+  that they are flooding out rather than holding up instant-speed interaction.
+  **That tell does not exist today** — nothing auto-passes, so a human's turn
+  looks identical either way — and it arrives with auto-yield, which is the one
+  automation that both creates the leak and creates the need. Tying it to the
+  GUI instead would let auto-yield ship first if the AI harness wants it.
+- **One caveat to design for rather than retrofit**: a mid-session toggle makes
+  a CLI game non-replayable unless the toggles are in the recorded input
+  stream. Cheap to allow for now, expensive once a replay format exists.
+- **Size** — the census itself is a doc pass and no code: one sitting to
+  re-derive the supplemental doc against CM-4, size each row above, and
+  sequence them. Then one small PR per middleware, none of them near
+  `engineering-practices.md` §4's band.
+- **Blocks** — full control, and through it the GUI's ergonomics; the AI
+  harness's raw-action-space mode (the supplemental doc's `RawDP`), which needs
+  to know which middleware are on; and §2.18's tap solver, whose Arena problem
+  is a policy question the census should frame before anyone writes a solver.
+- **Atoms** — none, and there will be none: the corpus is derived from the CR
+  and the CR has nothing to say about interfaces (§2.21 says the same).
+- **Owner** — none yet. **Sequenced ahead of full control** by the owner
+  (2026-09-08): the census runs first so full control is scheduled against the
+  whole stack rather than against the one decorator that happened to need it.
 
 ---
 

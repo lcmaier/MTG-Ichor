@@ -427,19 +427,53 @@ Three things follow, and all three are used:
   prompt on every land drop under Root Maze — and carries expiry conditions.
   If this prompt ever shows up in a profile, the theorem above is the elision
   and the two conditions are its expiry; take it then, not now.
-- **The engine keeps asking; a payer answers.** The right home for "answer
-  the payment prompts without bothering anyone" is a `DecisionProvider`
-  decorator, not an engine shortcut: it wraps any provider and answers
-  `ManaAbilityWindow`, `GenericManaAllocation`, `OrderCostReductions` and
-  (after CM-3) the sacrifice-choice prompt from a solver, passing everything
-  else through. That is `backlog.md` §2.18's "auto-payment oracle" with its
-  interface named, it is what a GUI's "auto-pay" button and an AI harness both
-  want, and it is pre-v1 work that this document only names. **It is also
-  where `run_mana_ability_window`'s stop condition belongs** (§3.11): the
-  engine currently ends the window the moment the pool covers the cost, and
-  CR 605.3a lets a player keep activating; the middleware is the thing that
-  should stop early, the engine should offer the choice until the player
-  declines.
+- **The engine keeps asking; a payer answers** — **built, CM-4, as two
+  decorators rather than one.** The right home for "answer the payment prompts
+  without bothering anyone" is a `DecisionProvider` decorator, not an engine
+  shortcut. `ui::AutoPayer<D>` answers `GenericManaAllocation` (CR 601.2h) and
+  `OrderCostReductions` (CR 601.2f); `ui::ManaWindowStop<D>` declines
+  `ManaAbilityWindow` once the locked mana component is covered, which is where
+  `run_mana_ability_window`'s stop condition went (§3.11, §8 item 3). That is
+  `backlog.md` §2.18's "auto-payment oracle", and it is what a GUI's auto-pay
+  button and an AI harness both want.
+
+  **The criterion, and the two prompts it excludes.** **A payer answers a
+  prompt when it has exactly one legal answer** — not "the answers are close
+  enough", one answer, so being asked cannot change anything. It is matched
+  exhaustively over `ChoiceKind`, so CP-1's announcement prompt and item 72's
+  reversal each have to pick a side.
+
+  `ChooseSacrificeForCost` is out: the sentence above listed it, written before
+  CM-3 built the prompt, and which creature to sacrifice for Altar's Reap
+  leaves a different permanent on the battlefield and a different `ZoneChange`
+  in the stream the trigger phase reads. A client that wants an auto-sacrifice
+  policy stacks its own decorator for that kind, in the AI harness or the GUI
+  where strategy lives.
+
+  **`GenericManaAllocation` is out too, except when the split is forced — and
+  the first draft of this paragraph got that wrong.** It read "every legal
+  answer leaves the same game state except for mana", justified by mana
+  emptying at end of step (CR 500.4). Too loose: *within* the step the residue
+  is playable resource. The owner's board (review, 2026-09-08) is the one that
+  settles it — a `{2}{U}` three-drop cast off three blue sources, where which
+  mana pays the generic decides whether `{U}{U}` is still up for Counterspell,
+  though the spell being paid for never asked about blue. The payer must not
+  make that call. It answers only when the caps admit one allocation (one
+  bucket with headroom, or caps summing to exactly what is owed —
+  `auto_payer::split_is_forced`), which is exactly when the pool covers the
+  cost with nothing spare. `OrderCostReductions` needs no such guard: by §3.4's
+  own theorem every order gives the identical total.
+
+  **Two decorators, not one with a scope, and clients compose.** The first
+  design gave one payer a `PayerScope` enum so each client could take a subset.
+  A scope enum is a closed, hand-rolled enumeration of the subsets of something
+  that already composes, and the second automation — priority passing,
+  auto-block, an auto-tapper with lookahead — grows it an arm per subset. The
+  stack invariant, written down before the third decorator arrives: **one
+  decorator per `ChoiceKind`**, so composition commutes and stack order carries
+  no meaning. `cli_play`'s two seats stack differently (the human takes both,
+  the bot takes the stop alone) and that asymmetry lives in the binary rather
+  than in `ui::`.
 
 `ATOM-601.2f-004`'s expected result says "final cost depends on order if
 reductions interact (e.g., reducing generic first vs. colored first)". The
@@ -698,8 +732,15 @@ each of which the engine must reproduce:
   mana payment" and 605.3a's "that requires a mana payment". **Decision:**
   the window opens iff the locked mana component is non-empty. A component
   reduced to nothing — 601.2f's "considered to be {0}" — is read the same
-  way, and that reading is the one residual question §3.11 leaves for a
-  judge; it is cheap to flip.
+  way — **decided in CM-4, and the residual question §3.11 left for a judge
+  closes here.** By 601.2g the total is locked: a `Vec<Cost>` with no record of
+  how it got there, because that is exactly what CR 601.2f's lock-in discards.
+  A rule that distinguished "printed {0}" from "reduced to {0}" would need the
+  pipeline to carry that history — so a free Myr Enforcer behind seven artifacts
+  and a Mox Opal reach 601.2g indistinguishable, and 601.2g has to answer them
+  the same way. Tested both ways, and the gate reads the
+  component's *symbols* — `determine_total_cost` always emits a `Cost::Mana`,
+  empty when the total is {0}.
 - **Sacrifices inside one window are sequential, not simultaneous.** "Even
   though it seems like the artifacts all hit the graveyard at the same time,
   there's actually an order to it, defined by the order they get
@@ -954,7 +995,7 @@ the same player.
 | **CM-1 — the pipeline** | §3.1–3.6: the type, the gate, the sweep over sources, 601.2f's order, the prompt, the preview, `SourceUntapped`; no `Itself`, no `ReduceGeneric`, no `not_below` (their phases'). **Consumers:** Thalia, Guardian of Thraben (increase, **pooled**), Goblin Electromancer (reduction), Trinisphere (direct-total, conditional). Fixtures: a self-tapping sphere for lock-in across 601.2g; a kicked spell; an alternative-cost spell; three small reducers for the floor | §5's 11 sites; ~400 new engine lines in `cost_modification/`, ~250 across the sites, ~350 of cards, ~600 of tests | **medium** — the first cast-time sweep; the preview is the site that can disagree with the engine, and the merge step touches every cast |
 | **CM-2 — the spell's own cost abilities** ✅ | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
 | **CM-3 — lock-in's payment side** ✅ | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" turned out to need nothing added — §3.12 is the answer and the gate. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
-| **CM-4 — the mana window and the payer** | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — today it also stops the moment the pool covers the cost, which is a payer's policy in the engine's loop (§3.11, §8). The policy moves to `ui::AutoPayer<D>`, a `DecisionProvider` decorator that answers `ManaAbilityWindow` (stop when covered), `GenericManaAllocation`, `OrderCostReductions` and CM-3's sacrifice choice from a solver and passes everything else through; `RandomDecisionProvider` and the CLI wrap themselves in it by default, with a flag off. **Consumers:** the loop's step 3 with CM-3's cards; the fuzz harness, which must reproduce today's counters with the payer on | ~30 in the window, ~150 decorator, ~30 wiring, ~150 tests: ~400 | medium — every cast's prompt sequence passes through it; the A/B is the check that the default reproduces `main` |
+| **CM-4 — the mana window and the payer** ✅ | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — it also stopped the moment the pool covered the cost, which was a payer's policy in the engine's loop (§3.11, §8). The policy moved to **two** decorators, not one: `ui::ManaWindowStop<D>` takes the stop, `ui::AutoPayer<D>` takes `GenericManaAllocation` and `OrderCostReductions`, and CM-3's sacrifice choice stays the wrapped provider's (§3.4's criterion). Clients compose; `--no-auto-pay` drops the stack. **Consumers:** the loop's step 3 with CM-3's cards, no new card needed; the fuzz harness | ~35 in the window, ~290 decorators, ~60 wiring, ~330 tests: ~715 | medium — every cast's prompt sequence passes through it; the A/B is the check, and it found the one board where the payer's stop is narrower than the engine's was |
 | **CP-1 — payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint); `find_mana_sources` and `remaining_cost_after_pool` for them (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-colour costs follow the colour wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
 
 **Why the modification/payment seam is where it is** (the owner's question,
@@ -990,8 +1031,13 @@ POOL` +1 per new engine path (CM-1: Thalia; CM-2: Myr Enforcer; **CM-3:
 Bone Splinters** — this row first said CM-3 opened no path a pooled card would
 measure, and the A/B disproved it: the engine change is `IDENTICAL` to `main`
 on the old pool, but `Cost::Sacrifice` is a path no card in the 72 could
-reach, which is the pool doc's own failure mode. CM-4 still opens none — the
-payer must leave the counters where they were), `plans/
+reach, which is the pool doc's own failure mode. **CM-4 opens none and the pool
+does not move — and its prediction was wrong in the other half:** the engine
+changes are game-identical to `main` with the decorator dropped, but the
+shipped stack moves 1 game in 200 on `performance` and 8 in 200 on `stress`,
+because the payer's stop is narrower than the engine's was
+(`codebase-state.md` item 83). No card would have measured that; a fourth
+binary did), `plans/
 fuzz_ab.py` against a same-day `main` worktree, three-run determinism on both
 pools, `specdb owed` clean for `Phase 5-Layers`, and `// COVERS:` on exactly
 what each test builds. None qualifies for a trace page: each adds a read, none
@@ -1019,11 +1065,35 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 | `ATOM-702.41a-001` | affinity reduces generic by the count it names | CM-2: Myr Enforcer cast from an exact pool at four artifact counts, an opponent's not counted, and seven artifacts casting it free | COVERS; the `{6}`/4 arithmetic is `total.rs`'s COVERS-PARTIAL, since it computes and does not cast |
 | `ATOM-601.2h-001` | the Altar's Reap example | CM-3: Altar's Reap under Thunderscape Familiar, from an exact {B} pool, the Familiar paying | COVERS; re-filed into `Phase 5 Layers (CM-3 …)` |
 | `ATOM-118.8d-001` | an additional cost does not change the mana cost | CM-3: Altar's Reap on the stack is mana value 2 | COVERS; re-filed, with a session note that the board is {1}{B} and not the atom's {2}{R} |
+| `ATOM-601.2g-001` | the window opens for a mana payment | CM-4: a `{G}` artifact with a Forest untapped — one window | COVERS; **not re-filed** — see below |
+| `ATOM-605.3a-001` | a mana ability may be activated while casting | CM-4: the same cast; and COVERS-PARTIAL from the overpay board | COVERS |
+| `ATOM-605.3a-003` | …and while activating an ability (CR 602.2b) | CM-4: Mind Stone's `{1}, {T}, Sacrifice` from an empty pool | COVERS |
+| `ATOM-605.3b-001` | a mana ability resolves at once, never on the stack | CM-4: a Forest tapped with the stack empty before and after | COVERS |
 | `ATOM-107.4e/f-*`, `ATOM-202.3*` | payment | **CP-1** | stay `Backlog`, labelled CP-1 |
 
 `ATOM-118.7e-*`, `-f`, `-g` (hybrid, Phyrexian, snow reductions) and
 `ATOM-601.7-001` stay in `Backlog`: the first three are CP-1's symbols, the
 last is structural and observes nothing.
+
+**CM-4's four atoms were not re-filed, and checking that was the point.** CM-1
+through CM-3 re-filed theirs out of `Backlog` so `owed` would gate them. CM-4's
+were never in `Backlog`: `ATOM-601.2g-001` sits in `Phase 5-Pre` under ticket
+`T18` and the three CR 605.3 atoms in `ALREADY-IMPL` under `N/A`, all four
+uncovered since those phases closed. `owed` selects on `ticket LIKE 'NEW%'`, so
+covering them shrinks `owed --all` and cannot grow `owed`; re-filing them into
+`Phase 5 Layers (CM-4 …)` with a `NEW` ticket would be a lateral move between
+two shipped phases that changes no gate, and doing the same to
+`ATOM-605.3a-002` — Rhystic Study's "unless that player pays", which is item
+6's — would have grown `owed` from 9 to 10 for an atom this phase cannot cover.
+**`owed` stands at 9, unchanged, and none of the nine is CM's.**
+
+**Two claims of this phase have no atom**, and both say so in the test rather
+than borrowing one. CR 601.2g's *negative* — a `{0}` cost opens no window — has
+none; the corpus has `ATOM-601.2g-001` for the window opening and nothing for
+it staying shut. Nor does the overpay play itself: `ATOM-605.3a-001` says a
+mana ability may be activated during a cast, not that a *second* one may be
+activated after the cost is covered, so the overpay test claims it only as
+COVERS-PARTIAL. The session file carries a note on each.
 
 **CR 113.6d and 113.6e have no atoms**, and CM-2 checked rather than assumed:
 session-1 records both as PURE-DEF ("Framework"), so there was nothing to
@@ -1065,21 +1135,27 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
    the play it forbids — confirmed by the judged walkthrough ("there's
    nothing saying you can't take advantage of that rule here to make some
    more"). The stop belongs in a payer `DecisionProvider` (§3.4); the engine
-   should offer the window until the player declines. **CM-4.** A Deferred
-   Migrations item until then — reachable and wrong today for any board with
-   a second mana ability worth activating, invisible to the fuzz harness
-   because its provider never wants to.
+   should offer the window until the player declines. **CM-4, ✅ built.** The
+   stop is `ui::ManaWindowStop`. It is narrower than the engine's was — the
+   engine asked until `can_pay_costs` cleared the *whole* cost list, the
+   decorator declines once the *mana component* is covered — and that
+   difference is reachable and is the whole of CM-4's counter movement
+   (`codebase-state.md` item 83).
 3a. **The window's opening condition is right by accident.** 601.2g opens it
    only "if the total cost includes a mana payment", and the judge's warning
    is the board: casting Mox Opal offers no window. `run_mana_ability_window`
    is called unconditionally and returns at once because a zero cost is
    already payable — the right answer, produced by the stop condition CM-4
-   removes. CM-4 makes the 601.2g test explicit (§3.11's decision), or the
-   fix for item 3 opens a window on every {0} spell.
+   removes. **✅ built, CM-4**, in the commit before the one that removes the
+   cover, with the reduced-to-nothing reading decided the same way (§3.11).
 4. **CR 732.1's reversal of mana abilities is the player's option and the
    engine never offers it** (§3.11). It always keeps them, which is *a* legal
-   answer, not the player's. A `ChoiceKind` on rewind; with the trigger phase
-   or the payer, whichever needs it first.
+   answer, not the player's. A `ChoiceKind` on rewind. **Placed by CM-4: with
+   the trigger phase, not the payer.** Which mana abilities to reverse fails
+   §3.4's criterion — its answers differ in permanents and events, not in mana
+   — so the payer is the wrong home; and the board where it is observable is
+   the Mind Stone puzzle, whose open question is where the surviving trigger
+   lands.
 5. **`ATOM-601.2f-004`'s worked example is wrong** (§3.4). Noted in the
    session file, not rewritten — the corpus is authored.
 6a. **A gate that reads a body and not its subject is a gate for the wrong
@@ -1138,7 +1214,12 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 - **Cost abilities in other zones** (emblems, Convergence of Dominion): §3.1,
   with A5.
 - **The Ironworks board's trigger half and the 732.1 reversal choice**:
-  §3.11 and §8; the window itself is CM-4.
+  §3.11 and §8; the reversal is placed with critical-path item 6 rather than
+  with the payer (§8 item 4). The window itself is CM-4, built.
+- **An agent that declines to tap the activation's own source for mana**:
+  `codebase-state.md` item 83. Legal under CR 605.3a and always a mistake, but
+  it is `RandomDecisionProvider`'s policy and it would move every counter, so
+  it wants its own phase and its own A/B.
 - **Alternative costs *provided by* effects** ("you may cast it without paying
   its mana cost"): `backlog.md` §2.3.
 
@@ -1274,3 +1355,53 @@ carries Bone Splinters and Altar's Reap stays registered as CR 601.2h's own
 example. An inert 73rd card costs +14.0%, which is the finding underneath
 both numbers: the tax is the slot, not the mechanic
 (`engineering-practices.md` §3.1a).
+
+#### CM-4 — the mana window and the payer — ✅ 2026-09-08
+
+Built as §3.4 and §6 say, with two corrections the building forced.
+
+**One payer became two decorators.** §3.4 named a single `ui::AutoPayer<D>`
+answering four prompts, and §6 sized it with a flag. Both are wrong for the
+same reason: the four prompts do not belong to one client. `ManaWindowStop`
+and `AutoPayer` toggle independently — a human turning off auto-pay wants the
+window to keep offering, an agent without a stop has only
+`WINDOW_ACTIVATION_CAP` — and a scope enum inside one payer would have been a
+closed enumeration of the subsets of something that already composes. Clients
+compose a stack; the invariant is one decorator per `ChoiceKind`.
+
+**And the sacrifice prompt left the payer**, on a criterion rather than a
+judgement call: a payer answers a prompt when every legal answer leaves the
+same game state except for mana (§3.4). That criterion also placed §8 item 4 —
+CR 732.1's reversal offer goes with critical-path item 6, not with the payer.
+
+The residual 601.2g reading is closed: a component reduced to nothing opens no
+window, because the lock-in discards the history that would distinguish it from
+a printed `{0}`. Both directions are tested and both tests fail with the gate
+removed.
+
+**No new card.** §6's claim that §3.11's step 3 builds out of CM-3's registered
+five held — Ironworks, Mind Stone and two spare artifacts — so
+`PERFORMANCE_POOL` stays at 73 and `engineering-practices.md` §3's table is not
+re-recorded. Its `Memo hits` row is the one number the tree now disagrees with
+(+0.8% on both pools, from the extra enumeration the window costs); recorded in
+`codebase-state.md`'s CM-4 block rather than re-recorded here, since the pool
+did not move.
+
+**§6's own prediction was wrong, in the opposite half from CM-3's.** CM-3
+predicted no new pooled path and was wrong about the pool; CM-4 predicted the
+same and is wrong about the engine. The counters moved — 1 game in 200 on
+`performance`, 8 in 200 on `stress` — and a fourth binary attributed all of it
+to the decorator rather than to either engine change: with the stack dropped,
+the 601.2g gate and the removed early return together leave `stress`
+byte-identical and `performance` different by two memo hits and no game-state
+counter. The board is `codebase-state.md` item 83, a source tapping itself for
+mana inside its own window; the payer stops asking a question no mana ability
+could answer, which `main` did not. Traced to Chainbreaker once and Mind Stone
+eleven times, by name, in a debug build.
+
+**No trace page** (`engineering-practices.md` §7): no read is answered
+differently, only asked by a different party. And no seam for recording why the
+payer chose what it chose — its answers are a pure function of
+`(ChoiceKind, remaining_cost)`, already in the prompt stream, and a decorator
+buffering anything to explain itself would be a decision site holding
+outcome-bearing state off `GameState`. A4c's four emit points stay four.

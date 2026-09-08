@@ -1,12 +1,10 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::mem::discriminant;
 
 use crate::oracle::characteristics::get_effective_toughness;
-use crate::oracle::mana_helpers::ManaSource;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 
@@ -128,81 +126,6 @@ pub fn default_trample_assignment(
     (result, remaining)
 }
 
-// ---------------------------------------------------------------------------
-// Shared helpers for DecisionProvider implementations
-// ---------------------------------------------------------------------------
-
-/// Queue mana ability activations followed by a CastSpell action.
-///
-/// Both CLI and Random DPs use an internal `RefCell<VecDeque<PriorityAction>>`
-/// plan queue. When a player wants to cast a spell that needs land taps, we
-/// queue `ActivateAbility` for each mana source, then `CastSpell`. The first
-/// action is returned immediately; the rest are drained on subsequent
-/// `choose_priority_action` calls.
-pub fn queue_tap_and_cast(
-    queue: &std::cell::RefCell<std::collections::VecDeque<PriorityAction>>,
-    sources: &[ManaSource],
-    card_id: ObjectId,
-) -> PriorityAction {
-    let mut q = queue.borrow_mut();
-
-    // Queue mana ability activations (skip the first — we'll return it directly)
-    for source in sources.iter().skip(1) {
-        q.push_back(PriorityAction::ActivateAbility(
-            source.permanent_id,
-            source.ability_id,
-        ));
-    }
-
-    // Queue the cast spell action after all taps
-    q.push_back(PriorityAction::CastSpell(card_id));
-
-    // Return the first action immediately
-    if let Some(first) = sources.first() {
-        PriorityAction::ActivateAbility(first.permanent_id, first.ability_id)
-    } else {
-        // No tapping needed — cast directly
-        q.pop_front().unwrap_or(PriorityAction::Pass)
-    }
-}
-
-/// Check if a previously-queued action is still valid given the current game state.
-///
-/// This is a best-effort heuristic, not a full legality check. It catches the
-/// most common staleness cases (wrong zone, already tapped, wrong controller)
-/// without reimplementing full engine validation. False positives (action passes
-/// this check but fails in the engine) are caught by the engine's own checks
-/// and produce errors that the DP can handle.
-///
-/// If one queued action is stale, the entire plan should be discarded — later
-/// actions assumed the earlier ones would succeed (e.g. a CastSpell queued
-/// after ActivateAbility assumes the mana will be available).
-pub fn is_action_still_valid(game: &GameState, player_id: PlayerId, action: &PriorityAction) -> bool {
-    match action {
-        PriorityAction::Pass => true,
-        PriorityAction::PlayLand(card_id) => {
-            // Card must still be in hand and owned by player
-            game.objects.get(card_id)
-                .map(|o| o.owner == player_id && o.zone == crate::types::zones::Zone::Hand)
-                .unwrap_or(false)
-        }
-        PriorityAction::CastSpell(card_id) => {
-            // Card must still be in hand and owned by player
-            game.objects.get(card_id)
-                .map(|o| o.owner == player_id && o.zone == crate::types::zones::Zone::Hand)
-                .unwrap_or(false)
-        }
-        PriorityAction::ActivateAbility(permanent_id, _ability_id) => {
-            // Permanent must still be on battlefield and controlled by player.
-            // Note: we don't check tapped state here because some abilities
-            // (e.g. sacrifice) don't require untapping.
-            game.battlefield.contains_key(permanent_id)
-                && crate::oracle::characteristics::controls(game, *permanent_id, player_id)
-        }
-    }
-}
-
-
 // ===========================================================================
 // DecisionProvider implementation for Dispatch
 // ===========================================================================
@@ -272,67 +195,6 @@ impl DecisionProvider for DispatchDecisionProvider {
     ) -> Vec<usize> {
         self.dp_for(player).choose_ordering(game, player, context, items)
     }
-}
-
-/// Convenience: greedy auto-allocation of generic mana from a player's pool.
-///
-/// Calculates surplus mana after reserving for specific (colored) symbols,
-/// then greedily assigns surplus to pay the generic component. Concrete
-/// `DecisionProvider` implementations call this explicitly — the trait
-/// itself has no default.
-pub fn auto_allocate_generic(
-    game: &GameState,
-    player_id: PlayerId,
-    mana_cost: &ManaCost,
-) -> Result<HashMap<ManaType, u64>, String> {
-    let generic_count = mana_cost.generic_count() as u64;
-    if generic_count == 0 {
-        return Ok(HashMap::new());
-    }
-
-    let player = game.get_player(player_id)?;
-    let pool = &player.mana_pool;
-
-    // Calculate how much of each colored type is needed for specific symbols
-    let mut specific_needed: HashMap<ManaType, u64> = HashMap::new();
-    for sym in &mana_cost.symbols {
-        if let ManaSymbol::Colored(mt) = sym {
-            *specific_needed.entry(*mt).or_insert(0) += 1;
-        }
-    }
-
-    // Calculate surplus available after paying specific costs
-    let mut available: HashMap<ManaType, u64> = HashMap::new();
-    for mt in &[ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless] {
-        let in_pool = pool.amount(*mt);
-        let needed = specific_needed.get(mt).copied().unwrap_or(0);
-        if in_pool > needed {
-            available.insert(*mt, in_pool - needed);
-        }
-    }
-
-    // Greedily allocate generic from available surplus
-    let mut allocation = HashMap::new();
-    let mut remaining = generic_count;
-    for (mt, avail) in &available {
-        if remaining == 0 {
-            break;
-        }
-        let use_amount = (*avail).min(remaining);
-        if use_amount > 0 {
-            allocation.insert(*mt, use_amount);
-            remaining -= use_amount;
-        }
-    }
-
-    if remaining > 0 {
-        return Err(format!(
-            "Not enough mana to pay generic cost: need {} more",
-            remaining
-        ));
-    }
-
-    Ok(allocation)
 }
 
 // ===========================================================================

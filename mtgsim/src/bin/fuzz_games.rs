@@ -6,6 +6,7 @@
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
 //        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
+//        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
 //
 // `--require` is the *coverage* instrument, as `--pool` is the *cost* one. It
 // forces one copy of each named card into every deck and reports casts,
@@ -99,6 +100,8 @@ use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
 /// CLI arguments (simple manual parsing, no external deps).
@@ -118,6 +121,16 @@ struct Args {
     /// resolutions are counted and reported. Empty by default, and an empty
     /// list must change nothing — see `random_deck`.
     require: Vec<String>,
+    /// Stack `ui::ManaWindowStop` under the random agent (the default).
+    ///
+    /// With it, the agent declines CR 601.2g's window once the locked mana
+    /// component is covered — the point the engine itself used to stop at, so
+    /// the counters are the ones every earlier phase measured. Without it the
+    /// window is CR 605.3a's whole window and the agent has no stop of its
+    /// own: `AnyWillDo` never declines while a source is offered, so it taps
+    /// out to `WINDOW_ACTIVATION_CAP` on every cast. That is the A/B's middle
+    /// arm and not a way to play.
+    auto_pay: bool,
 }
 
 /// The two pools, and the reason there are two.
@@ -159,6 +172,7 @@ fn parse_args() -> Args {
             .unwrap_or(1),
         pool: CardPool::Performance,
         require: Vec::new(),
+        auto_pay: true,
     };
 
     let mut i = 1;
@@ -228,6 +242,9 @@ fn parse_args() -> Args {
                         }
                     };
                 }
+            }
+            "--no-auto-pay" => {
+                result.auto_pay = false;
             }
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
@@ -789,6 +806,34 @@ enum GameOutcome {
     },
 }
 
+/// Which `DecisionProvider` middleware this harness stacks.
+///
+/// One field per middleware rather than one parameter: the stack grows
+/// (priority passing, auto-block, `backlog.md` §2.18's tap solver), and a
+/// `bool` each would be a parameter on two signatures and three call sites.
+#[derive(Clone, Copy)]
+struct MiddlewareConfig {
+    /// Stack `ui::ManaWindowStop`: decline CR 601.2g's window once the locked
+    /// mana component is covered. On by default; `--no-auto-pay` drops it.
+    auto_pay: bool,
+}
+
+/// Compose the provider stack. **The one place that knows its shape.**
+///
+/// The stop and nothing else, deliberately: `RandomDecisionProvider`'s tap
+/// preference and generic split are its own measured policies
+/// (`codebase-state.md` 16d), and a payer answering them would consume its RNG
+/// stream differently, moving every counter for reasons that are not the
+/// engine's.
+fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> Box<dyn DecisionProvider> {
+    let provider = RandomDecisionProvider::seeded(dp_seed);
+    if cfg.auto_pay {
+        Box::new(ManaWindowStop::new(provider))
+    } else {
+        Box::new(provider)
+    }
+}
+
 /// Run game `game_num`, catching a panic as a result rather than unwinding out.
 ///
 /// Depends on nothing but its arguments — that is what lets the pool hand games
@@ -801,6 +846,7 @@ fn run_one_game(
     keep_event_log: bool,
     required: &[Arc<CardData>],
     require_names: &[String],
+    middleware: MiddlewareConfig,
 ) -> (GameOutcome, std::time::Duration) {
     // Derive per-game seed from master seed for reproducibility
     let game_seed = master_seed.wrapping_add(game_num as u64);
@@ -832,13 +878,14 @@ fn run_one_game(
         let config = GameConfig::test();
         let mut game = Game::new(config, vec![deck1, deck2]).expect("Failed to create game");
         game.reseed(shuffle_seed);
-        let dp = RandomDecisionProvider::seeded(dp_seed);
-        game.setup(&dp).expect("Failed to setup game");
+        let dp = build_stack(dp_seed, middleware);
+        let dp = &*dp;
+        game.setup(dp).expect("Failed to setup game");
 
         let mut turns = 0u32;
 
         while !game.is_over() && turns < max_turns {
-            if let Err(e) = game.run_turn(&dp) {
+            if let Err(e) = game.run_turn(dp) {
                 return Err((
                     format!("Turn {} error: {}", turns, e),
                     if keep_event_log { Some(game.event_log_snapshot()) } else { None },
@@ -916,12 +963,14 @@ fn run_games(
     threads: usize,
     required: &[Arc<CardData>],
     require_names: &[String],
+    middleware: MiddlewareConfig,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
+                    middleware,
                 )
             })
             .collect();
@@ -950,6 +999,7 @@ fn run_games(
                                     keep_event_log,
                                     required,
                                     require_names,
+                                    middleware,
                                 ),
                             ));
                         }
@@ -982,6 +1032,11 @@ fn main() {
         args.games, args.max_turns
     );
     println!("Master seed: {} (reproduce with --seed {})", master_seed, master_seed);
+    // Printed only when it is off, so the default run's output stays byte
+    // identical to every earlier phase's — `plans/fuzz_ab.py` diffs it.
+    if !args.auto_pay {
+        println!("Payer: off (--no-auto-pay) — CR 605.3a's window, unstopped");
+    }
     if args.threads > 1 {
         println!("Threads: {}", args.threads);
     }
@@ -1076,6 +1131,7 @@ fn main() {
         args.threads,
         &required,
         &args.require,
+        MiddlewareConfig { auto_pay: args.auto_pay },
     );
 
     // Reporting is a serial pass over the games in order, so every line printed
