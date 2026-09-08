@@ -817,6 +817,17 @@ fn test_a_reducer_eaten_inside_the_mana_window_does_not_raise_the_locked_cost() 
         ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
         vec![0],
     );
+    // CR 605.3a — with {1} now covered by {C}{C}, the engine offers the window
+    // again rather than closing it: Ironworks can still eat itself. Declining
+    // is a payer's answer, scripted here because this test wraps no payer.
+    // Until CM-4 the engine took this decision itself and never asked.
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::zero(),
+        },
+        vec![],
+    );
     dp.expect_allocation(
         ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[], 1) },
         vec![1],
@@ -1366,4 +1377,188 @@ fn test_one_artifact_short_of_free_still_opens_the_window() {
     game.cast_spell(0, enforcer, &dp).expect("{1}, paid by the Forest");
 
     assert_eq!(windows_opened(&dp), 1, "{{1}} left is still a mana payment");
+}
+
+// ===========================================================================
+// CM-4 — CR 605.3a: the window runs until the player declines
+// ===========================================================================
+
+/// CR 605.3b, on its own board: a mana ability never uses the stack.
+///
+/// The atom's board is a Forest tapped for {G} with a Stifle in the opponent's
+/// hand; what makes the Stifle irrelevant is that there is nothing on the
+/// stack to respond to, which is what this asserts. `activate_mana_ability`
+/// adds the mana and returns — no `StackEntry`, no priority round.
+// COVERS: ATOM-605.3b-001
+#[test]
+fn test_a_mana_ability_resolves_immediately_and_never_uses_the_stack() {
+    let mut game = setup_two_player_game();
+    let (forest, ability) = place_forest(&mut game, 0);
+    assert!(game.stack.is_empty());
+
+    let dp = ScriptedDecisionProvider::new();
+    game.activate_mana_ability(0, forest, ability, &mtgsim::engine::actions::ActionContext::new(&dp))
+        .expect("a Forest taps for {G}");
+
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1, "the mana is there at once");
+    assert!(game.stack.is_empty(), "605.3b: it never went on the stack");
+}
+
+/// CR 605.3a during an *ability* activation rather than a cast — Mind Stone's
+/// "{1}, {T}, Sacrifice this artifact: Draw a card" with an empty pool.
+///
+/// CR 602.2b runs 601.2f–h for an activated ability, so 601.2g's window is the
+/// same window a spell opens, and the Forest is tapped inside it.
+// COVERS: ATOM-605.3a-003
+#[test]
+fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
+    let mut game = setup_two_player_game();
+    // The Forest first, so it is the window's option 0. Mind Stone also offers
+    // "{T}: Add {C}" there — a source may tap itself for mana inside its own
+    // activation's window, and then its `Cost::Tap` cannot be paid. That is
+    // the CR 732.1 board in mana form and it has its own test; here it would
+    // just be the wrong pick.
+    let (forest, _) = place_forest(&mut game, 0);
+    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    mtgsim::test_support::fill_library(&mut game, 0, 3);
+    // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
+    // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
+    let draw = 1;
+
+    let dp = RecordingDecisionProvider::picking(0);
+    game.activate_ability(0, stone, draw, &dp).expect("{1} paid from inside the window");
+
+    assert_eq!(windows_opened(&dp), 1, "602.2b runs 601.2g for an ability too");
+    assert!(game.battlefield.get(&forest).unwrap().tapped, "the Forest paid it");
+    assert!(!game.battlefield.contains_key(&stone), "and the Stone sacrificed itself");
+}
+
+/// **`cost-architecture.md` §3.11 step 3 — the overpay play, and the reason
+/// this phase exists.**
+///
+/// "Obviously you don't need any more mana to activate Chromatic Sphere, but
+/// there's nothing saying you can't take advantage of that rule here to make
+/// some more." CR 605.3a lets a player activate mana abilities "whenever they
+/// are casting a spell or activating an ability that requires a mana payment",
+/// with no "until it is paid" — so once {1} is covered by the first Ironworks
+/// activation, the window is offered *again* and a second artifact can be
+/// eaten for two more colorless.
+///
+/// Until CM-4 the engine closed the window the moment the pool covered the
+/// cost (`codebase-state.md` item 70) and this board was unreachable: the
+/// second activation is the play the early return forbade.
+///
+/// Scripted with a bare `ScriptedDecisionProvider` on purpose — a payer is
+/// exactly the thing that would decline here, and the test below is the pair
+/// that shows it does.
+// COVERS-PARTIAL: ATOM-605.3a-001
+#[test]
+fn test_the_window_keeps_offering_after_the_cost_is_covered() {
+    let mut game = setup_two_player_game();
+    // Timestamp order fixes the option indices: Ironworks' mana ability is the
+    // first offered, and the sacrifice candidates are that order filtered to
+    // artifacts the payer still controls.
+    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let spare_a = put_on_battlefield(&mut game, free_trinket(), 0);
+    let spare_b = put_on_battlefield(&mut game, free_trinket(), 0);
+    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    mtgsim::test_support::fill_library(&mut game, 0, 3);
+    // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
+    // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
+    let draw = 1;
+
+    let dp = ScriptedDecisionProvider::new();
+    // Round 1 — {1} owed. Activate Ironworks (option 0); it eats spare_a
+    // (candidates are [ironworks, spare_a, spare_b, stone], index 1).
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::build(&[], 1),
+        },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![1],
+    );
+    // Round 2 — nothing owed, and the engine asks anyway. **This is step 3.**
+    // Activate Ironworks again; it eats spare_b (candidates are now
+    // [ironworks, spare_b, stone], index 1).
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::zero(),
+        },
+        vec![0],
+    );
+    dp.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![1],
+    );
+    // Round 3 — decline, and pay.
+    dp.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::zero(),
+        },
+        vec![],
+    );
+    dp.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[], 1) },
+        vec![1],
+    );
+
+    game.activate_ability(0, stone, draw, &dp).expect("{1} out of four colorless");
+
+    assert!(!game.battlefield.contains_key(&spare_a), "eaten to cover the cost");
+    assert!(!game.battlefield.contains_key(&spare_b), "eaten after it was covered — step 3");
+    assert!(game.battlefield.contains_key(&ironworks), "the engine of the loop survives");
+    assert_eq!(
+        game.players[0].mana_pool.amount(ManaType::Colorless), 3,
+        "two activations of two, one paid: the overpay is the three left floating",
+    );
+}
+
+/// The pair: the same board under the stop a shipped client stacks.
+///
+/// `ui::ManaWindowStop` declines the moment the locked component is covered,
+/// so the second Ironworks activation is never offered and the board ends
+/// where `main` left it — one artifact eaten, one colorless floating. This is
+/// what keeps every fuzz counter where it was: the decorator declines at
+/// exactly the point the engine used to return.
+#[test]
+fn test_the_payers_stop_ends_the_window_where_the_engine_used_to() {
+    let mut game = setup_two_player_game();
+    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let spare_a = put_on_battlefield(&mut game, free_trinket(), 0);
+    let spare_b = put_on_battlefield(&mut game, free_trinket(), 0);
+    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    mtgsim::test_support::fill_library(&mut game, 0, 3);
+    // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
+    // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
+    let draw = 1;
+
+    let inner = ScriptedDecisionProvider::new();
+    inner.expect_pick_n(
+        ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: stone,
+            remaining_cost: ManaCost::build(&[], 1),
+        },
+        vec![0],
+    );
+    inner.expect_pick_n(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![1],
+    );
+    inner.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[], 1) },
+        vec![1],
+    );
+    let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(inner);
+
+    game.activate_ability(0, stone, draw, &dp).expect("{1} out of two colorless");
+
+    assert!(!game.battlefield.contains_key(&spare_a), "one artifact covered the cost");
+    assert!(game.battlefield.contains_key(&spare_b), "and the payer took no more");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 1);
 }

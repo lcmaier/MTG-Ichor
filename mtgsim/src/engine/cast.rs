@@ -444,11 +444,26 @@ impl GameState {
     /// Run the 601.2g / 602.1b mana-ability window for a pending spell or
     /// activated ability.
     ///
-    /// Prompts the player to activate mana abilities one at a time until
-    /// `total_costs` can be paid from the player's mana pool, the player
-    /// declines, or no activatable abilities remain. Does not roll back on
+    /// Prompts the player to activate mana abilities one at a time until they
+    /// decline or no activatable ability remains. Does not roll back on
     /// failure — the caller's post-window `can_pay_costs` / `pay_costs` step
     /// handles rollback if the pool still doesn't cover the cost.
+    ///
+    /// # The window opens only for a mana payment (CR 601.2g)
+    /// "If the total cost includes a mana payment, the player then has a chance
+    /// to activate mana abilities." A {0} component includes none — casting Mox
+    /// Opal offers no window — and a component reduced to nothing by CR 601.2f
+    /// is "considered to be {0}", so it reads the same. See the gate below.
+    ///
+    /// # The window does not close when the cost is covered (CR 605.3a)
+    /// A player may activate a mana ability "whenever they are casting a spell
+    /// or activating an ability that requires a mana payment", with no "until
+    /// it is paid". Until CM-4 this returned the moment `can_pay_costs`
+    /// succeeded, which made the Ironworks loop's step 3 impossible — "there's
+    /// nothing saying you can't take advantage of that rule here to make some
+    /// more" (`cost-architecture.md` §3.11). Stopping early is a *payer's*
+    /// policy and lives in `ui::ManaWindowStop`, which every shipped client
+    /// stacks; the engine offers until the player declines.
     ///
     /// # Mana-cost extraction
     /// Only `Cost::Mana` is relevant to this window: rule 601.2g explicitly
@@ -458,13 +473,13 @@ impl GameState {
     /// component to build the `remaining_cost` context the DP sees.
     ///
     /// # Termination
-    /// Termination is a DP-correctness property, not an engine invariant. The
-    /// CR places no cap on how many mana abilities a player may activate
-    /// during 601.2g. The loop terminates when one of the following holds:
+    /// Termination is a DP-correctness property, not an engine invariant, and
+    /// CM-4 made that literally true rather than nearly so: the CR places no
+    /// cap on how many mana abilities a player may activate during 601.2g, and
+    /// the engine no longer imposes one. The loop terminates when either holds:
     ///
-    /// 1. `can_pay_costs` succeeds (cost covered) → return.
-    /// 2. `ask_activate_mana_ability` returns `None` (DP declines) → return.
-    /// 3. `enumerate_activatable_mana_abilities` returns empty after filtering
+    /// 1. `ask_activate_mana_ability` returns `None` (DP declines) → return.
+    /// 2. `enumerate_activatable_mana_abilities` returns empty after filtering
     ///    the failure blacklist → return.
     ///
     /// The **failure blacklist** guards against enumeration over-approximation
@@ -473,11 +488,13 @@ impl GameState {
     /// remainder of this window so the DP can't pick it again. The blacklist
     /// is bounded by `|initial_legal|`, so it cannot loop forever on failure.
     ///
-    /// The only remaining infinite-loop risk is a buggy DP that keeps
-    /// successfully activating abilities forever (e.g., cycling mana-filter
-    /// abilities). That is a DP-correctness concern — `RandomDecisionProvider`
-    /// caps itself with an internal per-window counter; a future `AutoPayDP`
-    /// will use a mana-bootstrap solver; a human CLI user self-polices.
+    /// The remaining infinite-loop risk is a DP that keeps successfully
+    /// activating abilities forever (e.g., cycling mana-filter abilities). That
+    /// is a DP-correctness concern, and every shipped client answers it:
+    /// `ui::ManaWindowStop` declines once the locked component is covered,
+    /// `RandomDecisionProvider` additionally caps itself with an internal
+    /// per-window counter — which is the only terminator left when a client
+    /// drops the stop (`--no-auto-pay`) — and a human CLI user self-polices.
     fn run_mana_ability_window(
         &mut self,
         player_id: PlayerId,
@@ -514,10 +531,6 @@ impl GameState {
             std::collections::HashSet::new();
 
         loop {
-            if self.can_pay_costs(total_costs, player_id, spell_or_ability_id).is_ok() {
-                return;
-            }
-
             let legal: Vec<(ObjectId, AbilityId)> =
                 enumerate_activatable_mana_abilities(self, player_id)
                     .into_iter()
