@@ -4,8 +4,11 @@ use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use crate::types::costs::Cost;
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
+use crate::types::effects::ObjectFilter;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::mana::ManaType;
+use crate::types::mana::{ManaCost, ManaType};
+use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
+use crate::types::zones::Zone;
 
 /// Shared cost payment logic — CR 601.2h and 602.2b.
 ///
@@ -14,10 +17,106 @@ use crate::types::mana::ManaType;
 /// pattern across mana_abilities.rs, activated.rs, etc. *Determining* a
 /// spell's total cost (CR 601.2f) is `engine::cost_determination`'s.
 ///
-/// **Generic mana allocation:** When a cost includes a generic mana component,
-/// the caller must provide a `generic_allocation` map specifying which mana
-/// types to spend. This is a player decision (routed through `DecisionProvider`
-/// in the calling code). See `ManaPool::pay()` for details.
+/// **Deciding is separated from performing.** [`GameState::plan_payment`]
+/// takes every choice CR 601.2h's payment needs — the generic mana split, and
+/// which permanents pay a `Cost::Sacrifice` — against the board as it stands
+/// before anything is paid; [`GameState::pay_costs`] then performs the plan
+/// and asks nobody anything. **No payment prompt is asked after a payment has
+/// been performed**, which is what lets a client stage a payment and let the
+/// player take it back until they confirm: the engine never holds a
+/// half-performed one. It is also the shape the replacement pipeline already
+/// uses for CR 704.3 (`replacement-architecture.md` §4.1).
+
+/// The decisions CR 601.2h's payment needs, taken against one board.
+///
+/// **Not a CR object.** The rules have no "payment plan"; this is the engine's
+/// record of choices that 601.2h leaves to the player — the generic mana split
+/// and which permanents pay each `Cost::Sacrifice` — separated out so that
+/// deciding and performing do not interleave (see the module doc).
+#[derive(Debug, Clone)]
+pub struct PaymentPlan {
+    /// The costs in the order they will be paid ([`payment_order_rank`]).
+    ordered: Vec<Cost>,
+    /// How the mana component's generic part is split across the pool.
+    generic_allocation: HashMap<ManaType, u64>,
+    /// Which permanents pay each `Cost::Sacrifice`, keyed by index into
+    /// `ordered`.
+    sacrifices: HashMap<usize, Vec<ObjectId>>,
+}
+
+impl PaymentPlan {
+    /// The permanents this plan will sacrifice, in payment order.
+    #[cfg(test)]
+    fn planned_sacrifices(&self) -> Vec<ObjectId> {
+        let mut keys: Vec<&usize> = self.sacrifices.keys().collect();
+        keys.sort();
+        keys.into_iter().flat_map(|k| self.sacrifices[k].iter().copied()).collect()
+    }
+}
+
+/// CR 601.2h's payment order, as ranks. See [`payment_order_rank`].
+const RANK_MANA: u8 = 0;
+const RANK_MUTATES: u8 = 1;
+const RANK_MOVES_AN_OBJECT: u8 = 2;
+
+/// Where a cost sits in the order the engine pays a total cost.
+///
+/// **CR 601.2h gives the order to the player** — "they pay all costs that
+/// don't involve random elements or moving objects from the library to a
+/// public zone, in any order" — and the engine picks one of them. (That
+/// sentence's own two groups are not modelled: no `Cost` arm is random and
+/// none moves a card out of a library, so the second group is empty for every
+/// cost that exists, and an arm nothing can reach is worse than a missing
+/// one. `ATOM-601.2h-003` is the atom for handing the order to the player.)
+///
+/// The engine picks **the order in which no payment can fail after one that
+/// cannot be taken back**, which is what makes CR 732.1's "any payments
+/// already made are canceled" unreachable rather than unimplemented:
+///
+/// - rank 0, `Mana` — the only cost whose payment can fail on a choice the
+///   player made (a generic split that spends a color a pip still needs), so
+///   it is paid while nothing else has been. `cost_determination::total`
+///   already merges every mana entry into one component ahead of this
+///   (`cost-architecture.md` §3.3); this extends the same argument to an
+///   ability's cost list, which is its *printed* one and never merged.
+/// - rank 1 — mutates, moves nothing: reads the source's tapped state, its
+///   summoning sickness or the player's life, none of which a rank-0 payment
+///   changes.
+/// - rank 2 — moves an object. Its own payment cannot fail, because
+///   `plan_payment` enumerated the candidates and `validate_pick_n` bounds
+///   the answer; and nothing after it can fail, because nothing after it
+///   exists that a removal could invalidate.
+///
+/// **This is 601.2h and 602.2b only.** A resolving spell's instructions are
+/// CR 608.2c's — "in the order written" — and reach `resolve_effect`, never
+/// this function; a resolution-time payment routed through `pay_costs` would
+/// be silently reordered by it. 601.2h's *own* two groups are not modelled
+/// because the second is empty for every `Cost` arm; `codebase-state.md`
+/// item 80 owns the day it stops being.
+///
+/// Matched exhaustively so a new arm has to decide where it sits.
+fn payment_order_rank(cost: &Cost) -> u8 {
+    match cost {
+        Cost::Mana(_) => RANK_MANA,
+        Cost::Tap
+        | Cost::Untap
+        | Cost::PayLife(_)
+        | Cost::RemoveCounters(_, _)
+        | Cost::AddCounters(_, _) => RANK_MUTATES,
+        Cost::Sacrifice(_, _)
+        | Cost::SacrificeSelf
+        | Cost::Discard(_, _)
+        | Cost::ExileFromGraveyard(_, _) => RANK_MOVES_AN_OBJECT,
+    }
+}
+
+/// `costs` in [`payment_order_rank`] order. Stable, so costs of one rank keep
+/// the order the card printed them in.
+fn ordered_for_payment(costs: &[Cost]) -> Vec<&Cost> {
+    let mut ordered: Vec<&Cost> = costs.iter().collect();
+    ordered.sort_by_key(|c| payment_order_rank(c));
+    ordered
+}
 
 impl GameState {
     /// Read-only check: can all costs be paid right now?
@@ -32,7 +131,7 @@ impl GameState {
         player_id: PlayerId,
         source_id: ObjectId,
     ) -> Result<(), String> {
-        for cost in costs {
+        for cost in ordered_for_payment(costs) {
             self.check_cost_resource(cost, player_id, source_id)?;
             // Phase 5: self.check_cost_restrictions(cost, player_id, source_id)?;
         }
@@ -97,8 +196,17 @@ impl GameState {
                 }
                 Ok(())
             }
-            Cost::Sacrifice(_, _)
-            | Cost::Discard(_, _)
+            Cost::Sacrifice(filter, n) => {
+                let available = self.sacrifice_candidates(filter, player_id).len();
+                if available < *n as usize {
+                    return Err(format!(
+                        "Cannot sacrifice {} permanent(s): only {} match",
+                        n, available
+                    ));
+                }
+                Ok(())
+            }
+            Cost::Discard(_, _)
             | Cost::ExileFromGraveyard(_, _)
             | Cost::RemoveCounters(_, _)
             | Cost::AddCounters(_, _) => {
@@ -107,35 +215,146 @@ impl GameState {
         }
     }
 
-    /// Pay a list of costs for a spell or permanent's ability.
+    /// Every permanent the player may sacrifice to pay a cost with `filter`
+    /// (CR 701.21a), in a process-independent order.
     ///
-    /// `generic_allocation` specifies how to pay any generic mana components.
-    /// For costs with no generic mana (most ability costs), pass an empty map.
+    /// **"You control" is the rule's, not the filter's.** CR 701.21a — "a
+    /// player can't sacrifice ... something that's a permanent they don't
+    /// control" — holds whatever the card prints, so Altar's Reap's filter is
+    /// `ByType(Creature)` and this supplies the rest. The source of the spell
+    /// or ability is not excluded: Krark-Clan Ironworks paying its own
+    /// "Sacrifice an artifact" is the filter matching normally.
+    fn sacrifice_candidates(&self, filter: &ObjectFilter, player_id: PlayerId) -> Vec<ObjectId> {
+        self.battlefield_ids_ordered()
+            .into_iter()
+            .filter(|&id| crate::oracle::characteristics::controls(self, id, player_id))
+            .filter(|&id| self.object_matches_filter(id, filter, player_id).unwrap_or(false))
+            .collect()
+    }
+
+    /// Take every choice CR 601.2h's payment needs, against one board.
     ///
-    /// Validates and pays each cost in order. If any cost can't be paid,
-    /// returns an error (costs already paid are NOT rolled back — the caller
-    /// should validate with `can_pay_costs` first if rollback-safety is needed).
-    pub fn pay_costs(
-        &mut self,
+    /// Reads only — nothing is paid here. `can_pay_costs` must already have
+    /// passed; this asks *how* to pay, not *whether*, and the one error it
+    /// returns is a cost it cannot plan at all.
+    ///
+    /// Every prompt a payment asks is asked here, which is the property
+    /// [`Self::pay_costs`] leans on: once the first permanent moves, no
+    /// decision is outstanding. See the module doc.
+    pub fn plan_payment(
+        &self,
         costs: &[Cost],
         player_id: PlayerId,
         source_id: ObjectId,
-        generic_allocation: &HashMap<ManaType, u64>,
+        ctx: &ActionContext,
+    ) -> Result<PaymentPlan, String> {
+        let ordered: Vec<Cost> = ordered_for_payment(costs).into_iter().cloned().collect();
+
+        // The mana component's generic part, split across the pool. Merged into
+        // one component at 601.2f (`cost_determination::total`), so `find` is
+        // exact for a spell; an ability's cost list is its printed one and has
+        // at most one mana entry.
+        let mana_cost = ordered
+            .iter()
+            .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
+            .unwrap_or_else(ManaCost::zero);
+        let generic_allocation = if mana_cost.generic_count() == 0 {
+            HashMap::new()
+        } else {
+            let mut available: Vec<(ManaType, u64)> = self.players[player_id]
+                .mana_pool
+                .available()
+                .iter()
+                .filter(|(_, amt)| **amt > 0)
+                .map(|(mt, amt)| (*mt, *amt))
+                .collect();
+            available.sort_by_key(|(mt, _)| *mt as u8);
+            ask_choose_generic_mana_allocation(
+                ctx.dp, self, player_id, &mana_cost, &available,
+                mana_cost.generic_count() as u64,
+            )
+        };
+
+        let mut sacrifices: HashMap<usize, Vec<ObjectId>> = HashMap::new();
+        for (idx, cost) in ordered.iter().enumerate() {
+            if let Cost::Sacrifice(filter, count) = cost {
+                let candidates = self.sacrifice_candidates(filter, player_id);
+                let n = *count as usize;
+                if candidates.len() < n {
+                    return Err(format!(
+                        "Cannot sacrifice {} permanent(s): only {} match",
+                        n, candidates.len()
+                    ));
+                }
+                // CR 102.2 / `CLAUDE.md`: as many candidates as the cost takes
+                // is not a choice, and prompting for it would be a prompt with
+                // one answer.
+                let chosen = if candidates.len() == n {
+                    candidates
+                } else {
+                    ask_choose_sacrifice_for_cost(
+                        ctx.dp, self, player_id, source_id, *count, &candidates,
+                    )
+                };
+                sacrifices.insert(idx, chosen);
+            }
+        }
+
+        Ok(PaymentPlan { ordered, generic_allocation, sacrifices })
+    }
+
+    /// Pay a planned total cost (CR 601.2h).
+    ///
+    /// Performs `plan.ordered` in order and asks nothing. If a cost can't be
+    /// paid this returns an error and **costs already paid are not rolled
+    /// back**: CR 732.1 would cancel them, and the engine does not build that
+    /// cancellation because [`payment_order_rank`] makes it unreachable — see
+    /// the debug assertion below, which is where that claim is enforced.
+    pub fn pay_costs(
+        &mut self,
+        plan: &PaymentPlan,
+        player_id: PlayerId,
+        source_id: ObjectId,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        for cost in costs {
-            self.pay_single_cost(cost, player_id, source_id, generic_allocation, ctx)?;
+        let mut moved_an_object = false;
+        for (idx, cost) in plan.ordered.iter().enumerate() {
+            let result = self.pay_single_cost(
+                cost, player_id, source_id, plan, idx, ctx,
+            );
+            if let Err(e) = result {
+                // CR 732.1: "the entire action is reversed and any payments
+                // already made are canceled." The engine builds no such
+                // cancellation, and this is the assertion that says it never
+                // needs one: nothing that can fail is paid after something
+                // that cannot be taken back. A new `Cost` arm that trips this
+                // has to pick a different `payment_order_rank`, or the rule
+                // it needs is a rollback facility rather than an arm.
+                debug_assert!(
+                    !moved_an_object,
+                    "CR 732.1: {:?} failed after an irreversible payment ({})",
+                    cost, e,
+                );
+                return Err(e);
+            }
+            if payment_order_rank(cost) == RANK_MOVES_AN_OBJECT {
+                moved_an_object = true;
+            }
         }
         Ok(())
     }
 
-    /// Pay a single cost. Internal helper.
+    /// Pay a single cost from the plan. Internal helper.
+    ///
+    /// `idx` is this cost's position in `plan.ordered`, which is how a
+    /// `Cost::Sacrifice` finds the permanents `plan_payment` chose for it.
     fn pay_single_cost(
         &mut self,
         cost: &Cost,
         player_id: PlayerId,
         source_id: ObjectId,
-        generic_allocation: &HashMap<ManaType, u64>,
+        plan: &PaymentPlan,
+        idx: usize,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         match cost {
@@ -174,7 +393,7 @@ impl GameState {
                 if mana_cost.generic_count() == 0 {
                     player.mana_pool.pay_specific_only(mana_cost)
                 } else {
-                    player.mana_pool.pay(mana_cost, generic_allocation)
+                    player.mana_pool.pay(mana_cost, &plan.generic_allocation)
                 }
             }
             Cost::PayLife(amount) => {
@@ -199,8 +418,32 @@ impl GameState {
             Cost::SacrificeSelf => {
                 self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Sacrificed, ctx)
             }
-            Cost::Sacrifice(_, _)
-            | Cost::Discard(_, _)
+            Cost::Sacrifice(_, n) => {
+                let chosen = plan.sacrifices.get(&idx).ok_or_else(|| {
+                    format!("No sacrifice planned for cost {} ({:?})", idx, cost)
+                })?;
+                if chosen.len() != *n as usize {
+                    return Err(format!(
+                        "Planned {} sacrifice(s) for a cost of {}",
+                        chosen.len(), n
+                    ));
+                }
+                // One batch, not a loop: the permanents paying one cost leave
+                // the battlefield together, so a "whenever one or more
+                // creatures die" trigger sees one event. `execute_actions` is
+                // the only thing that can say that (`CLAUDE.md`).
+                let batch: Vec<GameAction> = chosen
+                    .iter()
+                    .map(|&object| GameAction::ZoneChange {
+                        object,
+                        from: Zone::Battlefield,
+                        to: Zone::Graveyard,
+                        cause: ZoneChangeCause::Sacrificed,
+                    })
+                    .collect();
+                self.execute_actions(batch, ctx).map(|_| ())
+            }
+            Cost::Discard(_, _)
             | Cost::ExileFromGraveyard(_, _)
             | Cost::RemoveCounters(_, _)
             | Cost::AddCounters(_, _) => {
@@ -224,6 +467,22 @@ mod tests {
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
 
+    /// Plan and pay in one step, for a board where the plan asks nothing.
+    ///
+    /// Production code never gets to collapse these two — a plan is taken
+    /// against one board and performed against it — but a test whose costs
+    /// hold no choice has nothing to script between them.
+    fn plan_and_pay(
+        game: &mut GameState,
+        costs: &[Cost],
+        player: crate::types::ids::PlayerId,
+        source: crate::types::ids::ObjectId,
+        ctx: &crate::engine::actions::ActionContext,
+    ) -> Result<(), String> {
+        let plan = game.plan_payment(costs, player, source, ctx)?;
+        game.pay_costs(&plan, player, source, ctx)
+    }
+
     fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {
         let mut game = GameState::new(2, 20);
         let forest = CardDataBuilder::new("Forest")
@@ -243,17 +502,15 @@ mod tests {
     #[test]
     fn test_pay_tap_cost() {
         let (mut game, forest_id) = setup_with_forest();
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::Tap], 0, forest_id, &test_ctx()).unwrap();
         assert!(game.battlefield.get(&forest_id).unwrap().tapped);
     }
 
     #[test]
     fn test_pay_tap_cost_already_tapped() {
         let (mut game, forest_id) = setup_with_forest();
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
-        assert!(game.pay_costs(&[Cost::Tap], 0, forest_id, &no_alloc, &test_ctx()).is_err());
+        plan_and_pay(&mut game, &[Cost::Tap], 0, forest_id, &test_ctx()).unwrap();
+        assert!(plan_and_pay(&mut game, &[Cost::Tap], 0, forest_id, &test_ctx()).is_err());
     }
 
     #[test]
@@ -261,8 +518,7 @@ mod tests {
         let (mut game, _) = setup_with_forest();
         game.players[0].mana_pool.add(ManaType::Green, 2);
         let cost = ManaCost::build(&[ManaType::Green], 0);
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &test_ctx()).unwrap();
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
     }
 
@@ -271,11 +527,21 @@ mod tests {
         let (mut game, _) = setup_with_forest();
         game.players[0].mana_pool.add(ManaType::Green, 2);
         game.players[0].mana_pool.add(ManaType::Red, 1);
-        // Cost: {1}{G} — player chooses to spend Red for generic
+        // Cost: {1}{G} — the player chooses to spend Red for the generic, and
+        // the choice is the plan's, not the payment's.
         let cost = ManaCost::build(&[ManaType::Green], 1);
-        let mut alloc = HashMap::new();
-        alloc.insert(ManaType::Red, 1);
-        game.pay_costs(&[Cost::Mana(cost)], 0, crate::types::ids::new_object_id(), &alloc, &test_ctx()).unwrap();
+        let dp = crate::ui::decision::ScriptedDecisionProvider::new();
+        dp.expect_allocation(
+            crate::ui::choice_types::ChoiceKind::GenericManaAllocation { mana_cost: cost.clone() },
+            // Buckets are the pool's types sorted by discriminant — Red, then
+            // Green — so this spends the Red on the generic.
+            vec![1, 0],
+        );
+        let ctx = crate::engine::actions::ActionContext::new(&dp);
+        let source = crate::types::ids::new_object_id();
+        let costs = [Cost::Mana(cost)];
+        let plan = game.plan_payment(&costs, 0, source, &ctx).unwrap();
+        game.pay_costs(&plan, 0, source, &ctx).unwrap();
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
     }
@@ -283,18 +549,16 @@ mod tests {
     #[test]
     fn test_pay_life_cost() {
         let (mut game, forest_id) = setup_with_forest();
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::PayLife(3)], 0, forest_id, &test_ctx()).unwrap();
         assert_eq!(game.players[0].life_total, 17);
     }
 
     #[test]
     fn test_paying_life_is_a_life_loss() {
         let (mut game, forest_id) = setup_with_forest();
-        let no_alloc = HashMap::new();
         let before = game.events.len();
 
-        game.pay_costs(&[Cost::PayLife(3)], 0, forest_id, &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::PayLife(3)], 0, forest_id, &test_ctx()).unwrap();
 
         // CR 119.4: "the player loses that much life". Paying life used to be a
         // silent subtraction — no event at all — so nothing watching life loss
@@ -313,8 +577,7 @@ mod tests {
     #[test]
     fn test_pay_life_cost_insufficient() {
         let (mut game, forest_id) = setup_with_forest();
-        let no_alloc = HashMap::new();
-        assert!(game.pay_costs(&[Cost::PayLife(21)], 0, forest_id, &no_alloc, &test_ctx()).is_err());
+        assert!(plan_and_pay(&mut game, &[Cost::PayLife(21)], 0, forest_id, &test_ctx()).is_err());
     }
 
     // --- Cost::Untap ({Q}) summoning sickness tests (T10 / E13) ---
@@ -343,8 +606,7 @@ mod tests {
     fn test_untap_cost_blocked_by_summoning_sickness() {
         // Creature enters on turn 1, game is on turn 1 → summoning sick → can't pay {Q}
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
-        let no_alloc = HashMap::new();
-        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx());
+        let result = plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("summoning sickness"));
     }
@@ -353,8 +615,7 @@ mod tests {
     fn test_untap_cost_allowed_with_haste() {
         // Creature with haste enters on turn 1, game is on turn 1 → haste bypasses sickness
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 
@@ -373,8 +634,7 @@ mod tests {
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Untap], 0, id, &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::Untap], 0, id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&id).unwrap().tapped);
     }
 
@@ -388,8 +648,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
-        let no_alloc = HashMap::new();
-        let result = game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx());
+        let result = plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("summoning sickness"));
     }
@@ -402,8 +661,177 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
-        let no_alloc = HashMap::new();
-        game.pay_costs(&[Cost::Untap], 0, creature_id, &no_alloc, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
+    }
+
+    // --- CR 601.2h payment order, and the CR 732.1 claim it buys (CM-3) ---
+
+    /// A creature `player` controls, on the battlefield.
+    fn add_creature(game: &mut GameState, player: crate::types::ids::PlayerId, name: &str)
+        -> crate::types::ids::ObjectId
+    {
+        let data = CardDataBuilder::new(name)
+            .card_type(CardType::Creature)
+            .power_toughness(1, 1)
+            .build();
+        let obj = GameObject::new(data, player, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        let ts = game.allocate_timestamp();
+        game.battlefield.insert(id, PermanentState::new(id, player, ts, 0));
+        id
+    }
+
+    fn creature_filter() -> crate::types::effects::ObjectFilter {
+        crate::types::effects::ObjectFilter::ByType(CardType::Creature)
+    }
+
+    #[test]
+    fn test_mana_is_paid_first_and_object_moves_last() {
+        // CR 601.2h leaves the order to the player and the engine picks one.
+        // It picks this one: the only cost that can fail on a player's choice
+        // is the mana split, and it is paid while nothing has moved.
+        let costs = [
+            Cost::Sacrifice(creature_filter(), 1),
+            Cost::Tap,
+            Cost::Mana(ManaCost::build(&[ManaType::Red], 0)),
+        ];
+        let ordered: Vec<&Cost> = ordered_for_payment(&costs);
+        assert!(matches!(ordered[0], Cost::Mana(_)));
+        assert!(matches!(ordered[1], Cost::Tap));
+        assert!(matches!(ordered[2], Cost::Sacrifice(_, _)));
+    }
+
+    #[test]
+    fn test_payment_order_is_stable_within_a_rank() {
+        // Two costs of one rank keep the order the card printed them in —
+        // the engine reorders only what the theorem needs it to.
+        let costs = [Cost::Tap, Cost::PayLife(1), Cost::Untap];
+        let ordered = ordered_for_payment(&costs);
+        assert!(matches!(ordered[0], Cost::Tap));
+        assert!(matches!(ordered[1], Cost::PayLife(_)));
+        assert!(matches!(ordered[2], Cost::Untap));
+    }
+
+    #[test]
+    fn test_every_object_moving_cost_ranks_last() {
+        // The gate the 732.1 argument rests on: a cost that takes an object
+        // out of its zone is never followed by one that could fail. Listed
+        // rather than derived, so adding an arm to `Cost` fails here first.
+        for cost in [
+            Cost::SacrificeSelf,
+            Cost::Sacrifice(creature_filter(), 1),
+            Cost::Discard(crate::types::effects::CardFilter::All, 1),
+            Cost::ExileFromGraveyard(crate::types::effects::CardFilter::All, 1),
+        ] {
+            assert_eq!(
+                payment_order_rank(&cost), RANK_MOVES_AN_OBJECT,
+                "{:?} moves an object and must be paid last", cost,
+            );
+        }
+    }
+
+    #[test]
+    fn test_sacrifice_candidates_are_only_permanents_you_control() {
+        // CR 701.21a: "a player can't sacrifice ... a permanent they don't
+        // control" — a rule, not something the card's filter has to say.
+        let mut game = GameState::new(2, 20);
+        let mine = add_creature(&mut game, 0, "Mine");
+        let theirs = add_creature(&mut game, 1, "Theirs");
+
+        let candidates = game.sacrifice_candidates(&creature_filter(), 0);
+        assert_eq!(candidates, vec![mine]);
+        assert!(!candidates.contains(&theirs));
+    }
+
+    #[test]
+    fn test_sacrifice_with_exactly_enough_candidates_asks_nothing() {
+        // `CLAUDE.md`: never prompt with fewer than two candidates. One
+        // creature for "sacrifice a creature" is a forced payment, and a
+        // ScriptedDecisionProvider with an empty queue panics if asked.
+        let mut game = GameState::new(2, 20);
+        let victim = add_creature(&mut game, 0, "Only Creature");
+        let costs = [Cost::Sacrifice(creature_filter(), 1)];
+
+        plan_and_pay(&mut game, &costs, 0, victim, &test_ctx()).unwrap();
+
+        assert!(!game.battlefield.contains_key(&victim));
+        assert!(game.players[0].graveyard.contains(&victim));
+    }
+
+    #[test]
+    fn test_sacrifice_with_a_choice_asks_and_honors_the_pick() {
+        let mut game = GameState::new(2, 20);
+        let first = add_creature(&mut game, 0, "First");
+        let second = add_creature(&mut game, 0, "Second");
+
+        let dp = crate::ui::decision::ScriptedDecisionProvider::new();
+        dp.expect_pick_n(
+            crate::ui::choice_types::ChoiceKind::ChooseSacrificeForCost {
+                spell_or_ability_id: first,
+                count: 1,
+            },
+            vec![1],
+        );
+        let ctx = crate::engine::actions::ActionContext::new(&dp);
+        let costs = [Cost::Sacrifice(creature_filter(), 1)];
+
+        let plan = game.plan_payment(&costs, 0, first, &ctx).unwrap();
+        assert_eq!(plan.planned_sacrifices(), vec![second]);
+        game.pay_costs(&plan, 0, first, &ctx).unwrap();
+
+        assert!(game.battlefield.contains_key(&first));
+        assert!(!game.battlefield.contains_key(&second));
+    }
+
+    #[test]
+    fn test_the_source_pays_its_own_sacrifice_cost() {
+        // Krark-Clan Ironworks' shape at the unit level: the filter matches
+        // the permanent whose cost it is, and nothing excludes it.
+        let mut game = GameState::new(2, 20);
+        let source = add_creature(&mut game, 0, "Self-Eater");
+        let costs = [Cost::Sacrifice(creature_filter(), 1)];
+
+        let plan = game.plan_payment(&costs, 0, source, &test_ctx()).unwrap();
+        assert_eq!(plan.planned_sacrifices(), vec![source]);
+        game.pay_costs(&plan, 0, source, &test_ctx()).unwrap();
+        assert!(!game.battlefield.contains_key(&source));
+    }
+
+    #[test]
+    fn test_two_permanents_for_one_cost_leave_together() {
+        // One cost, one event: the permanents paying `Sacrifice(f, 2)` go
+        // through a single `execute_actions` batch, so a "whenever one or
+        // more creatures die" trigger will see one event and not two.
+        let mut game = GameState::new(2, 20);
+        let a = add_creature(&mut game, 0, "A");
+        let b = add_creature(&mut game, 0, "B");
+        let costs = [Cost::Sacrifice(creature_filter(), 2)];
+        let before = game.events.len();
+
+        plan_and_pay(&mut game, &costs, 0, a, &test_ctx()).unwrap();
+
+        assert!(!game.battlefield.contains_key(&a));
+        assert!(!game.battlefield.contains_key(&b));
+        let batches: std::collections::HashSet<_> = game.events.records_from(before)
+            .iter()
+            .filter(|r| matches!(
+                r.event,
+                crate::events::event::GameEvent::ZoneChange { .. },
+            ))
+            .map(|r| r.batch())
+            .collect();
+        assert_eq!(batches.len(), 1, "two sacrifices for one cost are one event");
+    }
+
+    #[test]
+    fn test_sacrifice_is_unpayable_without_enough_candidates() {
+        let mut game = GameState::new(2, 20);
+        let lone = add_creature(&mut game, 0, "Lone");
+        let costs = [Cost::Sacrifice(creature_filter(), 2)];
+
+        assert!(game.can_pay_costs(&costs, 0, lone).is_err());
+        assert!(game.plan_payment(&costs, 0, lone, &test_ctx()).is_err());
     }
 }

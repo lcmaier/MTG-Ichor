@@ -324,6 +324,113 @@ affinity's reduction and a direct-total effect meeting on one spell.
 | **Replacement gathers** | **449** | **527** |
 | **Restriction queries** | **451** | **530** |
 
+**Re-recorded 2026-09-08 for CM-3** (lock-in's payment side;
+`cost-architecture.md`). One new card in `performance` — **Bone Splinters**,
+72 → 73 — and six in `stress` (Bone Splinters, Altar's Reap, Thunderscape
+Familiar, Krark-Clan Ironworks, Foundry Inspector, Mind Stone; 88 → 94).
+
+**`cost-architecture.md` §6 said CM-3 "opens no new path a pooled card would
+measure". The A/B says the first half and disproves the second.** The middle
+arm — CM-3's engine with all five cards registered and the *old* pool — is
+`IDENTICAL` to `main` on `performance` at 200 games, so the payment order,
+the plan/pay split, the mandatory-cost announcement and the castability gate
+cost the pool nothing and change no seeded stream. But `Cost::Sacrifice`
+*is* a new engine path, and no card in the 72 could reach it: that is the
+`PERFORMANCE_POOL` doc's own failure mode, "a gated subsystem no card in the
+pool could open", and its rule is that a phase which opens a path adds one
+card deliberately. So the pool gains one and §6's second clause was wrong.
+
+The pooled card opens four things at once — the first non-mana cost paid
+through `pay_costs`, the first mandatory additional cost (CR 118.8b), the
+first castability answer that turns on something other than the mana cost,
+and the first payment prompt that is not an allocation. The other five stay
+registered and out: the Familiar and the Inspector open the path Thalia
+already opens, and the Ironworks pair's window is CM-4's to measure once the
+window stops closing early.
+
+**Which card is a separate question from which path, and it was measured.**
+Altar's Reap was pooled first, because CR 601.2h's example is written on it.
+It costs **+20.2%** CPU/game, and it draws two cards, so the games it makes
+are bigger. Bone Splinters opens the identical set of paths, sacrifices the
+same way, and destroys a creature instead of drawing two: **+13.8%** in the
+same sitting, +11.9% in a second. Altar's Reap stays registered — its tests
+are the rule's — and the pool carries Bone Splinters.
+
+### 3.1a What a pooled card costs is mostly the *slot*, measured 2026-09-08
+
+The obvious reading of the paragraph above is that Altar's Reap's card draw is
+the cost and a leaner card avoids it. **Half right, and the other half is the
+more useful number.** A third arm settles it: `Cobbled Wings` — already
+registered, opening *no new engine path at all*, since Bonesplitter is pooled
+and equip is the same code — as the 73rd card instead.
+
+| 73rd card | opens a new path | CPU/game vs `main` | ms / 1,000 queries |
+|---|---|---:|---:|
+| *(none — 72)* | — | +0.0% | 0.154 |
+| Cobbled Wings (inert control) | no | **+14.0%** | 0.165 |
+| Bone Splinters | yes | **+11.9%** | 0.158 |
+| Altar's Reap | yes | +20.2% (prior sitting) | 0.161 |
+
+**A card that does nothing new costs as much as Bone Splinters does.** So
+~12–14% is what *a pool slot* costs, not what a mechanic costs: a 73rd
+playable card changes deck composition, boards get bigger, and the layer walk
+covers more objects per walk (frames 3,998 → 4,542 for the inert control,
+which introduces no rows of its own). Only the surcharge above that line is
+attributable to a card, and Altar's Reap's ~6 points is one; Bone Splinters is
+indistinguishable from the control.
+
+Three things follow, and they are what to quote the next time this comes up:
+
+- **Choosing a leaner card is worth doing and worth about 6 points.** Between
+  two cards that open the same path, take the cheaper board. Past that there is
+  nothing to optimise: the slot is the cost.
+- **This is not an engine regression and no engine work removes it.**
+  ms/1,000 queries — the cost of a unit of work rather than of a game — moves
+  2.8% for Bone Splinters and 7.2% for a card with no mechanic, both inside
+  the sitting's 2–6% spread. The games got bigger; nothing got slower. Every
+  CM phase's middle arm has been byte-identical to `main`.
+- **The growth is the price of representativeness, and it is bounded by how
+  often a phase opens a genuinely new path** — three times across CM-1, CM-2
+  and CM-3. A pool that stopped growing would go back to measuring a shrinking
+  fraction of the engine, which is the failure the freeze was lifted for.
+
+**And the A/B sitting is not the development bottleneck it feels like**:
+three arms, both pools, counters, fixture rows and three interleaved timing
+rounds is **32 seconds** of wall clock (2026-09-08). What costs minutes is
+building one release binary per arm and orchestrating them, which is
+`--rounds`-independent. If a sitting ever does need to be cheaper, `--rounds 2`
+or `--games 100` halves the timing block at the price of a wider spread; that
+knob is there and has not been needed.
+
+Reachability, 200 games with Bone Splinters forced into every `performance`
+deck: cast 193, resolved 110, in 84 games (42%), **1.58 copies per deck**.
+Casts and not resolutions is the number that matters here — the sacrifice is
+paid at CR 601.2h whether or not the spell later resolves — and 193 against
+Altar's Reap's 223 is 87% of the payment-path exercise for two-thirds of the
+cost. Zero errors, zero panics and zero `Uncast resolved` in every arm on both
+pools, which is the statement that matters most for a new payment arm.
+
+| | performance (73 cards) | stress (94 cards) |
+|---|---|---|
+| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 26 (52.0%) / 24 (48.0%) |
+| Avg turns | 28.9 | 28.1 |
+| Spells cast | 22.3 | 22.5 |
+| Lands played | 17.5 | 16.9 |
+| Combat w/ atk | 9.9 | 10.1 |
+| Creatures died | 6.6 | 4.5 |
+| Damage events | 21.7 | 22.7 |
+| Total damage | 59.4 | 58.8 |
+| Life changes | 14.3 | 14.8 |
+| **Layer walks** | **371** | **431** |
+| **Board walks** | **235** | **248** |
+| **Memo hits** | **88,901** | **89,949** |
+| **Layer frames** | **4,265** | **4,445** |
+| **Frames/walk** | **11.49** | **10.32** |
+| **Dependency checks** | **10** | **38** |
+| **Replacement gathers** | **475** | **481** |
+| **Restriction queries** | **477** | **483** |
+
+
 **Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:
 `main` at 9011d42 (A), LI-3's engine with the registry and both pools
 unchanged (B), and LI-3 as shipped (C).
@@ -986,6 +1093,134 @@ measurement and gets re-run, not inherited — and counting an event signature i
 a `--dump-events` log is cheap enough that there is no excuse for inheriting.
 
 ---
+
+### 3.4 The rulings pass — read a card's rulings before you register it
+
+**Adopted 2026-09-08 (the owner, reviewing CM-3).** Oracle text has been
+verified against Scryfall since the corpus started. Rulings had not been, and
+they are the cheaper half: a card's rulings exist *because players got those
+cases wrong*, so they are a free list of the boards a naive implementation
+misses — written by the people who adjudicate them, and already minimal.
+
+**The rule: every card a phase registers gets a rulings pass, and the pass is
+written down.** For each ruling, one of three answers, and the third is as
+useful as the first:
+
+1. **Testable now** — it becomes a test, named after the ruling's claim.
+2. **Already tested** — say which test, so the next reader does not redo it.
+3. **Not yet expressible** — say which facility is missing and who owns it.
+   This is the valuable one: a ruling the engine cannot state is a gap
+   discovered from the outside, by someone who was not looking at the code.
+
+Fetch them with `curl` and a UA header, like the oracle text (`CLAUDE.md`'s
+references row): `/cards/named?exact=…` carries a `rulings_uri`.
+
+**What it caught on its first outing (CM-3, five cards, eleven rulings).** Six
+became tests, and none of them was a board the corpus had:
+
+- *"If a spell is both black and green, you pay {1} less, not {2} less"*
+  (Thunderscape Familiar). The card is one ability with an `Or` over two colour
+  leaves, so the gather returns one instance. Written as two abilities — the
+  obvious alternative, and the one a card author reaches for first — it would
+  reduce twice. **No atom in the corpus asks this**, and no test in CM-1 or
+  CM-2 could have caught it.
+- *"You must sacrifice exactly one creature … you cannot sacrifice additional
+  creatures"* (Altar's Reap). The prompt's bound is the claim, and
+  `picking_all` is the provider that falsifies it.
+- *"Players can only respond once this spell has been cast and all its costs
+  have been paid"* (Altar's Reap) and *"no player may take actions to try to
+  remove Foundry Inspector before that spell's cost is locked in"* — two cards'
+  rulings, one engine claim: nothing yields priority between CR 601.2a and
+  601.2i. Asserted as the absence of a priority prompt.
+- *"Choose the value for X first, and then reduce the cost by {1}"* (Foundry
+  Inspector), with the ruling's own numbers as the test's.
+
+Two were already tested (the Familiar's floor at zero; "if this card is
+sacrificed to pay part of a spell's cost, the cost reduction still applies",
+which is `ATOM-601.2h-001`). Three were not expressible and are recorded as
+such rather than skipped — chiefly *"the generic X cost is still considered
+generic even if there is a requirement that a specific color be used"*, which
+needs the spend-restriction model (`backlog.md` §2.19's neighbourhood).
+
+**And a leaf the pass does not reach by itself.** Writing the Familiar's
+"both black and green" test made the card's `Or` look covered when only its
+*left* leaf was: every board in the file casts a black spell, so
+`Or(Black, Black)` would have passed all of them. A ruling names a case; it does
+not name the ways an implementation can accidentally satisfy it. **After the
+rulings pass, ask what the card's filter has that no test varies** — here the
+right leaf and the "you cast" clause, three assertions, all of them green.
+
+### 3.4a How big is the retroactive half, and is the tool worth building?
+
+**Deferred once as "not worth the time", and the deferral was measured on the
+wrong thing.** The idea was a harness that forces every card in the official
+pool to pass all its Scryfall rulings. That tool cannot exist: a ruling is
+prose, and nothing compiles prose into an assertion. What *can* exist is a
+**ledger with a gate**, the shape `specdb` already proved — the corpus is
+authored, the join is generated, and the check fails when a claim has no
+disposition.
+
+**Census, 2026-09-08, all 92 registered cards** (`/cards/collection` for
+identity, then one rulings fetch each):
+
+| | |
+|---|---:|
+| cards carrying at least one ruling | 43 of 92 (46%) |
+| total rulings | 145 |
+| …on the 73 `PERFORMANCE_POOL` cards | 87 |
+| median rulings per card | 0 |
+| most on one card | 8 (Cytoshape, pooled) |
+
+145 is a bounded job, not an open-ended one, and at CM-3's observed rate — 11
+rulings into 6 tests, 2 already-covered, 3 named gaps — it is roughly 80 tests
+across the whole registry, or 50 if the pool goes first.
+
+**What the census cost, and what it immediately bought.** Reading the rulings of
+three pooled cards nobody had checked found `codebase-state.md` **item 82**:
+CR 704.5p's first sentence is not implemented, so an Equipment that becomes a
+creature stays attached — Bonesplitter under March of the Machines, both of them
+in `PERFORMANCE_POOL`, leaving a 2/2 reading 4/2 in any measured game where they
+meet. Nothing in the corpus, the suite or the fuzz harness had said so, and
+March's ruling says it in one sentence. **One afternoon of reading found a live
+bug in the measured pool**, which is the number the original deferral did not
+have.
+
+**So: build the ledger, not the verifier — and the unit of the gate is a
+linked test, not a disposition** (the owner, 2026-09-08, sharpening this
+section): *"card author needs to make a test and link it to the ruling for
+someone to review in PR review."* That is a stronger obligation than "record an
+answer" and a cheaper one to review, because it puts the ruling and the test
+side by side in the diff where a reviewer already is. The mechanism is
+`specdb`'s, one level over: a `// RULING:` annotation naming the card and the
+ruling's date carries what `// COVERS:` carries for an atom, the ledger holds
+the rulings themselves, and `--check` fails on a registered card with a ruling
+no test names. "Not expressible" stays a legal answer — it names the missing
+facility and its owner — because a gate with no honest escape gets satisfied
+dishonestly.
+
+Two things fall out that no amount of care at card-add time gives you: **drift**
+— Scryfall adds rulings, so a card correct when registered can acquire one later
+that the engine violates, and nothing else in the project would ever notice —
+and a **pool-first work queue** for the 87.
+
+**And the reason to build it before the parser, not after.** The other half of
+the owner's plan is a static parser, so that a new set gives most of its cards
+for free and only the complex or genuinely new effects are hand-authored
+(`cost-architecture.md` §6's CP-1 row already leaves that parser a note about
+printed symbol order; Phase 8 is where it lands). A parser without this ledger
+is a liability rather than a shortcut: it turns card authoring from a
+deliberate act, where somebody read the card, into a bulk import where nobody
+did — and the *only* per-card evidence Scryfall ships that a machine cannot
+fabricate is the rulings. **The ledger is what makes machine-ingested cards
+safe to admit**, which reverses the dependency: it is not a nice-to-have
+alongside the parser, it is the parser's acceptance test. It also changes its
+own economics, because at that point the 145 rulings here are a pilot for
+thousands.
+
+Sizing the ledger alone: ~250 lines of Python, one data file, one line in the
+check command. About `check_state_of_play.py`. It blocks nothing today and can
+be taken whenever; the retroactive pass behind it is separable and pool-first;
+and it should be in place before the first machine-ingested card is registered.
 
 ## 4. Sizing a phase, and splitting it
 

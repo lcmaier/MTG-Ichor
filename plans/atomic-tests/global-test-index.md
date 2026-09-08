@@ -11,13 +11,13 @@
 |-------|-------|-----------|-------|-------|
 | ALREADY-IMPL | 195 | 0 | 3 | 198 |
 | Phase 5-Pre | 185 | 1 | 6 | 192 |
-| Phase 5-Layers | 150 | 0 | 13 | 163 |
+| Phase 5-Layers | 152 | 0 | 13 | 165 |
 | Phase 6 | 111 | 7 | 6 | 124 |
 | Phase 7 | 128 | 2 | 3 | 133 |
 | Phase 8 | 632 | 3 | 7 | 642 |
 | Phase 9 | 218 | 5 | 7 | 230 |
 | Post-v1 | 3 | 0 | 0 | 3 |
-| Backlog | 54 | 0 | 0 | 54 |
+| Backlog | 52 | 0 | 0 | 52 |
 | UNKNOWN | 3 | 0 | 11 | 14 |
 
 ---
@@ -428,7 +428,7 @@
 
 ## Phase 5-Layers
 
-**163 entries**
+**165 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -458,6 +458,7 @@
 | ATOM-118.7b-001 | 118.7b | Colored reduction on a cost without that color reduces generic instead | NEW — `cost-architecture.md` CM-1 | S1 |  |
 | ATOM-118.7c-001 | 118.7c | Excess colored reduction overflows to generic | NEW — `cost-architecture.md` CM-1 | S1 |  |
 | ATOM-118.7d-001 | 118.7d | Excess colorless reduction overflows to generic | NEW — `cost-architecture.md` CM-1 | S1 |  |
+| ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | NEW — `cost-architecture.md` CM-3 | S1 |  |
 | ATOM-118.9d-001 | 118.9d | Cost modifications apply to alternative costs | NEW — `cost-architecture.md` CM-1 | S1 |  |
 | ATOM-122.1a-001 | 122.1a | +1/+1 counter adds 1 to power and 1 to toughness | L04 / L08 | S1 |  |
 | ATOM-122.1a-002 | 122.1a | -1/-1 counter subtracts 1 from power and 1 from toughness | L04 / L08 | S1 |  |
@@ -523,6 +524,7 @@
 | ATOM-601.2f-002 | 601.2f | If the mana component is reduced to nothing, it is considered {0}. It can't be reduced to less than {0}. | NEW — `cost-architecture.md` CM-1 | S5 |  |
 | ATOM-601.2f-003 | 601.2f | Once the total cost is determined, effects that directly affect the total cost are applied. Then the resulting total cost becomes "locked in." | NEW — `cost-architecture.md` CM-1 | S5 |  |
 | ATOM-601.2f-004 | 601.2f | Multiple cost reduction effects: player chooses application order via DecisionProvider. | NEW — `cost-architecture.md` CM-1 | S5 |  |
+| ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | NEW — `cost-architecture.md` CM-3 | S5 |  |
 | ATOM-601.2i-003 | 601.2i | Effects modifying spell characteristics apply at the "spell becomes cast" step. | L10 | S5 |  |
 | ATOM-601.3-001 | 601.3 | A player can begin to cast a spell only if a rule or effect allows it and no rule or effect prohibits it. | L15 | S5 |  |
 | ATOM-602.1e-001 | 602.1e | If a spell or ability modifies how a player may pay an "activation cost," that modification applies to the total cost, even if increased/decreased by other effects. | L15 | S5 |  |
@@ -1765,7 +1767,7 @@
 
 ## Backlog
 
-**54 entries**
+**52 entries**
 
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
@@ -1779,7 +1781,6 @@
 | ATOM-107.4f-002 | 107.4f | {W/U/P} can be paid with {W}, {U}, or 2 life | NEW — Hybrid Phyrexian mana payment | S1 |  |
 | ATOM-107.4f-003 | 107.4f | {R/P} paid with mana instead of life | NEW — Phyrexian mana payment implementation | S1 |  |
 | ATOM-107.6-002 | 107.6 | Summoning-sick creature can't activate {Q} ability | T10 | S1 |  |
-| ATOM-118.8d-001 | 118.8d | Additional costs don't change a spell's mana cost (mana value stays the same) | L01 | S1 |  |
 | ATOM-118.9a-001 | 118.9a | Only one alternative cost can be applied to a spell | T18 | S1 |  |
 | ATOM-118.9c-001 | 118.9c | Alternative cost doesn't change the spell's mana cost for mana value purposes | L01 | S1 |  |
 | ATOM-202.3-001 | 202.3 | Mana value is the total amount of mana in the mana cost. | L10 | S2 |  |
@@ -1791,7 +1792,6 @@
 | ATOM-202.3g-001 | 202.3g | Each Phyrexian mana symbol contributes 1 to mana value. | L10 | S2 |  |
 | ATOM-400.2-001 | 400.2 | Graveyard, battlefield, stack, exile, ante, and command are public zones. Library and hand are hidden zones. | NEW — zone visibility classification query | S4 |  |
 | ATOM-402.3-001 | 402.3 | A player can see and rearrange cards in their own hand but can't look at the cards in another player's hand. | NEW — hand visibility enforcement in oracle layer. Currently all `GameState` access is unrestricted; this needs a per-player visibility filter. | S4 |  |
-| ATOM-601.2h-001 | 601.2h | The player pays the total cost. First, costs that don't involve random elements or moving objects from library to public zone. Then remaining costs. | T18 | S5 |  |
 | ATOM-601.2h-003 | 601.2h | Cost payment ordering matters and is player-controlled. | T18 | S5 |  |
 | ATOM-601.7-001 | 601.7 | Casting a spell that alters costs won't affect spells and abilities that are already on the stack. | T18 | S5 |  |
 | ATOM-607.1-001 | 607.1 | If two abilities are linked, the second refers only to actions taken or objects affected by the first, and not by any other ability. | T20 | S5 |  |

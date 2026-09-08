@@ -390,8 +390,8 @@
 - **Minimal Board:** Player has a spell with costs: {1}{B} mana + sacrifice a creature. Player controls a creature that reduces black spell costs by {1}.
 - **Action:** Player sacrifices the creature (non-random, non-library cost), then pays mana.
 - **Expected Result:** Per the Example (Altar's Reap + Thunderscape Familiar): cost was locked in at {B} (not {1}{B}) because cost locking happened BEFORE payment. Even though the familiar is sacrificed during payment, the locked cost doesn't change.
-- **Phase:** Backlog — cost pipeline (CM-3, `cost-architecture.md`: sacrifice as a cost)
-- **Ticket:** T18
+- **Phase:** Phase 5 Layers (CM-3 — lock-in's payment side; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-3
 
 **ATOM-601.2h-002**
 

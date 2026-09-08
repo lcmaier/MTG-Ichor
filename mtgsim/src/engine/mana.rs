@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::engine::actions::ActionContext;
 use crate::objects::card_data::AbilityType;
 use crate::types::effects::{Effect, Primitive};
@@ -51,10 +49,12 @@ impl GameState {
             return Err("You don't control this permanent".to_string());
         }
 
-        // Pay costs via shared cost payment system.
-        // Mana ability costs are always specific (tap, etc.) — no generic allocation needed.
-        let no_generic = HashMap::new();
-        self.pay_costs(&ability.costs, player_id, permanent_id, &no_generic, ctx)?;
+        // Pay costs via shared cost payment system: plan, then perform.
+        // A mana ability's cost is usually just {T}, but Krark-Clan Ironworks'
+        // is a sacrifice, and which artifact pays it is a choice — taken here,
+        // before anything moves.
+        let plan = self.plan_payment(&ability.costs, player_id, permanent_id, ctx)?;
+        self.pay_costs(&plan, player_id, permanent_id, ctx)?;
 
         // Resolve effect immediately (mana abilities don't use the stack)
         self.resolve_mana_effect(&ability.effect, player_id)?;

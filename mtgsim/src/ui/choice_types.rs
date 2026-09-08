@@ -63,6 +63,25 @@ pub enum ChoiceKind {
     /// - Generic vs colored ordering with mixed mana producers
     ManaAbilityWindow { spell_or_ability_id: ObjectId, remaining_cost: ManaCost },
 
+    /// CR 601.2h / 701.21a — which permanents to sacrifice to pay a
+    /// `Cost::Sacrifice`. Altar's Reap's "sacrifice a creature", Krark-Clan
+    /// Ironworks' "Sacrifice an artifact".
+    ///
+    /// **Asked at payment, not at announcement.** CR 601.2b announces an
+    /// *intention to pay* an additional cost and never which object pays it,
+    /// which is the whole of CR 601.2h's own example: the total is locked at
+    /// {B} before Thunderscape Familiar is picked as the thing sacrificed.
+    ///
+    /// The options are permanents the payer controls that match the cost's
+    /// filter, in `battlefield_ids_ordered`, and the source of the spell or
+    /// ability is among them when it matches — Ironworks sacrificing itself
+    /// is the filter matching normally, not a special case.
+    ///
+    /// Asked only when there are more candidates than the cost needs. With
+    /// exactly as many as it needs the payment is forced and nothing is
+    /// asked, which is [`Self::ChooseEnteringController`]'s CR 102.2 shape.
+    ChooseSacrificeForCost { spell_or_ability_id: ObjectId, count: u32 },
+
     // --- Replacement effects (CR 616.1) ---
     /// Two or more replacement or prevention effects want the same event and
     /// the affected object's controller (or the affected player) must choose

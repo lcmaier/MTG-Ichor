@@ -2563,8 +2563,14 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Minimal Board:** A spell with mana cost {2}{R} and additional cost "sacrifice a creature." Player pays {2}{R} + sacrifices.
 - **Action:** Query the spell's mana value on the stack
 - **Expected Result:** Mana value is 3 (only the mana cost matters, not the additional cost)
-- **Phase:** Backlog — cost pipeline (was Phase 5 Layers)
-- **Ticket:** L01
+- **Phase:** Phase 5 Layers (CM-3 — lock-in's payment side; `cost-architecture.md`)
+- **Ticket:** NEW — `cost-architecture.md` CM-3
+
+> **Note (118.8d-001):** the atom's board is "{2}{R} plus sacrifice a creature",
+> mana value 3. CM-3 builds it on Altar's Reap — {1}{B} plus sacrifice a
+> creature, mana value 2 — because the rule is about the additional cost
+> contributing nothing, and the printed card is the one CR 601.2h itself uses.
+> The number differs; the claim does not.
 
 **118.9** — PURE-DEF. Alternative costs framework. "You may [action] rather than pay [mana cost]." Only one alternative cost per spell.
 

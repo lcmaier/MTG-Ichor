@@ -107,6 +107,9 @@ impl DecisionProvider for CliDecisionProvider {
             ChoiceKind::LegendRule { legend_name } => {
                 format!("Legend rule: choose which '{}' to keep:", legend_name)
             }
+            ChoiceKind::ChooseSacrificeForCost { count, .. } => {
+                format!("Choose {} permanent(s) to sacrifice (indices):", count)
+            }
             ChoiceKind::ChooseCopySource { .. } => {
                 "Choose the creature to be copied:".to_string()
             }

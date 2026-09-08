@@ -714,17 +714,17 @@ each of which the engine must reproduce:
   step where you pay costs". 601.2g then 601.2h, which is the engine's order
   already.
 
-**Mind Stone as the vehicle, and the puzzle it makes.** Mind Stone's "{1},
+**Mind Stone as the loop's engine, and the puzzle it makes.** Mind Stone's "{1},
 {T}, Sacrifice this artifact: Draw a card" adds no mana, so it was never a
 mana ability under either rules text: activating it uses the stack, and the
 window at 602.2b is the same window the Sphere opens. Used as the loop's
-vehicle instead of the Sphere, it gives the *reordered* loop under the frozen
+engine instead of the Sphere, it gives the *reordered* loop under the frozen
 CR — the sacrifice triggers go on the stack above its draw and resolve first,
 which is exactly what the current CR makes the Sphere do. So both orderings
-are reachable under `tmnt.txt`, one per vehicle, and the rules-version knob
-above decides only which vehicle gives which.
+are reachable under `tmnt.txt`, one per engine, and the rules-version knob
+above decides only which engine gives which.
 
-The puzzle is the case where Ironworks eats the vehicle itself: announce Mind
+The puzzle is the case where Ironworks eats that engine itself: announce Mind
 Stone's ability, sacrifice Mind Stone to Ironworks in the window, and the
 activation cannot pay its own sacrifice at 601.2h. Two actions are in play,
 and 732.1 treats them differently. **Action one** is the activation of Mind
@@ -786,6 +786,92 @@ step 2 and, through CM-3 and CM-4, steps 3 and 4; step 1 and step 5 are
 target leaf named above. The loop is written down once, here, so that each
 owner can see its step, and the integration test that walks all seven is
 item 6's exit criterion rather than any phase's here.
+
+---
+
+### 3.12 Paying is deciding, then performing — and CR 732.1 has nothing to cancel (built, CM-3)
+
+> **732.1** If a player takes an illegal action or starts to take an action but
+> can't legally complete it, the entire action is reversed and any payments
+> already made are canceled. No abilities trigger and no effects apply as a
+> result of an undone action. …
+
+The seam §6 named (`backlog.md` §2.1's payment half) reaches this document at
+exactly one point: a sacrifice is the first payment that is a *choice* and a
+*move*, and a move that is later un-made is a chokepoint question. `CLAUDE.md`
+names one permanent exemption, `// CAST-ROLLBACK:`, CR 601.2a's silent move.
+The question this phase had to settle is whether 732.1 is a second exemption,
+a reuse of the first, or neither. **It is neither, and CM-3 builds the
+property that makes it so rather than the cancellation it would otherwise
+need.** `CLAUDE.md`'s chokepoint section is unchanged.
+
+**Why not an exemption.** `// CAST-ROLLBACK:` is silent in *both* directions
+because the 601.2a move was never an event — nothing observed it, so nothing
+observes its undoing. A sacrifice is the opposite: it is a proposal, it goes
+through `apply_replacements`, a replacement may have changed where it went,
+and it emits a `ZoneChange` into the stream the trigger phase reads as its
+source of truth. Undoing it means retracting an emitted event and restoring a
+`PermanentState` — timestamp, counters, attachments — that the move destroyed.
+That is a system with a new concept in it (event retraction), not an arm, and
+it would be built for a rule the engine should never reach.
+
+**Why it is never reached — the order, and the gate on it.** CR 601.2h hands
+the order of a total cost's payment to the player, "in any order", and the
+engine picks one. It picks **the order in which nothing fallible is paid after
+something irreversible**, which is §3.3's mana-first argument generalised:
+
+| rank | costs | why nothing after it can fail |
+|---|---|---|
+| 0 | `Mana` | the only cost whose payment can fail on a choice the player made — an illegal generic split — so it is paid while nothing else has been |
+| 1 | `Tap`, `Untap`, `PayLife`, counters | reads the source's tapped state, its summoning sickness, or a life total; no rank-0 payment touches any of them |
+| 2 | `Sacrifice`, `SacrificeSelf`, `Discard`, `ExileFromGraveyard` | its own payment cannot fail — `plan_payment` enumerated the candidates and `validate_pick_n` bounds the answer — and nothing follows it that a removal could invalidate |
+
+`payment_order_rank` is matched exhaustively, so a new `Cost` arm decides where
+it sits, and a `debug_assert!` on `pay_costs`'s failure path says the claim out
+loud. **§3.3 was not enough on its own**: its merge lives in
+`determine_total_cost`, which only spells go through, while `activate_ability`
+and `activate_mana_ability` pay an ability's *printed* cost list. Every printed
+card happens to put its mana and tap first; a card printing "Sacrifice a
+creature, {T}:" would eat its own source and fail the tap with a payment made.
+`phase_cm_cards::self_eating_engine` is that card, and it is the only board on
+which the rank is visible.
+
+**601.2h's own two groups are not modelled**, deliberately: no `Cost` arm is
+random and none moves a card out of a library, so the second group is empty for
+every cost that exists, and an arm the pipeline cannot apply is worse than a
+missing one (`CLAUDE.md`).
+
+**And deciding is separated from performing.** `plan_payment` takes every
+choice a payment needs — the generic split, and which permanents pay each
+`Cost::Sacrifice` — against the board as it stands; `pay_costs` performs the
+plan and asks nobody anything. The invariant is **no payment prompt is asked
+after a payment has been performed**, and it buys three things. It is the
+replacement pipeline's own shape (CR 704.3: decide the batch against one
+board, then perform). It makes the rank-2 argument above true rather than
+nearly true, since a mid-payment prompt would read a board a previous payment
+had already changed. And it is what lets a client stage a payment the way
+Arena does — delve exiles, convoke taps, a sacrifice, all take-back-able until
+the player confirms — because the engine never holds a half-performed one:
+prompting mid-payment would have made 732.1's cancellation *mandatory* for the
+GUI, which is v1's first use case. Building the staged UI is Phase 10's;
+`backlog.md` §2.18 carries it beside the payer.
+
+**The Mind Stone puzzle reaches the check, not the payment.** §3.11's board —
+an activation's own source sacrificed to Ironworks inside that activation's
+own 601.2g window — fails at `can_pay_costs`, which runs after the window and
+before anything is paid. The activation rewinds with no payment to cancel; the
+Ironworks activation, legal when it happened, stands with its mana and its
+cost. That is what CM-3's test asserts, and it is what both readings of the
+open judge question share.
+
+**What is left, and it is written down rather than argued away.** Two boards
+would need the cancellation, and both are `codebase-state.md` items with their
+reachability stated: **item 78**, two object-moving costs in one list, which
+`can_pay_costs` clears independently and only one of which is payable
+(unreachable — no card prints two; the fix is a set-cover pre-check); and
+**item 79**, the day the order becomes the player's (`ATOM-601.2h-003`), which
+must offer only orders that complete — CR 601.2h's "unpayable costs can't be
+paid" applied to the order — or build the cancellation instead.
 
 ---
 
@@ -867,7 +953,7 @@ the same player.
 | **CM-0 — `PermanentFilter → ObjectFilter`** | the rename `roadmap-v2.md` A5 scheduled, pulled forward because CM-1 is its first non-permanent consumer (§3.2). No zone leaf, no behaviour | 275 occurrences / 25 `src/` files, 119 / 18 test files, 56 plan lines; `cargo build --all-targets` and a green suite are the whole check | low — pure rename; the one hazard is a doc line left saying the old name, and grep is the test |
 | **CM-1 — the pipeline** | §3.1–3.6: the type, the gate, the sweep over sources, 601.2f's order, the prompt, the preview, `SourceUntapped`; no `Itself`, no `ReduceGeneric`, no `not_below` (their phases'). **Consumers:** Thalia, Guardian of Thraben (increase, **pooled**), Goblin Electromancer (reduction), Trinisphere (direct-total, conditional). Fixtures: a self-tapping sphere for lock-in across 601.2g; a kicked spell; an alternative-cost spell; three small reducers for the floor | §5's 11 sites; ~400 new engine lines in `cost_modification/`, ~250 across the sites, ~350 of cards, ~600 of tests | **medium** — the first cast-time sweep; the preview is the site that can disagree with the engine, and the merge step touches every cast |
 | **CM-2 — the spell's own cost abilities** ✅ | `CostSubject::Itself` (source 2), `CostChange::ReduceGeneric(AmountExpr)`, the evaluator §3.7 argues for (`CountOf` and `SourcePower` over the finished board), affinity lowered to it, the preview reading the hand frame's cost abilities (113.6e). **And the `CardDataBuilder::keyword` → `keyword_flag` rename** (42 sites in 16 `src/` files, 3 in tests; zero behaviour, its own commit), because affinity is the first keyword a builder writes that is not a flag. **Consumers:** Myr Enforcer, Frogmite (affinity for artifacts; one pooled — the pool's first self-reduction and the first `CountOf` at cast time) | 1 source, 1 arm, 1 evaluator (~120), a builder helper, 2 cards, ~250 of tests: ~600 | low-medium — the evaluator is a third reader of `AmountExpr` and item 57's warning is answered in §3.7 |
-| **CM-3 — lock-in's payment side** | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" is what CM-3 must add for a sacrifice paid before a later cost fails. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
+| **CM-3 — lock-in's payment side** ✅ | `Cost::Sacrifice(filter, n)` paid through the chokepoint with a `ChoiceKind` for which permanent, as a spell's additional cost and as a mana ability's cost; a mandatory additional cost (`AdditionalCost` today is all optional, CR 118.8b); the mana component is already paid *first* (§3.3), so a split that fails has paid nothing else — and CR 732.1's "any payments already made are canceled" turned out to need nothing added — §3.12 is the answer and the gate. **Consumers:** Altar's Reap + Thunderscape Familiar (CR 601.2h's own example, a named board); Krark-Clan Ironworks + Foundry Inspector (the lock-in through the window, §3.11); Mind Stone (the 732.1 board, its trigger half left for item 6) | 2 payment arms + 1 check arm in `costs.rs`, 1 prompt, 1 `ask_choose_additional_costs` change, 5 cards, ~350 of tests: ~800 | low — payment machinery with the CR's own board and the banned deck's as the tests |
 | **CM-4 — the mana window and the payer** | `run_mana_ability_window` opens only when the locked mana component is non-empty (601.2g) and then runs until the player declines or no ability is left (605.3a) — today it also stops the moment the pool covers the cost, which is a payer's policy in the engine's loop (§3.11, §8). The policy moves to `ui::AutoPayer<D>`, a `DecisionProvider` decorator that answers `ManaAbilityWindow` (stop when covered), `GenericManaAllocation`, `OrderCostReductions` and CM-3's sacrifice choice from a solver and passes everything else through; `RandomDecisionProvider` and the CLI wrap themselves in it by default, with a flag off. **Consumers:** the loop's step 3 with CM-3's cards; the fuzz harness, which must reproduce today's counters with the payer on | ~30 in the window, ~150 decorator, ~30 wiring, ~150 tests: ~400 | medium — every cast's prompt sequence passes through it; the A/B is the check that the default reproduces `main` |
 | **CP-1 — payment (a sized slot, not a design)** | §2.1's other half. 601.2b's announcement of a nonhybrid equivalent and of Phyrexian halves (a `ChoiceKind`, before 601.2f); `ManaPool::pay`/`can_pay` branches for `Hybrid`, `MonoHybrid`, `Phyrexian`, `HybridPhyrexian` (`pay_life` for the latter, through the chokepoint); `find_mana_sources` and `remaining_cost_after_pool` for them (the AI cannot cast a hybrid card today); `ask_choose_generic_mana_allocation`'s tally; mana value with X on the stack (202.3e — a characteristic, read off the `StackEntry`); `{Q}` exists as `Cost::Untap` and its atoms want annotations. **A note for the Scryfall parser that CP-1 or Phase 8 writes:** a printed cost's symbol order is not WUBRG — two-colour costs follow the colour wheel's shorter arc ({G}{U}, {R}{W}), shards and wedges have their own — and `ManaCost` equality is *sequence* equality, so a parser must keep the printed order for display and comparisons must be by multiset. `ATOM-107.4e/f-*` (7 `NEW`), `ATOM-202.3*` (7) | 6 sites; ~1 PR | medium — `ManaPool::pay` is on every cast |
 
@@ -900,9 +986,12 @@ test wants CM-3's cards; RS-4 "reads better after" the modification phases.
 RC/RD/RE and nothing in them depends on this.
 
 **Every PR carries** the card registered where there is one, `PERFORMANCE_
-POOL` +1 per new engine path (CM-1: Thalia; CM-2: Myr Enforcer; CM-3 and
-CM-4 open no new path a pooled card would measure — the payer must leave the
-counters where they were), `plans/
+POOL` +1 per new engine path (CM-1: Thalia; CM-2: Myr Enforcer; **CM-3:
+Bone Splinters** — this row first said CM-3 opened no path a pooled card would
+measure, and the A/B disproved it: the engine change is `IDENTICAL` to `main`
+on the old pool, but `Cost::Sacrifice` is a path no card in the 72 could
+reach, which is the pool doc's own failure mode. CM-4 still opens none — the
+payer must leave the counters where they were), `plans/
 fuzz_ab.py` against a same-day `main` worktree, three-run determinism on both
 pools, `specdb owed` clean for `Phase 5-Layers`, and `// COVERS:` on exactly
 what each test builds. None qualifies for a trace page: each adds a read, none
@@ -920,7 +1009,7 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 |---|---|---|---|
 | `ATOM-601.2f-001` | base + kicker + increase, one component | CM-1: a kicked {3}{R} fixture under Thalia pays {6}{R} | COVERS |
 | `ATOM-601.2f-002` | floor at {0} | CM-1: {1}{G} under {1}, {1} and {G} reducers pays {0} | COVERS |
-| `ATOM-601.2f-003` | locked before payment | CM-1: the self-tapping sphere — locked at three, tapped in 601.2g, three paid | COVERS-PARTIAL in CM-1 (the mutation is a tap, not an entering increase); CM-3's Ironworks board completes it |
+| `ATOM-601.2f-003` | locked before payment | CM-1: the self-tapping sphere — locked at three, tapped in 601.2g, three paid | COVERS-PARTIAL in CM-1 (the mutation is a tap, not an entering increase); **completed in CM-3** — Foundry Inspector settles Mind Stone's total at {1} and Ironworks eats the Inspector inside the window; the leftover colorless is the assertion |
 | `ATOM-601.2f-004` | two reductions, the player orders them | CM-1: two reducers on one instant — the prompt is asked, both apply, every order agrees | COVERS, with the §3.4 note |
 | `ATOM-613.11-002` | increases before reductions | CM-1: Thalia + Electromancer on Lightning Bolt: {R} | COVERS |
 | `ATOM-613.11-001` | game-rule effects read final characteristics | CM-1: Thalia under Humility stops taxing — the cost half of the claim | COVERS-PARTIAL — the atom's board is an attack restriction over an effective color, RS-3a's |
@@ -928,7 +1017,8 @@ Re-filed into `Phase 5 Layers (CM-<n> …)` so `owed` gates them, from
 | `ATOM-118.7a/b/c/d-001` | the arithmetic | CM-1: unit tests in `total.rs` | COVERS |
 | `ATOM-118.9d-001` | modifications apply to an alternative cost | CM-1: an alternative cost of {R} under Thalia pays {1}{R} | COVERS |
 | `ATOM-702.41a-001` | affinity reduces generic by the count it names | CM-2: Myr Enforcer cast from an exact pool at four artifact counts, an opponent's not counted, and seven artifacts casting it free | COVERS; the `{6}`/4 arithmetic is `total.rs`'s COVERS-PARTIAL, since it computes and does not cast |
-| `ATOM-601.2h-001` | the Altar's Reap example | **CM-3** | stays `Backlog`, labelled CM-3 |
+| `ATOM-601.2h-001` | the Altar's Reap example | CM-3: Altar's Reap under Thunderscape Familiar, from an exact {B} pool, the Familiar paying | COVERS; re-filed into `Phase 5 Layers (CM-3 …)` |
+| `ATOM-118.8d-001` | an additional cost does not change the mana cost | CM-3: Altar's Reap on the stack is mana value 2 | COVERS; re-filed, with a session note that the board is {1}{B} and not the atom's {2}{R} |
 | `ATOM-107.4e/f-*`, `ATOM-202.3*` | payment | **CP-1** | stay `Backlog`, labelled CP-1 |
 
 `ATOM-118.7e-*`, `-f`, `-g` (hybrid, Phyrexian, snow reductions) and
@@ -1059,11 +1149,15 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 `CLAUDE.md` (the row, in place); `codebase-state.md` ("Before Layers" item 3,
 main item 13, the CM-1 entry, §8's findings as Deferred Migrations items);
 `backlog.md` §2.1 (graduated), §2.15 (owns `lands_per_turn` alone now), §2.18
-(the payer middleware named); `cant-effects-architecture.md` §7.1 row 10;
+(the payer middleware named, and from CM-3 the staged payment beside it);
+`cant-effects-architecture.md` §7.1 row 10;
 `replacement-architecture.md` §9's "needs a phase marker of its own";
 `roadmap-v2.md` A5 (the rename is CM-0) and B1; `layers-architecture.md`
-§11.2's pointer; the session files for the re-filed atoms and the note under
-`ATOM-601.2f-004`; and `plans/state-of-play.md` regenerated.
+§11.2's pointer; the session files for the re-filed atoms and the notes under
+`ATOM-601.2f-004` and `ATOM-118.8d-001`; `engineering-practices.md` §3
+re-recorded whenever the pool moves (CM-1, CM-2, CM-3); and
+`plans/state-of-play.md` regenerated. **`CLAUDE.md`'s chokepoint section is
+not on this list and CM-3 confirmed it stays off** (§3.12).
 
 ---
 
@@ -1151,3 +1245,32 @@ arm. Myr Enforcer is pooled and Frogmite registered; the `keyword` →
 `keyword_flag` rename went first, alone. The A/B's middle arm is `IDENTICAL` to
 `main` on `performance` — on the second run: the first found two gates asking
 about a body where the question was about a subject (§8 items 6a and 7).
+
+#### CM-3 — lock-in's payment side — ✅ 2026-09-07
+
+Built as §3.12 argues, and §3.12 is what the building added to this document:
+the 732.1 question the phase opened with is closed by an ordering property and
+a gate on it, not by a rollback and not by a second chokepoint exemption. Two
+residues are `codebase-state.md` items 78 and 79 with their reachability
+stated, and the reversal *offer* stays item 72's.
+
+`Cost::Sacrifice` is paid as one `execute_actions` batch with "you control"
+supplied by CR 701.21a rather than by the card's filter; `AdditionalCost::
+Mandatory` gives CR 118.8b its other half, and 601.2b announces the optional
+costs alone. `castable_spells` gained the mandatory-cost question, which §3.6
+required and no mana cost could answer.
+
+Five printed cards in three pairs of a board, two fixtures for the two claims
+no printed card can carry — and the first **rulings pass**
+(`engineering-practices.md` §3.4), which turned eleven Scryfall rulings into
+six tests, two already-covered notes and three named gaps. One of the six is a
+board no atom in the corpus asks for: the Familiar reduces a black-*and*-green
+spell once, which an author writing two colour abilities instead of one `Or`
+would get wrong with every existing test still green. **§6's pool prediction was wrong and the A/B is what
+said so**: the engine arm is `IDENTICAL` to `main`, and the pool grows to 73.
+Which card is a second question, also measured — Altar's Reap costs +20.2%
+CPU/game and Bone Splinters +11.9% for the identical set of paths, so the pool
+carries Bone Splinters and Altar's Reap stays registered as CR 601.2h's own
+example. An inert 73rd card costs +14.0%, which is the finding underneath
+both numbers: the tax is the slot, not the mechanic
+(`engineering-practices.md` §3.1a).

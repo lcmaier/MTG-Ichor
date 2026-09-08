@@ -497,7 +497,17 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `OrderCostReductions` and the sacrifice-choice prompt from a solver and
   passes everything else through; and it is where the mana window's early
   stop belongs (`codebase-state.md` main item 70). The reversal prompt is
-  main item 72.
+  main item 72. **And a third thing lives here now (2026-09-07, CM-3):**
+  the *staged* payment Arena offers — delve exiles, convoke taps, a sacrifice,
+  all shown and take-back-able until the player confirms the cast. CM-3 made
+  that possible without any engine facility by separating deciding from
+  performing: every payment prompt is asked against one board before anything
+  moves (`cost-architecture.md` §3.12), so a client can buffer the answers and
+  let the player revise them, and the engine never holds a half-performed
+  payment to undo. It is Phase 10 GUI work, not engine work, and the thing to
+  protect is the invariant rather than the UI — a phase that asks a payment
+  prompt *after* a payment would take the staging away and make CR 732.1's
+  cancellation mandatory.
 - **Size** — small for the reversal: one prompt at the rewind site, and the
   taps undone silently, the way the cast's own rewind is — a 732.1 reversal is
   not an untap event and nothing may observe it. The oracle is harness-side:
@@ -551,6 +561,46 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   recommendation is this entry.)
 
 ---
+
+### 2.21 Can a client render what it is being asked? — the decision boundary's other half
+
+- **Rules** — none. This is an engine-interface question, not a CR one, which
+  is why it needs writing down: nothing in the CR will fail if we get it wrong.
+- **Verdict** — a `ChoiceContext` is supposed to carry enough that a UI can say
+  *why* a player is being asked and highlight *what* they may pick, and today
+  it does: the options are `ChoiceOption`s naming real objects and players, and
+  each `ChoiceKind` carries its source (`ChooseSacrificeForCost`'s
+  `spell_or_ability_id`, `ApplyOptionalReplacement`'s and
+  `ChooseAuxiliaryZoneChange`'s `source`, whose doc argues the point outright:
+  "why am I being asked this is answered by the source and by nothing else on
+  this prompt"). **But nothing enforces it.** The discipline lives in prose on
+  individual variants, there is no test that a new `ChoiceKind` carries a
+  source, and the only consumer that would notice is `ui/cli.rs`, which is
+  omniscient and formats a line of text. The next variant added under time
+  pressure can drop the source and every test will pass.
+- **Not §2.9.** That entry asks *may* this player see the object; this one asks
+  *can the client draw the question*. They fail differently and are fixed
+  differently: §2.9 is a per-viewer query over zones, this is a shape
+  obligation on one enum. A UI can be perfectly legal about hidden information
+  and still be unable to tell the player what it wants from them.
+- **Size** — small if taken as a gate rather than a redesign. The shape:
+  a `fn subject(&self) -> Option<ObjectId>` (or a richer `PromptSubject`) that
+  every `ChoiceKind` answers, matched exhaustively so a new variant must
+  decide, plus a test that walks a game and asserts every prompt raised carries
+  one. The variants that legitimately have no subject — `PriorityAction`,
+  `DiscardToHandSize` — say `None` and say why, which is the same discipline
+  `ZoneChangeCause`'s no-catchall rule uses. ~1 small PR.
+- **Blocks** — the GUI half of v1, quietly. Not a rules bug and not something
+  the fuzz harness can find, because `RandomDecisionProvider` picks by index
+  and never asks what the prompt means. The cost of skipping it is discovered
+  during GUI work, one prompt at a time, by which point the variants are
+  numerous and the fixes are individually cheap and collectively not.
+- **Atoms** — none, and there will be none: the corpus is derived from the CR
+  and the CR has nothing to say about interfaces.
+- **Where it came from** — the owner, reviewing CM-3's sacrifice prompt
+  (2026-09-08): "I'm generally getting paranoid we're not actually giving the
+  UI enough info to display the gamestate properly." That prompt turned out to
+  be fine; the absence of anything that would have told us is the entry.
 
 ### 2.20 Several target clauses on one spell
 
