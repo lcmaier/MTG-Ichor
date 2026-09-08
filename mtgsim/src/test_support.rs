@@ -297,12 +297,20 @@ impl DecisionProvider for RecordingDecisionProvider {
         total: u64,
         buckets: &[crate::ui::choice_types::ChoiceOption],
         _per_bucket_mins: &[u64],
-        _per_bucket_maxs: Option<&[u64]>,
+        per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.seen.borrow_mut().push("allocate".to_string());
+        // Greedy in bucket order, respecting each maximum. Dumping the whole
+        // total into bucket 0 was legal only while every test's pool had one
+        // type in it; a two-colour pool has a bucket whose maximum is zero
+        // (`ask_choose_generic_mana_allocation` clamps each to what the pips
+        // leave over), and the asker asserts against it.
         let mut out = vec![0; buckets.len()];
-        if !out.is_empty() {
-            out[0] = total;
+        let mut left = total;
+        for (i, slot) in out.iter_mut().enumerate() {
+            let cap = per_bucket_maxs.map_or(left, |m| m[i].min(left));
+            *slot = cap;
+            left -= cap;
         }
         out
     }

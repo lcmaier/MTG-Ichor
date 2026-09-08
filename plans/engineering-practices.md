@@ -1057,6 +1057,58 @@ a `--dump-events` log is cheap enough that there is no excuse for inheriting.
 
 ---
 
+### 3.4 The rulings pass — read a card's rulings before you register it
+
+**Adopted 2026-09-08 (the owner, reviewing CM-3).** Oracle text has been
+verified against Scryfall since the corpus started. Rulings had not been, and
+they are the cheaper half: a card's rulings exist *because players got those
+cases wrong*, so they are a free list of the boards a naive implementation
+misses — written by the people who adjudicate them, and already minimal.
+
+**The rule: every card a phase registers gets a rulings pass, and the pass is
+written down.** For each ruling, one of three answers, and the third is as
+useful as the first:
+
+1. **Testable now** — it becomes a test, named after the ruling's claim.
+2. **Already tested** — say which test, so the next reader does not redo it.
+3. **Not yet expressible** — say which facility is missing and who owns it.
+   This is the valuable one: a ruling the engine cannot state is a gap
+   discovered from the outside, by someone who was not looking at the code.
+
+Fetch them with `curl` and a UA header, like the oracle text (`CLAUDE.md`'s
+references row): `/cards/named?exact=…` carries a `rulings_uri`.
+
+**What it caught on its first outing (CM-3, five cards, eleven rulings).** Six
+became tests, and none of them was a board the corpus had:
+
+- *"If a spell is both black and green, you pay {1} less, not {2} less"*
+  (Thunderscape Familiar). The card is one ability with an `Or` over two colour
+  leaves, so the gather returns one instance. Written as two abilities — the
+  obvious alternative, and the one a card author reaches for first — it would
+  reduce twice. **No atom in the corpus asks this**, and no test in CM-1 or
+  CM-2 could have caught it.
+- *"You must sacrifice exactly one creature … you cannot sacrifice additional
+  creatures"* (Altar's Reap). The prompt's bound is the claim, and
+  `picking_all` is the provider that falsifies it.
+- *"Players can only respond once this spell has been cast and all its costs
+  have been paid"* (Altar's Reap) and *"no player may take actions to try to
+  remove Foundry Inspector before that spell's cost is locked in"* — two cards'
+  rulings, one engine claim: nothing yields priority between CR 601.2a and
+  601.2i. Asserted as the absence of a priority prompt.
+- *"Choose the value for X first, and then reduce the cost by {1}"* (Foundry
+  Inspector), with the ruling's own numbers as the test's.
+
+Two were already tested (the Familiar's floor at zero; "if this card is
+sacrificed to pay part of a spell's cost, the cost reduction still applies",
+which is `ATOM-601.2h-001`). Three were not expressible and are recorded as
+such rather than skipped — chiefly *"the generic X cost is still considered
+generic even if there is a requirement that a specific color be used"*, which
+needs the spend-restriction model (`backlog.md` §2.19's neighbourhood).
+
+**This is not retroactive by default.** The 88 cards registered before CM-3
+have not had the pass; doing them is a task worth its own PR, and the place to
+start is the pooled ones, since a wrong answer there is in every measured game.
+
 ## 4. Sizing a phase, and splitting it
 
 **Size a phase before writing it, and split it in the doc, not in the moment.**

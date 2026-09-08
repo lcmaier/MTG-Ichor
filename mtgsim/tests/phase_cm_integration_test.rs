@@ -974,3 +974,198 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
         .collect();
     assert_eq!(batches.len(), 1, "two sacrifices for one cost are one event");
 }
+
+// ---------------------------------------------------------------------------
+// The rulings pass — CM-3's five cards, read on Scryfall 2026-09-08
+//
+// `engineering-practices.md` §3.4: a card's rulings are the cheapest source of
+// boards the corpus does not have, because they were written about the cases
+// players got wrong. What follows is every ruling on the five that this engine
+// can answer today; the ones it cannot are listed there with the reason.
+// ---------------------------------------------------------------------------
+
+/// A coloured [`tin_trinket`]: a permanent spell needs no spell ability, so
+/// the cost is the whole card and nothing else can move it.
+fn colored_trinket(name: &str, cost: ManaCost, colors: &[mtgsim::types::colors::Color]) -> Arc<CardData> {
+    let mut b = CardDataBuilder::new(name).mana_cost(cost).card_type(CardType::Artifact);
+    for c in colors {
+        b = b.color(*c);
+    }
+    b.build()
+}
+
+/// {2}{B}{G}, for the Familiar's "both black and green" ruling.
+fn golgari_trinket() -> Arc<CardData> {
+    colored_trinket(
+        "Golgari Trinket",
+        ManaCost::build(&[ManaType::Black, ManaType::Green], 2),
+        &[mtgsim::types::colors::Color::Black, mtgsim::types::colors::Color::Green],
+    )
+}
+
+/// {B}{B}: a black spell with no generic to give.
+fn double_black_trinket() -> Arc<CardData> {
+    colored_trinket(
+        "Double Black Trinket",
+        ManaCost::build(&[ManaType::Black, ManaType::Black], 0),
+        &[mtgsim::types::colors::Color::Black],
+    )
+}
+
+/// {2}{B}, for the cumulative ruling.
+fn sable_trinket() -> Arc<CardData> {
+    colored_trinket(
+        "Sable Trinket",
+        ManaCost::build(&[ManaType::Black], 2),
+        &[mtgsim::types::colors::Color::Black],
+    )
+}
+
+/// An {X} artifact, for Foundry Inspector's X ruling.
+fn x_trinket() -> Arc<CardData> {
+    CardDataBuilder::new("X Trinket")
+        .mana_cost(ManaCost::from_symbols(vec![mtgsim::types::mana::ManaSymbol::X]))
+        .card_type(CardType::Artifact)
+        .build()
+}
+
+/// Thunderscape Familiar, 2004-10-04: "If a spell is both black and green, you
+/// pay {1} less, not {2} less."
+///
+/// The filter is one `Or` in one ability, so the gather returns one instance
+/// and the reduction applies once. Written as two colour leaves on two
+/// abilities it would apply twice, and this board is the only one that says so.
+#[test]
+fn test_the_familiar_reduces_a_black_and_green_spell_once() {
+    assert_costs_exactly(
+        familiar_board,
+        golgari_trinket,
+        &[(ManaType::Black, 1), (ManaType::Green, 1), (ManaType::Colorless, 1)],
+        ManaType::Colorless,
+        "a black-and-green spell under one Familiar",
+    );
+}
+
+/// Thunderscape Familiar, 2004-10-04: "The effect is cumulative." Two
+/// Familiars make a black spell cost {2} less — and, because two reductions
+/// apply, CR 601.2f's ordering prompt is asked.
+#[test]
+fn test_two_familiars_reduce_cumulatively() {
+    let board = || {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
+        put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
+        game
+    };
+    // {2}{B} under two Familiars is {B}.
+    assert_costs_exactly(
+        board,
+        sable_trinket,
+        &[(ManaType::Black, 1)],
+        ManaType::Black,
+        "{2}{B} under two Familiars",
+    );
+
+    let mut game = board();
+    let dp = RecordingDecisionProvider::picking(0);
+    cast_from_pool(
+        &mut game, 0,
+        sable_trinket(),
+        &[(ManaType::Black, 1)], &dp,
+    )
+    .unwrap();
+    assert!(
+        dp.kinds().iter().any(|k| k.starts_with("OrderCostReductions")),
+        "two reductions is a choice: {:?}", dp.kinds(),
+    );
+}
+
+/// Thunderscape Familiar, 2004-10-04: "Can never affect the colored part of
+/// the cost" (CR 118.7a), and "the lower cost is not optional like with some
+/// other cost reducers" — the engine offers no way to decline it, so the
+/// second ruling is the absence of a prompt.
+#[test]
+fn test_the_familiar_cannot_touch_a_colored_only_cost() {
+    assert_costs_exactly(
+        familiar_board,
+        double_black_trinket,
+        &[(ManaType::Black, 2)],
+        ManaType::Black,
+        "{B}{B} under the Familiar",
+    );
+
+    let mut game = familiar_board();
+    let dp = RecordingDecisionProvider::picking(0);
+    cast_from_pool(&mut game, 0, double_black_trinket(), &[(ManaType::Black, 2)], &dp).unwrap();
+    assert_eq!(dp.prompts(), 0, "a reduction is not offered, it applies: {:?}", dp.kinds());
+}
+
+/// Altar's Reap, 2013-04-15: "You must sacrifice exactly one creature ... you
+/// cannot sacrifice additional creatures."
+///
+/// The bound is the assertion. `picking_all` takes everything the prompt lets
+/// it, so with three creatures on the board it would sacrifice three if the
+/// prompt's maximum were the candidate count rather than the cost's `n`.
+#[test]
+fn test_altars_reap_sacrifices_exactly_one_however_many_are_offered() {
+    let mut game = familiar_board();
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    assert_eq!(game.battlefield.len(), 3);
+
+    let dp = RecordingDecisionProvider::picking_all();
+    cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
+        .expect("castable");
+
+    assert_eq!(game.battlefield.len(), 2, "exactly one creature paid for it");
+}
+
+/// Altar's Reap, 2013-04-15: "Players can only respond once this spell has
+/// been cast and all its costs have been paid. No one can try to destroy the
+/// creature you sacrificed to prevent you from casting this spell." — and
+/// Foundry Inspector, 2016-09-20, says the same thing about removing the
+/// Inspector before the cost is locked in.
+///
+/// Both are one claim about the engine: nothing yields priority between
+/// CR 601.2a and 601.2i. Asserted as the absence of any priority prompt across
+/// a cast that locks a cost, opens a mana window and pays a sacrifice.
+#[test]
+fn test_no_player_gets_priority_inside_a_cast() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
+    put_on_battlefield(&mut game, phase_cm_cards::foundry_inspector(), 0);
+
+    let dp = RecordingDecisionProvider::picking(0);
+    cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
+        .expect("castable");
+
+    assert!(
+        !dp.kinds().iter().any(|k| k.starts_with("PriorityAction")),
+        "a cast is not interruptible: {:?}", dp.kinds(),
+    );
+}
+
+/// Foundry Inspector, 2016-09-20: "If an artifact spell has {X} in its mana
+/// cost, choose the value for X first, and then reduce the cost by {1}. For
+/// example, an artifact that costs {X} with X chosen as 4 costs {3} to cast."
+///
+/// The ruling's own numbers. X is announced at CR 601.2b and expanded into
+/// generic before 601.2f's reduction, which is why the answer is {3} and not
+/// an X of 3.
+#[test]
+fn test_foundry_inspector_reduces_an_x_cost_after_x_is_chosen() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, phase_cm_cards::foundry_inspector(), 0);
+    let trinket = put_in_hand(&mut game, x_trinket(), 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: trinket, x_count: 1 }, 4);
+    dp.expect_allocation(
+        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[], 3) },
+        vec![3],
+    );
+
+    game.players[0].mana_pool.add(ManaType::Colorless, 3);
+    game.cast_spell(0, trinket, &dp).expect("X=4 costs {3} under the Inspector");
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{3}}, the ruling's own number");
+}

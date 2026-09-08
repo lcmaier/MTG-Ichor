@@ -1261,7 +1261,12 @@ costs alone. `castable_spells` gained the mandatory-cost question, which §3.6
 required and no mana cost could answer.
 
 Five printed cards in three pairs of a board, two fixtures for the two claims
-no printed card can carry. **§6's pool prediction was wrong and the A/B is what
+no printed card can carry — and the first **rulings pass**
+(`engineering-practices.md` §3.4), which turned eleven Scryfall rulings into
+six tests, two already-covered notes and three named gaps. One of the six is a
+board no atom in the corpus asks for: the Familiar reduces a black-*and*-green
+spell once, which an author writing two colour abilities instead of one `Or`
+would get wrong with every existing test still green. **§6's pool prediction was wrong and the A/B is what
 said so**: the engine arm is `IDENTICAL` to `main`, and Altar's Reap joins
 `PERFORMANCE_POOL` (72 → 73) at +19.5% CPU/game, all of it the card's
 gameplay. `engineering-practices.md` §3 has the re-recorded table.
