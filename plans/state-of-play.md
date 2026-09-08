@@ -82,8 +82,8 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 | Section size | 4303 of 4518 lines (95%) |
 | Numbered items | 128 |
 | …closed, still recorded | 31 |
-| …open — unreachable, and says why | 60 |
-| **…open — reachable, wrong today** | **3** |
+| …open — unreachable, and says why | 59 |
+| **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 12 |
 | …open — nothing to build, a record for a later phase | 22 |
 | **…open — reachability *not* stated** | **0** |

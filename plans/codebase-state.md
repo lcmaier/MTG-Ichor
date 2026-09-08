@@ -3261,8 +3261,8 @@ one, so nothing was wrong in practice and nothing moved.
     block is also commented "704.5q", which is the +1/+1 / −1/−1 counter rule;
     the other attachment comments in that function want the same audit.
 
-    **Reachability (2026-09-08): reachable — wrong today, and in the measured
-    pool.** Bonesplitter and March of the Machines are both in
+    **Reachability (2026-09-08):** reachable — **wrong today, and in the
+    measured pool.** Bonesplitter and March of the Machines are both in
     `PERFORMANCE_POOL`. Verified against the tree: with Bonesplitter equipped
     to a 2/2 and March on the battlefield, `check_state_based_actions` leaves
     `attached_to` set and the creature reads **4/2** where it should read 2/2.
