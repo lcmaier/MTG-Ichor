@@ -3477,23 +3477,602 @@ entries decided against one board (D), which is the re-size's evidence.
   controller. The two coincide on every registered board.
 - **Thromok's `devour X`** — item 63.
 
-### Phase RD — damage (CR 615, 609.7, 614.9)
+### Phase RD — damage (CR 615, 609.7, 614.9, 120.3) — sized 2026-09-08, four PRs
 
-Prevention shields (615.7 amount, 615.8 next-instance, 615.9/609.7b property
-recheck, 615.10 static per-event, 615.11 per-creature at resolution, 615.12
-unpreventable + 615.12a single application), damage redirection (614.9),
-doubling (701.10g), the simultaneous-damage shield allocation choice (615.7,
-needs RA's batch), and CR 609.7a's source-choice validation.
+**RD ships as four PRs**, `RD-1` … `RD-4`, on RA's and RC's convention. Until
+this section it was one paragraph naming eight rules and no consumer, which is
+exactly the state RB was in before it shipped at 2.2× the band; RC's §9 heading
+above is the model this follows, and everything below was written before a line
+of code. Branches are `replacement/rd-<n>-…`.
 
-Plus the **CR 120.3 results-of-damage decomposition**: performing `DealDamage`
-against a player proposes a contained `LoseLife` (fresh lineage, §3.2d —
-without it the §3.2c Bloodletter example never sees combat damage, its
-headline use), and against a planeswalker removes that many loyalty counters
-(CR 120.3c — unimplemented today; `perform_action` marks damage on any
-battlefield object and nothing reads it off a planeswalker, so one can never
-die to damage. Unreachable until a planeswalker is registered, but Lightning
-Bolt's "any target" already validates them as targets). Lifelink's contained
-`GainLife` is the same shape and is why RA routes it (RA item 11).
+The paragraph it replaces, kept for the record: *prevention shields (615.7
+amount, 615.8 next-instance, 615.9/609.7b property recheck, 615.10 static
+per-event, 615.11 per-creature at resolution, 615.12 unpreventable + 615.12a
+single application), damage redirection (614.9), doubling (701.10g), the
+simultaneous-damage shield allocation choice (615.7, needs RA's batch), and
+CR 609.7a's source-choice validation; plus the CR 120.3 results-of-damage
+decomposition — performing `DealDamage` against a player proposes a contained
+`LoseLife` (fresh lineage, §3.2d), and against a planeswalker removes that many
+loyalty counters (CR 120.3c, unimplemented; a planeswalker can never die to
+damage today).* That is still the scope. What follows is its shape and its cost.
+
+#### The design check — seven decisions, and the one nobody asked
+
+Read against CR 615 whole, 614.7a, 614.9, 609.7a–c, 120.3, 120.3c and 701.10g
+(`MTG-Rules/versions/tmnt.txt`), §4.1's six rules, §3.2c/d, §8a, §8c and §11
+items 11, 15, 16, 18, 20. Every consumer named below had its oracle text and
+rulings fetched from Scryfall on 2026-09-08 (`engineering-practices.md` §3.4);
+the counts are from the same sitting.
+
+**0. The affected set must name a player, and that is RD's, not RE's.**
+`types/replacement.rs` records the decision that `EventPattern` gets no
+`DrawCard`/`GainLife`/`LoseLife` arm until "the player-scoping mechanism" lands
+in RE with the draw cards, and `gather::set_affects` returns `false` for every
+`EventSubject::Player`. That was the right call for RB and it does not survive
+contact with the damage family: of the consumers below, only Daunting Defender,
+Samite Censer-Bearer and Pyroclasm's targets are object-only. Circle of
+Protection, Reverse Damage, Guardian Seraph, Safe Passage, Pariah, Palisade
+Giant, Fog, Mending Hands' "any target", Kitsune Palliator's "each player" and
+Furnace of Rath's "permanent or player" all shield or modify damage *to a
+player* — Scryfall: `o:"prevent all damage that would be dealt to you"` **23**,
+`o:/would deal damage to (you|a player), prevent/` **12**, and nearly all of the
+**46** "source of your choice" cards say "to you". A damage phase that cannot
+scope an effect to a player has no consumers. **So RD-1 builds it**, and RE
+inherits it.
+
+The shape is **a second field, not a variant**. `AffectedSet` is read by three
+systems — the layer walk's `row_affected`, the restriction sweep and this
+pipeline — and a `Player` arm would be a variant two of the three must reject at
+every match, which is the "one type with a flag" smell §11 item 2 warns about
+from the other side. `ReplacementDef` gains `affected_players: PlayerSet`
+(`{ Nobody, You, Opponents, Everyone, Fixed(Vec<PlayerId>) }`, resolved against
+the instance's controller exactly as `Filter`'s `PlayerRef` is, CR 109.5), with
+union semantics: `set_affects` consults `affected` for an object subject and
+`affected_players` for a player subject. Fog is `Filter { All }` + `Everyone`;
+Safe Passage is `Filter { creatures you control }` + `You`; a Circle is
+`Fixed(vec![])` + `You`; a targeted "any target" is filled in at resolution as
+`Fixed([object])` or `Fixed([player])` the way `Primitive::Regenerate` fills its
+set today. Nothing about `AffectedSet` moves, so §11 item 2 holds byte for byte
+and the CR 614.12 `SourceOnly` check in `gather` is untouched.
+`Restriction::ApplyReplacement { to }` needs the same second field for
+"damage can't be prevented" over damage to a player; RD-4 adds it there.
+
+Two things ride on this field. `chooser_for` already answers a player subject
+with that player, so CR 616.1's chooser is free. `Rider.subject` flattens a
+player subject to `None` (§11 item 16, `codebase-state.md` item 27) and its
+trigger was named as RD; RD-1 carries `EventSubject` on the rider and emits
+`ResolvedTarget::Player`, because Reverse Damage's "you gain life" is the
+first rider that rides routinely on a player-subject event.
+
+**1. Partial prevention is `Rewrite::Amount(AmountRewrite::PreventUpTo(n))`,
+and `Instead` gets no "N − k" template.** §3.2b already lists `Amount` as the
+sixth arm with its rule numbers — CR 614.5's own doubling example and 615.7 —
+and it is absent from the enum only because an arm the pipeline cannot apply is
+worse than a missing one. So this is the planned arm arriving, not a new claim
+on the closed algebra. CR 615.10 is the sentence that permits *partial*
+prevention as an operation on the event's amount ("prevents only the indicated
+amount of damage in any applicable damage event") and 615.7 the same for
+shields ("each 1 damage … is prevented"). Four reasons it is not an `Instead`
+carrying `DealDamage { amount: N − k }`, and the first is the CDA lesson:
+
+- **Two channels to one answer.** An `Instead` template that reads the event's
+  amount and subtracts is the same arithmetic as `Amount`, spelled in the
+  unbounded arm. The tree would then have two ways to say "prevent 1 of that
+  damage", and a reviewer could not tell an authoring error from a choice.
+- **Composition is the whole test.** Furnace of Rath's printed ruling —
+  prevent 4 then double the remaining 1, or double to 10 then prevent 4 — is
+  CR 616.1's choice made *observable* only because each application reads the
+  amount the previous one left. `Amount` arms do that by construction; an
+  `Instead` that overwrites the event does it only if its template happens to
+  read the right field.
+- **The pipeline has to know how much was prevented.** CR 615.5's rider may
+  "refer to the amount of damage that was prevented" (Reverse Damage, Divine
+  Deflection), a 615.7 shield is reduced by exactly that amount, and CR 615.13
+  triggers on "some or all" of it. An `Instead` erases the number; `Amount`
+  reports it.
+- **`Prevent` stays a separate arm.** "Prevent that damage" (CR 615.6, the
+  whole event never happens) and "prevent 3 of that damage" (a smaller event
+  survives for later effects to see) are different claims, and regeneration and
+  CR 122.1c already use the first. A `PreventUpTo` that empties the event
+  leaves a 0-damage proposal that `never_happens` drops on the next iteration
+  (CR 614.7a), so the two routes agree on the board and differ only in what
+  they assert.
+
+`AmountRewrite` ships three variants with a customer each: `Times(u64)`
+(Furnace of Rath, Dictate of the Twin Gods; CR 701.10g), `Plus(u64)` (Torbran's
+shape, RD-3's source predicate away), `PreventUpTo(u64)` (Daunting Defender,
+Guardian Seraph; CR 615.10), and `PreventShield` (CR 615.7), which reads its cap
+off the instance's `Uses::Shield(remaining)` — the remaining amount lives in one
+place, the use count, and the arm names it rather than repeating it. §3.2c's
+Ali from Cairo clamp is **not** here: Ali's own ruling says "this effect does
+not prevent damage, it prevents the damage from turning into loss of life", so
+it watches the contained `LoseLife` and is RE's, once RE gives `LoseLife` a
+pattern arm (decision 4 gives it the `cause` field Ali needs).
+
+**2. Resolution-created prevention lives in `ReplacementEffectRegistry`,
+through `Primitive::CreateReplacement(Box<ReplacementDef>, Duration)`, and the
+shield fits a duration registry because a row already has two ends.** Settled
+against its two twins rather than alone: RS-1's `Primitive::Restrict(def,
+Duration)` into `RestrictionRegistry`, and `cost-architecture.md` §3.10's
+`Primitive::ModifyCost(def, Duration)` into a `DurationRegistry` of its own.
+This is the third instance of one pattern — a def the card authors, a
+`Duration` the card authors (CR 608.2c hands scope to a human reader, so no
+engine may infer it; `cant-effects-architecture.md` §9 finding 1), a row
+carrying controller and `created_on_turn`, expiry through the CR 514.2 hooks
+the registry already runs. The registry is not new: `Primitive::Regenerate` has
+been putting rows in it since RB. The commented-out
+`Primitive::ApplyPrevention(PreventionEffectDef)` in `types/effects.rs` is
+deleted rather than filled in — CR 615.1 opens "like replacement effects", a
+prevention effect *is* a `ReplacementDef` whose rewrite prevents, and a second
+def type would be one mechanism reached through two channels.
+
+The consumable-amount question has an in-tree answer. A regeneration row is
+`Uses::Once` **and** `Duration::UntilEndOfTurn`: it ends on use through
+`consume_use`'s `remove(row)` and on time through
+`remove_expired_at_cleanup`, and neither end knows about the other.
+`Uses::Shield(remaining)` is the same row with a number where `Once` has a
+bit — decremented in place through `DurationRegistry::update_rows`, removed at
+zero, expired at cleanup with the rest. "Expires on use, not on time" was the
+wrong dichotomy: it is both, it always was, and the registry was built for it.
+
+What the primitive does at resolution follows `Regenerate` and `Restrict`: one
+row per resolved target, the resolution filling an authored empty `Fixed` with
+that target (CR 615.11 is exactly this — "creates a prevention shield for each
+applicable creature when the spell or ability … resolves" — so Samite
+Censer-Bearer is N rows of `Shield(1)`, one per creature it found, and Kitsune
+Palliator's ruling "doesn't affect creatures that enter later" falls out of
+`Fixed`); or one row as authored when the def carries a `Filter` or a
+`PlayerSet` and no target (Safe Passage's ruling, the opposite one: "will
+prevent damage dealt to creatures that weren't on the battlefield at the time
+it resolved" — `Filter`, evaluated at the event). The shape RD does **not**
+ship is one row shared across several targets with one pooled amount (Divine
+Deflection's X across "you and/or permanents you control", Harm's Way's 2);
+both wait on `AmountExpr::Variable`, and the field that expresses "shared" is
+recorded in finding 23 below rather than built without a customer.
+
+**3. CR 615.7's allocation ships with the first shield, in RD-2, and it is
+the same change as §11 item 15.** "If damage would be dealt to the shielded
+permanent or player by two or more applicable sources at the same time, the
+player or the controller of the permanent chooses which damage the shield
+prevents." Two blockers on one attacker, or two attackers on one player, is
+that board, and the registered pool builds it in every combat step — so the day
+Mending Hands is registered the first-come answer the per-member loop gives is
+a **silent wrong choice**, the shape `engineering-practices.md` §3.3 says a
+phase must not open. It cannot be a later PR's.
+
+Item 15 asked RD to open with CR 614.5's identity, because a creature blocking
+two attackers with two shield counters loses two counters where CR 122.1c's
+ruling says one. The allocation is the same question from the other side, and
+one rule answers both: **decisions are per `(batch, subject)`; rewrites apply
+per member.** In phase 1, members that share an `EventSubject` form a group;
+the CR 616.1 loop runs once per group, with one applied set and one chooser;
+a chosen instance's rewrite is applied to every member of the group, its rider
+queued once, its use spent once. Checked against every ruling the batch has
+had to satisfy:
+
+| Board | Per member (today) | Per subject (RD-2) | The rule |
+|---|---|---|---|
+| Kalitas, N opposing creatures die | N Zombies | N Zombies — N subjects | CR 614.5 per event; Kalitas's ruling |
+| two shield counters, two blockers | 2 counters, both prevented | **1** counter, both prevented | CR 122.1c's ruling |
+| two Furnaces, one source | ×4 | ×4 | CR 614.5's own example |
+| two Furnaces, two attackers on one player | ×4 each | ×4 each — chosen once, applied to each member | CR 614.5 per instance |
+| Daunting Defender, Pyroclasm on two Clerics | 1 each | 1 each — two subjects | CR 615.10's own example |
+| Daunting Defender, two sources on one Cleric | 1 each | 1 each — 615.10's "separately to … events that would happen at the same time" | CR 615.10 |
+| a 3-shield, sources of 2 and 4 | 2 then 1, no choice | one `allocate` over the group | **CR 615.7** |
+
+The last row is the one place a rewrite is not member-uniform, and it is the
+whole of the new prompt: `ChoiceKind::AllocatePreventionShield { source,
+subject, remaining }`, asked through `DecisionProvider::allocate` (the trample
+call), options the group's members in batch order — `assign_combat_damage`
+walks `battlefield_ordered`, so the order is process-independent — total
+`min(remaining, Σ amounts)`, per-bucket max the member's amount. Never with one
+member: CR 615.7's choice exists only among "two or more", and with one source
+every point is prevented unasked. The group's decisions live in a batch-scoped
+struct on `GameState` beside `EntrySelectionScope`, on `codebase-state.md`
+item 40's rule, and are empty outside phase 1. §3.2d's lineage rule is
+untouched — it is about decomposition, and this is about simultaneity — and
+RC's entries are unaffected, since an entry is its own subject. CR 101.4d's
+restart (`codebase-state.md` item 25) stays where it is: grouping changes what
+a chooser decides, not the order choosers are asked in.
+
+**4. The contained `LoseLife` never meets a prevention effect, and what
+enforces that is the vocabulary, not the lineage rule.** Performing
+`DealDamage` against a player proposes `LoseLife { cause: Damage { source } }`
+from inside the performer, joining the damage's batch as lifelink's gain does
+(CR 120.3a/f, 120.4c/d; `GameEvent::LifeChanged` keeps its `source`, so the
+log line is unchanged). It re-enters `apply_replacements` with a **fresh**
+applied set — containment, §3.2d — which is what lets an RE-era Bloodletter
+double it while a shield that already applied to the damage does not apply
+again. Fresh lineage says nothing about *which* effects may apply, and does
+not need to: a prevention effect is one whose rewrite is `Prevent`,
+`PreventUpTo` or `PreventShield` on `EventPattern::DealDamage` (CR 615.1a,
+derived from the def — see decision 6), `LoseLife` has no pattern arm today,
+and when RE adds one `apply_rewrite` refuses `PreventUpTo`/`PreventShield` on a
+non-damage event with the same "its `EventPattern` and its `Rewrite` describe
+different events" arm the entry rewrites use. Life loss from damage is not
+separately preventable because nothing can be written that prevents it.
+
+`LoseLife` gains `cause: LifeLossCause { Damage { source }, Effect, Cost }` —
+six construction sites, and a **fact** on §8a's triage: whether a life loss was
+a result of damage is unrecoverable a moment later, Ali from Cairo's family and
+CR 120.3b's poison both read it, and the `LifeChanged` line needs the source
+today. The performer marks damage on a creature and removes loyalty from a
+planeswalker (decision 5) in the same arm, each result independent, since
+CR 120.3 says "one or more of the following results" and a creature
+planeswalker gets both.
+
+**5. CR 120.3c ships in RD-1, and its consumer is a fixture with its own
+name.** The three options the brief offered, priced: registering a printed
+planeswalker fails `register-a-card-only-once-the-engine-can-play-it` — loyalty
+abilities have no `AbilityType` and no activation path (`phase_sba_cards.rs`
+row 704.5i), so a real Jace would be a card with three dead abilities wearing a
+real name, which `engineering-practices.md` §3 forbids; leaving the arm out
+leaves `perform_action` marking damage on a permanent the targeting code
+already validates as "any target", which is the wrong answer waiting for a
+card. The fixture is the middle: **Loyalty Probe**, a `Planeswalker` with
+printed loyalty 3 and no abilities, on the `graveyard_probe` convention §3.3
+already admits, registered in the stress pool and not in `PERFORMANCE_POOL`.
+It is a genuine consumer, not a test prop: Lightning Bolt's `SelectionFilter::
+Any` validates planeswalkers, so the random agent bolts it, CR 120.3c removes
+counters through a contained `RemoveCounters { Loyalty }` proposal, and CR
+704.5i — **0** across the 2026-09-01 fuzz re-audit, "a planeswalker can never
+die" — becomes reachable from a game. Attacking one stays out (`validation.rs`
+refuses planeswalker attack targets; combat's, not this phase's).
+
+**6. CR 615.11 needs no machinery; CR 615.12 is a property of the event, and
+the two routes to it meet at one site.** 615.11 is decision 2's per-target
+rows and Samite Censer-Bearer is its consumer. 615.12 has two printed shapes
+and they are different things: *"Damage can't be prevented this turn"*
+(Skullcrack, Unstable Footing, 11 instants) and *"Damage can't be prevented"*
+(Leyline of Punishment, Everlasting Torment) are CR 101.2 restrictions over
+every damage event — `Restriction::ApplyReplacement { kind: Prevention }`,
+which RS-1 shipped with no producer; *"The damage can't be prevented"*
+(Combust, Pinpoint Avalanche, 9 cards) is a fact about **one event**, set by
+the effect that proposes it. So `GameAction::DealDamage` gains
+`unpreventable: bool`, `Primitive::DealDamage` becomes a struct carrying it
+(16 mechanical sites), and it is a property of the event rather than of the
+source because a source's other damage is preventable and because the flag has
+to survive a redirect — Retarget copies it. The two routes meet where the
+prevention arms are *applied*: `prevented = 0` when the event is unpreventable
+or `is_prohibited(ApplyReplacement { Prevention, to: subject })`, the rider is
+queued regardless (615.12's "any additional effects they have will take
+place"), and nothing is consumed (615.12's "existing shields won't be
+reduced"). That is at application and **not** at `gather`'s door where
+regeneration is withheld: CR 701.19c says a regeneration shield is "not
+applied", CR 615.12 says a prevention effect "is still applied", and the two
+`ReplacementKindFilter` arms therefore act at two different sites. 615.12a's
+"just once" is the applied set — the instance was chosen, it is in the set,
+and nothing re-offers it.
+
+`cant-effects-architecture.md` §4.7 expected RD to widen `is_regeneration:
+bool` into a `ReplacementKind`. **It does not**: CR 615.1a makes "prevention"
+a fact about the effect's text ("effects that use the word 'prevent'"), which
+the def carries in its rewrite and pattern, so `ReplacementDef::is_prevention()`
+is *derived* and no card can forget to set it — the CDA and CR 614.15 lessons
+(§11 item 12). Regeneration keeps its authored bit because nothing about its
+def distinguishes it from any other `Prevent`-with-a-rider.
+
+**7. A use is spent by what an application did, not by being chosen.** Not one
+of the brief's questions, and it changes one line of §4.1's loop. Today
+`consume_use` runs *before* `apply_rewrite`. Three rules need it after:
+CR 609.7b ("if for any reason the shield prevents no damage or replaces no
+damage, the shield isn't used up"), CR 614.9 (a redirect whose destination is
+gone "does nothing", and ATOM-614.9-001's "the shield is NOT used up"), and
+CR 615.12 (an unpreventable event reduces no shield). `apply_rewrite` returns
+what it did — the event, and for a damage arm the amount it prevented or moved
+— and `consume_use` spends that: `Once` iff the rewrite took effect, `Shield`
+by the amount. Regeneration is unchanged, because a `Prevent` on a `Destroy`
+always takes effect. 609.7b's *property* recheck needs nothing here: a source
+that is no longer red fails `pattern_watches`, the instance is never gathered,
+and nothing was ever there to spend.
+
+#### Why four, and the count
+
+| PR | Shape | Measured size | Risk |
+|---|---|---|---|
+| **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Times`/`Plus`; `Rider` carries `EventSubject` | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `AffectedSet` exhaustive matches **3**, all untouched by construction. Predicted **~450 engine, ~180 cards, ~550 tests ≈ 1,200–1,400** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
+| **RD-2 — shields** | `Primitive::CreateReplacement`, `Uses::Shield`, `PreventUpTo`/`PreventShield`, consume-after-apply (decision 7), per-subject decisions and the 615.7 allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
+| **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~350 engine, ~300 cards, ~600 tests ≈ 1,300–1,500** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Daunting Defender is 615.10's own example), and the "two customers before a leaf" guard is applied live |
+| **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
+
+**≈ 5,300–6,100 across four, each at or inside the band, RD-2 at its top.**
+RD-3 and RD-4 commute; RD-1 → RD-2 is a hard order (RD-2's shields need player
+scoping and the `Amount` arm), and RD-3's static consumers need RD-2's
+`PreventUpTo` performer. Every PR carries at least one printed consumer and a
+second of a different shape (§3.3, tier 2), registered where the engine can play
+it, in the commit *after* the fix it needs (`register-a-card-only-once-the-
+engine-can-play-it`). The counts are call sites read from the tree on
+2026-09-08; the line predictions are calibrated against CM-1 (+2,219 / 42
+files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
+
+#### RD-1 — the damage event's two subjects and its results
+
+**Builds:** decisions 0, 4, 5, and the `Times`/`Plus` half of decision 1.
+**Consumers**, each with its rulings pass:
+
+- **Furnace of Rath** — "If a source would deal damage to a permanent or
+  player, it deals double that damage to that permanent or player instead."
+  `EventPattern::DealDamage`, `Filter { All }` + `Everyone`, `Amount(Times(2))`,
+  `Uses::Static`. Rulings, five: *two Furnaces multiply by 4* → test
+  (CR 614.5's own example; `ATOM-614.5-001` moves from partial to full);
+  *the damage counts as if from the original source, Furnace is not the
+  source* → test on `DamageDealt.source`; *divide before doubling* and *trample
+  divides before doubling* → structurally true, since `assign_combat_damage`
+  divides before anything is proposed — asserted with War Mammoth, which is in
+  the pool; *prevent-4-then-double or double-then-prevent-4* → **RD-2's**
+  test, when Mending Hands exists (`COMP-614-DAMAGE-ORDERING-001`).
+- **Dictate of the Twin Gods** — the same text with flash; the second card of
+  the same shape is what makes CR 616.1's multi-candidate branch reachable on a
+  damage event from two *printed* cards (`COMP-614-616-DOUBLE-REPLACEMENT-001`),
+  which the pool has never had. Rulings, four: *applies to any damage, and it
+  doesn't matter who controls the source* → test; *the source of the damage
+  doesn't change* → the Furnace test; *four multiply by sixteen* → the
+  two-Furnace test generalised; *the Decorated Griffin ordering* → RD-2.
+- **Loyalty Probe** — the fixture, decision 5. Tests: 3 damage to a 5-loyalty
+  planeswalker leaves 2 (`ATOM-120.3c-001`), lethal damage kills it through
+  CR 704.5i, damage to a creature planeswalker both marks and removes.
+- The decomposition's own tests: a player's combat damage proposes a contained
+  `LoseLife` in the damage's batch (the lifelink test's twin); a prevented
+  damage proposes nothing; `LifeChanged.source` survives.
+
+**`PERFORMANCE_POOL` +1, Furnace of Rath**, predicted: it is the first static
+`DealDamage` source in the pool, so it opens the gather sweep on every damage
+event while it is on the battlefield — a new engine path, and the one this PR
+should measure. Loyalty Probe is registered and not pooled; `--require
+"Loyalty Probe"` beside `copies/deck` is its reachability row.
+
+**Atoms:** `ATOM-701.10g-001`, `ATOM-614.5-001`,
+`COMP-614-616-DOUBLE-REPLACEMENT-001` (Phase 6), `ATOM-120.3c-001` (filed
+Phase 8 — covered where it is, not re-filed).
+
+#### RD-2 — shields
+
+**Builds:** decisions 2, 3, 7, `PreventUpTo`/`PreventShield`, the rider's
+prevented amount (`Rider.prevented: u64`, read by `AmountExpr::DamagePrevented`
+in `evaluate_amount`; a 0 makes the rider's `GainLife`/`DealDamage` a
+`never_happens` non-event, so no `Effect::Conditional` is needed for "if damage
+is prevented this way"). **Consumers:**
+
+- **Mending Hands** — "Prevent the next 4 damage that would be dealt to any
+  target this turn." The plain shield: one row, `Shield(4)`, target filled at
+  resolution as an object or a player, `UntilEndOfTurn`. No rulings. Tests:
+  depletes per point across two events (`ATOM-615.7-001`); a 4-shield against
+  5 lets 1 through; the row is gone at 0 and at cleanup (`ATOM-615.3`'s
+  "until used up or expired"); two attackers into a shielded player prompt one
+  allocation and any allocation leaves the same total (`ATOM-615.7-002`); a
+  shield cast after the damage prevents nothing (`ATOM-615.4-001`). Healing
+  Salve was the canonical printing and is modal — `Effect::Modal` errors at
+  `resolve.rs:146` — so its plain sibling ships instead.
+- **Samite Healer** — "{T}: Prevent the next 1 damage that would be dealt to
+  any target this turn." The activated shape, and a creature the random agent
+  will activate. Second shape by §3.3's axes: a repeatable source of rows.
+- **Safe Passage** — "Prevent all damage that would be dealt to you and
+  creatures you control this turn." A `Filter` + `You` row with no amount and
+  `Uses::Static` — the shape whose set is evaluated at the event. Rulings,
+  four, all tests: *all damage, not just combat*; *creatures that entered
+  after it resolved are covered* (the load-bearing one — `Filter`, not
+  `Fixed`); *not planeswalkers you control* (Loyalty Probe under Safe Passage
+  takes the damage); *no effect on damage already dealt*.
+- **Samite Censer-Bearer** — "{W}, Sacrifice this creature: Prevent the next
+  1 damage that would be dealt to each creature you control this turn."
+  CR 615.11's consumer: N rows of `Shield(1)` from `EffectRecipient::
+  FilteredPermanents`, one per creature at resolution. Ruling: *a separate
+  1-point shield on each creature you control at the time the ability
+  resolves* → test with a creature entering afterwards (`ATOM-615.11-001`).
+  Kitsune Palliator's "each creature and each player" is the same card plus an
+  each-player recipient `EffectRecipient` lacks; one customer, so it waits.
+- **Reverse Damage** is RD-3's (it chooses a source), and its rider is the
+  prevented-amount consumer there; RD-2 tests the amount channel through a
+  fixture rider until then, and says so in the test's name.
+
+**The pipeline change** is the group form of `apply_replacements`: phase 1
+groups the batch by `subject_of`, runs one loop per group, and a chosen
+instance is applied to each member — with the 615.7 allocation deciding how a
+`PreventShield` splits over a group of two or more. `execute_batch_inner`'s
+phases 2 and 3 are unchanged. The test that guards it is the shield-counter
+board §11 item 15 named: a creature with two shield counters blocked by two
+attackers loses **one** counter and takes no damage.
+
+**`PERFORMANCE_POOL` +1, Mending Hands**, predicted: the first registry row a
+damage event meets, and the first `allocate` prompt reachable in a fuzz game.
+
+**Atoms:** `ATOM-615.7-001`, `ATOM-615.7-002`, `ATOM-615.4-001`,
+`ATOM-615.5-001`, `ATOM-615.11-001`, `BOUNDARY-DEF-615.1a-001`,
+`COMP-614-DAMAGE-ORDERING-001`; `ATOM-615.6-001` as `COVERS-PARTIAL` (filed
+Phase 7 — its "the trigger does not fire" half is item 6's).
+
+#### RD-3 — sources
+
+**Builds:** `EventPattern::DealDamage { source: Option<SourcePattern>, combat:
+Option<bool> }`, where `SourcePattern { object: Option<ObjectId>, filter:
+Option<ObjectFilter> }` is CR 609.7a's chosen object and CR 609.7b's rechecked
+property in one field — Circle of Protection: Red is `object: Some(chosen),
+filter: Some(ByColor(Red))`, Guardian Seraph is `filter: Some(ByController(
+Opponent))`, Fog is `combat: Some(true)`. The chosen source is a
+`SelectionFilter::DamageSource` the resolution asks for through one
+`ChoiceKind`, enumerated by `enumerate_legal_selections` as permanents and
+spells on the stack — CR 609.7a's other categories (objects a stack object
+refers to, objects a waiting replacement or delayed trigger refers to,
+face-up command-zone objects) are unreachable until item 6 and Commander
+designation, so `ATOM-609.7a-001` is `COVERS-PARTIAL` and says which
+categories. "A source doesn't need to be capable of dealing damage" is free:
+the enumeration does not ask. **Consumers:**
+
+- **Circle of Protection: Red** — "{1}: The next time a red source of your
+  choice would deal damage to you this turn, prevent that damage." Rulings:
+  *source categories* → the partial above; *can be used even when there is no
+  damage to prevent; it prevents the next damage (if any) this turn* → test:
+  the row sits unused and expires at cleanup. Plus 615.8 (`Uses::Once`, whole
+  event regardless of amount, `ATOM-615.8-001`) and 615.9/609.7b: the chosen
+  creature loses red before it deals damage, the shield does not apply and is
+  not spent (`ATOM-615.9-001`, `ATOM-609.7b-001`).
+- **Reverse Damage** — "The next time a source of your choice would deal
+  damage to you this turn, prevent that damage. You gain life equal to the
+  damage prevented this way." The rider that reads the amount. Ruling: *only
+  the first instance from that source; a second is not reversed* → test.
+- **Guardian Seraph** — "If a source an opponent controls would deal damage to
+  you, prevent 1 of that damage." CR 615.10's static partial with a source-side
+  controller predicate. Rulings, three: *1 from each source each time* → test
+  with two simultaneous sources, both reduced (`ATOM-615.10-001`'s shape on a
+  player); *a source without a controller* → not expressible (cycling; and
+  609.7c's non-battlefield source is covered instead by Lightning Bolt, a
+  spell on the stack, `ATOM-609.7c-001`); *multiple Seraphs are cumulative* →
+  test, two instances each once.
+- **Daunting Defender** with **Pyroclasm** — CR 615.10's own example, verbatim
+  (`ATOM-615.10-001`): each Cleric takes 1, the non-Cleric 2. Pyroclasm is
+  `FilteredPermanents(ByType(Creature))`, already a recipient; it is the pool's
+  first "each creature" damage and a board wipe the SBA batch has not seen.
+- **Fog** — "Prevent all combat damage that would be dealt this turn." The
+  `combat` flag, `Filter { All }` + `Everyone`, `Uses::Static`. Non-combat
+  damage under Fog goes through.
+
+**`PERFORMANCE_POOL` +1, Guardian Seraph**, predicted: a static prevention with
+a two-sided predicate is the first source the sweep evaluates a filter on per
+damage event; Circle of Protection's activation competes for mana the random
+agent rarely has, so it is registered and its `--require` count read.
+
+**Atoms:** `ATOM-615.8-001`, `ATOM-615.9-001`, `ATOM-615.10-001`,
+`ATOM-609.7b-001`, `ATOM-609.7c-001`; `ATOM-609.7a-001` and
+`BOUNDARY-DEF-609.7a-001` as `COVERS-PARTIAL`.
+
+#### RD-4 — redirection and unpreventable damage
+
+**Builds:** `Rewrite::Retarget(RetargetSpec { ToSource, ToHost,
+ToSourceController, ToFixed(DamageTarget) })`, rewriting the proposal's
+`target` and nothing else — `source`, `is_combat` and `unpreventable` travel
+with the damage (Pariah's ruling: redirected combat damage is still combat
+damage; Kor Chant's: it is dealt by the original source). CR 614.9's re-check
+happens at application: a destination no longer on the battlefield, or no
+longer a creature, planeswalker or battle, or a player who has left, makes the
+rewrite return the event unchanged with nothing spent (decision 7). Whole-event
+only — finding 23 has the partial case. And decision 6's flag and consult.
+**Consumers:**
+
+- **Pariah** — "Enchant creature. All damage that would be dealt to you is
+  dealt to enchanted creature instead." `Retarget(ToHost)`, `Fixed(vec![])` +
+  `You`, an Aura (Holy Strength opened the Aura path in LH-1). Rulings:
+  *combat damage stays combat damage* → test on `is_combat`; *two Pariahs on
+  two creatures: you choose which applies and cannot divide* → test: CR 616.1
+  asks, the whole 6 lands on one host. Plus the host leaving: damage to you
+  (`ATOM-614.9-001`'s destination half; its "shield not used up" half needs a
+  `Once` redirect, which is Reflect Damage's shape — a player destination and
+  a chosen source, registered here if RD-3's source choice is in, else recorded
+  as the atom's remaining half).
+- **Palisade Giant** — "All damage that would be dealt to you and other
+  permanents you control is dealt to this creature instead." `Retarget(
+  ToSource)`, `Filter { ByController(You) ∧ EachOther }` + `You`. The same two
+  rulings, and the first consumer of an object filter and a player set on one
+  row.
+- **Pinpoint Avalanche** — "Pinpoint Avalanche deals 4 damage to target
+  creature. The damage can't be prevented." The per-event flag, no other half.
+  Tests: a shield counter's prevention is applied, prevents nothing, its rider
+  removes the counter anyway, and a `Shield(4)` row is untouched
+  (`ATOM-615.12-001`, `-002`, `COMP-615-UNPREVENTABLE-SHIELD-001`); the
+  instance is offered once (`ATOM-615.12a-001`). Combust is the same shape
+  behind "this spell can't be countered", which is §8a's missing counter event,
+  so it is not registered.
+- **The restriction route has no registrable consumer yet, and the PR says
+  so.** Every "damage can't be prevented [this turn]" card carries a half the
+  engine lacks: Skullcrack and Leyline of Punishment "players can't gain life"
+  (RE's `GainLife` pattern arm), Unstable Footing kicker, Stomp an adventure,
+  Flaring Pain flashback, Wild Slash a `Conditional`, Everlasting Torment
+  wither. The consult at application is built and tested against a
+  `Primitive::Restrict(ApplyReplacement { Prevention })` fixture row, and
+  Skullcrack is named as the card that lands it in a game — after RE.
+
+**`PERFORMANCE_POOL` +1, Pariah**, predicted: the first `Retarget` and the
+first `AffectedSet::Host` read on a damage event.
+
+**Atoms:** `ATOM-614.9-001`, `ATOM-615.12-001`, `ATOM-615.12-002`,
+`ATOM-615.12a-001`, `COMP-615-UNPREVENTABLE-SHIELD-001`.
+
+**On filing.** Every atom above is in Phase 6 except `ATOM-120.3c-001` (Phase
+8) and `ATOM-615.6-001` (Phase 7), and none is in `Backlog`, so nothing is
+re-filed and `owed` — 9 today, none of them a replacement phase's — cannot move
+by construction. What gated RC was the `// COVERS:` discipline, not the number
+(`engineering-practices.md` §5.1), and that is RD's gate too.
+
+#### Out of RD, decided rather than absorbed
+
+- **RE's kinds** — draw, skips, `CreateTokens` and the token residual
+  (`codebase-state.md` items 46, 52), counter doublers, life-gain, mana,
+  `PlayerLoses`/`PlayerWins`, the CR 701.9 discard arm. `CreateTokens` is
+  adjacent to `Amount(Times)` and is not RD's.
+- **Ali from Cairo's clamp** — a `LoseLife` replacement (its ruling), RE's,
+  with RD-1's `cause` field waiting for it.
+- **CR 120.3b/d/g/h** — poison, wither's counters, toxic, battles' defense
+  counters. `KeywordFlag` has no `Infect`/`Wither`/`Toxic` and no battle is
+  modelled (`codebase-state.md` CR 120 row, T21c). The performer's arm is
+  written so each result is one `match` on the source's keywords and the
+  target's type; the arms are absent, not stubbed.
+- **Partial redirection** (Harm's Way, finding 23) and **shared shield pools**
+  (Divine Deflection) — both wait on `AmountExpr::Variable`.
+- **Attacking a planeswalker** — combat's (`validation.rs:199`).
+- **CR 615.13** — Phase 7, as §12 says. RD records the prevented amount where
+  615.5 needs it and emits no new event: whether a prevention is something the
+  performed stream announces is item 6's to decide, and the seam is
+  `apply_rewrite`'s return value, which already carries it.
+- **CR 101.4d's restart** (item 25) — unchanged by grouping.
+- **`codebase-state.md` item 20** (the CR 514.2 cleanup wipe has no enforcement
+  point) and **"Before card breadth" item 6** (multi-attacker block damage is a
+  silent stub) — damage-adjacent and combat's; neither is touched, and the
+  second is worth re-reading after RD-2, since a blocker splitting damage over
+  two attackers is the mirror of the board decision 3 groups.
+- **Kitsune Palliator's "each player"**, **Deflecting Palm's "that source's
+  controller"** as a rider recipient, **Combust's "can't be countered"** — each
+  one leaf away, each with one customer, each waits for its second.
+
+#### Measured — what to expect, and why the direction is known
+
+Three arms per PR through `plans/fuzz_ab.py` against a same-day `main`
+worktree (`../mtgsim_v2_main`, rebuilt first), both pools, and the middle arm —
+the engine with `registry.rs` and `PERFORMANCE_POOL` unchanged — is the only
+one that attributes anything. Damage is on every combat step, so unlike CM-4
+the counters **will** move, and each PR predicts the direction before running:
+
+- **RD-1's middle arm:** `replacement gathers` rises by exactly the number of
+  `DamageDealt` events whose target is a player (one contained `LoseLife`
+  proposal each) and by nothing else; `Layer walks` flat (the sweep's fast
+  path returns before any walk when no source, row or counter exists);
+  40-game dumps byte-identical under the two id masks, because `LifeChanged`
+  keeps its source. The shipped arm adds walks only while Furnace is on the
+  battlefield — one per damage event, since the per-permanent gate walks only
+  `replacement_ability_sources`.
+- **RD-2:** gathers flat on the middle arm (grouping changes decisions, not
+  proposals); the shipped arm's `allocate` count is the reachability row.
+- **RD-3 and RD-4:** flat on the middle arm; a shipped-arm move is the card.
+
+A middle-arm delta beyond the ±4–6% spread that the prediction does not name
+wants a **fourth binary** with the suspect reverted, as CM-4 needed. §3's table
+is re-recorded once per PR that moves the pool, at 50 games, after the A/B.
+
+#### Trace page — decide at RD-2's close
+
+`engineering-practices.md` §7's rule — "a phase that changes *how* a read is
+answered rather than what the answer is" — is met by RD-2 and by nothing else in
+RD: grouping by subject changes how every `DealDamage` proposal's decision is
+reached. So the decision is taken at RD-2's close rather than RD-4's, and if
+yes the page is `rd-2-a-decision-is-per-subject.html`, walking the boards the
+design check argued about rather than the happy path: two shield counters under
+two blockers (item 15), Furnace beside Mending Hands in both orders (the printed
+ruling), a `Shield(3)` under sources of 2 and 4 with the allocation, and
+Pinpoint Avalanche into a shield counter (the rider runs, nothing is spent).
+
+#### Exit criteria
+
+1. Four PRs merged in order, each with its consumers registered and its
+   predicted `PERFORMANCE_POOL` move made or explicitly declined with the A/B
+   that decided it.
+2. Every atom listed above annotated `COVERS:` or `COVERS-PARTIAL:` with the
+   partial's reason in the test; `python plans/specdb.py owed` still 9.
+3. `cargo test` green and `cargo build --all-targets` warning-free at every
+   commit but the red-test commits; `tests/determinism_test.rs` and three shell
+   `fuzz_games` runs at one seed line-for-line outside `=== Timing ===`.
+4. §11 findings 21–27 each closed, moved or re-dated; `codebase-state.md`
+   items 25, 27 and the CR 120 row updated by the PR that touches them; a
+   Deferred Migrations line for every arm left absent above.
+5. The trace-page decision recorded at RD-2's close; `check_state_of_play.py
+   --write` after each merge; `plans/handoffs/rd.md` deleted by RD-4.
 
 ### Phase RE — the remaining event kinds we know of (see §8a)
 
@@ -4097,6 +4676,104 @@ there, because all three are about **what a rider can reach**.
     Destroying a regenerated creature, drawing from an empty library and
     dealing prevented damage all answer yes. Entering and casting answer no,
     and both have to be one proposal or none.
+
+### Found by RD's design check (2026-09-08)
+
+Seven items from sizing Phase RD against CR 615, 614.9, 609.7 and 120.3 and
+against the tree. §9's RD section carries the decisions; these are the facts
+that fell out of making them, recorded here so they outlive the section that
+found them.
+
+21. **Player scoping is RD's, and `types/replacement.rs` says RE.** The
+    module doc and `gather::set_affects` both record that an effect applying to
+    a *player* waits for RE's draw cards. The damage family is where the
+    pressure actually is — 23 "prevent all damage that would be dealt to you",
+    12 "would deal damage to you, prevent", 46 "source of your choice … to
+    you", and Furnace of Rath's "permanent or player" — so RD-1 lands
+    `ReplacementDef.affected_players: PlayerSet` and RE inherits it. A second
+    field rather than an `AffectedSet` variant, because that type has three
+    readers and two of them would have to reject the arm. The module doc and
+    `set_affects`'s comment are corrected by RD-1; §3.2a's "lands in Phase RE"
+    reads as history from here.
+
+22. **`consume_use` runs before `apply_rewrite`, and three rules need it
+    after.** CR 609.7b ("if for any reason the shield prevents no damage or
+    replaces no damage, the shield isn't used up"), CR 614.9 (a redirect whose
+    destination is gone "does nothing"; `ATOM-614.9-001` says the shield is
+    not spent) and CR 615.12 (an unpreventable event reduces no shield). Every
+    RB and RC rewrite takes effect whenever it is chosen, which is why the
+    order was never wrong before — regeneration's `Prevent` on a `Destroy`
+    cannot do nothing. RD-2 makes `apply_rewrite` report what it did and spends
+    the use from that. The applied set is *not* moved: a chosen effect that did
+    nothing has still had CR 614.5's one opportunity, and re-offering it is the
+    hang §4.1 warns about.
+
+23. **One printed shape splits a damage event in two, and §3.2d's `Option`
+    cannot hold it.** Harm's Way — "The next 2 damage that a source of your
+    choice would deal to you and/or permanents you control this turn is dealt
+    to any target instead" — redirects *part* of one event: 2 of a 5-damage
+    Lightning Bolt goes to the chosen target and 3 stays on the original. That
+    is one `DealDamage` becoming two with different targets, which is exactly
+    the fan-out §3.2d removed `Split` for. Its own ruling makes it worse: the 2
+    may be split "1 damage that would be dealt by the chosen source to each of
+    two different recipients", across *members* of a batch. Whole-event
+    redirection (Pariah, Palisade Giant, Kor Chant, Reflect Damage — 15 cards
+    on `o:/would be dealt to you.*dealt to .* instead/`) needs none of this and
+    is what RD-4 ships. Partial redirection is one card plus its shield-pool
+    twin Divine Deflection, both behind `AmountExpr::Variable`, and the honest
+    shape when it comes is a *contained* second event proposed by the
+    performer — the residue stays the event, the moved part is a new proposal
+    the redirect caused — not a `Rewrite` that returns two. Recorded, not
+    built.
+
+24. **§11 item 15 is answered: decisions are per `(batch, subject)`, rewrites
+    per member, and CR 615.7's allocation is the one non-uniform rewrite.** The
+    table in §9's RD section checks the rule against every ruling the batch
+    has had to satisfy — Kalitas's N Zombies, CR 122.1c's one counter under two
+    blockers, 614.5's ×4, 615.10's "separately to … events that would happen
+    at the same time", and 615.7 itself. The per-member shape got the counter
+    board wrong and the per-batch shape §4.2 rejected got Kalitas wrong; the
+    subject is the key both rulings agree on. RD-2 builds it; the shield
+    counter under two blockers is the regression.
+
+25. **"Unpreventable" is a property of the event, `is_prevention` is derived,
+    and `cant-effects-architecture.md` §4.7's `ReplacementKind` is
+    superseded.** CR 615.12 has two printed shapes: a restriction over all
+    damage ("damage can't be prevented [this turn]", 13 cards) and a fact
+    about one event ("the damage can't be prevented", 9). The first is RS-1's
+    `Restriction::ApplyReplacement { kind: Prevention }`; the second is
+    `GameAction::DealDamage.unpreventable`, set by the proposer and carried
+    through a redirect. They meet at one site — where a prevention arm is
+    *applied* — and not at `gather`'s door, because CR 701.19c withholds a
+    regeneration shield ("not applied") while CR 615.12 applies a prevention
+    effect and lets it prevent nothing. Recognising a prevention effect needs
+    no authored bit: CR 615.1a defines it by the word "prevent", which the def
+    carries as `Prevent` or `Amount(PreventUpTo | PreventShield)` on
+    `EventPattern::DealDamage`, so `ReplacementDef::is_prevention()` is a
+    method and a card cannot forget to set it — the CDA and CR 614.15 argument
+    (item 12) for the third time. `is_regeneration` keeps its bit, since
+    nothing in a regeneration def distinguishes it from any other
+    `Prevent`-with-a-rider.
+
+26. **Every "damage can't be prevented" card but two carries a half the engine
+    lacks.** Skullcrack and Leyline of Punishment print "players can't gain
+    life" (RE's `GainLife` pattern arm), Unstable Footing has kicker, Stomp is
+    an adventure, Flaring Pain has flashback, Wild Slash is a `Conditional`,
+    Everlasting Torment has wither, Combust "can't be countered" (§8a's missing
+    counter event). Pinpoint Avalanche is clean and is RD-4's per-event
+    consumer; the restriction consult is built against a fixture row and
+    Skullcrack lands it in a game after RE. Recorded so the arm's producer
+    status is not misread as an omission.
+
+27. **CR 120.3 has eight results and RD ships two of them.** 120.3a (life
+    loss) and 120.3c (loyalty) are RD-1's. 120.3b and 120.3g (poison — infect
+    and toxic), 120.3d (wither's and infect's counters) and 120.3h (a battle's
+    defense counters) have no keyword flag and no card type behind them
+    (`codebase-state.md` CR 120 row, T21c). The performer's arm is written as
+    one `match` per result on the source's keywords and the target's type so
+    each lands as one arm; none is stubbed, and each gets a Deferred
+    Migrations line at RD-1's commit. 120.3e (marked damage) and 120.3f
+    (lifelink) were already there.
 
 ## 12. Explicitly out of scope
 
