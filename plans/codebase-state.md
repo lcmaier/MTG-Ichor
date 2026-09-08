@@ -4334,11 +4334,16 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    `compute_as_entering`. Reachable three ways: `cli_play --trace`,
    `fuzz_games --trace-game N`, and a `test_support` helper so any `// COVERS:`
    test can write its own trace, which is how a page is regenerated after a
-   refactor. **Before item 6, not after:** trigger detection reads the
-   performed-action stream, and the first question anyone asks the dispatcher is
-   "why did this fire, or not" — a trace question about proposals, events and
-   the frames they were judged against, so the trigger phase should ship with
-   its own explanation. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
+   refactor. **Scheduled 2026-09-08: before CM-4, as its own PR**
+   (`roadmap-v2.md` row A4c). It had been cargo on A6's first PR, which is the
+   PR least able to carry it — the trigger phase is 4–6 PRs of new subsystem,
+   and "why did this fire, or not" is a question you want answerable *before*
+   starting, not delivered alongside. **Before CM-4 rather than after**, because
+   CM-4 changes every cast's prompt sequence and its whole check is an A/B that
+   must reproduce `main` with the payer on; a trace makes that check readable
+   instead of inferential. The dependency runs one way only — none of the emit
+   points is CM-4's — so this is an ordering choice, and the choice is to have
+   the instrument before the phase it reads. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
    script; one small phase. The seam it rides is `execute_batch_inner` and the
    entry performer, which RC-4b gave the shape they will keep.
 

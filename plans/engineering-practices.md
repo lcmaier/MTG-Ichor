@@ -1497,9 +1497,13 @@ schedulable rather than done:
   by hand: each proposal entering a batch, each pipeline iteration, each
   top-level layer walk, and the performed events. JSON lines, plus a script
   that turns one into a page in this format, so tier 1 becomes generated.
-  **Owed before critical-path item 6** — the first question anyone asks a
-  trigger dispatcher is "why did this fire, or not", which is a trace question.
-  Sized and scheduled at `codebase-state.md`, "Before Triggered abilities"
+  **Scheduled: before CM-4, as its own PR** — `roadmap-v2.md` row A4c, moved
+  there 2026-09-08 from inside the trigger phase's first PR. The first question
+  anyone asks a trigger dispatcher is "why did this fire, or not", which is a
+  trace question, and it wants answering before that phase starts rather than
+  with it. It goes ahead of CM-4 for the same reason one level down: CM-4's
+  whole check is an A/B that must reproduce `main`, and this is what that check
+  is read with. Sized at `codebase-state.md`, "Before Triggered abilities"
   item 5.
 - **Tier 3 — the codebase map.** One structural page: the modules and what each
   owns, the chokepoint's arms, the three gate legs a new replacement source
