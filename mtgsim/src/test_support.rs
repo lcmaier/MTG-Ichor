@@ -212,6 +212,16 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 /// Recording the *kind* rather than a count is the part worth sharing. A test
 /// that asserts "one prompt" passes just as well when the prompt was the wrong
 /// one.
+///
+/// **It never declines, and since CM-4 that matters in a mana window.** CR
+/// 605.3a's window now runs until the player declines, so a board with a spare
+/// untapped source will be offered again after the cost is covered and this
+/// provider will take it — including the activation's *own* source, whose
+/// `Cost::Tap` the payment is about to owe (`codebase-state.md` item 83). Wrap
+/// it in [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
+/// activates an ability or casts a spell with mana sources to spare; that is
+/// what every shipped client does, and `prompts()` still counts what reached
+/// the recorder.
 pub struct RecordingDecisionProvider {
     pick: usize,
     all: bool,

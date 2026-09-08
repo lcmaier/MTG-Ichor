@@ -1409,15 +1409,20 @@ fn test_a_mana_ability_resolves_immediately_and_never_uses_the_stack() {
 ///
 /// CR 602.2b runs 601.2f–h for an activated ability, so 601.2g's window is the
 /// same window a spell opens, and the Forest is tapped inside it.
+///
+/// **Run under a client stack, and it has to be.** Mind Stone prints
+/// "{T}: Add {C}" as well, so once the Forest has covered the {1} the window
+/// offers the Stone's own mana ability — and a provider that keeps picking
+/// takes it, tapping the very permanent whose `Cost::Tap` it is about to owe.
+/// That is legal under CR 605.3a and always a mistake
+/// (`codebase-state.md` item 83); `ManaWindowStop` is what stops it, which is
+/// why every shipped client stacks one. `windows_opened` counts the prompts
+/// that reached the recorder, so it is still the assertion that the window
+/// opened exactly once.
 // COVERS: ATOM-605.3a-003
 #[test]
 fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
     let mut game = setup_two_player_game();
-    // The Forest first, so it is the window's option 0. Mind Stone also offers
-    // "{T}: Add {C}" there — a source may tap itself for mana inside its own
-    // activation's window, and then its `Cost::Tap` cannot be paid. That is
-    // the CR 732.1 board in mana form and it has its own test; here it would
-    // just be the wrong pick.
     let (forest, _) = place_forest(&mut game, 0);
     let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
     mtgsim::test_support::fill_library(&mut game, 0, 3);
@@ -1425,10 +1430,12 @@ fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
     // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
     let draw = 1;
 
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(
+        RecordingDecisionProvider::picking(0),
+    );
     game.activate_ability(0, stone, draw, &dp).expect("{1} paid from inside the window");
 
-    assert_eq!(windows_opened(&dp), 1, "602.2b runs 601.2g for an ability too");
+    assert_eq!(windows_opened(dp.inner()), 1, "602.2b runs 601.2g for an ability too");
     assert!(game.battlefield.get(&forest).unwrap().tapped, "the Forest paid it");
     assert!(!game.battlefield.contains_key(&stone), "and the Stone sacrificed itself");
 }
