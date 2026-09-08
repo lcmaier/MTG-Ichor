@@ -806,33 +806,31 @@ enum GameOutcome {
     },
 }
 
-/// Which `DecisionProvider` middleware the agent's stack carries.
+/// Which `DecisionProvider` middleware this harness stacks.
 ///
-/// **One field per middleware, not one parameter.** The stack is the thing that
-/// grows — priority passing, auto-block, `backlog.md` §2.18's tap solver are all
-/// coming — and threading a `bool` per middleware down through `run_games` and
-/// `run_one_game` would add a parameter to two signatures and every call site
-/// each time. A field and a line in [`build_agent`] is the whole cost instead.
+/// One field per middleware rather than one parameter: the stack grows
+/// (priority passing, auto-block, `backlog.md` §2.18's tap solver), and a
+/// `bool` each would be a parameter on two signatures and three call sites.
 #[derive(Clone, Copy)]
-struct AgentConfig {
+struct MiddlewareConfig {
     /// Stack `ui::ManaWindowStop`: decline CR 601.2g's window once the locked
     /// mana component is covered. On by default; `--no-auto-pay` drops it.
     auto_pay: bool,
 }
 
-/// Compose the agent's decorator stack. **The one place that knows its shape.**
+/// Compose the provider stack. **The one place that knows its shape.**
 ///
-/// The fuzz harness takes the stop and nothing else, deliberately:
-/// `RandomDecisionProvider`'s tap preference and generic split are its own
-/// measured policies (`codebase-state.md` 16d), and a payer answering them
-/// would consume its RNG stream differently — every counter would move for
-/// reasons that are not the engine's.
-fn build_agent(dp_seed: u64, cfg: AgentConfig) -> Box<dyn DecisionProvider> {
-    let agent = RandomDecisionProvider::seeded(dp_seed);
+/// The stop and nothing else, deliberately: `RandomDecisionProvider`'s tap
+/// preference and generic split are its own measured policies
+/// (`codebase-state.md` 16d), and a payer answering them would consume its RNG
+/// stream differently, moving every counter for reasons that are not the
+/// engine's.
+fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> Box<dyn DecisionProvider> {
+    let provider = RandomDecisionProvider::seeded(dp_seed);
     if cfg.auto_pay {
-        Box::new(ManaWindowStop::new(agent))
+        Box::new(ManaWindowStop::new(provider))
     } else {
-        Box::new(agent)
+        Box::new(provider)
     }
 }
 
@@ -848,7 +846,7 @@ fn run_one_game(
     keep_event_log: bool,
     required: &[Arc<CardData>],
     require_names: &[String],
-    agent: AgentConfig,
+    middleware: MiddlewareConfig,
 ) -> (GameOutcome, std::time::Duration) {
     // Derive per-game seed from master seed for reproducibility
     let game_seed = master_seed.wrapping_add(game_num as u64);
@@ -880,7 +878,7 @@ fn run_one_game(
         let config = GameConfig::test();
         let mut game = Game::new(config, vec![deck1, deck2]).expect("Failed to create game");
         game.reseed(shuffle_seed);
-        let dp = build_agent(dp_seed, agent);
+        let dp = build_stack(dp_seed, middleware);
         let dp = &*dp;
         game.setup(dp).expect("Failed to setup game");
 
@@ -965,14 +963,14 @@ fn run_games(
     threads: usize,
     required: &[Arc<CardData>],
     require_names: &[String],
-    agent: AgentConfig,
+    middleware: MiddlewareConfig,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
-                    agent,
+                    middleware,
                 )
             })
             .collect();
@@ -1001,7 +999,7 @@ fn run_games(
                                     keep_event_log,
                                     required,
                                     require_names,
-                                    agent,
+                                    middleware,
                                 ),
                             ));
                         }
@@ -1133,7 +1131,7 @@ fn main() {
         args.threads,
         &required,
         &args.require,
-        AgentConfig { auto_pay: args.auto_pay },
+        MiddlewareConfig { auto_pay: args.auto_pay },
     );
 
     // Reporting is a serial pass over the games in order, so every line printed

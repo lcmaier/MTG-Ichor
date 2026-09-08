@@ -458,12 +458,10 @@ impl GameState {
     /// # The window does not close when the cost is covered (CR 605.3a)
     /// A player may activate a mana ability "whenever they are casting a spell
     /// or activating an ability that requires a mana payment", with no "until
-    /// it is paid". Until CM-4 this returned the moment `can_pay_costs`
-    /// succeeded, which made the Ironworks loop's step 3 impossible — "there's
-    /// nothing saying you can't take advantage of that rule here to make some
-    /// more" (`cost-architecture.md` §3.11). Stopping early is a *payer's*
-    /// policy and lives in `ui::ManaWindowStop`, which every shipped client
-    /// stacks; the engine offers until the player declines.
+    /// it is paid" — so the engine offers until the player declines. Stopping
+    /// once the cost is covered is a *payer's* policy and lives in
+    /// `ui::ManaWindowStop`; do not reintroduce it here
+    /// (`cost-architecture.md` §3.11).
     ///
     /// # Mana-cost extraction
     /// Only `Cost::Mana` is relevant to this window: rule 601.2g explicitly

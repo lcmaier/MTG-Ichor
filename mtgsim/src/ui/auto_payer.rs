@@ -15,23 +15,11 @@
 //              `split_is_forced`. With surplus in the pool it is a real
 //              choice and goes to the wrapped provider.
 //
-// **The criterion started weaker and the review corrected it.** It read "every
-// legal answer leaves the same game state except for mana", justified by mana
-// emptying at end of step (CR 500.4). That is too loose: *within* the step the
-// residue is playable resource, and which mana is left is a real decision —
-// cast a {2}{U} three-drop off three blue sources and the split decides whether
-// you still hold {U}{U} for Counterspell, even though the spell being paid for
-// never asked about blue. The payer must not make that call. What survives is
-// the strict test: answer when there is nothing to answer.
-//
 // **What it deliberately does not answer.** `ChooseSacrificeForCost` fails the
-// criterion: different answers leave different permanents on the battlefield
-// and put different `ZoneChange` events into the stream the trigger phase
-// reads. Which creature to sacrifice for Altar's Reap is a strategic choice,
-// and a payer that answers it is playing the game rather than paying for it.
-// §3.4 listed it here before CM-3 built the prompt; that is corrected. A
-// client that wants an auto-sacrifice policy stacks its own decorator for that
-// kind, in the AI harness or the GUI where strategy lives.
+// criterion: which creature dies is a strategic choice, and a client that wants
+// an auto-sacrifice policy stacks its own decorator for that kind. Why the
+// criterion is this strict rather than "the answers are close enough" is
+// `cost-architecture.md` §3.4.
 //
 // The criterion is matched exhaustively over `ChoiceKind` at the two sites
 // below, so CP-1's announcement prompt and item 72's reversal each have to
@@ -74,8 +62,7 @@ impl<D: DecisionProvider> AutoPayer<D> {
 ///
 /// Otherwise two buckets have slack and moving one mana between them is a
 /// second legal answer — which is the player's, because it decides what is left
-/// in the pool for the rest of the step. That is the whole of the correction in
-/// the module docs above.
+/// in the pool for the rest of the step (`cost-architecture.md` §3.4).
 fn split_is_forced(total: u64, maxs: Option<&[u64]>) -> bool {
     let Some(maxs) = maxs else { return false };
     maxs.iter().filter(|&&m| m > 0).count() <= 1 || maxs.iter().sum::<u64>() == total
