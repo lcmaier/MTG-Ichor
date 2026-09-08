@@ -1169,3 +1169,58 @@ fn test_foundry_inspector_reduces_an_x_cost_after_x_is_chosen() {
     game.cast_spell(0, trinket, &dp).expect("X=4 costs {3} under the Inspector");
     assert_eq!(game.players[0].mana_pool.total(), 0, "{{3}}, the ruling's own number");
 }
+
+/// The `Or`'s **other** leaf, and the controller clause — neither of which any
+/// test above reaches.
+///
+/// Every board so far casts a black spell, so a Familiar written
+/// `Or(Black, Black)` would pass all of them: the black-and-green board matches
+/// on the left leaf and never asks about the right. Green alone is what makes
+/// the right leaf load-bearing. The third case is "**you** cast" (CR 109.5) —
+/// the Familiar taxes nobody and reduces only its controller's spells, which is
+/// what separates it from Thalia.
+#[test]
+fn test_the_familiar_reduces_green_too_and_only_for_its_controller() {
+    let green_trinket = || {
+        colored_trinket(
+            "Verdant Trinket",
+            ManaCost::build(&[ManaType::Green], 1),
+            &[mtgsim::types::colors::Color::Green],
+        )
+    };
+
+    // The right leaf: {1}{G} under the Familiar is {G}.
+    assert_costs_exactly(
+        familiar_board, green_trinket, &[(ManaType::Green, 1)], ManaType::Green,
+        "a green spell under the Familiar",
+    );
+
+    // Neither colour: {1}{R} is untouched.
+    let red_trinket = || {
+        colored_trinket(
+            "Vermilion Trinket",
+            ManaCost::build(&[ManaType::Red], 1),
+            &[mtgsim::types::colors::Color::Red],
+        )
+    };
+    assert_costs_exactly(
+        familiar_board, red_trinket, &[(ManaType::Red, 1), (ManaType::Colorless, 1)],
+        ManaType::Colorless, "a red spell under the Familiar",
+    );
+
+    // "You cast": the opponent's black spell pays full price.
+    let board = || {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 1);
+        game
+    };
+    assert_costs_exactly(
+        board, || colored_trinket(
+            "Sable Trinket",
+            ManaCost::build(&[ManaType::Black], 2),
+            &[mtgsim::types::colors::Color::Black],
+        ),
+        &[(ManaType::Black, 1), (ManaType::Colorless, 2)], ManaType::Colorless,
+        "a black spell under an opponent's Familiar",
+    );
+}
