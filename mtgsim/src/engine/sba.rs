@@ -345,8 +345,10 @@ impl GameState {
         // 704.5k — World rule
         // (future SBAs added here as needed)
 
-        // 704.5m — Aura not attached to anything -> owner's graveyard
-        // 704.5n — Aura attached to an illegal object -> owner's graveyard
+        // 704.5m — an Aura attached to an illegal object or player, **or**
+        // not attached to one at all, is put into its owner's graveyard. Both
+        // halves are 704.5m; the inner comments said 704.5n until 2026-09-08,
+        // and 704.5n is the Equipment rule further down.
         //
         // Collect aura IDs in a single pass to avoid borrow-checker issues:
         // we need &self.objects for subtype checks but &mut self for move_object.
@@ -358,14 +360,14 @@ impl GameState {
                     return None;
                 }
                 match entry.attached_to {
-                    // 704.5m: Aura not attached to anything
+                    // Not attached to anything.
                     None => Some(id),
                     Some(host_id) => {
-                        // 704.5n: host no longer on the battlefield
+                        // Attached to an illegal object: gone from the battlefield,
                         if !self.battlefield.contains_key(&host_id) {
                             return Some(id);
                         }
-                        // 704.5n: host doesn't match enchant filter
+                        // or no longer matching the enchant restriction.
                         // The enchant restriction is text on the Aura, so
                         // CR 109.5 makes its "you" the Aura's controller — not
                         // the enchanted creature's, which CR 303.4e keeps
@@ -415,8 +417,9 @@ impl GameState {
             any_performed |= !performed.is_empty();
         }
 
-        // 704.5p — Equipment/Fortification attached to non-creature → unattach
-        // Equipment stays on the battlefield; only the attachment is broken.
+        // 704.5n — an Equipment or Fortification attached to an illegal
+        // permanent becomes unattached and remains on the battlefield.
+        // (This block was labelled 704.5p until 2026-09-08; 704.5p is below.)
         let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
@@ -439,37 +442,58 @@ impl GameState {
             any_performed = true;
         }
 
-        // 704.5q (attachment catch-all) — If a permanent that's neither an Aura,
-        // Equipment, nor Fortification is attached to another permanent, it becomes
-        // unattached. This catches illegal attachment state that may arise from
-        // type-changing effects.
-        let illegal_attachments: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
+        // 704.5p — both sentences, in one pass over the attachments.
+        //
+        // "If a battle or creature is attached to an object or player, it
+        // becomes unattached and remains on the battlefield. Similarly, if any
+        // nonbattle, noncreature permanent that's neither an Aura, an
+        // Equipment, nor a Fortification is attached to an object or player,
+        // it becomes unattached and remains on the battlefield."
+        //
+        // **The first sentence is about what the permanent *is*, and that is
+        // why neither neighbour catches it**: 704.5n above asks whether the
+        // *host* is legal, and the second sentence exempts Auras, Equipment
+        // and Fortifications by subtype. An Equipment that becomes a creature
+        // is legally equipping a legal creature and keeps its subtype, so it
+        // escaped both — and until 2026-09-08 it escaped the engine too, still
+        // granting its bonus from under March of the Machines
+        // (`codebase-state.md` item 82).
+        //
+        // One predicate takes the Aura case with it: an Aura that is also a
+        // creature is unattached here, and 704.5m puts it into its owner's
+        // graveyard on the loop's next pass, since by then it is an Aura
+        // attached to nothing. That composition is the CR's own, which is why
+        // this does not special-case Auras — and it is what closed the
+        // standing TODO for them.
+        //
+        // **One pass, and one characteristics read per attachment.** Asking
+        // `is_creature` in one loop and the three `has_subtype`s in another
+        // computed the same frame twice: +7,640 memo hits per measured game
+        // for an answer already in hand.
+        let detachments: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
-                self.objects.get(&id)?;
+                let host_id = entry.attached_to?;
+                // Effective types, never printed: the whole rule is about a
+                // permanent a continuous effect turned into a creature.
+                if is_creature(self, id) {
+                    return Some((id, host_id));
+                }
                 let is_aura = has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura));
                 let is_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
                 let is_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
                 if is_aura || is_equip || is_fort {
                     return None;
                 }
-                let host_id = entry.attached_to?;
                 Some((id, host_id))
             })
             .collect();
 
-        for (att_id, host_id) in illegal_attachments {
+        for (att_id, host_id) in detachments {
             self.detach(att_id);
             self.events.emit(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
             any_performed = true;
         }
-
-        // TODO: 704.5p — An Aura that is also a creature can't enchant anything.
-        // If this occurs, the Aura becomes unattached and remains on the battlefield as a creature. 
-        // Relevant when L4 type-changing effects (e.g., a hypothetical
-        // non-Aura-excluding Opalescence variant) add Creature to an Aura. Bestow
-        // (702.103) avoids this by being only an aura if cast for a Bestow cost, switching over
-        // to creature if it becomes unattached for any reason. Implement when L4 type-changing + Aura cards coexist.
 
         // 704.5q — +1/+1 and -1/-1 counter annihilation
         // If a permanent has both +1/+1 and -1/-1 counters, remove pairs
