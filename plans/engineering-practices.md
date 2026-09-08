@@ -430,6 +430,58 @@ pools, which is the statement that matters most for a new payment arm.
 | **Replacement gathers** | **475** | **481** |
 | **Restriction queries** | **477** | **483** |
 
+**Re-recorded 2026-09-08 for the CR 704.5p fix** (`codebase-state.md` item 82).
+No card and no pool change — a bug fix and, riding with it, the largest engine
+speed-up the project has measured. **Every row that moved is the engine's.**
+
+The bug is one sentence of CR 704.5p that was never implemented (an Equipment
+that *becomes* a creature stayed attached). The speed-up is unrelated to it and
+was found while fixing it: both attachment sweeps asked their `has_subtype`
+questions *before* reading `attached_to`, so three characteristics frames were
+computed for every permanent on the battlefield, every state-based-action
+check, to answer a question about the handful that were attached. Reading the
+field first is the whole change.
+
+| | main | fixed |
+|---|---:|---:|
+| Memo hits, `performance` (200 games) | 99,530 | **62,215** (−37.5%) |
+| Memo hits, `stress` | 97,783 | **61,424** (−37.2%) |
+| CPU/game median (200 games, ×3) | 16.09 ms | **14.29 ms** (−11.2%) |
+| ms / 1,000 walks | 42.57 | 37.70 (−11.4%) |
+| Layer walks / frames | 378 / 4,504 | 379 / 4,510 |
+
+**Read `ms/1,000 queries` carefully here: it rises 41.8%, and that is the
+speed-up rather than a regression.** Queries are walks plus memo hits, so a
+37% fall in memo hits shrinks the denominator faster than the numerator falls.
+This is the case §3.1 warns about — "fewer questions walked" is a different
+finding from "the walk got slower" — and it is the first time the project has
+produced it. CPU/game and memo hits are the rows to read.
+
+One behavioural row moves, and it is the bug: total damage 56.6 → 56.5 per
+`performance` game, which is an equipped Bonesplitter detaching under March of
+the Machines and no longer granting +2/+0. Zero errors and zero panics on both
+pools; three shell runs at one seed identical outside the timing lines.
+
+| | performance (73 cards) | stress (94 cards) |
+|---|---|---|
+| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 25 (50.0%) / 25 (50.0%) |
+| Avg turns | 28.9 | 28.2 |
+| Spells cast | 22.3 | 22.6 |
+| Lands played | 17.5 | 17.0 |
+| Combat w/ atk | 9.9 | 10.1 |
+| Creatures died | 6.6 | 4.5 |
+| Damage events | 21.7 | 22.7 |
+| Total damage | 59.3 | 58.6 |
+| Life changes | 14.3 | 14.8 |
+| **Layer walks** | **371** | **434** |
+| **Board walks** | **235** | **251** |
+| **Memo hits** | **55,610** | **57,618** |
+| **Layer frames** | **4,267** | **4,547** |
+| **Frames/walk** | **11.50** | **10.48** |
+| **Dependency checks** | **10** | **42** |
+| **Replacement gathers** | **475** | **485** |
+| **Restriction queries** | **477** | **487** |
+
 
 **Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:
 `main` at 9011d42 (A), LI-3's engine with the registry and both pools

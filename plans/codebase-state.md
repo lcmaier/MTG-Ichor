@@ -3261,18 +3261,32 @@ one, so nothing was wrong in practice and nothing moved.
     block is also commented "704.5q", which is the +1/+1 / −1/−1 counter rule;
     the other attachment comments in that function want the same audit.
 
-    **Reachability (2026-09-08): reachable — wrong today, and in the measured
-    pool.** Bonesplitter and March of the Machines are both in
-    `PERFORMANCE_POOL`. Verified against the tree: with Bonesplitter equipped
-    to a 2/2 and March on the battlefield, `check_state_based_actions` leaves
-    `attached_to` set and the creature reads **4/2** where it should read 2/2.
+    **Reachability (2026-09-08): closed — fixed the same day.** `engine::sba`
+    now implements 704.5p as one pass over the attachments: a permanent that
+    *is* a creature is unattached whatever its subtypes say, and the second
+    sentence's catch-all follows. `ATOM-704.5p-001` — uncovered since Phase
+    5-Pre — is covered, and the standing Aura TODO closed with it rather than
+    beside it: an Aura that becomes a creature is unattached by the same
+    predicate, and 704.5m puts it into its owner's graveyard on the loop's next
+    pass, which is the CR's own composition and is now a test.
 
-    **Sized:** one predicate and its batch, ~30 lines. It should close the
-    Aura TODO five lines below it (an Aura that is also a creature, the same
-    first sentence) or say deliberately why the Aura case differs — CR 704.5m
-    sends an unattached Aura to the graveyard, so the two are not one fix by
-    default. Both cards are pooled, so the fix moves the fuzz counters and
-    `engineering-practices.md` §3's table is re-recorded with it.
+    **Two labels were wrong and are fixed with it.** The Equipment-with-an-
+    illegal-host block was commented 704.5p (it is 704.5n), the catch-all was
+    commented 704.5q (it is 704.5p's second sentence; 704.5q is counter
+    annihilation), and the Aura block's inner comments said 704.5n for cases
+    that are both 704.5m. A rule number in a comment is the only index this
+    file has into the CR, so a wrong one is worse than none.
+
+    **An 11% speed-up came with the bug, and it was not the bug's doing.**
+    Both attachment sweeps asked their subtype questions *before* reading
+    `attached_to` — three `has_subtype` calls for every permanent on the
+    battlefield, every check, to answer a question about the handful that were
+    attached. Hoisting the field read in front of the frame computations takes
+    memo hits **99,530 → 62,215 per `performance` game (−37.5%)** and
+    97,783 → 61,424 on `stress`, and CPU/game **16.09 → 14.29 ms (−11.2%)**,
+    with layer walks (378 → 379) and frames (4,504 → 4,510) unchanged — so it
+    is fewer questions asked, not cheaper answers. It more than repays CM-3's
+    pool addition. `engineering-practices.md` §3 has the re-recorded table.
 
     **How it was found, which is the point:** the rulings pass
     (`engineering-practices.md` §3.4), on its first day, reading a ruling on a

@@ -639,3 +639,74 @@ fn test_cobbled_wings_is_registered_and_not_pooled() {
     assert!(CardRegistry::default_registry().create("Cobbled Wings").is_ok());
     assert!(CardRegistry::performance_pool().create("Cobbled Wings").is_err());
 }
+
+// ===========================================================================
+// CR 704.5p — a creature is never attached to anything
+// ===========================================================================
+
+/// CR 704.5p, first sentence: "If a battle or creature is attached to an
+/// object or player, it becomes unattached and remains on the battlefield."
+///
+/// March of the Machines makes Bonesplitter a creature while it is equipping
+/// something. It must come off, and stop granting +2/+0 — which is the whole
+/// of March's own ruling: "if an Equipment becomes a creature, it can no
+/// longer equip a creature. If it's currently attached to a creature, it
+/// becomes unattached (but remains on the battlefield)."
+///
+/// Both cards are in `PERFORMANCE_POOL`, so this board is reachable in any
+/// measured game where they meet.
+// COVERS: ATOM-704.5p-001
+#[test]
+fn test_an_equipment_that_becomes_a_creature_unattaches() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+    assert!(game.attach(splitter, bears));
+    assert_eq!(pt(&game, bears), (4, 2), "equipped, before anything animates it");
+
+    put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::march_of_the_machines(), 0);
+    game.check_state_based_actions_loop(&test_dp()).unwrap();
+
+    assert!(
+        mtgsim::oracle::characteristics::is_creature(&game, splitter),
+        "March animated it, which is the premise",
+    );
+    assert_eq!(
+        game.battlefield[&splitter].attached_to, None,
+        "CR 704.5p: a creature is not attached to anything",
+    );
+    assert!(game.battlefield.contains_key(&splitter), "and remains on the battlefield");
+    assert_eq!(pt(&game, bears), (2, 2), "so it stops granting +2/+0");
+}
+
+/// The other half of CR 704.5p's first sentence, and the composition that
+/// closes a two-year-old TODO: an **Aura** that is also a creature.
+///
+/// It is unattached by the same predicate — one rule, not two — and then
+/// CR 704.5m puts it into its owner's graveyard on the loop's next pass,
+/// because by then it is an Aura attached to nothing. No registered card
+/// animates an enchantment, so the row is placed by hand; the rule is not
+/// hypothetical, only its carrier is.
+// COVERS-PARTIAL: ATOM-704.5p-001
+#[test]
+fn test_an_aura_that_becomes_a_creature_unattaches_then_dies() {
+    use mtgsim::engine::layers::types::{EffectModification, Layer};
+    use mtgsim::test_support::registered;
+    use mtgsim::types::card_types::CardType;
+
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let aura = put_on_battlefield(&mut game, holy_strength(), 0);
+    assert!(game.attach(aura, bears));
+    assert_eq!(pt(&game, bears), (3, 4), "enchanted");
+
+    let ts = game.allocate_timestamp();
+    let row = registered(aura, Layer::Layer4Type, ts, EffectModification::AddType(CardType::Creature));
+    game.continuous_effects.add(row);
+
+    game.check_state_based_actions_loop(&test_dp()).unwrap();
+
+    assert!(!game.battlefield.contains_key(&aura), "704.5p unattached it, then 704.5m took it");
+    assert!(game.players[0].graveyard.contains(&aura));
+    assert_eq!(pt(&game, bears), (2, 2), "and its +1/+2 went with it");
+}
