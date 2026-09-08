@@ -3248,6 +3248,37 @@ one, so nothing was wrong in practice and nothing moved.
     before. Nothing here changes until then; the note exists so that "keyword
     means optional" is not inferred from the variant list.
 
+82. **CR 704.5p's first sentence is not implemented: an Equipment that
+    becomes a creature stays attached.** "If a battle or creature is attached
+    to an object or player, it becomes unattached and remains on the
+    battlefield. **Similarly**, if any nonbattle, noncreature permanent that's
+    neither an Aura, an Equipment, nor a Fortification is attached …" —
+    `engine::sba` implements the second sentence only, filtering out Auras,
+    Equipment and Fortifications, so a permanent that qualifies under the
+    *first* sentence is skipped by the very predicate meant to spare it. The
+    block is also commented "704.5q", which is the +1/+1 / −1/−1 counter rule;
+    the other attachment comments in that function want the same audit.
+
+    **Reachability (2026-09-08): reachable — wrong today, and in the measured
+    pool.** Bonesplitter and March of the Machines are both in
+    `PERFORMANCE_POOL`. Verified against the tree: with Bonesplitter equipped
+    to a 2/2 and March on the battlefield, `check_state_based_actions` leaves
+    `attached_to` set and the creature reads **4/2** where it should read 2/2.
+
+    **Sized:** one predicate and its batch, ~30 lines. It should close the
+    Aura TODO five lines below it (an Aura that is also a creature, the same
+    first sentence) or say deliberately why the Aura case differs — CR 704.5m
+    sends an unattached Aura to the graveyard, so the two are not one fix by
+    default. Both cards are pooled, so the fix moves the fuzz counters and
+    `engineering-practices.md` §3's table is re-recorded with it.
+
+    **How it was found, which is the point:** the rulings pass
+    (`engineering-practices.md` §3.4), on its first day, reading a ruling on a
+    card registered months earlier — "If an Equipment becomes a creature, it
+    can no longer equip a creature. If it's currently attached to a creature,
+    it becomes unattached." Nothing in the corpus, the test suite or the fuzz
+    harness had said so.
+
 ### Was the critical path complete? — audited 2026-08-27
 
 Asked by the owner after the "can't" model turned out to be a whole subsystem

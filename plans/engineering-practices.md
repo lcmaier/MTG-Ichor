@@ -1105,9 +1105,63 @@ such rather than skipped — chiefly *"the generic X cost is still considered
 generic even if there is a requirement that a specific color be used"*, which
 needs the spend-restriction model (`backlog.md` §2.19's neighbourhood).
 
-**This is not retroactive by default.** The 88 cards registered before CM-3
-have not had the pass; doing them is a task worth its own PR, and the place to
-start is the pooled ones, since a wrong answer there is in every measured game.
+**And a leaf the pass does not reach by itself.** Writing the Familiar's
+"both black and green" test made the card's `Or` look covered when only its
+*left* leaf was: every board in the file casts a black spell, so
+`Or(Black, Black)` would have passed all of them. A ruling names a case; it does
+not name the ways an implementation can accidentally satisfy it. **After the
+rulings pass, ask what the card's filter has that no test varies** — here the
+right leaf and the "you cast" clause, three assertions, all of them green.
+
+### 3.4a How big is the retroactive half, and is the tool worth building?
+
+**Deferred once as "not worth the time", and the deferral was measured on the
+wrong thing.** The idea was a harness that forces every card in the official
+pool to pass all its Scryfall rulings. That tool cannot exist: a ruling is
+prose, and nothing compiles prose into an assertion. What *can* exist is a
+**ledger with a gate**, the shape `specdb` already proved — the corpus is
+authored, the join is generated, and the check fails when a claim has no
+disposition.
+
+**Census, 2026-09-08, all 92 registered cards** (`/cards/collection` for
+identity, then one rulings fetch each):
+
+| | |
+|---|---:|
+| cards carrying at least one ruling | 43 of 92 (46%) |
+| total rulings | 145 |
+| …on the 73 `PERFORMANCE_POOL` cards | 87 |
+| median rulings per card | 0 |
+| most on one card | 8 (Cytoshape, pooled) |
+
+145 is a bounded job, not an open-ended one, and at CM-3's observed rate — 11
+rulings into 6 tests, 2 already-covered, 3 named gaps — it is roughly 80 tests
+across the whole registry, or 50 if the pool goes first.
+
+**What the census cost, and what it immediately bought.** Reading the rulings of
+three pooled cards nobody had checked found `codebase-state.md` **item 82**:
+CR 704.5p's first sentence is not implemented, so an Equipment that becomes a
+creature stays attached — Bonesplitter under March of the Machines, both of them
+in `PERFORMANCE_POOL`, leaving a 2/2 reading 4/2 in any measured game where they
+meet. Nothing in the corpus, the suite or the fuzz harness had said so, and
+March's ruling says it in one sentence. **One afternoon of reading found a live
+bug in the measured pool**, which is the number the original deferral did not
+have.
+
+**So: build the ledger, not the verifier.** A script that fetches every
+registered card's rulings into a checked-in file, a hand-authored disposition
+per ruling (tested / covered-by / not-expressible + owner), and a `--check` that
+fails when a registered card has a ruling with no disposition. Two things fall
+out that no amount of care at card-add time gives you: **drift** — Scryfall adds
+rulings, so a card correct when registered can acquire a ruling later that the
+engine violates, and nothing else in the project would ever notice — and a
+**pool-first work queue** for the 87. Dispositions belong in the ledger file
+rather than in source comments; the source is already at its comment budget and
+the corpus's own precedent is authored markdown joined by a script.
+
+Sizing it honestly: ~250 lines of Python, one data file, one line in the check
+command. About `check_state_of_play.py`. It blocks nothing and can be taken
+whenever; the retroactive pass behind it is separable and pool-first.
 
 ## 4. Sizing a phase, and splitting it
 
