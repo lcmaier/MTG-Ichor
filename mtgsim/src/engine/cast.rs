@@ -490,6 +490,26 @@ impl GameState {
             .find_map(|c| if let Cost::Mana(mc) = c { Some(mc.clone()) } else { None })
             .unwrap_or_else(ManaCost::zero);
 
+        // CR 601.2g opens the window only "if the total cost includes a mana
+        // payment". Casting Mox Opal offers none, and the judge's warning on
+        // the Ironworks board is that exact card: you cannot sacrifice
+        // artifacts for mana while casting something that asks for none.
+        //
+        // A component **reduced** to nothing reads the same way. CR 601.2f's
+        // "considered to be {0}" makes the reduced case a {0} component rather
+        // than a special one, and by the time this runs the total is locked —
+        // a `Vec<Cost>`, with no record of how it got there. Distinguishing
+        // "printed {0}" from "reduced to {0}" would need the pipeline to carry
+        // a history 601.2f exists to discard. So a free Myr Enforcer behind
+        // seven artifacts and a Mox Opal are one board here.
+        //
+        // The test is on the component's symbols, not on whether a `Cost::Mana`
+        // entry exists: `determine_total_cost` always emits one, empty when the
+        // cost is {0} (`total.rs::rebuild`).
+        if mana_cost_for_window.symbols.is_empty() {
+            return;
+        }
+
         let mut failed: std::collections::HashSet<(ObjectId, AbilityId)> =
             std::collections::HashSet::new();
 

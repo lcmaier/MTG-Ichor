@@ -33,8 +33,8 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::mana_helpers::castable_spells;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_hand, put_on_battlefield, registered, setup_two_player_game, static_ability, test_ctx,
-    vanilla_creature, RecordingDecisionProvider,
+    place_forest, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
+    static_ability, test_ctx, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::cost_modification::{CostChange, CostModificationDef};
@@ -1248,4 +1248,122 @@ fn test_bone_splinters_costs_a_creature_and_a_black_mana() {
     assert_eq!(game.players[0].mana_pool.total(), 0, "{{B}}, and no more");
     assert!(game.battlefield.contains_key(&victim), "the target dies on resolution");
     assert!(game.stack.contains(&splinters));
+}
+
+// ===========================================================================
+// CM-4 — CR 601.2g: when the mana-ability window opens
+// ===========================================================================
+
+/// A `{0}` artifact with nothing else on it. Mox Opal's shape without its
+/// abilities, which is all the judge's warning turns on: "you can't sacrifice
+/// Ironworks and Myr Retriever while you're casting Mox Opal … [it does] not
+/// require a mana payment, so the game never gives you a chance to activate
+/// mana abilities" (`cost-architecture.md` §3.11).
+fn free_trinket() -> Arc<CardData> {
+    CardDataBuilder::new("Pewter Trinket")
+        .mana_cost(ManaCost::build(&[], 0))
+        .card_type(CardType::Artifact)
+        .build()
+}
+
+/// How many CR 601.2g windows this cast opened.
+fn windows_opened(dp: &RecordingDecisionProvider) -> usize {
+    dp.kinds().iter().filter(|k| k.starts_with("ManaAbilityWindow")).count()
+}
+
+/// The control for the two below: a cost with a mana payment in it *does*
+/// open the window, and the untapped Forest on the board is what the two
+/// negative tests would otherwise pass vacuously without.
+///
+// COVERS: ATOM-601.2g-001, ATOM-605.3a-001
+#[test]
+fn test_a_cost_with_a_mana_payment_opens_the_window() {
+    let mut game = setup_two_player_game();
+    place_forest(&mut game, 0);
+    let trinket = put_in_hand(
+        &mut game,
+        CardDataBuilder::new("Copper Trinket")
+            .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+            .card_type(CardType::Artifact)
+            .build(),
+        0,
+    );
+
+    let dp = RecordingDecisionProvider::picking(0);
+    game.cast_spell(0, trinket, &dp).expect("the Forest pays {G} inside the window");
+
+    assert_eq!(windows_opened(&dp), 1, "601.2g: {{G}} is a mana payment");
+    assert!(game.stack.contains(&trinket));
+}
+
+/// CR 601.2g's negative, and the judge's first warning: a `{0}` cost includes
+/// no mana payment, so no window opens — even with an untapped Forest sitting
+/// there to be tapped.
+///
+/// Until CM-4 this was right by accident. `run_mana_ability_window` was called
+/// unconditionally and returned at once because a zero cost was already
+/// payable — the right answer produced by the stop condition CM-4 removes
+/// (`codebase-state.md` item 71).
+///
+/// **No atom claimed.** The corpus has `ATOM-601.2g-001` for the window
+/// opening and nothing for it staying shut; the session file carries a note.
+#[test]
+fn test_a_zero_cost_spell_opens_no_mana_window() {
+    let mut game = setup_two_player_game();
+    let (forest, _) = place_forest(&mut game, 0);
+    let trinket = put_in_hand(&mut game, free_trinket(), 0);
+
+    let dp = RecordingDecisionProvider::picking(0);
+    game.cast_spell(0, trinket, &dp).expect("{0} needs nothing");
+
+    assert_eq!(windows_opened(&dp), 0, "601.2g: a {{0}} cost includes no mana payment");
+    assert!(!game.battlefield.get(&forest).unwrap().tapped, "and the Forest is untouched");
+}
+
+/// The same rule against a component **reduced** to nothing — CR 601.2f's
+/// "considered to be {0}".
+///
+/// Seven artifacts make Myr Enforcer's `{7}` free, and the locked component is
+/// empty for the same reason a printed `{0}` is. The reading matters because
+/// affinity is the first printed mechanic that reaches this board from a
+/// measured game (`cost-architecture.md` §8 item 8): after 601.2f the total is
+/// a value with no record of how it got there, so "printed {0}" and "reduced
+/// to {0}" are one case here, and the alternative reading would need the
+/// pipeline to carry a history the lock-in exists to discard.
+#[test]
+fn test_a_component_reduced_to_nothing_opens_no_mana_window() {
+    let mut game = setup_two_player_game();
+    let (forest, _) = place_forest(&mut game, 0);
+    for _ in 0..7 {
+        put_on_battlefield(&mut game, free_trinket(), 0);
+    }
+    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+
+    let dp = RecordingDecisionProvider::picking(0);
+    game.cast_spell(0, enforcer, &dp).expect("affinity for seven artifacts pays it out");
+
+    assert_eq!(
+        windows_opened(&dp), 0,
+        "601.2f's 'considered to be {{0}}' reads as 601.2g's 'no mana payment'",
+    );
+    assert!(!game.battlefield.get(&forest).unwrap().tapped, "and the Forest is untouched");
+    assert_eq!(game.players[0].mana_pool.total(), 0);
+}
+
+/// One artifact short: `{7}` less six is `{1}`, the component is non-empty,
+/// and the window opens. The pair with the test above is the whole of the
+/// 601.2g gate — it is the component's emptiness that decides, not the card.
+#[test]
+fn test_one_artifact_short_of_free_still_opens_the_window() {
+    let mut game = setup_two_player_game();
+    place_forest(&mut game, 0);
+    for _ in 0..6 {
+        put_on_battlefield(&mut game, free_trinket(), 0);
+    }
+    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+
+    let dp = RecordingDecisionProvider::picking(0);
+    game.cast_spell(0, enforcer, &dp).expect("{1}, paid by the Forest");
+
+    assert_eq!(windows_opened(&dp), 1, "{{1}} left is still a mana payment");
 }
