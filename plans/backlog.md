@@ -502,12 +502,15 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   commutes and stack order carries no meaning — that is what a third
   automation (priority passing, auto-block) extends rather than a scope enum
   inside the payer.
-  **The sacrifice choice is deliberately not in it.** A payer answers a prompt
-  when every legal answer leaves the same game state except for mana; mana is
-  spent or emptied at end of step (CR 500.4), a sacrificed permanent is not.
-  Which creature to sacrifice is strategy and belongs to whatever stacks a
-  decorator for it — the AI harness, or the GUI. §3.4 has the criterion, matched
-  exhaustively so a new payment prompt has to pick a side.
+  **The criterion is strict: a payer answers a prompt only when it has exactly
+  one legal answer.** So the sacrifice choice is out — which creature dies is
+  strategy, and belongs to whatever stacks a decorator for it. So is the generic
+  split whenever the pool has anything spare, since which mana pays the generic
+  decides what is left up for the rest of the step; the payer takes it only when
+  the caps admit one allocation. `OrderCostReductions` is the one prompt it
+  always answers, because §3.4's theorem says every order gives the same total.
+  §3.4 has the argument, matched exhaustively so a new payment prompt has to
+  pick a side.
   **What is left of the oracle here is the solver half**, which CM-4 did not
   build: the bipartite matching between pips and the colours each ability can
   make, so a client can be told *which* sources to tap rather than answering

@@ -437,19 +437,32 @@ Three things follow, and all three are used:
   `backlog.md` §2.18's "auto-payment oracle", and it is what a GUI's auto-pay
   button and an AI harness both want.
 
-  **The sacrifice prompt is not in it, and this paragraph is where that was
-  decided.** The sentence above listed it, written before CM-3 built the
-  prompt. The criterion CM-4 settled on: **a payer answers a prompt when every
-  legal answer leaves the same game state except for mana.** Mana is spent by
-  the payment or emptied at end of step (CR 500.4) — it is not durable, so
-  choosing among those answers is paying. Which creature to sacrifice for
-  Altar's Reap leaves a different permanent on the battlefield and a different
-  `ZoneChange` in the stream the trigger phase reads; a payer that answers it
-  is playing the game rather than paying for it. The criterion is matched
+  **The criterion, and the two prompts it excludes.** **A payer answers a
+  prompt when it has exactly one legal answer** — not "the answers are close
+  enough", one answer, so being asked cannot change anything. It is matched
   exhaustively over `ChoiceKind`, so CP-1's announcement prompt and item 72's
-  reversal each have to pick a side. A client that wants an auto-sacrifice
+  reversal each have to pick a side.
+
+  `ChooseSacrificeForCost` is out: the sentence above listed it, written before
+  CM-3 built the prompt, and which creature to sacrifice for Altar's Reap
+  leaves a different permanent on the battlefield and a different `ZoneChange`
+  in the stream the trigger phase reads. A client that wants an auto-sacrifice
   policy stacks its own decorator for that kind, in the AI harness or the GUI
   where strategy lives.
+
+  **`GenericManaAllocation` is out too, except when the split is forced — and
+  the first draft of this paragraph got that wrong.** It read "every legal
+  answer leaves the same game state except for mana", justified by mana
+  emptying at end of step (CR 500.4). Too loose: *within* the step the residue
+  is playable resource. The owner's board (review, 2026-09-08) is the one that
+  settles it — a `{2}{U}` three-drop cast off three blue sources, where which
+  mana pays the generic decides whether `{U}{U}` is still up for Counterspell,
+  though the spell being paid for never asked about blue. The payer must not
+  make that call. It answers only when the caps admit one allocation (one
+  bucket with headroom, or caps summing to exactly what is owed —
+  `auto_payer::split_is_forced`), which is exactly when the pool covers the
+  cost with nothing spare. `OrderCostReductions` needs no such guard: by §3.4's
+  own theorem every order gives the identical total.
 
   **Two decorators, not one with a scope, and clients compose.** The first
   design gave one payer a `PayerScope` enum so each client could take a subset.
@@ -723,8 +736,9 @@ each of which the engine must reproduce:
   closes here.** By 601.2g the total is locked: a `Vec<Cost>` with no record of
   how it got there, because that is exactly what CR 601.2f's lock-in discards.
   A rule that distinguished "printed {0}" from "reduced to {0}" would need the
-  pipeline to carry that history, so a free Myr Enforcer behind seven artifacts
-  and a Mox Opal are one board. Tested both ways, and the gate reads the
+  pipeline to carry that history — so a free Myr Enforcer behind seven artifacts
+  and a Mox Opal reach 601.2g indistinguishable, and 601.2g has to answer them
+  the same way. Tested both ways, and the gate reads the
   component's *symbols* — `determine_total_cost` always emits a `Cost::Mana`,
   empty when the total is {0}.
 - **Sacrifices inside one window are sequential, not simultaneous.** "Even

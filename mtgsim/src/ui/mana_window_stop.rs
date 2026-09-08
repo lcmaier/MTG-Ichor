@@ -17,11 +17,27 @@
 // never declines while a source is offered, so without this its only
 // terminator is `WINDOW_ACTIVATION_CAP`.
 //
-// **Stack invariant: one decorator per `ChoiceKind`.** Each decorator in a
-// client's stack owns a disjoint set of kinds and passes everything else
-// through, so composition commutes and stack order carries no meaning. Two
-// decorators claiming one kind would make the outermost win and turn the stack
-// into a sequence; don't.
+// **Stack invariant: at most one decorator answers any one prompt.** Not one
+// decorator per `ChoiceKind` — that was the first draft and it is already too
+// strong for the next middleware `backlog.md` §2.18 names. Its tap solver
+// ("which sources should I tap") answers `ManaAbilityWindow`, the same kind
+// `ManaWindowStop` owns; the two coexist because their *predicates* are
+// disjoint — the stop answers only once the component is covered, the solver
+// only while it is not. Kind-disjointness is a sufficient condition, not the
+// necessary one, and reaching for it would have blocked the obvious third
+// decorator.
+//
+// What the invariant buys is that composition commutes, so stack order carries
+// no meaning and a client can list its middleware in any order. Two decorators
+// that both answer one prompt make the outermost win and turn the stack into a
+// sequence. When the forwarding boilerplate is finally abstracted (see below),
+// the abstraction should ask every layer and `debug_assert!` that at most one
+// claims each prompt — that is what turns this comment into a check.
+//
+// **Whatever that abstraction is called, it is not `Layer`.** That word is CR
+// 613's in this codebase and belongs to the continuous-effect system;
+// `dp-middleware-and-candidate-enumeration.md` already says "middleware" for
+// this stack, so a `DecisionMiddleware` is the name with precedent.
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;

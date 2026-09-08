@@ -4,13 +4,25 @@
 // button and an AI harness both want, and what `cost-architecture.md` §3.4
 // named when it said "the engine keeps asking; a payer answers".
 //
-// **What it answers, and the criterion.** A prompt belongs here when every
-// legal answer leaves the same game state except for mana. Mana in a pool is
-// spent by the payment or emptied at end of step (CR 500.4) — it is not
-// durable — so choosing among those answers is paying, not playing.
+// **What it answers, and the criterion.** A prompt belongs here when it has
+// exactly one legal answer. Not "the answers are similar enough" — one answer,
+// so being asked cannot change anything.
 //
-//   CR 601.2h  `GenericManaAllocation` — which mana pays the generic part
-//   CR 601.2f  `OrderCostReductions`   — the order two or more reductions apply
+//   CR 601.2f  `OrderCostReductions`   — always: by `cost-architecture.md`
+//              §3.4's theorem every order yields the identical total, so the
+//              prompt is one the CR mandates and that cannot matter.
+//   CR 601.2h  `GenericManaAllocation` — only when the split is forced; see
+//              `split_is_forced`. With surplus in the pool it is a real
+//              choice and goes to the wrapped provider.
+//
+// **The criterion started weaker and the review corrected it.** It read "every
+// legal answer leaves the same game state except for mana", justified by mana
+// emptying at end of step (CR 500.4). That is too loose: *within* the step the
+// residue is playable resource, and which mana is left is a real decision —
+// cast a {2}{U} three-drop off three blue sources and the split decides whether
+// you still hold {U}{U} for Counterspell, even though the spell being paid for
+// never asked about blue. The payer must not make that call. What survives is
+// the strict test: answer when there is nothing to answer.
 //
 // **What it deliberately does not answer.** `ChooseSacrificeForCost` fails the
 // criterion: different answers leave different permanents on the battlefield
@@ -25,9 +37,9 @@
 // below, so CP-1's announcement prompt and item 72's reversal each have to
 // pick a side rather than inherit one.
 //
-// **Stack invariant: one decorator per `ChoiceKind`.** See `mana_window_stop`,
-// which owns the window's stop and is the other half of a paying client's
-// stack. Disjoint kinds mean composition commutes.
+// **Stack invariant: at most one decorator answers any one prompt.** Stated
+// in full in `mana_window_stop`, which owns the window's stop and is the
+// other half of a paying client's stack.
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
@@ -51,18 +63,33 @@ impl<D: DecisionProvider> AutoPayer<D> {
     }
 }
 
+/// Whether CR 601.2h's generic split has exactly one legal answer.
+///
+/// The caps are `ask_choose_generic_mana_allocation`'s: `available[t]` minus the
+/// pips of `t` the cost owes, so every pip already has its own mana reserved.
+/// Two ways the remainder can be forced, and nothing else is:
+///
+/// - **One bucket with headroom.** Everything goes there.
+/// - **The caps sum to exactly what is owed.** Every bucket is maxed out.
+///
+/// Otherwise two buckets have slack and moving one mana between them is a
+/// second legal answer — which is the player's, because it decides what is left
+/// in the pool for the rest of the step. That is the whole of the correction in
+/// the module docs above.
+fn split_is_forced(total: u64, maxs: Option<&[u64]>) -> bool {
+    let Some(maxs) = maxs else { return false };
+    maxs.iter().filter(|&&m| m > 0).count() <= 1 || maxs.iter().sum::<u64>() == total
+}
+
 /// Fill `total` into the buckets in the order they were offered, each up to its
 /// own cap, starting from the minimums.
 ///
-/// The caps are `ask_choose_generic_mana_allocation`'s, which already leave
-/// every pip of the cost its own mana (CR 601.2h, `codebase-state.md` 16c), so
-/// this needs no payment law of its own and must not re-derive any: the deleted
-/// `auto_allocate_generic` subtracted the pips a second time, which is the bug
-/// 16d paid for once already.
-///
-/// Bucket order is the pool's types sorted by discriminant, so the answer is
-/// the same in every process — a solver that iterated a `HashMap` here would be
-/// a determinism leak at a decision boundary.
+/// Only called when [`split_is_forced`], so "in bucket order" names the walk
+/// and not a policy — there is one answer and this reaches it. It must not
+/// re-derive the caps: the deleted `auto_allocate_generic` subtracted the pips
+/// a second time, which is the bug `codebase-state.md` 16c/16d paid for once
+/// already. Bucket order is the pool's types sorted by discriminant, so the
+/// answer is the same in every process.
 fn fill_in_bucket_order(total: u64, mins: &[u64], maxs: Option<&[u64]>) -> Vec<u64> {
     let n = mins.len();
     let mut alloc = mins.to_vec();
@@ -115,7 +142,9 @@ impl<D: DecisionProvider> DecisionProvider for AutoPayer<D> {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        if matches!(context.kind, ChoiceKind::GenericManaAllocation { .. }) {
+        if matches!(context.kind, ChoiceKind::GenericManaAllocation { .. })
+            && split_is_forced(total, per_bucket_maxs)
+        {
             return fill_in_bucket_order(total, per_bucket_mins, per_bucket_maxs);
         }
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
@@ -161,15 +190,25 @@ mod tests {
         }
     }
 
-    /// The split is answered from the prompt's own caps, in bucket order, with
-    /// the inner provider never consulted.
+    /// Caps summing to exactly what is owed: every bucket is maxed, one legal
+    /// answer, and the wrapped provider is never consulted. (A
+    /// `ScriptedDecisionProvider` with an empty queue panics on any call, so
+    /// "never consulted" is what not panicking means here.)
     #[test]
-    fn fills_the_generic_split_in_bucket_order() {
+    fn answers_a_split_whose_caps_leave_no_slack() {
         let game = setup_two_player_game();
         let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[1, 5, 5]));
-        assert_eq!(alloc, vec![1, 2, 0], "first bucket capped at 1, the rest to the second");
-        assert_eq!(alloc.iter().sum::<u64>(), 3);
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(3), &[0, 0, 0], Some(&[1, 2, 1]));
+        assert_eq!(alloc, vec![1, 2, 1], "caps sum to 4 and 4 is owed");
+    }
+
+    /// One bucket with headroom: everything goes there whatever the caller says.
+    #[test]
+    fn answers_a_split_with_only_one_bucket_that_can_take_anything() {
+        let game = setup_two_player_game();
+        let dp = AutoPayer::new(ScriptedDecisionProvider::new());
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 2, &buckets(3), &[0, 0, 0], Some(&[0, 5, 0]));
+        assert_eq!(alloc, vec![0, 2, 0]);
     }
 
     /// Minimums are the floor, not a starting suggestion.
@@ -177,8 +216,39 @@ mod tests {
     fn the_split_starts_from_the_minimums() {
         let game = setup_two_player_game();
         let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(2), &[1, 1], Some(&[9, 9]));
-        assert_eq!(alloc, vec![3, 1]);
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(2), &[1, 1], Some(&[3, 1]));
+        assert_eq!(alloc, vec![3, 1], "caps sum to 4 and 4 is owed, minimums included");
+    }
+
+    /// **The review's board.** A {2}{U} three-drop cast off a pool of
+    /// {U}{U}{U}{G}{G}, holding {U}{U} for Counterspell: the {U} pip reserves
+    /// one blue, leaving caps of 2 blue and 2 green against 2 generic owed.
+    /// Three legal answers, and which one is taken decides whether the counter
+    /// is still live — so the payer must not take it.
+    #[test]
+    fn defers_a_split_that_decides_what_is_left_in_the_pool() {
+        let game = setup_two_player_game();
+        let inner = ScriptedDecisionProvider::new();
+        inner.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![0, 2],
+        );
+        let dp = AutoPayer::new(inner);
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 2, &buckets(2), &[0, 0], Some(&[2, 2]));
+        assert_eq!(alloc, vec![0, 2], "the player spent green and kept blue up");
+    }
+
+    /// No caps at all is not a forced split — it is an unbounded one.
+    #[test]
+    fn defers_a_split_with_no_caps() {
+        let game = setup_two_player_game();
+        let inner = ScriptedDecisionProvider::new();
+        inner.expect_allocation(
+            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            vec![1, 1],
+        );
+        let dp = AutoPayer::new(inner);
+        assert_eq!(dp.allocate(&game, 0, &split_ctx(), 2, &buckets(2), &[0, 0], None), vec![1, 1]);
     }
 
     /// Same prompt, same answer, every time — no RNG reaches this decorator.
@@ -186,10 +256,10 @@ mod tests {
     fn the_split_is_a_function_of_the_prompt() {
         let game = setup_two_player_game();
         let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let once = dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[2, 2, 2]));
+        let once = dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[1, 1, 1]));
         for _ in 0..8 {
             let again =
-                dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[2, 2, 2]));
+                dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[1, 1, 1]));
             assert_eq!(once, again);
         }
     }

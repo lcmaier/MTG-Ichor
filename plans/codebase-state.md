@@ -3344,15 +3344,22 @@ compose a stack instead, and the asymmetry lives in each binary's wiring.
 decorator per `ChoiceKind`.** Disjoint kinds mean composition commutes and
 stack order carries no meaning.
 
-**What a payer may answer, as a criterion rather than a list.** A prompt
-belongs to a payer when every legal answer leaves the same game state except
-for mana — mana is spent by the payment or emptied at end of step (CR 500.4),
-so choosing among those answers is paying rather than playing.
-`GenericManaAllocation` and `OrderCostReductions` pass;
-`ChooseSacrificeForCost` does not, because its answers leave different
-permanents on the battlefield and different `ZoneChange` events in the stream
-the trigger phase reads. `cost-architecture.md` §3.4 listed the sacrifice
-prompt in the payer, written before CM-3 built it; corrected there.
+**What a payer may answer, as a criterion rather than a list.** **A prompt
+belongs to a payer when it has exactly one legal answer**, so being asked
+cannot change anything. `OrderCostReductions` always qualifies (§3.4's theorem:
+every order gives the identical total); `GenericManaAllocation` only when the
+caps admit one allocation; `ChooseSacrificeForCost` never.
+
+The criterion shipped weaker and the owner's review corrected it the same day.
+It read "every legal answer leaves the same game state except for mana",
+justified by mana emptying at end of step (CR 500.4) — which ignores that
+*within* the step the residue is playable resource. The board that settles it:
+a `{2}{U}` three-drop cast off three blue sources, where which mana pays the
+generic decides whether `{U}{U}` is still up for Counterspell, though the spell
+being paid for never asked about blue. **The general shape, and it is the same
+one item 83 has:** a local test on one payment cannot see a decision whose
+consequences are a turn wide. The strict form survives because when there is
+one answer there is nothing to see.
 
 **Measured** (`plans/fuzz_ab.py` plus a fourth binary, 2026-09-08, 200 games
 at seed 12345 on both pools). Zero errors, zero panics, zero `Uncast resolved`
@@ -3450,6 +3457,28 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     independently of cost: pre-tapping commits mana before CR 601.2f locks the
     total, so an agent that does it can never activate a mana ability *inside*
     the window — no Ironworks sacrifice mid-cast, no overpay play.
+
+85. **Nothing bounds CR 601.2g's window against a `DecisionProvider` that
+    never stops.** CM-4 removed the engine's stop (item 70) because the CR has
+    none: a real Krark-Clan Ironworks loop activates as many mana abilities as
+    the player likes, so any engine-side cap would be a rule Magic does not
+    have. Termination is now entirely the client's, and every shipped client
+    answers it — `ui::ManaWindowStop` declines once the component is covered,
+    `RandomDecisionProvider::WINDOW_ACTIVATION_CAP` bounds the fuzz agent even
+    without a stop, a human self-polices. A buggy or hostile provider has
+    nothing: a filter ability (`{1}`: add one mana of any color) cycles forever
+    and changes the pool every round, so even a no-progress check cannot see it.
+
+    **Reachability (2026-09-08):** unreachable — every `DecisionProvider` in
+    v1's two use cases is in-process code this repo owns. It becomes reachable
+    the day a provider is a network seat, which is Phase 9's multiplayer or
+    Phase 10's harness, whichever puts an untrusted party behind the trait.
+
+    **Sized:** not an engine change, and that is the finding. The defense is a
+    budget at the session layer — actions or wall-clock per player per priority
+    window — because only the session layer can tell a legitimate 200-activation
+    combo from a loop, and `run_mana_ability_window` cannot. Whoever adds the
+    network seat owns it.
 
 ### Was the critical path complete? — audited 2026-08-27
 
