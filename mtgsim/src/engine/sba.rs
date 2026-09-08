@@ -423,11 +423,15 @@ impl GameState {
         let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
+                // `attached_to` first: it is a field read, and the subtype
+                // questions below each compute a characteristics frame. Asking
+                // them of every permanent on the battlefield — almost none of
+                // which is attached — is what made this sweep expensive.
+                let host_id = entry.attached_to?;
                 self.objects.get(&id)?;
                 let has_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
                 let has_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
                 if !has_equip && !has_fort { return None; }
-                let host_id = entry.attached_to?;
                 if !is_creature(self, host_id) {
                     Some((id, host_id))
                 } else {
