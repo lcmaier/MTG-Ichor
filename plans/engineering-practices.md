@@ -1270,9 +1270,20 @@ own economics, because at that point the 145 rulings here are a pilot for
 thousands.
 
 Sizing the ledger alone: ~250 lines of Python, one data file, one line in the
-check command. About `check_state_of_play.py`. It blocks nothing today and can
-be taken whenever; the retroactive pass behind it is separable and pool-first;
-and it should be in place before the first machine-ingested card is registered.
+check command. About `check_state_of_play.py`.
+
+**Scheduled (the owner, 2026-09-08): after replacements, between phases —
+`roadmap-v2.md` row A4b.** It gates nothing and nothing gates it, which is the
+argument for giving it a slot rather than a "whenever": a task that is nobody's
+blocker is deferred indefinitely by default, and this one has already produced
+a live bug in the measured pool on its first afternoon (item 82). A4 is also
+the last point at which the retroactive half is a sitting rather than a
+project, since the registry only grows.
+
+The two halves stay separable and only one of them is the tool. **The reading**
+needs no tool and is pool-first: 87 rulings across the 73 pooled cards. **The
+tool** is the drift detector and the parser's acceptance test, and it must be
+in place before the first machine-ingested card is registered.
 
 ## 4. Sizing a phase, and splitting it
 
