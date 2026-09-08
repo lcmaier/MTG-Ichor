@@ -59,8 +59,9 @@ impl PaymentPlan {
     }
 }
 
-/// A cost that moves an object out of the zone it is in — the rank nothing
-/// fallible may be paid after.
+/// CR 601.2h's payment order, as ranks. See [`payment_order_rank`].
+const RANK_MANA: u8 = 0;
+const RANK_MUTATES: u8 = 1;
 const RANK_MOVES_AN_OBJECT: u8 = 2;
 
 /// Where a cost sits in the order the engine pays a total cost.
@@ -94,17 +95,19 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 /// **This is 601.2h and 602.2b only.** A resolving spell's instructions are
 /// CR 608.2c's — "in the order written" — and reach `resolve_effect`, never
 /// this function; a resolution-time payment routed through `pay_costs` would
-/// be silently reordered by it.
+/// be silently reordered by it. 601.2h's *own* two groups are not modelled
+/// because the second is empty for every `Cost` arm; `codebase-state.md`
+/// item 80 owns the day it stops being.
 ///
 /// Matched exhaustively so a new arm has to decide where it sits.
 fn payment_order_rank(cost: &Cost) -> u8 {
     match cost {
-        Cost::Mana(_) => 0,
+        Cost::Mana(_) => RANK_MANA,
         Cost::Tap
         | Cost::Untap
         | Cost::PayLife(_)
         | Cost::RemoveCounters(_, _)
-        | Cost::AddCounters(_, _) => 1,
+        | Cost::AddCounters(_, _) => RANK_MUTATES,
         Cost::Sacrifice(_, _)
         | Cost::SacrificeSelf
         | Cost::Discard(_, _)
@@ -334,7 +337,7 @@ impl GameState {
                 // it needs is a rollback facility rather than an arm.
                 debug_assert!(
                     !moved_an_object,
-                    "CR 732.1: {:?} failed after an irreversible payment ({});                      the payment order must put every fallible cost first",
+                    "CR 732.1: {:?} failed after an irreversible payment ({})",
                     cost, e,
                 );
                 return Err(e);

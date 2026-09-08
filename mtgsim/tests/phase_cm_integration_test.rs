@@ -852,7 +852,7 @@ fn test_ironworks_pays_its_own_cost_with_itself() {
 }
 
 /// The CR 732.1 board (`cost-architecture.md` §3.11): Mind Stone's activation
-/// has its own vehicle eaten in its mana window and cannot pay its cost.
+/// has its own source sacrificed in its mana window and cannot pay its cost.
 ///
 /// **The engine cancels nothing, and needs to cancel nothing.** The cost is
 /// checked before any of it is paid, so the activation rewinds with no
@@ -863,7 +863,7 @@ fn test_ironworks_pays_its_own_cost_with_itself() {
 /// where the resulting trigger goes on the stack is critical-path item 6's —
 /// this asserts only what both readings of that question share.
 #[test]
-fn test_an_activation_whose_vehicle_is_eaten_rewinds_and_the_mana_stands() {
+fn test_an_activation_whose_source_is_sacrificed_rewinds_and_the_mana_stands() {
     let mut game = setup_two_player_game();
     let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
     let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
@@ -878,7 +878,7 @@ fn test_an_activation_whose_vehicle_is_eaten_rewinds_and_the_mana_stands() {
         },
         vec![0],
     );
-    // ...paying it with Mind Stone, the vehicle of the pending activation.
+    // ...paying it with Mind Stone, the source of the pending activation.
     dp.expect_pick_n(
         ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
         vec![1],
@@ -896,7 +896,7 @@ fn test_an_activation_whose_vehicle_is_eaten_rewinds_and_the_mana_stands() {
     // is the mana ability.
     let attempt = game.activate_ability(0, stone, 1, &dp);
 
-    assert!(attempt.is_err(), "the activation cannot pay a cost its vehicle owed");
+    assert!(attempt.is_err(), "the activation cannot pay a cost its own source owed");
     assert!(game.stack.is_empty(), "the ability object is off the stack");
     assert_eq!(game.players[0].hand.len(), hand_before, "no card was drawn");
     assert_eq!(

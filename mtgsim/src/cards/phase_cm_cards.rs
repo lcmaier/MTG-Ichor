@@ -25,7 +25,7 @@
 //! Thunderscape Familiar are CR 601.2h's own worked example, verbatim from
 //! the rule. Krark-Clan Ironworks and Foundry Inspector are the lock-in seen
 //! through the 601.2g window (`cost-architecture.md` §3.11 steps 3–4). Mind
-//! Stone is the 732.1 board, where the vehicle of an activation is eaten out
+//! Stone is the 732.1 board, where an activation's own source is eaten out
 //! from under it — the half of that board that puts a trigger somewhere is
 //! critical-path item 6's, and this phase asserts only what both readings of
 //! it share. Oracle text read on Scryfall on 2026-09-07.
@@ -577,7 +577,7 @@ pub fn foundry_inspector() -> Arc<CardData> {
 /// mana ability under either rules text: activating it uses the stack and
 /// opens the same 601.2g window a cast does. Sacrifice Mind Stone to
 /// Krark-Clan Ironworks *inside* that window and the activation can no longer
-/// pay its own cost — the vehicle is eaten out from under it.
+/// pay its own cost — its own source is eaten out from under it.
 ///
 /// What the engine does with that is nothing, and deliberately: the cost is
 /// checked before any of it is paid, so the activation rewinds with no

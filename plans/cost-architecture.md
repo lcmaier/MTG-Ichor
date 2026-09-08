@@ -714,17 +714,17 @@ each of which the engine must reproduce:
   step where you pay costs". 601.2g then 601.2h, which is the engine's order
   already.
 
-**Mind Stone as the vehicle, and the puzzle it makes.** Mind Stone's "{1},
+**Mind Stone as the loop's engine, and the puzzle it makes.** Mind Stone's "{1},
 {T}, Sacrifice this artifact: Draw a card" adds no mana, so it was never a
 mana ability under either rules text: activating it uses the stack, and the
 window at 602.2b is the same window the Sphere opens. Used as the loop's
-vehicle instead of the Sphere, it gives the *reordered* loop under the frozen
+engine instead of the Sphere, it gives the *reordered* loop under the frozen
 CR — the sacrifice triggers go on the stack above its draw and resolve first,
 which is exactly what the current CR makes the Sphere do. So both orderings
-are reachable under `tmnt.txt`, one per vehicle, and the rules-version knob
-above decides only which vehicle gives which.
+are reachable under `tmnt.txt`, one per engine, and the rules-version knob
+above decides only which engine gives which.
 
-The puzzle is the case where Ironworks eats the vehicle itself: announce Mind
+The puzzle is the case where Ironworks eats that engine itself: announce Mind
 Stone's ability, sacrifice Mind Stone to Ironworks in the window, and the
 activation cannot pay its own sacrifice at 601.2h. Two actions are in play,
 and 732.1 treats them differently. **Action one** is the activation of Mind
@@ -857,7 +857,7 @@ GUI, which is v1's first use case. Building the staged UI is Phase 10's;
 `backlog.md` §2.18 carries it beside the payer.
 
 **The Mind Stone puzzle reaches the check, not the payment.** §3.11's board —
-the vehicle of an activation sacrificed to Ironworks inside the activation's
+an activation's own source sacrificed to Ironworks inside that activation's
 own 601.2g window — fails at `can_pay_costs`, which runs after the window and
 before anything is paid. The activation rewinds with no payment to cancel; the
 Ironworks activation, legal when it happened, stands with its mana and its

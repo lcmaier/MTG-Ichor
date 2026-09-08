@@ -3141,7 +3141,7 @@ empty set to act on, and the reason is a property rather than a rewind:
   `plan_payment` enumerated its candidates and `validate_pick_n` bounds the
   answer. A `debug_assert!` on `pay_costs`'s failure path enforces it.
 - The Mind Stone puzzle (`cost-architecture.md` §3.11) reaches the check and
-  not the payment: with the vehicle sacrificed inside its own 601.2g window,
+  not the payment: with the ability's own source sacrificed inside its 601.2g window,
   `can_pay_costs` refuses the `Cost::Tap` before any cost is paid, and
   `rollback_ability_activation` has nothing to cancel. The Ironworks
   activation stands with its mana and its cost, which is what both readings of
@@ -3203,6 +3203,50 @@ one, so nothing was wrong in practice and nothing moved.
     Offering an order that bricks the payment is what would make 732.1's
     cancellation load-bearing, and building the cancellation is the
     alternative to that constraint rather than a companion to it.
+
+80. **CR 601.2h's second payment group is not modelled, and nothing was
+    scheduled to model it.** "First, they pay all costs that don't involve
+    random elements or moving objects from the library to a public zone, in
+    any order. **Then they pay all remaining costs in any order.**"
+    `payment_order_rank` implements the first group's ordering and the second
+    group is empty for every `Cost` arm — none is random and none moves a
+    library card — so there is nothing to put in it and an arm the pipeline
+    cannot apply would be worse than a missing one. What was missing is an
+    *owner* for the day that changes; this item is it.
+
+    **Reachability (2026-09-08):** unreachable — no `Cost` arm qualifies. The
+    first one that will is **mill as a cost** (`ATOM-701.17b-002`, Phase 8,
+    "can't pay a cost that requires milling more than library size"), which
+    moves library cards to a public zone; a cost with "at random" in it is the
+    other family and the corpus has no atom for one.
+
+    **Sized:** a rank above `RANK_MOVES_AN_OBJECT` and a second sort key,
+    ~15 lines, with whichever arm first qualifies. **The thing to notice when
+    it lands:** a group-2 cost is by definition one whose payment cannot be
+    predicted, so it is the first cost that can fail *after* a group-1
+    sacrifice — item 79's constraint and §3.12's argument both meet it there.
+
+81. **A keyworded additional cost can be mandatory, and `AdditionalCost`'s
+    shape says otherwise.** Every named variant is a keyword whose keyword
+    makes it optional, so `is_optional` reads as "named ⇒ optional" even
+    though it is matched exhaustively. **Spree** (CR 702.172a) is the
+    counterexample: "Choose one or more modes. As an additional cost to cast
+    this spell, pay the costs associated with those modes" — choosing is not
+    optional, and the costs follow the modes.
+
+    Spree is not one variant away, though. Its costs are *per mode*, chosen at
+    CR 601.2b along with the modes (CR 700.2), so it needs the modal machinery
+    — `StackEntry.chosen_modes` is written and read by nothing — before it
+    needs anything from this enum. When it lands, the additional cost it
+    contributes is `Mandatory` with a payload assembled from the chosen modes,
+    which is the variant behaving correctly rather than a new one.
+
+    **Reachability (2026-09-08):** unreachable — no registered card is modal,
+    and `chosen_modes` has no producer or consumer.
+
+    **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
+    before. Nothing here changes until then; the note exists so that "keyword
+    means optional" is not inferred from the variant list.
 
 ### Was the critical path complete? — audited 2026-08-27
 

@@ -868,7 +868,7 @@ pub fn ask_choose_sacrifice_for_cost(
     let n = count as usize;
     assert!(
         candidates.len() > n,
-        "ask_choose_sacrifice_for_cost: {} candidates for {} sacrifices is forced;          the caller pays it without asking",
+        "ask_choose_sacrifice_for_cost: {} candidates for {} sacrifices is forced",
         candidates.len(),
         n,
     );

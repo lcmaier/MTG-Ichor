@@ -115,9 +115,10 @@ impl AdditionalCost {
     /// Whether CR 601.2b offers this cost to the player, or the total simply
     /// includes it (CR 118.8b/118.8c).
     ///
-    /// Matched exhaustively on purpose: optionality is not recoverable from a
-    /// variant's payload, so a new additional cost has to answer for itself
-    /// rather than inherit a default that happens to be right for keywords.
+    /// Matched exhaustively because **a keyword is not evidence of
+    /// optionality** — spree (CR 702.172a) is a mandatory keyworded additional
+    /// cost, and it is unmodellable here for a different reason
+    /// (`codebase-state.md` item 81). Every variant answers for itself.
     pub fn is_optional(&self) -> bool {
         match self {
             AdditionalCost::Kicker(_)
