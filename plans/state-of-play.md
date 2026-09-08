@@ -69,9 +69,9 @@ says nothing about progress, so there is one answer and it is derived.
 
 | | |
 |---|---:|
-| Cards registered | 93 |
+| Cards registered | 94 |
 | …of them in `PERFORMANCE_POOL` | 73 |
-| `#[test]` functions | 1059 |
+| `#[test]` functions | 1060 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -79,7 +79,7 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 4301 of 4516 lines (95%) |
+| Section size | 4303 of 4518 lines (95%) |
 | Numbered items | 128 |
 | …closed, still recorded | 31 |
 | …open — unreachable, and says why | 60 |

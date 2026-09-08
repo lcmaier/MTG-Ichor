@@ -324,10 +324,10 @@ affinity's reduction and a direct-total effect meeting on one spell.
 | **Replacement gathers** | **449** | **527** |
 | **Restriction queries** | **451** | **530** |
 
-**Re-recorded 2026-09-07 for CM-3** (lock-in's payment side;
-`cost-architecture.md`). One new card in `performance` — Altar's Reap,
-72 → 73 — and five in `stress` (Altar's Reap, Thunderscape Familiar,
-Krark-Clan Ironworks, Foundry Inspector, Mind Stone; 88 → 93).
+**Re-recorded 2026-09-08 for CM-3** (lock-in's payment side;
+`cost-architecture.md`). One new card in `performance` — **Bone Splinters**,
+72 → 73 — and six in `stress` (Bone Splinters, Altar's Reap, Thunderscape
+Familiar, Krark-Clan Ironworks, Foundry Inspector, Mind Stone; 88 → 94).
 
 **`cost-architecture.md` §6 said CM-3 "opens no new path a pooled card would
 measure". The A/B says the first half and disproves the second.** The middle
@@ -340,58 +340,95 @@ cost the pool nothing and change no seeded stream. But `Cost::Sacrifice`
 pool could open", and its rule is that a phase which opens a path adds one
 card deliberately. So the pool gains one and §6's second clause was wrong.
 
-Altar's Reap is the card because it opens four things at once — the first
-non-mana cost paid through `pay_costs`, the first mandatory additional cost
-(CR 118.8b), the first castability answer that turns on something other than
-the mana cost, and the first payment prompt that is not an allocation — and
-because black with creatures on board is ordinary rather than contrived.
-The other four stay registered and out: the Familiar and the Inspector open
-the path Thalia already opens, and the Ironworks pair's window is CM-4's to
-measure once the window stops closing early.
+The pooled card opens four things at once — the first non-mana cost paid
+through `pay_costs`, the first mandatory additional cost (CR 118.8b), the
+first castability answer that turns on something other than the mana cost,
+and the first payment prompt that is not an allocation. The other five stay
+registered and out: the Familiar and the Inspector open the path Thalia
+already opens, and the Ironworks pair's window is CM-4's to measure once the
+window stops closing early.
 
-Timing, 200 games, three interleaved rounds: CPU/game 14.24 ms `main` → 14.29
-ms registered (+0.4%, inside the sitting's spread) → 17.02 ms pooled (+19.5%);
-`deterministic` yes in all three arms, and three shell runs at one seed match
-line for line outside the timing lines on both pools.
+**Which card is a separate question from which path, and it was measured.**
+Altar's Reap was pooled first, because CR 601.2h's example is written on it.
+It costs **+20.2%** CPU/game, and it draws two cards, so the games it makes
+are bigger. Bone Splinters opens the identical set of paths, sacrifices the
+same way, and destroys a creature instead of drawing two: **+13.8%** in the
+same sitting, +11.9% in a second. Altar's Reap stays registered — its tests
+are the rule's — and the pool carries Bone Splinters.
 
-**The +19.5% is the card's gameplay, and the counters say where it went.**
-Altar's Reap draws two, so the pooled arm's games are bigger, not slower per
-unit of work: avg turns 30.1 → 31.1, spells cast 22.4 → 24.2, creatures died
-6.7 → 7.6, and layer frames 3,998 → 4,870 (+22%) with frames/walk 10.79 →
-12.32. ms/1,000 walks rises 12.0% and ms/1,000 questions 4.7% — both smaller
-than the frames-per-walk rise that produced them. It is the largest re-record
-the pool has taken for one card, and it is a permanent tax on every A/B from
-here; it is worth it on the pool doc's own terms, because the alternative is
-a pool that measures a shrinking fraction of the engine. **Never A/B across
-it**: the pooled column is a re-record.
+### 3.1a What a pooled card costs is mostly the *slot*, measured 2026-09-08
 
-Reachability, 200 games with Altar's Reap forced into every `performance`
-deck: cast 223, resolved 220, in 123 games (62%), **1.61 copies per deck** —
-so a sacrifice paid at CR 601.2h happens in most measured games, and the
-three-fifths of them in which the payer had a choice of creature exercise the
-prompt as well as the payment. Zero errors, zero panics and zero
-`Uncast resolved` in all three arms on both pools, which is the statement
-that matters most for a new payment arm.
+The obvious reading of the paragraph above is that Altar's Reap's card draw is
+the cost and a leaner card avoids it. **Half right, and the other half is the
+more useful number.** A third arm settles it: `Cobbled Wings` — already
+registered, opening *no new engine path at all*, since Bonesplitter is pooled
+and equip is the same code — as the 73rd card instead.
 
-| | performance (73 cards) | stress (93 cards) |
+| 73rd card | opens a new path | CPU/game vs `main` | ms / 1,000 queries |
+|---|---|---:|---:|
+| *(none — 72)* | — | +0.0% | 0.154 |
+| Cobbled Wings (inert control) | no | **+14.0%** | 0.165 |
+| Bone Splinters | yes | **+11.9%** | 0.158 |
+| Altar's Reap | yes | +20.2% (prior sitting) | 0.161 |
+
+**A card that does nothing new costs as much as Bone Splinters does.** So
+~12–14% is what *a pool slot* costs, not what a mechanic costs: a 73rd
+playable card changes deck composition, boards get bigger, and the layer walk
+covers more objects per walk (frames 3,998 → 4,542 for the inert control,
+which introduces no rows of its own). Only the surcharge above that line is
+attributable to a card, and Altar's Reap's ~6 points is one; Bone Splinters is
+indistinguishable from the control.
+
+Three things follow, and they are what to quote the next time this comes up:
+
+- **Choosing a leaner card is worth doing and worth about 6 points.** Between
+  two cards that open the same path, take the cheaper board. Past that there is
+  nothing to optimise: the slot is the cost.
+- **This is not an engine regression and no engine work removes it.**
+  ms/1,000 queries — the cost of a unit of work rather than of a game — moves
+  2.8% for Bone Splinters and 7.2% for a card with no mechanic, both inside
+  the sitting's 2–6% spread. The games got bigger; nothing got slower. Every
+  CM phase's middle arm has been byte-identical to `main`.
+- **The growth is the price of representativeness, and it is bounded by how
+  often a phase opens a genuinely new path** — three times across CM-1, CM-2
+  and CM-3. A pool that stopped growing would go back to measuring a shrinking
+  fraction of the engine, which is the failure the freeze was lifted for.
+
+**And the A/B sitting is not the development bottleneck it feels like**:
+three arms, both pools, counters, fixture rows and three interleaved timing
+rounds is **32 seconds** of wall clock (2026-09-08). What costs minutes is
+building one release binary per arm and orchestrating them, which is
+`--rounds`-independent. If a sitting ever does need to be cheaper, `--rounds 2`
+or `--games 100` halves the timing block at the price of a wider spread; that
+knob is there and has not been needed.
+
+Reachability, 200 games with Bone Splinters forced into every `performance`
+deck: cast 193, resolved 110, in 84 games (42%), **1.58 copies per deck**.
+Casts and not resolutions is the number that matters here — the sacrifice is
+paid at CR 601.2h whether or not the spell later resolves — and 193 against
+Altar's Reap's 223 is 87% of the payment-path exercise for two-thirds of the
+cost. Zero errors, zero panics and zero `Uncast resolved` in every arm on both
+pools, which is the statement that matters most for a new payment arm.
+
+| | performance (73 cards) | stress (94 cards) |
 |---|---|---|
-| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 28 (56.0%) / 22 (44.0%) |
-| Avg turns | 30.7 | 28.7 |
-| Spells cast | 24.2 | 23.3 |
-| Lands played | 18.2 | 17.3 |
-| Combat w/ atk | 11.2 | 10.3 |
-| Creatures died | 7.8 | 4.2 |
-| Damage events | 24.0 | 24.3 |
-| Total damage | 64.8 | 68.2 |
-| Life changes | 14.4 | 17.4 |
-| **Layer walks** | **388** | **452** |
-| **Board walks** | **247** | **266** |
-| **Memo hits** | **99,640** | **97,135** |
-| **Layer frames** | **4,655** | **4,991** |
-| **Frames/walk** | **12.01** | **11.05** |
-| **Dependency checks** | **5** | **42** |
-| **Replacement gathers** | **521** | **510** |
-| **Restriction queries** | **523** | **513** |
+| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 26 (52.0%) / 24 (48.0%) |
+| Avg turns | 28.9 | 28.1 |
+| Spells cast | 22.3 | 22.5 |
+| Lands played | 17.5 | 16.9 |
+| Combat w/ atk | 9.9 | 10.1 |
+| Creatures died | 6.6 | 4.5 |
+| Damage events | 21.7 | 22.7 |
+| Total damage | 59.4 | 58.8 |
+| Life changes | 14.3 | 14.8 |
+| **Layer walks** | **371** | **431** |
+| **Board walks** | **235** | **248** |
+| **Memo hits** | **88,901** | **89,949** |
+| **Layer frames** | **4,265** | **4,445** |
+| **Frames/walk** | **11.49** | **10.32** |
+| **Dependency checks** | **10** | **38** |
+| **Replacement gathers** | **475** | **481** |
+| **Restriction queries** | **477** | **483** |
 
 
 **Three arms again (2026-09-06, LI-3).** `plans/fuzz_ab.py`, one sitting:

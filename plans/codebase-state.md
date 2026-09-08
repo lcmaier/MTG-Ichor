@@ -3158,8 +3158,10 @@ middle arm is `IDENTICAL` to `main` on `performance` at 200 games, so the
 engine change moves no counter and changes no seeded stream. `cost-
 architecture.md` §6's claim that CM-3 "opens no new path a pooled card would
 measure" was right about the engine and wrong about the pool: `Cost::Sacrifice`
-is a path the 72 could not reach, so `PERFORMANCE_POOL` gains Altar's Reap
-(72 → 73) and the CPU/game re-record is +19.5%, all of it the card's gameplay.
+is a path the 72 could not reach, so `PERFORMANCE_POOL` grows to 73 — carrying
+**Bone Splinters**, +11.9% CPU/game, rather than Altar's Reap at +20.2% for the
+same paths. An inert 73rd card costs +14.0%, so the tax is the pool slot and
+not the mechanic (`engineering-practices.md` §3.1a).
 Zero errors, zero panics, zero `Uncast resolved` in all three arms on both
 pools. `engineering-practices.md` §3 has the re-recorded table.
 

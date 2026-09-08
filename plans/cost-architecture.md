@@ -987,7 +987,7 @@ RC/RD/RE and nothing in them depends on this.
 
 **Every PR carries** the card registered where there is one, `PERFORMANCE_
 POOL` +1 per new engine path (CM-1: Thalia; CM-2: Myr Enforcer; **CM-3:
-Altar's Reap** — this row first said CM-3 opened no path a pooled card would
+Bone Splinters** — this row first said CM-3 opened no path a pooled card would
 measure, and the A/B disproved it: the engine change is `IDENTICAL` to `main`
 on the old pool, but `Cost::Sacrifice` is a path no card in the 72 could
 reach, which is the pool doc's own failure mode. CM-4 still opens none — the
@@ -1267,6 +1267,10 @@ six tests, two already-covered notes and three named gaps. One of the six is a
 board no atom in the corpus asks for: the Familiar reduces a black-*and*-green
 spell once, which an author writing two colour abilities instead of one `Or`
 would get wrong with every existing test still green. **§6's pool prediction was wrong and the A/B is what
-said so**: the engine arm is `IDENTICAL` to `main`, and Altar's Reap joins
-`PERFORMANCE_POOL` (72 → 73) at +19.5% CPU/game, all of it the card's
-gameplay. `engineering-practices.md` §3 has the re-recorded table.
+said so**: the engine arm is `IDENTICAL` to `main`, and the pool grows to 73.
+Which card is a second question, also measured — Altar's Reap costs +20.2%
+CPU/game and Bone Splinters +11.9% for the identical set of paths, so the pool
+carries Bone Splinters and Altar's Reap stays registered as CR 601.2h's own
+example. An inert 73rd card costs +14.0%, which is the finding underneath
+both numbers: the tax is the slot, not the mechanic
+(`engineering-practices.md` §3.1a).
