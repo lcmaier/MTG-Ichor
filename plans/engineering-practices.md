@@ -1148,20 +1148,42 @@ March's ruling says it in one sentence. **One afternoon of reading found a live
 bug in the measured pool**, which is the number the original deferral did not
 have.
 
-**So: build the ledger, not the verifier.** A script that fetches every
-registered card's rulings into a checked-in file, a hand-authored disposition
-per ruling (tested / covered-by / not-expressible + owner), and a `--check` that
-fails when a registered card has a ruling with no disposition. Two things fall
-out that no amount of care at card-add time gives you: **drift** — Scryfall adds
-rulings, so a card correct when registered can acquire a ruling later that the
-engine violates, and nothing else in the project would ever notice — and a
-**pool-first work queue** for the 87. Dispositions belong in the ledger file
-rather than in source comments; the source is already at its comment budget and
-the corpus's own precedent is authored markdown joined by a script.
+**So: build the ledger, not the verifier — and the unit of the gate is a
+linked test, not a disposition** (the owner, 2026-09-08, sharpening this
+section): *"card author needs to make a test and link it to the ruling for
+someone to review in PR review."* That is a stronger obligation than "record an
+answer" and a cheaper one to review, because it puts the ruling and the test
+side by side in the diff where a reviewer already is. The mechanism is
+`specdb`'s, one level over: a `// RULING:` annotation naming the card and the
+ruling's date carries what `// COVERS:` carries for an atom, the ledger holds
+the rulings themselves, and `--check` fails on a registered card with a ruling
+no test names. "Not expressible" stays a legal answer — it names the missing
+facility and its owner — because a gate with no honest escape gets satisfied
+dishonestly.
 
-Sizing it honestly: ~250 lines of Python, one data file, one line in the check
-command. About `check_state_of_play.py`. It blocks nothing and can be taken
-whenever; the retroactive pass behind it is separable and pool-first.
+Two things fall out that no amount of care at card-add time gives you: **drift**
+— Scryfall adds rulings, so a card correct when registered can acquire one later
+that the engine violates, and nothing else in the project would ever notice —
+and a **pool-first work queue** for the 87.
+
+**And the reason to build it before the parser, not after.** The other half of
+the owner's plan is a static parser, so that a new set gives most of its cards
+for free and only the complex or genuinely new effects are hand-authored
+(`cost-architecture.md` §6's CP-1 row already leaves that parser a note about
+printed symbol order; Phase 8 is where it lands). A parser without this ledger
+is a liability rather than a shortcut: it turns card authoring from a
+deliberate act, where somebody read the card, into a bulk import where nobody
+did — and the *only* per-card evidence Scryfall ships that a machine cannot
+fabricate is the rulings. **The ledger is what makes machine-ingested cards
+safe to admit**, which reverses the dependency: it is not a nice-to-have
+alongside the parser, it is the parser's acceptance test. It also changes its
+own economics, because at that point the 145 rulings here are a pilot for
+thousands.
+
+Sizing the ledger alone: ~250 lines of Python, one data file, one line in the
+check command. About `check_state_of_play.py`. It blocks nothing today and can
+be taken whenever; the retroactive pass behind it is separable and pool-first;
+and it should be in place before the first machine-ingested card is registered.
 
 ## 4. Sizing a phase, and splitting it
 

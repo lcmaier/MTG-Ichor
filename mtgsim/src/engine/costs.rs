@@ -45,14 +45,9 @@ pub struct PaymentPlan {
 }
 
 impl PaymentPlan {
-    /// The costs in the order they will be paid. For tests and for a UI that
-    /// wants to show the player what it is about to spend.
-    pub fn ordered_costs(&self) -> &[Cost] {
-        &self.ordered
-    }
-
     /// The permanents this plan will sacrifice, in payment order.
-    pub fn planned_sacrifices(&self) -> Vec<ObjectId> {
+    #[cfg(test)]
+    fn planned_sacrifices(&self) -> Vec<ObjectId> {
         let mut keys: Vec<&usize> = self.sacrifices.keys().collect();
         keys.sort();
         keys.into_iter().flat_map(|k| self.sacrifices[k].iter().copied()).collect()
