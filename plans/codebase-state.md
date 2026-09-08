@@ -4334,11 +4334,31 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    `compute_as_entering`. Reachable three ways: `cli_play --trace`,
    `fuzz_games --trace-game N`, and a `test_support` helper so any `// COVERS:`
    test can write its own trace, which is how a page is regenerated after a
-   refactor. **Before item 6, not after:** trigger detection reads the
-   performed-action stream, and the first question anyone asks the dispatcher is
-   "why did this fire, or not" — a trace question about proposals, events and
-   the frames they were judged against, so the trigger phase should ship with
-   its own explanation. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
+   refactor. **Scheduled 2026-09-08: its own PR, after CM-4 and before item 6**
+   (`roadmap-v2.md` row A4c). It had been cargo on A6's first PR, which is the
+   PR least able to carry it — the trigger phase is 4–6 PRs of new subsystem,
+   and "why did this fire, or not" is a question you want answerable *before*
+   starting it. Ordering-free against CM-4, which goes first because it is the
+   next phase on the spine.
+
+   **Two corrections to this item, from reading the tier-1 pages against it
+   (2026-09-08, before any code):** "makes the page generated rather than
+   written" cannot hold — a page's step rows are half mechanical (call site,
+   `file:line`, which frame was consulted, the candidates and verdicts, the
+   choice) and half authored counterfactual, and its summary tables
+   ("Where the reads differ", the two-commit before/after) are entirely
+   authored. The sink generates a **spine**; §7.1 needs a sentence saying tier 1
+   is not subsumed. And "gated the way `EngineCounters` is" describes no
+   mechanism: those are seven always-on `Cell<u64>`s, free because incrementing
+   is free, while `compute_characteristics` — one of the four emit points — runs
+   ~62,000 times per measured game and `GameState` derives `Clone`, which the
+   counters ride deliberately and a growing buffer must not. What "off" costs is
+   this phase's first decision, and the check is that a sink-compiled-in-but-off
+   arm is `IDENTICAL` to `main` on both pools.
+
+   **The higher-value artifact item 5 does not name:** a two-version trace diff
+   — one board through two engine builds, compared — which is what a human
+   cannot do by hand and what `fuzz_ab.py` already does for counters. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
    script; one small phase. The seam it rides is `execute_batch_inner` and the
    entry performer, which RC-4b gave the shape they will keep.
 

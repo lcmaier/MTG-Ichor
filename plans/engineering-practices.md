@@ -1285,6 +1285,39 @@ needs no tool and is pool-first: 87 rulings across the 73 pooled cards. **The
 tool** is the drift detector and the parser's acceptance test, and it must be
 in place before the first machine-ingested card is registered.
 
+### 3.5 The input we have none of — a human playing the game
+
+**Noted 2026-09-08, deliberately unscheduled.** Every verification method in
+this file is one a machine runs or a person reads: two card pools and a fuzz
+harness (§3), the atom corpus and its coverage gate (§5), the rulings pass
+(§3.4), trace pages (§7). **None of them is a person playing a game and
+noticing something is off**, and that is a distinct source of cases rather than
+a convenience — its whole value is that the boards come from someone's Magic
+knowledge instead of from a list somebody already wrote.
+
+The evidence that it would pay is this week's. `codebase-state.md` item 82 —
+an Equipment that becomes a creature staying attached, in the *measured* pool —
+survived 1,063 tests, months of fuzz games and a coverage gate, and was found
+by a human reading a card's rulings. A person playing would plausibly have
+equipped something, cast March of the Machines, and seen a 2/2 render as 4/2.
+Same mechanism, different door: outside knowledge generating a case nobody had
+thought to write down.
+
+**What it needs is not obviously a GUI**, and that is the part to establish
+before anyone builds one. `cli_play.rs` is 86 lines over a 756-line
+`ui/display.rs` that already groups the battlefield into creatures, lands and
+other, and formats the hand, the stack, the phase, the mana pool and the event
+log. "Hard to visualise" may be a display problem in one small file rather than
+a missing application — and a GUI drags in `backlog.md` §2.9's per-viewer
+information model, which is a v1 blocker in its own right, plus §2.21. The
+cheap first step is to sit with `cli_play` and write down what is actually
+unreadable: if the board prints fine but *why anything happened* is invisible,
+that is a different fix, and a much smaller one, than "we need a GUI".
+
+Not on the route. `roadmap-v2.md` row E owns the GUI as a v1 deliverable; this
+section owns the *reason* to want one early, so that when it is picked up the
+motivation on record is verification and not only delivery.
+
 ## 4. Sizing a phase, and splitting it
 
 **Size a phase before writing it, and split it in the doc, not in the moment.**
@@ -1497,10 +1530,15 @@ schedulable rather than done:
   by hand: each proposal entering a batch, each pipeline iteration, each
   top-level layer walk, and the performed events. JSON lines, plus a script
   that turns one into a page in this format, so tier 1 becomes generated.
-  **Owed before critical-path item 6** — the first question anyone asks a
-  trigger dispatcher is "why did this fire, or not", which is a trace question.
-  Sized and scheduled at `codebase-state.md`, "Before Triggered abilities"
-  item 5.
+  **Scheduled: its own PR, after CM-4 and before item 6** — `roadmap-v2.md`
+  row A4c, moved there 2026-09-08 out of the trigger phase's first PR. The first
+  question anyone asks a trigger dispatcher is "why did this fire, or not",
+  which is a trace question, and it wants answering before that phase starts
+  rather than with it. Sized at `codebase-state.md`, "Before Triggered
+  abilities" item 5 — **with two corrections recorded there**: a sink generates
+  a page's *spine*, never its argument, so tier 1 is not subsumed by tier 2;
+  and item 5's "gated the way `EngineCounters` is" describes no mechanism,
+  since those counters are always on.
 - **Tier 3 — the codebase map.** One structural page: the modules and what each
   owns, the chokepoint's arms, the three gate legs a new replacement source
   must extend, the two `object_matches_filter`s, the accessor pair, and the
