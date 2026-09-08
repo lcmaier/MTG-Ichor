@@ -491,13 +491,32 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   is identical on every counter and byte-identical in the event streams, which
   is what proves the prompt now computes what the agent was computing. **What
   is left of this entry is the reversal prompt and the oracle.** **The
-  oracle has a name and an interface now (2026-09-07):** `cost-architecture.md`
-  §3.4 and CM-4 — a `DecisionProvider` decorator, `ui::AutoPayer<D>`, that
-  answers `ManaAbilityWindow`, `GenericManaAllocation`,
-  `OrderCostReductions` and the sacrifice-choice prompt from a solver and
-  passes everything else through; and it is where the mana window's early
-  stop belongs (`codebase-state.md` main item 70). The reversal prompt is
-  main item 72. **And a third thing lives here now (2026-09-07, CM-3):**
+  oracle is built (2026-09-08, CM-4), and it is two decorators rather than
+  one.** `ui::ManaWindowStop<D>` declines `ManaAbilityWindow` once the locked
+  mana component is covered — the stop that used to sit in the engine's loop
+  (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
+  `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
+  Clients compose the stack they want; `cli_play`'s human seat takes both, its
+  bot seat and `fuzz_games` take the stop alone, and `--no-auto-pay` drops it.
+  **The stack invariant is one decorator per `ChoiceKind`**, so composition
+  commutes and stack order carries no meaning — that is what a third
+  automation (priority passing, auto-block) extends rather than a scope enum
+  inside the payer.
+  **The sacrifice choice is deliberately not in it.** A payer answers a prompt
+  when every legal answer leaves the same game state except for mana; mana is
+  spent or emptied at end of step (CR 500.4), a sacrificed permanent is not.
+  Which creature to sacrifice is strategy and belongs to whatever stacks a
+  decorator for it — the AI harness, or the GUI. §3.4 has the criterion, matched
+  exhaustively so a new payment prompt has to pick a side.
+  **What is left of the oracle here is the solver half**, which CM-4 did not
+  build: the bipartite matching between pips and the colours each ability can
+  make, so a client can be told *which* sources to tap rather than answering
+  one window prompt at a time. `ManaWindowStop` only ever declines; it never
+  picks, which is what keeps a human's taps the human's.
+  The reversal prompt is main item 72, and CM-4 placed it with critical-path
+  item 6 rather than here: reversing a mana ability fails the payer's own
+  criterion, and the board it is observable on is waiting for the trigger
+  phase. **And a third thing lives here now (2026-09-07, CM-3):**
   the *staged* payment Arena offers — delve exiles, convoke taps, a sacrifice,
   all shown and take-back-able until the player confirms the cast. CM-3 made
   that possible without any engine facility by separating deciding from

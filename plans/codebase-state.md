@@ -2950,14 +2950,25 @@ games; with Humility forced beside her, both are on the board in 52%.
     §3.11, confirmed by a judge's walkthrough). The stop is a *payer's*
     policy sitting in the engine's loop.
 
-    **Reachability (2026-09-07):** reachable — wrong today on any board with a
-    second mana ability worth activating after the cost is covered; invisible
-    to the fuzz harness because its provider never wants to.
+    It was reachable and wrong on any board with a second mana ability worth
+    activating after the cost was covered, and invisible to the fuzz harness
+    because its provider never wanted to.
 
-    **Sized:** CM-4 — the window runs until the player declines (~30
-    lines) and the stop moves into a `ui::AutoPayer<D>` decorator that the
-    random provider and the CLI wrap themselves in by default (~150), so the
-    fuzz counters stay where they are.
+    **Reachability (2026-09-08):** closed — CM-4.
+
+    **✅ CLOSED 2026-09-08 (CM-4).** The early return is gone; the loop ends on
+    a decline or an empty enumeration and on nothing else. The stop is
+    `ui::ManaWindowStop`, a decorator every shipped client stacks — its own
+    type rather than part of the payer, because the two toggle independently
+    (a human turning off auto-pay wants the window to keep offering; an agent
+    without a stop has only `WINDOW_ACTIVATION_CAP`). §3.11's step 3 is now a
+    test that fails against the pre-fix tree.
+
+    **What it cost, measured and not predicted:** the stop is narrower than the
+    engine's was. The engine returned when `can_pay_costs` succeeded over the
+    *whole* cost list; the decorator declines when the *mana component* is
+    covered, which is the only thing a mana ability can fix. They differ on one
+    board and it is reachable — see item 83.
 
 71. **The window's opening condition is right by accident.** CR 601.2g opens
     it only "if the total cost includes a mana payment" — casting Mox Opal
@@ -2968,15 +2979,24 @@ games; with Humility forced beside her, both are on the board in 52%.
     to be {0}", read the same way — the one residual question §3.11 leaves
     for a judge).
 
-    **Reachability (2026-09-07):** nothing owed — a record for item 70's
-    fix; the answer is right today, re-derived after CM-2. What moved is the
-    *board*: affinity is the first printed mechanic that reduces a mana
-    component to nothing, so "a component reduced to nothing, considered to be
-    {0}" is now reachable from a measured game (a pooled Myr Enforcer behind
-    seven artifacts) rather than only from a fixture. The reading is still
-    cheap to flip and still CM-4's to make explicit.
+It was a record for item 70's fix — the answer was right, re-derived
+    after CM-2 — and what moved was the *board*: affinity is the first printed
+    mechanic that reduces a mana component to nothing, so "a component reduced
+    to nothing, considered to be {0}" became reachable from a measured game (a
+    pooled Myr Enforcer behind seven artifacts) rather than only from a
+    fixture. Sized at ~5 lines with item 70, and that is what it took.
 
-    **Sized:** with item 70, ~5 lines.
+    **Reachability (2026-09-08):** closed — CM-4.
+
+    **✅ CLOSED 2026-09-08 (CM-4).** The gate is explicit and the residual
+    reading is decided: a component reduced to nothing opens no window, the
+    same as a printed `{0}`. By 601.2g the total is locked — a `Vec<Cost>` with
+    no record of how it got there — so distinguishing the two would mean
+    carrying a history CR 601.2f exists to discard. Tested both ways (seven
+    artifacts make Myr Enforcer free and no window opens; six leave `{1}` and
+    one does), and both tests fail with the gate removed. The gate reads the
+    component's *symbols*: `determine_total_cost` always emits a `Cost::Mana`,
+    empty when the total is `{0}`.
 
 72. **CR 732.1's reversal of mana abilities is the player's option, and the
     engine never offers it.** "Each player may also reverse any legal mana
@@ -2991,7 +3011,16 @@ games; with Humility forced beside her, both are on the board in 52%.
     **Reachability (2026-09-07):** reachable — not wrong; a forced choice.
 
     **Sized:** a `ChoiceKind` at the two rewind sites and the mana undone
-    silently, ~60 lines; with CM-4 or the trigger phase, whichever needs it.
+    silently, ~60 lines. **Placed 2026-09-08 (CM-4): with the trigger phase,
+    critical-path item 6, and not with the payer.** Two reasons, and the first
+    is this phase's own criterion. Which mana abilities to reverse is a
+    strategic choice — the answers leave different permanents and different
+    events, not different mana — so it fails `ui::AutoPayer`'s test for what a
+    payer may answer and the payer is the wrong home for it. And the board
+    where the reversal is observable is the Mind Stone puzzle, whose remaining
+    question is where the surviving Scrap Trawler trigger lands; shipping the
+    prompt before that is shipping it against a board the engine cannot
+    finish.
     **The invariant it must keep:** a taken reversal undoes the ability's
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
@@ -3261,7 +3290,7 @@ one, so nothing was wrong in practice and nothing moved.
     block is also commented "704.5q", which is the +1/+1 / −1/−1 counter rule;
     the other attachment comments in that function want the same audit.
 
-    **Reachability (2026-09-08): closed — fixed the same day.** `engine::sba`
+    **Reachability (2026-09-08):** closed — fixed the same day. `engine::sba`
     now implements 704.5p as one pass over the attachments: a permanent that
     *is* a creature is unattached whatever its subtypes say, and the second
     sentence's catch-all follows. `ATOM-704.5p-001` — uncovered since Phase
@@ -3294,6 +3323,133 @@ one, so nothing was wrong in practice and nothing moved.
     can no longer equip a creature. If it's currently attached to a creature,
     it becomes unattached." Nothing in the corpus, the test suite or the fuzz
     harness had said so.
+
+### Found by CM-4 — the mana window and the payer (2026-09-08)
+
+**Shipped:** CR 601.2g's opening condition and CR 605.3a's closing condition,
+both explicit; `ui::ManaWindowStop` and `ui::AutoPayer`, two `DecisionProvider`
+decorators that clients compose; `--no-auto-pay` on both binaries. Items 70 and
+71 close here and item 72 is placed. No new card — §3.11's step 3 builds out of
+CM-3's registered five — so `PERFORMANCE_POOL` does not move and
+`engineering-practices.md` §3's table is not re-recorded.
+
+**Why two decorators and not one payer with a scope.** The first design gave
+`ui::AutoPayer<D>` a `PayerScope` enum so each client could take a subset of
+the payment prompts. A scope enum is a closed, hand-rolled enumeration of the
+subsets of something that already composes: the second automation — priority
+passing, auto-block, an auto-tapper with lookahead — grows it an arm per subset
+and makes the payer know about automations that are not its business. Clients
+compose a stack instead, and the asymmetry lives in each binary's wiring.
+**The stack invariant, written down before the third decorator arrives: one
+decorator per `ChoiceKind`.** Disjoint kinds mean composition commutes and
+stack order carries no meaning.
+
+**What a payer may answer, as a criterion rather than a list.** A prompt
+belongs to a payer when every legal answer leaves the same game state except
+for mana — mana is spent by the payment or emptied at end of step (CR 500.4),
+so choosing among those answers is paying rather than playing.
+`GenericManaAllocation` and `OrderCostReductions` pass;
+`ChooseSacrificeForCost` does not, because its answers leave different
+permanents on the battlefield and different `ZoneChange` events in the stream
+the trigger phase reads. `cost-architecture.md` §3.4 listed the sacrifice
+prompt in the payer, written before CM-3 built it; corrected there.
+
+**Measured** (`plans/fuzz_ab.py` plus a fourth binary, 2026-09-08, 200 games
+at seed 12345 on both pools). Zero errors, zero panics, zero `Uncast resolved`
+and zero turn-limit hits everywhere; three shell runs at one seed identical
+outside the timing lines on both pools.
+
+| Arm | vs `main` |
+|---|---|
+| the engine changes alone, decorator dropped | game-identical: `stress` byte-identical, `performance` differs by **2 memo hits** and no game-state counter |
+| as shipped (engine + `ManaWindowStop`) | **1 game of 200 differs on `performance`, 8 of 200 on `stress`** |
+| `--no-auto-pay` | differs everywhere by design — the agent taps out on every cast |
+
+**So `cost-architecture.md` §6's prediction was half right, and in the opposite
+half from CM-3's.** CM-3 predicted "no new path a pooled card would measure"
+and was wrong about the *pool*; CM-4 made the same prediction and is wrong
+about the *engine* — the counters moved, and not for the reason the phase was
+about. The divergence is item 83 and it is entirely the decorator's, which the
+fourth binary is what proved: with the decorator dropped, both engine changes
+together move no game.
+
+**The cost of offering the window, which is real and is the phase's price.**
+The engine no longer returns before enumerating, so every window that opens
+pays one extra `enumerate_activatable_mana_abilities`, one `ChoiceContext` and
+one options `Vec`. At 50 games that is memo hits 55,610 → 56,039 on
+`performance` (+0.8%) and 57,618 → 58,163 on `stress` (+0.9%), with **layer
+walks unchanged at 371** — the extra enumeration hits the memo rather than
+walking, which is the good half. CPU/game median 13.42 → 13.53 ms (+0.8%),
+inside the ~2.4% run-to-run spread but consistent in direction with the memo
+count. There is no cheaper necessary condition for "is there a mana ability to
+offer" than the enumeration itself, and the only way to skip it is to not
+offer, which is item 70. If it ever matters, its owner is item 77.
+
+83. **A source can tap itself for mana inside its own 601.2g window, and then
+    its own `Cost::Tap` cannot be paid.** CR 605.3a lets a player activate any
+    mana ability while paying, including one on the very permanent whose
+    ability is being activated. `{3}, {T}: …` on a permanent that also has a
+    mana ability is the board: tap it for mana in the window, and CR 601.2h
+    cannot pay the `{T}`. The activation rewinds correctly under CR 732.1 with
+    nothing paid (§3.12's ordering property), so the *outcome* is right in
+    every arm.
+
+    **What CM-4 changed is what happens before the rewind.** The engine's old
+    stop was `can_pay_costs` over the whole cost list, so once the mana was
+    covered and the `Cost::Tap` was not, the window kept enumerating and asking
+    — and `RandomDecisionProvider`'s `AnyWillDo` arm tapped land after land
+    until it ran out of sources or hit `WINDOW_ACTIVATION_CAP`, all of it spent
+    on a payment that could never complete. `ui::ManaWindowStop` declines as
+    soon as the mana component is covered, so the rewind happens having burned
+    nothing extra. **That is the whole of CM-4's counter movement**, and it is
+    strictly the better answer: no number of mana abilities can make a
+    `Cost::Tap` payable.
+
+    Traced with a debug build over 200 games at seed 12345: **Chainbreaker**
+    once on `performance` (`{3}, {T}`, its mana ability granted by a Layer 6
+    effect — the divergence needs a *granted* one there, since no pooled card
+    prints both) and **Mind Stone** eleven times across eight `stress` games
+    (`{1}, {T}, Sacrifice this artifact`, whose `{T}: Add {C}` is printed).
+    `phase_cm_integration_test`'s CR 605.3a tests place the Forest before Mind
+    Stone for exactly this reason, with a comment saying so.
+
+    **Reachability (2026-09-08):** reachable — not wrong. Both arms reach the
+    same board; only the mana wasted before the rewind differs. It is the mana
+    twin of `cost-architecture.md` §3.11's Mind Stone puzzle, reached through
+    a mana ability rather than through Krark-Clan Ironworks.
+
+    **Sized:** nothing to build in the engine. An agent that wanted to avoid it
+    would exclude the activation's own source from `mana_window_preference`,
+    which is `RandomDecisionProvider`'s policy and its own measurement — ~15
+    lines, and it would move every counter again, so it wants its own phase and
+    its own A/B rather than a ride on this one.
+
+84. **Five free helpers in `ui/decision.rs` had no callers; three are deleted
+    and two are recorded.** `auto_allocate_generic` (which also iterated a
+    `HashMap` to allocate, so its first caller would have been a determinism
+    leak, and which re-subtracted the pips `ask_choose_generic_mana_allocation`
+    already clamps — 16c/16d's bug), `queue_tap_and_cast` and
+    `is_action_still_valid` (the old stateful RandomDP's pre-tap design) went
+    with CM-4, since the payer is the caller each was waiting for and each
+    would have been a trap for it. `default_damage_assignment` and
+    `default_trample_assignment` are also callerless.
+
+    **Reachability (2026-09-08):** unreachable for the two left — dead code,
+    not wrong code. They belong to combat and a combat phase should decide
+    whether a DP still wants a default damage assignment offered to it.
+
+    **Sized:** two deletions or two callers, ~20 lines either way.
+
+    **And the design question the deletions answered**, recorded because it
+    will be asked again when the enumeration cost is noticed: reviving
+    `queue_tap_and_cast` — pre-tapping at priority so the window opens already
+    covered — costs *more*, not less. `legality.rs` runs `castable_spells`
+    (which previews every hand card's locked total since CM-1/CM-2) and
+    `activatable_abilities` on every priority round, so three taps become three
+    heavy rounds in place of three narrow mana-only sweeps. And it is wrong
+    independently of cost: pre-tapping commits mana before CR 601.2f locks the
+    total, so an agent that does it can never activate a mana ability *inside*
+    the window — no Ironworks sacrifice mid-cast, no overpay play.
 
 ### Was the critical path complete? — audited 2026-08-27
 
