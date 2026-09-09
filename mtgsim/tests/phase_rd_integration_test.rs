@@ -347,10 +347,19 @@ fn furnace_of_rath_doubles_damage_to_a_player() {
 /// "If you have two of these on the battlefield, the damage is multiplied
 /// by 4." CR 614.5's own example, and the first time a **registered** board
 /// could build it: Furnace of Rath is not legendary.
+///
+/// **And nobody is asked** (RD-2; `replacement-architecture.md` §11 item 29):
+/// a bucket of nothing but multipliers is order-invariant — multiplication
+/// commutes, and no multiplier can take another's applicability away — so
+/// CR 616.1's prompt would be a choice with one outcome, which §11 item 19
+/// says never to ask. Until RD-2 this test asserted the prompt was asked once.
 // COVERS: ATOM-614.5-001
-// COVERS: COMP-614-616-DOUBLE-REPLACEMENT-001
+// COVERS-PARTIAL: COMP-614-616-DOUBLE-REPLACEMENT-001 — "Player A chooses
+// order" is the half not built: the engine suppresses that choice as having
+// one outcome (§11 items 19 and 29), and proves the rest — each applies once,
+// 2 -> 4 -> 8, not infinite.
 #[test]
-fn two_furnaces_multiply_by_four_and_ask_once() {
+fn two_furnaces_multiply_by_four_and_ask_nothing() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, furnace_of_rath(), 0);
     put_on_battlefield(&mut game, furnace_of_rath(), 0);
@@ -360,31 +369,28 @@ fn two_furnaces_multiply_by_four_and_ask_once() {
     bolt_player_with(&mut game, &dp, source, 1, 2);
 
     assert_eq!(life(&game, 1), 12, "2 -> 4 -> 8, and not more");
-    assert_eq!(
-        dp.prompts(),
-        1,
-        "two candidates is one CR 616.1 question; the second application has \
-         no choice left to make",
-    );
-    assert!(dp.kinds()[0].starts_with("ChooseReplacementEffect"));
+    assert_eq!(dp.prompts(), 0, "one outcome, no question");
 }
 
-/// The same board with the other answer. Doubling commutes with itself, so
-/// CR 616.1's choice cannot change the total — which is what makes the *next*
-/// test's board the interesting one.
-// COVERS-PARTIAL: COMP-614-616-DOUBLE-REPLACEMENT-001 — the "either way" half.
+/// The suppression's premise is that the two are *one bucket* whatever else
+/// differs about them — here, their controllers — and the "either way" half
+/// of the composite is the theorem rather than a second run: the debug build
+/// re-gathers after the suppressed choice applied and asserts the other still
+/// applies, which is the check that would fire if the order could matter.
+// COVERS-PARTIAL: COMP-614-616-DOUBLE-REPLACEMENT-001 — the "either way" half,
+// proved by commutativity and the debug-build re-gather rather than by asking
+// both ways.
 #[test]
-fn two_furnaces_multiply_by_four_whichever_is_chosen_first() {
-    for pick in [0usize, 1] {
-        let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, furnace_of_rath(), 0);
-        put_on_battlefield(&mut game, furnace_of_rath(), 0);
-        let source = source_for(&mut game, 0);
+fn two_furnaces_under_different_controllers_still_ask_nothing() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, furnace_of_rath(), 0);
+    put_on_battlefield(&mut game, furnace_of_rath(), 1);
+    let source = source_for(&mut game, 0);
 
-        let dp = RecordingDecisionProvider::picking(pick);
-        bolt_player_with(&mut game, &dp, source, 1, 1);
-        assert_eq!(life(&game, 1), 16, "1 -> 2 -> 4, in either order");
-    }
+    let dp = RecordingDecisionProvider::picking(1);
+    bolt_player_with(&mut game, &dp, source, 1, 1);
+    assert_eq!(life(&game, 1), 16, "1 -> 2 -> 4");
+    assert_eq!(dp.prompts(), 0);
 }
 
 // ---------------------------------------------------------------------------

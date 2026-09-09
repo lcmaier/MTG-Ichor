@@ -674,7 +674,7 @@ impl EnterModsTemplate {
 
     /// Does every amount here read a constant?
     ///
-    /// The premise `pipeline::order_invariant_entry_bucket` grew for RC-5:
+    /// The premise `pipeline::ordering_cannot_change_the_outcome` grew for RC-5:
     /// an amount that reads the CR 614.12 frame changes with what already
     /// applied, so two such applications do not commute and CR 616.1's
     /// ordering prompt is real. `codebase-state.md` item 47 carries the

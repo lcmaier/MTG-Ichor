@@ -566,7 +566,7 @@ fn test_dryad_arbor_played_as_a_land_is_exiled_by_containment_priest() {
 
 /// Root Maze taps an entering land; Containment Priest exiles an entering
 /// creature that wasn't cast; Dryad Arbor played is both. Two candidates, one
-/// an `EnterWith` and one an `Instead`, so `order_invariant_entry_bucket` does
+/// an `EnterWith` and one an `Instead`, so `ordering_cannot_change_the_outcome` does
 /// not apply and CR 616.1 asks the land's controller. Either answer exiles
 /// it — but which CR 614.5 slot is spent first is the event log's business,
 /// and the branch this keeps alive is the one RB shipped dead with Kalitas.

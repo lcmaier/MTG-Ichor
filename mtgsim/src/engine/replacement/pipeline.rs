@@ -8,8 +8,8 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, GameActionTemplate, Rewrite,
-    Uses,
+    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern,
+    GameActionTemplate, Rewrite, Uses,
 };
 use crate::types::zones::Zone;
 use crate::oracle::characteristics::get_effective_power;
@@ -353,16 +353,17 @@ pub(crate) fn apply_replacements(
         // (`replacement-architecture.md` §11 item 7).
         //
         // **And never prompt for a choice with one outcome** — §11 item 19.
-        // `order_invariant_entry_bucket` is the provable form of that rule,
-        // and `unsuppressed` is what the debug build checks it against after
-        // the rewrite below.
-        let mut unsuppressed: Vec<ReplacementInstanceId> = Vec::new();
+        // `ordering_cannot_change_the_outcome` is the provable form of that
+        // rule, and `unsuppressed` — the members it was chosen over, each with
+        // the group members it applied to — is what the debug build checks it
+        // against after the rewrite below.
+        let mut unsuppressed: Vec<(ReplacementInstanceId, Vec<usize>)> = Vec::new();
         let chosen = if bucket.len() == 1 {
             bucket.into_iter().next().expect("len checked")
-        } else if order_invariant_entry_bucket(bucket.iter().map(|c| &c.instance), subject_object(subject)) {
+        } else if ordering_cannot_change_the_outcome(&bucket, subject_object(subject)) {
             let mut members = bucket.into_iter();
             let first = members.next().expect("len checked");
-            unsuppressed = members.map(|c| c.instance.id).collect();
+            unsuppressed = members.map(|c| (c.instance.id, c.members)).collect();
             first
         } else {
             let Some(chooser) = chooser else {
@@ -448,7 +449,7 @@ pub(crate) fn apply_replacements(
                 // effect can become applicable as the result of another"
                 // works without any special case.
                 check_exempt_terminates(game, &chosen, next, &mut exempt_applied)?;
-                check_order_invariance(game, ctx, next, &unsuppressed);
+                check_order_invariance(game, ctx, next, pos, &unsuppressed);
             }
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
@@ -584,20 +585,15 @@ fn next_damage_shares(
 /// §11 item 19 — is this CR 616.1 bucket one whose ordering choice provably
 /// cannot change the outcome, so the prompt is noise?
 ///
-/// The theorem, and every clause of the predicate is a premise of it:
+/// Two shapes of bucket qualify, and a bucket that mixes them never does.
+///
+/// **Every member an `EnterWith`.** The theorem, and every clause of the
+/// predicate is a premise of it:
 ///
 /// - **`EnterWith` only.** `EnterMods::merge` is `|=` and `+`, commutative and
 ///   associative, so the mods a member adds land the same whatever went
 ///   before. A `Prevent` or an `Instead` drops or replaces the event, and
 ///   whether the members after it ever apply is then a real question.
-/// - **No rider.** Riders queue in choice order and run in queue order
-///   (CR 615.5), so two members that both carry one make the order observable
-///   in the event log even when the board is identical.
-/// - **Mandatory, static, under CR 614.5, not counter-derived.** An optional
-///   is a second prompt whose answer can differ per order; a `Uses::Once`
-///   spends a registry row; an exempt effect may re-apply; a counter-derived
-///   instance is re-synthesized per gather. Each is excluded so the argument
-///   has nothing to say about it.
 /// - **Applicability cannot depend on what the others add.** This is the
 ///   clause the CR 614.12 frame made necessary: `set_affects` now reads the
 ///   pending `EnterMods` through the look-ahead, so a `PowerLE` filter can
@@ -618,45 +614,83 @@ fn next_damage_shares(
 ///   amount is read off the board and commutes, and Root Maze beside a
 ///   Biomancer keeps its suppressed prompt.
 ///
+/// **Every member an `Amount(Multiplier(n))`, `n ≥ 1`, on `DealDamage`**
+/// (RD-2; `replacement-architecture.md` §11 item 29). Multiplication over
+/// `u64` is commutative and associative — saturating included, since
+/// saturation is monotone — so each member's final amount is the product of
+/// the multipliers that apply to it whatever the order. No multiplier can
+/// remove another's applicability: an amount above 0 stays above 0 under any
+/// `n ≥ 1`, so `never_happens` cannot fire between members, and
+/// `EventPattern::DealDamage` carries no amount predicate for a member to
+/// fall out of. Two Furnaces of Rath are that bucket, and the prompt was
+/// noise a human would resent. **Not `Halve`, `Plus` or any prevention arm**:
+/// `Halve` beside `Multiplier` is the phase's headline non-commuting board
+/// (3 → 1 → 2 or 3 → 6 → 3), `Plus` beside `Multiplier` does not commute
+/// either, and a prevention arm can empty the event.
+///
+/// **Shared by both shapes — mandatory, static, under CR 614.5, not
+/// counter-derived, no rider.** An optional is a second prompt whose answer
+/// can differ per order; a `Uses::Once` or `NextDamage` spends a registry row;
+/// an exempt effect may re-apply; a counter-derived instance is re-synthesized
+/// per gather; riders queue in choice order and run in queue order
+/// (CR 615.5), so two members that both carry one make the order observable
+/// in the event log even when the board is identical. Each is excluded so the
+/// argument has nothing to say about it.
+///
 /// With every member's applicability fixed and every application commuting,
-/// each member applies exactly once in any order (CR 614.5) and the final
-/// `EnterMods` is the merge of all of them. Root Maze beside Idyllic
-/// Beachfront — the fuzz harness's every land drop under Root Maze — is the
-/// case this exists for.
+/// each member applies exactly once in any order (CR 614.5) and the result is
+/// the same. Root Maze beside Idyllic Beachfront — the fuzz harness's every
+/// land drop under Root Maze — and two Furnaces in one red deck are the cases
+/// this exists for.
 ///
 /// **A semantics-assuming shortcut, and it carries its expiry conditions**
-/// (`layers-architecture.md` §12 item 3). It goes false the day
-/// `EnterMods` gains a field that feeds a characteristic — face-down, which
-/// is Layer 1 and changes everything — or `ObjectFilter` gains a leaf that
-/// reads P/T, keywords or counters, or `EventPattern::EnterBattlefield` reads
-/// `mods`. `check_order_invariance` is the debug-build check that computes it
-/// the other way, and `codebase-state.md` records the three conditions.
-/// **The name is the implementation's, not the question's** — reported in
-/// review, recorded as `codebase-state.md` item 65. The question is "does
-/// CR 616.1's ordering prompt here have more than one outcome"; "bucket" is
-/// 616.1a–e's forced-choice class, which a reader has to already know.
-fn order_invariant_entry_bucket<'a>(
-    bucket: impl Iterator<Item = &'a ReplacementInstance>,
-    entering: Option<ObjectId>,
-) -> bool {
-    bucket.into_iter().all(|c| {
-        (match &c.def.rewrite {
+/// (`layers-architecture.md` §12 item 3; `codebase-state.md` item 47). The
+/// entry shape goes false the day `EnterMods` gains a field that feeds a
+/// characteristic — face-down, which is Layer 1 and changes everything — or
+/// `ObjectFilter` gains a leaf that reads P/T, keywords or counters, or
+/// `EventPattern::EnterBattlefield` reads `mods`. The multiplier shape goes
+/// false the day an `EventPattern::DealDamage` field reads the *amount*, or a
+/// `Multiplier(0)` is printed (refused here by `n ≥ 1`). `check_order_invariance`
+/// is the debug-build check that computes it the other way. The name is the
+/// question's, not the implementation's (item 65): does CR 616.1's ordering
+/// prompt here have more than one outcome.
+fn ordering_cannot_change_the_outcome(bucket: &[Candidate], entering: Option<ObjectId>) -> bool {
+    let all_entries = bucket
+        .iter()
+        .all(|c| matches!(c.instance.def.rewrite, Rewrite::EnterWith(_)));
+    let all_multipliers = bucket.iter().all(|c| {
+        matches!(c.instance.def.pattern, EventPattern::DealDamage)
+            && matches!(
+                c.instance.def.rewrite,
+                Rewrite::Amount(AmountRewrite::Multiplier(n)) if n >= 1
+            )
+    });
+    if !(all_entries || all_multipliers) {
+        return false;
+    }
+    bucket.iter().all(|c| {
+        let def = &c.instance.def;
+        (match &def.rewrite {
             // Reads the frame only when the source is the object being
             // computed, so anything else is a board read and commutes.
-            Rewrite::EnterWith(t) => t.is_fixed() || Some(c.source) != entering,
+            Rewrite::EnterWith(t) => {
+                (t.is_fixed() || Some(c.instance.source) != entering)
+                    && affected_is_mods_invariant(&def.affected)
+            }
+            Rewrite::Amount(AmountRewrite::Multiplier(_)) => true,
             _ => false,
-        }) && !c.def.optional
-            && c.def.then.is_none()
-            && matches!(c.def.uses, Uses::Static)
-            && !c.def.exempt_from_614_5
-            && !matches!(c.id, ReplacementInstanceId::Counter(..))
-            && affected_is_mods_invariant(&c.def.affected)
+        }) && !def.optional
+            && def.then.is_none()
+            && matches!(def.uses, Uses::Static)
+            && !def.exempt_from_614_5
+            && !matches!(c.instance.id, ReplacementInstanceId::Counter(..))
     })
 }
 
 /// Can no `EnterMods` field change whether this set matches the entering
 /// object? `SourceOnly`, `Fixed` and `Host` match by id; a
-/// `Filter` is invariant iff every leaf is.
+/// `Filter` is invariant iff every leaf is. The entry half of
+/// [`ordering_cannot_change_the_outcome`]'s premise.
 fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
     match affected {
         AffectedSet::SourceOnly | AffectedSet::Fixed(_) | AffectedSet::Host => true,
@@ -664,7 +698,7 @@ fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
     }
 }
 
-/// The leaf table for [`order_invariant_entry_bucket`]'s last premise. Types,
+/// The leaf table for [`ordering_cannot_change_the_outcome`]'s entry premise. Types,
 /// subtypes, supertypes, colors, controller, ownership and tokenness are fed
 /// by no `EnterMods` field; power is fed by `+1/+1` and `-1/-1` counters
 /// (CR 122.1a) and so `PowerLE` is not invariant. Matched exhaustively, so a
@@ -688,10 +722,11 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
     }
 }
 
-/// The debug-build check on [`order_invariant_entry_bucket`]: after the
-/// suppressed choice applied, every member it was chosen over must still be
-/// applicable to the rewritten event, or the predicate admitted a leaf that
-/// reads `EnterMods` and the prompt it skipped was real.
+/// The debug-build check on [`ordering_cannot_change_the_outcome`]: after
+/// the suppressed choice applied to a member, every candidate it was chosen
+/// over that applied to that member must still apply to the rewritten event,
+/// or the predicate admitted something that reads what an application
+/// changes and the prompt it skipped was real.
 ///
 /// Computes the theorem's premise the other way, as `layers-architecture.md`
 /// §12 item 3 asks of any semantics-assuming shortcut. Debug builds only,
@@ -702,7 +737,8 @@ fn check_order_invariance(
     game: &GameState,
     ctx: &ActionContext,
     next: &GameAction,
-    unsuppressed: &[ReplacementInstanceId],
+    member: usize,
+    unsuppressed: &[(ReplacementInstanceId, Vec<usize>)],
 ) {
     if !cfg!(debug_assertions) || unsuppressed.is_empty() {
         return;
@@ -712,15 +748,17 @@ fn check_order_invariance(
         .into_iter()
         .map(|c| c.id)
         .collect();
-    for id in unsuppressed {
+    for (id, members) in unsuppressed.iter().filter(|(_, m)| m.contains(&member)) {
         debug_assert!(
             still.contains(id),
             "the CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped \
-             applying to {:?} after the chosen member applied. A `ObjectFilter` leaf \
-             or an `EnterMods` field reads something `filter_is_mods_invariant` calls \
-             invariant — see `order_invariant_entry_bucket`.",
+             applying to {:?} after the chosen member applied. Something reads what \
+             an application changes — an `ObjectFilter` leaf or `EnterMods` field \
+             `filter_is_mods_invariant` calls invariant, or an `EventPattern` field \
+             reading the amount — see `ordering_cannot_change_the_outcome`.",
             id, next
         );
+        let _ = members;
     }
 }
 
