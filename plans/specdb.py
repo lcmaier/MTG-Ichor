@@ -126,13 +126,17 @@ CLASSIFY_RANGE_RE = re.compile(
     r"^(\d{3}\.\d+)([a-z]?)\s*[–—-]\s*(?:(\d{3}\.\d+))?([a-z]?)$")
 FIELD_RE = re.compile(r"^-\s+\*\*([A-Za-z ]+):\*\*\s*(.*)$")
 COVERS_RE = re.compile(r"COVERS(-PARTIAL)?:\s*(.+)$")
-# Ids are `KIND-<rule>-<seq>`, but a COMP may name its cards instead of a
-# second rule: COMP-613-TARMOGOYF-HUMILITY-001. Allow extra `-`-joined
-# segments, each required to contain a letter so that the trailing `-<seq>`
-# is never swallowed. Only `scan_coverage` uses this; the session parser
-# reads ids from their headings.
+# Ids are `KIND-<rule>-<seq>`, but a COMP may name a second rule or its cards
+# instead: COMP-613-TARMOGOYF-HUMILITY-001, COMP-614-616-DOUBLE-REPLACEMENT-001.
+# Allow any `-`-joined segments; the trailing `-<seq>` is protected by being
+# required, which backtracking satisfies by giving the last numeric segment
+# back. An earlier version required every middle segment to contain a letter
+# for that job, and it could not see an id whose second segment is a rule
+# number — `COMP-614-616-...` matched as `COMP-614-616` and reported as an
+# orphan (found by RD-1, 2026-09-08). Only `scan_coverage` uses this; the
+# session parser reads ids from their headings.
 ATOM_ID_RE = re.compile(
-    r"(?:ATOM|BOUNDARY|COMP)-[0-9A-Za-z.+]+(?:-[0-9A-Za-z.+]*[A-Za-z][0-9A-Za-z.+]*)*-\d+"
+    r"(?:ATOM|BOUNDARY|COMP)-[0-9A-Za-z.+]+(?:-[0-9A-Za-z.+]+)*-\d+"
 )
 RUST_FN_RE = re.compile(r"fn\s+([a-zA-Z0-9_]+)")
 

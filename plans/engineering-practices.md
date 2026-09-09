@@ -448,6 +448,42 @@ field first is the whole change.
 | Memo hits, `stress` | 97,783 | **61,424** (−37.2%) |
 | CPU/game median (200 games, ×3) | 16.09 ms | **14.29 ms** (−11.2%) |
 | ms / 1,000 walks | 42.57 | 37.70 (−11.4%) |
+
+**Re-recorded 2026-09-08 for RD-1** — `PERFORMANCE_POOL` +1 (Furnace of Rath,
+73 → 74) and the stress pool +5. Every row moved, and that is what a damage
+doubler in every red deck does: games end sooner (avg turns 28.9 → 30.0 on
+`performance` is the *other* direction and is deck-mix noise at 50 games; the
+200-game run has 31.0 → 29.7), total damage per game rises 59.4 → 63.8, and
+CPU/game falls **6.4%** because there is less game to play.
+
+| | performance (74 cards) | stress (98 cards) |
+|---|---|---|
+| P0 / P1 | 27 (54.0%) / 23 (46.0%) | 20 (40.0%) / 30 (60.0%) |
+| Avg turns | 30.0 | 27.2 |
+| Spells cast | 23.5 | 21.0 |
+| Lands played | 17.9 | 16.7 |
+| Combat w/ atk | 9.7 | 9.2 |
+| Creatures died | 7.0 | 4.1 |
+| Damage events | 20.8 | 19.8 |
+| Total damage | 63.8 | 56.3 |
+| Life changes | 14.4 | 13.3 |
+| **Layer walks** | **372** | **449** |
+| **Board walks** | **245** | **247** |
+| **Memo hits** | **60,807** | **56,267** |
+| **Layer frames** | **4,602** | **4,414** |
+| **Frames/walk** | **12.36** | **9.83** |
+| **Dependency checks** | **22** | **18** |
+| **Replacement gathers** | **518** | **480** |
+| **Restriction queries** | **520** | **483** |
+
+Reachability, 200 `stress` games with Loyalty Probe forced into every deck:
+cast 206, resolved 204, **in 133 games (66%)**, 1.49 copies per deck. It is
+`{2}` and colorless, which is why the number is that high and why the fixture
+is worth registering: **CR 704.5i fires 4 times in 400 unforced `stress`
+games** — three Probes bolted to zero, and one Merfolk Thaumaturgist that
+Cytoshape turned into a copy of a Probe and which died on the spot, because
+CR 707.2 does not copy counters. That state-based action had measured 0 at
+every game count since it was written.
 | Layer walks / frames | 378 / 4,504 | 379 / 4,510 |
 
 **Read `ms/1,000 queries` carefully here: it rises 41.8%, and that is the

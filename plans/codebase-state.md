@@ -78,7 +78,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
 | 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/cast.rs`, `engine/costs.rs` |
 | 119 | Life changes | ✅ with source attribution | `events/event.rs`, `engine/actions.rs` |
-| 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅; infect/wither/toxic ❌ (`backlog.md` §2.6; the seam is RD-1's per-result performer arm); **120.3c ❌ — damage to a planeswalker does not remove loyalty counters** (audit 2026-08-25: `perform_action(DealDamage)` marks damage on any battlefield object and nothing reads it off a planeswalker, while SBA 704.5i reads only the counter count, so a planeswalker can never die to damage. Unreachable — no planeswalker registered, combat can't attack one — but Lightning Bolt's "any target" already validates them, so the first registered planeswalker makes it live. Fix scheduled with Phase RD's CR 120.3 decomposition, `replacement-architecture.md` §9) | `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
+| 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅. **CR 120.3's results are a list, decomposed off the target's effective types (RD-1, 2026-09-08)**: 120.3a proposes a contained `LoseLife { cause: Damage }` in the damage's batch, 120.3c proposes `RemoveCounters { Loyalty }` — so a planeswalker can die (CR 704.5i fires 4× in 400 stress games) — 120.3e is gated on the target being a creature, and 120.3f was already lifelink's. **120.3b/d/g/h ❌** — poison, wither's counters, toxic, a battle's defense counters; each is one more arm on the same `DamageResults`, and each has an owner (`backlog.md` §2.6 and §2.23; Deferred Migrations items 86 and 87) | `engine/actions.rs` (`DamageResults`), `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
 | 121 | Drawing | ✅ basic | `engine/actions.rs` |
 | 122 | Counters | ✅ 19 counter types (12 evergreen keyword + +1/+1, -1/-1, loyalty, charge, poison, commander damage), per-entity HashMap | `types/effects.rs`, `state/battlefield.rs`, `state/player.rs` |
 | 123 | Mana (pool, persistence, restrictions) | ✅ full `ManaPool` with restricted sidecar, persistence, grants, context-aware spending (T12b landed) | `types/mana.rs` (1370 lines) |
@@ -92,7 +92,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 206 | Expansion/rarity | not modeled — not needed for engine |
 | 207 | Text box / rules text | 🟡 stored as `String`; not parsed into structured abilities (no NLP, hand-coded card defs) | `objects/card_data.rs` |
 | 208 | P/T (`i32`) | ✅ signed, correct per E8 | `objects/card_data.rs` |
-| 209 | Loyalty (for PW) | ✅ ETB counter init + 0-loyalty SBA | `engine/sba.rs` (704.5i), `state/game_state.rs` (init_etb_counters) |
+| 209 | Loyalty (for PW) | ✅ ETB counter init + 0-loyalty SBA, and CR 120.3c takes counters off from RD-1 on, so the SBA is reachable from a game (Loyalty Probe) | `engine/sba.rs` (704.5i), `state/game_state.rs` (init_etb_counters), `engine/actions.rs` |
 
 ### CR 3 — Card Types
 
@@ -1619,8 +1619,10 @@ registered card returns an object.
     choosers, which needs a `Retarget` rewrite (Phase RD) at minimum. Revisit
     with RD, not before.
 
-    **Reachability (2026-09-03):** unreachable — no `Retarget` rewrite exists
-    yet (Phase RD), so no two batch members can affect each other's chooser.
+    **Reachability (2026-09-08, re-derived at RD-1's close):** still
+    unreachable — `Rewrite::Retarget` is RD-4's and does not exist. RD-1 added
+    `Rewrite::Amount`, which rewrites the amount and never the subject, so it
+    cannot move a chooser either. Revisit at RD-4, not before.
 
 26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
     should (`rb-review.md` H7).** If a batch carries two members naming one
@@ -1652,7 +1654,14 @@ where the *next* phase will find a channel missing rather than wrong. §4.1a
 settled *when* a rider runs — these are about *what it can reach*, which that
 section never asked.
 
-27. **A rider cannot name the affected player, because `Rider` flattens the
+27. ~~**A rider cannot name the affected player, because `Rider` flattens the
+    subject to an object.**~~ **Closed by RD-1 (2026-09-08)**, exactly as
+    sized: `Rider.subject` is an `EventSubject` and `resolve_rider` emits
+    `ResolvedTarget::Player`. Angel of Suffering's "mill twice that many cards"
+    is the registered card that exercises it, and it is registered in the
+    stress pool. The original entry follows.
+
+    **A rider cannot name the affected player, because `Rider` flattens the
     subject to an object.** `subject_object` (`engine/replacement/pipeline.rs`)
     maps `EventSubject::Player(_)` to `None`, and `resolve_rider`
     (`engine/actions.rs`) then builds a `ResolutionContext` with empty
@@ -3479,6 +3488,57 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     window — because only the session layer can tell a legitimate 200-activation
     combo from a loop, and `run_mana_ability_window` cannot. Whoever adds the
     network seat owns it.
+
+### Found by RD-1 — the damage event's two subjects and its results (2026-09-08)
+
+**Shipped:** `ReplacementDef.affected_players: PlayerSet`; `Rewrite::Amount`
+with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carrying
+an `EventSubject` and the replaced event's amount, with
+`AmountExpr::ReplacedAmount` and `Multiply`; `GameAction::LoseLife.cause`;
+`Primitive::Mill`; and CR 120.3's results decomposed off the target's effective
+types. Five cards registered — Furnace of Rath (pooled), Ghosts of the
+Innocent, Gisela, Blade of Goldnight, Angel of Suffering, and the Loyalty Probe
+fixture. Item 27 closes here; items 86 and 87 are placed.
+
+**Why 120.3e got a type gate nobody asked for.** The arm was a two-way `match`
+on the target: mark damage on any battlefield object, or subtract life from a
+player. Writing CR 120.3 as what it says — "one or more of the following
+results" — makes the ungated marking visible as bookkeeping the rule does not
+have, and makes the creature-planeswalker case (120.3c **and** 120.3e) fall out
+instead of needing a special case. It is unreachable from the registered pool
+and pinned by a test anyway, because the wither and infect arms land next to it.
+
+86. **CR 120.3b, 120.3d and 120.3g are absent — poison from infect and toxic,
+    and wither's and infect's −1/−1 counters.** RD-1's `DamageResults` is the
+    seam: each is one more flag on that struct and one more block in
+    `perform_action`'s `DealDamage` arm, read off the *source's* keywords
+    rather than the target's types. The poison half proposes counters on a
+    **player**, which `PermanentState`'s counter map cannot hold —
+    `PlayerState.poison_counters` exists as a bare `u32` and no proposal
+    reaches it, so CR 122.1's chokepoint has no player-side arm.
+
+    **Reachability (2026-09-08):** unreachable — no card in the crate has
+    infect, wither or toxic, and the three are keyword flags that do not
+    exist. It becomes reachable with the first one registered.
+
+    **Sized:** ~200–300 with the first infect card, per `backlog.md` §2.6,
+    which names the three keywords and their CR 120.3 results. The player-side
+    counter proposal is the part that is not mechanical; §2.16's player-counter
+    map is the same work from the other side.
+
+87. **CR 120.3h is absent — a battle's defense counters — and so is CR 310.**
+    Damage dealt to a battle removes that many defense counters, which is the
+    fourth missing result and the only one blocked on a *card type* rather than
+    on a keyword. `CardType` has no `Battle` arm and nothing in the engine
+    knows CR 310 exists.
+
+    **Reachability (2026-09-08):** unreachable — the card type does not exist,
+    so no object can be a battle and the arm can never be taken.
+
+    **Sized:** unknown until CR 310 is scoped; `backlog.md` §2.23 owns it and
+    was filed 2026-09-08 because no doc owned CR 310 at all. The 120.3h result
+    itself is one flag on `DamageResults` and one block, the same shape as
+    120.3c; everything else about battles is the size.
 
 ### Was the critical path complete? — audited 2026-08-27
 

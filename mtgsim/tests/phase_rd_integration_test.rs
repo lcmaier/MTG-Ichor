@@ -84,9 +84,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 /// The lifelink test's twin, from the other side of the same rule: the loss is
 /// a *result of* the damage, so it joins the damage's batch rather than opening
 /// one, and a CR 603.2c trigger will see one event rather than two.
-// COVERS-PARTIAL: ATOM-120.3-001 — the life-loss result only; CR 120.3b/d/g/h
-// (poison, wither's counters, toxic, battle defense) have no keyword or card
-// type behind them yet and are `backlog.md` §2.6 and §2.23.
+// COVERS: ATOM-120.3a-001
 #[test]
 fn damage_to_a_player_proposes_a_contained_life_loss_in_the_damages_batch() {
     let mut game = setup_two_player_game();
