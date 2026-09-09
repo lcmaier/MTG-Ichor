@@ -736,7 +736,7 @@ the failure mode that shows up as a card silently doing nothing:
    registry with a `Duration`, expiring through the same cleanup/turn-start
    hooks `ContinuousEffectRegistry` already uses.
 4. **Shields from resolutions.** CR 615.7/615.8, CR 701.19a regeneration. Also
-   the registry, with `Uses::Once` or `Uses::DamagePoints(n)` (named `Shield(n)`
+   the registry, with `Uses::Once` or `Uses::NextDamage(n)` (named `Shield(n)`
    until RD's design check; §9's shield glossary says why it moved).
 5. **Counters.** CR 122.1c (shield), 122.1d (stun), 122.1h (finality). These
    come from the *counter*, not from any ability — nothing on the card says so.
@@ -1563,7 +1563,7 @@ ChooseReplacementEffect { affected: ReplacementSubject, event: EventSummary },
 
 /// CR 615.7 — one shield, two or more simultaneous damage sources. Reuses
 /// `allocate`, the same call trample damage already uses.
-AllocateDamagePoints { source: ObjectId, remaining: u64 },  // named in RD's design check; per instance, not per subject
+AllocateNextDamage { source: ObjectId, remaining: u64 },  // named in RD's design check; per instance, not per subject
 ```
 
 The 616.1 prompt is a `pick_n` with bounds `(1, 1)` over
@@ -3564,7 +3564,11 @@ like a shield" around what it affects; that is `ReplacementDef`, and nothing
 in code borrows the word for it. (2) CR 615.7's prevention shield ("these work
 like shields") and CR 701.19a's regeneration shield: a **resolution-created
 registry row** with a `Uses`. Regeneration is `Uses::Once` plus its authored
-bit; 615.7's amount-bearing one is **`Uses::DamagePoints(remaining)`**, and it
+bit; 615.7's amount-bearing one is **`Uses::NextDamage(remaining)`** — named
+for the rule's own phrase, "the next 3 damage", because it counts damage and
+never uses: 615.7's last sentence is "such effects count only the amount of
+damage; the number of events or sources dealing it doesn't matter", and a
+first name, `DamagePoints(remaining)`, could be read as either. It
 deliberately does not take the word "shield" in code, because
 `ReplacementDef.affected`'s doc reserved that word for the next item. (3) CR
 122.1c's shield **counter**, `CounterType::Shield`: a counter that *creates*
@@ -3572,7 +3576,7 @@ one replacement and one prevention effect, synthesized by `gather` since RB.
 It is not a 615.7 shield — it has no amount, its prevention half is a
 whole-event `Prevent`, and its "use" is the rider removing a counter. The two
 meet in exactly one place, decision 3: a counter's prevention applies once to
-a subject's group, and a 615.7 row's `DamagePoints` is allocated across one.
+a subject's group, and a 615.7 row's `NextDamage` is allocated across one.
 
 **1. Partial prevention is `Rewrite::Amount(AmountRewrite::PreventUpTo(n))`,
 and `Instead` gets no "N − k" template.** §3.2b already lists `Amount` as the
@@ -3608,15 +3612,41 @@ carrying `DealDamage { amount: N − k }`, and the first is the CDA lesson:
   (CR 614.7a), so the two routes agree on the board and differ only in what
   they assert.
 
-`AmountRewrite` ships four variants with a customer each: `Multiplier(u64)`
-(Furnace of Rath, Dictate of the Twin Gods; CR 701.10g — not `Times`, which
-reads as "the number of times something happens" and is the wrong noun for a
-factor; §3.2c's and §3.2d's `Amount(Times(2))` are renamed with it), `Plus(u64)`
-(Torbran's shape, RD-3's source predicate away), `PreventUpTo(u64)` (Daunting
-Defender, Guardian Seraph; CR 615.10), and `PreventRemaining` (CR 615.7), which
-reads its cap off the instance's `Uses::DamagePoints(remaining)` — the remaining
-amount lives in one place, the use count, and the arm names it rather than
-repeating it. §3.2c's
+`AmountRewrite` ships six variants, each with a customer in the PR that lands
+it: `Multiplier(u64)` (Furnace of Rath; CR 701.10g — not `Times`, which reads
+as "the number of times something happens" and is the wrong noun for a factor;
+§3.2c's and §3.2d's `Amount(Times(2))` are renamed with it), **`Halve(Rounding)`**
+(Ghosts of the Innocent, "deals half that damage, rounded down … instead" —
+the inverse, and it is printed), `Plus(u64)` (Torbran, RD-3), `PreventUpTo(u64)`
+(Daunting Defender, Guardian Seraph; CR 615.10), **`PreventHalf(Rounding)`**
+(Gisela, Blade of Goldnight's "prevent half that damage, rounded up" in RD-1;
+Dark Sphere's "rounded down", from a resolution with a chosen source, in RD-3),
+and `PreventRemaining` (CR 615.7), which reads its cap off the instance's
+`Uses::NextDamage(remaining)` — the remaining amount lives in one place, the use
+count, and the arm names it rather than repeating it.
+
+**Rounding is authored, never inferred.** CR 107.1a: "If a spell or ability
+could generate a fractional number, the spell or ability will tell you whether
+to round up or down." So `Rounding { Up, Down }` has no `Default`, and every
+halving names its direction — the same doctrine as `Duration` on
+`Primitive::Restrict`. `Halve` and `PreventHalf` are two arms and not one with
+a flag because CR 615.12 treats them differently and the rulings say so in
+words: Ghosts of the Innocent "isn't a damage prevention effect" and still
+halves Excruciator's unpreventable 7 to 3, while Gisela prevents nothing of
+it; and only the prevention arm reports a prevented amount. Ghosts' other
+rulings are RD-1's tests: *half of 1 rounded down is 0, so a 1-damage source
+deals no damage at all* (a rewrite to 0 meets `never_happens` on the next
+iteration, CR 614.7a); *three Ghosts turn 14 into 7, 3, 1* (three instances,
+each once); *with Furnace of Rath the order is the affected player's, and it
+matters when the amount is odd — 3 halves to 1 then doubles to 2* (the first
+non-commuting CR 616.1 choice reachable from two printed statics, and
+`COMP-614-DAMAGE-ORDERING-001`'s board); *redirected damage is halved once*
+(CR 614.5's applied set survives a `Retarget`, RD-4). A rider can halve too —
+Sokrates, Athenian Teacher's granted "each draw half that many cards, rounded
+down" — but that rounding sits on the rider's `AmountExpr` (a `Half(Box<
+AmountExpr>, Rounding)` leaf beside `Multiply`), not on any rewrite; Sokrates
+himself waits on RS-2's hexproof and is recorded under RD-3 as the shape.
+§3.2c's
 Ali from Cairo clamp is **not** here: Ali's own ruling says "this effect does
 not prevent damage, it prevents the damage from turning into loss of life", so
 it watches the contained `LoseLife` and is RE's, once RE gives `LoseLife` a
@@ -3643,7 +3673,7 @@ The consumable-amount question has an in-tree answer. A regeneration row is
 `Uses::Once` **and** `Duration::UntilEndOfTurn`: it ends on use through
 `consume_use`'s `remove(row)` and on time through
 `remove_expired_at_cleanup`, and neither end knows about the other.
-`Uses::DamagePoints(remaining)` is the same row with a number where `Once` has a
+`Uses::NextDamage(remaining)` is the same row with a number where `Once` has a
 bit — decremented in place through `DurationRegistry::update_rows`, removed at
 zero, expired at cleanup with the rest. "Expires on use, not on time" was the
 wrong dichotomy: it is both, it always was, and the registry was built for it.
@@ -3654,14 +3684,14 @@ What the primitive does at resolution follows `Regenerate` and `Restrict`: one
 row per resolved target, the resolution filling an authored empty `Fixed` with
 that target (CR 615.11 is exactly this — "creates a prevention shield for each
 applicable creature when the spell or ability … resolves" — so Samite
-Censer-Bearer is N rows of `DamagePoints(1)`, one per creature it found, and Kitsune
+Censer-Bearer is N rows of `NextDamage(1)`, one per creature it found, and Kitsune
 Palliator's ruling "doesn't affect creatures that enter later" falls out of
 `Fixed`); or one row as authored when the def carries a `Filter` or a
 `PlayerSet` and no target (Safe Passage's ruling, the opposite one: "will
 prevent damage dealt to creatures that weren't on the battlefield at the time
 it resolved" — `Filter`, evaluated at the event). A pooled amount across
 several subjects needs no third shape: a `Filter` + `PlayerSet` row carrying
-`DamagePoints(n)` *is* one pool by construction, which is Divine Deflection's
+`NextDamage(n)` *is* one pool by construction, which is Divine Deflection's
 "the next X damage that would be dealt to you and/or permanents you control"
 — waiting only on `AmountExpr::Variable` — and Harm's Way's 2, which waits on
 nothing here and is RD-5's (finding 23).
@@ -3698,19 +3728,32 @@ had to satisfy:
 | a 3-shield, sources of 2 and 4 | 2 then 1, no choice | one `allocate` over the group | **CR 615.7** |
 
 The last row is the one place a rewrite is not member-uniform, and it is the
-whole of the new prompt: `ChoiceKind::AllocateDamagePoints { source, remaining
+whole of the new prompt: `ChoiceKind::AllocateNextDamage { source, remaining
 }`, asked through `DecisionProvider::allocate` (the trample call), options the
 members in batch order — `assign_combat_damage` walks `battlefield_ordered`,
 so the order is process-independent — total `min(remaining, Σ amounts)`,
 per-bucket max the member's amount. **The allocation is per instance, not per
-group**: one `DamagePoints` row asks once across every member of the batch it
-applies to. For Mending Hands that is one subject's group; for Divine
+group**, and the two words mean different things. A *subject group* is the
+set of batch members about one object or player — the two attackers' damage
+to *you* — and it is the unit the CR 616.1 loop decides for. An *instance* is
+one replacement effect — one registry row, one static ability on one object,
+one counter-derived effect — and it is the unit that owns a `NextDamage`
+count. One row asks once across every member of the batch it applies to,
+whatever their subjects. For Mending Hands that is one subject's group; for Divine
 Deflection's and Harm's Way's "you and/or permanents you control" it spans
 subjects, which their rulings spell out ("you choose which of that damage to
 prevent"; "1 damage … to each of two different recipients"). The chooser is
 the affected side's, and it is well-defined because every printed
 multi-subject amount shield is scoped to one player and that player's
 permanents; the engine asserts one chooser rather than guessing between two.
+**When it is asked**: the first time the instance is chosen in any group's
+loop, over the members it still applies to at their *then-current* amounts —
+Divine Deflection's ruling is "you don't decide until the point at which the
+damage would be dealt" — and the answer is kept for the groups decided after.
+A doubling chosen ahead of the shield in a later group's loop then moves that
+member, not the allocation; that is CR 616.1's own per-subject ordering
+showing through, and it is recorded as a corner for RD-2's review rather than
+smoothed over.
 Never with one member: CR 615.7's choice exists only among "two or more", and
 with one source every point is prevented unasked. The decisions live in a
 batch-scoped struct on `GameState` beside `EntrySelectionScope`, on
@@ -3842,12 +3885,12 @@ and nothing was ever there to spend.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
-| **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`/`Plus`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `AffectedSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~520 engine, ~230 cards, ~650 tests ≈ 1,300–1,500** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
-| **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::DamagePoints`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
-| **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~350 engine, ~300 cards, ~600 tests ≈ 1,300–1,500** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Daunting Defender is 615.10's own example), and the "two customers before a leaf" guard is applied live |
+| **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `AffectedSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
+| **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
+| **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Daunting Defender is 615.10's own example), and the "two customers before a leaf" guard is applied live |
 | **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
 
-**≈ 5,400–6,200 across four, each at or inside the band, RD-2 at its top —
+**≈ 5,700–6,500 across four, each at or inside the band, RD-2 at its top —
 plus RD-5's ~300–400 if its gate is met.** RD-3 and RD-4 commute; RD-1 → RD-2
 is a hard order (RD-2's shields need player scoping and the `Amount` arm),
 and RD-3's static consumers need RD-2's `PreventUpTo` performer. Every PR carries at least one printed consumer and a
@@ -3859,8 +3902,10 @@ files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 
 #### RD-1 — the damage event's two subjects and its results
 
-**Builds:** decisions 0, 4, 5, the `Multiplier`/`Plus` half of decision 1,
-the rider's two amount leaves, and `Primitive::Mill` — a stub in `resolve.rs`
+**Builds:** decisions 0, 4, 5, decision 1's `Multiplier`, `Halve` and
+`PreventHalf` with `Rounding` (`Plus` waits for Torbran in RD-3, since an arm
+with no consumer is the thing this doc refuses), the rider's two amount
+leaves, and `Primitive::Mill` — a stub in `resolve.rs`
 today, and N `ZoneChange { Library → Graveyard, cause: Milled }` proposals off
 the top, which the RB-registered Leyline of the Void already watches, so the
 first mill in the pool meets a replacement for free. **Consumers**, each with
@@ -3876,14 +3921,31 @@ its rulings pass:
   divides before doubling* → structurally true, since `assign_combat_damage`
   divides before anything is proposed — asserted with War Mammoth, which is in
   the pool; *prevent-4-then-double or double-then-prevent-4* → **RD-2's**
-  test, when Mending Hands exists (`COMP-614-DAMAGE-ORDERING-001`).
-- **Dictate of the Twin Gods** — the same text with flash; the second card of
-  the same shape is what makes CR 616.1's multi-candidate branch reachable on a
-  damage event from two *printed* cards (`COMP-614-616-DOUBLE-REPLACEMENT-001`),
-  which the pool has never had. Rulings, four: *applies to any damage, and it
-  doesn't matter who controls the source* → test; *the source of the damage
-  doesn't change* → the Furnace test; *four multiply by sixteen* → the
-  two-Furnace test generalised; *the Decorated Griffin ordering* → RD-2.
+  test, when Mending Hands exists. Two Furnaces in one deck is what the pool
+  can build (it is not legendary), and two Furnaces on one damage event is
+  CR 616.1's multi-candidate prompt from two *printed* cards
+  (`COMP-614-616-DOUBLE-REPLACEMENT-001`), which the pool has never had.
+- **Ghosts of the Innocent** — "If a source would deal damage to a permanent
+  or player, it deals half that damage, rounded down, to that permanent or
+  player instead." `Amount(Halve(Down))`, the same scope as Furnace. Its six
+  rulings are listed under decision 1; four are RD-1's tests, and the one
+  that matters most is Furnace beside Ghosts on 3 damage — 1 then 2, or 2
+  then 1 — the first **non-commuting** CR 616.1 choice a fuzz game can reach
+  (`COMP-614-DAMAGE-ORDERING-001`). Dictate of the Twin Gods was the first
+  draft's second doubler and is dropped: same shape as Furnace, and two
+  Furnaces already give the commuting pair.
+- **Gisela, Blade of Goldnight** — "Flying, first strike. If a source would
+  deal damage to an opponent or a permanent an opponent controls, that source
+  deals double that damage to that player or permanent instead. If a source
+  would deal damage to you or a permanent you control, prevent half that
+  damage, rounded up." Two statics on one card, each a `Filter` + `PlayerSet`
+  row: `Multiplier(2)` over `ByController(Opponent)` + `Opponents`, and
+  `PreventHalf(Up)` over `ByController(You)` + `You` — decision 0's two player
+  sets and both halves of decision 1 on one consumer. Rulings, three: *doubles
+  from any source, including the opponent's own* → test; *the affected player
+  orders* → the Furnace/Ghosts test generalised to a prevention (Gisela's
+  half beside an opponent's Furnace on 5: prevent 3 then double 2, or double
+  to 10 then prevent 5); *divide, then double* → the War Mammoth test.
 - **Angel of Suffering** — "Flying. If damage would be dealt to you, prevent
   that damage and mill twice that many cards." The static, whole-event
   `Prevent` on a player subject — `Fixed(vec![])` + `You`, `Uses::Static` —
@@ -3908,8 +3970,8 @@ should measure. Loyalty Probe is registered and not pooled; `--require
 "Loyalty Probe"` beside `copies/deck` is its reachability row.
 
 **Atoms:** `ATOM-701.10g-001`, `ATOM-614.5-001`,
-`COMP-614-616-DOUBLE-REPLACEMENT-001` (Phase 6), `ATOM-120.3c-001` (filed
-Phase 8 — covered where it is, not re-filed).
+`COMP-614-616-DOUBLE-REPLACEMENT-001`, `COMP-614-DAMAGE-ORDERING-001` (Phase
+6), `ATOM-120.3c-001` (filed Phase 8 — covered where it is, not re-filed).
 
 #### RD-2 — CR 615.7 prevention shields, and the loop's unit
 
@@ -3921,7 +3983,7 @@ is prevented this way"). "Shield" here is the glossary's sense (2), never the
 counter. **Consumers:**
 
 - **Mending Hands** — "Prevent the next 4 damage that would be dealt to any
-  target this turn." The plain shield: one row, `DamagePoints(4)`, target
+  target this turn." The plain shield: one row, `NextDamage(4)`, target
   filled at resolution as an object or a player, `UntilEndOfTurn`. No rulings.
   Tests: depletes per point across two events (`ATOM-615.7-001`); a 4-shield
   against 5 lets 1 through; the row is gone at 0 and at cleanup (CR 615.3's
@@ -3942,7 +4004,7 @@ counter. **Consumers:**
   takes the damage); *no effect on damage already dealt*.
 - **Samite Censer-Bearer** — "{W}, Sacrifice this creature: Prevent the next
   1 damage that would be dealt to each creature you control this turn."
-  CR 615.11's consumer: N rows of `DamagePoints(1)` from `EffectRecipient::
+  CR 615.11's consumer: N rows of `NextDamage(1)` from `EffectRecipient::
   FilteredPermanents`, one per creature at resolution. Ruling: *a separate
   1-point shield on each creature you control at the time the ability
   resolves* → test with a creature entering afterwards (`ATOM-615.11-001`).
@@ -3968,8 +4030,8 @@ turn.
 damage event meets, and the first `allocate` prompt reachable in a fuzz game.
 
 **Atoms:** `ATOM-615.7-001`, `ATOM-615.7-002`, `ATOM-615.4-001`,
-`ATOM-615.5-001`, `ATOM-615.11-001`, `BOUNDARY-DEF-615.1a-001`,
-`COMP-614-DAMAGE-ORDERING-001`; `ATOM-615.6-001` as `COVERS-PARTIAL` (filed
+`ATOM-615.5-001`, `ATOM-615.11-001`, `BOUNDARY-DEF-615.1a-001`;
+`ATOM-615.6-001` as `COVERS-PARTIAL` (filed
 Phase 7 — its "the trigger does not fire" half is item 6's).
 
 #### RD-3 — sources
@@ -4016,6 +4078,31 @@ the enumeration does not ask. **Consumers:**
 - **Fog** — "Prevent all combat damage that would be dealt this turn." The
   `combat` flag, `Filter { All }` + `Everyone`, `Uses::Static`. Non-combat
   damage under Fog goes through.
+- **Torbran, Thane of Red Fell** — "If a red source you control would deal
+  damage to an opponent or a permanent an opponent controls, it deals that
+  much damage plus 2 instead." `Amount(Plus(2))` with a source-side `ByColor(
+  Red) ∧ ByController(You)` — the arm's consumer, which is why `Plus` lands
+  here and not in RD-1. Rulings, three: *dealt by the same source* → test on
+  `DamageDealt.source`; *if all of the damage is prevented, Torbran's effect
+  no longer applies* → test: a shield empties the event first and
+  `never_happens` drops it before Torbran is gathered (CR 614.7a re-asked per
+  iteration); *divide before adding 2* → the trample test.
+- **Dark Sphere** — "{T}, Sacrifice this artifact: The next time a source of
+  your choice would deal damage to you this turn, prevent half that damage,
+  rounded down." A resolution-created `PreventHalf(Down)` with a chosen
+  source and `Uses::Once` — the prevention half of decision 1's rounding from
+  a registry row rather than a static. Ruling: *two of these apply
+  sequentially: 5 becomes 3 becomes 2* → test, two rows, each once.
+- **Sokrates, Athenian Teacher** is recorded as a shape and not registered:
+  its granted "If this creature would deal combat damage to a player, prevent
+  that damage. This creature's controller and that player each draw half that
+  many cards, rounded down" is a Layer 6 grant of a `Prevent` whose pattern
+  names its own host as the source (`SourcePattern`'s `Self`), with a rider
+  reading `Half(ReplacedAmount, Down)` to two players — every piece of which
+  RD-1 and RD-3 build — but "hexproof as long as it's untapped" is RS-2's,
+  and a registered card with a dead ability under a real name is what
+  `engineering-practices.md` §3 forbids. Its ruling — unpreventable damage
+  still draws — is decision 4's dovetail from the other side.
 
 **`PERFORMANCE_POOL` +1, Guardian Seraph**, predicted: a static prevention with
 a two-sided predicate is the first source the sweep evaluates a filter on per
@@ -4057,7 +4144,7 @@ only — finding 23 has the partial case. And decision 6's flag and consult.
 - **Pinpoint Avalanche** — "Pinpoint Avalanche deals 4 damage to target
   creature. The damage can't be prevented." The per-event flag, no other half.
   Tests: a shield counter's prevention is applied, prevents nothing, its rider
-  removes the counter anyway, and a `DamagePoints(4)` row is untouched
+  removes the counter anyway, and a `NextDamage(4)` row is untouched
   (`ATOM-615.12-001`, `-002`, `COMP-615-UNPREVENTABLE-SHIELD-001`); the
   instance is offered once (`ATOM-615.12a-001`). Combust is the same shape
   behind "this spell can't be countered", which is §8a's missing counter event,
@@ -4138,7 +4225,7 @@ is one card, never played competitively and rare in Commander, and it is
 problem, and its rulings are a complete specification. *"If the chosen source
 would deal just 1 damage … Harm's Way's effect will redirect that damage and
 still have a 'shield' left for another 1 damage from that source later in the
-turn"* is decision 7's rule — a `Retarget` row with `DamagePoints(2)`, spent by
+turn"* is decision 7's rule — a `Retarget` row with `NextDamage(2)`, spent by
 the amount moved. *"You choose which 2 damage is redirected … 1 damage … to
 each of two different recipients"* is decision 3's per-instance allocation
 across members. What it needs that RD-1 through RD-4 do not build is the
@@ -4151,7 +4238,7 @@ whole does not apply again to the part), decided in the same pass and
 performed in phase 2 beside its sibling.
 
 **The gate.** The split path is entered only when a `Retarget` instance with
-`DamagePoints` is chosen, so it cannot cost the hot path anything by
+`NextDamage` is chosen, so it cannot cost the hot path anything by
 construction; what it can cost is the per-member path's *shape*, since phase 1
 would have to accept insertions while iterating. RD-5 ships if that insertion
 lands without touching the code every combat step runs — the middle-arm A/B
@@ -4194,7 +4281,7 @@ reached. So the decision is taken at RD-2's close rather than RD-4's, and if
 yes the page is `rd-2-a-decision-is-per-subject.html`, walking the boards the
 design check argued about rather than the happy path: two shield counters under
 two blockers (item 15), Furnace beside Mending Hands in both orders (the printed
-ruling), a `DamagePoints(3)` under sources of 2 and 4 with the allocation, and
+ruling), a `NextDamage(3)` under sources of 2 and 4 with the allocation, and
 Pinpoint Avalanche into a shield counter (the rider runs, nothing is spent).
 
 #### Exit criteria
@@ -4869,7 +4956,7 @@ found them.
     gate — off the per-member path or into the backlog with the measured
     cost — because one card that was never played competitively should be
     excluded on a number, not on a feeling. Divine Deflection is *not* this
-    shape: a `Filter` + `PlayerSet` row with `DamagePoints(X)` is already a
+    shape: a `Filter` + `PlayerSet` row with `NextDamage(X)` is already a
     pooled amount, and it waits only on `AmountExpr::Variable`.
 
 24. **§11 item 15 is answered: decisions are per `(batch, subject)`, rewrites
@@ -4928,6 +5015,22 @@ found them.
     so each lands as one arm; none is stubbed, and each gets a dated Deferred
     Migrations line at RD-1's commit. 120.3e (marked damage) and 120.3f
     (lifelink) were already there.
+
+28. **The inverse of a doubler is printed, it rounds, and the rounding is
+    the card's.** Asked on review: "half that damage, rounded down" (Ghosts
+    of the Innocent, an `Instead`-shaped halving), "prevent half that damage,
+    rounded up" (Gisela) and "rounded down" (Dark Sphere), and a rider's
+    "half that many, rounded down" (Sokrates) are four printings of one
+    arithmetic in three places. CR 107.1a puts the direction on the card, so
+    `Rounding { Up, Down }` carries no default, and it appears in exactly the
+    places the text puts it — `AmountRewrite::Halve` and `PreventHalf` on the
+    rewrite, `AmountExpr::Half` on an amount — never as an engine-wide
+    convention. `Halve` and `PreventHalf` stay two arms because CR 615.12
+    separates them (Ghosts halves unpreventable damage; Gisela cannot
+    prevent any of it) and because only the prevention arm reports what it
+    prevented. `Multiplier`'s inverse is therefore not a `Divide(n)`: nothing
+    printed divides by anything but two, and a general divisor would be an
+    arm with no second customer.
 
 ## 12. Explicitly out of scope
 
