@@ -2551,11 +2551,18 @@ section never asked.
     predicate — renamed `ordering_cannot_change_outcome`, item 65 — now also
     admits a bucket that is entirely `Amount(Multiplier(n ≥ 1))` on
     `EventPattern::DealDamage`, under the same shared clauses. It goes false
-    the day (d) an `EventPattern::DealDamage` field reads the *amount* — RD-3's
-    `source` and `combat` fields do not — or (e) a `Multiplier(0)` is printed,
-    which the `n ≥ 1` clause refuses rather than defaults on. The debug
-    re-gather checks per group member since RD-2's group form, so (d) is
-    caught on any board a debug run reaches.
+    the day (d) an `EventPattern::DealDamage` field reads the *amount* — or
+    (e) a `Multiplier(0)` is printed, which the `n ≥ 1` clause refuses rather
+    than defaults on. The debug re-gather checks per group member since RD-2's
+    group form, so (d) is caught on any board a debug run reaches.
+
+    **(d) re-derived at RD-3 (2026-09-09), which added the arm's first two
+    fields, and the suppression stands.** `source` is CR 609.7's predicate over
+    the object *dealing* the damage and `combat` is CR 510.2's flag on the
+    proposal; neither reads the amount, so no member of a multiplier bucket can
+    fall out of applicability as another changes the number. Item 102 is the
+    entry; the rule this item states for whoever adds such a field — revisit
+    the predicate in the same commit — was followed.
 
     **Reachability (2026-09-03):** nothing owed — expiry conditions for a
     predicate; the rule is "revisit in the same commit".
@@ -3697,19 +3704,27 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `EffectRecipient` arm, `resolve_rider` building a context that carries
     both, and the no-op check.
 
-91. **`AmountRewrite::PreventUpTo` has a performer and no printed producer.**
-    Guardian Seraph and Daunting Defender are its cards and need RD-3's
-    source-side `EventPattern::DealDamage` fields. RD-2 ships the arm because a
-    CR 615.7 count is cut down to it at application (`AmountRewrite::capped`)
-    and because the group form's member-uniform path needed a static partial
-    prevention to prove "rewrites per member" against two simultaneous
-    sources — done through a fixture row whose test name says whose card it
-    is waiting for.
+91. ~~**`AmountRewrite::PreventUpTo` has a performer and no printed
+    producer.**~~ **Closed by RD-3 (2026-09-09): both printed producers are
+    registered.** Guardian Seraph writes it against a player with a source-side
+    `ByController(Opponent)`; Daunting Defender writes it against a filtered
+    object set with no source constraint at all, which is CR 615.10's own
+    example and is why the two are not one path twice. Guardian Seraph is in
+    `PERFORMANCE_POOL`, so the arm is now reachable from a measured game.
 
-    **Reachability (2026-09-09):** unreachable from a game — no registered def
-    writes the arm directly; every count reaches it through `capped`.
+    The original entry, for the record: RD-2 shipped the arm because a CR 615.7
+    count is cut down to it at application (`AmountRewrite::capped`) and because
+    the group form's member-uniform path needed a static partial prevention to
+    prove "rewrites per member" against two simultaneous sources — done through
+    a fixture row whose test name said whose card it was waiting for. That
+    fixture is now the printed board.
 
-    **Sized:** RD-3's; nothing beyond the two cards.
+    **Reachability (2026-09-09):** closed — both printed producers are
+    registered and Guardian Seraph is pooled, so the arm is reachable from a
+    measured game (145 cast / 145 resolved in 102 of 200 forced `stress`
+    games).
+
+    **Sized:** none.
 
 92. **A CR 615.7 count spanning subjects with two choosers is refused, not
     answered.** `next_damage_shares` asserts one chooser across every bucket
@@ -3855,6 +3870,102 @@ claim in it false, which is item 97.
     **Reachability (2026-09-09):** closed.
 
     **Sized:** none.
+
+### Found by RD-3 — sources (2026-09-09)
+
+Five items from building CR 609.7's source predicate and the eight cards that
+write it. Item 91 is closed here; item 47's condition (d) is re-derived because
+this PR added the fields it names.
+
+99. **`SelectionFilter::DamageSource` reaches two of CR 609.7a's four source
+    categories, and the other two have named blockers.** Reachable: a permanent
+    (`battlefield_ids_ordered`) and a spell on the stack (`StackEntry.is_spell`).
+    Not reachable: (a) *an object referred to by an object on the stack, by a
+    waiting replacement or prevention effect, or by a delayed triggered
+    ability* — the engine has no referred-to relation. `StackEntry.
+    chosen_targets` and `RegisteredReplacementEffect.targets` are **targets**
+    (CR 115's word), which is a different fact; the atom's own example is an
+    emblem naming a card in exile, and CR 603.7's delayed triggers are item 6's.
+    (b) *a face-up object in the command zone* — `GameState::command` is never
+    populated.
+
+    There is one further gap inside the reachable half, and it is a
+    consequence of `resolve_top_of_stack` rather than a decision:
+    the spell or ability **currently resolving** has had its `StackEntry` taken,
+    so it is on `game.stack` with no `is_spell` to read and is not offered. An
+    effect choosing its own resolving spell as the source of future damage is
+    the only thing that loses, and nothing printed does it.
+
+    **Reachability (2026-09-09):** unreachable — neither category exists on any
+    board the engine can build, and the resolving-object gap is asked for by no
+    printed card. `ATOM-609.7a-001` and `BOUNDARY-DEF-609.7a-001` are
+    `COVERS-PARTIAL` naming exactly the two categories.
+
+    **Sized:** (a) is a `referred_to: Vec<ObjectId>` on `StackEntry` plus the
+    same on a registry row plus CR 603.7 — not before item 6. (b) is one
+    enumeration leg once the command zone is populated, ~10 lines, and belongs
+    to whichever Commander PR fills it.
+
+100. **`Primitive::DealDamage` proposes one batch, and that is now a property
+     other primitives should be checked against.** It looped `execute_action`
+     until RD-3, which opens a batch per target — invisible while every damage
+     effect in the crate had one target, and wrong the moment Pyroclasm
+     arrived: CR 704.3's simultaneity, CR 615.7's "two or more applicable
+     sources at the same time" and CR 603.2c's "one or more" all read the
+     batch. Fixed with the card that made it reachable.
+
+     **The general form is `CLAUDE.md`'s own rule** — "a simultaneous rule needs
+     `execute_actions`, not a loop" — and the audit it implies has not been
+     run: `Primitive::DrawCards` loops on purpose (CR 121.2's "one at a time"),
+     `Primitive::Mill` batches on purpose (701.17a), and the rest of the
+     primitive table has never been asked. Nothing else in the registered pool
+     acts on more than one object at a time, so there is no board to fail on
+     today.
+
+     **Reachability (2026-09-09):** unreachable — `DealDamage` is fixed, and no
+     other primitive has a multi-object recipient, so there is no board on
+     which the unaudited arms differ.
+
+     **Sized:** one pass over `resolve_primitive`'s arms with the recipient in
+     hand, ~30 primitives, an hour. Worth doing in the PR that gives a second
+     primitive a `FilteredPermanents` recipient.
+
+101. **`EffectRecipient::FilteredPermanents` now has two readers with the same
+     semantics, and its doc said it had none.** The variant's comment read "Not
+     used at cast/resolution time — only read by the ETB hook to register
+     continuous effects"; RD-2's `Primitive::CreateReplacement` already read it
+     at resolution (CR 615.11's one row per permanent) and RD-3's
+     `Primitive::DealDamage` is the second. Both resolve it the same way —
+     `battlefield_ids_ordered` filtered by `object_matches_filter` against the
+     resolution's controller, **now**, not captured — which is what makes it
+     the right vehicle for "each creature" and for CR 615.11 alike.
+
+     The filter is resolved inside each primitive rather than filled into
+     `ctx.targets`, and that is deliberate: writing it into the targets would
+     make "each creature" a *targeting* fact, which CR 115.1's "targets are
+     announced as the spell is cast" says it is not, and would change what the
+     recipient means to the static-ability path that shares it.
+
+     **Reachability (2026-09-09):** closed — two readers, both tested.
+
+     **Sized:** none. The doc line is corrected in place.
+
+102. **Item 47's condition (d) re-derived at RD-3, and the answer is that the
+     suppression stands.** The multiplier bucket's premise says
+     `ordering_cannot_change_outcome` goes false the day "an
+     `EventPattern::DealDamage` field reads the *amount*". RD-3 added the first
+     two fields that arm has ever had. Neither reads the amount: `source` is a
+     predicate over the object dealing the damage (CR 609.7) and `combat` is
+     CR 510.2's flag on the proposal. So no member of a multiplier bucket can
+     fall out of applicability as another member changes the number, and the
+     debug-build re-gather (`check_order_invariance`) keeps checking it per
+     group member on every board a test or a debug fuzz run reaches. The rule
+     item 47 states for whoever adds such a field — revisit the predicate in
+     the same commit — was followed here; this is the record of it.
+
+     **Reachability (2026-09-09):** nothing owed.
+
+     **Sized:** none.
 
 ### Was the critical path complete? — audited 2026-08-27
 

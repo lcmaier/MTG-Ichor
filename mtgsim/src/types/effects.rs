@@ -384,9 +384,22 @@ pub enum EffectRecipient {
     /// Select without targeting rules — "choose" (rule 303.4a, etc.).
     /// Hexproof/shroud/protection do NOT apply.  Does not fizzle.
     Choose(SelectionFilter, TargetCount),
-    /// Filter-based continuous effect (static abilities / anthems).
-    /// Applies to all permanents matching the filter. Not used at cast/resolution
-    /// time — only read by the ETB hook to register continuous effects.
+    /// Filter-based recipient: every permanent matching the filter.
+    ///
+    /// Read by the ETB hook to register a static ability's continuous effect,
+    /// and — since RD-2 — at **resolution** by the primitives that act on more
+    /// than one object at once: `CreateReplacement` makes one row per matching
+    /// permanent (CR 615.11) and `DealDamage` proposes one batch member each
+    /// ("Pyroclasm deals 2 damage to each creature"). All three resolve it the
+    /// same way, `battlefield_ids_ordered` filtered against the resolution's
+    /// controller **now**, never captured.
+    ///
+    /// **The filter is not written into `ResolutionContext::targets`**, and
+    /// that is the point: "each creature" is not a targeting fact (CR 115.1
+    /// announces targets as the spell is cast), and filling the targets would
+    /// change what this variant means to the static-ability path that shares
+    /// it. Each primitive resolves it for itself.
+    ///
     /// Use `ByController(PlayerRef::You)` in the filter to express "you control".
     /// The filter is stored verbatim; `compute::object_matches_filter`
     /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes

@@ -570,6 +570,52 @@ suppression removes it — and in nothing else; CPU/game −0.8% and −0.9% on 
 middle arms, +2.1% shipped. Reachability is the `Prevention allocations` row
 and the `--require` counts in that section: 0.02 per `stress` game unforced,
 0.05 with the three unpooled cards forced.
+
+**Re-recorded 2026-09-09 for RD-3** — `PERFORMANCE_POOL` +1 (Guardian Seraph,
+75 → 76) and the stress pool +8 (102 → 110). **The engine's share is zero, and
+this is the cleanest reading the protocol has produced:** the middle arm —
+RD-3's engine with `registry.rs` and both pools unchanged — is *byte-identical*
+to `main` outside `=== Timing ===` at 200 games on both pools, so every
+movement below is the pool's. A widened `EventPattern` arm costs nothing until
+a def writes the new fields (`replacement-architecture.md` §11 item 32).
+
+| | performance (76 cards) | stress (110 cards) |
+|---|---|---|
+| P0 / P1 | 23 (46.0%) / 27 (54.0%) | 29 (58.0%) / 21 (42.0%) |
+| Avg turns | 31.1 | 32.1 |
+| Spells cast | 23.8 | 23.4 |
+| Lands played | 18.4 | 18.8 |
+| Combat w/ atk | 10.4 | 9.5 |
+| Creatures died | 7.7 | 5.4 |
+| Damage events | 21.3 | 19.9 |
+| Total damage | 62.4 | 55.0 |
+| Life changes | 14.4 | 12.5 |
+| **Layer walks** | **374** | **514** |
+| **Board walks** | **242** | **284** |
+| **Memo hits** | **61,239** | **73,967** |
+| **Layer frames** | **4,427** | **5,262** |
+| **Frames/walk** | **11.84** | **10.23** |
+| **Dependency checks** | **29** | **78** |
+| **Replacement gathers** | **534** | **565** |
+| **Restriction queries** | **536** | **568** |
+| Prevention allocations | 0.02 | 0.00 |
+
+At 200 games the shipped arm is `performance` walks 368 → 361 and gathers
+506 → 508 — a source-side `ObjectFilter` on every damage event is free at this
+board size — against `stress` walks 437 → 496 and gathers 513 → 563, which is
+eight cards in every deck. CPU/game median 14.10 → 14.15 ms (+0.4%); zero
+errors and zero panics on every arm and pool; three shell runs at one seed
+identical outside the timing lines.
+
+**One thing this instrument does not measure, found the hard way.** The
+`--require` block counts a card's **casts**, and RD-3's pooled question was
+about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
+forced `stress` games, and its `{1}` ability is activated **12,660 times** in
+129 of them — about 98 per game it reaches the battlefield, which is the
+opposite of the prediction that asked for the number. The count came from
+`--dump-events` plus `grep "AbilityActivated: <name>"`, and until the report
+grows a counter that is the recipe. **A phase whose consumer is an activated
+ability should measure the activation, not the cast.**
 | Layer walks / frames | 378 / 4,504 | 379 / 4,510 |
 
 **Read `ms/1,000 queries` carefully here: it rises 41.8%, and that is the
