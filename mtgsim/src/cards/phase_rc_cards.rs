@@ -19,12 +19,14 @@
 //! them. A fixture made that claim; a registered card is what makes the *pool*
 //! able to.
 //!
-//! None is gated behind a color a random deck may not have: `random_deck`
-//! filters nonlands by color, so a `{G}{W}` card reaches roughly one deck in
-//! sixteen, while a colorless card is in every deck and a two-type nonbasic land
-//! is in every deck that wants either of its colors. Reachability is the
-//! measurement this phase owes, so it is a selection criterion and not a
-//! footnote.
+//! None is gated behind a color a random deck may not have. **The reason has
+//! changed since this was written and the conclusion has not:** RC-2 chose
+//! these cards while `random_deck` filtered nonlands by color, which put a
+//! `{G}{W}` card in roughly one deck in sixteen. The `Everywhere` land removed
+//! that filter on 2026-09-03 — every deck now draws uniformly from every
+//! nonland and can pay for any of them — so color is no longer a selection
+//! criterion at all and **mana value** is what decides whether a drawn card is
+//! cast. Reachability is still the measurement this phase owes.
 //!
 //! # What is *not* reachable — corrected 2026-09-02, and the correction is
 //! the finding
@@ -331,9 +333,12 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 /// controllers, so it exercises the multi-candidate branch without standing on
 /// a read RC-3 is still fixing.
 ///
-/// Its reachability is the other half. `random_deck` picks one or two colors
-/// out of five, so a mono-green card is in about a third of decks; `{G}` at one
-/// mana means it lands on turn one and is out before most permanents arrive.
+/// Its reachability is the other half. `{G}` at one mana means it lands on turn
+/// one and is out before most permanents arrive. (This sentence used to open
+/// with "`random_deck` picks one or two colors out of five, so a mono-green
+/// card is in about a third of decks" — true when RC-3 shipped, false since
+/// the `Everywhere` land removed the color filter on 2026-09-03. The cheapness
+/// is the whole of the argument now.)
 /// It also matches **artifacts**, which is what puts it and [`chainbreaker`] on
 /// the same board — a permanent whose entry both a filter and CR 122.6a modify.
 ///

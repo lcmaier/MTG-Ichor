@@ -1,4 +1,6 @@
-use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use crate::engine::actions::{
+    ActionContext, DestructionSource, GameAction, LifeLossCause, ZoneChangeCause,
+};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
@@ -39,6 +41,14 @@ pub struct ResolutionContext {
     pub controller: PlayerId,
     /// Resolved targets (validated before resolution begins)
     pub targets: Vec<ResolvedTarget>,
+    /// CR 615.5's "that much" — the amount the replaced event carried, for a
+    /// rider and for nothing else.
+    ///
+    /// `None` on every other resolution, which is what makes
+    /// `AmountExpr::ReplacedAmount` refuse rather than read a wrong number: a
+    /// resolving spell has no replaced event, so the question has no answer
+    /// rather than a default one.
+    pub replaced_amount: Option<u64>,
 }
 
 /// A resolved target — validated as legal when the spell/ability was put on the
@@ -201,6 +211,49 @@ impl GameState {
                 Ok(())
             }
 
+            // > 701.17a For a player to mill a number of cards, that player
+            // > puts that many cards from the top of their library into their
+            // > graveyard.
+            //
+            // **One batch, N members — not N batches.** "Puts that many cards"
+            // is one simultaneous move, and the CR says nothing here like
+            // CR 121.2's "cards may only be drawn one at a time", which is the
+            // rule that makes drawing the exception. The batch is what a
+            // CR 603.2c trigger reads: "whenever one or more cards are put into
+            // your graveyard" must fire once for a mill of five. Each member is
+            // still its own event for CR 614.5, so the RB-registered Leyline of
+            // the Void applies to every card rather than to the first
+            // (§4.2, and Kalitas's N Zombies is the same shape).
+            //
+            // > 701.17b A player can't mill a number of cards greater than the
+            // > number of cards in their library. ... If instructed to do so,
+            // > they mill as many as possible.
+            //
+            // So a short library is not a failure — Angel of Suffering's own
+            // ruling — and the cards are taken before any of them moves,
+            // because they all move at once.
+            Primitive::Mill(amount_expr) => {
+                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
+                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let library = &self.get_player(player_id)?.library;
+                let batch: Vec<GameAction> = library
+                    .iter()
+                    .rev()
+                    .take(count)
+                    .map(|&object| GameAction::ZoneChange {
+                        object,
+                        from: Zone::Library,
+                        to: Zone::Graveyard,
+                        cause: ZoneChangeCause::Milled,
+                    })
+                    .collect();
+                if batch.is_empty() {
+                    return Ok(());
+                }
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
             Primitive::GainLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let player_id = self.resolve_player_for_self(recipient, ctx);
@@ -218,6 +271,7 @@ impl GameState {
                 self.execute_action(GameAction::LoseLife {
                     player: player_id,
                     amount,
+                    cause: LifeLossCause::Effect,
                 }, &actx)?;
                 Ok(())
             }
@@ -921,7 +975,6 @@ impl GameState {
             | Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
             | Primitive::ShuffleIntoLibrary
-            | Primitive::Mill(_)
             | Primitive::Discard(_)
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
@@ -1397,6 +1450,22 @@ impl GameState {
             AmountExpr::DamageDealt => {
                 Err("DamageDealt amount resolution not yet implemented".to_string())
             }
+            // CR 615.5's "that much"/"that many". Only a rider has one, and a
+            // rider is the only resolution that sets the field — so this is an
+            // error rather than a 0: an effect written with this leaf outside a
+            // `ReplacementDef::then` is asking a question its context cannot
+            // answer, and answering it with a number would be silently wrong.
+            AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
+                "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
+            }),
+            // Saturating rather than checked: an overflow here is not a game
+            // state anyone can reach — the inner amount is a damage or life
+            // number and the factor is printed on a card — and the alternative
+            // is a debug panic and a release wrap, neither of which is an
+            // answer. `AmountRewrite::Multiplier` saturates for the same reason.
+            AmountExpr::Multiply(inner, n) => {
+                Ok(self.evaluate_amount(inner, _ctx)?.saturating_mul(*n))
+            }
             // Meaningful only inside the layer walk, where "it" is the object
             // the continuous effect is being applied to. A resolving spell has
             // no such object — see `compute::evaluate_pt_value`.
@@ -1485,6 +1554,7 @@ mod tests {
             ability_source: None,
             controller: 0,
             targets,
+            replaced_amount: None,
         }
     }
 

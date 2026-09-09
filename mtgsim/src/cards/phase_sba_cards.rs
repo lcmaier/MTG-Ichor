@@ -27,9 +27,16 @@
 //! | 704.5q counter annihilation | 0 | **none** — this file |
 //! | 704.5m/n Aura | 0 | CR 608.3b, *and* no `AffectedSet` reaches an Aura's host |
 //! | 704.5p Equipment detach | 0 | Equip (CR 702.6); nothing can attach an Equipment |
-//! | 704.5i planeswalker death | 0 | loyalty abilities + CR 120.3c |
+//! | 704.5i planeswalker death | 0 -> **4 / 400** | ~~loyalty abilities + CR 120.3c~~ — RD-1 |
 //!
 //! `plans/codebase-state.md` carries the counts and the reasoning.
+//!
+//! **The last row moved on 2026-09-08.** RD-1 shipped CR 120.3c and the
+//! `Loyalty Probe` fixture, and 704.5i now fires 4 times in 400 `stress`
+//! games: three Probes bolted to zero, and one Merfolk Thaumaturgist that
+//! Cytoshape turned into a copy of a Probe and which died on the spot,
+//! because CR 707.2 does not copy counters. Loyalty *abilities* are still
+//! missing and are Phase 8's; the SBA no longer waits on them.
 
 use std::sync::Arc;
 

@@ -112,6 +112,9 @@ impl GameState {
             ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
             targets: entry.chosen_targets.clone(),
+            // A resolving spell or ability replaced nothing, so CR 615.5's
+            // "that much" has no answer here — see `ResolutionContext`.
+            replaced_amount: None,
         };
         self.resolve_effect(&entry.effect, &ctx, dp)?;
 

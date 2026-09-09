@@ -209,10 +209,12 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   **Infect/wither/toxic: ~200–300 with the first infect card** — three
   `KeywordFlag`s, three result arms in `perform_action(DealDamage)`, and a
   counter proposal whose subject is a *player* (§2.16's map; the same
-  player-subject shape RD-1 gives `ReplacementDef`). The seam is already cut:
-  Phase RD-1 writes that performer as one `match` per CR 120.3 result on the
-  source's keywords and the target's type (`replacement-architecture.md` §9,
-  decision 4 and §11 item 27), so each keyword lands as one arm.
+  player-subject shape RD-1 gives `ReplacementDef`). **The seam is cut, as of
+  2026-09-08**: `engine::actions::DamageResults` is the struct RD-1 built for
+  CR 120.3's "one or more of the following results", so each keyword adds one
+  flag there and one block in `perform_action`'s `DealDamage` arm — with the
+  difference that these three read the *source's* keywords where 120.3c/e read
+  the target's types. `codebase-state.md` item 86 carries the dated line.
 - **Blocks** — nothing structural. Protection also needs §2.8's SBA legality
   re-check for Auras and Equipment.
 - **Atoms** — 20, not re-filed.
@@ -231,7 +233,10 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).
 - **Blocks** — every battle card (March of the Machine's 36 and later
-  printings); CR 120.3h's result arm, whose seam RD-1 cuts beside 120.3b/d/g.
+  printings); CR 120.3h's result arm, which is one flag on RD-1's
+  `engine::actions::DamageResults` and one block beside CR 120.3c's, and is
+  blocked on the card type rather than on the arm (`codebase-state.md`
+  item 87).
 - **Atoms** — none filed under `Backlog` yet; CR 310's are in Phase 8.
 - **Owner** — none yet. Entered 2026-09-08 by RD's design check, because no
   document owned CR 310 and the results-of-damage decomposition needed to

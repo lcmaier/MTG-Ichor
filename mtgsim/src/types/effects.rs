@@ -57,6 +57,25 @@ pub enum AmountExpr {
     TargetToughness,
     /// "equal to the damage dealt this way"
     DamageDealt,
+    /// CR 615.5's "that much" / "that many" — the amount the *replaced* event
+    /// carried when a CR 615.5 rider was queued.
+    ///
+    /// Angel of Suffering's "prevent that damage and mill twice that many
+    /// cards": "that many" is the damage that would have been dealt, read
+    /// before the prevention emptied the event. Only a rider has one, so every
+    /// other evaluator refuses it rather than reading a number off the board —
+    /// there is none to read.
+    ///
+    /// Distinct from [`Self::DamageDealt`], which is a resolving spell's
+    /// question about damage it dealt itself.
+    ReplacedAmount,
+    /// "twice that many" — a factor on another amount.
+    ///
+    /// [`Self::Plus`]'s multiplicative twin, and it arrives with the same kind
+    /// of customer: Angel of Suffering is `Multiply(ReplacedAmount, 2)`. Not a
+    /// general `Times(Box, Box)`, because nothing printed multiplies one
+    /// computed amount by another.
+    Multiply(Box<AmountExpr>, u64),
 }
 
 /// Which objects an effect queries or iterates over
@@ -187,6 +206,77 @@ pub enum AffectedSet {
     /// snapshot would be empty for every Aura ever cast. An unattached source
     /// names nothing.
     Host,
+}
+
+impl AffectedSet {
+    /// A set with no objects in it.
+    ///
+    /// Named rather than written as `Fixed(Vec::new())` at a call site, where
+    /// an empty vector reads as an oversight rather than as a claim. Two kinds
+    /// of effect mean it: a replacement effect that is about a **player** and
+    /// no object (Angel of Suffering's "if damage would be dealt to you",
+    /// paired with a [`PlayerSet`]), and a resolution whose targets have all
+    /// left before the row was written.
+    ///
+    /// A constant and **not** an `AffectedSet::Nobody` variant: a new arm would
+    /// have to be classified by all three of this type's readers — the layer
+    /// walk, the restriction sweep and the replacement pipeline — where a
+    /// spelling of an existing value costs them nothing.
+    pub const NO_OBJECTS: AffectedSet = AffectedSet::Fixed(Vec::new());
+}
+
+/// Which **players** a replacement or prevention effect applies to — CR 614.1's
+/// "whatever they're affecting", for the half [`AffectedSet`] cannot name.
+///
+/// **A second field on `ReplacementDef`, not an `AffectedSet` variant.** That
+/// type has three readers — the layer walk's `row_affected`, the restriction
+/// sweep and the replacement pipeline — and a `Player` arm would be a variant
+/// two of the three must reject at every match. The two sets union: an event
+/// about an object asks `AffectedSet`, an event about a player asks this one.
+///
+/// The damage family is what makes it necessary, which is why it lands in
+/// Phase RD-1 rather than with RE's draw cards. Furnace of Rath's "a permanent
+/// **or player**", Circle of Protection's "damage that would be dealt to
+/// **you**" (23 printed), Fog's "all combat damage" — an effect that cannot
+/// scope to a player has no consumers here at all
+/// (`replacement-architecture.md` §9, RD's decision 0).
+///
+/// Resolved against the instance's controller exactly as
+/// [`ObjectFilter::ByController`]'s [`PlayerRef`] is (CR 109.5): "you" is the
+/// source's *current* controller, never a snapshot taken when it entered.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerSet {
+    /// No player at all — every object-scoped effect, and the default.
+    Nobody,
+    /// The effect's controller (CR 109.5).
+    You,
+    /// Everyone else. CR 102.1's "opponent" is every other player: this engine
+    /// has no teams (CR 102.3), so "not you" is the whole answer and stays it
+    /// until it does.
+    Opponents,
+    /// Every player, including the controller — Furnace of Rath, Fog.
+    Everyone,
+    /// A set captured when the effect was created, the way
+    /// [`AffectedSet::Fixed`] captures objects: a resolution filling in the
+    /// player it targeted, or an empty set for a static ability that scopes by
+    /// [`Self::You`] and names no object.
+    Fixed(Vec<PlayerId>),
+}
+
+impl PlayerSet {
+    /// Is `player` in this set, for an effect controlled by `controller`?
+    ///
+    /// Needs no board: every arm is answerable from the two ids, which is what
+    /// keeps this on the data type rather than in the pipeline.
+    pub fn contains(&self, controller: PlayerId, player: PlayerId) -> bool {
+        match self {
+            PlayerSet::Nobody => false,
+            PlayerSet::You => player == controller,
+            PlayerSet::Opponents => player != controller,
+            PlayerSet::Everyone => true,
+            PlayerSet::Fixed(ids) => ids.contains(&player),
+        }
+    }
 }
 
 /// Filter for matching cards (extensible)

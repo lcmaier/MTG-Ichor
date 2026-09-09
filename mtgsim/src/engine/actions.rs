@@ -16,7 +16,7 @@ use crate::ui::decision::DecisionProvider;
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the cause, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DestructionSource, ZoneChangeCause};
+pub use crate::types::zones::{DestructionSource, LifeLossCause, ZoneChangeCause};
 
 /// Who is asking for a mutation, and what resolution it belongs to.
 ///
@@ -101,10 +101,23 @@ pub enum GameAction {
         source: ObjectId,
     },
 
-    /// A player loses life (not from damage).
+    /// A player loses life.
+    ///
+    /// **Including from damage, from RD-1 on.** CR 120.3a makes life loss one
+    /// of damage's *results* — "damage dealt to a player causes that player to
+    /// lose that much life" — so `DealDamage`'s performer proposes one of
+    /// these, contained in the damage's batch the way lifelink's gain is. That
+    /// is what lets an RE-era Bloodletter of Aclazotz double the loss while a
+    /// shield that already applied to the damage does not apply again (§3.2d
+    /// containment, `replacement-architecture.md` §9 RD decision 4).
+    ///
+    /// `cause` is the fact that decomposition would otherwise destroy — see
+    /// [`LifeLossCause`]. There is no catchall arm, for the reason
+    /// [`ZoneChangeCause`] has none.
     LoseLife {
         player: PlayerId,
         amount: u64,
+        cause: LifeLossCause,
     },
 
     /// Move an object from one zone to another.
@@ -239,6 +252,60 @@ pub enum GameAction {
     // Exile { object: ObjectId },
     // CreateTokens { defs: Vec<TokenDef>, controller: PlayerId },
     // etc.
+}
+
+/// Which of CR 120.3's results a damage event has, read off the target.
+///
+/// > 120.3. Damage dealt to a permanent or player has one or more of the
+/// > following results, depending on ...
+///
+/// A struct rather than an `if` chain because "one or more" is the rule's own
+/// word: a creature planeswalker takes 120.3c **and** 120.3e, and an `else`
+/// anywhere in the arm would silently make it take one. One
+/// `compute_characteristics` call answers both questions — the target's
+/// *effective* types, so March of the Machines' animated artifact takes marked
+/// damage and Gideon does not stop being a planeswalker.
+///
+/// The four absent results are named in the arm that reads this; each is one
+/// more field here and one more block there.
+#[derive(Debug, Clone, Copy)]
+struct DamageResults {
+    /// CR 120.3e.
+    mark_damage: bool,
+    /// CR 120.3a.
+    lose_life: bool,
+    /// CR 120.3c.
+    remove_loyalty: bool,
+}
+
+impl DamageResults {
+    /// A player takes exactly one of the eight results today (CR 120.3a);
+    /// 120.3b and 120.3g will add poison beside it.
+    const PLAYER: Self = DamageResults {
+        mark_damage: false,
+        lose_life: true,
+        remove_loyalty: false,
+    };
+
+    /// The results damage to `id` has, read off its **effective** types.
+    fn for_object(game: &GameState, id: ObjectId) -> Self {
+        use crate::types::card_types::CardType;
+        // One walk, two questions, and no clone of the type set: this runs on
+        // every damage event, and combat is where damage lives.
+        let (creature, planeswalker) = crate::engine::layers::compute_characteristics(game, id)
+            .map(|chars| {
+                (
+                    chars.types.contains(&CardType::Creature),
+                    chars.types.contains(&CardType::Planeswalker),
+                )
+            })
+            .unwrap_or((false, false));
+        DamageResults {
+            mark_damage: creature,
+            lose_life: false,
+            remove_loyalty: planeswalker,
+        }
+    }
 }
 
 impl GameState {
@@ -472,26 +539,33 @@ impl GameState {
     ///
     /// Its `ResolutionContext` names the event's subject as the single resolved
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
-    /// permanent the replacement was about and one written with
-    /// `EffectRecipient::Controller` acts for that permanent's controller. The
+    /// object *or the player* the replacement was about and one written with
+    /// `EffectRecipient::Controller` acts for the effect's own controller. The
     /// actions it proposes re-enter the pipeline with a **fresh** applied set —
     /// a rider's actions are new events the replacement caused, not modified
     /// forms of the original (§3.2d containment).
+    ///
+    /// A player subject becomes a `ResolvedTarget::Player` rather than being
+    /// flattened away: Angel of Suffering's "prevent that damage and mill twice
+    /// that many cards" mills the player the damage was aimed at, and until
+    /// RD-1 the rider had no way to name one (`codebase-state.md` item 27).
     fn resolve_rider(
         &mut self,
         rider: crate::engine::replacement::Rider,
         ctx: &ActionContext,
     ) -> Result<(), String> {
+        use crate::engine::replacement::EventSubject;
         use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 
         let rctx = ResolutionContext {
             source: rider.source,
             ability_source: None,
             controller: rider.controller,
-            targets: rider
-                .subject
-                .map(|id| vec![ResolvedTarget::Object(id)])
-                .unwrap_or_default(),
+            targets: vec![match rider.subject {
+                EventSubject::Object(id) => ResolvedTarget::Object(id),
+                EventSubject::Player(pid) => ResolvedTarget::Player(pid),
+            }],
+            replaced_amount: rider.replaced_amount,
         };
         self.resolve_effect(&rider.effect, &rctx, ctx.dp)
     }
@@ -552,19 +626,41 @@ impl GameState {
                 // reaches the CR 616.1 loop is one a prevention effect applies
                 // to. `replacement::never_happens` owns the rule, ahead of the
                 // pipeline, and this function's only caller runs it.
-                match &target {
+                //
+                // **CR 120.3 is a list of results, and this arm is that list.**
+                // "Damage dealt ... has one or more of the following results" —
+                // so each result is decided independently off the target's own
+                // type, and a creature planeswalker gets 120.3c *and* 120.3e
+                // rather than whichever arm ran first. Two of the eight are
+                // here; 120.3e and 120.3f were already. The four that are
+                // absent each have an owner and a dated Deferred Migrations
+                // line: 120.3b and 120.3g (poison, from infect and toxic) and
+                // 120.3d (wither's and infect's -1/-1 counters) are
+                // `backlog.md` §2.6's and land as one more arm apiece off the
+                // *source's* keywords; 120.3h (a battle's defense counters) is
+                // §2.23's and needs the card type first.
+                let results = match &target {
                     DamageTarget::Object(id) => {
-                        if let Some(entry) = self.battlefield.get_mut(id) {
-                            entry.damage_marked += amount as u32;
-                        } else {
+                        if !self.battlefield.contains_key(id) {
                             return Err(format!(
                                 "Target object {} not on battlefield", id
                             ));
                         }
+                        DamageResults::for_object(self, *id)
                     }
-                    DamageTarget::Player(pid) => {
-                        let player = self.get_player_mut(*pid)?;
-                        player.life_total -= amount as i64;
+                    DamageTarget::Player(_) => DamageResults::PLAYER,
+                };
+
+                // > 120.3e Damage dealt to a creature ... causes that much
+                // > damage to be marked on that creature.
+                //
+                // Gated on the type from RD-1 on: an object that is neither a
+                // creature nor a planeswalker takes no result at all, and
+                // marking damage on it was bookkeeping the CR does not have.
+                if results.mark_damage {
+                    if let DamageTarget::Object(id) = &target {
+                        self.battlefield.get_mut(id).expect("membership checked")
+                            .damage_marked += amount as u32;
                     }
                 }
 
@@ -596,15 +692,56 @@ impl GameState {
                     amount,
                 });
 
-                // Emit LifeChanged for player damage
-                if let DamageTarget::Player(pid) = &target {
-                    let new_life = self.get_player(*pid)?.life_total;
-                    self.events.emit(GameEvent::LifeChanged {
-                        player_id: *pid,
-                        old: new_life + amount as i64,
-                        new: new_life,
-                        source: Some(source),
-                    });
+                // > 120.3a Damage dealt to a player causes that player to lose
+                // > that much life.
+                //
+                // **A contained proposal, not a subtraction**, and it joins
+                // this damage's batch exactly as lifelink's gain does
+                // (CR 120.4c/d): a CR 603.2c trigger sees one event, and the
+                // loss re-enters `apply_replacements` with a *fresh* applied
+                // set (§3.2d containment) so an RE-era Bloodletter can double
+                // it while a shield that already applied to the damage does
+                // not apply again. Nothing can prevent it — a prevention
+                // effect is one whose rewrite prevents on
+                // `EventPattern::DealDamage`, and `LoseLife` has no pattern arm
+                // at all, so Ali from Cairo's family is unwritable rather than
+                // wrongly answered.
+                //
+                // After the `DamageDealt` emit, which is where the life change
+                // already sat: the loss's own performer emits `LifeChanged`,
+                // and `LifeLossCause::Damage` is what keeps `source` on it.
+                if results.lose_life {
+                    if let DamageTarget::Player(pid) = &target {
+                        self.execute_action(
+                            GameAction::LoseLife {
+                                player: *pid,
+                                amount,
+                                cause: LifeLossCause::Damage { source },
+                            },
+                            _ctx,
+                        )?;
+                    }
+                }
+
+                // > 120.3c Damage dealt to a planeswalker causes that many
+                // > loyalty counters to be removed from that planeswalker.
+                //
+                // A proposal for the same reason: CR 614.16's counter doublers
+                // replace "counters would be put on", and a removal a card
+                // watches is the mirror of one. `n` is a ceiling —
+                // `PermanentState::remove_counters` reports what it took — and
+                // CR 704.5i does the killing.
+                if results.remove_loyalty {
+                    if let DamageTarget::Object(id) = &target {
+                        self.execute_action(
+                            GameAction::RemoveCounters {
+                                object: *id,
+                                counter: CounterType::Loyalty,
+                                n: amount as u32,
+                            },
+                            _ctx,
+                        )?;
+                    }
                 }
 
                 Ok(())
@@ -637,7 +774,7 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::LoseLife { player, amount } => {
+            GameAction::LoseLife { player, amount, cause } => {
                 // Stays here, unlike `GainLife`'s: CR 119.10 is written about
                 // life *gain* only, and no rule makes a 0 life loss a
                 // non-event. A local no-op guard, not CR 614.7a.
@@ -653,7 +790,13 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
-                    source: None,
+                    // CR 120.3a's loss names the damage's source, which is what
+                    // keeps the log line unchanged now that damage to a player
+                    // reaches life through here rather than around it.
+                    source: match cause {
+                        LifeLossCause::Damage { source } => Some(source),
+                        LifeLossCause::Effect | LifeLossCause::Cost => None,
+                    },
                 });
 
                 Ok(())
@@ -1091,6 +1234,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
+            cause: LifeLossCause::Cost,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 17);
@@ -1401,6 +1545,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
+            cause: LifeLossCause::Cost,
         }, &test_ctx()).unwrap();
 
         let life_events: Vec<_> = game.events.events().filter_map(|e| {

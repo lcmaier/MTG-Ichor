@@ -3900,7 +3900,7 @@ engine-can-play-it`). The counts are call sites read from the tree on
 2026-09-08; the line predictions are calibrated against CM-1 (+2,219 / 42
 files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 
-#### RD-1 — the damage event's two subjects and its results
+#### RD-1 — the damage event's two subjects and its results — ✅ landed 2026-09-08
 
 **Builds:** decisions 0, 4, 5, decision 1's `Multiplier`, `Halve` and
 `PreventHalf` with `Rounding` (`Plus` waits for Torbran in RD-3, since an arm
@@ -3972,6 +3972,59 @@ should measure. Loyalty Probe is registered and not pooled; `--require
 **Atoms:** `ATOM-701.10g-001`, `ATOM-614.5-001`,
 `COMP-614-616-DOUBLE-REPLACEMENT-001`, `COMP-614-DAMAGE-ORDERING-001` (Phase
 6), `ATOM-120.3c-001` (filed Phase 8 — covered where it is, not re-filed).
+
+##### As landed
+
+Six commits, ~1,950 lines, inside the band and near the prediction (~1,500–1,700
+was low by the card file's doc comments, which carry the rulings pass). Every
+decision above shipped as designed; three things are worth recording because
+they were decided in the writing rather than in the design check.
+
+- **`COMP-614-DAMAGE-ORDERING-001` is `COVERS-PARTIAL`, not `COVERS`.** The
+  atom's non-commuting pair is written as "plus 1" and "double", and
+  `AmountRewrite::Plus` has no printed consumer until Torbran in RD-3 — so the
+  registered board is halve-and-double instead. Everything the atom asserts
+  about the *choice* is proved (it is presented, both orderings are correct and
+  different, each effect applies once); the specific numbers 3→4→8 and 3→6→7
+  are not reachable, and the test says so. `ATOM-614.5-001` did move from
+  partial to full, on two printed Furnaces.
+- **CR 120.3e is now gated on the target being a creature.** Not in the design
+  check, and it falls straight out of writing 120.3 as a list of results: the
+  performer marked damage on any battlefield object, which is bookkeeping the
+  rule does not have. Unreachable from the pool — `SelectionFilter::Any` offers
+  only creatures, planeswalkers and players — and pinned by a test, because the
+  wither and infect arms land right beside it.
+- **`DamageResults` is a struct of flags, not an `if`/`else` chain**, because
+  "one or more of the following results" is CR 120.3's own phrase and a
+  creature planeswalker takes 120.3c *and* 120.3e. One
+  `compute_characteristics` call answers both questions.
+
+**Measured** (`plans/fuzz_ab.py`, three arms against a same-day `main`
+worktree, 200 games at seed 12345, both pools; `engineering-practices.md` §3's
+table re-recorded at 50). The middle arm's prediction held exactly:
+
+| | prediction | measured (`performance`) |
+|---|---|---|
+| `Replacement gathers` | +1 per player-target damage event, nothing else | **516 → 528** (+12.0/game), and `Restriction queries` +12.0 with it — one of each per contained `LoseLife` |
+| `Layer walks` | flat | **377 → 377**. `DamageResults`' type read is a memo hit every time: `Memo hits` +59/game and nothing else |
+| gameplay counters | identical | identical — turns, spells, damage events, total damage, life changes all unchanged |
+| CPU/game | flat | +0.8%, inside the ~2–6% spread |
+
+The whole middle-arm diff against `main` is six lines: the three timing lines,
+`Memo hits`, `Replacement gathers` and `Restriction queries`. No fourth binary
+was needed.
+
+**The shipped arm is the pool change and reads as one**: CPU/game **−6.4%**,
+avg turns 31.0 → 29.7, total damage up — a doubler in every red deck ends games
+sooner. Determinism: `tests/determinism_test.rs` green, and three shell
+`fuzz_games` runs at one seed identical line for line outside `=== Timing ===`.
+
+**Reachability.** Loyalty Probe, forced: cast 206, resolved 204, in 133 of 200
+`stress` games (66%), 1.49 copies/deck. Unforced, **CR 704.5i fires 4 times in
+400 `stress` games** — three Probes bolted to zero, and one Merfolk
+Thaumaturgist that Cytoshape turned into a copy of a Probe and which died on
+the spot, because CR 707.2 does not copy counters. That SBA had measured 0 at
+every game count since it was written, and the second route was not predicted.
 
 #### RD-2 — CR 615.7 prevention shields, and the loop's unit
 
@@ -4911,7 +4964,9 @@ against the tree. §9's RD section carries the decisions; these are the facts
 that fell out of making them, recorded here so they outlive the section that
 found them.
 
-21. **Player scoping is RD's, and `types/replacement.rs` says RE.** The
+21. **Player scoping is RD's, and `types/replacement.rs` says RE.** *Closed by
+    RD-1 (2026-09-08): `ReplacementDef.affected_players: PlayerSet` shipped,
+    `set_affects` unions the two sets, and both comments are corrected.* The
     module doc and `gather::set_affects` both record that an effect applying to
     a *player* waits for RE's draw cards. The damage family is where the
     pressure actually is — 23 "prevent all damage that would be dealt to you",
@@ -4924,7 +4979,9 @@ found them.
     reads as history from here.
 
 22. **`consume_use` runs before `apply_rewrite`, and three rules need it
-    after.** CR 609.7b ("if for any reason the shield prevents no damage or
+    after.** *Still open after RD-1, and correctly: RD-1 ships no `Uses::Once`
+    damage effect and no arm whose application can do nothing, so the order is
+    unobservable until RD-2's shields.* CR 609.7b ("if for any reason the shield prevents no damage or
     replaces no damage, the shield isn't used up"), CR 614.9 (a redirect whose
     destination is gone "does nothing"; `ATOM-614.9-001` says the shield is
     not spent) and CR 615.12 (an unpreventable event reduces no shield). Every
@@ -4960,7 +5017,10 @@ found them.
     pooled amount, and it waits only on `AmountExpr::Variable`.
 
 24. **§11 item 15 is answered: decisions are per `(batch, subject)`, rewrites
-    per member, and CR 615.7's allocation is the one non-uniform rewrite.** The
+    per member, and CR 615.7's allocation is the one non-uniform rewrite.**
+    *Unbuilt after RD-1 and unreachable there: the phase's four cards are all
+    `Uses::Static` and member-uniform, so per-member and per-subject give the
+    same answer on every board RD-1 can build. RD-2 builds it.* The
     table in §9's RD section checks the rule against every ruling the batch
     has had to satisfy — Kalitas's N Zombies, CR 122.1c's one counter under two
     blockers, 614.5's ×4, 615.10's "separately to … events that would happen
@@ -4971,7 +5031,10 @@ found them.
 
 25. **"Unpreventable" is a property of the event, `is_prevention` is derived,
     and `cant-effects-architecture.md` §4.7's `ReplacementKind` is
-    superseded.** CR 615.12 has three printed shapes: a resolution's
+    superseded.** *Unchanged by RD-1, which ships neither the flag nor the
+    consult: `AmountRewrite::PreventHalf` applies unconditionally there, and
+    Ghosts of the Innocent's Excruciator ruling is RD-4's for exactly that
+    reason. `AmountRewrite::prevented()` is the reporting half, and it shipped.* CR 615.12 has three printed shapes: a resolution's
     restriction with a duration ("damage can't be prevented this turn", 11
     instants — a registry row), a static ability's restriction ("damage can't
     be prevented" on Leyline of Punishment and Everlasting Torment — swept off
@@ -5003,7 +5066,10 @@ found them.
     status is not misread as an omission.
 
 27. **CR 120.3 has eight results, RD ships two of them, and the other four
-    have an owner each as of today.** 120.3a (life loss) and 120.3c (loyalty)
+    have an owner each as of today.** *Closed by RD-1 (2026-09-08), with one
+    addition the sizing did not name: 120.3e is now gated on the target being a
+    creature, because writing the arm as a list of results made the ungated
+    marking visible as bookkeeping the rule does not have.* 120.3a (life loss) and 120.3c (loyalty)
     are RD-1's. 120.3b and 120.3g (poison — infect and toxic) and 120.3d
     (wither's and infect's counters) have no keyword flag behind them and are
     `backlog.md` §2.6's, which now names the three keywords, their results,
@@ -5031,6 +5097,69 @@ found them.
     prevented. `Multiplier`'s inverse is therefore not a `Divide(n)`: nothing
     printed divides by anything but two, and a general divisor would be an
     arm with no second customer.
+
+### Found by the RD-1 review (2026-09-08)
+
+29. **Two Furnaces prompt, and multiplication commutes — so §11 item 19's
+    suppression theorem has a second candidate, and it is narrower than "N
+    identical effects".** Asked on review: is a bucket of N identical effects
+    that ask the player nothing always order-invariant, so CR 616.1's prompt is
+    noise? For *triggers* the answer is trivially yes — they go on the stack in
+    one APNAP pass and their relative order is fixed at that moment. For
+    **replacement effects it is not**, and the reason is the one the reviewer
+    reached unprompted: CR 616.1f re-gathers after every application, so the
+    bucket is re-formed between members and "the other members" is not a fixed
+    set. That is exactly the premise `order_invariant_entry_bucket` spends its
+    longest clause on.
+
+    **What is provable is narrower and still worth having.** A bucket every
+    member of which is `Amount(Multiplier(n))` is order-invariant: multiplication
+    over `u64` is commutative and associative (saturating included, since
+    saturation is monotone), and no multiplier can remove another's
+    applicability — an amount above 0 stays above 0 under any `n ≥ 1`, so
+    `never_happens` cannot fire between members, and `EventPattern::DealDamage`
+    carries no amount predicate for a member to fall out of. Two Furnaces are
+    that bucket, and the prompt in `two_furnaces_multiply_by_four_and_ask_once`
+    is noise a human player would resent.
+
+    **What breaks the moment the bucket is mixed** is the phase's own headline
+    board: `Halve` beside `Multiplier` does not commute (3 → 1 → 2 or 3 → 6 → 3),
+    which is `COMP-614-DAMAGE-ORDERING-001`. So the clause cannot be "all
+    members are `Amount`"; it has to be "all members are `Amount(Multiplier)`",
+    and `PreventHalf` and `Plus` each need their own argument if they ever want
+    one. `Plus` beside `Plus` commutes; `Plus` beside `Multiplier` does not.
+
+    **Is it worth it?** The cost is one more clause on a
+    semantics-assuming shortcut that already carries expiry conditions
+    (`layers-architecture.md` §12 item 3), plus a `check_order_invariance`
+    arm — and the clause goes false the day an `EventPattern` field reads the
+    amount, or a `Multiplier(0)` is printed, or `Uses::NextDamage` makes a
+    member spendable mid-bucket. **The verdict is: not RD-1's, and RD-2 decides
+    it**, because RD-2 changes the loop's unit and the suppression predicate is
+    read at exactly the site it changes. Deciding it earlier would mean writing
+    the clause twice.
+
+30. **A test that asserts "nothing happened" cannot say *why* nothing
+    happened, and the trace sink is the instrument.** Raised against Ghosts of
+    the Innocent's "half of 1 rounded down is 0, so a source that would deal 1
+    damage won't deal damage at all": the test asserts 0 damage marked and no
+    `DamageDealt` event, and neither distinguishes "Ghosts halved 1 to 0 and
+    CR 614.7a dropped the emptied proposal" from "the damage never reached the
+    pipeline". **The differential closes most of it** and was added — the same
+    1 damage without Ghosts marks 1, and 2 damage with Ghosts marks 1, so the
+    instance demonstrably applies on that board — but the *rule* that dropped
+    the event is still not observable, and no assertion available today makes
+    it so.
+
+    That is a general property of `Rewrite::Prevent` and of every arm that can
+    empty an event, so it is the trace sink's case rather than this test's, and
+    the sink is already scheduled as its own PR (`roadmap-v2.md` A4c, moved out
+    of A6 on 2026-09-08 and now after CM-4). **Nothing about RD moves it
+    earlier**: the differential is available on every board RD can build, and
+    RD-2's boards — a shield that prevents 0 without being spent — are where
+    the argument for the sink actually gets stronger, since "nothing was
+    consumed" has no event at all. Re-ask at RD-2's close, alongside the trace
+    *page* decision §9 already schedules there.
 
 ## 12. Explicitly out of scope
 

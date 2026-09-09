@@ -246,7 +246,35 @@ authored beside the cards that need them, the pool growing one card per new
 engine path (`engineering-practices.md` §3), and the deferred Scryfall import
 pipeline earning its slot when authoring speed binds. **Gates at its start:**
 A3 (no dependency-ordering-sensitive cards before it), B4 (no reveal or
-face-down cards before it), B6's CV-7. Milestone: **core-rules-complete** (§6).
+face-down cards before it), B6's CV-7, and **C0 below, which is the phase's
+first PR**. Milestone: **core-rules-complete** (§6).
+
+**C0 — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
+Card definitions live in files named after the *engine phase* that first needed
+them, and the static-`AbilityDef` shape is written out 31 times because there is
+no shared helper a card file may use (`test_support` is a test-only crate
+feature). Measured the same day: 98 registered names, **97 real cards or
+tokens** and one deliberate fixture; 29 more card functions defined and
+registered nowhere. Phase 8 multiplies all of it. So one PR before the first
+breadth card: a `cards::helpers` module for the ability constructors, the
+printings re-filed **by first printing, one file per set**, and the fixtures
+into `cards::fixtures`, which stays inside `src` because a registered fixture
+must be reachable from `registry.rs`. Nothing behavioral changes and tests
+change one `use` line each, which is the reason it must not ride along with a
+phase that does change behavior.
+
+**Set filing is chosen on the marginal cost of the next card, not on today's
+tidiness** (this row briefly said the opposite): a new set is a new file and no
+existing file is touched, where any name-sharded layout is edited everywhere on
+every release and eventually needs a rebalance that renames files and breaks
+every import. It is also the shape the deferred import pipeline emits, since
+that is how Scryfall's bulk data is organized — so generated and hand-written
+cards land in the same place rather than in two schemes. Keyed on first
+printing the existing 97 fall into 46 sets with `lea` holding 31 — the figure
+that argued against set filing, 62, was measured on whichever printing Scryfall
+returned rather than the earliest.
+`codebase-state.md` "Before card breadth" item 10 carries the plan, the
+classification and the numbers; `plans/references/classify_cards.py` re-runs it.
 
 ### D. Phase 9 — formats and multiplayer (230 atoms)
 
@@ -403,10 +431,14 @@ the audit workstream ran low, and RB ran to +5,475 because nobody counted.
 | Commander interleave | §2.1 ×2, `commander()`, CR 903.7, CR 800/802 | ~4 |
 | The lattice | §4's table | 10–13 |
 | **To "breadth unconstrained"** | | **~35–40** |
+| Phase 8's gate | **C0** — the card layer, re-filed by set, plus `cards::helpers` (§C) | 1 |
 
 After that, Phase 8's 643 atoms are throughput, not architecture — every card
 a normal diff — and the bottleneck moves to card-authoring speed, which is
-when the deferred Scryfall import pipeline earns its slot.
+when the deferred Scryfall import pipeline earns its slot. **C0 is that
+phase's first PR** and is the only one of these that buys no rule: it is
+mechanical, and its whole argument is that the same move costs an order of
+magnitude more once breadth has multiplied the files it touches.
 
 ---
 

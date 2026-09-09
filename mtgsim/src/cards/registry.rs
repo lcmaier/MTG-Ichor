@@ -18,6 +18,7 @@ use super::phase_lf_cards;
 use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
+use super::phase_rd_cards;
 use super::phase_cv_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
@@ -46,7 +47,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 73] = [
+const PERFORMANCE_POOL: [&str; 74] = [
     "Plains",
     "Island",
     "Swamp",
@@ -213,6 +214,23 @@ const PERFORMANCE_POOL: [&str; 73] = [
     // open the path Thalia already opens, and the Ironworks pair's window is
     // CM-4's to measure once the window stops closing early.
     "Bone Splinters",
+    // RD-1 — the pool's first static ability that watches a *damage* event, so
+    // the first card that opens the gather sweep on something combat proposes
+    // several times a turn rather than once per entry. It is also the pool's
+    // first `Rewrite::Amount` and its first effect scoped to a **player**.
+    //
+    // Not legendary and mono-red at four mana, which is the point: CR 614.5's
+    // own example is two of these multiplying damage by 4, and the branch had
+    // never been reachable from a registered board — `ATOM-614.5-001` had a
+    // passing test the whole time, built on a fixture
+    // (`engineering-practices.md` §3.3, tier 1).
+    //
+    // Ghosts of the Innocent, Gisela and Angel of Suffering stay out: Ghosts
+    // opens the same path as Furnace at seven mana, Gisela is {4}{R}{W}{W} and
+    // legendary, and Angel of Suffering's mill would make every measured game
+    // bigger for coverage the stress pool already has. Loyalty Probe stays out
+    // as a fixture; its reachability is a `--require` row instead.
+    "Furnace of Rath",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -469,6 +487,28 @@ impl CardRegistry {
         registry.register("Krark-Clan Ironworks", phase_cm_cards::krark_clan_ironworks);
         registry.register("Foundry Inspector", phase_cm_cards::foundry_inspector);
         registry.register("Mind Stone", phase_cm_cards::mind_stone);
+
+        // RD-1 — the damage event's two subjects and its results. Four printed
+        // cards on two axes: which subject an effect is about, and what it does
+        // to the amount. Furnace of Rath is pooled; the other three are the
+        // stress pool's breadth — Ghosts of the Innocent is the halving arm and
+        // the non-commuting board beside Furnace, Gisela carries a `PlayerSet`
+        // twice on one card with both rounding directions, and Angel of
+        // Suffering is the only prevention here and the only rider that rides
+        // on a player subject.
+        registry.register("Furnace of Rath", phase_rd_cards::furnace_of_rath);
+        registry.register("Ghosts of the Innocent", phase_rd_cards::ghosts_of_the_innocent);
+        registry.register(
+            "Gisela, Blade of Goldnight",
+            phase_rd_cards::gisela_blade_of_goldnight,
+        );
+        registry.register("Angel of Suffering", phase_rd_cards::angel_of_suffering);
+        // The CR 120.3c fixture, on the `graveyard_probe` convention: a
+        // planeswalker with printed loyalty 3 and no abilities, because a
+        // printed one would be a real name wearing three dead abilities.
+        // Registered so a random agent's Lightning Bolt can find it — which is
+        // what makes CR 704.5i reachable from a game — and pooled nowhere.
+        registry.register("Loyalty Probe", phase_rd_cards::loyalty_probe);
 
         registry
     }

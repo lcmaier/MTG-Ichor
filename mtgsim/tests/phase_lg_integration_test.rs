@@ -52,6 +52,7 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         ability_source: None,
         controller: thief,
         targets: vec![ResolvedTarget::Object(victim)],
+        replaced_amount: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp())
         .expect("Act of Treason resolves");
@@ -81,6 +82,7 @@ fn gain_control(
         ability_source: None,
         controller: thief,
         targets: vec![ResolvedTarget::Object(target)],
+        replaced_amount: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp())
         .expect("GainControl resolves");

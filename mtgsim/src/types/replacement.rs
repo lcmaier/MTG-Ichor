@@ -24,19 +24,20 @@
 //! - [`Rewrite`] is a **closed algebra**. CR 614 and 615 enumerate what a
 //!   replacement effect may do to an event and the list is short; a new arm
 //!   is a claim that those rules permit an operation the list omits, and it
-//!   should arrive with the rule number that says so. It ships **five** —
-//!   `Prevent`, `Instead`, `EnterWith`, `EnterUnderControlOf` and
-//!   `EnterAfterMoving` — still not §3.2's five plus one: an arm the pipeline
-//!   cannot apply is worse than a missing one. `EnterWith` gained its performer
-//!   in Phase RC-2, `EnterUnderControlOf` its CR 616.1b bucket in RC-4, and
-//!   `EnterAfterMoving` arrived in RC-5 with CR 614.13, the sentence that
-//!   permits an entry modification to move other objects.
+//!   should arrive with the rule number that says so. It ships **six** —
+//!   `Prevent`, `Instead`, `EnterWith`, `EnterUnderControlOf`,
+//!   `EnterAfterMoving` and `Amount` — still not §3.2's six: an arm the
+//!   pipeline cannot apply is worse than a missing one, and `Retarget` waits
+//!   for RD-4. `EnterWith` gained its performer in Phase RC-2,
+//!   `EnterUnderControlOf` its CR 616.1b bucket in RC-4, `EnterAfterMoving`
+//!   arrived in RC-5 with CR 614.13, and `Amount` in RD-1 with CR 701.10g's
+//!   doublers and CR 615.10's partial prevention.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef,
+    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet,
 };
 use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
@@ -64,6 +65,19 @@ pub struct ReplacementDef {
     /// it)". If a future refactor collapses those variants, 614.12 breaks
     /// silently (`replacement-architecture.md` §11 item 2).
     pub affected: AffectedSet,
+
+    /// Which **players** it applies to — the other half of CR 614.1's
+    /// "whatever they're affecting", unioned with [`Self::affected`].
+    ///
+    /// A second field rather than an `AffectedSet` variant, for the reason
+    /// [`PlayerSet`]'s own docs give. Furnace of Rath is `Filter { All }` plus
+    /// `Everyone`, because "a permanent **or player**" is genuinely both
+    /// questions; Angel of Suffering is `Fixed(vec![])` plus `You`, an effect
+    /// about no object at all.
+    ///
+    /// [`PlayerSet::Nobody`] on every effect written before Phase RD, which is
+    /// what [`ReplacementDef::new`] gives it.
+    pub affected_players: PlayerSet,
 
     /// How it rewrites a matching event.
     pub rewrite: Rewrite,
@@ -149,18 +163,18 @@ pub struct ReplacementDef {
 /// one place the projection is not 1:1, and that arm's own doc says so.
 ///
 /// The three with no arm at all are `DrawCard`, `GainLife`
-/// and `LoseLife`. Each affects a **player**, and `AffectedSet` names only
-/// objects — so an arm for one of them would have no scoping mechanism, would
-/// match every player's draw, and would then be rejected by an `affected` check
-/// that no object-shaped set can pass. That is a card that silently does
-/// nothing, which is the failure mode this tree refuses at the door.
+/// and `LoseLife`. They land in Phase RE, which is where
+/// `replacement-architecture.md` §9 schedules draw replacement (CR 614.11) and
+/// life-gain replacement (CR 119.10) anyway. Adding an arm is a normal diff —
+/// this enum is matched exhaustively and is not `#[non_exhaustive]`, so every
+/// reader fails to compile rather than defaulting.
 ///
-/// They land in Phase RE, which is where `replacement-architecture.md` §9
-/// schedules draw replacement (CR 614.11) and life-gain replacement (CR 119.10)
-/// anyway, and they land *with* the player-scoping mechanism CR 614.1's
-/// "whatever they're affecting" needs for a player. Adding an arm is a normal
-/// diff — this enum is matched exhaustively and is not `#[non_exhaustive]`, so
-/// every reader fails to compile rather than defaulting.
+/// **Until RD-1 the reason given here was that no set could scope one to a
+/// player, and that reason is gone.** [`ReplacementDef::affected_players`]
+/// scopes an effect to a player, because the damage family needed it first
+/// (§9's RD decision 0, §11 item 21). What is left is that no registered card
+/// wants one yet — which is the ordinary "an arm the pipeline cannot apply is
+/// worse than a missing one", not a missing mechanism.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPattern {
     /// CR 614.2 / 615.1. The event's subject is the damage *target*.
@@ -304,17 +318,16 @@ impl DestructionSourcePattern {
 /// | `Instead` | 614.1a | **RB** |
 /// | `EnterWith(..)` | 614.1c/d | **RC-2** |
 /// | `EnterUnderControlOf(..)` | 616.1b, 614.1c | **RC-4** |
-/// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention | RD/RE |
+/// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention | **RD-1** |
 /// | `Retarget(..)` | 614.9 redirection, 616.1b | RD |
 ///
-/// The last two are absent from the enum rather than present and
-/// unimplemented, because an arm the pipeline cannot apply is a card that
-/// silently does nothing. They are *features* on the codebase's own triage —
-/// a normal diff whenever they land, with no fact lost by waiting. What each
-/// one is *for* is recorded here so the reason it is not `Instead` survives:
-/// `Amount` has to compose (two doublers turn 2 damage into 8, "not just 4")
-/// and `Retarget` has to survive CR 614.9's destination re-check at
-/// application time.
+/// `Retarget` is absent from the enum rather than present and unimplemented,
+/// because an arm the pipeline cannot apply is a card that silently does
+/// nothing. It is a *feature* on the codebase's own triage — a normal diff
+/// whenever it lands in RD-4, with no fact lost by waiting — and what it is
+/// *for* is recorded here so the reason it is not `Instead` survives: it has to
+/// survive CR 614.9's destination re-check at application time. `Amount`'s
+/// half of that argument moved onto the arm itself when RD-1 built it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rewrite {
     /// CR 614.6 / 615.6 — the event does not happen.
@@ -412,6 +425,108 @@ pub enum Rewrite {
     /// the controller is a field of the *event* rather than of what the
     /// permanent arrives with, so `EnterMods::merge` has nothing to merge.
     EnterUnderControlOf(PlayerRef),
+
+    /// CR 614.5's doublers and CR 615.10's partial prevention — change the
+    /// event's *amount* and nothing else.
+    ///
+    /// **Not an `Instead` carrying `DealDamage { amount: f(N) }`, and the
+    /// reason is composition.** Furnace of Rath's printed ruling — prevent 4
+    /// then double the remaining 1, or double to 10 then prevent 4 — is
+    /// CR 616.1's ordering choice made observable only because each application
+    /// reads the amount the previous one left. An `Amount` arm does that by
+    /// construction; an `Instead` template does it only if it happens to read
+    /// the right field, and the tree would then have two ways to spell one
+    /// piece of arithmetic (`replacement-architecture.md` §9, RD decision 1).
+    ///
+    /// [`Rewrite::Prevent`] stays separate from the prevention arms here:
+    /// "prevent that damage" (CR 615.6, the whole event never happens) and
+    /// "prevent 3 of that damage" (a smaller event survives for the next
+    /// iteration to see) are different claims. A prevention arm that empties
+    /// the event leaves a 0-damage proposal, which `never_happens` drops on the
+    /// next iteration (CR 614.7a), so the two routes agree on the board and
+    /// differ only in what they assert.
+    Amount(AmountRewrite),
+}
+
+/// CR 107.1a — which way a halving rounds.
+///
+/// > If a spell or ability could generate a fractional number, the spell or
+/// > ability will tell you whether to round up or down.
+///
+/// So it is **authored, never inferred**, and this type has no `Default`:
+/// Ghosts of the Innocent rounds down, Gisela rounds up and Dark Sphere rounds
+/// down, each saying so in its own text. The same doctrine as `Duration` on
+/// `Primitive::Restrict` — a wrong default here is a rules bug wearing a style
+/// choice's clothes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rounding {
+    Up,
+    Down,
+}
+
+impl Rounding {
+    /// Half of `n`, rounded this way.
+    pub fn half(self, n: u64) -> u64 {
+        match self {
+            Rounding::Down => n / 2,
+            Rounding::Up => n / 2 + n % 2,
+        }
+    }
+}
+
+/// What a [`Rewrite::Amount`] does to the amount it found.
+///
+/// **Every arm ships with a printed customer in the PR that lands it**, which
+/// is the closed algebra's rule applied one level down: RD-1 has
+/// [`Self::Multiplier`] (Furnace of Rath, CR 701.10g), [`Self::Halve`] (Ghosts
+/// of the Innocent) and [`Self::PreventHalf`] (Gisela, Blade of Goldnight).
+/// `Plus` waits for Torbran in RD-3; `PreventUpTo` and `PreventRemaining` wait
+/// for RD-2's shields, which is also where the prevented amount gets a reader.
+///
+/// **Halving and prevention-halving are two arms, not one with a flag**, and
+/// CR 615.12 is why. Ghosts of the Innocent "isn't a damage prevention effect"
+/// and still halves Excruciator's unpreventable 7 to 3; Gisela prevents none of
+/// it. Only the prevention arms report a prevented amount, and only they answer
+/// to CR 615.12's consult (RD-4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AmountRewrite {
+    /// "deals double that damage ... instead" — CR 701.10g. Not `Times`, which
+    /// reads as a count of occurrences rather than as a factor.
+    Multiplier(u64),
+    /// "deals half that damage, rounded down, ... instead" — the doubler's
+    /// printed inverse. Replaces the amount; prevents nothing.
+    Halve(Rounding),
+    /// "prevent half that damage, rounded up" — CR 615.10's partial prevention
+    /// with CR 107.1a's rounding. The prevented half is what the rule removes;
+    /// the rest of the event survives for the next iteration to see.
+    PreventHalf(Rounding),
+}
+
+impl AmountRewrite {
+    /// How much of `amount` this **prevents** — 0 for the arms that are not
+    /// prevention effects (CR 615.1a).
+    ///
+    /// Separate from [`Self::apply`] because CR 615.5's rider may refer to "the
+    /// amount of damage that was prevented", CR 615.7's shield is reduced by
+    /// exactly that amount, and CR 615.13 triggers on "some or all" of it.
+    /// RD-1 has no reader for the number yet and computes it here anyway,
+    /// because the alternative is an `apply` that quietly knows something it
+    /// does not report.
+    pub fn prevented(self, amount: u64) -> u64 {
+        match self {
+            AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) => 0,
+            AmountRewrite::PreventHalf(rounding) => rounding.half(amount),
+        }
+    }
+
+    /// The amount the event carries after this arm applies.
+    pub fn apply(self, amount: u64) -> u64 {
+        match self {
+            AmountRewrite::Multiplier(n) => amount.saturating_mul(n),
+            AmountRewrite::Halve(rounding) => rounding.half(amount),
+            AmountRewrite::PreventHalf(_) => amount - self.prevented(amount),
+        }
+    }
 }
 
 /// CR 614.13's "other objects that will also change zones" — what one
@@ -705,7 +820,8 @@ impl ReplacementClass {
             Rewrite::Prevent
             | Rewrite::Instead(_)
             | Rewrite::EnterWith(_)
-            | Rewrite::EnterAfterMoving(_) => ReplacementClass::Other,
+            | Rewrite::EnterAfterMoving(_)
+            | Rewrite::Amount(_) => ReplacementClass::Other,
         }
     }
 }
@@ -716,8 +832,10 @@ impl ReplacementClass {
 /// substituted event or the CR 615.5 rider, never bookkeeping, so a use that
 /// removed one would write `PermanentState.counters` from inside
 /// `consume_use` — off the chokepoint. Existence is asked at gather time, which
-/// is where CR 614.4 wants it asked. CR 615.7's `Shield(u64)` is real and lands
-/// with Phase RD. → `replacement-architecture.md` §3.2.
+/// is where CR 614.4 wants it asked. CR 615.7's amount-bearing use is real and
+/// lands with Phase RD-2, as `NextDamage(u64)` — the rule's own phrase,
+/// because it counts damage and never uses (615.7: "such effects count only
+/// the amount of damage"). → `replacement-architecture.md` §9, decision 2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Uses {
     /// CR 614.1a static abilities, 615.10, 701.19b — every time, forever.
@@ -738,6 +856,7 @@ impl ReplacementDef {
         ReplacementDef {
             pattern,
             affected,
+            affected_players: PlayerSet::Nobody,
             rewrite,
             then: None,
             class,
@@ -746,6 +865,24 @@ impl ReplacementDef {
             exempt_from_614_5: false,
             optional: false,
         }
+    }
+
+    /// Builder: also apply to these players (CR 614.1's other half).
+    ///
+    /// A builder rather than a fourth argument to [`Self::new`]: every effect
+    /// written before Phase RD names no player, so `PlayerSet::Nobody` is the
+    /// honest default and a card that wants one says so. Furnace of Rath's
+    /// "a permanent **or** player" is [`Self::new`] plus this.
+    ///
+    /// **One mechanism, not two.** A `for_players` *constructor* shipped
+    /// alongside this for one commit and was removed on review: two functions
+    /// whose names differ by an inflection, one a constructor and one a
+    /// builder, is a coin flip at every call site. An effect about players and
+    /// no object writes `AffectedSet::NO_OBJECTS` for its object half, which
+    /// names the empty set where the call site can see it.
+    pub fn affecting_players(mut self, players: PlayerSet) -> Self {
+        self.affected_players = players;
+        self
     }
 
     /// Builder: attach the CR 615.5 rider.
@@ -807,4 +944,104 @@ pub fn regeneration_rider() -> Effect {
         Effect::Atom(Primitive::Tap, it()),
         Effect::Atom(Primitive::RemoveFromCombat, it()),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::effects::PlayerSet;
+
+    // CR 107.1a puts the direction on the card, so the two directions are two
+    // answers to one question and the odd amounts are the whole test.
+    #[test]
+    fn rounding_is_the_cards_and_only_odd_amounts_can_tell() {
+        for n in [0, 2, 4, 100] {
+            assert_eq!(Rounding::Down.half(n), n / 2);
+            assert_eq!(Rounding::Up.half(n), n / 2);
+        }
+        assert_eq!(Rounding::Down.half(1), 0);
+        assert_eq!(Rounding::Up.half(1), 1);
+        assert_eq!(Rounding::Down.half(5), 2);
+        assert_eq!(Rounding::Up.half(5), 3);
+    }
+
+    // Ghosts of the Innocent's ruling, verbatim: "with three on the
+    // battlefield, 14 damage becomes 7, then 3, then finally 1".
+    #[test]
+    fn three_halvings_take_fourteen_to_one() {
+        let ghosts = AmountRewrite::Halve(Rounding::Down);
+        assert_eq!(ghosts.apply(14), 7);
+        assert_eq!(ghosts.apply(7), 3);
+        assert_eq!(ghosts.apply(3), 1);
+    }
+
+    // "Half of 1 rounded down is 0. A source that would deal 1 damage won't
+    // deal damage at all" — the 0 is what `never_happens` drops (CR 614.7a).
+    #[test]
+    fn halving_one_leaves_a_zero_for_cr_614_7a() {
+        assert_eq!(AmountRewrite::Halve(Rounding::Down).apply(1), 0);
+    }
+
+    // CR 614.5's own example, as arithmetic: two doublers, not one applied
+    // twice. The applied set is the pipeline's job; this is the factor.
+    #[test]
+    fn a_doubler_is_a_factor_and_composes() {
+        let furnace = AmountRewrite::Multiplier(2);
+        assert_eq!(furnace.apply(furnace.apply(2)), 8);
+    }
+
+    // Gisela prevents half rounded *up*, so the event keeps the smaller half —
+    // and the prevented amount is what RD-2's rider and shield will read.
+    #[test]
+    fn prevent_half_reports_what_it_prevented_and_keeps_the_rest() {
+        let gisela = AmountRewrite::PreventHalf(Rounding::Up);
+        assert_eq!(gisela.prevented(5), 3);
+        assert_eq!(gisela.apply(5), 2);
+        // Dark Sphere's direction, from the other side (RD-3): 5 becomes 3.
+        let sphere = AmountRewrite::PreventHalf(Rounding::Down);
+        assert_eq!(sphere.prevented(5), 2);
+        assert_eq!(sphere.apply(5), 3);
+    }
+
+    // CR 615.1a defines a prevention effect by the word "prevent", so the
+    // non-prevention arms must report 0 rather than "not applicable".
+    #[test]
+    fn only_the_prevention_arms_prevent_anything() {
+        assert_eq!(AmountRewrite::Multiplier(2).prevented(7), 0);
+        assert_eq!(AmountRewrite::Halve(Rounding::Down).prevented(7), 0);
+    }
+
+    // CR 102.1 — "opponent" is every other player, and CR 109.5 resolves "you"
+    // against the effect's current controller. Gisela's two halves are these
+    // two sets, and a three-player board is where they stop agreeing with a
+    // two-player shortcut.
+    #[test]
+    fn player_sets_resolve_against_the_effects_controller() {
+        let you = PlayerSet::You;
+        let opponents = PlayerSet::Opponents;
+        assert!(you.contains(1, 1));
+        assert!(!you.contains(1, 0));
+        assert!(!opponents.contains(1, 1));
+        assert!(opponents.contains(1, 0));
+        assert!(opponents.contains(1, 2));
+        assert!(PlayerSet::Everyone.contains(1, 1));
+        assert!(PlayerSet::Everyone.contains(1, 2));
+        // What every effect written before Phase RD says.
+        assert!(!PlayerSet::Nobody.contains(0, 0));
+        // A resolution's captured set ignores the controller entirely.
+        assert!(PlayerSet::Fixed(vec![2]).contains(0, 2));
+        assert!(!PlayerSet::Fixed(vec![2]).contains(0, 0));
+    }
+
+    // A `ReplacementDef` written the way every pre-RD card writes one names no
+    // player, so RD-1's second field cannot change any of their answers.
+    #[test]
+    fn new_defs_name_no_player() {
+        let def = ReplacementDef::new(
+            EventPattern::DealDamage,
+            AffectedSet::SourceOnly,
+            Rewrite::Prevent,
+        );
+        assert_eq!(def.affected_players, PlayerSet::Nobody);
+    }
 }
