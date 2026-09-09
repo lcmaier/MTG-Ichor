@@ -76,6 +76,21 @@ pub enum AmountExpr {
     /// general `Times(Box, Box)`, because nothing printed multiplies one
     /// computed amount by another.
     Multiply(Box<AmountExpr>, u64),
+    /// CR 615.5's "the amount of damage that was prevented" — how much the
+    /// prevention effect that queued a CR 615.5 rider actually prevented.
+    ///
+    /// **A different number from [`Self::ReplacedAmount`], and CR 615.12 is
+    /// what tells them apart.** Reverse Damage gains "life equal to the damage
+    /// prevented this way"; Angel of Suffering mills "twice that many", where
+    /// "that many" is the damage that *would have been dealt*. Under damage
+    /// that can't be prevented both riders run (615.12), Angel still mills
+    /// and Reverse Damage gains 0 — so the rider carries both numbers and each
+    /// leaf reads its own. A 0 here makes the rider's `GainLife` or
+    /// `DealDamage` a `never_happens` non-event (CR 614.7a, 119.10), which is
+    /// why "if damage is prevented this way" needs no `Effect::Conditional`.
+    ///
+    /// Only a rider has one; every other evaluator refuses it.
+    DamagePrevented,
 }
 
 /// Which objects an effect queries or iterates over
@@ -708,11 +723,44 @@ pub enum Primitive {
     /// marked on it and its controller taps it. If it's an attacking or
     /// blocking creature, remove it from combat."
     ///
-    /// This is the one replacement effect Phase RB creates from a *resolution*,
-    /// which is why it is a primitive rather than an `Effect::Replacement`: it
-    /// knows both its CR 614.3 duration (this turn) and its affected set (the
-    /// targets), and a card-authored `ReplacementDef` can know neither.
+    /// A keyword action rather than a [`Self::CreateReplacement`] because the
+    /// rule spells out the whole def — duration, rewrite and rider — and the
+    /// engine builds it once here rather than asking each card to spell it
+    /// again.
     Regenerate,
+
+    // === Replacement and prevention effects from a resolution (CR 614.3, 615.7) ===
+    /// A resolving spell or ability creates a replacement or prevention effect
+    /// with a duration — Mending Hands' "prevent the next 4 damage that would
+    /// be dealt to any target this turn", Safe Passage's "prevent all damage
+    /// that would be dealt to you and creatures you control this turn".
+    ///
+    /// **The third instance of one pattern**, beside [`Self::Restrict`] and
+    /// `cost-architecture.md`'s `ModifyCost`: a def the card authors, a
+    /// `Duration` the card authors (CR 608.2c hands scope to a human reader, so
+    /// no engine may infer it — `cant-effects-architecture.md` §9 finding 1),
+    /// and a registry row carrying controller and turn that expires through the
+    /// CR 514.2 hooks the registry already runs. A prevention effect *is* a
+    /// `ReplacementDef` whose rewrite prevents (CR 615.1 opens "like
+    /// replacement effects"), so there is no second def type for it.
+    ///
+    /// **What the resolution fills in follows [`Self::Regenerate`] and
+    /// [`Self::Restrict`].** With a `Target`/`Choose` recipient, one row per
+    /// resolved target, the authored empty `Fixed` filled with that object or
+    /// player. With a `FilteredPermanents` recipient, one row per matching
+    /// permanent at resolution — CR 615.11's "creates a prevention shield for
+    /// each applicable creature when the spell or ability … resolves", so a
+    /// creature that enters afterwards has none. With an `Implicit` recipient,
+    /// the def as authored: a `Filter` and/or a `PlayerSet`, evaluated at each
+    /// event, which is Safe Passage's ruling that creatures entering after it
+    /// resolved are covered.
+    ///
+    /// The row keeps the resolution's targets. A rider that must act on "the
+    /// thing this effect targeted at resolution" rather than on the event's
+    /// subject — Divine Deflection's "deals that much damage to any target",
+    /// chosen at cast — has nowhere else to read them from
+    /// (`plans/handoffs/rd.md`).
+    CreateReplacement(Box<crate::types::replacement::ReplacementDef>, Duration),
 
     // === "Can't" effects (CR 101.2, 614.17) ===
     /// A resolving spell or ability creates a CR 101.2 prohibition.
@@ -901,10 +949,11 @@ pub enum Effect {
     /// A **resolving** spell or ability does not create one through this
     /// variant: CR 614.3 gives such an effect a duration ("prevent all damage
     /// that would be dealt this turn") and this carries none, so
-    /// `resolve_effect` rejects it by name. CR 701.19a's regeneration shield,
-    /// the one resolution-created replacement Phase RB has, is a keyword action
-    /// and comes through `Primitive::Regenerate`, which knows both its duration
-    /// and its affected set. Phase RD is where the durational form lands.
+    /// `resolve_effect` rejects it by name. The durational form is
+    /// [`Primitive::CreateReplacement`], which takes the `Duration` as an
+    /// argument; CR 701.19a's regeneration shield is a keyword action and
+    /// comes through [`Primitive::Regenerate`], which knows its duration and
+    /// builds its own def.
     ///
     /// Boxed because `ReplacementDef` carries an `Effect` of its own (the
     /// CR 615.5 rider), so the recursion is real.
@@ -948,7 +997,6 @@ pub enum Effect {
 
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),
-    // ApplyPrevention(PreventionEffectDef),
     // CreateDelayedTrigger(TriggerCondition, Box<Effect>, Duration),
     // Custom(CardId),  // escape hatch
 }

@@ -566,6 +566,7 @@ impl GameState {
                 EventSubject::Player(pid) => ResolvedTarget::Player(pid),
             }],
             replaced_amount: rider.replaced_amount,
+            damage_prevented: Some(rider.prevented),
         };
         self.resolve_effect(&rider.effect, &rctx, ctx.dp)
     }

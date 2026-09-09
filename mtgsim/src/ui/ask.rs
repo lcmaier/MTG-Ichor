@@ -719,6 +719,41 @@ pub fn ask_choose_replacement(
     index[0]
 }
 
+/// CR 615.7 — which of several simultaneous sources' damage a "prevent the
+/// next N damage" effect prevents.
+///
+/// `buckets` are `(damage source, amount)` in batch order; the answer is one
+/// share per bucket, each at most that source's amount, summing to the smaller
+/// of `remaining` and the damage on offer. **Two or more buckets, or nothing to
+/// ask** — the caller handles one source by preventing `min(remaining,
+/// amount)` unasked, and the assertion is the same one `ask_choose_replacement`
+/// makes about CR 616.1.
+pub fn ask_allocate_next_damage(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    remaining: u64,
+    buckets: &[(ObjectId, u64)],
+) -> Vec<u64> {
+    assert!(
+        buckets.len() >= 2,
+        "ask_allocate_next_damage: CR 615.7 chooses only among two or more          sources; called with {}",
+        buckets.len(),
+    );
+    let options: Vec<ChoiceOption> =
+        buckets.iter().map(|(id, _)| ChoiceOption::Object(*id)).collect();
+    let maxs: Vec<u64> = buckets.iter().map(|(_, amount)| *amount).collect();
+    let mins = vec![0; buckets.len()];
+    let total = remaining.min(maxs.iter().sum());
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::AllocateNextDamage { source, remaining },
+    };
+    let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
+    validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage");
+    alloc
+}
+
 /// Ask whether to apply a "you **may** ... instead" replacement effect
 /// (CR 614.1a).
 ///

@@ -479,9 +479,12 @@ impl Rounding {
 /// **Every arm ships with a printed customer in the PR that lands it**, which
 /// is the closed algebra's rule applied one level down: RD-1 has
 /// [`Self::Multiplier`] (Furnace of Rath, CR 701.10g), [`Self::Halve`] (Ghosts
-/// of the Innocent) and [`Self::PreventHalf`] (Gisela, Blade of Goldnight).
-/// `Plus` waits for Torbran in RD-3; `PreventUpTo` and `PreventRemaining` wait
-/// for RD-2's shields, which is also where the prevented amount gets a reader.
+/// of the Innocent) and [`Self::PreventHalf`] (Gisela, Blade of Goldnight);
+/// RD-2 has [`Self::PreventRemaining`] (Mending Hands, Samite Healer, Samite
+/// Censer-Bearer) and the performer for [`Self::PreventUpTo`], whose printed
+/// statics — Guardian Seraph, Daunting Defender — are RD-3's because they need
+/// a source-side predicate the pattern does not carry yet. `Plus` waits for
+/// Torbran in RD-3.
 ///
 /// **Halving and prevention-halving are two arms, not one with a flag**, and
 /// CR 615.12 is why. Ghosts of the Innocent "isn't a damage prevention effect"
@@ -500,6 +503,21 @@ pub enum AmountRewrite {
     /// with CR 107.1a's rounding. The prevented half is what the rule removes;
     /// the rest of the event survives for the next iteration to see.
     PreventHalf(Rounding),
+    /// "prevent N of that damage" — CR 615.10's static partial prevention, and
+    /// the shape a CR 615.7 count is cut down to at application (see
+    /// [`Self::PreventRemaining`]). Prevents `min(N, amount)`.
+    PreventUpTo(u64),
+    /// "prevent the next N damage" — CR 615.7. The cap is **not here**: it is
+    /// the instance's [`Uses::NextDamage`] count, which lives in one place and
+    /// is spent as it is used, and this arm names it rather than repeating it.
+    ///
+    /// The pipeline fills the cap in per application through
+    /// [`Self::capped`] — `min(remaining, amount)` against one source, or the
+    /// affected player's allocation when several sources deal damage at once
+    /// (615.7's own choice). Uncapped, the arithmetic here prevents the whole
+    /// amount: "the remaining" with no count is everything, and the pipeline
+    /// refuses the pairing that would ever ask it.
+    PreventRemaining,
 }
 
 impl AmountRewrite {
@@ -507,15 +525,14 @@ impl AmountRewrite {
     /// prevention effects (CR 615.1a).
     ///
     /// Separate from [`Self::apply`] because CR 615.5's rider may refer to "the
-    /// amount of damage that was prevented", CR 615.7's shield is reduced by
+    /// amount of damage that was prevented", CR 615.7's count is reduced by
     /// exactly that amount, and CR 615.13 triggers on "some or all" of it.
-    /// RD-1 has no reader for the number yet and computes it here anyway,
-    /// because the alternative is an `apply` that quietly knows something it
-    /// does not report.
     pub fn prevented(self, amount: u64) -> u64 {
         match self {
             AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) => 0,
             AmountRewrite::PreventHalf(rounding) => rounding.half(amount),
+            AmountRewrite::PreventUpTo(n) => amount.min(n),
+            AmountRewrite::PreventRemaining => amount,
         }
     }
 
@@ -524,7 +541,33 @@ impl AmountRewrite {
         match self {
             AmountRewrite::Multiplier(n) => amount.saturating_mul(n),
             AmountRewrite::Halve(rounding) => rounding.half(amount),
-            AmountRewrite::PreventHalf(_) => amount - self.prevented(amount),
+            AmountRewrite::PreventHalf(_)
+            | AmountRewrite::PreventUpTo(_)
+            | AmountRewrite::PreventRemaining => amount - self.prevented(amount),
+        }
+    }
+
+    /// This arm with CR 615.7's cap filled in: [`Self::PreventRemaining`]
+    /// becomes `PreventUpTo(cap)`, and every other arm is itself.
+    ///
+    /// `cap` is what this application may prevent — the instance's remaining
+    /// count against one source, or this source's share of the affected
+    /// player's allocation when several deal damage at once.
+    pub fn capped(self, cap: u64) -> AmountRewrite {
+        match self {
+            AmountRewrite::PreventRemaining => AmountRewrite::PreventUpTo(cap),
+            other => other,
+        }
+    }
+
+    /// Is this one of CR 615.1a's prevention arms — an arm whose text "uses
+    /// the word 'prevent'"?
+    pub fn is_prevention(self) -> bool {
+        match self {
+            AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) => false,
+            AmountRewrite::PreventHalf(_)
+            | AmountRewrite::PreventUpTo(_)
+            | AmountRewrite::PreventRemaining => true,
         }
     }
 }
@@ -832,10 +875,13 @@ impl ReplacementClass {
 /// substituted event or the CR 615.5 rider, never bookkeeping, so a use that
 /// removed one would write `PermanentState.counters` from inside
 /// `consume_use` — off the chokepoint. Existence is asked at gather time, which
-/// is where CR 614.4 wants it asked. CR 615.7's amount-bearing use is real and
-/// lands with Phase RD-2, as `NextDamage(u64)` — the rule's own phrase,
-/// because it counts damage and never uses (615.7: "such effects count only
-/// the amount of damage"). → `replacement-architecture.md` §9, decision 2.
+/// is where CR 614.4 wants it asked.
+///
+/// **A use is spent by what an application did, not by being chosen**
+/// (`replacement-architecture.md` §9, RD decision 7). CR 609.7b: "if for any
+/// reason the shield prevents no damage or replaces no damage, the shield
+/// isn't used up" — so `Once` is spent only when the rewrite took effect, and
+/// [`Self::NextDamage`] by exactly the amount prevented.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Uses {
     /// CR 614.1a static abilities, 615.10, 701.19b — every time, forever.
@@ -843,6 +889,25 @@ pub enum Uses {
     /// CR 701.19a's regeneration shield, CR 615.8's "next time [source] would
     /// deal damage" — one application, then the effect is gone.
     Once,
+    /// CR 615.7 — "prevent the next N damage": the amount still to be
+    /// prevented, decremented in place as damage is prevented and removed at
+    /// zero.
+    ///
+    /// Named for the rule's own phrase because it **counts damage and never
+    /// uses** — 615.7's last sentence is "such effects count only the amount of
+    /// damage; the number of events or sources dealing it doesn't matter", and
+    /// a first name, `DamagePoints`, could be read as either. The word "shield"
+    /// is deliberately not in the name: [`ReplacementDef::affected`]'s docs
+    /// reserve it for CR 122.1c's counter and CR 701.19a's regeneration, and
+    /// §9's glossary says why this is a third thing.
+    ///
+    /// Pairs with [`AmountRewrite::PreventRemaining`] and nothing else, in both
+    /// directions — the pipeline refuses either without the other, since a
+    /// count of damage on an effect that prevents no damage has nothing to
+    /// count down. Lives only on a registry row: a static ability and a
+    /// counter are re-derived on every gather, so "spent" would have nowhere
+    /// to be recorded (the same argument `consume_use` makes for `Once`).
+    NextDamage(u64),
 }
 
 impl ReplacementDef {
@@ -895,6 +960,42 @@ impl ReplacementDef {
     pub fn once(mut self) -> Self {
         self.uses = Uses::Once;
         self
+    }
+
+    /// Builder: "prevent the next `n` damage" (CR 615.7). Pairs with
+    /// [`AmountRewrite::PreventRemaining`], which is where the pipeline reads
+    /// the count from.
+    pub fn next_damage(mut self, n: u64) -> Self {
+        self.uses = Uses::NextDamage(n);
+        self
+    }
+
+    /// CR 615.1a — is this a prevention effect?
+    ///
+    /// > 615.1a Effects that use the word "prevent" are prevention effects.
+    ///
+    /// **Derived, never authored**, on the CDA and CR 614.15 argument
+    /// (`replacement-architecture.md` §11 items 12 and 25): the rule makes it a
+    /// fact about the effect's *text*, which the def carries as its rewrite and
+    /// its pattern, so a card cannot forget to set it. A `Prevent` on a
+    /// destruction is regeneration, not prevention — 615.1 is about damage,
+    /// and CR 701.19c treats the two differently, which is why
+    /// [`Self::is_regeneration`] keeps its own authored bit.
+    ///
+    /// Two readers: RD-2's pairing check — a [`Uses::NextDamage`] count on an
+    /// effect that prevents no damage is an authoring error — and RD-4's
+    /// CR 615.12 consult, where an unpreventable event lets a prevention
+    /// effect apply and prevent nothing.
+    pub fn is_prevention(&self) -> bool {
+        matches!(self.pattern, EventPattern::DealDamage)
+            && match &self.rewrite {
+                Rewrite::Prevent => true,
+                Rewrite::Amount(arm) => arm.is_prevention(),
+                Rewrite::Instead(_)
+                | Rewrite::EnterWith(_)
+                | Rewrite::EnterAfterMoving(_)
+                | Rewrite::EnterUnderControlOf(_) => false,
+            }
     }
 
     /// Builder: mark this as a CR 701.19 regeneration shield, which CR 701.19c
@@ -1009,6 +1110,81 @@ mod tests {
     fn only_the_prevention_arms_prevent_anything() {
         assert_eq!(AmountRewrite::Multiplier(2).prevented(7), 0);
         assert_eq!(AmountRewrite::Halve(Rounding::Down).prevented(7), 0);
+    }
+
+    // CR 615.10 — "prevent 1 of that damage" takes 1 from any amount that has
+    // one to give, and all of a smaller one.
+    #[test]
+    fn prevent_up_to_takes_the_smaller_of_the_two() {
+        let seraph = AmountRewrite::PreventUpTo(1);
+        assert_eq!(seraph.prevented(4), 1);
+        assert_eq!(seraph.apply(4), 3);
+        assert_eq!(AmountRewrite::PreventUpTo(3).prevented(2), 2);
+        assert_eq!(AmountRewrite::PreventUpTo(3).apply(2), 0);
+    }
+
+    // CR 615.7 — the cap is the instance's count, filled in per application.
+    // Uncapped, "the remaining" is everything; capped at 3 it is `PreventUpTo(3)`,
+    // and the arms that carry their own number are untouched by `capped`.
+    #[test]
+    fn prevent_remaining_reads_its_cap_from_the_instance() {
+        assert_eq!(AmountRewrite::PreventRemaining.prevented(5), 5);
+        assert_eq!(AmountRewrite::PreventRemaining.capped(3), AmountRewrite::PreventUpTo(3));
+        assert_eq!(AmountRewrite::PreventRemaining.capped(3).prevented(5), 3);
+        assert_eq!(AmountRewrite::PreventRemaining.capped(3).apply(5), 2);
+        assert_eq!(AmountRewrite::PreventRemaining.capped(9).apply(5), 0);
+        assert_eq!(AmountRewrite::Multiplier(2).capped(3), AmountRewrite::Multiplier(2));
+        assert_eq!(AmountRewrite::PreventUpTo(1).capped(3), AmountRewrite::PreventUpTo(1));
+    }
+
+    // > 615.1a Effects that use the word "prevent" are prevention effects.
+    //
+    // In-set: "prevent the next 3 damage that would be dealt to target
+    // creature" and "prevent that damage". Out-of-set: a doubler on the same
+    // event (no "prevent" in its text), and regeneration — a `Prevent` on a
+    // *destruction*, which CR 615.1 is not about. The atom's own out-of-set
+    // member is a triggered ability, which does not exist yet; a replacement
+    // that is not a prevention is the nearest member the type can express.
+    // COVERS: BOUNDARY-DEF-615.1a-001
+    #[test]
+    fn a_prevention_effect_is_one_whose_text_prevents_damage() {
+        let next_three = ReplacementDef::new(
+            EventPattern::DealDamage,
+            AffectedSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::PreventRemaining),
+        )
+        .next_damage(3);
+        assert!(next_three.is_prevention());
+        assert_eq!(next_three.uses, Uses::NextDamage(3));
+
+        let that_damage = ReplacementDef::new(
+            EventPattern::DealDamage,
+            AffectedSet::SourceOnly,
+            Rewrite::Prevent,
+        );
+        assert!(that_damage.is_prevention());
+        assert!(ReplacementDef::new(
+            EventPattern::DealDamage,
+            AffectedSet::SourceOnly,
+            Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
+        )
+        .is_prevention());
+
+        let doubler = ReplacementDef::new(
+            EventPattern::DealDamage,
+            AffectedSet::SourceOnly,
+            Rewrite::Amount(AmountRewrite::Multiplier(2)),
+        );
+        assert!(!doubler.is_prevention());
+
+        let regeneration = ReplacementDef::new(
+            EventPattern::Destroy { source: None },
+            AffectedSet::SourceOnly,
+            Rewrite::Prevent,
+        )
+        .once()
+        .regeneration();
+        assert!(!regeneration.is_prevention(), "CR 615.1 is about damage");
     }
 
     // CR 102.1 — "opponent" is every other player, and CR 109.5 resolves "you"

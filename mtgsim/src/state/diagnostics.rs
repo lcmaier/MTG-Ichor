@@ -54,6 +54,7 @@ pub struct EngineCounters {
     dependency_checks: Cell<u64>,
     replacement_gathers: Cell<u64>,
     restriction_queries: Cell<u64>,
+    prevention_allocations: Cell<u64>,
 }
 
 impl EngineCounters {
@@ -134,6 +135,19 @@ impl EngineCounters {
         self.restriction_queries.set(self.restriction_queries.get() + 1);
     }
 
+    /// One CR 615.7 allocation prompt — a "prevent the next N damage" effect
+    /// meeting two or more simultaneous sources, so the affected player was
+    /// asked which damage it prevents.
+    ///
+    /// **A reachability count, not a cost.** The other counters here measure
+    /// work; this one measures whether the pool can build 615.7's board at
+    /// all, which `replacement-architecture.md` §9 names as RD-2's
+    /// reachability row. Zero on any board with no such effect, and it can
+    /// only move when one is registered.
+    pub fn record_prevention_allocation(&self) {
+        self.prevention_allocations.set(self.prevention_allocations.get() + 1);
+    }
+
     pub fn layer_walks(&self) -> u64 {
         self.layer_walks.get()
     }
@@ -172,5 +186,9 @@ impl EngineCounters {
 
     pub fn restriction_queries(&self) -> u64 {
         self.restriction_queries.get()
+    }
+
+    pub fn prevention_allocations(&self) -> u64 {
+        self.prevention_allocations.get()
     }
 }

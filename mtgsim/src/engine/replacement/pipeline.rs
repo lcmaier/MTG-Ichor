@@ -8,7 +8,8 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
-    AuxiliaryMove, EnterMods, EnterModsTemplate, GameActionTemplate, Rewrite, Uses,
+    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, GameActionTemplate, Rewrite,
+    Uses,
 };
 use crate::types::zones::Zone;
 use crate::oracle::characteristics::get_effective_power;
@@ -68,7 +69,21 @@ pub(crate) struct Rider {
     /// its ruling that unpreventable damage still mills is why the number is
     /// captured here rather than recomputed after the event.
     pub replaced_amount: Option<u64>,
+    /// How much damage the application that queued this rider prevented, read
+    /// by `AmountExpr::DamagePrevented` — CR 615.5's "the amount of damage
+    /// that was prevented". 0 for a rider on anything but a prevention effect,
+    /// and 0 for a prevention effect that prevented nothing, which is the
+    /// answer CR 615.12 needs from it (RD-4).
+    pub prevented: u64,
     pub effect: Effect,
+}
+
+/// What applying a rewrite to one event did — what a rider reads, and what a
+/// use is spent by (`replacement-architecture.md` §9, RD decision 7).
+#[derive(Debug, Clone, Copy, Default)]
+struct Applied {
+    /// How much damage it prevented (CR 615.1a's arms only; 0 otherwise).
+    prevented: u64,
 }
 
 /// The amount a proposal carries, for a rider that refers to it (CR 615.5).
@@ -309,6 +324,9 @@ pub(crate) fn apply_replacements(
         }
         consume_use(game, &chosen);
 
+        let replaced_amount = event_amount(&event);
+        let (next, outcome) = apply_rewrite(game, ctx, &chosen, event, subject)?;
+
         // Queued, not resolved (§4.1a). A later replacement in the same loop
         // further modifying or even dropping the event does not un-queue this.
         if let Some(then) = chosen.def.then.clone() {
@@ -316,12 +334,13 @@ pub(crate) fn apply_replacements(
                 source: chosen.source,
                 controller: chosen.controller,
                 subject,
-                replaced_amount: event_amount(&event),
+                replaced_amount,
+                prevented: outcome.prevented,
                 effect: then,
             });
         }
 
-        match apply_rewrite(game, ctx, &chosen, event, subject)? {
+        match next {
             // CR 614.6 — the event does not happen. Queued riders still run.
             None => return Ok(None),
             // CR 616.1f — re-gather against the modified event, which is how
@@ -576,6 +595,11 @@ fn subject_object(subject: EventSubject) -> Option<ObjectId> {
 fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
     match chosen.def.uses {
         Uses::Static => {}
+        // Spent by the amount the application prevented, which is known only
+        // after `apply_rewrite` — the reordering `replacement-architecture.md`
+        // §9's RD decision 7 makes, in RD-2's fix commit. Until then the count
+        // is never reduced.
+        Uses::NextDamage(_) => {}
         Uses::Once => {
             if let ReplacementInstanceId::Registered(row) = chosen.id {
                 game.replacement_effects.remove(row);
@@ -620,10 +644,12 @@ fn apply_rewrite(
     chosen: &ReplacementInstance,
     event: GameAction,
     subject: EventSubject,
-) -> Result<Option<GameAction>, String> {
+) -> Result<(Option<GameAction>, Applied), String> {
+    // Every arm but `Amount` prevents nothing (CR 615.1a).
+    let changed = Applied { prevented: 0 };
     match &chosen.def.rewrite {
         // CR 614.6 / 615.6.
-        Rewrite::Prevent => Ok(None),
+        Rewrite::Prevent => Ok((None, changed)),
 
         // CR 614.1c/d — the event still happens; only *how* changes.
         //
@@ -647,7 +673,7 @@ fn apply_rewrite(
                     game, object, controller, &mods, &extra, Some(chosen.controller),
                 );
                 mods.merge(&extra);
-                Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
             other => Err(format!(
                 "replacement {:?} modifies how a permanent enters but matched {:?}, \
@@ -665,7 +691,7 @@ fn apply_rewrite(
                     game, object, controller, &mods, &extra, Some(chosen.controller),
                 );
                 mods.merge(&extra);
-                Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
             other => Err(format!(
                 "replacement {:?} moves other objects as a permanent enters (CR 614.13) \
@@ -679,7 +705,7 @@ fn apply_rewrite(
         Rewrite::EnterUnderControlOf(player_ref) => match event {
             GameAction::EnterBattlefield { object, from, mods, cause, .. } => {
                 let controller = entering_controller(game, ctx, chosen, object, player_ref)?;
-                Ok(Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
             other => Err(format!(
                 "replacement {:?} modifies under whose control a permanent enters but \
@@ -699,12 +725,38 @@ fn apply_rewrite(
         // producer for either, so a consult would be a branch nothing can take.
         Rewrite::Amount(amount_rewrite) => match event {
             GameAction::DealDamage { source, target, amount, is_combat } => {
-                Ok(Some(GameAction::DealDamage {
-                    source,
-                    target,
-                    amount: amount_rewrite.apply(amount),
-                    is_combat,
-                }))
+                // CR 615.7's cap is the instance's count. `PreventRemaining`
+                // on anything else, or a count on anything else, is a def
+                // whose halves disagree — the same authoring error every
+                // other arm reports.
+                let arm = match (amount_rewrite, chosen.def.uses) {
+                    (AmountRewrite::PreventRemaining, Uses::NextDamage(remaining)) => {
+                        amount_rewrite.capped(remaining)
+                    }
+                    (AmountRewrite::PreventRemaining, uses) => {
+                        return Err(format!(
+                            "replacement {:?} prevents \"the remaining\" damage but has \
+                             {:?} rather than a `Uses::NextDamage` count to read the \
+                             remaining from.",
+                            chosen.id, uses
+                        ))
+                    }
+                    (other, Uses::NextDamage(_)) => {
+                        return Err(format!(
+                            "replacement {:?} carries a `Uses::NextDamage` count but its \
+                             rewrite is {:?}, which prevents no amount for the count to \
+                             count down (CR 615.7 is about prevention shields).",
+                            chosen.id, other
+                        ))
+                    }
+                    (other, _) => *other,
+                };
+                let prevented = arm.prevented(amount);
+                let after = arm.apply(amount);
+                Ok((
+                    Some(GameAction::DealDamage { source, target, amount: after, is_combat }),
+                    Applied { prevented },
+                ))
             }
             // Its `EventPattern` and its `Rewrite` describe different events —
             // the same card-authoring error every other arm reports.
@@ -718,12 +770,10 @@ fn apply_rewrite(
             (
                 GameActionTemplate::ZoneChangeTo { to, cause },
                 GameAction::ZoneChange { object, from, .. },
-            ) => Ok(Some(GameAction::ZoneChange {
-                object,
-                from,
-                to: *to,
-                cause: *cause,
-            })),
+            ) => Ok((
+                Some(GameAction::ZoneChange { object, from, to: *to, cause: *cause }),
+                changed,
+            )),
 
             // Containment Priest: "if a nontoken creature would enter … exile
             // it instead". The entry is the zone change (CR 614.1c), so the
@@ -743,20 +793,22 @@ fn apply_rewrite(
             (
                 GameActionTemplate::ZoneChangeTo { to, cause },
                 GameAction::EnterBattlefield { object, from, .. },
-            ) => Ok(Some(GameAction::ZoneChange {
-                object,
-                from: from.unwrap_or(Zone::Battlefield),
-                to: *to,
-                cause: *cause,
-            })),
+            ) => Ok((
+                Some(GameAction::ZoneChange {
+                    object,
+                    from: from.unwrap_or(Zone::Battlefield),
+                    to: *to,
+                    cause: *cause,
+                }),
+                changed,
+            )),
 
             (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
                 match subject_object(subject) {
-                    Some(object) => Ok(Some(GameAction::RemoveCounters {
-                        object,
-                        counter: *counter,
-                        n: *n,
-                    })),
+                    Some(object) => Ok((
+                        Some(GameAction::RemoveCounters { object, counter: *counter, n: *n }),
+                        changed,
+                    )),
                     None => Err(format!(
                         "a `RemoveCountersFromAffected` rewrite on {:?} has no affected \
                          object to take counters from",

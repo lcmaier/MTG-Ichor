@@ -479,6 +479,7 @@ struct GameStats {
     dependency_checks: u64,
     replacement_gathers: u64,
     restriction_queries: u64,
+    prevention_allocations: u64,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -675,6 +676,7 @@ struct AggregateStats {
     total_dependency_checks: u64,
     total_replacement_gathers: u64,
     total_restriction_queries: u64,
+    total_prevention_allocations: u64,
     games_counted: u64,
     /// `(name, cast, resolved, games_in_which_it_resolved)`.
     reach: Vec<(String, u64, u64, u64)>,
@@ -700,6 +702,7 @@ impl AggregateStats {
         self.total_dependency_checks += game.dependency_checks;
         self.total_replacement_gathers += game.replacement_gathers;
         self.total_restriction_queries += game.restriction_queries;
+        self.total_prevention_allocations += game.prevention_allocations;
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
         }
@@ -918,6 +921,7 @@ fn run_one_game(
                 s.dependency_checks = c.dependency_checks();
                 s.replacement_gathers = c.replacement_gathers();
                 s.restriction_queries = c.restriction_queries();
+                s.prevention_allocations = c.prevention_allocations();
                 s
             },
         ))
@@ -1353,6 +1357,11 @@ fn main() {
         println!("  Dependency checks: {:>7.0}", agg_stats.avg(agg_stats.total_dependency_checks));
         println!("  Replacement gathers: {:>5.0}", agg_stats.avg(agg_stats.total_replacement_gathers));
         println!("  Restriction queries: {:>5.0}", agg_stats.avg(agg_stats.total_restriction_queries));
+        // CR 615.7 allocation prompts: a "prevent the next N damage" effect
+        // meeting two or more simultaneous sources (RD-2). A reachability
+        // count rather than a cost — zero until such an effect is in the pool,
+        // and read as the row that says the pool can build 615.7's board.
+        println!("  Prevention allocations: {:>2.2}", agg_stats.avg(agg_stats.total_prevention_allocations));
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`
