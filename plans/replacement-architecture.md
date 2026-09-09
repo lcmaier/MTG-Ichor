@@ -4428,8 +4428,8 @@ ruling), a `NextDamage(3)` under sources of 2 and 4 with the allocation, and
 Pinpoint Avalanche into a shield counter (the rider runs, nothing is spent).
 
 **Decided at RD-2's close (2026-09-09): yes.**
-`plans/traces/rd-2-a-decision-is-per-subject.html`, pinned at `8711fb3` (the
-last engine commit of the PR). It walks three of the four boards above — two
+`plans/traces/rd-2-a-decision-is-per-subject.html`, pinned at `fcc04da` (the
+last commit of the PR). It walks three of the four boards above — two
 shield counters under two blockers, Furnace beside Mending Hands in both
 orders, a `NextDamage(3)` under sources of 2 and 4 with the allocation — and,
 in place of Pinpoint Avalanche (RD-4's, since nothing can make damage
