@@ -116,7 +116,7 @@ all-multiplier bucket asks nobody (§11 item 29). Registered: Mending Hands
    buckets are filtered by `applies_to` too). `PreventUpTo`'s performer is in
    and tested member-uniform through a fixture; Guardian Seraph and Daunting
    Defender are the printed producers (`codebase-state.md` item 91). And
-   `ordering_cannot_change_the_outcome`'s multiplier clause is written against
+   `ordering_cannot_change_outcome`'s multiplier clause is written against
    `matches!(pattern, EventPattern::DealDamage)` without fields — adding
    fields keeps it true as long as none reads the *amount*
    (`codebase-state.md` item 47's condition (d)).

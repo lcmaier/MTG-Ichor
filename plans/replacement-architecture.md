@@ -255,7 +255,7 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         │    static abilities off the EFFECTIVE ability list, never a
   │         │    registry — which is what lets Humility strip one for free
   │         ├─ filter to the applied-set-eligible (CR 614.5)
-  │         ├─ forced_bucket() → CR 616.1a–e's highest non-empty class
+  │         ├─ must_choose_among() → CR 616.1a–e's first non-empty step
   │         ├─ 0 candidates → done.  1 → apply it, no CR 616.1 prompt.
   │         │  2+ → DecisionProvider::choose (CR 616.1's ordering prompt)
   │         ├─ if `optional`: ask_apply_optional_replacement (CR 614.1a) —
@@ -797,7 +797,7 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
                   .filter(|c| !declined.contains(c.instance))     # see below
         if cands.is_empty(): return Some(ev)
 
-        bucket  = forced_bucket(cands)                   # CR 616.1a -> b -> c -> d -> e
+        choosable = must_choose_among(cands)             # CR 616.1a -> b -> c -> d -> e
         chooser = affected_chooser(game, ev)             # CR 616.1 / 400.6
         chosen  = if bucket.len() == 1 { bucket[0] }
                   else { ask_choose_replacement(dp, chooser, bucket) }
@@ -825,7 +825,7 @@ Six things this encodes, each with its rule:
   which is what 614.5's "an event or any modified events that may replace that
   event" describes (§3.2d). `exempt_from_614_5` exists for exactly one rule
   (903.9b) and must not grow a second user without a CR cite.
-- **CR 616.1a–e** — `forced_bucket` returns the highest-priority non-empty class
+- **CR 616.1a–e** — `must_choose_among` returns the first non-empty step
   and only that class; 616.1e is the fallthrough.
 - **CR 616.1f** — the loop re-gathers after every application, so an effect made
   newly applicable by the modification is picked up (CR 616.2).
@@ -3367,7 +3367,7 @@ existing evaluators match exhaustively, so each grows an arm rather than
 defaulting.
 
 **It fires item 47's expiry conditions, and the predicate is revisited in the
-same commit.** `order_invariant_entry_bucket`'s theorem has two halves — every
+same commit.** `ordering_cannot_change_outcome`'s theorem has two halves — every
 member still applies, and the applications commute — and the second was free
 while `merge` was `|=` and `+` over literals. An amount read off the frame is
 not free: "enters with X counters where X is its own power" applied before and
@@ -5022,7 +5022,7 @@ there, because all three are about **what a rider can reach**.
     Adaptive Shimmerer under "creatures with power 1 or less enter tapped" is
     a real choice — tapped or untapped by the order — and
     `test_a_power_filter_beside_counters_is_a_real_choice` says so. The rule
-    that shipped (`pipeline::order_invariant_entry_bucket`) admits only members
+    that shipped (`pipeline::ordering_cannot_change_outcome`) admits only members
     whose applicability no `EnterMods` field can move: `EnterWith`, mandatory,
     static, under CR 614.5, not counter-derived, no rider, and an `affected`
     over leaves the counters cannot reach (`filter_is_mods_invariant`). It is
@@ -5219,7 +5219,7 @@ found them.
     **replacement effects it is not**, and the reason is the one the reviewer
     reached unprompted: CR 616.1f re-gathers after every application, so the
     bucket is re-formed between members and "the other members" is not a fixed
-    set. That is exactly the premise `order_invariant_entry_bucket` spends its
+    set. That is exactly the premise `ordering_cannot_change_outcome` spends its
     longest clause on.
 
     **What is provable is narrower and still worth having.** A bucket every
@@ -5250,9 +5250,9 @@ found them.
     the clause twice.
 
     **Decided at RD-2's close (2026-09-09): yes, and built.**
-    `ordering_cannot_change_the_outcome` — the predicate, renamed for item 65's
+    `ordering_cannot_change_outcome` — the predicate, renamed for item 65's
     reason now that "entry" had become wrong as well as implementation-shaped —
-    admits a bucket that is entirely `Amount(Multiplier(n ≥ 1))` on
+    admits a set of choosable effects that is entirely `Amount(Multiplier(n ≥ 1))` on
     `EventPattern::DealDamage` beside the all-`EnterWith` one, under the same
     shared clauses (mandatory, static, no rider, under CR 614.5, not
     counter-derived). Two Furnaces ask nothing; the composite atom

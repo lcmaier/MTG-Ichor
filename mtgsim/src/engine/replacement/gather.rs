@@ -18,7 +18,7 @@
 //! spell or ability rather than to any source above and would arrive through
 //! `ActionContext::resolution`. `ResolutionContext` has no field to carry them
 //! and gains one with the first card that needs one — §11 item 3, and the
-//! reason `ReplacementClass::SelfReplacement` currently has a bucket and no
+//! reason `ReplacementClass::SelfReplacement` currently has a step and no
 //! producer.
 
 use crate::engine::actions::{ActionContext, GameAction};
@@ -767,18 +767,32 @@ fn remove_one_counter(counter: CounterType) -> Effect {
     )
 }
 
-/// CR 616.1a–e's forced buckets. Exposed for the pipeline's use; generic over
-/// what carries the instance, because the pipeline's candidates carry the
-/// members each applies to beside it.
-pub(crate) fn forced_bucket<T>(
+/// The applicable effects CR 616.1 lets the affected player choose among, out
+/// of everything that applies.
+///
+/// **616.1a–e is a ladder, not a partition**, which is what the name is trying
+/// to say: each step reads "if any of the … effects are [kind], one of them
+/// must be chosen. If not, proceed to [the next step]". So the first step with
+/// any candidate at all decides the whole question, and everything at a lower
+/// step is not a choice the player has right now — it will be offered again on
+/// 616.1f's next pass, once the chosen one has applied.
+///
+/// Named for the rule's own sentence rather than for the shape of the
+/// implementation: this used to be `forced_bucket`, and "bucket" is a word the
+/// CR never uses and a reader has to already know (`codebase-state.md`
+/// item 65's complaint, from the other side).
+///
+/// Generic over what carries the instance, because the pipeline's candidates
+/// carry the members each applies to beside it.
+pub(crate) fn must_choose_among<T>(
     candidates: Vec<T>,
     class: impl Fn(&T) -> crate::types::replacement::ReplacementClass,
 ) -> Vec<T> {
     // `ReplacementClass` derives `Ord` in CR order, so the minimum present
-    // class is 616.1's highest-priority non-empty one and 616.1e's `Other` is
-    // the fallthrough by construction. `top` came out of the candidates, so the
-    // filter below always keeps at least the one that produced it — there is no
-    // non-empty-bucket check to make.
+    // class is the ladder's first non-empty step and 616.1e's `Other` is the
+    // fallthrough by construction. `top` came out of the candidates, so the
+    // filter below always keeps at least the one that produced it — there is
+    // no empty-result check to make.
     let Some(top) = candidates.iter().map(&class).min() else {
         return candidates;
     };

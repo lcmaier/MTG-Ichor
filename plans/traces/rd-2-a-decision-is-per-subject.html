@@ -135,8 +135,8 @@ flowchart TD
   GRP --> AR["apply_replacements(group, later)"]:::changed
   AR --> NH["never_happens, per member (614.7a)"]
   NH --> GATH["is_prohibited + gather, per member,<br/>union keyed by ReplacementInstanceId"]:::changed
-  GATH --> FB["forced_bucket (616.1a–e)"]
-  FB --> OI["ordering_cannot_change_the_outcome<br/>all-EnterWith or all-Multiplier"]:::new
+  GATH --> FB["must_choose_among (616.1a–e)"]
+  FB --> OI["ordering_cannot_change_outcome<br/>all-EnterWith or all-Multiplier"]:::new
   OI -->|one outcome| PICK
   OI -->|a real choice| ASK["ask_choose_replacement"]:::decide
   ASK --> PICK["chosen instance + the members it applies to"]
@@ -172,7 +172,7 @@ flowchart TD
 <li><span class="fn">apnap_batch_order</span>: <span class="fn">chooser_for</span> reads each subject's controller <span class="read board">board</span>. Members 0 and 1 are about the attacker (player 0, the active player); members 2 and 3 are about player 1's blockers. Order <code>[0, 1, 2, 3]</code>.</li>
 <li class="new"><b>Grouping.</b> <span class="fn">subject_of</span> buckets the ordered members: <code>{attacker: [0, 1]}</code>, <code>{first: [2]}</code>, <code>{second: [3]}</code>. Three groups, three loops — where the per-member loop ran four.</li>
 <li class="changed"><span class="fn">apply_replacements(group {attacker})</span>, iteration 1. <span class="fn">never_happens</span>: neither 2 is 0. <span class="fn">EntryFrame::new</span> for a <code>DealDamage</code> builds nothing. Per member, <span class="fn">is_prohibited(Query::Event)</span> <span class="read board">board</span> — no restriction sweep applies — then <span class="fn">gather</span> <span class="read board">board</span>: the fast path opens because <span class="fn">any_replacement_counter</span> sees the shield counters; <span class="fn">counter_replacements(attacker)</span> synthesizes CR 122.1c's two effects and <span class="fn">pattern_watches</span> keeps the prevention half (<code>EventPattern::DealDamage</code>) and drops the replacement half (<code>Destroy</code>). <b>Both members gather the same instance</b> — <code>Counter(attacker, Shield, Prevention)</code> — and the union keyed by <code>ReplacementInstanceId</code> holds <b>one</b> <code>Candidate</code> with <code>members: [0, 1]</code>.</li>
-<li><span class="fn">forced_bucket</span>: one candidate, class <code>Other</code>. <span class="fn">chooser_for</span> answers player 0 for the whole group. One candidate, so nothing is asked and <span class="fn">ordering_cannot_change_the_outcome</span> is not consulted.</li>
+<li><span class="fn">must_choose_among</span>: one candidate, class <code>Other</code>. <span class="fn">chooser_for</span> answers player 0 for the whole group. One candidate, so nothing is asked and <span class="fn">ordering_cannot_change_outcome</span> is not consulted.</li>
 <li>Not optional. <code>applied.insert(Counter(attacker, Shield, Prevention))</code> — <b>one</b> slot in <b>one</b> applied set, for both members.</li>
 <li><span class="fn">next_damage_shares</span> is skipped: the rewrite is <code>Prevent</code>, not <code>PreventRemaining</code>.</li>
 <li class="changed"><b>Apply per member.</b> <span class="fn">apply_rewrite</span> on member 0: <code>Prevent</code> → <code>(None, Applied { took_effect: true, prevented: 0 })</code>. Member 1: the same. <code>replaced_amount</code> sums to <code>Some(4)</code>.</li>
@@ -204,7 +204,7 @@ flowchart TD
 <li class="new"><b>The row.</b> <span class="fn">resolve_effect</span> → <span class="fn">resolve_primitive(CreateReplacement)</span>. The recipient is <code>Target(Any)</code> and the resolved target is <code>Player(1)</code>, so the authored empty <code>Fixed</code> is filled: one <code>RegisteredReplacementEffect</code> with <code>affected_players: Fixed([1])</code>, <code>uses: NextDamage(4)</code>, <code>rewrite: Amount(PreventRemaining)</code>, <code>duration: UntilEndOfTurn</code>, <code>source</code> the spell, <code>controller</code> 1, <code>targets: [Player(1)]</code> <span class="read registry">registry</span>.</li>
 <li><span class="fn">execute_action(DealDamage 5 → Player 1)</span>: a batch of one, a group of one.</li>
 <li>Iteration 1, <span class="fn">gather</span>: <code>has_static_source</code> is true — Furnace is in <code>replacement_ability_sources</code> — so the sweep reads Furnace's effective abilities <span class="read board">board</span>; <span class="fn">set_affects</span> asks <code>PlayerSet::Everyone.contains(0, 1)</code> → yes. Then the registry <span class="read registry">registry</span>: Mending Hands' row, <code>Fixed([1]).contains(1)</code> → yes. Two candidates, sweep first: <code>[Furnace (StaticAbility), Mending Hands (Registered)]</code>.</li>
-<li class="new"><span class="fn">forced_bucket</span>: both <code>Other</code>. <span class="fn">ordering_cannot_change_the_outcome</span>: not all multipliers — one member is <code>PreventRemaining</code> — so <b>false</b>; this choice is real (it is the ruling).</li>
+<li class="new"><span class="fn">must_choose_among</span>: both <code>Other</code>. <span class="fn">ordering_cannot_change_outcome</span>: not all multipliers — one member is <code>PreventRemaining</code> — so <b>false</b>; this choice is real (it is the ruling).</li>
 <li class="decide"><span class="fn">ask_choose_replacement(player 1, sources [Furnace, Mending Hands])</span> <span class="read player">player</span>.</li>
 </ol>
 <div class="prose"><p><b>Order 1 — the shield first</b> (index 1):</p></div>

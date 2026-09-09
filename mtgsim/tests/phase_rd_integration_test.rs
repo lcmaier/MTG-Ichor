@@ -354,10 +354,7 @@ fn furnace_of_rath_doubles_damage_to_a_player() {
 /// CR 616.1's prompt would be a choice with one outcome, which §11 item 19
 /// says never to ask. Until RD-2 this test asserted the prompt was asked once.
 // COVERS: ATOM-614.5-001
-// COVERS-PARTIAL: COMP-614-616-DOUBLE-REPLACEMENT-001 — "Player A chooses
-// order" is the half not built: the engine suppresses that choice as having
-// one outcome (§11 items 19 and 29), and proves the rest — each applies once,
-// 2 -> 4 -> 8, not infinite.
+// COVERS: COMP-614-616-DOUBLE-REPLACEMENT-001
 #[test]
 fn two_furnaces_multiply_by_four_and_ask_nothing() {
     let mut game = setup_two_player_game();
@@ -372,14 +369,12 @@ fn two_furnaces_multiply_by_four_and_ask_nothing() {
     assert_eq!(dp.prompts(), 0, "one outcome, no question");
 }
 
-/// The suppression's premise is that the two are *one bucket* whatever else
-/// differs about them — here, their controllers — and the "either way" half
-/// of the composite is the theorem rather than a second run: the debug build
-/// re-gathers after the suppressed choice applied and asserts the other still
-/// applies, which is the check that would fire if the order could matter.
-// COVERS-PARTIAL: COMP-614-616-DOUBLE-REPLACEMENT-001 — the "either way" half,
-// proved by commutativity and the debug-build re-gather rather than by asking
-// both ways.
+/// The suppression's premise is that the two are *one* set of choosable
+/// effects whatever else differs about them — here, their controllers — and
+/// the composite atom's "either way" is the theorem rather than a second run:
+/// the debug build re-gathers after the suppressed choice applied and asserts
+/// the other still applies, which is the check that fires if the order could
+/// ever have mattered.
 #[test]
 fn two_furnaces_under_different_controllers_still_ask_nothing() {
     let mut game = setup_two_player_game();

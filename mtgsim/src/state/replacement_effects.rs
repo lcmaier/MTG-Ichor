@@ -253,6 +253,15 @@ pub struct PreventionAllocationScope {
     /// Each chosen instance's answer: how much of its count each batch member
     /// (by index into the batch) is to be given. Members without an entry get
     /// nothing from that instance.
+    ///
+    /// **A `Vec` scanned linearly, not a map**, for [`EntrySelectionScope`]'s
+    /// reasons and one more. The outer list holds one entry per CR 615.7 count
+    /// *chosen in this batch* — zero in nearly every batch, one in the rest —
+    /// and the inner one a share per bucket, which is the batch's own width:
+    /// two or three. Hashing a `ReplacementInstanceId` to find one of one costs
+    /// more than the comparison does. The third reason is the standing one: a
+    /// `HashMap` walk is not reproducible across processes, and everything in
+    /// this struct is downstream of a `DecisionProvider` answer.
     pub allocations: Vec<(ReplacementInstanceId, Vec<(usize, u64)>)>,
 }
 

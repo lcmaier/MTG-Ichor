@@ -19,7 +19,7 @@ use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::ask_choose_entering_controller;
 use crate::ui::ask::ask_choose_replacement;
 
-use super::gather::{applies_to, forced_bucket};
+use super::gather::{applies_to, must_choose_among};
 use super::{
     chooser_for, gather, subject_of, EntryFrame, EventSubject, ReplacementInstance,
     ReplacementInstanceId,
@@ -88,6 +88,19 @@ struct Applied {
     /// only when this is true.
     took_effect: bool,
     /// How much damage it prevented (CR 615.1a's arms only; 0 otherwise).
+    ///
+    /// **A number and not an `Option`, because 0 is a real answer here rather
+    /// than a missing one.** A doubler prevents zero damage; that is what
+    /// CR 615.1a's definition says about it, and `AmountRewrite::prevented`
+    /// already reports it as 0 for the same reason. An `Option` would make
+    /// every reader decide what `None` meant, and every one of them would
+    /// answer "treat it as 0".
+    ///
+    /// The `Option` that *is* meaningful is one level out:
+    /// `ResolutionContext::damage_prevented` is `None` outside a CR 615.5
+    /// rider — where the question has no answer at all — and `Some(0)` inside
+    /// one that prevented nothing, which is the number Reverse Damage's "life
+    /// equal to the damage prevented this way" needs.
     prevented: u64,
 }
 
@@ -336,8 +349,9 @@ pub(crate) fn apply_replacements(
             return Ok(finish(members));
         }
 
-        // CR 616.1a–e.
-        let bucket = forced_bucket(candidates, |c| c.instance.def.class);
+        // CR 616.1a–e's ladder: everything below the first non-empty step is
+        // not a choice this pass has.
+        let choosable = must_choose_among(candidates, |c| c.instance.def.class);
 
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player. One subject, so one
@@ -353,17 +367,17 @@ pub(crate) fn apply_replacements(
         // (`replacement-architecture.md` §11 item 7).
         //
         // **And never prompt for a choice with one outcome** — §11 item 19.
-        // `ordering_cannot_change_the_outcome` is the provable form of that
+        // `ordering_cannot_change_outcome` is the provable form of that
         // rule, and `unsuppressed` — the members it was chosen over, each with
         // the group members it applied to — is what the debug build checks it
         // against after the rewrite below.
         let mut unsuppressed: Vec<(ReplacementInstanceId, Vec<usize>)> = Vec::new();
-        let chosen = if bucket.len() == 1 {
-            bucket.into_iter().next().expect("len checked")
-        } else if ordering_cannot_change_the_outcome(&bucket, subject_object(subject)) {
-            let mut members = bucket.into_iter();
-            let first = members.next().expect("len checked");
-            unsuppressed = members.map(|c| (c.instance.id, c.members)).collect();
+        let chosen = if choosable.len() == 1 {
+            choosable.into_iter().next().expect("len checked")
+        } else if ordering_cannot_change_outcome(&choosable, subject_object(subject)) {
+            let mut rest = choosable.into_iter();
+            let first = rest.next().expect("len checked");
+            unsuppressed = rest.map(|c| (c.instance.id, c.members)).collect();
             first
         } else {
             let Some(chooser) = chooser else {
@@ -377,7 +391,7 @@ pub(crate) fn apply_replacements(
                     subject
                 ));
             };
-            let sources: Vec<ObjectId> = bucket.iter().map(|c| c.instance.source).collect();
+            let sources: Vec<ObjectId> = choosable.iter().map(|c| c.instance.source).collect();
             let index = ask_choose_replacement(
                 ctx.dp,
                 game,
@@ -385,7 +399,7 @@ pub(crate) fn apply_replacements(
                 subject_object(subject),
                 &sources,
             );
-            bucket.into_iter().nth(index).expect("index validated by ask_*")
+            choosable.into_iter().nth(index).expect("index validated by ask_*")
         };
         let Candidate { instance: chosen, members: applicable } = chosen;
 
@@ -418,9 +432,16 @@ pub(crate) fn apply_replacements(
             applied.insert(chosen.id);
         }
 
-        // CR 615.7's one non-uniform rewrite: a count facing several sources
-        // at once is split by its controller's allocation, decided once per
-        // instance. Every other rewrite is the same for every member.
+        // **The one rewrite that is not the same for every member**, and it is
+        // one board: Mending Hands' count facing two attackers at once, which
+        // CR 615.7 splits by the shielded player's own allocation. Every other
+        // rewrite in the algebra applies identically to each member — a
+        // doubler doubles both, a `Prevent` drops both.
+        //
+        // Not Harm's Way, which is the *other* non-uniformity and is unbuilt:
+        // it splits one event into two with different targets, a phase-1
+        // member insertion rather than a per-member rewrite (§11 item 23,
+        // RD-5's gate).
         let shares = match (&chosen.def.rewrite, chosen.def.uses) {
             (Rewrite::Amount(AmountRewrite::PreventRemaining), Uses::NextDamage(remaining)) => {
                 Some(next_damage_shares(game, ctx, &chosen, remaining, &members, &applicable, later)?)
@@ -557,18 +578,22 @@ fn next_damage_shares(
         return Ok(vec![remaining.min(buckets[0].2)]);
     }
 
-    let chooser = buckets[0].3;
-    if chooser.is_none() || buckets.iter().any(|b| b.3 != chooser) {
-        return Err(format!(
-            "replacement {:?}'s CR 615.7 count applies to simultaneous damage whose \
-             subjects have different choosers ({:?}); every printed \"next N damage\" \
-             effect is scoped to one player and that player's permanents, so this is a \
-             def that names two sides.",
-            chosen.id,
-            buckets.iter().map(|b| b.3).collect::<Vec<_>>()
-        ));
-    }
-    let chooser = chooser.expect("checked");
+    // One chooser across every bucket, or this is a def that names two sides —
+    // matched in one expression, so there is no second, unreachable check for
+    // a reader to explain (`codebase-state.md`, the RD-2 review, item 98).
+    let chooser = match buckets[0].3 {
+        Some(p) if buckets.iter().all(|b| b.3 == Some(p)) => p,
+        _ => {
+            return Err(format!(
+                "replacement {:?}'s CR 615.7 count applies to simultaneous damage whose \
+                 subjects have different choosers ({:?}); every printed \"next N damage\" \
+                 effect is scoped to one player and that player's permanents, so this is a \
+                 def that names two sides.",
+                chosen.id,
+                buckets.iter().map(|b| b.3).collect::<Vec<_>>()
+            ))
+        }
+    };
     game.counters.record_prevention_allocation();
     let offer: Vec<(ObjectId, u64)> = buckets.iter().map(|b| (b.1, b.2)).collect();
     let shares = ask_allocate_next_damage(ctx.dp, game, chooser, chosen.source, remaining, &offer);
@@ -582,10 +607,11 @@ fn next_damage_shares(
     Ok(shares[..here.len()].to_vec())
 }
 
-/// §11 item 19 — is this CR 616.1 bucket one whose ordering choice provably
-/// cannot change the outcome, so the prompt is noise?
+/// §11 item 19 — do the effects CR 616.1 would have the player order here
+/// provably reach one outcome whatever order they apply in, so the prompt is
+/// noise?
 ///
-/// Two shapes of bucket qualify, and a bucket that mixes them never does.
+/// Two shapes qualify, and a mix of them never does.
 ///
 /// **Every member an `EnterWith`.** The theorem, and every clause of the
 /// predicate is a premise of it:
@@ -622,7 +648,7 @@ fn next_damage_shares(
 /// remove another's applicability: an amount above 0 stays above 0 under any
 /// `n ≥ 1`, so `never_happens` cannot fire between members, and
 /// `EventPattern::DealDamage` carries no amount predicate for a member to
-/// fall out of. Two Furnaces of Rath are that bucket, and the prompt was
+/// fall out of. Two Furnaces of Rath are that shape, and the prompt was
 /// noise a human would resent. **Not `Halve`, `Plus` or any prevention arm**:
 /// `Halve` beside `Multiplier` is the phase's headline non-commuting board
 /// (3 → 1 → 2 or 3 → 6 → 3), `Plus` beside `Multiplier` does not commute
@@ -654,11 +680,11 @@ fn next_damage_shares(
 /// is the debug-build check that computes it the other way. The name is the
 /// question's, not the implementation's (item 65): does CR 616.1's ordering
 /// prompt here have more than one outcome.
-fn ordering_cannot_change_the_outcome(bucket: &[Candidate], entering: Option<ObjectId>) -> bool {
-    let all_entries = bucket
+fn ordering_cannot_change_outcome(choosable: &[Candidate], entering: Option<ObjectId>) -> bool {
+    let all_entries = choosable
         .iter()
         .all(|c| matches!(c.instance.def.rewrite, Rewrite::EnterWith(_)));
-    let all_multipliers = bucket.iter().all(|c| {
+    let all_multipliers = choosable.iter().all(|c| {
         matches!(c.instance.def.pattern, EventPattern::DealDamage)
             && matches!(
                 c.instance.def.rewrite,
@@ -668,7 +694,7 @@ fn ordering_cannot_change_the_outcome(bucket: &[Candidate], entering: Option<Obj
     if !(all_entries || all_multipliers) {
         return false;
     }
-    bucket.iter().all(|c| {
+    choosable.iter().all(|c| {
         let def = &c.instance.def;
         (match &def.rewrite {
             // Reads the frame only when the source is the object being
@@ -690,7 +716,7 @@ fn ordering_cannot_change_the_outcome(bucket: &[Candidate], entering: Option<Obj
 /// Can no `EnterMods` field change whether this set matches the entering
 /// object? `SourceOnly`, `Fixed` and `Host` match by id; a
 /// `Filter` is invariant iff every leaf is. The entry half of
-/// [`ordering_cannot_change_the_outcome`]'s premise.
+/// [`ordering_cannot_change_outcome`]'s premise.
 fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
     match affected {
         AffectedSet::SourceOnly | AffectedSet::Fixed(_) | AffectedSet::Host => true,
@@ -698,7 +724,7 @@ fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
     }
 }
 
-/// The leaf table for [`ordering_cannot_change_the_outcome`]'s entry premise. Types,
+/// The leaf table for [`ordering_cannot_change_outcome`]'s entry premise. Types,
 /// subtypes, supertypes, colors, controller, ownership and tokenness are fed
 /// by no `EnterMods` field; power is fed by `+1/+1` and `-1/-1` counters
 /// (CR 122.1a) and so `PowerLE` is not invariant. Matched exhaustively, so a
@@ -722,7 +748,7 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
     }
 }
 
-/// The debug-build check on [`ordering_cannot_change_the_outcome`]: after
+/// The debug-build check on [`ordering_cannot_change_outcome`]: after
 /// the suppressed choice applied to a member, every candidate it was chosen
 /// over that applied to that member must still apply to the rewritten event,
 /// or the predicate admitted something that reads what an application
@@ -748,17 +774,13 @@ fn check_order_invariance(
         .into_iter()
         .map(|c| c.id)
         .collect();
-    for (id, members) in unsuppressed.iter().filter(|(_, m)| m.contains(&member)) {
+    for (id, _) in unsuppressed.iter().filter(|(_, m)| m.contains(&member)) {
         debug_assert!(
             still.contains(id),
-            "the CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped \
-             applying to {:?} after the chosen member applied. Something reads what \
-             an application changes — an `ObjectFilter` leaf or `EnterMods` field \
-             `filter_is_mods_invariant` calls invariant, or an `EventPattern` field \
-             reading the amount — see `ordering_cannot_change_the_outcome`.",
-            id, next
+            "CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped applying to {:?}",
+            id,
+            next
         );
-        let _ = members;
     }
 }
 

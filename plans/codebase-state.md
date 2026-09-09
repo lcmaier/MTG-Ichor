@@ -2522,8 +2522,9 @@ section never asked.
     `CreateToken` loops `propose_entry` (`resolve.rs:630`), and Kalitas makes
     one token per death.
 
-47. **`pipeline::order_invariant_entry_bucket` is a semantics-assuming shortcut,
-    and these are its expiry conditions.** It skips CR 616.1's prompt when every
+47. **`pipeline::ordering_cannot_change_outcome` is a semantics-assuming
+    shortcut, and these are its expiry conditions.** (Named
+    `order_invariant_entry_bucket` until RD-2; item 65.) It skips CR 616.1's prompt when every
     member of the bucket is an `EnterWith` whose applicability no `EnterMods`
     field can move, which is true today because the only characteristic the
     mods feed is power (through `+1/+1` and `-1/-1` counters, CR 122.1a) and
@@ -2547,7 +2548,7 @@ section never asked.
 
     **A second bucket shape arrived with RD-2 (2026-09-09), by decision rather
     than by accident** (`replacement-architecture.md` §11 item 29). The
-    predicate — renamed `ordering_cannot_change_the_outcome`, item 65 — now also
+    predicate — renamed `ordering_cannot_change_outcome`, item 65 — now also
     admits a bucket that is entirely `Amount(Multiplier(n ≥ 1))` on
     `EventPattern::DealDamage`, under the same shared clauses. It goes false
     the day (d) an `EventPattern::DealDamage` field reads the *amount* — RD-3's
@@ -2798,7 +2799,7 @@ measurement; what follows is what a later phase has to know.
     **Sized:** none here.
 
 58. **Item 47's predicate has a fourth expiry condition, and RC-5 fired it.**
-    `order_invariant_entry_bucket`'s theorem has two halves — every member still
+    `ordering_cannot_change_outcome`'s theorem has two halves — every member still
     applies, and the applications commute — and the second was free while
     `EnterModsTemplate` held literals. It is not free now. The premise added is
     **exact rather than conservative**: an amount is order-invariant if it is
@@ -2948,7 +2949,7 @@ measurement; what follows is what a later phase has to know.
 
     **Reachability (2026-09-07):** closed — renamed.
 
-65. **`order_invariant_entry_bucket` is named after its implementation, not its
+65. **`order_invariant_entry_bucket` was named after its implementation, not its
     question.** The question is "does CR 616.1's ordering prompt have more than
     one outcome here" — §11 item 19's rule that the engine must not ask a
     player a question whose answer cannot matter. "Bucket" is CR 616.1a–e's
@@ -2965,12 +2966,28 @@ measurement; what follows is what a later phase has to know.
 
     **Sized:** none beyond item 64's PR.
 
-    **Closed by RD-2 (2026-09-09):** renamed `ordering_cannot_change_the_outcome`
-    when the second bucket shape arrived (item 47), since a name that said
-    "entry" had become wrong as well as implementation-shaped. `forced_bucket`
-    keeps its name — "bucket" is CR 616.1a–e's own word there — and the
-    mismatch the counter-argument feared did not materialise, because the
-    predicate no longer mentions the bucket at all.
+    **Closed by RD-2 (2026-09-09), and the counter-argument was wrong on a
+    fact.** The predicate is `ordering_cannot_change_outcome`, renamed when the
+    second admissible shape arrived (item 47) because a name saying "entry" had
+    become wrong as well as implementation-shaped. The counter-argument above —
+    leave it, because "bucket" is the codebase's word for what the function
+    takes — assumed the word was the CR's. **It is not**: CR 616.1a–e is a
+    ladder of *steps*, each reading "if any … one of them must be chosen. If
+    not, proceed to [the next]", and "bucket" appears nowhere in the rule. So
+    the mismatch was real in both directions and `forced_bucket` was renamed
+    with it, to `must_choose_among` — 616.1a's own sentence — with the local
+    `bucket` becoming `choosable` and the ~25 doc uses of the word in the
+    616.1 sense becoming "step". The word survives only in the
+    `DecisionProvider::allocate` API, where it means a bucket to allocate a
+    total across and is nobody's confusion.
+
+    **The finding underneath, worth more than the rename:** this is item 89's
+    shape again. The sentence "keeps its name — 'bucket' is CR 616.1a–e's own
+    word there" was written on 2026-09-09 in the RD-2 docs commit, was false
+    when written, and no test could fail on it. It was caught in review by a
+    reader asking what a bucket *was* — which is the only instrument this
+    project has for that class of claim, and the argument for
+    "Before card breadth" item 11's glossary check.
 
 ### Found by CM-1 — cost modification (2026-09-07)
 
@@ -3754,6 +3771,90 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
 
     **Sized:** one token, in the PR that registers the first regenerating
     card.
+
+### Found by the RD-2 review (2026-09-09)
+
+Fourteen comments on PR #120, captured in `plans/handoffs/rd-2-review.md`,
+triaged, and absorbed here — the file is deleted in the review commit, as its
+contract says. Eight were answered in place (a doc comment, a rename, a
+restructure); three changed the **corpus** rather than the code, which is the
+half worth recording; two are deferred with a home and a size (`backlog.md`
+§2.24, "Before card breadth" item 11); and one closed item 65 while proving a
+claim in it false, which is item 97.
+
+96. **Two atoms moved in opposite directions, and the pair is the finding.**
+    `specdb` came out unchanged — 118 full, 50 partial — because one atom was
+    promoted and one demoted in the same pass, and the reasoning is the same
+    reasoning read from both ends.
+
+    **`COMP-614-616-DOUBLE-REPLACEMENT-001` was promoted to `COVERS`.** RD-2
+    had marked it partial on the grounds that "Player A chooses order" is a
+    half the engine deliberately does not build (§11 item 29's suppression).
+    The review's objection: *if the choice is provably immaterial, that points
+    at the atom rather than at the coverage*. Correct — and the atom now
+    carries an audit note saying so. CR 616.1e does give the player the
+    choice, and *because* multiplication commutes no rules-legal question
+    distinguishes the two orders: not the damage, not its source, not the
+    event log. An engine that asks and one that does not produce the same
+    game, so a test proving 2 → 4 → 8 with each doubler applying once covers
+    the atom. The clause that stays observable, and that a test here must not
+    drop, is CR 614.5's "each applies once".
+
+    **`BOUNDARY-DEF-615.1a-001` was demoted to `COVERS-PARTIAL`**, found while
+    answering a different question ("isn't that test tautological?" — half of
+    it was). The atom's out-of-set member is a *triggered ability*, and no type
+    in this engine can express one until critical-path item 6, so the test
+    substitutes the two nearest expressible non-members: a doubler, and
+    regeneration. Regeneration is the load-bearing one — a `Prevent` that is
+    **not** a prevention effect, because CR 615.1 is about damage and its
+    pattern is a destruction — and the test is now named for it.
+
+    **Reachability (2026-09-09):** nothing owed; `owed` is still 9 and neither
+    atom is in a shipped phase.
+
+    **Sized:** none. The out-of-set half of the boundary atom lands with
+    item 6.
+
+97. **A stale claim written the same day it was found, and only a reader
+    caught it.** RD-2's docs commit closed item 65 with "`forced_bucket` keeps
+    its name — 'bucket' is CR 616.1a–e's own word there". **It is not.**
+    CR 616.1a–e is a ladder of steps, each reading "if any … one of them must
+    be chosen. If not, proceed to [the next]"; the word "bucket" appears
+    nowhere in the rule, and it entered this codebase as an implementation
+    word. The reviewer did not check the rule — they asked what a bucket
+    *was*, which is the same instrument pointed at the same defect.
+
+    So the rename went through: `forced_bucket` → `must_choose_among`
+    (616.1a's own sentence), the local `bucket` → `choosable`, and the ~25
+    doc uses in the 616.1 sense → "step". The word survives in
+    `DecisionProvider::allocate`, where a bucket is a thing you allocate a
+    total across and is nobody's confusion.
+
+    **This is item 89's shape for the third time** — a comment stating a
+    checkable fact, false when written, invisible to every test. Item 89 said
+    the fix is "a re-read with an instrument". The instrument that worked here
+    was a human asking what a word meant, which does not scale and does not
+    run in CI; "Before card breadth" item 11's glossary check is the one that
+    would have.
+
+    **Reachability (2026-09-09):** closed — the claim is corrected in place
+    and item 65 records what it got wrong.
+
+    **Sized:** none beyond item 11.
+
+98. **`next_damage_shares` re-checked its own guard, and the second check read
+    as a mystery.** The chooser agreement test was `if chooser.is_none() ||
+    any(differs) { return Err }` followed by `chooser.expect("checked")` — and
+    the `expect` was read on review as *comparing a string*, which is a fair
+    reading of a line whose only visible argument is a string. It is one
+    `match` now, with no unreachable arm to explain. Recorded because the
+    lesson is not about `expect`: **a guard whose failure path returns and
+    whose success path re-derives the same fact wants to be one expression**,
+    and the tell is that the second step needs a comment.
+
+    **Reachability (2026-09-09):** closed.
+
+    **Sized:** none.
 
 ### Was the critical path complete? — audited 2026-08-27
 
@@ -4875,6 +4976,35 @@ first.
     Scheduled at Phase 8's gate (`roadmap-v2.md` §C), with the helper hoist
     above as the same PR's other half: both are "put the card layer in order
     before it triples", and neither is worth doing twice.
+
+### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
+
+11. **The codebase has enough invented vocabulary to need a glossary, and
+    nothing defines the words in one place.** Reported on the RD-2 review, on
+    "subject group" — a term RD-2 introduced, defined in a doc comment on
+    `Member` in `pipeline.rs`, used in three plans and in two commit messages.
+    It is not alone: *frame*, *rider*, *instance* vs *member* vs *candidate*,
+    *applied set*, *bucket* (which RD-2 deleted for exactly this reason), the
+    three senses of *shield*, *pool* (card pool) vs *pool* (mana pool),
+    *chokepoint*, *gate leg*, *arm*. A reader meets each of them in whichever
+    file happens to introduce it, and the definition is wherever the phase
+    that coined it put it.
+
+    **Reachability (2026-09-09):** reachable and costing time now — the review
+    that produced this item asked what two of these words meant, and both were
+    defined only in a doc comment inside the module that uses them.
+
+    **Sized:** ~150–200 lines, one PR of its own. Two constraints from the
+    scars this file already records: (a) it goes in `README.md`, not
+    `CLAUDE.md` — the budget there is 8 lines and a glossary is not an
+    invariant; and (b) **it needs an anti-rot check or it is item 89 waiting
+    to happen** (a comment stating a fact, going stale, with nothing re-reading
+    it). The check is the cheap kind trace tier 3 already wants: a script that
+    asserts every glossary term still appears in `mtgsim/src`, and that every
+    word in a short watch-list (the ones above) appears in the glossary — so a
+    rename breaks CI in the same commit, which is how `must_choose_among`
+    would have been caught. `check_claude_md.py` and `check_module_layout.py`
+    are the template.
 
 ### Before Triggered abilities (CR 603)
 

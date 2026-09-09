@@ -131,7 +131,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
 }
 
 /// "Creatures you control enter tapped" — a plain `EnterWith` to sit beside
-/// Master Biomancer in one CR 616.1 bucket.
+/// Master Biomancer in one CR 616.1 step.
 fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -152,7 +152,7 @@ fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
 }
 
 /// A creature whose own entry replacement reads *its own* power — the shape
-/// `ordering_cannot_change_the_outcome`'s new premise exists to exclude.
+/// `ordering_cannot_change_outcome`'s new premise exists to exclude.
 fn enters_with_counters_equal_to_its_own_power(name: &str, p: i32, t: i32) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
@@ -932,7 +932,7 @@ fn test_a_biomancer_bucket_is_still_order_invariant() {
 /// object's own frame is order-dependent, so the prompt is real.
 ///
 /// Two counters applied in the other order give a different number, which is
-/// why `ordering_cannot_change_the_outcome` must not suppress this bucket.
+/// why `ordering_cannot_change_outcome` must not suppress this bucket.
 #[test]
 fn test_a_self_read_amount_forces_the_ordering_prompt() {
     let mut game = setup_two_player_game();

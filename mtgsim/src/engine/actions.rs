@@ -213,7 +213,7 @@ pub enum GameAction {
     /// Two questions are still asked of the one event — a zone-change-shaped
     /// pattern watches it as the move (Worms of the Earth, Grafdigger's Cage)
     /// and an entry-shaped one as the arrival (Root Maze) — and they share one
-    /// CR 616.1 bucket, which is what the rule says entering is. RC-2 proposed
+    /// CR 616.1 step, which is what the rule says entering is. RC-2 proposed
     /// this from *inside* the zone change's performer, and the log then held
     /// half of an event the CR says never happened whenever a replacement
     /// substituted the entry (`replacement-architecture.md` §11 item 20).
@@ -412,8 +412,22 @@ impl GameState {
         result
     }
 
-    /// The three phases of one batch. Split out so `close_batch` runs on every
-    /// exit path, including the error ones.
+    /// The three phases of one batch — decide, perform, riders.
+    ///
+    /// **Split out from its two callers because Rust has no `finally`.**
+    /// [`Self::execute_actions`] and [`Self::execute_actions_new_batch`] differ
+    /// in exactly one thing — whether the batch joins the enclosing id or opens
+    /// a fresh one (§4.2's `// AUXILIARY-MOVE:` rule) — and both must run
+    /// `close_batch` on every exit path, including the several `?` that can
+    /// leave this function with an `Err`. Putting the body here lets each
+    /// wrapper be open / call / close with no early return of its own. A `Drop`
+    /// guard is the other way to get that and cannot be used here: the guard
+    /// would have to hold `&mut GameState` to close the batch, which is the
+    /// borrow this function is already holding.
+    ///
+    /// Nothing else lives in the split — it is not a phase boundary or an
+    /// extension point. A third caller would need §4.2's argument about batch
+    /// identity, not a reason to reuse this body.
     ///
     /// **Deciding is separated from performing, and that is CR 704.3.** "The
     /// game checks for any of the listed conditions ... then performs all

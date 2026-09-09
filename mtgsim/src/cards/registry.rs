@@ -150,8 +150,8 @@ const PERFORMANCE_POOL: [&str; 75] = [
     // RC-5 — the two new engine paths this phase opens, one card each.
     // Thunder-Thrash Elder is an application that *prompts and mutates*
     // (CR 614.13), the first rewrite that is not a pure function of the event,
-    // and the first non-`EnterWith` member a CR 616.1 entry bucket can hold —
-    // so `ordering_cannot_change_the_outcome` has something it must refuse to
+    // and the first non-`EnterWith` member a CR 616.1 entry step can hold —
+    // so `ordering_cannot_change_outcome` has something it must refuse to
     // suppress. Sigarda is already here, which makes CR 101.2's candidate
     // filter live rather than fixtured. Master Biomancer is the dynamic
     // counter amount: a layer read per application, and §5b's asymmetry on a

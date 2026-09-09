@@ -105,7 +105,7 @@ pub struct ReplacementDef {
     /// its controller.
     pub then: Option<Effect>,
 
-    /// CR 616.1a–d — which forced-choice bucket this falls in.
+    /// CR 616.1a–d — which step of the choice ladder this falls in.
     pub class: ReplacementClass,
 
     /// How many times it can fire.
@@ -193,7 +193,7 @@ pub enum EventPattern {
     /// the zone change onto it (CR 614.1c), proposed as
     /// `GameAction::EnterBattlefield` and nothing else, and `pattern_watches`
     /// compares `from` and `cause` against the entry's. That is Worms of the
-    /// Earth's and Grafdigger's Cage's shape, and it shares CR 616.1's bucket
+    /// Earth's and Grafdigger's Cage's shape, and it shares CR 616.1's step
     /// with [`Self::EnterBattlefield`] — one event.
     ZoneChange {
         from: Option<Zone>,
@@ -255,7 +255,7 @@ pub enum EventPattern {
     /// entry is the zone change, decided before anything moves, so refusing it
     /// leaves the card where it was. The printed family — Worms of the Earth,
     /// Grafdigger's Cage — is registered in [`Self::ZoneChange`]'s shape, which
-    /// watches an entry too; both doors open onto one CR 616.1 bucket, and the
+    /// watches an entry too; both doors open onto one CR 616.1 step, and the
     /// frame (`engine::replacement::EntryFrame`) answers at either.
     EnterBattlefield {
         cast: Option<bool>,
@@ -560,9 +560,15 @@ impl AmountRewrite {
         }
     }
 
-    /// Is this one of CR 615.1a's prevention arms — an arm whose text "uses
-    /// the word 'prevent'"?
-    pub fn is_prevention(self) -> bool {
+    /// Does this operation prevent damage — CR 615.1a's "uses the word
+    /// 'prevent'", asked of one arm?
+    ///
+    /// **Not `is_prevention`, which is [`ReplacementDef`]'s.** That one asks
+    /// whether an *effect* is a prevention effect, which is the CR's noun and
+    /// needs the pattern as well as the rewrite: a `Prevent` on a destruction
+    /// is regeneration, not prevention. This one is the arm-shaped half it
+    /// delegates to. [`Self::prevented`] answers *how much*.
+    pub fn prevents_damage(self) -> bool {
         match self {
             AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) => false,
             AmountRewrite::PreventHalf(_)
@@ -674,7 +680,7 @@ impl EnterModsTemplate {
 
     /// Does every amount here read a constant?
     ///
-    /// The premise `pipeline::ordering_cannot_change_the_outcome` grew for RC-5:
+    /// The premise `pipeline::ordering_cannot_change_outcome` grew for RC-5:
     /// an amount that reads the CR 614.12 frame changes with what already
     /// applied, so two such applications do not commute and CR 616.1's
     /// ordering prompt is real. `codebase-state.md` item 47 carries the
@@ -821,14 +827,14 @@ pub enum GameActionTemplate {
     RemoveCountersFromAffected { counter: CounterType, n: u32 },
 }
 
-/// CR 616.1a–e — the forced-choice buckets, in the rule's own order.
+/// CR 616.1a–e — the steps of the rule's choice ladder, in its own order.
 ///
-/// `forced_bucket` returns the highest-priority non-empty class and only that
-/// class; [`Self::Other`] is 616.1e's fallthrough, "any of the applicable
+/// `must_choose_among` returns the first non-empty step's candidates and only
+/// those; [`Self::Other`] is 616.1e's fallthrough, "any of the applicable
 /// replacement and/or prevention effects may be chosen".
 ///
 /// All five arms ship in Phase RB even though only `Other` has a producer,
-/// because the *ordering* is what item 3 implements and a bucket that does not
+/// because the *ordering* is what item 3 implements and a step that does not
 /// exist cannot be ordered. `ControlChanging` gained its producer in RC-4
 /// ([`Rewrite::EnterUnderControlOf`]); `SelfReplacement` gets one with the
 /// first CR 614.15 card and `CopyOnEnter` with Phase CV-2's copy spine.
@@ -847,7 +853,7 @@ pub enum ReplacementClass {
 }
 
 impl ReplacementClass {
-    /// The CR 616.1 bucket a rewrite belongs to, read off the rewrite.
+    /// The CR 616.1 step a rewrite belongs to, read off the rewrite.
     ///
     /// Derived rather than authored. CR 616.1b and 616.1c name their classes
     /// by what the effect *does*, so a field a card could set is a field a
@@ -990,7 +996,7 @@ impl ReplacementDef {
         matches!(self.pattern, EventPattern::DealDamage)
             && match &self.rewrite {
                 Rewrite::Prevent => true,
-                Rewrite::Amount(arm) => arm.is_prevention(),
+                Rewrite::Amount(arm) => arm.prevents_damage(),
                 Rewrite::Instead(_)
                 | Rewrite::EnterWith(_)
                 | Rewrite::EnterAfterMoving(_)
@@ -1139,15 +1145,24 @@ mod tests {
 
     // > 615.1a Effects that use the word "prevent" are prevention effects.
     //
-    // In-set: "prevent the next 3 damage that would be dealt to target
-    // creature" and "prevent that damage". Out-of-set: a doubler on the same
-    // event (no "prevent" in its text), and regeneration — a `Prevent` on a
-    // *destruction*, which CR 615.1 is not about. The atom's own out-of-set
-    // member is a triggered ability, which does not exist yet; a replacement
-    // that is not a prevention is the nearest member the type can express.
-    // COVERS: BOUNDARY-DEF-615.1a-001
+    // **The negative half is the load-bearing one**, and it is why this is a
+    // test rather than a restatement: asserting that a def written to prevent
+    // damage is a prevention effect is close to tautological, since the def is
+    // hand-written three lines up. *Regeneration* is the one that is not —
+    // a `Prevent` that is **not** a prevention effect, because CR 615.1 is
+    // about damage and regeneration's pattern is a destruction. Get that wrong
+    // and CR 701.19c's "can't be regenerated" and CR 615.12's "damage can't be
+    // prevented" (RD-4) begin answering for each other, since both consult a
+    // `ReplacementKindFilter`. A doubler is the other negative: same pattern,
+    // no "prevent" in its text.
+    //
+    // COVERS-PARTIAL: BOUNDARY-DEF-615.1a-001 — the atom's out-of-set member is
+    // a *triggered ability* ("whenever damage is dealt … you gain that much
+    // life"), which no type here can express until critical-path item 6; the
+    // two negatives below are the nearest members it can. The in-set member is
+    // built whole.
     #[test]
-    fn a_prevention_effect_is_one_whose_text_prevents_damage() {
+    fn regeneration_is_a_prevent_that_is_not_a_prevention_effect() {
         let next_three = ReplacementDef::new(
             EventPattern::DealDamage,
             AffectedSet::NO_OBJECTS,
