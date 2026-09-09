@@ -976,6 +976,16 @@ CR 615.12 needs the same recognition for prevention. Phase RD should widen the
 `bool` to a small `ReplacementKind` at that point rather than adding a second
 `bool`.
 
+**Superseded by RD's design check (2026-09-08, `replacement-architecture.md` §9 and
+§11 item 25).** The bit does not widen: CR 615.1a makes "prevention effect" a fact
+about the effect's text, which the def already carries as its rewrite and pattern,
+so `ReplacementDef::is_prevention()` is *derived* and no card can forget to set
+it. `is_regeneration` keeps its authored bit. And the two kinds act at two
+different sites: CR 701.19c withholds a regeneration shield at `gather`'s door
+("not applied"), while CR 615.12 applies a prevention effect and lets it prevent
+nothing — so the `Prevention` consult sits where the prevention arms are applied,
+in the pipeline, not in `push_if_applicable`.
+
 **Consumers.** 155 clauses of "can't be regenerated" and 32 of "damage can't be
 prevented", of which Skullcrack is both halves plus a Tier-2 restriction in one
 instant: *"Players can't gain life this turn. Damage can't be prevented this

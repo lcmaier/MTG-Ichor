@@ -192,8 +192,10 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 
 - **Rules** — CR 702, the evasion/combat and static-ability half: menace
   (702.111), shroud (702.18), protection (702.16), improvise (702.126), flash
-  (702.8), impending (702.176), warp (702.185), and first/double strike
-  (702.4, 702.7)
+  (702.8), impending (702.176), warp (702.185), first/double strike
+  (702.4, 702.7), and **infect (702.90), wither (702.80) and toxic (702.164)
+  with their CR 120.3b/d/g results of damage** — named here 2026-09-08 because
+  the ledger's `T21c` pointed at this entry and this entry did not mention them
 - **Verdict** — mostly card breadth rather than a missing surface, which is why
   audit §6 retired `audit --dark` over exactly this material: it is *depth*, and
   it belongs beside the phases that need it. Two exceptions worth naming
@@ -204,10 +206,36 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   which is item 6's LKI formalization.
 - **Size** — the keywords are Phase 8 breadth. The mid-combat re-check is one
   focused change to the combat damage step; the LKI half rides item 6.
+  **Infect/wither/toxic: ~200–300 with the first infect card** — three
+  `KeywordFlag`s, three result arms in `perform_action(DealDamage)`, and a
+  counter proposal whose subject is a *player* (§2.16's map; the same
+  player-subject shape RD-1 gives `ReplacementDef`). The seam is already cut:
+  Phase RD-1 writes that performer as one `match` per CR 120.3 result on the
+  source's keywords and the target's type (`replacement-architecture.md` §9,
+  decision 4 and §11 item 27), so each keyword lands as one arm.
 - **Blocks** — nothing structural. Protection also needs §2.8's SBA legality
   re-check for Auras and Equipment.
 - **Atoms** — 20, not re-filed.
 - **Owner** — none yet.
+
+### 2.23 Battles (CR 310), and CR 120.3h
+
+- **Rules** — CR 310 whole: casting a battle, its protector, defense counters
+  (122.1g), being attacked (506.1, 508.1), CR 120.3h's damage result, and
+  the siege's flip on defeat (310.11–310.12)
+- **Verdict** — `CardType::Battle` and `AttackTarget::Battle` exist and
+  nothing reads them: `validation.rs` refuses a battle as an attack target,
+  `perform_action(DealDamage)` marks damage on any object, and no protector
+  is chosen anywhere. A whole subtype's rule set, not a missing leaf.
+- **Size** — one PR in the band, after item 6 (the flip is a trigger) and
+  the planeswalker attack path it shares (`replacement-architecture.md` §9,
+  RD-1 leaves both out of combat on purpose).
+- **Blocks** — every battle card (March of the Machine's 36 and later
+  printings); CR 120.3h's result arm, whose seam RD-1 cuts beside 120.3b/d/g.
+- **Atoms** — none filed under `Backlog` yet; CR 310's are in Phase 8.
+- **Owner** — none yet. Entered 2026-09-08 by RD's design check, because no
+  document owned CR 310 and the results-of-damage decomposition needed to
+  point somewhere real rather than at a `T##`.
 
 ### 2.7 Modal spells and abilities (CR 700.2), and devotion (700.5)
 
