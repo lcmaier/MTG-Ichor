@@ -4627,60 +4627,74 @@ first.
     mechanical PR before the first Phase 8 card file, not folded into one.
 
     **What the transition to a real card list looks like — asked on review
-    2026-09-08, because "cordoned off with the test cards" implied a copy.**
-    It does not, and the reason is worth stating before Phase 8 makes it
-    expensive:
+    2026-09-08 and then measured, because both of us were arguing from
+    impressions.** The measurement changed one of the answers.
 
-    - **There is no duplication today and the transition must not create any.**
-      Every named card has exactly **one** definition — `phase_rd_cards::
-      furnace_of_rath` — and both callers reach it the same way: `registry.rs`
-      registers the function, and integration tests `use
-      mtgsim::cards::phase_rd_cards::furnace_of_rath` directly. The definitions
-      are already the official ones; `registry.rs`'s own comment applies the
-      criterion in prose, registering only cards "faithful to the printed card"
-      and naming every exclusion with its reason (invented cards, deliberate
-      stand-ins, Auras re-modeled as Instants).
-    - **So it is a move and a split, not a rewrite.** What is haphazard is the
-      *file name*, which records which engine phase first needed the card and
-      says nothing about the card. Split each phase file by the criterion
-      `registry.rs` already applies — faithful printing on one side, fixture on
-      the other — move the faithful ones into a card list, and leave the
-      fixtures where a reader can tell they are fixtures. Rewriting a card that
-      is already correct would produce the two copies the question is about.
-    - **Organize the list by printing, not by type or by phase.** By type is
-      already visibly failing (`creatures.rs`, `keyword_creatures.rs`,
-      `utility_creatures.rs`, and a card that stops being a creature under
-      Layer 4 belongs in none of them); by phase is the current problem. Set or
-      printing matches how a human looks a card up, matches Scryfall — which is
-      where every oracle text in this repo comes from — and never needs
-      re-filing, because a card's first printing does not change. `alpha.rs`
-      and `dual_lands.rs` are already that shape. One file per card is the
-      other stable answer and can wait until the count argues for it.
-    - **Tests keep calling the function, not the registry.** Two reasons, and
-      both are about failure mode: `registry.create("Furnace of Rath")` turns a
-      renamed function from a compile error into a runtime one, and it makes
-      every test depend on *registration* — which
-      `register-a-card-only-once-the-engine-can-play-it` deliberately keeps
-      separate, since a phase's red-test commit has its cards defined and
-      unregistered on purpose. The import path changes; nothing else does.
-    - **Unnamed props are a different thing and stay put.**
-      `test_support::vanilla_creature(2, 2, &[])` has no printing to be
-      faithful to, and `test_support`'s module doc already says why fixtures are
-      built inline: so a test's board does not change under it when a real card
-      definition is edited. That argument is about props, not about named cards
-      — a test that wants Furnace of Rath *wants* to break when Furnace of Rath
-      changes.
-    - **The one case where two definitions would be legitimate is already
-      handled without copying**: a card whose engine support is unfinished is
-      *defined and not registered*, which is a state the registry expresses.
-      Keep it that way rather than letting an unfinished card live as a second
-      copy somewhere.
-    - **A named fixture may be registered on purpose, so "registered" is not
-      the split.** Loyalty Probe is a fixture *and* registered, because
-      CR 704.5i needed a planeswalker a random agent could reach. So the
-      structure can make provenance visible — which module a name comes from —
-      but the check that a registered card is faithful stays review's, and the
-      exclusion comments in `registry.rs` are what it reads.
+    **Measured (Scryfall `/cards/collection`, 2026-09-08).** 98 registered
+    names, **97 of them real** — the single exception is `Loyalty Probe`, which
+    RD-1 added the day before. `Everywhere` looked like a second exception and
+    is not: it is a real printed *token* (`tdsk`), which is exactly what
+    `registry.rs` says it is. Separately, **29 card functions are defined and
+    registered nowhere** — the fixtures: `generic_reducer`, `flight_clause`,
+    `dual_land_ub`, the four `*_spell` stand-ins, and so on.
+
+    **So the criterion is not quietly rotten; it has exactly one exception and
+    it is deliberate.** But the framing was wrong, and this is the finding: the
+    registry is **not** "the official card list". It is *the set of things a
+    deck can be built from* — `fuzz_games` and `cli_play` can only play what is
+    registered. Loyalty Probe is in it because CR 704.5i needed a planeswalker
+    a random agent could reach, not because anyone thought it was a card. Three
+    sets, not two:
+
+    | | what it is | count today |
+    |---|---|---|
+    | **printings** | faithful to a real card or token | 97 |
+    | **fixtures** | invented, exist to make an engine path testable | 30 |
+    | **the playable pool** (`registry.rs`) | what a deck can contain — drawn from *both* | 98 |
+
+    The third is a membership question ("can the engine play this, and does the
+    harness need it"), which is why it will always be able to contain a fixture.
+
+    **Filing by set is wrong at this scale, and the measurement is what says
+    so.** The first advice written here was "file by printing, because that is
+    how a human looks a card up and a first printing never changes". Against
+    the actual pool that produces **62 distinct sets for 97 cards, 47 of them
+    holding exactly one** — so ~60 files averaging 1.5 cards each.
+    That is worse than what exists. Set-based filing is right for a corpus of
+    thousands; this repo's is hand-written and Phase 8 takes it to a
+    Commander-viable few hundred. **Alphabetical shards** (`cards/a_c.rs`,
+    `cards/d_f.rs`, …) are the honest answer: findable by the only key anyone
+    searches on, ~8 files, rebalanceable, and stable under everything a card
+    can do to itself. One file per card is the escape hatch if the count ever
+    passes a thousand; by type is already visibly failing (`creatures.rs`,
+    `keyword_creatures.rs`, `utility_creatures.rs`).
+
+    **Fixtures move to `src/cards/fixtures/`, not to `tests/`** — and the
+    reason is structural rather than aesthetic. `tests/` is a separate crate
+    that `src/cards/registry.rs` cannot reference, and `test_support` is behind
+    a feature flag that release builds turn off; a registered fixture has to be
+    reachable from `src` either way. So it is a sibling module whose doc says
+    "nothing here is a printing", and the split is visible at every import.
+
+    **The plan, then:**
+
+    1. Classify — done, above, and re-runnable: the registered names against
+       Scryfall's collection endpoint, and defined-vs-registered off the tree.
+    2. Move the 97 printings into alphabetical shards.
+    3. Move the 30 fixtures into `cards::fixtures`. **The registered one stays
+       registered** — its reason is the harness, and moving a file does not
+       change it. **Tests need one changed `use` line each**: they call the
+       function (`phase_li_cards::flight_clause`), never a registry string, so
+       a rename stays a compile error.
+    4. Delete the empty `phase_*_cards.rs` files. Their names were always
+       archaeology — which engine phase first needed a card, not anything about
+       the card.
+
+    **Sized: ~1 PR, mechanical, and it must be its own** — nearly every line is
+    a move, so a diff that also changes behavior would be unreviewable.
+    Scheduled at Phase 8's gate (`roadmap-v2.md` §C), with the helper hoist
+    above as the same PR's other half: both are "put the card layer in order
+    before it triples", and neither is worth doing twice.
 
 ### Before Triggered abilities (CR 603)
 

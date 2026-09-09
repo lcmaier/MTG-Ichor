@@ -248,6 +248,22 @@ pipeline earning its slot when authoring speed binds. **Gates at its start:**
 A3 (no dependency-ordering-sensitive cards before it), B4 (no reveal or
 face-down cards before it), B6's CV-7. Milestone: **core-rules-complete** (§6).
 
+**C0 — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
+Card definitions live in files named after the *engine phase* that first needed
+them, and the static-`AbilityDef` shape is written out 31 times because there is
+no shared helper a card file may use (`test_support` is a test-only crate
+feature). Measured the same day: 98 registered names, **97 real cards or
+tokens** and one deliberate fixture; 29 more card functions defined and
+registered nowhere. Phase 8 multiplies all of it. So one PR before the first
+breadth card: a `cards::helpers` module for the ability constructors, the
+printings re-filed into alphabetical shards — **not** by set, which measures 62
+sets for 97 cards, 47 holding exactly one — and the fixtures into `cards::fixtures`, which stays inside
+`src` because a registered fixture must be reachable from `registry.rs`. Nothing
+behavioral changes and tests change one `use` line each, which is the reason it
+must not ride along with a phase that does change behavior.
+`codebase-state.md` "Before card breadth" item 10 carries the plan, the
+classification and the numbers; `plans/references/classify_cards.py` re-runs it.
+
 ### D. Phase 9 — formats and multiplayer (230 atoms)
 
 The `Format` trait dispatching Commander against Standard; Commander complete
