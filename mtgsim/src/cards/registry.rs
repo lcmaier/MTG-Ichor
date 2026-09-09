@@ -47,7 +47,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 76] = [
+const PERFORMANCE_POOL: [&str; 77] = [
     "Plains",
     "Island",
     "Swamp",
@@ -256,6 +256,25 @@ const PERFORMANCE_POOL: [&str; 76] = [
     // engine cost is a batch the pool already pays; Torbran is legendary at
     // {1}{R}{R}{R}.
     "Guardian Seraph",
+    // RD-4 — the pool's first `Rewrite::Retarget`, and its first Aura whose
+    // static ability is a replacement effect rather than a continuous one. Two
+    // engine paths nothing else here opens: a rewrite that changes the event's
+    // *subject*, so the CR 616.1 chooser and the next iteration's gather are
+    // asked about a different object; and an `attached_to` read on a damage
+    // event.
+    //
+    // Castable at {2}{W} in a white deck that already runs Mending Hands and
+    // Guardian Seraph, and it needs a creature to enchant, which the random
+    // agent supplies — an Aura with no legal host is countered on resolution
+    // (CR 608.3b) and costs nothing.
+    //
+    // The other three stay out. Palisade Giant is the same `Retarget` path at
+    // {4}{W}{W}, and a 2/7 that the random agent will attack with distorts the
+    // combat fixtures more than its redirect adds; Pinpoint Avalanche's flag is
+    // a `bool` on an event the pool already proposes thousands of; Reflect
+    // Damage is the chosen-source path Circle of Protection: Red already
+    // measured, at {3}{R}{W}.
+    "Pariah",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -567,6 +586,18 @@ impl CardRegistry {
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
         );
+
+        // RD-4 — redirection and unpreventable damage. The axis is where a
+        // `Rewrite::Retarget` reads its destination: Pariah off the Aura's
+        // host, Palisade Giant off its own source, Reflect Damage off the
+        // *damage's* source's controller. Pinpoint Avalanche is the other
+        // feature and shares none of that — CR 615.12's per-event flag, and the
+        // only one of its nine printed cards the engine can play whole.
+        // Pariah is pooled; the rest are the stress pool's breadth.
+        registry.register("Pariah", phase_rd_cards::pariah);
+        registry.register("Palisade Giant", phase_rd_cards::palisade_giant);
+        registry.register("Pinpoint Avalanche", phase_rd_cards::pinpoint_avalanche);
+        registry.register("Reflect Damage", phase_rd_cards::reflect_damage);
 
         registry
     }
