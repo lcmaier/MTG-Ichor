@@ -256,11 +256,22 @@ feature). Measured the same day: 98 registered names, **97 real cards or
 tokens** and one deliberate fixture; 29 more card functions defined and
 registered nowhere. Phase 8 multiplies all of it. So one PR before the first
 breadth card: a `cards::helpers` module for the ability constructors, the
-printings re-filed into alphabetical shards — **not** by set, which measures 62
-sets for 97 cards, 47 holding exactly one — and the fixtures into `cards::fixtures`, which stays inside
-`src` because a registered fixture must be reachable from `registry.rs`. Nothing
-behavioral changes and tests change one `use` line each, which is the reason it
-must not ride along with a phase that does change behavior.
+printings re-filed **by first printing, one file per set**, and the fixtures
+into `cards::fixtures`, which stays inside `src` because a registered fixture
+must be reachable from `registry.rs`. Nothing behavioral changes and tests
+change one `use` line each, which is the reason it must not ride along with a
+phase that does change behavior.
+
+**Set filing is chosen on the marginal cost of the next card, not on today's
+tidiness** (this row briefly said the opposite): a new set is a new file and no
+existing file is touched, where any name-sharded layout is edited everywhere on
+every release and eventually needs a rebalance that renames files and breaks
+every import. It is also the shape the deferred import pipeline emits, since
+that is how Scryfall's bulk data is organized — so generated and hand-written
+cards land in the same place rather than in two schemes. Keyed on first
+printing the existing 97 fall into 46 sets with `lea` holding 31 — the figure
+that argued against set filing, 62, was measured on whichever printing Scryfall
+returned rather than the earliest.
 `codebase-state.md` "Before card breadth" item 10 carries the plan, the
 classification and the numbers; `plans/references/classify_cards.py` re-runs it.
 

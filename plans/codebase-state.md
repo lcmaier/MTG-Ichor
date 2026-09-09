@@ -4655,19 +4655,55 @@ first.
     The third is a membership question ("can the engine play this, and does the
     harness need it"), which is why it will always be able to contain a fixture.
 
-    **Filing by set is wrong at this scale, and the measurement is what says
-    so.** The first advice written here was "file by printing, because that is
-    how a human looks a card up and a first printing never changes". Against
-    the actual pool that produces **62 distinct sets for 97 cards, 47 of them
-    holding exactly one** — so ~60 files averaging 1.5 cards each.
-    That is worse than what exists. Set-based filing is right for a corpus of
-    thousands; this repo's is hand-written and Phase 8 takes it to a
-    Commander-viable few hundred. **Alphabetical shards** (`cards/a_c.rs`,
-    `cards/d_f.rs`, …) are the honest answer: findable by the only key anyone
-    searches on, ~8 files, rebalanceable, and stable under everything a card
-    can do to itself. One file per card is the escape hatch if the count ever
-    passes a thousand; by type is already visibly failing (`creatures.rs`,
-    `keyword_creatures.rs`, `utility_creatures.rs`).
+    **File by first printing — and the two paragraphs that stood here arguing
+    for alphabetical shards were wrong, twice over (corrected on review,
+    2026-09-08).**
+
+    The wrong argument was: the pool measures 62 sets for 97 cards, most
+    holding one, so set files would average 1.5 cards each and that is worse
+    than what exists. **That optimizes a filing decision against a snapshot,
+    which is exactly backwards.** A filing scheme is amortized over the whole
+    life of the corpus and the cost that decides it is the **marginal cost of
+    adding the next card**, not the tidiness of the first hundred:
+
+    | | a new set arrives | two people add cards |
+    |---|---|---|
+    | **by first printing** | one new file, one `pub mod`, one block of `register` calls; **no existing file is touched** | different sets, different files — no conflict |
+    | **alphabetical shards** | every shard is edited; shards grow unboundedly and eventually need a rebalance, which renames files and breaks every import | same shard, constant conflicts |
+
+    **And the 62-sets figure was measured on the wrong key, which overstated
+    it.** Scryfall's collection endpoint answers a name lookup with a printing
+    of its own choosing, not the earliest; keyed on **first** printing the same
+    97 cards give **46 sets, 33 of them holding one — and `lea` alone holds
+    31**. What is left of the fragmentation is an artifact of how this pool was
+    assembled: one card at a time, for engine reasons, across thirty years of
+    Magic. It is close to the most set-fragmented sample the card base could
+    produce, and a real import goes set by set into files holding hundreds.
+
+    **The second error was inventing the constraint it optimized against.**
+    "Phase 8 takes it to a Commander-viable few hundred" appears in no document
+    — `roadmap-v2.md` says the opposite about the trajectory: after Phase 8
+    "the bottleneck moves to card-authoring speed, which is when the deferred
+    Scryfall import pipeline earns its slot". That pipeline emits **per set**,
+    because that is how Scryfall's bulk data is shaped, so filing by set is
+    also the scheme under which generated and hand-written cards land in the
+    same place. Picking a layout that a few hundred cards would suit, and
+    locking in against an import measured in tens of thousands, is the tail
+    wagging the dog.
+
+    **Findability was the other thing offered for alphabetical, and it is not
+    filing's job.** A caller reaches a card by name through the registry
+    (`registry.create("Furnace of Rath")`) or by function through the compiler;
+    neither reads a directory listing. Filing has to serve *change*, and change
+    arrives set-shaped.
+
+    **First printing is the key, and it is the one that never moves.**
+    `classify_cards.py --first-printings` resolves it — one request per card,
+    because no bulk endpoint answers it. The existing 97 get filed by it on day
+    one, small files and all; by type is already
+    visibly failing (`creatures.rs`, `keyword_creatures.rs`,
+    `utility_creatures.rs`) and one file per card stays available if a set file
+    ever becomes unwieldy.
 
     **Fixtures move to `src/cards/fixtures/`, not to `tests/`** — and the
     reason is structural rather than aesthetic. `tests/` is a separate crate
@@ -4680,7 +4716,7 @@ first.
 
     1. Classify — done, above, and re-runnable: the registered names against
        Scryfall's collection endpoint, and defined-vs-registered off the tree.
-    2. Move the 97 printings into alphabetical shards.
+    2. Move the 97 printings into per-set files keyed on **first** printing.
     3. Move the 30 fixtures into `cards::fixtures`. **The registered one stays
        registered** — its reason is the harness, and moving a file does not
        change it. **Tests need one changed `use` line each**: they call the
