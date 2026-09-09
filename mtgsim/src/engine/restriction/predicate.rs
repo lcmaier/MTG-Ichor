@@ -202,10 +202,12 @@ fn matches(
                 && set_affects(
                     game,
                     affected,
-                    // No `Restriction` names a player yet: RD-4 gives
-                    // `ApplyReplacement` its player set with "damage can't be
-                    // prevented" over damage to a player, and `Event` gets one
-                    // when a card asks for it.
+                    // `Restriction::Event` names no player. RD-4 gave
+                    // `ApplyReplacement` the player set CR 615.12 needs and
+                    // deliberately left this arm alone: no printed "can't" the
+                    // engine can express is about an event whose subject is a
+                    // player, and the day one is, it adds the field with its
+                    // card rather than ahead of it.
                     &PlayerSet::Nobody,
                     source,
                     controller,
@@ -216,11 +218,11 @@ fn matches(
         }
 
         (
-            Restriction::ApplyReplacement { kind, to },
+            Restriction::ApplyReplacement { kind, to, to_players },
             Query::ApplyReplacement { kind: asked, subject },
         ) => {
             kind == asked
-                && set_affects(game, to, &PlayerSet::Nobody, source, controller, *subject, None)
+                && set_affects(game, to, to_players, source, controller, *subject, None)
         }
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })

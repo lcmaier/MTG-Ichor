@@ -573,7 +573,7 @@ mod tests {
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
-                    Primitive::DealDamage(AmountExpr::Fixed(3)),
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
@@ -606,7 +606,7 @@ mod tests {
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
-                    Primitive::DealDamage(AmountExpr::Fixed(3)),
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
@@ -723,7 +723,7 @@ mod tests {
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
-                    Primitive::DealDamage(AmountExpr::Fixed(2)),
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })
@@ -756,7 +756,7 @@ mod tests {
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
-                    Primitive::DealDamage(AmountExpr::Fixed(5)),
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
             })

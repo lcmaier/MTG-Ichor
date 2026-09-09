@@ -222,8 +222,12 @@ pub enum LossReason {
     CommanderDamage,
 }
 
-/// What damage is being dealt to
-#[derive(Debug, Clone, PartialEq)]
+/// What damage is being dealt to.
+///
+/// `Copy` from RD-4 on: CR 614.9's redirection moves one of these into a
+/// rewritten proposal while the original is still being read for the rule's
+/// "or from" leg, and both halves are ids.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DamageTarget {
     Player(PlayerId),
     Object(ObjectId),

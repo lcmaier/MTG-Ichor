@@ -22,7 +22,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{
     AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    Primitive, SelectionFilter, TargetCount,
+    PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -562,6 +562,7 @@ fn test_a_resolution_created_restriction_expires_with_its_stated_duration() {
             def: RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
                 to: AffectedSet::Fixed(vec![bear]),
+                to_players: PlayerSet::Nobody,
             }),
         });
     }
@@ -589,6 +590,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
             RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
                 to: AffectedSet::Fixed(Vec::new()),
+                to_players: PlayerSet::Nobody,
             }),
             Duration::UntilEndOfTurn,
         ),

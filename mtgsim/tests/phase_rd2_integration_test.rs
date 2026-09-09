@@ -92,7 +92,7 @@ fn bolt_with(
 ) {
     let ctx = ActionContext::new(dp);
     game.execute_action(
-        GameAction::DealDamage { source, target, amount, is_combat: false },
+        GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false },
         &ctx,
     )
     .unwrap();

@@ -186,11 +186,15 @@ impl GameState {
     ) -> Result<(), String> {
         let batch = assignments
             .into_iter()
+            // Combat damage is preventable: CR 615.12's flag is set by the
+            // effect that proposes the damage, and the combat damage step is
+            // not one.
             .map(|a| GameAction::DealDamage {
                 source: a.source,
                 target: a.target,
                 amount: a.amount,
                 is_combat: true,
+                unpreventable: false,
             })
             .collect();
         self.execute_actions(batch, ctx).map(|_| ())

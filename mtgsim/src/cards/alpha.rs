@@ -33,7 +33,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::DealDamage(AmountExpr::Fixed(3)),
+                Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                 EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             ),
         })
