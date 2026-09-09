@@ -246,7 +246,8 @@ authored beside the cards that need them, the pool growing one card per new
 engine path (`engineering-practices.md` §3), and the deferred Scryfall import
 pipeline earning its slot when authoring speed binds. **Gates at its start:**
 A3 (no dependency-ordering-sensitive cards before it), B4 (no reveal or
-face-down cards before it), B6's CV-7. Milestone: **core-rules-complete** (§6).
+face-down cards before it), B6's CV-7, and **C0 below, which is the phase's
+first PR**. Milestone: **core-rules-complete** (§6).
 
 **C0 — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
 Card definitions live in files named after the *engine phase* that first needed
@@ -430,10 +431,14 @@ the audit workstream ran low, and RB ran to +5,475 because nobody counted.
 | Commander interleave | §2.1 ×2, `commander()`, CR 903.7, CR 800/802 | ~4 |
 | The lattice | §4's table | 10–13 |
 | **To "breadth unconstrained"** | | **~35–40** |
+| Phase 8's gate | **C0** — the card layer, re-filed by set, plus `cards::helpers` (§C) | 1 |
 
 After that, Phase 8's 643 atoms are throughput, not architecture — every card
 a normal diff — and the bottleneck moves to card-authoring speed, which is
-when the deferred Scryfall import pipeline earns its slot.
+when the deferred Scryfall import pipeline earns its slot. **C0 is that
+phase's first PR** and is the only one of these that buys no rule: it is
+mechanical, and its whole argument is that the same move costs an order of
+magnitude more once breadth has multiplied the files it touches.
 
 ---
 
