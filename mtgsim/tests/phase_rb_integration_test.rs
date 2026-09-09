@@ -1255,7 +1255,7 @@ fn cant_be_regenerated() -> Primitive {
     Primitive::Restrict(
         RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Regeneration,
-            to: AffectedSet::Fixed(Vec::new()),
+            to_objects: AffectedSet::Fixed(Vec::new()),
             to_players: PlayerSet::Nobody,
         }),
         Duration::UntilEndOfTurn,

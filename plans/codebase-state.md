@@ -3874,6 +3874,44 @@ audit is at the end.
      formats and multiplayer) owns it. RD-4's own test builds the state by
      hand and says so.
 
+109. **The `EachOther` fix stopped one site short of the sites that have a
+     source, and the biggest one is `Primitive`'s filter recipient.** RD-4 gave
+     `set_affects` a source to answer `ObjectFilter::EachOther` against
+     (item 103). Four callers of `targeting::object_matches_filter` remain
+     source-less, and **only two of them are genuine selections** —
+     `validate_permanent_target` and `costs.rs`'s cost-candidate filter, which
+     have no effect source and are right to refuse the leaf. The other two do
+     have one and do not pass it:
+
+     - `resolve.rs`'s three `EffectRecipient::FilteredPermanents` sites
+       (`DealDamage`, `CreateReplacement`, one more) hold `ctx.source`. This is
+       the one with printed customers: **85 cards say "each other creature you
+       control"** and 146 say "each other creature" (Scryfall, 2026-09-09).
+       Today such a filter matches nothing and the card silently does nothing —
+       Palisade Giant's bug at a different site.
+     - `pipeline.rs`'s CR 614.13 auxiliary-move filter holds `chosen.source`.
+       No printed customer: devour's payload is "creatures you control" and
+       says nothing about "other".
+
+     `pattern_watches`' three legs are a different question and stay refused:
+     the function takes the effect's *controller* and not its source, and a
+     source-side "other than me" predicate is Sokrates' one-customer shape that
+     §8c already told RD-3 to record rather than build.
+
+     **Reachability (2026-09-09):** unreachable — no registered card writes
+     `EachOther` into a `FilteredPermanents` recipient, which is exactly the
+     kind of zero item 103 has just been corrected for reading too broadly. It
+     is evidence about the pool, and the pool has 85 printed candidates waiting
+     outside it.
+
+     **Sized:** three one-line changes in `resolve.rs` (and one in
+     `pipeline.rs`) to `object_matches_filter_of_source`, plus one registered
+     card that says "each other creature you control" to test it — so ~10 lines
+     of engine and one card. It belongs with the first phase that writes that
+     card, not with RD-4, whose scope is redirection. Not stubbed: the filter
+     exists and answers `false`, which is the silent-card failure, so this line
+     is the record that it does.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a

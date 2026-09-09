@@ -5840,6 +5840,46 @@ found them.
     evidence about the *pool*, and it can only retire a concern that the pool
     could have exercised.
 
+### Found by the RD-4 review (2026-09-09)
+
+39. **Two of RD-4's three "missing destination" tests were the same branch, and
+    the `COVERS-PARTIAL` on one of them claimed a leg no test reached.** Asked
+    on review whether an unattached Aura is a real board. It is — `change_zone`
+    detaches every attachment when a permanent leaves and **leaves the Aura on
+    the battlefield** for CR 704.5m to find, so a single resolution that
+    destroys a creature and then damages its controller reaches it. But that
+    means `pariah_whose_host_has_left_the_battlefield_does_nothing` exercises
+    `retarget_destination` answering `None`, not `redirection_is_legal`'s
+    "no longer on the battlefield" — the same branch as the
+    attached-to-nothing test beside it. Verified by probing `attached_to` after
+    the host's zone change: `None`.
+
+    **CR 614.9's first clause needs a destination that still exists and is
+    still named**, and an Aura structurally cannot supply one. A **registry
+    row** can: it keeps the `source` it was created with and CR 608.2c's
+    duration outlives the permanent, so a resolution-created `ToEffectSource`
+    redirect whose source has died still names it.
+    `a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing`
+    is that board, and the `COVERS-PARTIAL` moved onto it. Mutation-checked:
+    replacing the `contains_key` guard with `true` fails it.
+
+40. **Nothing tested that `unpreventable` survives a redirect, and "the field
+    is copied in one line" is not a reason it did not need to.** CR 614.9 moves
+    "the same damage", so the flag travels with `is_combat` — and `is_combat`
+    had a test (Pariah's first ruling) while the flag did not. A `Retarget` arm
+    that forgot `unpreventable` left **every other test in the file green**;
+    measured, not assumed, by setting it to `false` in the arm and running the
+    suite. `a_redirect_carries_the_unpreventable_flag_onto_the_destination` is
+    the twin, and it is the only test the mutation fails.
+
+41. **`Restriction::ApplyReplacement`'s `to` was half a pair wearing the name of
+    the whole thing.** `{ kind, to, to_players }` reads as an affected set with
+    a player modifier hung off it; the two are unioned and neither is primary.
+    Renamed `to_objects` — 12 sites, no behaviour. `ReplacementDef`'s
+    `affected`/`affected_players` keeps its own names, where `affected` reads
+    as the generic noun rather than as a preposition, and the asymmetry there is
+    the older one.
+
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.

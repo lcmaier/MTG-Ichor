@@ -182,7 +182,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// # And the other axis
 ///
 /// "Destroy target creature. It can't be regenerated" registers a
-/// `Restriction::ApplyReplacement { kind: Regeneration, to: Fixed([creature]) }`.
+/// `Restriction::ApplyReplacement { kind: Regeneration, to_objects: Fixed([creature]) }`.
 /// When `gather` later finds a regeneration shield around that creature it asks
 /// `Query::ApplyReplacement { kind: Regeneration, subject: <creature> }`, and
 /// the second arm answers with the *same* `set_affects` call — the kinds agree
@@ -218,11 +218,11 @@ fn matches(
         }
 
         (
-            Restriction::ApplyReplacement { kind, to, to_players },
+            Restriction::ApplyReplacement { kind, to_objects, to_players },
             Query::ApplyReplacement { kind: asked, subject },
         ) => {
             kind == asked
-                && set_affects(game, to, to_players, source, controller, *subject, None)
+                && set_affects(game, to_objects, to_players, source, controller, *subject, None)
         }
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })

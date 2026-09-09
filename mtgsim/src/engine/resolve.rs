@@ -1788,7 +1788,7 @@ impl GameState {
 fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
     match &mut def.what {
         Restriction::Event { affected, .. } => affected,
-        Restriction::ApplyReplacement { to, .. } => to,
+        Restriction::ApplyReplacement { to_objects, .. } => to_objects,
     }
 }
 

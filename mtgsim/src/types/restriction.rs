@@ -102,7 +102,12 @@ pub enum Restriction {
     /// claim that the engine applies effects somewhere else.
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        to: AffectedSet,
+        /// The objects this withholds an effect from. **Named as half a pair**,
+        /// which `ReplacementDef`'s `affected`/`affected_players` is not: a
+        /// bare `to` beside a `to_players` reads as the whole set with a
+        /// modifier hung off it, and it is not — the two are unioned and
+        /// neither is primary (RD-4 review, 2026-09-09).
+        to_objects: AffectedSet,
         /// The other half of "whatever they're affecting" — CR 615.12's
         /// "damage can't be prevented" is about damage dealt to *players* as
         /// much as to permanents, and a prevention effect's subject is a

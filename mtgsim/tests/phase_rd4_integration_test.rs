@@ -165,7 +165,7 @@ fn cant_be_prevented_this_turn(game: &mut GameState, source: ObjectId, controlle
         created_on_turn: turn,
         def: RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Prevention,
-            to: AffectedSet::Filter { filter: ObjectFilter::All },
+            to_objects: AffectedSet::Filter { filter: ObjectFilter::All },
             to_players: PlayerSet::Everyone,
         }),
     });
@@ -191,7 +191,7 @@ fn leyline_fixture() -> Arc<CardData> {
             effect: Effect::Restriction(Box::new(RestrictionDef::new(
                 Restriction::ApplyReplacement {
                     kind: ReplacementKindFilter::Prevention,
-                    to: AffectedSet::Filter { filter: ObjectFilter::All },
+                    to_objects: AffectedSet::Filter { filter: ObjectFilter::All },
                     to_players: PlayerSet::Everyone,
                 },
             ))),
@@ -227,15 +227,18 @@ fn pariah_puts_damage_aimed_at_you_onto_the_enchanted_creature() {
     assert_eq!(marked(&game, host), 3, "it reached the enchanted creature");
 }
 
-/// CR 614.9's destination half: *"If one of those permanents is no longer on the
-/// battlefield when the damage would be redirected … the effect does nothing."*
+/// CR 704.5m's window, which is where an Aura with no host lives: the enchanted
+/// creature leaves, `change_zone` detaches every attachment and **leaves the
+/// Aura on the battlefield** for the state-based action to find, and until a
+/// player would receive priority (CR 704.3) it sits there enchanting nothing.
 ///
-/// The Aura is still on the battlefield and still points at the dead creature —
-/// CR 704.5m puts it in the graveyard, and state-based actions have not been
-/// performed — so this is exactly the instant the rule is about.
-// COVERS-PARTIAL: ATOM-614.9-001 — the destination half. The atom's other half,
-// "the shield is NOT used up", needs a `Uses::Once` redirect and is
-// `a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row` below.
+/// So a single resolution that destroys a creature and then damages its
+/// controller reaches this board, and it is not exotic. What it exercises is
+/// `retarget_destination` answering `None` — the *same* branch as
+/// `pariah_attached_to_nothing_does_nothing` below, by a different route, which
+/// is why neither of them can claim CR 614.9's "no longer on the battlefield"
+/// leg. That one is
+/// `a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing`.
 #[test]
 fn pariah_whose_host_has_left_the_battlefield_does_nothing() {
     let mut game = setup_two_player_game();
@@ -251,11 +254,62 @@ fn pariah_whose_host_has_left_the_battlefield_does_nothing() {
     assert_eq!(life(&game, 0), 17, "the damage was dealt as proposed");
 }
 
-/// The other way a destination can be missing: an Aura attached to nothing.
+/// CR 614.9's first clause, and the only board that reaches it: *"If one of
+/// those permanents is **no longer on the battlefield** when the damage would
+/// be redirected … the effect does nothing."*
 ///
-/// `retarget_destination` answers `None` rather than naming a host, and
-/// CR 614.9's "the effect does nothing" is the same answer as for an illegal
-/// one — which is why the two share a code path.
+/// An Aura cannot get here — `change_zone` detaches on the host's departure, so
+/// a dangling `attached_to` never exists. A **registry row** can: it keeps the
+/// `source` it was created with, and CR 608.2c's duration outlives the
+/// permanent. So a resolution-created `ToEffectSource` redirect whose source
+/// has died still names it, and `redirection_is_legal` is what says no.
+///
+/// The `Uses::Static` here is deliberate — the "not used up" half of the atom
+/// is `a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row`, and
+/// this one is only about the destination.
+// COVERS-PARTIAL: ATOM-614.9-001 — the destination half; the atom's other half,
+// "the shield is NOT used up", needs a `Uses::Once` redirect and is
+// `a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row` below.
+#[test]
+fn a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing() {
+    let mut game = setup_two_player_game();
+    let redirector = place_vanilla_creature(&mut game, 0, 2, 6, &[]);
+    fixture_row(
+        &mut game,
+        redirector,
+        0,
+        ReplacementDef::new(
+            EventPattern::DealDamage { source: None, combat: None },
+            AffectedSet::NO_OBJECTS,
+            Rewrite::Retarget(RetargetSpec::ToEffectSource),
+        )
+        .affecting_players(PlayerSet::You),
+    );
+    let source = probe(&mut game, 1);
+    let ctx = test_ctx();
+
+    // It works while the source is there — the control, so the test below is
+    // about the destination and not about the row.
+    deal(&mut game, source, DamageTarget::Player(0), 2, false, &ctx);
+    assert_eq!(life(&game, 0), 20);
+    assert_eq!(marked(&game, redirector), 2);
+
+    game.change_zone(redirector, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx).unwrap();
+    assert_eq!(game.replacement_effects.len(), 1, "the row outlives its source");
+
+    deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
+
+    assert_eq!(life(&game, 0), 17, "the damage was dealt as proposed");
+}
+
+/// The other route to a missing host: an Aura that entered and has not been
+/// attached. `place_on_battlefield` writes `attached_to: None` and the
+/// resolution attaches afterwards, so the two are separate steps here as they
+/// are in CR 303.4c.
+///
+/// Same branch as the test above, kept beside it because the provenance
+/// differs: one is an Aura that never had a host, the other an Aura whose host
+/// left. A regression that broke only one of the two writers would show here.
 #[test]
 fn pariah_attached_to_nothing_does_nothing() {
     let mut game = setup_two_player_game();
@@ -734,6 +788,36 @@ fn a_redirect_hands_the_event_to_the_destinations_own_shield_counter() {
         game.battlefield[&host].counter_count(mtgsim::types::effects::CounterType::Shield),
         0,
         "the counter was spent by the prevention it created"
+    );
+}
+
+/// `unpreventable` travels with the damage, exactly as `is_combat` does —
+/// CR 614.9 moves "the same damage", and a redirect that dropped the flag would
+/// hand a prevention effect on the *destination* a free save.
+///
+/// Not vacuous just because the field is copied in one line: nothing else here
+/// reads it after a rewrite, so a `Retarget` arm that forgot it would leave
+/// every other test in this file green. The combat-damage twin of this
+/// assertion is in the card file's rulings pass.
+#[test]
+fn a_redirect_carries_the_unpreventable_flag_onto_the_destination() {
+    let mut game = setup_two_player_game();
+    let host = place_vanilla_creature(&mut game, 0, 2, 6, &[]);
+    let aura = put_on_battlefield(&mut game, pariah(), 0);
+    assert!(game.attach(aura, host));
+    game.add_counters(host, mtgsim::types::effects::CounterType::Shield, 1);
+    let source = probe(&mut game, 1);
+    let dp = RecordingDecisionProvider::picking(0);
+    let ctx = ActionContext::new(&dp);
+
+    deal(&mut game, source, DamageTarget::Player(0), 3, true, &ctx);
+
+    assert_eq!(life(&game, 0), 20, "redirected off the player");
+    assert_eq!(marked(&game, host), 3, "and the shield counter prevented none of it");
+    assert_eq!(
+        game.battlefield[&host].counter_count(mtgsim::types::effects::CounterType::Shield),
+        0,
+        "CR 615.12's middle sentence — the rider ran anyway"
     );
 }
 
