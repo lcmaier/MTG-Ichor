@@ -4001,8 +4001,9 @@ Seven comments on PR #121. Two found a doc claim that was simply wrong — the
 §3.2a's Torbran paraphrase, which named the object half of the target predicate
 and dropped the player half. Both are corrected in place. Three are answered
 where they were asked (`replacement-architecture.md` §11 item 34, §3.2a's
-battle paragraph, `backlog.md` §2.23). The two below are the ones that become
-entries, and the list audit the review asked for is at the end.
+battle paragraph, `backlog.md` §2.23). The three below are the ones that become
+entries — one of them replacing a claim this review proved wrong — and the list
+audit is at the end.
 
 103. **`object_matches_filter`'s `Err` is swallowed at three sites, and the
      three things that can raise it are all card-authoring errors.** Both legs
@@ -4036,56 +4037,113 @@ entries, and the list audit the review asked for is at the end.
      test` loud, ~10 lines. The LKI half is separate and larger, and belongs to
      whichever phase gives a damage source a way to die first.
 
-104. **A cheap repeatable activation that creates a registry row is the most
-     expensive card shape the pool has met, and the cost is real rather than a
-     harness artifact.** Circle of Protection: Red's `{1}` makes a
-     `Uses::Once` row per activation; the rows accumulate for the turn (nothing
-     spends them unless the named source deals damage) and every one is gathered
-     against every damage event. Forced into every `stress` deck at 200 games it
-     is activated **12,660 times in 129 games** — about 98 per game it reaches
-     the battlefield, roughly 3 per turn of the game and ~5 per turn it is in
-     play.
+104. **The expensive shape is a cheap *repeatable activation*, and the
+     registry rows it makes are a fifth of the cost. The first version of this
+     item blamed the rows; a control built at the RD-3 review says otherwise.**
 
-     **Against three controls from the same PR, forced the same way** (200
-     `stress` games, seed 12345):
+     Circle of Protection: Red's `{1}` makes a `Uses::Once` row per activation.
+     Forced into every `stress` deck at 200 games it is activated **12,660
+     times in 129 games** — about 98 per game it reaches the battlefield,
+     roughly 3 per turn of the game and ~5 per turn it is in play. The
+     temptation is to read the cost as "rows accumulate and every damage event
+     gathers them all", and that is not what is happening.
 
-     | forced | Layer walks | Memo hits | Repl. gathers | CPU/game |
-     |---|---:|---:|---:|---:|
-     | Dark Sphere (`{T}`, sacrifices itself — one row, ever) | 484 | 72,133 | 548 | 21.2 ms |
-     | Fog (one-shot instant) | 496 | 79,181 | 566 | 23.9 ms |
-     | Guardian Seraph (static, no row) | 497 | 79,407 | 574 | 24.1 ms |
-     | **Circle of Protection: Red (repeatable `{1}`)** | **591** | **121,347** | **619** | **33.0 ms** |
+     **The isolating control is a card with the activation and no row:**
+     "Activation Probe", `{1}: <empty effect>` — a throwaway fixture, built,
+     measured and deleted, never registered on a branch that lands. Its effect
+     is `Effect::Sequence(vec![])` rather than a life gain, because the first
+     draft gained 1 life and stretched games from 30 to 44 turns, which is a
+     confound rather than a measurement.
 
-     +53% memo hits and +37% CPU over the nearest control, and the controls
-     agree with each other — so it is the repeatable row-making activation and
-     not "a card was forced".
+     All four forced the same way, 200 `stress` games at seed 12345, **on one
+     throwaway build carrying the probe** — so these four rows compare to each
+     other and not to the shipped table:
+
+     | forced | Avg turns | Layer walks | Memo hits | Repl. gathers | CPU/game |
+     |---|---:|---:|---:|---:|---:|
+     | Dark Sphere — one activation, one row | 29.3 | 463 | 66,066 | 508 | 20.1 ms |
+     | Guardian Seraph — static, no activation, no row | 29.9 | 463 | 68,802 | 528 | 20.7 ms |
+     | **Activation Probe — repeatable, no row, no effect** | 30.2 | **518** | **89,850** | 540 | **26.6 ms** |
+     | **Circle of Protection: Red — repeatable **and** a row each** | 31.1 | **533** | **95,351** | 564 | **28.3 ms** |
+
+     **The attribution, and it is roughly 80/20.** Repeatable activation alone
+     costs +55 walks (+12%), +21,048 memo hits (+31%) and +5.9 ms (+29%) over
+     the static control. The rows on top of it cost +15 walks (+3%), +5,501
+     memo hits (+6%) and +1.7 ms (+6%). The mechanism is unremarkable once
+     named: an activation is a priority action, an object on the stack, and two
+     more priority rounds before it resolves, and every priority round
+     enumerates candidate actions — so the game does *more of everything it
+     already does*. Queries rose 31% while walks rose 12%, which is the layer
+     memo doing its job rather than a pathology.
+
+     **So: no, this does not argue for coalescing the rows** (asked at review —
+     run-length encoding, or one row with a count). It would target the 20%,
+     and it is rules-wrong besides. Each row is its own CR 614.5 identity;
+     `Uses::Once` × N is not `Uses::NextDamage(N)` (CR 615.8 is "the next
+     instance regardless of amount", 615.7 counts damage points, and merging
+     would change the answer); the rows almost never agree anyway, because each
+     activation chooses its own CR 609.7a source; and CR 616.1 offers the
+     player *instances*, so merging changes what is offered. The lever that
+     would matter is on the other 80% — indexing watchers by event kind so a
+     gather consults only the bucket that can match, which `replacement-
+     architecture.md` §8c already budgets and no phase has needed yet.
 
      **Asked at review: should the fuzz harness cap repeated activations of one
-     ability? No.** Three reasons, and the third is the one that settles it.
-     (1) It would make every counter a function of a policy knob, which is the
-     one thing `engineering-practices.md` §3 keeps out of the table — every
-     historical row would become incomparable. (2) The random agent is not
-     biased toward the ability: `candidate_priority_actions` lists it **once**
-     however many times it could be activated, so what the numbers show is
-     leftover `{1}` having nothing else to buy, which is the mana system being
-     right. (3) The observed rate is already ~3–5 activations per turn, which
-     is the range a 3–5 cap would impose — the cap would bind almost never and
-     would buy nothing for the cost of making the instrument dishonest.
-
-     **What actually protects the cost instrument is the pool boundary, and it
-     is already in place:** Circle of Protection: Red is in the default
-     registry and *not* in `PERFORMANCE_POOL`, so none of the above touches the
-     timing table. Unforced `stress` is walks 496 / gathers 563 — level with
-     the controls.
+     ability? No.** (1) It would make every counter a function of a policy
+     knob, which is what `engineering-practices.md` §3 keeps out of the table —
+     every historical row would become incomparable. (2) The random agent is
+     not biased toward the ability: `candidate_priority_actions` lists it
+     **once** however many times it could be paid for, so what the numbers show
+     is leftover `{1}` having nothing else to buy. The probe confirms it — an
+     ability that does *nothing* is activated just as freely, so this is
+     general agent behaviour and not a fact about the Circle. (3) The observed
+     rate is already ~3–5 per turn, the range a 3–5 cap would impose.
 
      **Reachability (2026-09-09):** reachable — not wrong; a cost observation
-     on `--pool stress` only, and the pooled table is unaffected.
+     on `--pool stress`, and the pooled table is unaffected today.
 
-     **Sized:** none for the harness. If the shape ever needs bounding, the
-     lever is a per-ability activation counter in the report (a *diagnostic*,
-     which the review also wants for its own sake — see
-     `engineering-practices.md` §3), never a behavioural cap. Phase 8 will have
-     more row-making activations, and this is the baseline to compare them to.
+     **Sized:** none for the harness. A per-ability activation counter in the
+     report is the wanted diagnostic (~20 lines) and is what would have
+     answered §9's Circle prediction without a `--dump-events` grep. The §8c
+     index is its own piece of work and has no consumer yet.
+
+105. **The pool has never contained an ability that can be activated more than
+     once in a turn, and that is an accident to correct rather than a policy to
+     keep.** Audited at the RD-3 review, because item 104's first draft said
+     "the pool boundary is what protects the cost instrument", which reads as a
+     rule and would be a bad one.
+
+     **The audit.** Seven registered cards have a non-mana activated ability;
+     two are pooled (Chainbreaker, Merfolk Thaumaturgist) and both are
+     `{T}`-gated, so at most once per turn each. Dark Sphere sacrifices itself.
+     Circle of Protection: Red is the **only** card in the crate whose ability
+     can be activated repeatedly within a turn, and it is not pooled.
+
+     **Why it is not pooled, accurately.** `engineering-practices.md` §3's rule
+     is one card per new engine path, chosen deliberately; RD-3's new path is a
+     source-side filter evaluated per damage event, and Guardian Seraph is the
+     cheapest card that opens it. The Circle was not excluded for cost — §9's
+     sentence about its `{1}` competing for mana was a *reachability* guess
+     (wrong, see item 104), never a pooling criterion.
+
+     **Reading it as a policy would cascade, and the cascade is the wrong
+     way.** Repeatable activated abilities are ordinary Magic — mana sinks,
+     equip, pump, and most of what a commander does — and v1's target is
+     4-player Commander, where they are most of the late game. A cost
+     instrument that structurally excluded them would drift from the thing it
+     exists to predict, which is the opposite of §3's purpose. The measurement
+     is a *prior*, not a bar: the shape costs ~+29% CPU when forced into every
+     deck, forced is the worst case by construction, and pooled normally it is
+     one card among 76.
+
+     **Reachability (2026-09-09):** reachable — not wrong; the pool is
+     representative today because nothing has needed this shape, and it stops
+     being representative the moment Phase 8 breadth arrives.
+
+     **Sized:** none now. The action is a rule for later, and it is the rule
+     §3 already has: the first phase whose engine path *is* an activated
+     ability pools one deliberately and re-records the table, with item 104's
+     numbers as the expected direction rather than as a reason to decline.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 

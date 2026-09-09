@@ -625,13 +625,29 @@ toward the ability in the first place, because `candidate_priority_actions`
 lists it **once** however many times it could be paid for, so what the number
 shows is leftover `{1}` having nothing else to buy; and the observed rate is
 already about 3–5 activations per turn, so a 3–5 cap would bind almost never
-while making the instrument dishonest. **The pool boundary is what protects the
-cost table, and it was already doing its job**: the Circle is registered and
-deliberately not pooled, and unforced `stress` is level with three controls
-from the same PR. `codebase-state.md` item 104 carries the control table —
-+53% memo hits and +37% CPU over the nearest control when forced — and the
-conclusion that the wanted fix is a per-ability activation **counter**, a
-diagnostic, never a behavioural cap.
+while making the instrument dishonest — and a control that does *nothing* when
+activated is activated just as freely, so this is general agent behaviour and
+not a fact about one card.
+
+`codebase-state.md` item 104 carries the isolating control table. The headline
+matters for how this section reads a future phase: **the cost is the repeatable
+activation, not the registry rows it happens to make** — ~+29% CPU for the
+activation traffic and ~+6% for the rows on top — because an activation is a
+priority action plus a stack object plus two more priority rounds, so the game
+does more of everything it already does. The wanted fix is a per-ability
+activation **counter**, a diagnostic, never a behavioural cap.
+
+**And the corollary this section owes, because the first draft got it
+backwards** (item 105): "keep repeatable activations out of `PERFORMANCE_POOL`"
+is *not* the rule and must not become one. The pool has never held an ability
+activatable more than once a turn — seven registered non-mana activated
+abilities, two pooled, both `{T}`-gated — and that is an accident of what the
+phases have needed, not a boundary being enforced. Repeatable activations are
+ordinary Magic and are most of what a commander does; a cost instrument that
+excluded them would drift from the 4-player Commander game it exists to
+predict. §3's rule is unchanged — the first phase whose engine path *is* an
+activated ability pools one deliberately and re-records the table — and item
+104's numbers are the expected direction, not a reason to decline.
 | Layer walks / frames | 378 / 4,504 | 379 / 4,510 |
 
 **Read `ms/1,000 queries` carefully here: it rises 41.8%, and that is the
