@@ -208,6 +208,23 @@ pub enum AffectedSet {
     Host,
 }
 
+impl AffectedSet {
+    /// A set with no objects in it.
+    ///
+    /// Named rather than written as `Fixed(Vec::new())` at a call site, where
+    /// an empty vector reads as an oversight rather than as a claim. Two kinds
+    /// of effect mean it: a replacement effect that is about a **player** and
+    /// no object (Angel of Suffering's "if damage would be dealt to you",
+    /// paired with a [`PlayerSet`]), and a resolution whose targets have all
+    /// left before the row was written.
+    ///
+    /// A constant and **not** an `AffectedSet::Nobody` variant: a new arm would
+    /// have to be classified by all three of this type's readers — the layer
+    /// walk, the restriction sweep and the replacement pipeline — where a
+    /// spelling of an existing value costs them nothing.
+    pub const NO_OBJECTS: AffectedSet = AffectedSet::Fixed(Vec::new());
+}
+
 /// Which **players** a replacement or prevention effect applies to — CR 614.1's
 /// "whatever they're affecting", for the half [`AffectedSet`] cannot name.
 ///

@@ -344,15 +344,15 @@ pub fn angel_of_suffering() -> Arc<CardData> {
              that many cards.",
         )
         .ability(static_replacement(
-            // About a player and no object at all, which is what
-            // `ReplacementDef::for_players` names — a `Filter` would have to
-            // describe an empty set and `SourceOnly` would make the Angel
-            // shield *itself*.
-            ReplacementDef::for_players(
+            // About a player and no object at all: `NO_OBJECTS` names that,
+            // where a `Filter` would have to describe an empty set and
+            // `SourceOnly` would make the Angel shield *itself*.
+            ReplacementDef::new(
                 EventPattern::DealDamage,
-                PlayerSet::You,
+                AffectedSet::NO_OBJECTS,
                 Rewrite::Prevent,
             )
+            .affecting_players(PlayerSet::You)
             .with_then(Effect::Atom(
                 Primitive::Mill(AmountExpr::Multiply(Box::new(AmountExpr::ReplacedAmount), 2)),
                 // The rider's single resolved target is the event's subject —

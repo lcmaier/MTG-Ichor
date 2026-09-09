@@ -287,13 +287,38 @@ pub enum ScriptedResponse {
 /// of the self-documenting design.
 pub struct ScriptedDecisionProvider {
     queue: RefCell<VecDeque<ScriptedExpectation>>,
+    /// The `per_bucket_mins` of every [`DecisionProvider::allocate`] this
+    /// provider has answered, in prompt order — see [`Self::allocation_mins`].
+    allocation_mins: RefCell<Vec<Vec<u64>>>,
 }
 
 impl ScriptedDecisionProvider {
     pub fn new() -> Self {
         ScriptedDecisionProvider {
             queue: RefCell::new(VecDeque::new()),
+            allocation_mins: RefCell::new(Vec::new()),
         }
+    }
+
+    /// The per-bucket **minimums** each `allocate` was offered, in prompt
+    /// order.
+    ///
+    /// **A constraint is not an outcome, and some rules are only about the
+    /// constraint.** CR 702.19b's trample requirement — "assign lethal damage
+    /// to all those blocking creatures" — is a floor the engine computes and
+    /// hands to the player; what the player then does with the rest is a
+    /// different claim. A test that only reads the board cannot tell a correct
+    /// floor from a permissive one that the scripted answer happened to
+    /// respect, so a Furnace of Rath doubling the result would look identical
+    /// whether lethal was judged before or after the doubling.
+    ///
+    /// Added to this provider rather than to a bespoke one (RD-1 review,
+    /// 2026-09-08): a fourth `DecisionProvider` in a test file has to implement
+    /// all four methods, and the three it does not care about end up answering
+    /// prompts the test never expected — which is the exact failure this
+    /// provider's "every decision must be declared" design exists to prevent.
+    pub fn allocation_mins(&self) -> Vec<Vec<u64>> {
+        self.allocation_mins.borrow().clone()
     }
 
     /// Enqueue a pick_n expectation.
@@ -439,9 +464,10 @@ impl DecisionProvider for ScriptedDecisionProvider {
         context: &ChoiceContext,
         _total: u64,
         _buckets: &[ChoiceOption],
-        _per_bucket_mins: &[u64],
+        per_bucket_mins: &[u64],
         _per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
+        self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
         match self.pop_and_validate(&context.kind, "allocate") {
             ScriptedResponse::Allocation(alloc) => alloc,
             other => panic!(

@@ -873,32 +873,16 @@ impl ReplacementDef {
     /// written before Phase RD names no player, so `PlayerSet::Nobody` is the
     /// honest default and a card that wants one says so. Furnace of Rath's
     /// "a permanent **or** player" is [`Self::new`] plus this.
+    ///
+    /// **One mechanism, not two.** A `for_players` *constructor* shipped
+    /// alongside this for one commit and was removed on review: two functions
+    /// whose names differ by an inflection, one a constructor and one a
+    /// builder, is a coin flip at every call site. An effect about players and
+    /// no object writes `AffectedSet::NO_OBJECTS` for its object half, which
+    /// names the empty set where the call site can see it.
     pub fn affecting_players(mut self, players: PlayerSet) -> Self {
         self.affected_players = players;
         self
-    }
-
-    /// An effect about **players only** — Angel of Suffering's "if damage
-    /// would be dealt to you", Circle of Protection's, Fog's.
-    ///
-    /// A second constructor rather than `new(.., AffectedSet::Fixed(vec![]),
-    /// ..)`, which is what a card had to write before: an empty `Fixed` is the
-    /// right *representation* of "no object", and a hand-written one at a call
-    /// site reads as an oversight rather than as a claim. Reported in review
-    /// (2026-09-08) as the smell it is.
-    ///
-    /// **The type does not change, and that is deliberate.** The two candidate
-    /// fixes both cost more than they remove: a `Subjects` enum wrapping the
-    /// two sets makes every read match the wrapper first and makes the common
-    /// object-only case — every def written before Phase RD — more verbose;
-    /// an `AffectedSet::Nobody` variant lands a new arm on the type whose
-    /// three readers are exactly the argument for keeping `PlayerSet` a
-    /// separate field (§9, RD decision 0). CR 614.1's "whatever they're
-    /// affecting" really is two questions with a union answer, and Furnace of
-    /// Rath is the card that answers both.
-    pub fn for_players(pattern: EventPattern, players: PlayerSet, rewrite: Rewrite) -> Self {
-        ReplacementDef::new(pattern, AffectedSet::Fixed(Vec::new()), rewrite)
-            .affecting_players(players)
     }
 
     /// Builder: attach the CR 615.5 rider.

@@ -24,6 +24,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -71,77 +72,6 @@ fn bolt_player_with(
 
 fn life(game: &GameState, player: PlayerId) -> i64 {
     game.players[player].life_total
-}
-
-/// A `DecisionProvider` that returns a scripted allocation and **records the
-/// per-bucket minimums it was offered**.
-///
-/// `ScriptedDecisionProvider` and `RecordingDecisionProvider` both answer an
-/// `allocate`, and neither can see its arguments — so neither can say what
-/// CR 702.19b's lethal requirement *was*, only what an assignment did. The
-/// trample test's claim is about the requirement, so it needs this.
-struct MinRecordingProvider {
-    allocation: Vec<u64>,
-    seen: std::cell::RefCell<Vec<Vec<u64>>>,
-}
-
-impl MinRecordingProvider {
-    fn assigning(allocation: Vec<u64>) -> Self {
-        MinRecordingProvider { allocation, seen: std::cell::RefCell::new(Vec::new()) }
-    }
-
-    /// The `per_bucket_mins` of each `allocate` so far, in prompt order.
-    fn mins(&self) -> Vec<Vec<u64>> {
-        self.seen.borrow().clone()
-    }
-}
-
-impl mtgsim::ui::decision::DecisionProvider for MinRecordingProvider {
-    fn pick_n(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &mtgsim::ui::choice_types::ChoiceContext,
-        _options: &[mtgsim::ui::choice_types::ChoiceOption],
-        bounds: (usize, usize),
-    ) -> Vec<usize> {
-        (0..bounds.0).collect()
-    }
-
-    fn pick_number(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &mtgsim::ui::choice_types::ChoiceContext,
-        min: u64,
-        _max: u64,
-    ) -> u64 {
-        min
-    }
-
-    fn allocate(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &mtgsim::ui::choice_types::ChoiceContext,
-        _total: u64,
-        _buckets: &[mtgsim::ui::choice_types::ChoiceOption],
-        per_bucket_mins: &[u64],
-        _per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        self.seen.borrow_mut().push(per_bucket_mins.to_vec());
-        self.allocation.clone()
-    }
-
-    fn choose_ordering(
-        &self,
-        _game: &GameState,
-        _player: PlayerId,
-        _context: &mtgsim::ui::choice_types::ChoiceContext,
-        items: &[mtgsim::ui::choice_types::ChoiceOption],
-    ) -> Vec<usize> {
-        (0..items.len()).collect()
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -620,13 +550,19 @@ fn trample_assigns_lethal_before_furnace_doubles() {
     set_blocked_by(&mut game, mammoth, vec![blocker]);
     set_blocking(&mut game, blocker, vec![mammoth]);
 
-    let dp = MinRecordingProvider::assigning(vec![2, 1]);
-    let assignments = assign_combat_damage(&game, &dp, 0, false);
-    assert_eq!(
-        dp.mins(),
-        vec![vec![2u64, 0]],
-        "CR 702.19b's lethal requirement is 2 — the blocker's toughness, not          the 1 a doubled assignment would make lethal",
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_allocation(
+        ChoiceKind::AssignTrampleDamage {
+            attacker_id: mammoth,
+            defending_target: DamageTarget::Player(1),
+        },
+        vec![2, 1],
     );
+    let assignments = assign_combat_damage(&game, &dp, 0, false);
+    // The floor the prompt carried, which is this test's claim: CR 702.19b's
+    // lethal requirement is the blocker's toughness, judged on the Mammoth's
+    // printed 3 — not the 1 a doubled assignment would make lethal.
+    assert_eq!(dp.allocation_mins(), vec![vec![2u64, 0]]);
     assert_eq!(assignments.len(), 3, "two halves of the Mammoth, plus the block");
 
     let ctx = ActionContext::new(&dp);

@@ -4626,6 +4626,62 @@ first.
     a helper here returns an `AbilityDef` and nothing else. Best done as its own
     mechanical PR before the first Phase 8 card file, not folded into one.
 
+    **What the transition to a real card list looks like — asked on review
+    2026-09-08, because "cordoned off with the test cards" implied a copy.**
+    It does not, and the reason is worth stating before Phase 8 makes it
+    expensive:
+
+    - **There is no duplication today and the transition must not create any.**
+      Every named card has exactly **one** definition — `phase_rd_cards::
+      furnace_of_rath` — and both callers reach it the same way: `registry.rs`
+      registers the function, and integration tests `use
+      mtgsim::cards::phase_rd_cards::furnace_of_rath` directly. The definitions
+      are already the official ones; `registry.rs`'s own comment applies the
+      criterion in prose, registering only cards "faithful to the printed card"
+      and naming every exclusion with its reason (invented cards, deliberate
+      stand-ins, Auras re-modeled as Instants).
+    - **So it is a move and a split, not a rewrite.** What is haphazard is the
+      *file name*, which records which engine phase first needed the card and
+      says nothing about the card. Split each phase file by the criterion
+      `registry.rs` already applies — faithful printing on one side, fixture on
+      the other — move the faithful ones into a card list, and leave the
+      fixtures where a reader can tell they are fixtures. Rewriting a card that
+      is already correct would produce the two copies the question is about.
+    - **Organize the list by printing, not by type or by phase.** By type is
+      already visibly failing (`creatures.rs`, `keyword_creatures.rs`,
+      `utility_creatures.rs`, and a card that stops being a creature under
+      Layer 4 belongs in none of them); by phase is the current problem. Set or
+      printing matches how a human looks a card up, matches Scryfall — which is
+      where every oracle text in this repo comes from — and never needs
+      re-filing, because a card's first printing does not change. `alpha.rs`
+      and `dual_lands.rs` are already that shape. One file per card is the
+      other stable answer and can wait until the count argues for it.
+    - **Tests keep calling the function, not the registry.** Two reasons, and
+      both are about failure mode: `registry.create("Furnace of Rath")` turns a
+      renamed function from a compile error into a runtime one, and it makes
+      every test depend on *registration* — which
+      `register-a-card-only-once-the-engine-can-play-it` deliberately keeps
+      separate, since a phase's red-test commit has its cards defined and
+      unregistered on purpose. The import path changes; nothing else does.
+    - **Unnamed props are a different thing and stay put.**
+      `test_support::vanilla_creature(2, 2, &[])` has no printing to be
+      faithful to, and `test_support`'s module doc already says why fixtures are
+      built inline: so a test's board does not change under it when a real card
+      definition is edited. That argument is about props, not about named cards
+      — a test that wants Furnace of Rath *wants* to break when Furnace of Rath
+      changes.
+    - **The one case where two definitions would be legitimate is already
+      handled without copying**: a card whose engine support is unfinished is
+      *defined and not registered*, which is a state the registry expresses.
+      Keep it that way rather than letting an unfinished card live as a second
+      copy somewhere.
+    - **A named fixture may be registered on purpose, so "registered" is not
+      the split.** Loyalty Probe is a fixture *and* registered, because
+      CR 704.5i needed a planeswalker a random agent could reach. So the
+      structure can make provenance visible — which module a name comes from —
+      but the check that a registered card is faithful stays review's, and the
+      exclusion comments in `registry.rs` are what it reads.
+
 ### Before Triggered abilities (CR 603)
 
 The trigger dispatcher's designated insertion point is `engine/priority.rs:234-240`. Today's gaps:
