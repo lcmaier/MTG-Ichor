@@ -141,6 +141,42 @@ impl GameState {
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => self.validate_permanent_target(target, pf, you),
             SelectionFilter::Spell => self.validate_spell_target(target),
+            SelectionFilter::DamageSource => self.validate_damage_source(target),
+        }
+    }
+
+    /// CR 609.7a — a permanent, or a spell on the stack.
+    ///
+    /// **No property is asked**, and that is the rule's own last sentence:
+    /// "a source doesn't need to be capable of dealing damage to be a legal
+    /// choice". A creature with no power, a land, an enchantment already used
+    /// this turn — all legal.
+    ///
+    /// The stack half asks `is_spell`, because CR 609.7a lists a *spell* and
+    /// an activated ability on the stack is not one; its source is the
+    /// permanent, which the battlefield half already offers. The one object
+    /// this loses is the spell or ability **currently resolving**, whose
+    /// `StackEntry` `resolve_top_of_stack` has already taken — an effect
+    /// choosing its own resolving spell as the source of future damage, which
+    /// nothing printed does.
+    fn validate_damage_source(&self, target: &ResolvedTarget) -> Result<(), String> {
+        match target {
+            ResolvedTarget::Object(id) => {
+                if self.battlefield.contains_key(id) {
+                    return Ok(());
+                }
+                if self.stack_entries.get(id).is_some_and(|e| e.is_spell) {
+                    return Ok(());
+                }
+                Err(format!(
+                    "Object {} is neither a permanent nor a spell on the stack, so it is \
+                     not a legal source of damage (CR 609.7a)",
+                    id
+                ))
+            }
+            ResolvedTarget::Player(_) => {
+                Err("Expected a source of damage, got a player".to_string())
+            }
         }
     }
 
@@ -464,6 +500,17 @@ impl GameState {
                 // Spells live on the stack, not the battlefield
                 self.stack.iter()
                     .any(|&id| Some(id) != exclude_id)
+            }
+            // CR 609.7a's two reachable categories, in the order
+            // `enumerate_legal_selections` offers them. Cheaper than the
+            // `_` arm below and not the same answer: a source of damage
+            // needs no `validate_selection` walk at all.
+            SelectionFilter::DamageSource => {
+                self.battlefield_ids_ordered().into_iter().any(|id| Some(id) != exclude_id)
+                    || self.stack.iter().any(|id| {
+                        Some(*id) != exclude_id
+                            && self.stack_entries.get(id).is_some_and(|e| e.is_spell)
+                    })
             }
             _ => self.battlefield_ids_ordered()
                 .into_iter()

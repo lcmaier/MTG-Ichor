@@ -47,7 +47,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 75] = [
+const PERFORMANCE_POOL: [&str; 76] = [
     "Plains",
     "Island",
     "Swamp",
@@ -241,6 +241,21 @@ const PERFORMANCE_POOL: [&str; 75] = [
     // through Angel of Suffering's shape, and the Censer-Bearer's rows are
     // one per creature at {W} plus itself — breadth, not a new cost.
     "Mending Hands",
+    // The first source in the pool whose gather evaluates an `ObjectFilter` on
+    // the damage's **source** rather than on its target — a new read per damage
+    // event for as long as it is on the battlefield, which is what this PR's
+    // A/B measures (`replacement-architecture.md` §9, RD-3). {2}{W}{W} for a
+    // 3/4 flier is castable in a white deck, and the predicate is one an
+    // opponent's every attack satisfies.
+    //
+    // The other seven stay out. Daunting Defender opens the same
+    // `PreventUpTo` path at {4}{W}; Circle of Protection: Red's row needs a
+    // `{1}` activation the random agent rarely affords, so its reachability is
+    // a `--require` row instead; Reverse Damage and Dark Sphere are the same
+    // chosen-source path as the Circle; Fog and Pyroclasm are one-shots whose
+    // engine cost is a batch the pool already pays; Torbran is legendary at
+    // {1}{R}{R}{R}.
+    "Guardian Seraph",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -529,6 +544,29 @@ impl CardRegistry {
         registry.register("Samite Healer", phase_rd_cards::samite_healer);
         registry.register("Safe Passage", phase_rd_cards::safe_passage);
         registry.register("Samite Censer-Bearer", phase_rd_cards::samite_censer_bearer);
+
+        // RD-3 — sources. The axis is which half of CR 609.7's source
+        // predicate each card writes: the Circle writes both, Reverse Damage
+        // and Dark Sphere the chosen object alone, Guardian Seraph and Torbran
+        // the property alone, Daunting Defender neither. Fog is the `combat`
+        // flag's only consumer, and Pyroclasm is the other half of CR 615.10's
+        // own example — the pool's first "each creature" damage, which is one
+        // batch. Guardian Seraph is pooled; the rest are the stress pool's
+        // breadth.
+        registry.register(
+            "Circle of Protection: Red",
+            phase_rd_cards::circle_of_protection_red,
+        );
+        registry.register("Reverse Damage", phase_rd_cards::reverse_damage);
+        registry.register("Dark Sphere", phase_rd_cards::dark_sphere);
+        registry.register("Guardian Seraph", phase_rd_cards::guardian_seraph);
+        registry.register("Daunting Defender", phase_rd_cards::daunting_defender);
+        registry.register("Pyroclasm", phase_rd_cards::pyroclasm);
+        registry.register("Fog", phase_rd_cards::fog);
+        registry.register(
+            "Torbran, Thane of Red Fell",
+            phase_rd_cards::torbran_thane_of_red_fell,
+        );
 
         registry
     }

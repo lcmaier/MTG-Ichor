@@ -339,6 +339,42 @@ impl DecisionProvider for RecordingDecisionProvider {
     }
 }
 
+/// Put a spell on the stack, as `cast_spell` leaves it after CR 601.2c.
+///
+/// The `StackEntry` is what makes it a *spell* rather than an object that
+/// happens to be in the stack zone: CR 609.7a's damage-source enumeration asks
+/// `is_spell`, and so does anything else that has to tell a spell from an
+/// activated ability's ephemeral object.
+///
+/// No targets and no costs — a caller that needs either is casting, not
+/// staging, and should go through `cast_spell`.
+pub fn put_spell_on_stack(
+    game: &mut GameState,
+    card_data: Arc<CardData>,
+    controller: PlayerId,
+) -> ObjectId {
+    let recipient = crate::engine::targeting::spell_recipient(&card_data);
+    let obj = GameObject::new(card_data, controller, Zone::Stack);
+    let id = obj.id;
+    game.add_object(obj);
+    game.stack.push(id);
+    game.set_stack_entry(crate::state::game_state::StackEntry {
+        object_id: id,
+        controller,
+        chosen_targets: Vec::new(),
+        recipient,
+        chosen_modes: Vec::new(),
+        x_value: None,
+        effect: Effect::Sequence(Vec::new()),
+        is_spell: true,
+        chosen_alternative_cost: None,
+        additional_costs_paid: Vec::new(),
+        cast_from: Some(Zone::Hand),
+        ability_identity: None,
+    });
+    id
+}
+
 /// Put a card into a player's hand and register it in the game.
 pub fn put_in_hand(game: &mut GameState, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
     let obj = GameObject::new(card_data, player, Zone::Hand);

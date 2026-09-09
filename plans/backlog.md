@@ -317,6 +317,17 @@ only in sign.
 **Prior art in this file:** §2.8 (where an ability functions) is the closest
 neighbour and overlaps on the zone shape.
 
+**The one piece of this that is scheduled, and it is not here.**
+`cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and RS-4**,
+written 2026-09-09 and deliberately ahead of this entry's own scheduling. Those
+two phases rewrite the combat validators and the payment sites, which are the
+sites an "as though" consult needs, and they are the only phases between now
+and this entry that touch them. §3.7 asks two things of that rewrite — that a
+consult can say *which* restriction forbade, and that a base-rule clause reads
+through an accessor rather than a field — so that this entry, whenever it is
+scheduled, is a normal diff rather than a second rewrite of the same four
+functions. Nothing else here is owed early.
+
 ### 2.23 Battles (CR 310), and CR 120.3h
 
 - **Rules** — CR 310 whole: casting a battle, its protector, defense counters
@@ -326,6 +337,14 @@ neighbour and overlaps on the zone shape.
   nothing reads them: `validation.rs` refuses a battle as an attack target,
   `perform_action(DealDamage)` marks damage on any object, and no protector
   is chosen anywhere. A whole subtype's rule set, not a missing leaf.
+- **The protector is a second control-like relation, and `ObjectFilter` has a
+  leaf for only one of them** (noted 2026-09-09, RD-3 review). CR 310.8a has
+  the *controller* choose a protector and 310.8b lets a Siege be attacked by
+  its own controller, so "a permanent an opponent controls" and "a battle an
+  opponent defends" are different questions about the same permanent. Nothing
+  registered reads the second — Torbran, Thane of Red Fell says "controls" and
+  is therefore already right about a Siege you control — so this is a leaf this
+  entry owes, not one `SourcePattern` or `AffectedSet` is missing today.
 - **Size** — one PR in the band, after item 6 (the flip is a trigger) and
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).

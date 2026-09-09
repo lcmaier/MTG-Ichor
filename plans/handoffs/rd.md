@@ -1,9 +1,35 @@
 # Phase RD — damage (CR 615, 609.7, 614.9, 120.3)
 
-**State (2026-09-09): RD-1 and RD-2 landed. RD-3 is next — sources — and it
-inherits a working count, a working prevented-amount channel and a working
-allocation, so its risk is the source-side predicate and nothing in the
-loop.**
+**State (2026-09-09): RD-1, RD-2 and RD-3 landed. RD-4 is next —
+redirection and unpreventable damage — and it inherits a working count, a
+working prevented-amount channel on *both* prevention shapes, a working
+allocation and a source-side predicate, so its risk is `Rewrite::Retarget`'s
+CR 614.9 re-check and decision 6's consult, neither of which is in the loop.**
+
+## What this file is, and what must not die with it
+
+**Scope is the phase, not the sub-phase, and that is deliberate** — it is what
+let RD-2's build hand RD-3 two notes that changed RD-3's design, and what lets
+RD-3 hand RD-4 two more. A per-sub-phase file would have had to be written,
+read and deleted three times, and the notes that mattered crossed sub-phase
+boundaries every time.
+
+**It is read on demand, not on load.** Nothing here is in `CLAUDE.md`'s budget
+or in `state-of-play.md`; a session opens it when it picks up RD work, which is
+the one time all of it is relevant. So length is not the cost — *staleness*
+is, and the rule for that is the one every landed section already follows:
+strike it, do not delete it, and say where the durable half went.
+
+**The eviction contract.** This file is deleted by the last RD PR to land.
+Before that happens, everything in it is either (a) about RD sub-phases that
+have shipped, whose durable half is an "As landed" block in
+`replacement-architecture.md` §9, (b) a note for a sub-phase still to come,
+which dies correctly with the phase, or (c) about a card outside RD — and (c)
+is the only category that can be lost. **It has one member**, the Divine
+Deflection notes below; they are now carried in full by `codebase-state.md`
+item 90, rulings included, so deleting this file loses nothing. Anything added
+here later that is category (c) must be copied to an item before it is written
+down here, not after.
 
 ## Where the work is
 
@@ -59,12 +85,84 @@ and kept on `GameState::prevention_allocations` (item 40's shape). The
 all-multiplier bucket asks nobody (§11 item 29). Registered: Mending Hands
 (also `PERFORMANCE_POOL`), Samite Healer, Safe Passage, Samite Censer-Bearer.
 
+## What RD-3 shipped
+
+`EventPattern::DealDamage { source: Option<SourcePattern>, combat:
+Option<bool> }`, where `SourcePattern { object, filter }` is CR 609.7a's
+chosen object beside CR 609.7b/c's rechecked property; `pattern_watches` asks
+both at the proposal, which *is* 609.7b's recheck.
+`AmountRewrite::Plus(u64)` (Torbran). `SelectionFilter::DamageSource` —
+permanents then stack spells, no capability test —
+`ChoiceKind::ChooseDamageSource`, and `Primitive::CreateReplacement`'s third
+argument `PatternFill { Authored, ChosenDamageSource }`, which is the handoff's
+design (a) built as described: the card authors `object: None`, the resolution
+overwrites, `debug_assert` that it was empty, nothing on the row changed. Two
+fixes the cards found: `Primitive::DealDamage` reads
+`EffectRecipient::FilteredPermanents` and proposes **one batch**, and
+`Rewrite::Prevent` reports the damage it prevented. Registered: Circle of
+Protection: Red, Reverse Damage, Dark Sphere, Guardian Seraph (also
+`PERFORMANCE_POOL`), Daunting Defender, Pyroclasm, Fog, Torbran. Sokrates,
+Athenian Teacher recorded as a shape and not written — its `SourcePattern`
+would need a `Self` leaf with one customer.
+
+## Two notes for RD-4, from RD-3's build (2026-09-09)
+
+1. **What CR 615.12's consult needs from the source predicate, and it is
+   nothing — but it needs two application sites, not one.** RD-3 changed where
+   "how much did this prevent" is computed: `Rewrite::Prevent` now reports the
+   whole damage amount (`Applied.prevented`), beside `Rewrite::Amount`'s
+   prevention arms which already did. So **CR 615.12's consult has two sites in
+   `apply_rewrite`, not one**, and both must behave the same way: an
+   unpreventable event (or a `Restriction::ApplyReplacement { kind: Prevention }`
+   in force) makes the arm prevent 0, leave the event alone, report
+   `took_effect: false` so `consume_use` spends nothing (CR 615.12's last
+   sentence, "existing damage prevention shields won't be reduced"), and still
+   let the queued rider run (615.12's middle sentence). §11 item 31 is the
+   entry. The *source* predicate needs nothing from any of this: it is asked in
+   `pattern_watches` at gather time and 615.12 is asked at application, which
+   is the same separation CR 701.19c already has (withhold at the door) versus
+   615.12 (apply and prevent nothing) — do not merge them.
+
+   One thing to check while you are there: `ReplacementDef::is_prevention()`
+   now matches `EventPattern::DealDamage { .. }` with fields. It is still the
+   right predicate — the fields are about *which* damage, never about whether
+   the effect prevents — but a `SourcePattern` that never matches is a def that
+   *is* a prevention effect and simply does not apply, which is a different
+   thing from one that applies and prevents nothing. 615.12 is about the
+   second.
+
+2. **`Retarget`'s CR 614.9 destination re-check can reuse the group form's
+   per-member applicability — for the *shape*, not the call.** RD-2 built
+   `applies_to` per member per iteration, and `next_damage_shares` already
+   calls it on not-yet-decided members (`later`) to filter CR 615.7's buckets;
+   RD-3 confirmed that a source predicate narrows those buckets with no extra
+   work. So the pattern to copy is real. **But 614.9's check is not an
+   applicability question and must not be routed through `applies_to`.**
+   `applies_to` asks "does this effect watch this event and affect its
+   subject" — both about the event as proposed. 614.9 asks whether the
+   *destination the rewrite would write* is still a legal place for damage: on
+   the battlefield, and still a creature, planeswalker or battle, or a player
+   still in the game. That is a question about an object the proposal does not
+   mention, asked at application, and answering it in `gather` would make a
+   redirect that fails silently vanish from the CR 616.1 list instead of being
+   chosen and doing nothing — which CR 614.9 and `ATOM-614.9-001` say is the
+   wrong answer (the effect is applied, does nothing, and the shield is not
+   spent; that is decision 7's `took_effect: false` again).
+
+   So: reuse the *idea* — a per-member question asked at the moment the rewrite
+   is applied, with `Applied` reporting what happened — and write the check
+   itself beside `apply_rewrite`'s `Retarget` arm. It is an existence-and-type
+   check, not `validate_selection`: Divine Deflection's ruling ("whether the
+   targeted permanent or player is still a legal target is not checked") is the
+   same distinction from the rider side, and a `validate_selection` here would
+   get shroud wrong.
+
 ## The decisions that change the shape
 
 0. ~~`ReplacementDef.affected_players: PlayerSet`~~ — **landed in RD-1**.
-1. `AmountRewrite` is six arms: three landed in RD-1, `PreventUpTo` and
-   `PreventRemaining` in RD-2; `Plus` is RD-3's. `Rounding` has no default
-   (CR 107.1a). `Instead` gets no "N − k" template.
+1. ~~`AmountRewrite` is six arms~~ — **all six landed**: three in RD-1,
+   `PreventUpTo` and `PreventRemaining` in RD-2, `Plus` in RD-3 with Torbran.
+   `Rounding` has no default (CR 107.1a). `Instead` gets no "N − k" template.
 2. ~~CR 615.7 shields are rows in the existing `ReplacementEffectRegistry`~~ —
    **landed in RD-2**, as designed: `Primitive::CreateReplacement`,
    `Uses::NextDamage(remaining)` decremented in place through
@@ -84,13 +182,14 @@ all-multiplier bucket asks nobody (§11 item 29). Registered: Mending Hands
   Blade of Goldnight, Angel of Suffering, Loyalty Probe.
 - ~~**RD-2**~~ — landed: Mending Hands, Samite Healer, Safe Passage, Samite
   Censer-Bearer.
-- **RD-3** — Circle of Protection: Red, Reverse Damage, Guardian Seraph,
-  Daunting Defender + Pyroclasm, Fog, Torbran, Thane of Red Fell, Dark Sphere.
+- ~~**RD-3**~~ — landed: Circle of Protection: Red, Reverse Damage, Guardian
+  Seraph, Daunting Defender + Pyroclasm, Fog, Torbran, Thane of Red Fell, Dark
+  Sphere. Sokrates, Athenian Teacher recorded as a shape, unregistered.
 - **RD-4** — Pariah, Palisade Giant, Pinpoint Avalanche.
 - **RD-5 (candidate)** — Harm's Way, gated on the split staying off the
   per-member path.
 
-## Two notes for RD-3, from RD-2's build (2026-09-09)
+## Two notes for RD-3, from RD-2's build (2026-09-09) — both used, both held
 
 1. **What the source-side predicate needs from the row shape, and what it
    does not.** RD-3 adds `EventPattern::DealDamage { source: Option<SourcePattern>,
@@ -145,6 +244,10 @@ all-multiplier bucket asks nobody (§11 item 29). Registered: Mending Hands
 
 ## Two notes for a later PR, from Divine Deflection (verified on Scryfall 2026-09-08)
 
+**Category (c) — carried in full by `codebase-state.md` item 90, rulings
+included, because this is the only part of this file that outlives Phase RD.**
+
+
 Divine Deflection is *not* RD-2's or RD-3's consumer — it needs
 `AmountExpr::Variable` — but it is the card that decided two things about the
 row RD-2 built, and they were recorded before the row type was written.
@@ -183,9 +286,12 @@ row RD-2 built, and they were recorded before the row type was written.
 
 ## Next step
 
-RD-3: branch `replacement/rd-3-sources` off `origin/main`, in the commit order
-`register-a-card-only-once-the-engine-can-play-it` gives — scaffolding, cards
-unregistered, red tests, fix, registration + `PERFORMANCE_POOL` (Guardian
-Seraph) + A/B, docs. Read note 1 above before designing the source choice.
+RD-4: branch off `origin/main` once RD-3 is merged. `Rewrite::Retarget`,
+CR 614.9's destination re-check, decision 6's `unpreventable` flag and the
+CR 615.12 consult; consumers Pariah, Palisade Giant, Pinpoint Avalanche
+(`replacement-architecture.md` §9, RD-4). Read the two RD-4 notes above before
+designing either — the consult has **two** application sites now, and 614.9's
+check must not be routed through `applies_to`.
 
-Delete this file in the last RD PR to land.
+Then RD-5's gate is decided either way (§11 item 23, Harm's Way), and
+`plans/handoffs/rd.md` is deleted by the last RD PR to land.

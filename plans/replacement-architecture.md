@@ -481,10 +481,37 @@ this contract exists to catch.
 
 Within an arm, constraints on the event's fields reuse existing vocabulary —
 `ObjectFilter`, `PlayerRef`, `ZoneChangeCause`, `CardType` — rather than
-inventing per-mechanic predicates. "If a *red* source would deal damage to a
-*Cleric you control*" (Daunting Defender, CR 615.10's own example) is `ByColor`
-on the source and `And(BySubtype(Cleric), ByController(You))` on the target.
-Both already exist.
+inventing per-mechanic predicates. "If a **red source you control** would deal
+damage to an opponent or a permanent an opponent controls" (Torbran, Thane of
+Red Fell) is `And(ByColor(Red), ByController(You))` on the source, and on the
+target it is **both** of CR 614.1's halves: `AffectedSet::Filter {
+ByController(Opponent) }` for the permanent and `PlayerSet::Opponents` for the
+player, unioned by `set_affects`. Every leaf already existed, which is what
+RD-3 confirmed when it built them (§9, RD-3 as landed, decision 1).
+
+**Naming only the object half, as this paragraph did on 2026-09-09, understates
+the card and the type.** "An opponent" is not an `ObjectFilter` question at
+all — RD-1's `affected_players` is what answers it, and without that field
+Torbran would add 2 to damage dealt to an opponent's creatures and nothing to
+the opponent, which is half a card. The same union is why `combat: None`
+covers *direct* damage as well as combat: neither field constrains how the
+damage arrives.
+
+**Battles are the case where "controls" and "defends" come apart, and
+`ObjectFilter` has a leaf for only the first.** CR 310.8 gives every battle a
+*protector*, chosen as it enters, and 310.8b makes a Siege attackable by its
+own controller — so a Siege you control while an opponent protects it is
+**not** "a permanent an opponent controls", and Torbran correctly adds nothing
+to damage dealt to it. That is the card's own word, not an approximation. What
+battles will need is a second relation this type cannot express — "a battle an
+opponent protects" — and it belongs to whoever builds CR 310 (`backlog.md`
+§2.23), not to `SourcePattern`.
+
+**The paraphrase this paragraph carried until 2026-09-09 was of a card that
+does not exist.** Daunting Defender says "If a source would deal damage to a
+Cleric creature you control", with no colour clause: it is CR 615.10's example
+for *partial prevention*, and its predicate is entirely on the target side.
+Torbran is the two-sided one.
 
 ### 3.2b `Rewrite` — a closed algebra with a checkable completeness claim
 
@@ -2114,6 +2141,18 @@ Open until Phase 8: whether the axis-2 grammar stays a grammar. That is the
 right thing to be nervous about, and thinking about it now is not premature —
 the guards above cost nothing today and are expensive to retrofit once a hundred
 cards depend on the shape.
+
+**First data point, RD-3 (2026-09-09).** The section predicted RD's two-sided
+damage predicates as the grammar's first real pressure, and they landed:
+`EventPattern::DealDamage` grew a `SourcePattern` and eight printed cards were
+written against it. **`ObjectFilter` grew by nothing.** The leaves the source
+side reached — `ByColor`, `ByController`, `And` — all existed with customers
+of their own, and guard 2 refused the one leaf a card wanted: "the effect's own
+host as the source", one customer (Sokrates, Athenian Teacher), recorded rather
+than written. Guard 1 is what made that possible — composition meant Torbran's
+whole two-sided condition was two existing leaves and an `And`, not a variant.
+One data point is not the answer to the open question, but it is the answer
+going the right way, and it is the *hardest* single case the phase plan named.
 
 ---
 
@@ -3903,7 +3942,7 @@ and nothing was ever there to spend.
 |---|---|---|---|
 | **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `AffectedSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
 | **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
-| **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Daunting Defender is 615.10's own example), and the "two customers before a leaf" guard is applied live |
+| **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
 | **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
 
 **≈ 5,700–6,500 across four, each at or inside the band, RD-2 at its top —
@@ -4177,7 +4216,7 @@ attacked, which is where it will move.
 rounds identical to its threaded run; three shell `fuzz_games` runs at one
 seed identical line for line outside `=== Timing ===`.
 
-#### RD-3 — sources
+#### RD-3 — sources — ✅ landed 2026-09-09
 
 **Builds:** `EventPattern::DealDamage { source: Option<SourcePattern>, combat:
 Option<bool> }`, where `SourcePattern { object: Option<ObjectId>, filter:
@@ -4255,6 +4294,137 @@ agent rarely has, so it is registered and its `--require` count read.
 **Atoms:** `ATOM-615.8-001`, `ATOM-615.9-001`, `ATOM-615.10-001`,
 `ATOM-609.7b-001`, `ATOM-609.7c-001`; `ATOM-609.7a-001` and
 `BOUNDARY-DEF-609.7a-001` as `COVERS-PARTIAL`.
+
+##### As landed
+
+Five code commits and the docs, +2,035 / −57 across 16 files — roughly 640
+engine, 660 cards, 760 tests — over the ~1,400–1,600 prediction on every
+axis. The cards are most of it: eight printings with a rulings pass each,
+against a predicted "~400 cards". The engine came in at ~640 against ~370,
+which is `SelectionFilter::DamageSource`'s three sites, `PatternFill` and the
+two fixes below — none of them in the sizing, because the sizing counted
+`pattern_watches` and the construction sites and stopped there. Every decision in §9's RD-3 section shipped as designed. What
+follows is what the build decided, and the four the close owed.
+
+**The four decisions this PR owed, each answered.**
+
+1. **`SourcePattern` carries a general `Option<ObjectFilter>`, and the "two
+   customers before a leaf" guard is what decided it.** The leaves the field
+   actually reaches across all eight cards are `ByColor` (Circle of
+   Protection: Red, Torbran), `ByController` (Guardian Seraph, Torbran) and
+   `And` (Torbran) — **all three already in `ObjectFilter` with customers of
+   their own**, so the general filter added *zero* new leaves where narrower
+   per-card leaves would have added three. The guard also fired in the other
+   direction, which is the more useful half: the one leaf a consumer wanted
+   and did not get is "the effect's own host as the source" — Sokrates,
+   Athenian Teacher's granted "if **this creature** would deal combat damage
+   to a player" — with exactly one customer, recorded on `SourcePattern`'s
+   own doc and in `phase_rd_cards.rs`'s module doc rather than written. §8c's
+   axis 2 took its first real weight and grew by nothing.
+2. **Two of CR 609.7a's four source categories stay unreachable, and each has
+   a named blocker.** Reachable: *a permanent* and *a spell on the stack
+   (including a permanent spell)*, both enumerated by
+   `SelectionFilter::DamageSource`. Unreachable: (a) *any object referred to
+   by an object on the stack, by a replacement or prevention effect that's
+   waiting to apply, or by a delayed triggered ability that's waiting to
+   trigger* — there is no referred-to relation to read. `StackEntry` carries
+   `chosen_targets`, which is a *target* and not a reference (CR 115's word,
+   and the atom's own example is an emblem naming a card in exile), a waiting
+   replacement's `RegisteredReplacementEffect.targets` is the same thing, and
+   CR 603.7's delayed triggered abilities do not exist until item 6. (b) *a
+   face-up object in the command zone* — `GameState::command` is never
+   populated; the Commander track fills it. `ATOM-609.7a-001` and
+   `BOUNDARY-DEF-609.7a-001` are `COVERS-PARTIAL` naming exactly these two,
+   and the boundary's out-of-set member — a card in hand referred to by
+   nothing — is built whole.
+3. **Guardian Seraph went into `PERFORMANCE_POOL` as predicted** (75 → 76),
+   and the A/B says the prediction was right about *what* it measures and
+   wrong about the size: `performance` layer walks 368 → 361 and replacement
+   gathers 506 → 508. A source-side filter on every damage event is free at
+   this board size, which is the honest reading of a per-permanent gate that
+   only opens for `replacement_ability_sources`.
+4. **Circle of Protection: Red's `--require` count contradicts the sentence
+   that asked for it.** Forced into every stress deck alongside the other six,
+   it is cast 181 / resolved 180 in 123 of 200 games; forced alone, 190 / 189
+   in 130 of 200. And the activation — the thing "competes for mana the
+   random agent rarely has" was about — happens **12,660 times across 200
+   games, in 129 of them**, about 98 per game it reaches the battlefield. A
+   `{1}` with no other use for the mana is something a random agent does
+   until it runs out. CR 609.7a's chosen source is one of the best-exercised
+   paths in Phase RD, not a rare one, and the prediction is struck rather
+   than defended.
+
+**Two things the cards found, shown failing against the pre-fix tree.**
+
+- **`Primitive::DealDamage` never read `EffectRecipient::FilteredPermanents`,
+  and looped `execute_action` besides.** Pyroclasm dealt no damage at all, and
+  once it did it would have been one batch per creature. CR 704.3's
+  simultaneity, CR 615.7's "two or more applicable sources at the same time"
+  and CR 603.2c's "one or more" all read the batch, so a loop is unreachable
+  from all three. The recipient is resolved inside the primitive rather than
+  filled into `ctx.targets`, for `Primitive::CreateReplacement`'s reason: "every
+  permanent matching this **now**" is a question only the primitive acting on
+  them can ask without changing what the recipient means to a static ability.
+- **`apply_rewrite`'s whole-event `Rewrite::Prevent` reported `prevented: 0`.**
+  Reverse Damage's "life equal to the damage prevented this way" was zero.
+  RD-1's Angel of Suffering rides on `ReplacedAmount` and RD-2's counts reach
+  the number through an `Amount` arm, so this is the first def to ask a
+  `Prevent` what it prevented. The arm reports it rather than the caller
+  deriving it from a dropped event, because only the arm knows the event was
+  damage — a `Prevent` on a destruction is regeneration and prevents nothing,
+  the line `ReplacementDef::is_prevention` already draws.
+
+**`Primitive::CreateReplacement` grew a third argument and nothing else did.**
+`PatternFill { Authored, ChosenDamageSource }` — the handoff's design (a),
+built as described: the card authors `SourcePattern { object: None, .. }`, the
+resolution asks through `ChoiceKind::ChooseDamageSource` and overwrites, with
+`Primitive::Restrict`'s `debug_assert` that the field was empty. Nothing on
+`RegisteredReplacementEffect` changed, as the note predicted. Zero candidates
+is CR 101.3 and the effect does nothing; one is forced and asks nobody.
+
+**Item 47's condition (d), re-derived because this PR added the fields it names.**
+`ordering_cannot_change_outcome`'s multiplier bucket is written against
+`matches!(pattern, EventPattern::DealDamage { .. })`. Neither new field reads
+the *amount*: `source` is about the object dealing the damage and `combat` is
+CR 510.2's flag, so no member can fall out of applicability as another member
+changes the number, and the suppression stays sound. Recorded in the
+predicate's own doc and in `codebase-state.md` item 47.
+
+**Measured** (`plans/fuzz_ab.py`, three arms against a same-day `main`
+worktree at `e3b469d`, 200 games at seed 12345, both pools): `main`; `engine` —
+this PR's engine with `registry.rs` and `PERFORMANCE_POOL` unchanged; `new` —
+shipped.
+
+| | prediction | measured |
+|---|---|---|
+| middle arm | "flat" | **byte-identical to `main` outside `=== Timing ===` on both pools** — not one counter moves |
+| middle-arm CPU | flat | 14.10 → 14.78 ms median (+4.8%), which with identical counters is spread and nothing else (round 1 was 14.08 → 14.09) |
+| shipped arm, `performance` | a move is the card | Layer walks 368 → 361, gathers 506 → 508, avg turns 30.1 → 30.3, CPU 14.10 → 14.15 ms (+0.4%) |
+| shipped arm, `stress` | the card | Layer walks 437 → 496, gathers 513 → 563, memo hits 59,392 → 78,972 — eight cards in every deck |
+| `Prevention allocations` | unchanged (nothing here carries a count) | 0.00 → 0.01 `performance`, 0.02 → 0.01 `stress`; deck-mix noise either way |
+
+The middle arm being byte-identical is the strongest form §9's prediction
+could take, and it says something worth keeping: **a new `EventPattern` field
+costs nothing until a def uses it.** `pattern_watches` asks `source` and
+`combat` only through an `Option`, and every pre-RD-3 def writes `None`.
+
+Zero errors and zero panics on every arm and pool; `deterministic: yes` on all
+three, and three shell runs at one seed identical line for line outside the
+timing block.
+
+**Reachability**, forced (`--require`, 200 `stress` games, the seven
+comma-free names in one run and Torbran in its own because `--require` splits
+on commas): Guardian Seraph 145 / 145 in 102 games, Circle of Protection: Red
+181 / 180 in 123, Daunting Defender 144 / 143 in 106, Pyroclasm 169 / 149 in
+111, Fog 188 / 163 in 118, Reverse Damage 185 / 169 in 119, Dark Sphere 221 /
+221 in 144, Torbran 161 / 161 in 111. Every card in the PR is reachable from
+a random game.
+
+**No trace page.** §7's rule is "a phase that changes *how* a read is answered
+rather than what the answer is", and RD-3 changes what is asked, not how: the
+pipeline's shape is RD-2's, and the byte-identical middle arm is the direct
+evidence that no existing read moved.
+
 
 #### RD-4 — redirection and unpreventable damage
 
@@ -5295,6 +5465,115 @@ found them.
     Ghosts board had only an absence to assert; RD-2's have a number. The
     trace page walks the same boards by hand, which is tier 1's job; the
     sink's argument and its slot are unchanged.
+
+### Found by RD-3 — sources, and its review (2026-09-09)
+
+31. **`Rewrite::Prevent` reports how much damage it prevented, and RD-4 will
+    read it.** CR 615.6's "prevent that damage" is the whole amount, and
+    CR 615.5's rider may refer to it — Reverse Damage's "you gain life equal to
+    the damage prevented this way" is the printed reader, and it was the first
+    def in the crate to ask a whole-event `Prevent` what it prevented (RD-1's
+    Angel of Suffering rides on `ReplacedAmount`; RD-2's counts reach the number
+    through an `Amount` arm). The arm reports it rather than the caller
+    deriving it from a dropped event, and the reason is the same line
+    `ReplacementDef::is_prevention` draws: **only the arm knows the event was
+    damage**, and a `Prevent` on a `Destroy` is regeneration, which prevents no
+    damage at all (CR 615.1 is about damage, CR 701.19c treats the two
+    differently). A caller-side derivation would have had to re-ask the pattern
+    and would have got regeneration wrong the day a regeneration shield gained
+    a rider that read a number.
+
+    **The RD-4 consequence is direct.** CR 615.12's "those effects won't prevent
+    any damage, but any additional effects they have will take place" needs
+    `Applied.prevented` to be **0 on an unpreventable event while the rider
+    still runs** — so RD-4's consult belongs at the same site this number is
+    computed, not at `gather`'s door, and the `Prevent` arm is now one of the
+    two places (with `Rewrite::Amount`'s prevention arms) that has to ask.
+
+32. **A new `EventPattern` field costs nothing until a def writes it, and the
+    A/B is the proof.** RD-3's middle arm — the whole engine with `registry.rs`
+    and `PERFORMANCE_POOL` unchanged — is **byte-identical to `main` outside
+    the timing block on both pools at 200 games**. `pattern_watches` reads
+    `source` and `combat` through `Option`, and every def written before RD-3
+    carries `None`, so the added match arms are not reached. That is worth
+    keeping as a general fact about §3.2a's growth contract: widening an arm is
+    free at the measurement, and the cost of a phase like this is its *cards*.
+    It also means a middle-arm timing delta with identical counters is spread
+    and must be read as such — RD-3's was +4.8%, from one slow round out of
+    three, with round 1 at +0.1%.
+
+33. **The `--require` reachability instrument counts casts, and an activated
+    ability's *activations* are invisible to it.** RD-3 predicted Circle of
+    Protection: Red would be rare because "its activation competes for mana the
+    random agent rarely has"; the `--require` row says it resolves in 130 of
+    200 stress games, which answers a different question. The activation count
+    had to come from `--dump-events` and a grep: **12,660 activations across
+    200 games, in 129 of them**, about 98 per game the Circle is on the
+    battlefield — a `{1}` with nothing else to spend on is something a random
+    agent does until it runs out. Two things follow. The prediction is struck.
+    And **a phase whose consumer is an activated ability should measure the
+    activation, not the cast** — the report has no counter for it, and until it
+    does the recipe is one `--dump-events` run and
+    `grep "AbilityActivated: <name>"`.
+
+34. **Asked at the RD-3 review: should CR 616.1's prompt be skipped by
+    *simulating* both orders — `Lookahead`, compare the states, suppress if
+    they agree — rather than by a static predicate? No, and the case that
+    prompted the question is the reason why.**
+
+    The case is two Guardian Seraphs, both `Amount(PreventUpTo(1))`,
+    `Uses::Static`, no rider — the shape of item 29's multiplier bucket, and
+    the arithmetic does commute: `max(a − p − q, 0)` whichever applies first.
+    `ordering_cannot_change_outcome` does not admit it, and that is correct
+    rather than an omission.
+
+    **Three reasons, in increasing order of how hard they are to work around.**
+
+    - **A rewrite is not a pure function of the event, so "simulate it" is not
+      free of consequences.** `apply_rewrite` takes `&mut GameState` because
+      CR 614.13 is the rules' own statement that applying an entry replacement
+      *moves other objects* — `EnterAfterMoving` performs auxiliary zone
+      changes through `execute_actions_new_batch` and prompts a player for the
+      set. An ordering containing one cannot be speculatively executed and
+      rolled back without the `DecisionProvider` having been asked a question
+      that did not happen. `Lookahead`/`EntryFrame` is a *characteristics*
+      look-ahead — it answers "what would this permanent be" — and it is not a
+      board fork; the fork-and-search question (`codebase-state.md` item 44)
+      is a different and much larger piece of work.
+    - **Board equality is the wrong equivalence.** CR 616.1 gives the choice to
+      a player, so suppressing it is sound only when *no rules-legal question*
+      distinguishes the orders — and the event log is such a question.
+      CR 615.13 triggers "each time a prevention effect is applied to one or
+      more simultaneous damage events and prevents some or all of that damage",
+      which counts *applications*, not life totals. Two orders that reach the
+      same board by applying a prevention once versus twice are different games
+      the moment item 6 lands. A `GameState` comparison cannot see that; a
+      comparison that included the log would be comparing the thing the
+      shortcut exists to avoid producing.
+    - **And `PreventUpTo` is exactly that case.** Take `a = 2` against
+      `PreventUpTo(5)` and `PreventUpTo(1)`. Apply the 5 first: the event is
+      emptied, CR 614.7a drops it on the next iteration, and the 1 is never
+      gathered — **one** application. Apply the 1 first: 2 → 1, then the 5 →
+      0 — **two**. Same board, different number of CR 615.13 events. Deciding
+      which case a given board is in requires the **amount**, and
+      `ordering_cannot_change_outcome`'s signature is `(&[Candidate],
+      Option<ObjectId>)` — `Candidate` carries the instance and the member
+      *indices*, never their events. Reading the amount is precisely what
+      `codebase-state.md` item 47's condition (d) forbids, so the predicate
+      **structurally cannot** admit this arm. Two Guardian Seraphs keep their
+      prompt, and the prompt is real.
+
+    **The frequency says this was never a hot-path question.** Two Guardian
+    Seraphs share a battlefield in **19 of 200 games with the card forced into
+    every deck** (10%; four at once at the extreme, measured 2026-09-09). A
+    simulator would run on every multi-candidate prompt to remove a prompt that
+    rare.
+
+    **What is available, if a prompt ever does need removing:** another clause
+    on the static predicate, arriving the way item 29's did — with the rule
+    number that makes the orders indistinguishable, and with the event log
+    counted among the things that must agree. The bar is a proof, not a
+    comparison.
 
 ## 12. Explicitly out of scope
 

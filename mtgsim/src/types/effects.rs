@@ -384,9 +384,22 @@ pub enum EffectRecipient {
     /// Select without targeting rules — "choose" (rule 303.4a, etc.).
     /// Hexproof/shroud/protection do NOT apply.  Does not fizzle.
     Choose(SelectionFilter, TargetCount),
-    /// Filter-based continuous effect (static abilities / anthems).
-    /// Applies to all permanents matching the filter. Not used at cast/resolution
-    /// time — only read by the ETB hook to register continuous effects.
+    /// Filter-based recipient: every permanent matching the filter.
+    ///
+    /// Read by the ETB hook to register a static ability's continuous effect,
+    /// and — since RD-2 — at **resolution** by the primitives that act on more
+    /// than one object at once: `CreateReplacement` makes one row per matching
+    /// permanent (CR 615.11) and `DealDamage` proposes one batch member each
+    /// ("Pyroclasm deals 2 damage to each creature"). All three resolve it the
+    /// same way, `battlefield_ids_ordered` filtered against the resolution's
+    /// controller **now**, never captured.
+    ///
+    /// **The filter is not written into `ResolutionContext::targets`**, and
+    /// that is the point: "each creature" is not a targeting fact (CR 115.1
+    /// announces targets as the spell is cast), and filling the targets would
+    /// change what this variant means to the static-ability path that shares
+    /// it. Each primitive resolves it for itself.
+    ///
     /// Use `ByController(PlayerRef::You)` in the filter to express "you control".
     /// The filter is stored verbatim; `compute::object_matches_filter`
     /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes
@@ -416,6 +429,58 @@ pub enum SelectionFilter {
     Permanent(ObjectFilter),
     /// Spell on the stack
     Spell,
+    /// CR 609.7a — a **source of damage**: any permanent, or any spell on the
+    /// stack.
+    ///
+    /// > 609.7a If an effect requires a player to choose a source of damage,
+    /// > they may choose a permanent; a spell on the stack (including a
+    /// > permanent spell); any object referred to by an object on the stack, by
+    /// > a replacement or prevention effect that's waiting to apply, or by a
+    /// > delayed triggered ability that's waiting to trigger ...; or a face-up
+    /// > object in the command zone. **A source doesn't need to be capable of
+    /// > dealing damage to be a legal choice.**
+    ///
+    /// The last sentence is free — the enumeration does not ask — and it is
+    /// the reason this is its own filter rather than `Any` with a wider net:
+    /// `Any` is CR 115.4's target list, which is about what can be *dealt*
+    /// damage.
+    ///
+    /// **Two of the rule's four categories are reachable and two are not**,
+    /// and the gap is deliberate: "an object referred to by an object on the
+    /// stack / by a waiting replacement / by a delayed trigger" needs a
+    /// referred-to relation the engine has nowhere to read (delayed triggers
+    /// are CR 603.7's and do not exist), and "a face-up object in the command
+    /// zone" needs the command zone populated, which is the Commander track's.
+    /// `ATOM-609.7a-001` is `COVERS-PARTIAL` for exactly these two.
+    DamageSource,
+}
+
+/// What a [`Primitive::CreateReplacement`] fills into the def's **pattern** at
+/// resolution, beside what the recipient fills into its affected set.
+///
+/// **One mechanism for one rule.** CR 609.7a's "the source is chosen when the
+/// effect is created" is the only thing in the CR that puts a *resolution's*
+/// choice inside a pattern rather than inside an affected set, and the two
+/// halves genuinely differ: Circle of Protection: Red's row is around **you**
+/// (its recipient) and watches damage from **one chosen object** (this). A
+/// `Choose` recipient could carry the object but would then have nothing left
+/// to say what the row is about.
+///
+/// A closed enum with two arms rather than a `bool`, because the arm names the
+/// rule it serves; a second arm needs a second CR rule that puts a resolution's
+/// choice in a pattern.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatternFill {
+    /// Nothing is asked; the pattern is the card's, as written.
+    Authored,
+    /// CR 609.7a — the row's controller chooses a source of damage as the
+    /// effect is created, and it is written into the def's
+    /// `EventPattern::DealDamage`'s `source.object`.
+    ///
+    /// The card authors that field as `None` and the resolution overwrites it,
+    /// which is [`Primitive::Restrict`]'s shape one level down: the *shape* is
+    /// the card's and the *object* is the resolution's.
+    ChosenDamageSource,
 }
 
 /// How many targets/choices to select
@@ -760,7 +825,17 @@ pub enum Primitive {
     /// subject — Divine Deflection's "deals that much damage to any target",
     /// chosen at cast — has nowhere else to read them from
     /// (`plans/handoffs/rd.md`).
-    CreateReplacement(Box<crate::types::replacement::ReplacementDef>, Duration),
+    ///
+    /// The [`PatternFill`] is the other half of "what the resolution fills
+    /// in", and it is a *third* argument rather than a recipient because the
+    /// recipient is spoken for: Circle of Protection: Red's row is about
+    /// **you**, and the source it chooses is a fact about the events it
+    /// watches. See that type.
+    CreateReplacement(
+        Box<crate::types::replacement::ReplacementDef>,
+        Duration,
+        PatternFill,
+    ),
 
     // === "Can't" effects (CR 101.2, 614.17) ===
     /// A resolving spell or ability creates a CR 101.2 prohibition.

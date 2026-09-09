@@ -308,7 +308,7 @@ mod tests {
             created_on_turn: 1,
             targets: Vec::new(),
             def: ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 AffectedSet::Fixed(vec![source]),
                 Rewrite::Amount(AmountRewrite::PreventRemaining),
             )

@@ -647,8 +647,11 @@ fn next_damage_shares(
 /// the multipliers that apply to it whatever the order. No multiplier can
 /// remove another's applicability: an amount above 0 stays above 0 under any
 /// `n ≥ 1`, so `never_happens` cannot fire between members, and
-/// `EventPattern::DealDamage` carries no amount predicate for a member to
-/// fall out of. Two Furnaces of Rath are that shape, and the prompt was
+/// `EventPattern::DealDamage`'s two fields are about the *source* and about
+/// CR 510.2's combat flag — neither reads the amount, so no member can fall
+/// out of applicability as another changes the number (re-derived at RD-3,
+/// which added them; `codebase-state.md` item 47's condition (d)). Two
+/// Furnaces of Rath are that shape, and the prompt was
 /// noise a human would resent. **Not `Halve`, `Plus` or any prevention arm**:
 /// `Halve` beside `Multiplier` is the phase's headline non-commuting board
 /// (3 → 1 → 2 or 3 → 6 → 3), `Plus` beside `Multiplier` does not commute
@@ -685,7 +688,7 @@ fn ordering_cannot_change_outcome(choosable: &[Candidate], entering: Option<Obje
         .iter()
         .all(|c| matches!(c.instance.def.rewrite, Rewrite::EnterWith(_)));
     let all_multipliers = choosable.iter().all(|c| {
-        matches!(c.instance.def.pattern, EventPattern::DealDamage)
+        matches!(c.instance.def.pattern, EventPattern::DealDamage { .. })
             && matches!(
                 c.instance.def.rewrite,
                 Rewrite::Amount(AmountRewrite::Multiplier(n)) if n >= 1
@@ -958,8 +961,26 @@ fn apply_rewrite(
     // prevents nothing (CR 615.1a).
     let changed = Applied { took_effect: true, prevented: 0 };
     match &chosen.def.rewrite {
-        // CR 614.6 / 615.6.
-        Rewrite::Prevent => Ok((None, changed)),
+        // CR 614.6 / 615.6 — the event does not happen.
+        //
+        // **On damage it prevents all of it, and the number is what a rider
+        // reads.** CR 615.6's "prevent that damage" is the whole amount, and
+        // CR 615.5's "the damage prevented this way" is Reverse Damage's life
+        // gain. Reported here rather than derived by the caller from a `None`
+        // event, because only this arm knows the event was damage: a `Prevent`
+        // on a destruction is regeneration and prevents no damage at all
+        // (CR 615.1 is about damage), which is the same line
+        // `ReplacementDef::is_prevention` draws.
+        Rewrite::Prevent => Ok((
+            None,
+            Applied {
+                took_effect: true,
+                prevented: match &event {
+                    GameAction::DealDamage { amount, .. } => *amount,
+                    _ => 0,
+                },
+            },
+        )),
 
         // CR 614.1c/d — the event still happens; only *how* changes.
         //
