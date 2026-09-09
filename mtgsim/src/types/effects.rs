@@ -750,8 +750,21 @@ pub enum Primitive {
     Discard(AmountExpr),
 
     // === Damage & life ===
-    /// Deal damage (rule 120)
-    DealDamage(AmountExpr),
+    /// Deal damage (rule 120).
+    ///
+    /// A struct variant from RD-4 on, and the field is the reason: CR 615.12's
+    /// "the damage can't be prevented" is a property of the event this
+    /// primitive proposes, so the primitive is where the card says it. Every
+    /// site spells `unpreventable` out rather than reaching a constructor —
+    /// nine cards in the whole game print the clause, and a default would let
+    /// the tenth forget it silently.
+    DealDamage {
+        amount: AmountExpr,
+        /// Pinpoint Avalanche's last sentence. Becomes
+        /// `GameAction::DealDamage::unpreventable` on every member of the
+        /// batch this proposes.
+        unpreventable: bool,
+    },
     /// Gain life
     GainLife(AmountExpr),
     /// Lose life
@@ -824,7 +837,7 @@ pub enum Primitive {
     /// thing this effect targeted at resolution" rather than on the event's
     /// subject — Divine Deflection's "deals that much damage to any target",
     /// chosen at cast — has nowhere else to read them from
-    /// (`plans/handoffs/rd.md`).
+    /// (`codebase-state.md` item 90).
     ///
     /// The [`PatternFill`] is the other half of "what the resolution fills
     /// in", and it is a *third* argument rather than a recipient because the

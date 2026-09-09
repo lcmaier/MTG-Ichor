@@ -4426,7 +4426,7 @@ pipeline's shape is RD-2's, and the byte-identical middle arm is the direct
 evidence that no existing read moved.
 
 
-#### RD-4 — redirection and unpreventable damage
+#### RD-4 — redirection and unpreventable damage — ✅ landed 2026-09-09
 
 **Builds:** `Rewrite::Retarget(RetargetSpec { ToSource, ToHost,
 ToSourceController, ToFixed(DamageTarget) })`, rewriting the proposal's
@@ -4491,6 +4491,108 @@ re-filed and `owed` — 9 today, none of them a replacement phase's — cannot m
 by construction. What gated RC was the `// COVERS:` discipline, not the number
 (`engineering-practices.md` §5.1), and that is RD's gate too.
 
+##### As landed
+
+Six code commits and the docs, against two notes RD-3's build left for this
+one, neither of them contradicted. Every decision in §9's RD-4 section shipped
+as designed except `RetargetSpec`'s arm list, below. The two features stayed as
+independent as the sizing said: they share `is_unpreventable`'s caller and
+nothing else.
+
+**Three re-derived counts, because the sizing counted a tree RD-3 then rewrote.**
+
+- `Primitive::DealDamage` is **17** sites, not 16 — 16 constructions plus the
+  performer arm, which RD-3 had just moved to `FilteredPermanents` and one
+  batch. The struct-variant change landed on that fresh code without touching
+  it.
+- `GameAction::DealDamage` is **44** sites, not 25. The prediction counted
+  `src/`; the tests construct the event too, and RD-1 through RD-3 added 28 of
+  them.
+- `is_prohibited` callers **+1**, exactly as predicted — and it is the only
+  thing the middle arm measures.
+
+**`RetargetSpec` ships three arms, not four, and two are renamed.** §9 wrote
+`{ ToSource, ToHost, ToSourceController, ToFixed(DamageTarget) }`.
+
+- `ToSource` → **`ToEffectSource`** and `ToSourceController` →
+  **`ToDamageSourceController`**. The two arms name two different objects and
+  both contain the word "source": CR 609.7's is the source of the *damage*, and
+  a `ReplacementInstance`'s `source` is the object whose ability the effect is.
+  Palisade Giant's "this creature" is the second, Reflect Damage's "that
+  source's controller" the first, and the adjacent pair as written read as one
+  question with a `.controller` on the end. `naming-use-the-cr-vocabulary`.
+- **`ToFixed(DamageTarget)` is not built.** No card can author a damage target
+  it has not chosen yet, so the only thing that could fill it is
+  `RegisteredReplacementEffect.targets` — `codebase-state.md` item 90's work,
+  which arrives with Divine Deflection and needs `AmountExpr::Variable` besides.
+  An arm with no possible customer is what `AmountRewrite`'s own rule forbids,
+  and this is that rule applied to the arm that would have broken it.
+
+**The four decisions this PR owed, each answered.**
+
+1. **Reflect Damage is registered**, and §9's condition is met: RD-3 landed
+   `SelectionFilter::DamageSource` and `PatternFill::ChosenDamageSource`, which
+   is the whole of what the card needed. It closes `ATOM-614.9-001`'s "the
+   shield is NOT used up" half, which Pariah structurally could not — Pariah is
+   `Uses::Static`, so "not used up" is vacuous for it. Reflect Damage is the
+   phase's only `Uses::Once` redirect and its only redirect to a *player*,
+   which is also CR 614.9's last sentence made testable.
+2. **Pariah went into `PERFORMANCE_POOL` as predicted** (76 → 77). The A/B's
+   middle arm — the whole engine with `registry.rs` and `PERFORMANCE_POOL`
+   unchanged — moved by exactly one thing on each pool and by nothing else:
+   restriction queries 565 → 566 on `stress` (536 flat on `performance`) and
+   memo hits +7 / +1. That is CR 615.12's consult, one `is_prohibited` per
+   *prevention application*, with a few of those queries taking a real sweep on
+   a stress board that has static restriction sources. RD-3's middle arm was
+   byte-identical; this one is not, and the difference is a named branch rather
+   than spread. Shipped-arm timing is +0.1% CPU/game and −0.5% ms/1,000 walks,
+   medians of three interleaved rounds — both inside the ~2–6% spread and in
+   opposite directions.
+3. **CR 614.9's re-check reused the per-member *shape* and needed no new
+   mechanism**, which is what RD-3's note 2 predicted. It is a free function
+   beside `apply_rewrite`'s `Retarget` arm, asked per member at application,
+   reporting through `Applied` — and deliberately **not** routed through
+   `applies_to`, so a redirect whose destination is gone is still gathered,
+   still offered to CR 616.1 and still chosen, and then does nothing. It is an
+   existence-and-type check and not `validate_selection`: a redirect is not
+   targeting (CR 115.1), so a hexproof creature is a perfectly good
+   destination.
+4. **RD-5's gate: closed, and Harm's Way goes to `backlog.md` §2.25.** Below.
+
+**One thing the cards found, shown failing against the pre-fix tree.**
+
+**An `AffectedSet::Filter` containing `ObjectFilter::EachOther` matched
+nothing.** Palisade Giant's "other permanents you control" is the first card in
+the crate whose affected set needs that leaf, and `set_affects` refused it: the
+filter reached `object_matches_filter`, which takes `you` and no source id,
+answered `Err`, and `set_affects` collapsed that to `false`. So the Giant
+redirected the damage aimed at *you* — a player subject never reaches the object
+filter — and none of the damage aimed at your other permanents. A card silently
+doing half of what it says.
+
+`codebase-state.md` item 103 had measured that `Err` path at **zero** across 600
+fuzz games and left it, on the argument that a mid-game panic is worse than a
+card doing nothing. That argument was about the *other* two causes, which are
+card-authoring errors. This one is a leaf the type offers and the layer walk has
+always answered. The fix hands `set_affects`'s existing `source` down to the
+filter through one new entry point; `object_matches_filter` and
+`object_matches_filter_in_frame` keep their signatures and keep refusing the
+leaf, which is right for a *selection*.
+
+**Two things the build decided that §9 did not ask about.**
+
+- **The group's subject stopped standing in for its members'.** RD-2 captured
+  one `EventSubject` per group because nothing could move it; CR 614.9 can. So
+  the CR 616.1 chooser, the prompt's object and
+  `Instead(RemoveCountersFromAffected)` now read the *event* rather than the
+  group key. Without it, a redirect onto a creature carrying a shield counter is
+  a hard error mid-batch — the counter's rewrite asks the group key for an
+  object and gets a player. `§11` item 35.
+- **CR 615.12's two application sites both use one predicate**,
+  `is_unpreventable`, which is where the per-event flag and
+  `Restriction::ApplyReplacement`'s two sources meet. RD-3's note 1 asked for
+  exactly that and it needed no more.
+
 #### Out of RD, decided rather than absorbed
 
 - **RE's kinds** — draw, skips, `CreateTokens` and the token residual
@@ -4529,7 +4631,7 @@ by construction. What gated RC was the `// COVERS:` discipline, not the number
   controller"** as a rider recipient, **Combust's "can't be countered"** — each
   one leaf away, each with one customer, each waits for its second.
 
-#### RD-5 — partial redirection (Harm's Way), a candidate gated on a measurement
+#### RD-5 — partial redirection (Harm's Way) — ❌ gate closed 2026-09-09, moved to `backlog.md` §2.25
 
 Harm's Way — "The next 2 damage that a source of your choice would deal to
 you and/or permanents you control this turn is dealt to any target instead" —
@@ -4560,6 +4662,52 @@ signature — and is sized ~300–400 with Harm's Way as its consumer. If the
 insertion cannot be kept off that path, Harm's Way goes to `backlog.md` with
 this shape attached and the measured cost as the reason, which is the only
 reason one card should ever be excluded.
+
+##### Decided at RD-4's close (2026-09-09): **the gate fails, and Harm's Way is `backlog.md` §2.25**
+
+The criterion's second half is the one that decides it, and it decides it by
+reading the tree rather than by opinion. **A split-off member has no batch
+index**, and every signature between the rewrite and the performer is keyed by
+one:
+
+| Site | Count | What a split moves |
+|---|---|---|
+| `apply_rewrite` return sites | **20** | `(Option<GameAction>, Applied)` grows a third thing, in every arm |
+| `Member.index` reads/writes | **4** | `usize` → `Option<usize>`, or a parallel tail |
+| `finish(members)` | **2** | the closure that maps members back to batch positions |
+| `apply_replacements` signature + its caller | **2** | `Vec<(usize, Option<GameAction>)>` cannot name an event that was not proposed |
+| `execute_batch_inner`'s `decided[i] = action` | **1** | phase 2's write, which every combat damage step runs |
+
+≈ 30 mechanical sites, and the last two rows are the code every combat step
+runs. So the gate's own words — "without touching the code every combat step
+runs … no change to `apply_replacements`' signature" — are not met, and the
+answer §9 wrote for that case is the one that applies.
+
+**Three things worth keeping, because they change what a later PR starts
+from.**
+
+- **The cost is a type change, not work.** Nothing in the table is reached
+  unless a `Retarget` instance carries a `NextDamage` count, and no def on
+  either pool does. A middle-arm A/B of the type change alone would be flat by
+  construction. The gate excluded it on the *shape* half of its criterion, not
+  on the speed half, and saying so is the difference between a measurement and
+  a verdict.
+- **RD-4 already paid the part that was hardest to see coming.** The split's
+  awkward case was a member whose subject is not the group's; RD-4 made the
+  chooser, the prompt and `RemoveCountersFromAffected` read the event rather
+  than the group key, because CR 614.9's whole-event redirect needed it first
+  (§11 item 35). A later RD-5 starts with that done.
+- **What is genuinely new work, and was not in the ~300–400 sizing:**
+  `next_damage_shares` would have to allocate a CR 615.7 count across members
+  *and* decide how much of each member's amount moves — Harm's Way's own ruling
+  ("1 damage … to each of two different recipients") makes those the same
+  choice. That is new logic in the one function §11 item 24 calls the
+  non-uniform rewrite, not a mechanical edit.
+
+**So `backlog.md` §2.25 owns Harm's Way**, with the shape, this table and the
+reason. Divine Deflection is *not* affected and never was: a `Filter` +
+`PlayerSet` row with `NextDamage(X)` is already a pooled amount, and it waits
+only on `AmountExpr::Variable` and `codebase-state.md` item 90.
 
 #### Measured — what to expect, and why the direction is known
 
@@ -4624,6 +4772,16 @@ differs between the per-member loop and the per-subject one.
 5. The trace-page decision recorded at RD-2's close; RD-5's gate decided and
    recorded either way after RD-4; `check_state_of_play.py --write` after each
    merge; `plans/handoffs/rd.md` deleted by the last RD PR to land.
+
+**All five met at RD-4 (2026-09-09).** Four PRs, each with its consumers
+registered and its `PERFORMANCE_POOL` move made — Furnace of Rath, Mending
+Hands, Guardian Seraph, Pariah. Every atom the four sections list is annotated
+and `owed` is 9, unchanged, as the "On filing" note said it must be by
+construction. Findings 21–27 are each closed, moved or re-dated; `codebase-state.md`
+items 25 and 27 and the CR 120 row are updated. RD-5's gate is closed against
+it and Harm's Way is `backlog.md` §2.25, which makes RD-4 the last RD PR — so
+`plans/handoffs/rd.md` is deleted here, its one category-(c) block already
+carried in full by `codebase-state.md` item 90.
 
 ### Phase RE — the remaining event kinds we know of (see §8a)
 
@@ -5270,7 +5428,15 @@ found them.
 
 23. **One printed shape splits a damage event in two, and §3.2d's `Option`
     cannot hold it — so it is a candidate PR with a gate, not an exclusion.**
-    Harm's Way — "The next 2 damage that a source of your choice would deal to
+    *Gate closed by RD-4 (2026-09-09): it fails, and Harm's Way is now
+    `backlog.md` §2.25. A split-off member has no batch index, and ≈ 30 sites
+    between `apply_rewrite`'s return and `execute_batch_inner`'s `decided`
+    write are keyed by one — including the two the gate named as
+    disqualifying. §9's RD-5 section carries the table, the three things worth
+    keeping, and the one piece of genuinely new work the ~300–400 sizing did
+    not contain (`next_damage_shares` allocating a count and a split with one
+    choice). The original entry follows, unchanged, because the shape is still
+    the shape.* Harm's Way — "The next 2 damage that a source of your choice would deal to
     you and/or permanents you control this turn is dealt to any target
     instead" — redirects *part* of one event: 2 of a 3-damage Lightning Bolt
     goes to the chosen target and 1 stays on you. That is one `DealDamage`
@@ -5311,8 +5477,19 @@ found them.
 
 25. **"Unpreventable" is a property of the event, `is_prevention` is derived,
     and `cant-effects-architecture.md` §4.7's `ReplacementKind` is
-    superseded.** *Unchanged by RD-1, which ships neither the flag nor the
-    consult: `AmountRewrite::PreventHalf` applies unconditionally there, and
+    superseded.** ***Closed by RD-4 (2026-09-09), and all three of its claims
+    shipped as written.*** `GameAction::DealDamage.unpreventable` is the
+    per-event shape; `Restriction::ApplyReplacement { kind: Prevention }` is
+    the other two, with the `to_players: PlayerSet` this item's own decision 0
+    predicted; `ReplacementDef::is_prevention()` stayed derived and
+    `is_regeneration` kept its authored bit. The three meet in one predicate,
+    `pipeline::is_unpreventable`, called at the two sites a prevention arm
+    applies — two rather than the one this item assumed, because RD-3 gave
+    `Rewrite::Prevent` a prevented amount of its own (item 31). Not at
+    `gather`'s door, exactly as argued. Pinpoint Avalanche is the registered
+    per-event consumer; both restriction routes are fixtures, for item 26's
+    reason. *The RD-1 note this supersedes:*  *Unchanged by RD-1, which ships
+    neither the flag nor the consult: `AmountRewrite::PreventHalf` applies unconditionally there, and
     Ghosts of the Innocent's Excruciator ruling is RD-4's for exactly that
     reason. `AmountRewrite::prevented()` is the reporting half, and it shipped.* CR 615.12 has three printed shapes: a resolution's
     restriction with a duration ("damage can't be prevented this turn", 11
@@ -5336,7 +5513,15 @@ found them.
     `Prevent`-with-a-rider.
 
 26. **Every "damage can't be prevented" card but two carries a half the engine
-    lacks.** Skullcrack and Leyline of Punishment print "players can't gain
+    lacks.** *Discharged by RD-4 as far as it can be (2026-09-09): Pinpoint
+    Avalanche is registered and CR 615.12's per-event route is exercised by a
+    printed card; both **restriction** routes are built and tested as fixtures
+    in `tests/phase_rd4_integration_test.rs` — a `RegisteredRestriction` row for
+    the turn-scoped form and a static `Effect::Restriction` on a fixture
+    permanent for Leyline's — and neither has a registrable consumer, which the
+    PR said in as many words. The item stays open as the note that says why,
+    and it closes when RE's `GainLife` pattern arm lets Skullcrack land the row
+    in a game.* Skullcrack and Leyline of Punishment print "players can't gain
     life" (RE's `GainLife` pattern arm), Unstable Footing has kicker, Stomp is
     an adventure, Flaring Pain has flashback, Wild Slash is a `Conditional`,
     Everlasting Torment has wither, Combust "can't be countered" (§8a's missing
@@ -5574,6 +5759,126 @@ found them.
     number that makes the orders indistinguishable, and with the event log
     counted among the things that must agree. The bar is a proof, not a
     comparison.
+
+### Found by RD-4 — redirection and unpreventable damage (2026-09-09)
+
+35. **A group's subject stops being its members' the moment a redirect
+    applies, and three questions were reading the wrong one.**
+    `apply_replacements` captured one `EventSubject` at entry — the key
+    `execute_batch_inner` grouped by — and passed it to `apply_rewrite`, to the
+    CR 616.1 prompt and into every queued `Rider`. That was exactly right while
+    no rewrite could move a member's subject, which is every rewrite RB, RC and
+    RD-1 through RD-3 shipped. CR 614.9 moves it.
+
+    **The failure is loud rather than subtle, which is the only good news in
+    it.** Redirect damage from a player onto a creature carrying a shield
+    counter: the next iteration gathers CR 122.1c's replacement half against the
+    *rewritten* event, correctly, and its `Instead(RemoveCountersFromAffected)`
+    then asks the group key which object to take a counter from — and the key is
+    a player. `subject_object` answers `None` and the arm returns `Err`, failing
+    the whole batch mid-performance.
+
+    **The fix is to read the event, which is what CR 616.1f already says.**
+    `subject` is re-derived per iteration from the first live member and
+    per *member* at application; the rider takes the subject of the first member
+    the application touched, read before its own rewrite, because CR 615.5's
+    "that much" is about the event the effect replaced. The group key keeps its
+    one job — one applied set, one chooser, one loop — and stops being consulted
+    about objects. `a_redirect_hands_the_event_to_the_destinations_own_shield_counter`
+    is the regression.
+
+36. **`Rewrite::Retarget` makes `codebase-state.md` item 25 reachable for the
+    first time, and it is still not worth building.** Item 25 — CR 101.4d's
+    APNAP restart, a nonactive player's choice forcing an earlier player to
+    choose again — has been unreachable since RB because nothing in phase 1
+    could change *who* chooses about a member. A redirect can: an opponent's
+    Pariah enchanting **your** creature moves damage aimed at them onto an
+    object you control, so the CR 616.1 chooser for that member becomes you,
+    and your own group may already have run to completion.
+
+    **Reachable is not the same as reached.** It needs a two-sided board — one
+    batch, two subjects with different choosers, and a redirect that crosses
+    between them — and no card in either pool builds one, because both printed
+    redirects here are `PlayerSet::You` scoped and Pariah on an opponent's
+    creature is a play a random agent makes only by accident. The sizing is
+    unchanged and still the one item 25 records: turning phase 1 inside out,
+    a per-member state machine under an outer APNAP round-robin. **Revisit at
+    Phase 6**, where triggers make the second half of CR 101.4 live anyway —
+    not before, and no longer "at RD".
+
+37. **The gate that decides an arm ships fired against `RetargetSpec`, and
+    caught the arm §9 named.** `AmountRewrite`'s rule — every arm ships with a
+    printed customer in the PR that lands it — admitted `ToEffectSource`,
+    `ToHost` and `ToDamageSourceController` and refused `ToFixed(DamageTarget)`.
+    The refusal is not "no card wants it": Harm's Way and Divine Deflection both
+    do. It is that **no card can author it**, because a damage target is chosen
+    at cast and a card file cannot name one — so the arm's only possible filler
+    is `RegisteredReplacementEffect.targets`, threaded onto the instance, which
+    is `codebase-state.md` item 90's work and arrives with its own card. An arm
+    whose customer cannot reach it is worse than a missing one for exactly the
+    reason §3.2's growth contract gives, and this is the first time that rule
+    has excluded something a *design doc* wrote down rather than something a
+    build wanted.
+
+38. **`ObjectFilter::EachOther` was refused in an affected set, and the
+    instrument that measured it as harmless measured the wrong thing.**
+    `codebase-state.md` item 103 ran the three causes of
+    `object_matches_filter`'s swallowed `Err` over 600 fuzz games, found zero,
+    and left them on the argument that a mid-game panic is worse than a card
+    doing nothing. Palisade Giant made one of the three live on its first
+    board.
+
+    **The measurement was sound and the inference was not.** Zero reachability
+    over a pool that contains no card using a leaf says nothing about the leaf;
+    it says the pool does not use it. The two remaining causes — an id with no
+    object behind it, and `PowerLE` against something with no power — are
+    genuinely card-authoring errors, and item 103's argument still holds for
+    them. `EachOther` never belonged in that list: the layer walk has answered
+    it off `FilterPlayers::source` since the layer system, `set_affects` has
+    carried the same `source` since RB, and the two simply were not connected.
+    **The general lesson, worth more than the fix:** a reachability zero is
+    evidence about the *pool*, and it can only retire a concern that the pool
+    could have exercised.
+
+### Found by the RD-4 review (2026-09-09)
+
+39. **Two of RD-4's three "missing destination" tests were the same branch, and
+    the `COVERS-PARTIAL` on one of them claimed a leg no test reached.** Asked
+    on review whether an unattached Aura is a real board. It is — `change_zone`
+    detaches every attachment when a permanent leaves and **leaves the Aura on
+    the battlefield** for CR 704.5m to find, so a single resolution that
+    destroys a creature and then damages its controller reaches it. But that
+    means `pariah_whose_host_has_left_the_battlefield_does_nothing` exercises
+    `retarget_destination` answering `None`, not `redirection_is_legal`'s
+    "no longer on the battlefield" — the same branch as the
+    attached-to-nothing test beside it. Verified by probing `attached_to` after
+    the host's zone change: `None`.
+
+    **CR 614.9's first clause needs a destination that still exists and is
+    still named**, and an Aura structurally cannot supply one. A **registry
+    row** can: it keeps the `source` it was created with and CR 608.2c's
+    duration outlives the permanent, so a resolution-created `ToEffectSource`
+    redirect whose source has died still names it.
+    `a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing`
+    is that board, and the `COVERS-PARTIAL` moved onto it. Mutation-checked:
+    replacing the `contains_key` guard with `true` fails it.
+
+40. **Nothing tested that `unpreventable` survives a redirect, and "the field
+    is copied in one line" is not a reason it did not need to.** CR 614.9 moves
+    "the same damage", so the flag travels with `is_combat` — and `is_combat`
+    had a test (Pariah's first ruling) while the flag did not. A `Retarget` arm
+    that forgot `unpreventable` left **every other test in the file green**;
+    measured, not assumed, by setting it to `false` in the arm and running the
+    suite. `a_redirect_carries_the_unpreventable_flag_onto_the_destination` is
+    the twin, and it is the only test the mutation fails.
+
+41. **`Restriction::ApplyReplacement`'s `to` was half a pair wearing the name of
+    the whole thing.** `{ kind, to, to_players }` reads as an affected set with
+    a player modifier hung off it; the two are unioned and neither is primary.
+    Renamed `to_objects` — 12 sites, no behaviour. `ReplacementDef`'s
+    `affected`/`affected_players` keeps its own names, where `affected` reads
+    as the generic noun rather than as a preposition, and the asymmetry there is
+    the older one.
 
 ## 12. Explicitly out of scope
 

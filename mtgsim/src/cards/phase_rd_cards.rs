@@ -150,7 +150,8 @@ use crate::types::effects::{
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
-    AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, SourcePattern,
+    AmountRewrite, EventPattern, ReplacementDef, RetargetSpec, Rewrite, Rounding,
+    SourcePattern,
 };
 
 /// The static ability wrapper every card in this file uses.
@@ -992,7 +993,7 @@ pub fn pyroclasm() -> Arc<CardData> {
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
-                Primitive::DealDamage(AmountExpr::Fixed(2)),
+                Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
                 EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
             ),
         ))
@@ -1103,15 +1104,234 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
         .build()
 }
 
+// ---------------------------------------------------------------------------
+// RD-4 — redirection and unpreventable damage (CR 614.9, 615.12)
+// ---------------------------------------------------------------------------
+
+/// "All damage that would be dealt to you … is dealt to [something] instead" —
+/// the pattern and the two sets Pariah and Palisade Giant share.
+///
+/// `combat: None` is the whole of "all damage": CR 614.9 is indifferent to
+/// where the damage came from, and both cards' first ruling is that redirected
+/// combat damage is still combat damage — which is a fact about the *rewrite*
+/// (it does not touch `is_combat`) rather than about the pattern.
+fn all_damage_to_you(objects: AffectedSet, spec: RetargetSpec) -> ReplacementDef {
+    ReplacementDef::new(
+        EventPattern::DealDamage { source: None, combat: None },
+        objects,
+        Rewrite::Retarget(spec),
+    )
+    .affecting_players(PlayerSet::You)
+}
+
+/// Pariah — {2}{W}
+///
+/// > Enchant creature
+/// > All damage that would be dealt to you is dealt to enchanted creature
+/// > instead.
+///
+/// The phase's `RetargetSpec::ToHost`, and the first Aura in the crate whose
+/// static ability is a *replacement* effect rather than a continuous one — Holy
+/// Strength opened the Aura path in LH-1 and this reuses it whole: CR 702.5a's
+/// "Enchant creature" is the spell's target, and `attached_to` is read at the
+/// damage event rather than captured, so the redirect follows the Aura if it
+/// moves.
+///
+/// Its affected set is `NO_OBJECTS` plus `PlayerSet::You`: the card is about
+/// damage to a **player**, and the creature it names is the destination rather
+/// than a member of the set. Mixing the two up would make it redirect damage
+/// dealt *to the enchanted creature*, which is the opposite of the card.
+///
+/// # The rulings (Scryfall, 2026-09-08), and where each is tested
+///
+/// - *If you would be dealt combat damage, the damage dealt to the enchanted
+///   creature instead is still combat damage.* → asserted on
+///   `GameEvent::DamageDealt`'s combat flag, which `Rewrite::Retarget` does not
+///   touch. It matters beyond bookkeeping: lifelink and first strike both read
+///   it, and CR 510.2 is what a Phase 6 trigger will.
+/// - *If you control multiple Pariahs enchanting different creatures, you
+///   choose which redirection effect to apply. You can't divide damage dealt by
+///   one source … you can't choose to have 3 damage dealt to each one.* →
+///   CR 616.1's prompt with two candidates, and the whole 6 landing on one
+///   host. It falls out of the loop rather than being coded: the first redirect
+///   moves the event's subject off the player, so the second Pariah's
+///   `PlayerSet::You` no longer matches and it is never offered again.
+///
+/// **`PERFORMANCE_POOL`'s RD-4 addition**, predicted: the first `Retarget` and
+/// the first `attached_to` read on a damage event.
+pub fn pariah() -> Arc<CardData> {
+    CardDataBuilder::new("Pariah")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(crate::types::card_types::EnchantmentType::Aura))
+        .enchant_filter(SelectionFilter::Creature)
+        .rules_text(
+            "Enchant creature\nAll damage that would be dealt to you is dealt to enchanted \
+             creature instead.",
+        )
+        .ability(static_replacement(all_damage_to_you(
+            AffectedSet::NO_OBJECTS,
+            RetargetSpec::ToHost,
+        )))
+        .build()
+}
+
+/// Palisade Giant — {4}{W}{W}
+///
+/// > All damage that would be dealt to you and other permanents you control is
+/// > dealt to this creature instead.
+///
+/// The first row in the crate carrying **both** a real object filter and a real
+/// player set, which is what decision 0's union was for — and the first card
+/// whose filter needs `ObjectFilter::EachOther`. "Other permanents you control"
+/// is `ByController(You) ∧ EachOther`, and without the second leg the Giant
+/// would redirect its own damage to itself.
+///
+/// `RetargetSpec::ToEffectSource`, because "this creature" is the object whose
+/// ability this is. Reflect Damage's "that source's controller" is the *other*
+/// source, which is why neither arm is called `ToSource`.
+///
+/// # The rulings (Scryfall, 2026-09-08), and where each is tested
+///
+/// - *Applying this redirection effect doesn't change whether the damage is
+///   combat damage.* → Pariah's first ruling from the other card; asserted on
+///   the same flag.
+/// - *If you control more than one Palisade Giant, you choose which redirection
+///   effect to apply. You can't divide damage dealt by one source … or choose
+///   to have the 8 damage dealt to you.* → two candidates, one prompt, the
+///   whole amount on one Giant. The last clause is what makes the effect
+///   mandatory rather than `optional`: there is no "decline" on this card.
+pub fn palisade_giant() -> Arc<CardData> {
+    CardDataBuilder::new("Palisade Giant")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 4))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Giant))
+        .subtype(Subtype::Creature(CreatureType::Soldier))
+        .power_toughness(2, 7)
+        .rules_text(
+            "All damage that would be dealt to you and other permanents you control is dealt \
+             to this creature instead.",
+        )
+        .ability(static_replacement(all_damage_to_you(
+            AffectedSet::Filter {
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    Box::new(ObjectFilter::EachOther),
+                ),
+            },
+            RetargetSpec::ToEffectSource,
+        )))
+        .build()
+}
+
+/// Pinpoint Avalanche — {3}{R}{R}
+///
+/// > Pinpoint Avalanche deals 4 damage to target creature. The damage can't be
+/// > prevented.
+///
+/// CR 615.12's **per-event** shape, and the only one of its nine printed cards
+/// the engine can play whole: Skullcrack and Leyline of Punishment print
+/// "players can't gain life", Unstable Footing has kicker, Stomp is an
+/// adventure, Flaring Pain has flashback, Wild Slash a `Conditional`,
+/// Everlasting Torment wither, and Combust "can't be countered", which is §8a's
+/// missing counter event (§11 item 26).
+///
+/// The flag is on the *event*, not on the spell: it says nothing about the next
+/// damage this card's controller deals, and it survives a redirect because
+/// CR 614.9 moves "the same damage".
+///
+/// Scryfall lists no rulings (2026-09-09). The rule's own sentences are the
+/// tests: a prevention effect applies and prevents 0
+/// (`ATOM-615.12-001`/`-002`), a CR 615.7 count is not reduced
+/// (`COMP-615-UNPREVENTABLE-SHIELD-001`), the rider still runs, and the
+/// instance is offered once (`ATOM-615.12a-001`).
+pub fn pinpoint_avalanche() -> Arc<CardData> {
+    CardDataBuilder::new("Pinpoint Avalanche")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 3))
+        .color(Color::Red)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "Pinpoint Avalanche deals 4 damage to target creature. The damage can't be \
+             prevented.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(
+                Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: true },
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        ))
+        .build()
+}
+
+/// Reflect Damage — {3}{R}{W}
+///
+/// > The next time a source of your choice would deal damage this turn, that
+/// > damage is dealt to that source's controller instead.
+///
+/// **The card `ATOM-614.9-001`'s second half was waiting for**, and it is here
+/// because RD-3 landed the source choice it needs: a `Uses::Once` redirect
+/// whose destination is a *player*. When that player has left the game the
+/// redirect does nothing — and the row is still there, which is the atom's "the
+/// shield is NOT used up" and decision 7's `took_effect: false` in one board.
+///
+/// Two things separate it from every other chosen-source card in this file.
+/// Its affected sets are **everything** — "would deal damage", with no "to you"
+/// — so it is the first row whose `Filter { All }` and `PlayerSet::Everyone`
+/// are load-bearing on a redirect. And its rewrite reads the *damage's* source
+/// rather than its own, which is `RetargetSpec::ToDamageSourceController`.
+///
+/// Scryfall lists no rulings (2026-09-09).
+pub fn reflect_damage() -> Arc<CardData> {
+    let (affected, players) = every_permanent_or_player();
+    CardDataBuilder::new("Reflect Damage")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::White], 3))
+        .color(Color::Red)
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "The next time a source of your choice would deal damage this turn, that damage \
+             is dealt to that source's controller instead.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(
+                        ReplacementDef::new(
+                            EventPattern::DealDamage {
+                                source: Some(SourcePattern::chosen()),
+                                combat: None,
+                            },
+                            affected,
+                            Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
+                        )
+                        .affecting_players(players)
+                        .once(),
+                    ),
+                    Duration::UntilEndOfTurn,
+                    PatternFill::ChosenDamageSource,
+                ),
+                EffectRecipient::Implicit,
+            ),
+        ))
+        .build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::engine::actions::{ActionContext, GameAction};
     use crate::events::event::DamageTarget;
     use crate::state::game_state::GameState;
+    use crate::engine::combat::resolution::assign_combat_damage;
     use crate::test_support::{
-        place_vanilla_creature, put_on_battlefield, setup_two_player_game, test_ctx,
-        RecordingDecisionProvider,
+        place_vanilla_creature, put_on_battlefield, set_attacking, setup_two_player_game,
+        test_ctx, RecordingDecisionProvider,
     };
     use crate::types::effects::CounterType;
 
@@ -1138,6 +1358,7 @@ mod tests {
                 target: DamageTarget::Object(ids.victim),
                 amount,
                 is_combat: false,
+                unpreventable: false
             },
             &test_ctx(),
         )
@@ -1232,6 +1453,7 @@ mod tests {
                 target: DamageTarget::Object(ids.victim),
                 amount: 14,
                 is_combat: false,
+                unpreventable: false
             },
             &ctx,
         )
@@ -1258,6 +1480,7 @@ mod tests {
                     target: DamageTarget::Object(victim),
                     amount: 3,
                     is_combat: false,
+                    unpreventable: false
                 },
                 &test_ctx(),
             )
@@ -1283,6 +1506,7 @@ mod tests {
                 target: DamageTarget::Object(their_victim),
                 amount: 2,
                 is_combat: false,
+                unpreventable: false
             },
             &test_ctx(),
         )
@@ -1304,6 +1528,7 @@ mod tests {
                 target: DamageTarget::Object(mine),
                 amount: 5,
                 is_combat: false,
+                unpreventable: false
             },
             &test_ctx(),
         )
@@ -1361,7 +1586,7 @@ mod tests {
 
     fn bolt(game: &mut GameState, source: crate::types::ids::ObjectId, target: DamageTarget, amount: u64) {
         game.execute_action(
-            GameAction::DealDamage { source, target, amount, is_combat: false },
+            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false },
             &test_ctx(),
         )
         .unwrap();
@@ -1662,6 +1887,7 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 5,
                 is_combat: false,
+                unpreventable: false
             },
             &ActionContext::new(&dp),
         )
@@ -1713,6 +1939,7 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 3,
                 is_combat: false,
+                unpreventable: false
             },
             &ActionContext::new(&dp),
         )
@@ -1766,6 +1993,7 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 3,
                 is_combat: true,
+                unpreventable: false
             },
             &test_ctx(),
         )
@@ -1792,6 +2020,7 @@ mod tests {
                     target: DamageTarget::Object(target),
                     amount: 2,
                     is_combat: true,
+                    unpreventable: false
                 },
                 &test_ctx(),
             )
@@ -1863,6 +2092,7 @@ mod tests {
                 target: DamageTarget::Player(1),
                 amount: 3,
                 is_combat: true,
+                unpreventable: false
             },
             &ActionContext::new(&dp),
         )
@@ -1881,6 +2111,212 @@ mod tests {
             .power_toughness(1, 1)
             .rules_text("")
             .build()
+    }
+
+    // -----------------------------------------------------------------------
+    // RD-4 — the rulings pass
+    // -----------------------------------------------------------------------
+
+    /// A registry row inserted directly, for the shapes whose printed producer
+    /// is a later PR.
+    fn fixture_row(
+        game: &mut GameState,
+        source: crate::types::ids::ObjectId,
+        controller: crate::types::ids::PlayerId,
+        def: ReplacementDef,
+    ) {
+        let turn = game.turn_number;
+        game.replacement_effects.add(RegisteredReplacementEffect {
+            id: 0,
+            source,
+            controller,
+            duration: Duration::UntilEndOfTurn,
+            created_on_turn: turn,
+            targets: Vec::new(),
+            def,
+        });
+    }
+
+    /// [`bolt`] under a caller's own decision provider — CR 616.1's prompt is
+    /// the point of the boards below.
+    fn bolt_with(
+        game: &mut GameState,
+        source: crate::types::ids::ObjectId,
+        target: DamageTarget,
+        amount: u64,
+        ctx: &ActionContext,
+    ) {
+        game.execute_action(
+            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false },
+            ctx,
+        )
+        .unwrap();
+    }
+
+    /// Damage marked on one permanent — the file's other `marked` takes the
+    /// two-id board these tests do not use.
+    fn marked_on(game: &GameState, id: crate::types::ids::ObjectId) -> u32 {
+        game.battlefield[&id].damage_marked
+    }
+
+    /// The ruling, verbatim: *"If you would be dealt combat damage, the damage dealt
+    /// to the enchanted creature instead is still combat damage."*
+    ///
+    /// A fact about the *rewrite* rather than about the pattern —
+    /// `Rewrite::Retarget` touches `target` and nothing else — and it matters
+    /// beyond bookkeeping, because CR 510.2 and lifelink both read the flag.
+    ///
+    /// `GameEvent::DamageDealt` does not carry the flag, so the assertion is made
+    /// through a reader of it: a `combat: Some(true)` row scoped to the host, which
+    /// applies to the **redirected** event and prevents it. A rewrite that dropped
+    /// the flag would leave that row unapplied and the host with 4 damage on it.
+    #[test]
+    fn pariah_redirected_combat_damage_is_still_combat_damage() {
+        let mut game = setup_two_player_game();
+        game.active_player = 1;
+        let host = place_vanilla_creature(&mut game, 0, 2, 6, &[]);
+        let aura = put_on_battlefield(&mut game, pariah(), 0);
+        assert!(game.attach(aura, host));
+        let attacker = place_vanilla_creature(&mut game, 1, 4, 4, &[]);
+        set_attacking(&mut game, attacker, 0);
+        let watcher = place_vanilla_creature(&mut game, 0, 1, 1, &[]);
+        fixture_row(
+            &mut game,
+            watcher,
+            0,
+            ReplacementDef::new(
+                EventPattern::DealDamage { source: None, combat: Some(true) },
+                AffectedSet::Fixed(vec![host]),
+                Rewrite::Prevent,
+            ),
+        );
+
+        let from = game.events.len();
+        let dp = RecordingDecisionProvider::picking(0);
+        let assignments = assign_combat_damage(&game, &dp, 1, false);
+        game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();
+
+        let dealt: Vec<DamageTarget> = game
+            .events
+            .records_from(from)
+            .iter()
+            .filter_map(|r| match &r.event {
+                GameEvent::DamageDealt { target, .. } => Some(*target),
+                _ => None,
+            })
+            .collect();
+        assert!(dealt.is_empty(), "the combat-only row saw it: {:?}", dealt);
+        assert_eq!(life(&game, 0), 20);
+        assert_eq!(marked_on(&game, host), 0, "redirected, and then prevented as combat damage");
+    }
+
+    /// The control for the board above: the same row watching **non**-combat damage
+    /// does not apply, so the redirect is all that happens.
+    #[test]
+    fn pariah_redirected_noncombat_damage_is_not_combat_damage() {
+        let mut game = setup_two_player_game();
+        let host = place_vanilla_creature(&mut game, 0, 2, 6, &[]);
+        let aura = put_on_battlefield(&mut game, pariah(), 0);
+        assert!(game.attach(aura, host));
+        let watcher = place_vanilla_creature(&mut game, 0, 1, 1, &[]);
+        fixture_row(
+            &mut game,
+            watcher,
+            0,
+            ReplacementDef::new(
+                EventPattern::DealDamage { source: None, combat: Some(true) },
+                AffectedSet::Fixed(vec![host]),
+                Rewrite::Prevent,
+            ),
+        );
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+        
+        bolt(&mut game, source, DamageTarget::Player(0), 3);
+
+        assert_eq!(life(&game, 0), 20);
+        assert_eq!(marked_on(&game, host), 3);
+    }
+
+    /// The other ruling: *"if a spell would deal 6 damage to you and you control
+    /// multiple Pariahs, you may have that 6 damage dealt to either of the enchanted
+    /// creatures instead, but you can't choose to have 3 damage dealt to each one."*
+    ///
+    /// One CR 616.1 prompt, and the whole amount on one host. The "can't divide"
+    /// half falls out of the loop rather than being coded: the first redirect moves
+    /// the event's subject off the player, so the second Pariah's `PlayerSet::You`
+    /// stops matching and it is never offered again.
+    #[test]
+    fn two_pariahs_ask_which_and_the_whole_amount_lands_on_one_host() {
+        let mut game = setup_two_player_game();
+        let first = place_vanilla_creature(&mut game, 0, 2, 9, &[]);
+        let second = place_vanilla_creature(&mut game, 0, 2, 9, &[]);
+        let aura_one = put_on_battlefield(&mut game, pariah(), 0);
+        let aura_two = put_on_battlefield(&mut game, pariah(), 0);
+        assert!(game.attach(aura_one, first));
+        assert!(game.attach(aura_two, second));
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+
+        let dp = RecordingDecisionProvider::picking(1);
+        let ctx = ActionContext::new(&dp);
+        bolt_with(&mut game, source, DamageTarget::Player(0), 6, &ctx);
+
+        assert_eq!(dp.prompts(), 1, "CR 616.1 asks once, and only once");
+        assert!(dp.kinds()[0].starts_with("ChooseReplacement"), "{:?}", dp.kinds());
+        assert_eq!(marked_on(&game, first) + marked_on(&game, second), 6, "nothing was lost");
+        assert!(
+            (marked_on(&game, first), marked_on(&game, second)) == (0, 6)
+                || (marked_on(&game, first), marked_on(&game, second)) == (6, 0),
+            "the whole 6 lands on one host, never 3 and 3: {:?}",
+            (marked_on(&game, first), marked_on(&game, second))
+        );
+        assert_eq!(life(&game, 0), 20);
+    }
+
+    /// *"If you control more than one Palisade Giant, you choose which redirection
+    /// effect to apply … You can't have 4 damage dealt to each Giant or choose to
+    /// have the 8 damage dealt to you."*
+    ///
+    /// The last clause is what makes the effect mandatory: there is no decline, so
+    /// the 8 never stays on the player.
+    #[test]
+    fn two_palisade_giants_ask_which_and_the_whole_amount_lands_on_one() {
+        let mut game = setup_two_player_game();
+        let first = put_on_battlefield(&mut game, palisade_giant(), 0);
+        let second = put_on_battlefield(&mut game, palisade_giant(), 0);
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+
+        let dp = RecordingDecisionProvider::picking(1);
+        let ctx = ActionContext::new(&dp);
+        bolt_with(&mut game, source, DamageTarget::Player(0), 8, &ctx);
+
+        assert_eq!(dp.prompts(), 1);
+        assert_eq!(life(&game, 0), 20, "and never dealt to you");
+        assert_eq!(marked_on(&game, first) + marked_on(&game, second), 8);
+        assert!(
+            marked_on(&game, first) == 8 || marked_on(&game, second) == 8,
+            "the whole 8 on one Giant: {:?}",
+            (marked_on(&game, first), marked_on(&game, second))
+        );
+    }
+
+    /// The word "other", which is the whole of `EachOther`: damage aimed at the
+    /// Giant itself is not redirected onto the Giant.
+    ///
+    /// Vacuous on a tree where the filter matches nothing, which is why it is here
+    /// beside the test above rather than instead of it — together they pin the leaf
+    /// from both sides.
+    #[test]
+    fn palisade_giant_does_not_redirect_the_damage_aimed_at_itself() {
+        let mut game = setup_two_player_game();
+        let giant = put_on_battlefield(&mut game, palisade_giant(), 0);
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+        let dp = RecordingDecisionProvider::picking(0);
+        let ctx = ActionContext::new(&dp);
+
+        bolt_with(&mut game, source, DamageTarget::Object(giant), 4, &ctx);
+
+        assert_eq!(marked_on(&game, giant), 4, "dealt as proposed");
+        assert_eq!(dp.prompts(), 0, "and nothing was offered to replace it");
     }
 
     // The `SourcePattern` a card writes before a resolution touches it: the

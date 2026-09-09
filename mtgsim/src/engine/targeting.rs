@@ -313,11 +313,45 @@ impl GameState {
         // Before RC-4 each leaf took its own full walk.
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        self.object_matches_filter_with(id, filter, you, &|| {
+        self.object_matches_filter_with(id, filter, you, None, &|| {
             frame
                 .get_or_init(|| compute_characteristics(self, id))
                 .as_deref()
                 .ok_or_else(|| format!("Object {} not found", id))
+        })
+    }
+
+    /// [`Self::object_matches_filter`] asked on behalf of an **effect**, which
+    /// has a source — so [`ObjectFilter::EachOther`] has something to be other
+    /// than.
+    ///
+    /// The one caller is `replacement::gather::set_affects`, which is the one
+    /// place a filter is asked "is this object inside this effect's affected
+    /// set" rather than "is this object a legal selection". Palisade Giant's
+    /// "other permanents you control" is the printed customer, and
+    /// `compute::object_matches_filter` has answered the same leaf off
+    /// `FilterPlayers::source` since the layer system.
+    ///
+    /// `chars` is CR 614.12's look-ahead frame when the caller holds one, and
+    /// `None` when the object is a plain permanent — the two spellings of one
+    /// question, kept as one function because `set_affects` chooses between
+    /// them per call.
+    pub(crate) fn object_matches_filter_of_source(
+        &self,
+        id: ObjectId,
+        filter: &ObjectFilter,
+        you: PlayerId,
+        source: ObjectId,
+        chars: Option<&EffectiveCharacteristics>,
+    ) -> Result<bool, String> {
+        let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
+            std::cell::OnceCell::new();
+        self.object_matches_filter_with(id, filter, you, Some(source), &|| match chars {
+            Some(chars) => Ok(chars),
+            None => frame
+                .get_or_init(|| compute_characteristics(self, id))
+                .as_deref()
+                .ok_or_else(|| format!("Object {} not found", id)),
         })
     }
 
@@ -332,7 +366,7 @@ impl GameState {
         you: PlayerId,
         chars: &EffectiveCharacteristics,
     ) -> Result<bool, String> {
-        self.object_matches_filter_with(id, filter, you, &|| Ok(chars))
+        self.object_matches_filter_with(id, filter, you, None, &|| Ok(chars))
     }
 
     /// The leaf table, over a frame supplied on demand.
@@ -343,11 +377,16 @@ impl GameState {
     /// `PlayerRef` through the effect's source; this one asks whether an
     /// object is a legal selection, or inside a replacement's or restriction's
     /// `AffectedSet`, and resolves it against `you`.
+    ///
+    /// `other_than` is what [`ObjectFilter::EachOther`] is other than — `None`
+    /// in a selection context, where there is no such object and the leaf is
+    /// refused rather than answered.
     fn object_matches_filter_with<'f>(
         &self,
         id: ObjectId,
         filter: &ObjectFilter,
         you: PlayerId,
+        other_than: Option<ObjectId>,
         frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, String>,
     ) -> Result<bool, String> {
         let obj = self.get_object(id)?;
@@ -396,21 +435,29 @@ impl GameState {
                     PlayerRef::Player(pid) => obj.owner == *pid,
                 })
             }
-            // "Each other" is relative to an effect's source, and a selection
-            // has none — this function takes `you` and no source id. Refused
-            // rather than answered `true`: a filter that silently included the
-            // source would be the opposite of the word.
-            ObjectFilter::EachOther => Err(format!(
-                "ObjectFilter::EachOther on {} has no source to be other than in a selection context",
-                id
-            )),
+            // "Each other" is relative to an effect's source. An *affected set*
+            // has one — Palisade Giant's "other permanents you control" — and a
+            // *selection* does not, so the second is refused rather than
+            // answered `true`: a filter that silently included the source would
+            // be the opposite of the word.
+            //
+            // Answered off the ids, like `compute::object_matches_filter`'s
+            // identical arm: no layer can make an object something other than
+            // itself, so this needs no frame.
+            ObjectFilter::EachOther => match other_than {
+                Some(source) => Ok(id != source),
+                None => Err(format!(
+                    "ObjectFilter::EachOther on {} has no source to be other than in a                      selection context",
+                    id
+                )),
+            },
             ObjectFilter::PowerLE(max_power) => frame()?
                 .power
                 .map(|p| p <= *max_power)
                 .ok_or_else(|| format!("Object {} has no power", id)),
             ObjectFilter::And(a, b) => {
-                let matches_a = self.object_matches_filter_with(id, a, you, frame)?;
-                let matches_b = self.object_matches_filter_with(id, b, you, frame)?;
+                let matches_a = self.object_matches_filter_with(id, a, you, other_than, frame)?;
+                let matches_b = self.object_matches_filter_with(id, b, you, other_than, frame)?;
                 Ok(matches_a && matches_b)
             }
             // Short-circuits, where `And` above does not, and the asymmetry is
@@ -420,13 +467,13 @@ impl GameState {
             // irrelevant. Evaluating it anyway would turn a true `Or` into a
             // silent `false`.
             ObjectFilter::Or(a, b) => {
-                if self.object_matches_filter_with(id, a, you, frame)? {
+                if self.object_matches_filter_with(id, a, you, other_than, frame)? {
                     return Ok(true);
                 }
-                self.object_matches_filter_with(id, b, you, frame)
+                self.object_matches_filter_with(id, b, you, other_than, frame)
             }
             ObjectFilter::Not(inner) => {
-                let matches = self.object_matches_filter_with(id, inner, you, frame)?;
+                let matches = self.object_matches_filter_with(id, inner, you, other_than, frame)?;
                 Ok(!matches)
             }
         }

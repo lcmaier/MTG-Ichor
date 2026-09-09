@@ -317,16 +317,74 @@ only in sign.
 **Prior art in this file:** §2.8 (where an ability functions) is the closest
 neighbour and overlaps on the zone shape.
 
-**The one piece of this that is scheduled, and it is not here.**
-`cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and RS-4**,
-written 2026-09-09 and deliberately ahead of this entry's own scheduling. Those
-two phases rewrite the combat validators and the payment sites, which are the
-sites an "as though" consult needs, and they are the only phases between now
-and this entry that touch them. §3.7 asks two things of that rewrite — that a
-consult can say *which* restriction forbade, and that a base-rule clause reads
-through an accessor rather than a field — so that this entry, whenever it is
-scheduled, is a normal diff rather than a second rewrite of the same four
-functions. Nothing else here is owed early.
+**What is scheduled, and none of it is here — because this file is an
+inventory and §0 means it.** Two things now point outward, and the second was
+added 2026-09-09 after the observation that an entry with an owner and a size
+and no slot is not scheduled, it is merely recorded.
+
+1. **The back-stop lives on the route**: `roadmap-v2.md` §3a row **B8**, which
+   puts the permission half after B5 and before Phase 8, gates Phase 8's start
+   on it beside CV-7 and B4, rides the payment half with CP-1, and says why the
+   value-substitution half deliberately has no date. A back-stop is what turns
+   "recorded" into "scheduled", and it could not go in this file: §0 allows six
+   fields and no seventh, and "nothing here has a date" is the sentence that
+   makes the inventory trustworthy.
+2. **The seam is a constraint on two other phases.**
+   `cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and
+   RS-4**, written 2026-09-09 and deliberately ahead of this entry's own
+   scheduling. Those two phases rewrite the combat validators and the payment
+   sites, which are the sites an "as though" consult needs, and they are the
+   only phases between now and this entry that touch them. §3.7 asks two things
+   of that rewrite — that a consult can say *which* restriction forbade, and
+   that a base-rule clause reads through an accessor rather than a field — so
+   that this entry, whenever it is scheduled, is a normal diff rather than a
+   second rewrite of the same four functions.
+
+Nothing else here is owed early.
+
+### 2.25 Partial damage redirection (CR 614.9) — one event becoming two
+
+**The surface that cannot express it.** A `Rewrite` returns *one* proposal
+(`Option<GameAction>`), and §3.2d of `replacement-architecture.md` removed the
+`Split` variant that could return more. Harm's Way — "The next 2 damage that a
+source of your choice would deal to you and/or permanents you control this turn
+is dealt to any target instead" — redirects *part* of one event: 2 of a
+3-damage Lightning Bolt goes to the chosen target and 1 stays on you. That is
+one `DealDamage` becoming two with different targets, and neither the rewrite's
+return type nor the pipeline's member list can hold it.
+
+**Everything else it needs already exists.** RD-4 built `Rewrite::Retarget` and
+CR 614.9's destination re-check; RD-2 built `Uses::NextDamage` spent by the
+amount moved, which is Harm's Way's own ruling (*"if the chosen source would
+deal just 1 damage … Harm's Way's effect will redirect that damage and still
+have a 'shield' left for another 1 damage from that source later in the turn"*);
+RD-3 built CR 609.7a's chosen source. The card is one mechanism short.
+
+| Field | |
+|---|---|
+| **Rules** | CR 614.9 (partial redirection), 615.7 (the count allocated across members) |
+| **Verdict** | `Rewrite` returns one proposal; `apply_replacements` returns one entry per *batch index*, and a split-off event has none |
+| **Size** | ≈ 30 mechanical sites plus new logic in `next_damage_shares` — above `replacement-architecture.md` §9's ~300–400 estimate, which did not contain the allocation half |
+| **Blocks** | Harm's Way, and nothing else measured — Divine Deflection is a *pooled* amount, not a split, and waits on `AmountExpr::Variable` and `codebase-state.md` item 90 |
+| **Atoms** | none filed under `Backlog`; CR 614.9's atoms are covered by RD-4's whole-event redirects |
+| **Owner** | `replacement-architecture.md` §9's RD-5 section, which carries the shape, the site table and the gate that closed |
+
+**Why it is here rather than on the route** — and it is a *number*, which is
+the only reason §9 allows for excluding one card. RD-5's gate said the split
+ships if the member insertion lands "without touching the code every combat step
+runs … no change to `apply_replacements`' signature". Read against the tree at
+RD-4's close it does touch both: `apply_replacements` returns
+`Vec<(usize, Option<GameAction>)>` keyed by batch position, and
+`execute_batch_inner`'s `decided[i] = action` is phase 2's write. The full table
+is in §9.
+
+**Two things a later PR inherits that the gate did not know about.** RD-4 made
+the CR 616.1 chooser, the prompt and `Instead(RemoveCountersFromAffected)` read
+the *event* rather than the group key (`replacement-architecture.md` §11 item
+35), which is the split's awkward case already solved. And the genuinely new
+work is `next_damage_shares`: CR 615.7's count and the split are **one** choice,
+because the ruling lets the 2 go "1 damage … to each of two different
+recipients".
 
 ### 2.23 Battles (CR 310), and CR 120.3h
 

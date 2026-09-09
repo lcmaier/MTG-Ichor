@@ -204,7 +204,7 @@ impl GameState {
             // is a question only the primitive that acts on them can ask
             // without changing what the recipient means for a static ability.
             // Ordered, because the members reach a CR 616.1 prompt and a log.
-            Primitive::DealDamage(amount_expr) => {
+            Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let targets: Vec<DamageTarget> = match recipient {
                     EffectRecipient::FilteredPermanents(filter) => self
@@ -231,11 +231,18 @@ impl GameState {
                 self.execute_actions(
                     targets
                         .into_iter()
+                        // CR 615.12's per-event flag, set by the effect that
+                        // proposes the damage and carried onto every member of
+                        // the batch: Pinpoint Avalanche's "the damage can't be
+                        // prevented" is about the 4 damage this resolution
+                        // deals and about nothing else the spell's controller
+                        // ever does.
                         .map(|target| GameAction::DealDamage {
                             source: ctx.source,
                             target,
                             amount,
                             is_combat: false,
+                            unpreventable: *unpreventable,
                         })
                         .collect(),
                     &actx,
@@ -1781,7 +1788,7 @@ impl GameState {
 fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
     match &mut def.what {
         Restriction::Event { affected, .. } => affected,
-        Restriction::ApplyReplacement { to, .. } => to,
+        Restriction::ApplyReplacement { to_objects, .. } => to_objects,
     }
 }
 
@@ -1832,7 +1839,7 @@ mod tests {
         let (mut game, bears_id) = setup_game_with_creature();
 
         let bolt = Effect::Atom(
-            Primitive::DealDamage(AmountExpr::Fixed(3)),
+            Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
             EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
         );
 
@@ -1847,7 +1854,7 @@ mod tests {
         let (mut game, bears_id) = setup_game_with_creature();
 
         let bolt = Effect::Atom(
-            Primitive::DealDamage(AmountExpr::Fixed(3)),
+            Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
             EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
         );
 
@@ -1914,7 +1921,7 @@ mod tests {
 
         let effect = Effect::Sequence(vec![
             Effect::Atom(
-                Primitive::DealDamage(AmountExpr::Fixed(2)),
+                Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
                 EffectRecipient::Target(SelectionFilter::Any, crate::types::effects::TargetCount::Exactly(1)),
             ),
             Effect::Atom(

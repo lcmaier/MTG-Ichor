@@ -514,12 +514,20 @@ pub(crate) fn set_affects(
         AffectedSet::Host => {
             game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
         }
-        AffectedSet::Filter { filter } => match frame.and_then(|f| f.frame_of(id)) {
-            Some(chars) => game
-                .object_matches_filter_in_frame(id, filter, controller, chars)
-                .unwrap_or(false),
-            None => game.object_matches_filter(id, filter, controller).unwrap_or(false),
-        },
+        // **Asked on behalf of the effect, not of a selection**, and the
+        // difference is one leaf: `ObjectFilter::EachOther` is other than the
+        // effect's `source`, which this function has and a selection does not.
+        // Palisade Giant's "other permanents you control" is the printed card
+        // that needs it (`codebase-state.md` item 103).
+        AffectedSet::Filter { filter } => game
+            .object_matches_filter_of_source(
+                id,
+                filter,
+                controller,
+                source,
+                frame.and_then(|f| f.frame_of(id)),
+            )
+            .unwrap_or(false),
     }
 }
 

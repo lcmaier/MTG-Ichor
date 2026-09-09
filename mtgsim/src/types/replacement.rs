@@ -413,15 +413,10 @@ impl DestructionSourcePattern {
 /// | `EnterWith(..)` | 614.1c/d | **RC-2** |
 /// | `EnterUnderControlOf(..)` | 616.1b, 614.1c | **RC-4** |
 /// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention | **RD-1** |
-/// | `Retarget(..)` | 614.9 redirection, 616.1b | RD |
+/// | `Retarget(..)` | 614.9 redirection | **RD-4** |
 ///
-/// `Retarget` is absent from the enum rather than present and unimplemented,
-/// because an arm the pipeline cannot apply is a card that silently does
-/// nothing. It is a *feature* on the codebase's own triage — a normal diff
-/// whenever it lands in RD-4, with no fact lost by waiting — and what it is
-/// *for* is recorded here so the reason it is not `Instead` survives: it has to
-/// survive CR 614.9's destination re-check at application time. `Amount`'s
-/// half of that argument moved onto the arm itself when RD-1 built it.
+/// Every arm now has a customer, so the enum is the algebra as claimed rather
+/// than the algebra minus one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rewrite {
     /// CR 614.6 / 615.6 — the event does not happen.
@@ -540,6 +535,66 @@ pub enum Rewrite {
     /// next iteration (CR 614.7a), so the two routes agree on the board and
     /// differ only in what they assert.
     Amount(AmountRewrite),
+
+    /// CR 614.9's redirection effects — change *where* the damage goes, and
+    /// nothing else.
+    ///
+    /// > 614.9. Some effects replace damage dealt to one battle, creature,
+    /// > planeswalker, or player with the same damage dealt to another …
+    ///
+    /// "The same damage" is the whole of why this rewrites the proposal's
+    /// `target` field and leaves `source`, `amount`, `is_combat` and
+    /// `unpreventable` alone: Pariah's ruling is that redirected combat damage
+    /// is still combat damage, and Kor Chant's that it is still dealt by the
+    /// original source.
+    ///
+    /// **Not an `Instead` carrying a fresh `DealDamage`, and CR 614.9's own
+    /// second sentence is the reason.** A destination that has left the
+    /// battlefield, stopped being a creature, planeswalker or battle, or a
+    /// player who has left the game makes "the effect [do] nothing" — the
+    /// event survives untouched and the effect is not spent (decision 7,
+    /// `ATOM-614.9-001`). That is a question about an object the proposal does
+    /// not mention, asked at the moment the rewrite applies, which a template
+    /// evaluated against the event cannot ask. It is deliberately **not**
+    /// routed through `gather`'s `applies_to` either: a redirect whose
+    /// destination is gone must still be gathered, offered to CR 616.1 and
+    /// chosen — it applies and does nothing, rather than vanishing from the
+    /// list (`replacement-architecture.md` §9, RD-4's "As landed", decision 3).
+    ///
+    /// Whole-event only. Harm's Way redirects *part* of one event, which is
+    /// one `DealDamage` becoming two and a phase-1 member insertion rather
+    /// than a rewrite (`replacement-architecture.md` §11 item 23).
+    Retarget(RetargetSpec),
+}
+
+/// Where a [`Rewrite::Retarget`] sends the damage.
+///
+/// **The three arms name three different objects, and two of them contain the
+/// word "source", so neither is spelled `ToSource`.** CR 609.7's "source" is
+/// the source of the *damage*; a `ReplacementInstance`'s `source` is the
+/// object whose ability the effect is. Palisade Giant's "this creature" is the
+/// second and Reflect Damage's "that source's controller" is the first, and a
+/// pair of adjacent arms called `ToSource` and `ToSourceController` would have
+/// read as one question with a `.controller` on the end.
+///
+/// Each arm ships with a printed customer, which is [`AmountRewrite`]'s rule
+/// one level down. A fourth — a destination fixed at resolution, for Harm's
+/// Way's "any target" and Divine Deflection's — is **not** here: a card cannot
+/// author a target it has not chosen yet, so it would have to be filled from
+/// `RegisteredReplacementEffect.targets`, and threading those onto the
+/// instance is `codebase-state.md` item 90's work with its own card.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetargetSpec {
+    /// "…is dealt to **this creature** instead" — the object whose ability
+    /// this effect is. Palisade Giant.
+    ToEffectSource,
+    /// "…is dealt to **enchanted creature** instead" — CR 303.4m's host, read
+    /// off `attached_to` at application rather than captured, exactly as
+    /// [`AffectedSet::Host`] reads it. Pariah.
+    ToHost,
+    /// "…is dealt to **that source's controller** instead" — the controller of
+    /// the *damage's* source, not of this effect. Reflect Damage.
+    ToDamageSourceController,
 }
 
 /// CR 107.1a — which way a halving rounds.
@@ -977,10 +1032,14 @@ impl ReplacementClass {
     pub fn from_rewrite(rewrite: &Rewrite) -> Self {
         match rewrite {
             Rewrite::EnterUnderControlOf(_) => ReplacementClass::ControlChanging,
+            // CR 616.1's ladder has no step for redirection — 616.1b is
+            // about *entering* under someone's control, and damage does not
+            // enter anything — so a redirect is a free choice like a doubler.
             Rewrite::Prevent
             | Rewrite::Instead(_)
             | Rewrite::EnterWith(_)
             | Rewrite::EnterAfterMoving(_)
+            | Rewrite::Retarget(_)
             | Rewrite::Amount(_) => ReplacementClass::Other,
         }
     }
@@ -1108,7 +1167,11 @@ impl ReplacementDef {
             && match &self.rewrite {
                 Rewrite::Prevent => true,
                 Rewrite::Amount(arm) => arm.prevents_damage(),
-                Rewrite::Instead(_)
+                // CR 614.9's redirection is not prevention: the damage is
+                // still dealt, to something else. So CR 615.12 has nothing to
+                // say to it — unpreventable damage is redirected normally.
+                Rewrite::Retarget(_)
+                | Rewrite::Instead(_)
                 | Rewrite::EnterWith(_)
                 | Rewrite::EnterAfterMoving(_)
                 | Rewrite::EnterUnderControlOf(_) => false,

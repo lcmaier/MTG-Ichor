@@ -31,7 +31,7 @@
 //! that silently does nothing, and a normal diff fails to compile at every
 //! reader instead.
 
-use crate::types::effects::{AffectedSet, PlayerRef};
+use crate::types::effects::{AffectedSet, PlayerRef, PlayerSet};
 use crate::types::replacement::EventPattern;
 
 /// One CR 101.2 "can't" — a prohibition on an action or an event.
@@ -102,7 +102,29 @@ pub enum Restriction {
     /// claim that the engine applies effects somewhere else.
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        to: AffectedSet,
+        /// The objects this withholds an effect from. **Named as half a pair**,
+        /// which `ReplacementDef`'s `affected`/`affected_players` is not: a
+        /// bare `to` beside a `to_players` reads as the whole set with a
+        /// modifier hung off it, and it is not — the two are unioned and
+        /// neither is primary (RD-4 review, 2026-09-09).
+        to_objects: AffectedSet,
+        /// The other half of "whatever they're affecting" — CR 615.12's
+        /// "damage can't be prevented" is about damage dealt to *players* as
+        /// much as to permanents, and a prevention effect's subject is a
+        /// player whenever the damage is.
+        ///
+        /// Unioned with [`Self::ApplyReplacement::to`] by the same
+        /// `set_affects` that unions a `ReplacementDef`'s two sets, which is
+        /// what makes a "can't" the same predicate as the effect it withholds
+        /// (`cant-effects-architecture.md` §3.1). Skullcrack's is `Everyone`
+        /// plus `Filter { All }`; a hypothetical "damage to you can't be
+        /// prevented" would be `You` plus `NO_OBJECTS`.
+        ///
+        /// [`Self::Event`] has no such field yet, deliberately: no printed
+        /// "can't" the engine can express names a player, and the day one does
+        /// it adds the field with its card (`replacement-architecture.md` §9,
+        /// RD decision 0).
+        to_players: PlayerSet,
     },
 }
 
@@ -136,10 +158,14 @@ pub enum SourceFilter {
 /// things the rules permit withholding, and nothing else in the CR withholds an
 /// effect at its application site.
 ///
-/// [`Self::Prevention`] has no producer until Phase RD gives
-/// `ReplacementDef::is_regeneration` its promised widening to a
-/// `ReplacementKind` (§9 finding 3); it is here because the *rule* is, and its
-/// absence would read as a claim CR 615.12 does not exist.
+/// [`Self::Prevention`] got its producer in RD-4, and **not** by widening
+/// `ReplacementDef::is_regeneration` into a `ReplacementKind` the way
+/// `cant-effects-architecture.md` §4.7 predicted: CR 615.1a defines a
+/// prevention effect by the word "prevent", which the def already carries in
+/// its pattern and rewrite, so `ReplacementDef::is_prevention()` is derived and
+/// no card can forget to set it (`replacement-architecture.md` §11 item 25).
+/// `is_regeneration` keeps its authored bit, because nothing about a
+/// regeneration def distinguishes it from any other `Prevent`-with-a-rider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReplacementKindFilter {
     /// CR 701.19a's regeneration shield — "effects that say that a permanent

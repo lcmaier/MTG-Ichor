@@ -4,15 +4,18 @@ use std::collections::HashSet;
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, Query};
+use crate::events::event::DamageTarget;
+use crate::types::card_types::CardType;
+use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
 use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern,
+    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, RetargetSpec,
     GameActionTemplate, Rewrite, Uses,
 };
 use crate::types::zones::Zone;
-use crate::oracle::characteristics::get_effective_power;
+use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
@@ -287,6 +290,19 @@ pub(crate) fn apply_replacements(
             return Ok(finish(members));
         };
 
+        // **The group's key is not the members' subject after RD-4**, and the
+        // shadow is where that stops being a distinction without a difference.
+        // `subject` above is the key `execute_batch_inner` grouped by — one
+        // CR 616.1 loop, one applied set, one chooser — and it is fixed for the
+        // life of the group. A `Rewrite::Retarget` moves an *event's* subject
+        // (CR 614.9), so from the second iteration on the two can disagree, and
+        // every question below is about the event rather than about the group:
+        // who chooses (CR 616.1's affected object's controller), which object a
+        // prompt names, and which object a `RemoveCountersFromAffected` takes a
+        // counter from. Re-derived per iteration for the same reason `gather`
+        // is — CR 616.1f re-gathers against the modified event.
+        let subject = subject_of(&first);
+
         // CR 614.12 / 614.17d — the frame both questions below read for an
         // entering permanent, built once per iteration and computed only if a
         // filter asks. Per iteration and not per event, because clause (1)
@@ -454,14 +470,20 @@ pub(crate) fn apply_replacements(
         // effects count only the amount of damage" — and the use is spent by
         // what the whole application did (decision 7).
         let mut replaced_amount: Option<u64> = None;
+        let mut rider_subject: Option<EventSubject> = None;
         let mut outcome = Applied::default();
         for (k, &pos) in applicable.iter().enumerate() {
             let event = members[pos].event.take().expect("gathered this iteration, so live");
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
+            // Per member, and it is the member's own event that answers: two
+            // members of one group can have different subjects once a redirect
+            // has moved one of them.
+            let member_subject = subject_of(&event);
+            rider_subject.get_or_insert(member_subject);
             let share = shares.as_ref().map(|s| s[k]);
-            let (next, did) = apply_rewrite(game, ctx, &chosen, event, subject, share)?;
+            let (next, did) = apply_rewrite(game, ctx, &chosen, event, member_subject, share)?;
             outcome.took_effect |= did.took_effect;
             outcome.prevented += did.prevented;
             if let Some(next) = &next {
@@ -483,7 +505,12 @@ pub(crate) fn apply_replacements(
             riders.push(Rider {
                 source: chosen.source,
                 controller: chosen.controller,
-                subject,
+                // The subject of the first member this application touched,
+                // read *before* its own rewrite — CR 615.5's "that much" is
+                // about the event the effect replaced. Reverse Damage's rider
+                // names the player the damage was headed for, and a redirect
+                // applied later in the same loop does not rename him.
+                subject: rider_subject.unwrap_or(subject),
                 replaced_amount,
                 prevented: outcome.prevented,
                 effect: then,
@@ -925,6 +952,41 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance, outcome: Appl
     }
 }
 
+/// CR 615.12 — may a prevention effect prevent anything here?
+///
+/// > 615.12. Some effects state that damage "can't be prevented." If
+/// > unpreventable damage would be dealt, any applicable prevention effects are
+/// > still applied to it. Those effects won't prevent any damage, but any
+/// > additional effects they have will take place. Existing damage prevention
+/// > shields won't be reduced by damage that can't be prevented.
+///
+/// **The rule's three printed shapes meet here and nowhere else** (§9's RD
+/// decision 6). `unpreventable` is the per-event one — Pinpoint Avalanche's
+/// "the damage can't be prevented" — and `Restriction::ApplyReplacement`
+/// unions the other two: a resolution's "damage can't be prevented this turn"
+/// as a registry row, and a static ability's as a sweep off the source's
+/// effective ability list.
+///
+/// **Asked at application, not at `gather`'s door**, and the two rules say so
+/// in different words: CR 701.19c makes a regeneration shield "not applied"
+/// (so `push_if_applicable` withholds it), while this one applies the effect
+/// and lets it prevent nothing. Merging the two sites would make one of the
+/// two rules wrong.
+///
+/// The caller then reports `prevented: 0` and `took_effect: false`, which is
+/// how the last sentence is enforced: `consume_use` spends a `NextDamage`
+/// count by the damage prevented and a `Uses::Once` row only when the rewrite
+/// took effect (decision 7). The rider is queued regardless, by the caller —
+/// that is the middle sentence, and `AmountExpr::DamagePrevented` reading 0 is
+/// what makes "if damage is prevented this way" need no `Effect::Conditional`.
+fn is_unpreventable(game: &GameState, unpreventable: bool, subject: EventSubject) -> bool {
+    unpreventable
+        || is_prohibited(
+            game,
+            &Query::ApplyReplacement { kind: ReplacementKindFilter::Prevention, subject },
+        )
+}
+
 /// Apply the chosen effect's [`Rewrite`] to the event (`replacement-architecture.md`
 /// §3.2b).
 ///
@@ -971,16 +1033,27 @@ fn apply_rewrite(
         // on a destruction is regeneration and prevents no damage at all
         // (CR 615.1 is about damage), which is the same line
         // `ReplacementDef::is_prevention` draws.
-        Rewrite::Prevent => Ok((
-            None,
-            Applied {
-                took_effect: true,
-                prevented: match &event {
-                    GameAction::DealDamage { amount, .. } => *amount,
-                    _ => 0,
-                },
-            },
-        )),
+        //
+        // **CR 615.12's first application site.** On damage the whole event is
+        // what this arm prevents, so an unpreventable event is exactly the case
+        // the rule describes: the effect "is still applied", prevents nothing —
+        // the event survives untouched — and nothing is spent. `prevented_or_0`
+        // is the shared consult; the second site is the `Amount` arm below.
+        Rewrite::Prevent => match &event {
+            GameAction::DealDamage { amount, unpreventable, .. } => {
+                if is_unpreventable(game, *unpreventable, subject) {
+                    // Applied, prevented nothing, event untouched, nothing
+                    // spent — and the caller queues the rider anyway.
+                    Ok((Some(event), Applied::default()))
+                } else {
+                    Ok((None, Applied { took_effect: true, prevented: *amount }))
+                }
+            }
+            // Regeneration and CR 122.1c's shield counter: a `Prevent` on
+            // anything but damage prevents no *damage* (CR 615.1 is about
+            // damage), and CR 615.12 has nothing to say to it.
+            _ => Ok((None, Applied { took_effect: true, prevented: 0 })),
+        },
 
         // CR 614.1c/d — the event still happens; only *how* changes.
         //
@@ -1050,12 +1123,13 @@ fn apply_rewrite(
         // whose whole job is to read the amount the last application left,
         // which is what makes CR 616.1's ordering choice observable.
         //
-        // Nothing about CR 615.12 here yet: an unpreventable event and a
-        // "damage can't be prevented" restriction are both consulted at the
-        // site a *prevention* arm applies, and both are RD-4's — RD-1 has no
-        // producer for either, so a consult would be a branch nothing can take.
+        // **CR 615.12's second application site**, and there are two of them
+        // because RD-3 gave `Rewrite::Prevent` a prevented amount of its own:
+        // both arms have to answer the rule the same way, so both ask
+        // `is_unpreventable` (`replacement-architecture.md` §9, RD-4's
+        // "As landed").
         Rewrite::Amount(amount_rewrite) => match event {
-            GameAction::DealDamage { source, target, amount, is_combat } => {
+            GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
                 // CR 615.7's cap is the instance's count. `PreventRemaining`
                 // on anything else, or a count on anything else, is a def
                 // whose halves disagree — the same authoring error every
@@ -1082,10 +1156,29 @@ fn apply_rewrite(
                     }
                     (other, _) => *other,
                 };
-                let prevented = arm.prevented(amount);
-                let after = arm.apply(amount);
+                // The consult is on the *prevention* arms only. Ghosts of the
+                // Innocent halves Excruciator's unpreventable 7 to 3 and
+                // Gisela prevents none of it, which is the whole reason
+                // `Halve` and `PreventHalf` are two arms (CR 615.12, §11
+                // item 28) — and here it is one `prevents_damage()`.
+                let (after, prevented) = if arm.prevents_damage() {
+                    let prevented = if is_unpreventable(game, unpreventable, subject) {
+                        0
+                    } else {
+                        arm.prevented(amount)
+                    };
+                    (amount - prevented, prevented)
+                } else {
+                    (arm.apply(amount), 0)
+                };
                 Ok((
-                    Some(GameAction::DealDamage { source, target, amount: after, is_combat }),
+                    Some(GameAction::DealDamage {
+                        source,
+                        target,
+                        amount: after,
+                        is_combat,
+                        unpreventable,
+                    }),
                     Applied { took_effect: after != amount, prevented },
                 ))
             }
@@ -1093,6 +1186,50 @@ fn apply_rewrite(
             // the same card-authoring error every other arm reports.
             other => Err(format!(
                 "replacement {:?} changes an amount but matched {:?}, which has none",
+                chosen.id, other
+            )),
+        },
+
+        // CR 614.9 — the same damage, somewhere else.
+        //
+        // Rewrites `target` and nothing else: `source`, `amount`, `is_combat`
+        // and `unpreventable` travel with the damage, which is Pariah's ruling
+        // ("the damage dealt to the enchanted creature instead is still combat
+        // damage") and Kor Chant's (it is still dealt by the original source).
+        //
+        // The re-check is here rather than in `applies_to`, and the difference
+        // is observable: a redirect whose destination is gone is still
+        // gathered, still offered to CR 616.1's chooser and still *chosen* —
+        // it then does nothing and is not spent (`ATOM-614.9-001`). Filtering
+        // it out at the door would make it vanish from a list the rule says it
+        // belongs on.
+        Rewrite::Retarget(spec) => match event {
+            GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
+                // The two outcomes differ in one field and in what they claim:
+                // a legal destination replaces `target` and took effect; an
+                // illegal one is CR 614.9's "the effect does nothing", which
+                // returns the event as proposed and spends nothing.
+                let (target, outcome) = match retarget_destination(game, chosen, *spec, source)
+                    .filter(|&to| redirection_is_legal(game, to, target))
+                {
+                    Some(to) => (to, Applied { took_effect: true, prevented: 0 }),
+                    None => (target, Applied::default()),
+                };
+                Ok((
+                    Some(GameAction::DealDamage {
+                        source,
+                        target,
+                        amount,
+                        is_combat,
+                        unpreventable,
+                    }),
+                    outcome,
+                ))
+            }
+            // Its `EventPattern` and its `Rewrite` describe different events —
+            // the same card-authoring error every other arm reports.
+            other => Err(format!(
+                "replacement {:?} redirects damage but matched {:?}, which is not damage",
                 chosen.id, other
             )),
         },
@@ -1160,6 +1297,78 @@ fn apply_rewrite(
             )),
         },
     }
+}
+
+/// Where a [`RetargetSpec`] sends the damage, before CR 614.9 is asked whether
+/// that is still a legal place for it.
+///
+/// `None` is "there is nothing there to name" — an Aura attached to nothing,
+/// or a damage source with neither controller nor owner — and the caller
+/// treats it exactly as an illegal destination does, because CR 614.9's answer
+/// to both is "the effect does nothing".
+fn retarget_destination(
+    game: &GameState,
+    chosen: &ReplacementInstance,
+    spec: RetargetSpec,
+    damage_source: ObjectId,
+) -> Option<DamageTarget> {
+    match spec {
+        RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),
+        // CR 303.4m, read now rather than captured — the same `attached_to`
+        // read `AffectedSet::Host` makes, because an Aura registered its effect
+        // before it was attached to anything.
+        RetargetSpec::ToHost => game
+            .battlefield
+            .get(&chosen.source)
+            .and_then(|e| e.attached_to)
+            .map(DamageTarget::Object),
+        // CR 109.5 asked of the *damage's* source, wherever it is: a spell on
+        // the stack has no battlefield entry, so this falls through to its
+        // owner, which is its controller for every card cast from its owner's
+        // own hand.
+        RetargetSpec::ToDamageSourceController => {
+            controller_or_owner(game, damage_source).map(DamageTarget::Player)
+        }
+    }
+}
+
+/// CR 614.9's re-check, asked at the moment the rewrite is applied.
+///
+/// > If one of those permanents is no longer on the battlefield when the damage
+/// > would be redirected, or is no longer a battle, creature, or planeswalker
+/// > when the damage would be redirected, the effect does nothing. If damage
+/// > would be redirected to or from a player who has left the game, the effect
+/// > does nothing.
+///
+/// Both ends, because the rule names both: `to` is where the rewrite would send
+/// the damage and `from` is where the proposal has it now.
+///
+/// **An existence-and-type check, not `validate_selection`.** Divine
+/// Deflection's ruling draws the same line from the rider's side — *"whether
+/// the targeted permanent or player is still a legal target is not checked"* —
+/// and a legality re-check here would get shroud and protection wrong: a
+/// redirect is not targeting (CR 115.1), so a hexproof creature is a perfectly
+/// good destination.
+fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) -> bool {
+    let player_in_game = |pid: PlayerId| {
+        game.player_lost.get(pid as usize).map(|lost| !lost).unwrap_or(false)
+    };
+    let destination_ok = match to {
+        DamageTarget::Player(pid) => player_in_game(pid),
+        DamageTarget::Object(id) => {
+            game.battlefield.contains_key(&id) && {
+                let types = get_effective_types(game, id);
+                types.contains(&CardType::Creature)
+                    || types.contains(&CardType::Planeswalker)
+                    || types.contains(&CardType::Battle)
+            }
+        }
+    };
+    let origin_ok = match from {
+        DamageTarget::Player(pid) => player_in_game(pid),
+        DamageTarget::Object(_) => true,
+    };
+    destination_ok && origin_ok
 }
 
 /// Who `Rewrite::EnterUnderControlOf(player_ref)` puts the permanent under,

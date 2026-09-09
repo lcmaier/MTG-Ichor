@@ -85,7 +85,8 @@ pub struct RegisteredReplacementEffect {
     /// the next X damage that would be dealt to you and/or permanents you
     /// control … Divine Deflection deals that much damage to any target" has
     /// its target chosen at cast and its affected set evaluated at the event,
-    /// and its rider needs both (`plans/handoffs/rd.md`). Empty for a row no
+    /// and its rider needs both (`codebase-state.md` item 90, which carries the
+    /// three rulings). Empty for a row no
     /// target chose: Safe Passage's, a regeneration's from an untargeted
     /// resolution.
     ///

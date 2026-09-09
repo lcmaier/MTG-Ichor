@@ -182,7 +182,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// # And the other axis
 ///
 /// "Destroy target creature. It can't be regenerated" registers a
-/// `Restriction::ApplyReplacement { kind: Regeneration, to: Fixed([creature]) }`.
+/// `Restriction::ApplyReplacement { kind: Regeneration, to_objects: Fixed([creature]) }`.
 /// When `gather` later finds a regeneration shield around that creature it asks
 /// `Query::ApplyReplacement { kind: Regeneration, subject: <creature> }`, and
 /// the second arm answers with the *same* `set_affects` call — the kinds agree
@@ -202,10 +202,12 @@ fn matches(
                 && set_affects(
                     game,
                     affected,
-                    // No `Restriction` names a player yet: RD-4 gives
-                    // `ApplyReplacement` its player set with "damage can't be
-                    // prevented" over damage to a player, and `Event` gets one
-                    // when a card asks for it.
+                    // `Restriction::Event` names no player. RD-4 gave
+                    // `ApplyReplacement` the player set CR 615.12 needs and
+                    // deliberately left this arm alone: no printed "can't" the
+                    // engine can express is about an event whose subject is a
+                    // player, and the day one is, it adds the field with its
+                    // card rather than ahead of it.
                     &PlayerSet::Nobody,
                     source,
                     controller,
@@ -216,11 +218,11 @@ fn matches(
         }
 
         (
-            Restriction::ApplyReplacement { kind, to },
+            Restriction::ApplyReplacement { kind, to_objects, to_players },
             Query::ApplyReplacement { kind: asked, subject },
         ) => {
             kind == asked
-                && set_affects(game, to, &PlayerSet::Nobody, source, controller, *subject, None)
+                && set_affects(game, to_objects, to_players, source, controller, *subject, None)
         }
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })

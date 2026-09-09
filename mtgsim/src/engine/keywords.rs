@@ -209,6 +209,7 @@ mod tests {
                 target: crate::events::event::DamageTarget::Player(1),
                 amount: 2,
                 is_combat: false,
+                unpreventable: false
             },
             &test_ctx(),
         ).unwrap();

@@ -27,7 +27,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::types::effects::{
     AffectedSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    Primitive, SelectionFilter, TargetCount,
+    PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -467,6 +467,7 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
             target: DamageTarget::Object(bear),
             amount: 3,
             is_combat: false,
+            unpreventable: false
         },
         &test_ctx(),
     )
@@ -512,6 +513,7 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
             target: DamageTarget::Object(bear),
             amount: 0,
             is_combat: false,
+            unpreventable: false
         },
         &test_ctx(),
     )
@@ -551,6 +553,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
             target: DamageTarget::Object(bear),
             amount: 3,
             is_combat: false,
+            unpreventable: false
         },
         &test_ctx(),
     )
@@ -1252,7 +1255,8 @@ fn cant_be_regenerated() -> Primitive {
     Primitive::Restrict(
         RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Regeneration,
-            to: AffectedSet::Fixed(Vec::new()),
+            to_objects: AffectedSet::Fixed(Vec::new()),
+            to_players: PlayerSet::Nobody,
         }),
         Duration::UntilEndOfTurn,
     )
