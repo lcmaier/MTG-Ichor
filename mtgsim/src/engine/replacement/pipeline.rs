@@ -961,8 +961,26 @@ fn apply_rewrite(
     // prevents nothing (CR 615.1a).
     let changed = Applied { took_effect: true, prevented: 0 };
     match &chosen.def.rewrite {
-        // CR 614.6 / 615.6.
-        Rewrite::Prevent => Ok((None, changed)),
+        // CR 614.6 / 615.6 — the event does not happen.
+        //
+        // **On damage it prevents all of it, and the number is what a rider
+        // reads.** CR 615.6's "prevent that damage" is the whole amount, and
+        // CR 615.5's "the damage prevented this way" is Reverse Damage's life
+        // gain. Reported here rather than derived by the caller from a `None`
+        // event, because only this arm knows the event was damage: a `Prevent`
+        // on a destruction is regeneration and prevents no damage at all
+        // (CR 615.1 is about damage), which is the same line
+        // `ReplacementDef::is_prevention` draws.
+        Rewrite::Prevent => Ok((
+            None,
+            Applied {
+                took_effect: true,
+                prevented: match &event {
+                    GameAction::DealDamage { amount, .. } => *amount,
+                    _ => 0,
+                },
+            },
+        )),
 
         // CR 614.1c/d — the event still happens; only *how* changes.
         //

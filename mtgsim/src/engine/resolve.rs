@@ -191,20 +191,55 @@ impl GameState {
         match primitive {
             // === Phase 2 primitives ===
 
+            // **One batch, however many things it hits.** "Pyroclasm deals 2
+            // damage to each creature" is one event, and three rules read the
+            // batch rather than the events in it: CR 704.3's simultaneity,
+            // CR 615.7's "two or more applicable sources at the same time" and
+            // CR 603.2c's "one or more". A loop of `execute_action` calls
+            // opens a batch each time and is unreachable from all three.
+            //
+            // `FilteredPermanents` is resolved here rather than filled into
+            // `ctx.targets`, for `Primitive::CreateReplacement`'s reason: the
+            // recipient means "every permanent matching this **now**", which
+            // is a question only the primitive that acts on them can ask
+            // without changing what the recipient means for a static ability.
+            // Ordered, because the members reach a CR 616.1 prompt and a log.
             Primitive::DealDamage(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                for target in &ctx.targets {
-                    let damage_target = match target {
-                        ResolvedTarget::Object(id) => DamageTarget::Object(*id),
-                        ResolvedTarget::Player(pid) => DamageTarget::Player(*pid),
-                    };
-                    self.execute_action(GameAction::DealDamage {
-                        source: ctx.source,
-                        target: damage_target,
-                        amount,
-                        is_combat: false,
-                    }, &actx)?;
+                let targets: Vec<DamageTarget> = match recipient {
+                    EffectRecipient::FilteredPermanents(filter) => self
+                        .battlefield_ids_ordered()
+                        .into_iter()
+                        .filter(|&id| {
+                            self.object_matches_filter(id, filter, ctx.controller)
+                                .unwrap_or(false)
+                        })
+                        .map(DamageTarget::Object)
+                        .collect(),
+                    _ => ctx
+                        .targets
+                        .iter()
+                        .map(|t| match t {
+                            ResolvedTarget::Object(id) => DamageTarget::Object(*id),
+                            ResolvedTarget::Player(pid) => DamageTarget::Player(*pid),
+                        })
+                        .collect(),
+                };
+                if targets.is_empty() {
+                    return Ok(());
                 }
+                self.execute_actions(
+                    targets
+                        .into_iter()
+                        .map(|target| GameAction::DealDamage {
+                            source: ctx.source,
+                            target,
+                            amount,
+                            is_combat: false,
+                        })
+                        .collect(),
+                    &actx,
+                )?;
                 Ok(())
             }
 
