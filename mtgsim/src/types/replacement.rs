@@ -39,6 +39,7 @@
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet,
 };
+use crate::types::ids::ObjectId;
 use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
@@ -179,13 +180,31 @@ pub struct ReplacementDef {
 pub enum EventPattern {
     /// CR 614.2 / 615.1. The event's subject is the damage *target*.
     ///
-    /// Fieldless: CR 122.1c's shield counter is RB's only customer and it
-    /// watches "damage would be dealt to **this** permanent", which `affected`
-    /// already says. A source-side constraint — CR 615.10's own example,
-    /// Daunting Defender's "if a *red* source would deal damage to a *Cleric
-    /// you control*" — is an `ObjectFilter` field this arm grows in Phase RD,
-    /// when there is a card to test it with.
-    DealDamage,
+    /// **Two fields, and both are about the event rather than about the
+    /// effect.** `affected` says which targets the effect is around; these say
+    /// which damage counts once it is. Both `None` is RB's and RD-1's and
+    /// RD-2's shape — "damage would be dealt to whatever I am affecting" —
+    /// and stays the common case.
+    ///
+    /// `source` is CR 609.7's source-side predicate; see [`SourcePattern`] for
+    /// which half of 609.7 each of its own fields is.
+    ///
+    /// `combat` is CR 510.2's fact off the proposal's `is_combat`. Fog's
+    /// "prevent all **combat** damage" is `Some(true)`; nothing printed asks
+    /// for `Some(false)`, which is why this is an `Option<bool>` rather than a
+    /// flag — `None` means the effect does not ask, and it is the answer for
+    /// every effect written before RD-3.
+    ///
+    /// **Neither field reads the amount, which is load-bearing**:
+    /// `pipeline::ordering_cannot_change_outcome` suppresses CR 616.1's prompt
+    /// for a bucket of commuting multipliers on this pattern, and its
+    /// termination argument holds only while no field of this arm can make a
+    /// member fall out of applicability as another member changes the number
+    /// (`codebase-state.md` item 47's condition (d)).
+    DealDamage {
+        source: Option<SourcePattern>,
+        combat: Option<bool>,
+    },
 
     /// CR 400.6. `None` on a field means "any".
     ///
@@ -270,6 +289,73 @@ pub enum EventPattern {
         /// `true` matches `AddCounters`, `false` matches `RemoveCounters`.
         adding: bool,
     },
+}
+
+/// CR 609.7's source-side predicate — "a **red** source of your choice", "a
+/// source **an opponent controls**" — in one struct with two fields, because
+/// the rule has two halves and a card may write either, both or neither.
+///
+/// - [`Self::object`] is **CR 609.7a's chosen source**: "the source is chosen
+///   when the effect is created". A card authors `None` and the resolution
+///   that creates the row overwrites it with what the player picked
+///   (`Primitive::CreateReplacement` with `PatternFill::ChosenDamageSource`).
+///   A static ability leaves it `None` forever — Guardian Seraph chooses
+///   nothing.
+/// - [`Self::filter`] is **CR 609.7b and 609.7c's property**, and it is
+///   rechecked at every proposal rather than captured: 609.7b says "when the
+///   source would deal damage, the shield rechecks the source's properties",
+///   and the recheck is free here because `gather` asks
+///   `pattern_watches` off the board at the moment of the proposal. A source
+///   that has stopped matching yields no candidate, so nothing is applied and
+///   `consume_use` never runs — which is 609.7b's second sentence
+///   ("the shield isn't used up") falling out rather than being implemented.
+///
+/// The two compose: Circle of Protection: Red is both, and it is both
+/// *because* the CR is — the chosen creature turning blue stops the shield
+/// even though the id still matches.
+///
+/// # The filter is general, and the guard that decided it
+///
+/// §8c's axis 2 says card breadth lands on predicates, and its second guard is
+/// "two customers before a leaf". Applied live in RD-3: the leaves this field
+/// actually reaches are `ByColor` (Circle of Protection: Red, Torbran),
+/// `ByController` (Guardian Seraph, Torbran) and `And` — **all three already
+/// in `ObjectFilter` with customers of their own**, so a general filter costs
+/// no new leaf at all and narrower per-card leaves would have cost three. The
+/// one leaf a consumer wanted and did not get is "the effect's own host as the
+/// source" (Sokrates, Athenian Teacher's granted "if **this creature** would
+/// deal combat damage to a player"); it has exactly one customer, that customer
+/// is unregistered for an unrelated reason, so it is recorded here and not
+/// written.
+///
+/// **`AffectedSet` is not reusable for this**, which is worth saying because
+/// the shapes rhyme. That type answers "which objects is this effect around",
+/// and its `SourceOnly`/`Host`/`Fixed` arms are all about the effect's own
+/// source; this one answers "which object dealt the damage", where the same
+/// three words would mean something else.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourcePattern {
+    /// CR 609.7a's chosen source, by id. `None` matches any source.
+    pub object: Option<ObjectId>,
+    /// CR 609.7b/c's property, rechecked at the proposal. `None` asks nothing.
+    ///
+    /// Resolved against the **effect's controller** as CR 109.5's "you", the
+    /// same player `set_affects` resolves the affected set against.
+    pub filter: Option<ObjectFilter>,
+}
+
+impl SourcePattern {
+    /// "A source of your choice", with no property — Reverse Damage, Dark
+    /// Sphere. The `object` is filled in by the resolution.
+    pub fn chosen() -> Self {
+        SourcePattern { object: None, filter: None }
+    }
+
+    /// "A source of your choice with this property" — Circle of Protection:
+    /// Red — or, on a static ability, the property alone.
+    pub fn matching(filter: ObjectFilter) -> Self {
+        SourcePattern { object: None, filter: Some(filter) }
+    }
 }
 
 /// Which of CR 701.8b's ways destroyed the permanent.
@@ -499,6 +585,22 @@ pub enum AmountRewrite {
     /// "deals half that damage, rounded down, ... instead" — the doubler's
     /// printed inverse. Replaces the amount; prevents nothing.
     Halve(Rounding),
+    /// "it deals that much damage **plus 2** instead" — CR 614.1a's additive
+    /// modification. Torbran, Thane of Red Fell is the printed customer and
+    /// the reason this arm lands in RD-3 rather than beside the doublers.
+    ///
+    /// **Not the same operation as [`Self::Multiplier`] with a different
+    /// number, and CR 616.1's prompt is where the difference shows.**
+    /// Multiplication commutes, so a bucket of doublers reaches one outcome in
+    /// any order and `pipeline::ordering_cannot_change_outcome` may suppress
+    /// the choice; addition beside a multiplier does not (3 → 6 → 8 or
+    /// 3 → 5 → 10), which is exactly Torbran's own ruling that "the player
+    /// being dealt damage ... chooses an order in which to apply those
+    /// effects".
+    ///
+    /// Prevents nothing (CR 615.1a), and saturates rather than wrapping for
+    /// [`Self::Multiplier`]'s reason.
+    Plus(u64),
     /// "prevent half that damage, rounded up" — CR 615.10's partial prevention
     /// with CR 107.1a's rounding. The prevented half is what the rule removes;
     /// the rest of the event survives for the next iteration to see.
@@ -529,7 +631,7 @@ impl AmountRewrite {
     /// exactly that amount, and CR 615.13 triggers on "some or all" of it.
     pub fn prevented(self, amount: u64) -> u64 {
         match self {
-            AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) => 0,
+            AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) | AmountRewrite::Plus(_) => 0,
             AmountRewrite::PreventHalf(rounding) => rounding.half(amount),
             AmountRewrite::PreventUpTo(n) => amount.min(n),
             AmountRewrite::PreventRemaining => amount,
@@ -541,6 +643,7 @@ impl AmountRewrite {
         match self {
             AmountRewrite::Multiplier(n) => amount.saturating_mul(n),
             AmountRewrite::Halve(rounding) => rounding.half(amount),
+            AmountRewrite::Plus(n) => amount.saturating_add(n),
             AmountRewrite::PreventHalf(_)
             | AmountRewrite::PreventUpTo(_)
             | AmountRewrite::PreventRemaining => amount - self.prevented(amount),
@@ -570,7 +673,7 @@ impl AmountRewrite {
     /// delegates to. [`Self::prevented`] answers *how much*.
     pub fn prevents_damage(self) -> bool {
         match self {
-            AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) => false,
+            AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) | AmountRewrite::Plus(_) => false,
             AmountRewrite::PreventHalf(_)
             | AmountRewrite::PreventUpTo(_)
             | AmountRewrite::PreventRemaining => true,
@@ -993,7 +1096,7 @@ impl ReplacementDef {
     /// CR 615.12 consult, where an unpreventable event lets a prevention
     /// effect apply and prevent nothing.
     pub fn is_prevention(&self) -> bool {
-        matches!(self.pattern, EventPattern::DealDamage)
+        matches!(self.pattern, EventPattern::DealDamage { .. })
             && match &self.rewrite {
                 Rewrite::Prevent => true,
                 Rewrite::Amount(arm) => arm.prevents_damage(),
@@ -1164,7 +1267,7 @@ mod tests {
     #[test]
     fn regeneration_is_a_prevent_that_is_not_a_prevention_effect() {
         let next_three = ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
@@ -1173,20 +1276,20 @@ mod tests {
         assert_eq!(next_three.uses, Uses::NextDamage(3));
 
         let that_damage = ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::SourceOnly,
             Rewrite::Prevent,
         );
         assert!(that_damage.is_prevention());
         assert!(ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::SourceOnly,
             Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
         )
         .is_prevention());
 
         let doubler = ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::SourceOnly,
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         );
@@ -1224,12 +1327,54 @@ mod tests {
         assert!(!PlayerSet::Fixed(vec![2]).contains(0, 0));
     }
 
+    // CR 614.1a's additive arm beside the two that already read an amount.
+    // Torbran's "plus 2" prevents nothing (CR 615.1a has no "prevent" in its
+    // text), replaces the amount, and saturates at the ceiling rather than
+    // wrapping to zero the way `Multiplier` does.
+    #[test]
+    fn plus_adds_prevents_nothing_and_saturates() {
+        let plus = AmountRewrite::Plus(2);
+        assert_eq!(plus.apply(3), 5);
+        assert_eq!(plus.apply(0), 2, "614.7a drops a 0 event before this is asked");
+        assert_eq!(plus.prevented(3), 0);
+        assert!(!plus.prevents_damage());
+        assert_eq!(AmountRewrite::Plus(u64::MAX).apply(5), u64::MAX);
+
+        let torbran = ReplacementDef::new(
+            EventPattern::DealDamage {
+                source: Some(SourcePattern::matching(ObjectFilter::ByColor(
+                    crate::types::colors::Color::Red,
+                ))),
+                combat: None,
+            },
+            AffectedSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::Plus(2)),
+        );
+        assert!(!torbran.is_prevention(), "adding damage is not preventing it");
+    }
+
+    // A `SourcePattern` with neither half is what a card writes when the
+    // resolution is going to fill the object in (CR 609.7a). Both halves are
+    // `None` and the pattern is still `Some`, which is what tells
+    // `PatternFill::ChosenDamageSource` there is a field to write into.
+    #[test]
+    fn a_chosen_source_pattern_starts_empty() {
+        assert_eq!(
+            SourcePattern::chosen(),
+            SourcePattern { object: None, filter: None }
+        );
+        assert_eq!(
+            SourcePattern::matching(ObjectFilter::All),
+            SourcePattern { object: None, filter: Some(ObjectFilter::All) }
+        );
+    }
+
     // A `ReplacementDef` written the way every pre-RD card writes one names no
     // player, so RD-1's second field cannot change any of their answers.
     #[test]
     fn new_defs_name_no_player() {
         let def = ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::SourceOnly,
             Rewrite::Prevent,
         );

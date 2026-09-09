@@ -880,6 +880,38 @@ pub fn ask_choose_copy_source(
     candidates[index[0]]
 }
 
+/// CR 609.7a — choose the source of damage a prevention or replacement effect
+/// names, as the effect is created.
+///
+/// `source` is the object whose effect is asking; `candidates` is
+/// `SelectionFilter::DamageSource`'s enumeration, permanents then stack
+/// spells.
+///
+/// **Only called with two or more**, for [`ask_choose_copy_source`]'s reason:
+/// with one candidate the choice is forced and the caller takes it without
+/// asking anyone.
+pub fn ask_choose_damage_source(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    candidates: &[ObjectId],
+) -> ObjectId {
+    assert!(
+        candidates.len() >= 2,
+        "ask_choose_damage_source: a choice needs two or more candidates; called with {}",
+        candidates.len(),
+    );
+    let options: Vec<ChoiceOption> =
+        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::ChooseDamageSource { source },
+    };
+    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
+    validate_pick_n(&index, options.len(), (1, 1), "choose_damage_source");
+    candidates[index[0]]
+}
+
 /// Choose which permanents pay a `Cost::Sacrifice` (CR 601.2h, 701.21a).
 ///
 /// `candidates` is every permanent the payer controls that matches the cost's

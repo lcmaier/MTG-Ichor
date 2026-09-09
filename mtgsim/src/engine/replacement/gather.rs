@@ -535,7 +535,42 @@ pub(crate) fn pattern_watches(
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
-        (EventPattern::DealDamage, GameAction::DealDamage { .. }) => true,
+        // CR 609.7's source predicate and CR 510.2's combat flag, both asked
+        // **now** rather than captured. 609.7b: "when the source would deal
+        // damage, the shield rechecks the source's properties" — this is that
+        // recheck, and it costs nothing extra because the whole gather already
+        // happens at the moment of the proposal. A source that has stopped
+        // matching produces no candidate at all, so nothing is applied and
+        // `consume_use` never runs, which is 609.7b's "the shield isn't used
+        // up" without a line of code that says so.
+        //
+        // 609.7c is the same expression read from the static side: "the
+        // prevention or replacement applies to sources that are permanents
+        // with that property **and to any sources that aren't on the
+        // battlefield** that have that property" — so the filter is asked of
+        // the source wherever it is, and `object_matches_filter` walks the
+        // layers for a spell on the stack exactly as it does for a permanent.
+        // An id with no object behind it matches nothing rather than
+        // erroring, which is `set_affects`'s answer to the same question.
+        (
+            EventPattern::DealDamage { source, combat },
+            GameAction::DealDamage { source: dealt_by, is_combat, .. },
+        ) => {
+            combat.map(|c| c == *is_combat).unwrap_or(true)
+                && source
+                    .as_ref()
+                    .map(|p| {
+                        p.object.map(|chosen| chosen == *dealt_by).unwrap_or(true)
+                            && p.filter
+                                .as_ref()
+                                .map(|f| {
+                                    game.object_matches_filter(*dealt_by, f, you)
+                                        .unwrap_or(false)
+                                })
+                                .unwrap_or(true)
+                    })
+                    .unwrap_or(true)
+        }
 
         (
             EventPattern::ZoneChange { from, to, cause, object },
@@ -700,7 +735,7 @@ fn counter_replacements(
             CounterType::Shield,
             CounterEffectKind::Prevention,
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 AffectedSet::SourceOnly,
                 Rewrite::Prevent,
             )

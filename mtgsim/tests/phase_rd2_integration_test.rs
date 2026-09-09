@@ -37,7 +37,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{
     AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::replacement::{
@@ -299,7 +299,7 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
         seraph,
         1,
         ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
         )
@@ -436,7 +436,7 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
         deflection,
         1,
         ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
@@ -514,7 +514,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
         Primitive::CreateReplacement(
             Box::new(
                 ReplacementDef::new(
-                    EventPattern::DealDamage,
+                    EventPattern::DealDamage { source: None, combat: None },
                     AffectedSet::NO_OBJECTS,
                     Rewrite::Amount(AmountRewrite::PreventRemaining),
                 )
@@ -525,6 +525,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
                 )),
             ),
             Duration::UntilEndOfTurn,
+            PatternFill::Authored,
         ),
         EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
     );
@@ -576,7 +577,7 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
         sphere,
         1,
         ReplacementDef::new(
-            EventPattern::DealDamage,
+            EventPattern::DealDamage { source: None, combat: None },
             AffectedSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Down)),
         )

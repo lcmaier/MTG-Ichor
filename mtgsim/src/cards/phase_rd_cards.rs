@@ -104,8 +104,8 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::ids::new_ability_id;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
+    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -190,7 +190,7 @@ pub fn furnace_of_rath() -> Arc<CardData> {
         )
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 affected,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
@@ -245,7 +245,7 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
         )
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 affected,
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             )
@@ -309,7 +309,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         )
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 AffectedSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::Opponent),
                 },
@@ -319,7 +319,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         ))
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 AffectedSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
@@ -375,7 +375,7 @@ pub fn angel_of_suffering() -> Arc<CardData> {
             // where a `Filter` would have to describe an empty set and
             // `SourceOnly` would make the Angel shield *itself*.
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Prevent,
             )
@@ -451,13 +451,14 @@ fn prevent_the_next_this_turn(n: u64) -> Primitive {
     Primitive::CreateReplacement(
         Box::new(
             ReplacementDef::new(
-                EventPattern::DealDamage,
+                EventPattern::DealDamage { source: None, combat: None },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::PreventRemaining),
             )
             .next_damage(n),
         ),
         Duration::UntilEndOfTurn,
+        PatternFill::Authored,
     )
 }
 
@@ -570,13 +571,14 @@ pub fn safe_passage() -> Arc<CardData> {
                 Primitive::CreateReplacement(
                     Box::new(
                         ReplacementDef::new(
-                            EventPattern::DealDamage,
+                            EventPattern::DealDamage { source: None, combat: None },
                             AffectedSet::Filter { filter: creatures_you_control() },
                             Rewrite::Prevent,
                         )
                         .affecting_players(PlayerSet::You),
                     ),
                     Duration::UntilEndOfTurn,
+                    PatternFill::Authored,
                 ),
                 EffectRecipient::Implicit,
             ),

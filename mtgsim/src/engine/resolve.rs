@@ -10,8 +10,8 @@ use crate::objects::object::GameObject;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, CopyRoles, Duration, Effect, Primitive, EffectRecipient, PlayerRef, PlayerSet,
-    SelectionFilter, TargetCount,
+    AmountExpr, CopyRoles, Duration, Effect, Primitive, EffectRecipient, PatternFill, PlayerRef,
+    PlayerSet, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -820,21 +820,38 @@ impl GameState {
             // per-target shapes, for `Primitive::Restrict`'s reason — the shape
             // is the card's and the objects are the resolution's — and a
             // `debug_assert` says so rather than discarding what was written.
-            Primitive::CreateReplacement(def, duration) => {
+            Primitive::CreateReplacement(def, duration, pattern_fill) => {
                 // CR 113.7a — an ability's source is the object that has it,
                 // so a row an activated ability makes names the permanent, not
                 // the ephemeral stack object CR 608.2n deletes at the end of
                 // resolution. A spell's is the spell.
                 let source = ctx.ability_source.unwrap_or(ctx.source);
+
+                // CR 609.7a's "the source is chosen when the effect is
+                // created" — before the rows are built, because every row a
+                // recipient makes watches the same chosen source. `None` means
+                // there was nothing to choose from, which CR 101.3 makes a
+                // no-op rather than an error.
+                let def = match pattern_fill {
+                    PatternFill::Authored => (**def).clone(),
+                    PatternFill::ChosenDamageSource => {
+                        match self.fill_chosen_damage_source(def, ctx, dp)? {
+                            Some(filled) => filled,
+                            None => return Ok(()),
+                        }
+                    }
+                };
+                let def = &def;
+
                 let authored_empty = matches!(def.affected, AffectedSet::Fixed(ref ids) if ids.is_empty())
                     && def.affected_players == PlayerSet::Nobody;
                 let fill_object = |id: ObjectId| {
-                    let mut row = (**def).clone();
+                    let mut row = (*def).clone();
                     row.affected = AffectedSet::Fixed(vec![id]);
                     row
                 };
                 let fill_player = |pid: PlayerId| {
-                    let mut row = (**def).clone();
+                    let mut row = (*def).clone();
                     row.affected_players = PlayerSet::Fixed(vec![pid]);
                     row
                 };
@@ -896,7 +913,7 @@ impl GameState {
                                 ctx.source
                             ));
                         }
-                        vec![(**def).clone()]
+                        vec![(*def).clone()]
                     }
                     EffectRecipient::Host => {
                         return Err(format!(
@@ -1427,6 +1444,84 @@ impl GameState {
             &values, &affected, timestamp, duration,
         );
         Ok(())
+    }
+
+    /// CR 609.7a — ask for the source of damage a
+    /// [`Primitive::CreateReplacement`] names and write it into the def's
+    /// pattern.
+    ///
+    /// > 609.7a ... The source is chosen when the effect is created.
+    ///
+    /// **The pattern field, not the affected set** — which is the whole reason
+    /// `PatternFill` exists beside the recipient. Circle of Protection: Red's
+    /// row is around *you* and watches *one object*; a `Choose` recipient
+    /// could carry the object and would then have nothing left to say the row
+    /// is about a player.
+    ///
+    /// `Ok(None)` is CR 101.3's impossible instruction: with no legal source
+    /// there is nothing to choose and no row worth adding. `Err` is reserved
+    /// for a def whose pattern has no `SourcePattern` to fill, which is a card
+    /// that would silently do nothing.
+    fn fill_chosen_damage_source(
+        &self,
+        def: &ReplacementDef,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Option<ReplacementDef>, String> {
+        use crate::types::replacement::EventPattern;
+
+        let EventPattern::DealDamage { source: Some(pattern), .. } = &def.pattern else {
+            return Err(format!(
+                "a `Primitive::CreateReplacement` on {:?} asks for CR 609.7a's chosen \
+                 source, but its pattern is {:?} — only an \
+                 `EventPattern::DealDamage` with a `SourcePattern` has a field to \
+                 write the choice into.",
+                ctx.source, def.pattern
+            ));
+        };
+        // The shape is the card's and the object is the resolution's, so an
+        // authored id would be one the choice then overwrote —
+        // `Primitive::Restrict`'s `debug_assert` one level down.
+        debug_assert!(
+            pattern.object.is_none(),
+            "a `Primitive::CreateReplacement` on {:?} authored a chosen damage source \
+             ({:?}) that the resolution then overwrote. Write \
+             `SourcePattern::chosen()` or `SourcePattern::matching(..)`.",
+            ctx.source,
+            pattern.object
+        );
+
+        let candidates: Vec<ObjectId> = crate::oracle::legality::enumerate_legal_selections(
+            self,
+            &SelectionFilter::DamageSource,
+            None,
+            ctx.controller,
+        )
+        .into_iter()
+        .filter_map(|t| match t {
+            ResolvedTarget::Object(id) => Some(id),
+            ResolvedTarget::Player(_) => None,
+        })
+        .collect();
+        // CR 102.2 — one candidate is not a choice; none is CR 101.3's
+        // impossible instruction and the effect does nothing.
+        let chosen = match candidates.len() {
+            0 => return Ok(None),
+            1 => candidates[0],
+            _ => crate::ui::ask::ask_choose_damage_source(
+                dp,
+                self,
+                ctx.controller,
+                ctx.source,
+                &candidates,
+            ),
+        };
+
+        let mut filled = def.clone();
+        if let EventPattern::DealDamage { source: Some(pattern), .. } = &mut filled.pattern {
+            pattern.object = Some(chosen);
+        }
+        Ok(Some(filled))
     }
 
     fn sacrifice_of_choice(

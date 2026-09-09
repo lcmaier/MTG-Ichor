@@ -205,6 +205,31 @@ pub fn enumerate_legal_selections(
                 selections.push(ResolvedTarget::Object(id));
             }
         }
+        // CR 609.7a — permanents first, then spells on the stack. Both halves
+        // are enumerated rather than validated one by one, because
+        // `validate_damage_source` asks the same two membership questions and
+        // nothing else: the rule's "a source doesn't need to be capable of
+        // dealing damage" means there is no property to test.
+        //
+        // Battlefield order is CR 613.7's timestamp order and stack order is
+        // the stack's, so the list a `DecisionProvider` picks from by index is
+        // process-independent.
+        SelectionFilter::DamageSource => {
+            for id in game.battlefield_ids_ordered() {
+                if Some(id) == exclude_id {
+                    continue;
+                }
+                selections.push(ResolvedTarget::Object(id));
+            }
+            for &id in &game.stack {
+                if Some(id) == exclude_id {
+                    continue;
+                }
+                if game.stack_entries.get(&id).is_some_and(|e| e.is_spell) {
+                    selections.push(ResolvedTarget::Object(id));
+                }
+            }
+        }
         // Creature, Permanent(_), or other battlefield-based filters
         _ => {
             for id in game.battlefield_ids_ordered() {
@@ -454,5 +479,82 @@ mod tests {
         game.battlefield.insert(id, entry);
 
         assert!(legal_blockers(&game, 0).is_empty());
+    }
+
+    // CR 609.7a — "they may choose a permanent; a spell on the stack
+    // (including a permanent spell); ... A source doesn't need to be capable
+    // of dealing damage to be a legal choice." Both reachable categories are
+    // offered and neither is filtered by what the object can do: a Plains is
+    // on the list.
+    //
+    // COVERS-PARTIAL: ATOM-609.7a-001 -- the atom asks for all four of the
+    // rule's categories. Two are unreachable and are RD-3's recorded
+    // decision: "an object referred to by an object on the stack, by a
+    // replacement or prevention effect that's waiting to apply, or by a
+    // delayed triggered ability" has no referred-to relation to read (the
+    // atom's own example is an emblem referring to a card in exile, and
+    // CR 603.7's delayed triggers do not exist yet), and "a face-up object in
+    // the command zone" needs the command zone populated, which is the
+    // Commander track's. The permanent and stack-spell legs are built whole.
+    //
+    // COVERS-PARTIAL: BOUNDARY-DEF-609.7a-001 -- in-set (a creature permanent)
+    // and out-of-set (a card in hand referred to by nothing) are both built;
+    // the boundary's middle -- an object in a hidden zone that *is* referred
+    // to -- is the same unreachable category.
+    #[test]
+    fn a_damage_source_is_a_permanent_or_a_spell_on_the_stack() {
+        use crate::engine::resolve::ResolvedTarget;
+        use crate::test_support::{
+            place_vanilla_creature, put_in_hand, put_land_on_battlefield, put_spell_on_stack,
+            setup_two_player_game,
+        };
+        use crate::types::effects::SelectionFilter;
+
+        let mut game = setup_two_player_game();
+        let creature = place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+        let land = put_land_on_battlefield(&mut game, crate::cards::basic_lands::plains, 1);
+        let spell = put_spell_on_stack(&mut game, crate::test_support::lightning_bolt(), 1);
+        let in_hand = put_in_hand(&mut game, crate::test_support::lightning_bolt(), 0);
+
+        let legal = enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0);
+        assert!(legal.contains(&ResolvedTarget::Object(creature)), "a permanent");
+        assert!(
+            legal.contains(&ResolvedTarget::Object(land)),
+            "a land: 609.7a's source need not be capable of dealing damage"
+        );
+        assert!(legal.contains(&ResolvedTarget::Object(spell)), "a spell on the stack");
+        assert!(!legal.contains(&ResolvedTarget::Object(in_hand)), "a card in hand is not");
+        assert_eq!(legal.len(), 3, "and nothing else");
+
+        // Enumeration and enforcement agree, which is the rule RS-2 fixed in
+        // both directions: everything offered validates, and the card in hand
+        // does not.
+        for choice in &legal {
+            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0).is_ok());
+        }
+        assert!(game
+            .validate_selection(
+                &SelectionFilter::DamageSource,
+                &ResolvedTarget::Object(in_hand),
+                0
+            )
+            .is_err());
+        assert!(game
+            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0)
+            .is_err());
+        assert!(game.has_any_legal_choice(&SelectionFilter::DamageSource, None, 0));
+    }
+
+    // The board with nothing on it: no permanent, no spell, so CR 101.3's
+    // impossible instruction and the caller's no-op path.
+    #[test]
+    fn an_empty_board_offers_no_damage_source() {
+        use crate::test_support::setup_two_player_game;
+        use crate::types::effects::SelectionFilter;
+
+        let game = setup_two_player_game();
+        assert!(enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0)
+            .is_empty());
+        assert!(!game.has_any_legal_choice(&SelectionFilter::DamageSource, None, 0));
     }
 }

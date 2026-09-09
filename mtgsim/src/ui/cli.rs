@@ -113,6 +113,9 @@ impl DecisionProvider for CliDecisionProvider {
             ChoiceKind::ChooseCopySource { .. } => {
                 "Choose the creature to be copied:".to_string()
             }
+            ChoiceKind::ChooseDamageSource { .. } => {
+                "Choose a source of damage:".to_string()
+            }
             _ => format!("Choose from options ({:?}):", context.kind),
         };
 

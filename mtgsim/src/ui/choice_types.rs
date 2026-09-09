@@ -120,6 +120,26 @@ pub enum ChoiceKind {
     /// bucket sources; `remaining` is its count before this allocation.
     AllocateNextDamage { source: ObjectId, remaining: u64 },
 
+    /// CR 609.7a — a resolving spell or ability creates a prevention or
+    /// replacement effect that names "a source of your choice", and the
+    /// choice is made now: "the source is chosen when the effect is created".
+    ///
+    /// The options are permanents in battlefield order followed by spells on
+    /// the stack (`SelectionFilter::DamageSource`), and **no property is
+    /// filtered out** — Circle of Protection: Red's "a *red* source of your
+    /// choice" offers every source and its row simply never applies to a
+    /// source that is not red when the damage comes, which is CR 609.7b's
+    /// recheck rather than an enumeration rule.
+    ///
+    /// Asked only with two or more candidates; with one the choice is forced
+    /// and nothing is asked, which is [`Self::ChooseCopySource`]'s CR 102.2
+    /// shape.
+    ///
+    /// `source` is the object whose effect is choosing — [`Self::
+    /// AllocateNextDamage`]'s field, for the same reason: "why am I being
+    /// asked this" is answered by it and by nothing else on the prompt.
+    ChooseDamageSource { source: ObjectId },
+
     /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
     /// opponent of your choice" and there is more than one opponent to choose
     /// from. The options are players. With exactly one opponent nothing is
