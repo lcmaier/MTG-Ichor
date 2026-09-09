@@ -699,24 +699,56 @@ pub fn ask_choose_replacement(
     game: &GameState,
     chooser: PlayerId,
     affected_object: Option<ObjectId>,
-    candidates: &[crate::engine::replacement::ReplacementInstance],
+    sources: &[ObjectId],
 ) -> usize {
     assert!(
-        candidates.len() >= 2,
+        sources.len() >= 2,
         "ask_choose_replacement: CR 616.1 makes a choice only among two or more \
          applicable effects; called with {}",
-        candidates.len(),
+        sources.len(),
     );
-    let options: Vec<ChoiceOption> = candidates
-        .iter()
-        .map(|c| ChoiceOption::Object(c.source))
-        .collect();
+    let options: Vec<ChoiceOption> = sources.iter().map(|s| ChoiceOption::Object(*s)).collect();
     let ctx = ChoiceContext {
         kind: ChoiceKind::ChooseReplacementEffect { affected_object },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, options.len(), (1, 1), "choose_replacement");
     index[0]
+}
+
+/// CR 615.7 — which of several simultaneous sources' damage a "prevent the
+/// next N damage" effect prevents.
+///
+/// `buckets` are `(damage source, amount)` in batch order; the answer is one
+/// share per bucket, each at most that source's amount, summing to the smaller
+/// of `remaining` and the damage on offer. **Two or more buckets, or nothing to
+/// ask** — the caller handles one source by preventing `min(remaining,
+/// amount)` unasked, and the assertion is the same one `ask_choose_replacement`
+/// makes about CR 616.1.
+pub fn ask_allocate_next_damage(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    remaining: u64,
+    buckets: &[(ObjectId, u64)],
+) -> Vec<u64> {
+    assert!(
+        buckets.len() >= 2,
+        "ask_allocate_next_damage: CR 615.7 chooses only among two or more          sources; called with {}",
+        buckets.len(),
+    );
+    let options: Vec<ChoiceOption> =
+        buckets.iter().map(|(id, _)| ChoiceOption::Object(*id)).collect();
+    let maxs: Vec<u64> = buckets.iter().map(|(_, amount)| *amount).collect();
+    let mins = vec![0; buckets.len()];
+    let total = remaining.min(maxs.iter().sum());
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::AllocateNextDamage { source, remaining },
+    };
+    let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
+    validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage");
+    alloc
 }
 
 /// Ask whether to apply a "you **may** ... instead" replacement effect

@@ -9,7 +9,9 @@ use crate::objects::object::GameObject;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::layer_memo::LayerMemo;
-use crate::state::replacement_effects::{EntrySelectionScope, ReplacementEffectRegistry};
+use crate::state::replacement_effects::{
+    EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
+};
 use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
@@ -335,6 +337,16 @@ pub struct GameState {
     /// rider's) is a different event with its own.
     pub(crate) entry_selection: EntrySelectionScope,
 
+    /// CR 615.7's allocation answers for the batch being decided — per
+    /// instance, how much of its "next N damage" each member is given.
+    ///
+    /// On `GameState` for the reason `entry_selection` is: the CR 616.1 loop
+    /// decides one subject group at a time, an instance spanning several
+    /// subjects is asked once, and the groups decided after read the answer
+    /// across their own prompts (`codebase-state.md` item 40). Saved and
+    /// restored by `execute_batch_inner` with `entry_selection`.
+    pub(crate) prevention_allocations: PreventionAllocationScope,
+
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
     ///
@@ -508,6 +520,7 @@ impl GameState {
             restriction_ability_sources: HashSet::new(),
             cost_modification_ability_sources: HashSet::new(),
             entry_selection: EntrySelectionScope::default(),
+            prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
             events: EventLog::new(),

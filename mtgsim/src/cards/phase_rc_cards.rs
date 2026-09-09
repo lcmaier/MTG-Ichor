@@ -393,7 +393,7 @@ pub fn root_maze() -> Arc<CardData> {
 /// # The card before the suppression — `replacement-architecture.md` §11 item 19
 ///
 /// RC-4 stops asking CR 616.1's question when every member of the bucket is an
-/// `EnterWith` (`pipeline::order_invariant_entry_bucket`): Root Maze beside
+/// `EnterWith` (`pipeline::ordering_cannot_change_outcome`): Root Maze beside
 /// Idyllic Beachfront is a choice with one outcome, and the fuzz harness paid a
 /// decision round-trip for it on every land drop. Suppressing that prompt with
 /// nothing else registered would have returned the multi-candidate branch to
@@ -615,7 +615,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
 /// their own board to spend. It also puts a second replacement effect on the
 /// same entry as Root Maze whenever both are out, which is CR 616.1's
 /// multi-candidate branch with a member that is not an `EnterWith` — the case
-/// `order_invariant_entry_bucket` must refuse to suppress.
+/// `ordering_cannot_change_outcome` must refuse to suppress.
 ///
 /// **Sigarda, Host of Herons is in the same pool and does not stop it**, which
 /// is worth stating because the opposite is the easy assumption. Her sentence
@@ -788,7 +788,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
 /// `EntryFrame::frame_of(source)`, which answers only for the entering object.
 ///
 /// It is also the first `AffectedSet::Filter` entry replacement whose *amount*
-/// is dynamic, which is what makes `order_invariant_entry_bucket`'s new premise
+/// is dynamic, which is what makes `ordering_cannot_change_outcome`'s new premise
 /// load-bearing rather than theoretical (`codebase-state.md` item 47).
 ///
 /// **"Other" needs no filter leaf.** A Biomancer's own ability cannot apply to
@@ -803,7 +803,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
 /// implemented, and it is not the one field it looks like. Two costs, and the
 /// second is the larger:
 ///
-/// 1. **It breaks `order_invariant_entry_bucket`'s last premise for the most
+/// 1. **It breaks `ordering_cannot_change_outcome`'s last premise for the most
 ///    common filter leaves.** That predicate suppresses CR 616.1's ordering
 ///    prompt when no member's applicability can depend on what another member
 ///    adds — §11 item 19's rule that the engine must not ask a question whose

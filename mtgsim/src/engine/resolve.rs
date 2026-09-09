@@ -10,7 +10,7 @@ use crate::objects::object::GameObject;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, CopyRoles, Duration, Effect, Primitive, EffectRecipient, PlayerRef,
+    AmountExpr, CopyRoles, Duration, Effect, Primitive, EffectRecipient, PlayerRef, PlayerSet,
     SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
@@ -49,6 +49,15 @@ pub struct ResolutionContext {
     /// resolving spell has no replaced event, so the question has no answer
     /// rather than a default one.
     pub replaced_amount: Option<u64>,
+    /// CR 615.5's "the amount of damage that was prevented" — for a rider and
+    /// for nothing else, read by `AmountExpr::DamagePrevented`.
+    ///
+    /// `Some(0)` for a rider whose effect prevented nothing — a plain
+    /// replacement's, or a prevention that met CR 615.12's unpreventable damage
+    /// (RD-4) — because that is the number Reverse Damage's "you gain life
+    /// equal to the damage prevented this way" needs there. `None` outside a
+    /// rider, for `replaced_amount`'s reason.
+    pub damage_prevented: Option<u64>,
 }
 
 /// A resolved target — validated as legal when the spell/ability was put on the
@@ -97,15 +106,15 @@ impl GameState {
             //
             // Loud rather than silently registering an endless one, because the
             // duration is the missing piece and there is nowhere honest to read
-            // it from. CR 701.19a's regeneration shield — the one resolution-
-            // created replacement Phase RB has — is a keyword action and comes
-            // through `Primitive::Regenerate`, which knows both its duration
-            // (this turn) and its affected set (the targets).
+            // it from: `Primitive::CreateReplacement` takes it as an argument,
+            // and CR 701.19a's regeneration shield is a keyword action that
+            // comes through `Primitive::Regenerate`, which knows its own.
             Effect::Replacement(_) => Err(
                 "a replacement effect created by a resolution needs a CR 614.3 \
-                 duration, which `Effect::Replacement` does not carry (Phase RD). \
-                 A static ability's replacement effect does not resolve at all — \
-                 put it on an `AbilityType::Static` ability and \
+                 duration, which `Effect::Replacement` does not carry. Use \
+                 `Primitive::CreateReplacement`, which takes a `Duration` \
+                 argument. A static ability's replacement effect does not \
+                 resolve at all — put it on an `AbilityType::Static` ability and \
                  `engine::replacement::gather` will find it. For CR 701.19a's \
                  regeneration shield, use `Primitive::Regenerate`."
                     .to_string(),
@@ -781,7 +790,131 @@ impl GameState {
                         controller,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
+                        targets: ctx.targets.clone(),
                         def,
+                    });
+                }
+                Ok(())
+            }
+
+            // === Replacement and prevention effects from a resolution (CR 614.3, 615.7) ===
+
+            // The durational form of `Effect::Replacement`, and `Regenerate`'s
+            // general case: the card authors the def and the duration, the
+            // resolution supplies what it alone knows — its targets, its
+            // controller (CR 611.2c) and the turn.
+            //
+            // **Which permanents at resolution, and which at the event, is the
+            // recipient's question.** A `Target`/`Choose` recipient and a
+            // `FilteredPermanents` recipient both fix the set *now* — one row
+            // per object or player, CR 615.11's "creates a prevention shield
+            // for each applicable creature when the spell or ability …
+            // resolves", which is why a creature that enters afterwards has
+            // none (Samite Censer-Bearer's ruling, and Kitsune Palliator's). An
+            // `Implicit` recipient leaves the def's own `Filter`/`PlayerSet` to
+            // be asked at each event, which is Safe Passage's opposite ruling:
+            // "will prevent damage dealt to creatures that weren't on the
+            // battlefield at the time it resolved".
+            //
+            // The authored object set has to be the empty `Fixed` on the
+            // per-target shapes, for `Primitive::Restrict`'s reason — the shape
+            // is the card's and the objects are the resolution's — and a
+            // `debug_assert` says so rather than discarding what was written.
+            Primitive::CreateReplacement(def, duration) => {
+                // CR 113.7a — an ability's source is the object that has it,
+                // so a row an activated ability makes names the permanent, not
+                // the ephemeral stack object CR 608.2n deletes at the end of
+                // resolution. A spell's is the spell.
+                let source = ctx.ability_source.unwrap_or(ctx.source);
+                let authored_empty = matches!(def.affected, AffectedSet::Fixed(ref ids) if ids.is_empty())
+                    && def.affected_players == PlayerSet::Nobody;
+                let fill_object = |id: ObjectId| {
+                    let mut row = (**def).clone();
+                    row.affected = AffectedSet::Fixed(vec![id]);
+                    row
+                };
+                let fill_player = |pid: PlayerId| {
+                    let mut row = (**def).clone();
+                    row.affected_players = PlayerSet::Fixed(vec![pid]);
+                    row
+                };
+                let rows: Vec<ReplacementDef> = match recipient {
+                    EffectRecipient::Target(..) | EffectRecipient::Choose(..) => {
+                        debug_assert!(
+                            authored_empty,
+                            "a `Primitive::CreateReplacement` on {:?} with a targeting \
+                             recipient authored a non-empty affected set, which the \
+                             resolution then overwrote with its own targets. Write \
+                             `AffectedSet::NO_OBJECTS` and `PlayerSet::Nobody`.",
+                            ctx.source
+                        );
+                        ctx.targets
+                            .iter()
+                            .filter_map(|t| match t {
+                                // A target that left the battlefield since it
+                                // was chosen is CR 608.2b's illegal one: the
+                                // rest resolve, it gets nothing.
+                                ResolvedTarget::Object(id) if self.battlefield.contains_key(id) => {
+                                    Some(fill_object(*id))
+                                }
+                                ResolvedTarget::Object(_) => None,
+                                ResolvedTarget::Player(pid) => Some(fill_player(*pid)),
+                            })
+                            .collect()
+                    }
+                    // CR 615.11 — one per applicable permanent, fixed at
+                    // resolution. Ordered, because the rows are offered to
+                    // CR 616.1 prompts in registration order.
+                    EffectRecipient::FilteredPermanents(filter) => {
+                        debug_assert!(
+                            authored_empty,
+                            "a `Primitive::CreateReplacement` on {:?} with a filter \
+                             recipient authored a non-empty affected set; the filter \
+                             is what names the permanents, one row each (CR 615.11).",
+                            ctx.source
+                        );
+                        self.battlefield_ids_ordered()
+                            .into_iter()
+                            .filter(|id| {
+                                self.object_matches_filter(*id, filter, ctx.controller)
+                                    .unwrap_or(false)
+                            })
+                            .map(fill_object)
+                            .collect()
+                    }
+                    // As authored — a `Filter` and/or a `PlayerSet`, asked at
+                    // each event. "You" is `PlayerSet::You`, resolved against
+                    // the row's controller; there is no second way to say it.
+                    EffectRecipient::Implicit | EffectRecipient::Controller => {
+                        if authored_empty {
+                            return Err(format!(
+                                "a `Primitive::CreateReplacement` on {:?} names no target, \
+                                 no filter and no player, so its row could never apply. \
+                                 Give it a `Target` recipient, a `FilteredPermanents` \
+                                 recipient, or an `AffectedSet::Filter`/`PlayerSet` of \
+                                 its own.",
+                                ctx.source
+                            ));
+                        }
+                        vec![(**def).clone()]
+                    }
+                    EffectRecipient::Host => {
+                        return Err(format!(
+                            "a `Primitive::CreateReplacement` on {:?} has a `Host` recipient, \
+                             which only a static ability's continuous effect can have.",
+                            ctx.source
+                        ))
+                    }
+                };
+                for row in rows {
+                    self.replacement_effects.add(RegisteredReplacementEffect {
+                        id: 0,
+                        source,
+                        controller: ctx.controller,
+                        duration: *duration,
+                        created_on_turn: self.turn_number,
+                        targets: ctx.targets.clone(),
+                        def: row,
                     });
                 }
                 Ok(())
@@ -1458,6 +1591,11 @@ impl GameState {
             AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
                 "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
             }),
+            // The other number a CR 615.5 rider may refer to, and the same
+            // refusal outside one.
+            AmountExpr::DamagePrevented => _ctx.damage_prevented.ok_or_else(|| {
+                "DamagePrevented has no meaning outside a CR 615.5 rider".to_string()
+            }),
             // Saturating rather than checked: an overflow here is not a game
             // state anyone can reach — the inner amount is a damage or life
             // number and the factor is printed on a card — and the alternative
@@ -1555,6 +1693,7 @@ mod tests {
             controller: 0,
             targets,
             replaced_amount: None,
+            damage_prevented: None,
         }
     }
 

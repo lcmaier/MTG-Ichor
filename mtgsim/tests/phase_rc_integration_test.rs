@@ -319,7 +319,7 @@ fn test_two_entry_replacements_accumulate() {
     // Two candidates, so CR 616.1 applies — and until RC-4 this was the first
     // prompt an entry ever produced. It no longer asks: every member is an
     // `EnterWith` over its own source, so no order can change the outcome, and
-    // `pipeline::order_invariant_entry_bucket` says so. A provider with nothing
+    // `pipeline::ordering_cannot_change_outcome` says so. A provider with nothing
     // scripted is the witness — a prompt would fail this test.
     let id = put_in_graveyard(&mut game, data, 0);
     game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
@@ -715,7 +715,7 @@ fn test_root_maze_taps_an_entering_land() {
 /// the land's controller choose which applies first, and RC-3 proved both that
 /// the choice was asked and that no assertion could tell the two orders apart:
 /// `EnterMods::merge` is `|=` and `+`, and neither rewrite reads the other's
-/// output. RC-4 turned that theorem into `pipeline::order_invariant_entry_bucket`,
+/// output. RC-4 turned that theorem into `pipeline::ordering_cannot_change_outcome`,
 /// the pipeline no longer asks, and the CLI harness stops paying a decision
 /// round-trip on every land drop under Root Maze.
 ///

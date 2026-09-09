@@ -100,6 +100,26 @@ pub enum ChoiceKind {
     /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.
     ApplyOptionalReplacement { affected_object: Option<ObjectId>, source: ObjectId },
 
+    /// CR 615.7 — a "prevent the next N damage" effect applies to damage from
+    /// two or more sources at once, and the affected player (or the affected
+    /// permanent's controller) chooses which damage it prevents.
+    ///
+    /// The buckets are the **damage sources**, in batch order — combat's
+    /// `battlefield_ordered`, so the order is process-independent — each
+    /// capped at the damage that source would deal; the total is the smaller
+    /// of the count left and the damage on offer, so an allocation always
+    /// prevents as much as the effect can. Asked once per instance per batch,
+    /// the first time the instance is chosen, over every member it applies to
+    /// — for Mending Hands the one subject's sources, for a "you and/or
+    /// permanents you control" effect the sources hitting each of them.
+    ///
+    /// **Never asked with one source.** 615.7's choice exists only among "two
+    /// or more"; with one, every point is prevented unasked.
+    ///
+    /// `source` is the object whose effect is allocating, not any of the
+    /// bucket sources; `remaining` is its count before this allocation.
+    AllocateNextDamage { source: ObjectId, remaining: u64 },
+
     /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
     /// opponent of your choice" and there is more than one opponent to choose
     /// from. The options are players. With exactly one opponent nothing is

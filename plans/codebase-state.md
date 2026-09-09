@@ -146,7 +146,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down); the CR 613.8 dependency algorithm (LI-2 — the board-wide pass it runs inside landed with LI-1, 2026-09-06, `engine/layers/board.rs`). Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | 🟡 **The pipeline is live. Phases RA (2026-08-25) and RB (2026-08-26) complete.** RA made every observable mutation a `GameAction` proposal carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution. RB put `apply_replacements` between proposal and mutation: CR 616.1a–g, 614.4/5/6/17, 616.2, CR 615.5 riders, CR 101.4 APNAP. Consumers: CR 122.1c/d/h counters, CR 701.19 regeneration, Kalitas, CR 903.9b. **Not yet:** CR 614.15 self-replacement (bucket, no producer), CR 614.10/11/16 (RE), CR 614.12/13 ETB (RC), **all of CR 615's prevention detail (RD)** — RB has `Rewrite::Prevent` and CR 122.1c's prevention half, not shields or amounts. See `plans/replacement-architecture.md` §9. |
+| **614–616** | **Replacement + prevention + interaction** | 🟡 **The pipeline is live. Phases RA (2026-08-25) and RB (2026-08-26) complete.** RA made every observable mutation a `GameAction` proposal carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution. RB put `apply_replacements` between proposal and mutation: CR 616.1a–g, 614.4/5/6/17, 616.2, CR 615.5 riders, CR 101.4 APNAP. Consumers: CR 122.1c/d/h counters, CR 701.19 regeneration, Kalitas, CR 903.9b. RC (2026-09-01–03) made entering one event through the CR 614.12 frame. **RD-1 (2026-09-08) and RD-2 (2026-09-09):** player scoping, `Rewrite::Amount`, CR 120.3's results; CR 615.7 counts from `Primitive::CreateReplacement`, decisions per `(batch, subject)`, a use spent by what it did (CR 609.7b), CR 615.7's allocation, CR 615.11's per-creature rows. **Not yet:** CR 614.15 self-replacement (bucket, no producer), CR 614.10/11/16 (RE), CR 615.8/9/10's source side and CR 609.7 (RD-3), CR 614.9 redirection and CR 615.12 (RD-4). See `plans/replacement-architecture.md` §9. |
 
 ### CR 7 — Additional Rules
 
@@ -1624,6 +1624,16 @@ registered card returns an object.
     `Rewrite::Amount`, which rewrites the amount and never the subject, so it
     cannot move a chooser either. Revisit at RD-4, not before.
 
+    **Reachability (2026-09-09, re-derived at RD-2's close):** still
+    unreachable. RD-2 changed the loop's *unit* — phase 1 now runs one whole
+    CR 616.1f loop per subject group rather than per member, still in APNAP
+    order of chooser — and not the order choosers are asked in; nothing in a
+    group's loop can move another group's chooser, because no rewrite changes a
+    subject. One thing to carry to RD-4: the group form makes 101.4d's restart
+    *more* tractable, not less — the outer round-robin is already over
+    self-contained groups, so interleaving is a change to that loop rather than
+    to `apply_replacements`. Revisit at RD-4.
+
 26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
     should (`rb-review.md` H7).** If a batch carries two members naming one
     object — two `ZoneChange`s, or a `Destroy` and a `ZoneChange` — the first
@@ -2289,6 +2299,14 @@ section never asked.
     and the push read, ~200–300 lines; both land with the first fork-based
     harness, the AI track, not before.
 
+    **RD-2 (2026-09-09):** violator 1's three sets are now per subject group
+    rather than per member — the same frame, the same debt. One more piece of
+    decision state arrived and *did* go on `GameState`: CR 615.7's allocation
+    answers (`prevention_allocations`), because they are read across the
+    prompts of groups decided later, which is exactly the fork-at-a-prompt
+    test. Item 55's `entry_selection` was the first instance of the fix's
+    shape; this is the second, and the table above gains no third violator.
+
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
     pass: the two non-outcome-bearing sets are loop locals that do not survive
@@ -2504,8 +2522,9 @@ section never asked.
     `CreateToken` loops `propose_entry` (`resolve.rs:630`), and Kalitas makes
     one token per death.
 
-47. **`pipeline::order_invariant_entry_bucket` is a semantics-assuming shortcut,
-    and these are its expiry conditions.** It skips CR 616.1's prompt when every
+47. **`pipeline::ordering_cannot_change_outcome` is a semantics-assuming
+    shortcut, and these are its expiry conditions.** (Named
+    `order_invariant_entry_bucket` until RD-2; item 65.) It skips CR 616.1's prompt when every
     member of the bucket is an `EnterWith` whose applicability no `EnterMods`
     field can move, which is true today because the only characteristic the
     mods feed is power (through `+1/+1` and `-1/-1` counters, CR 122.1a) and
@@ -2526,6 +2545,17 @@ section never asked.
     immediately** — an `EnterModsTemplate` amount that reads the CR 614.12 frame
     does not commute, so the predicate now asks for `Fixed` or a source that is
     not the entering object. The rule was followed: see item 58.
+
+    **A second bucket shape arrived with RD-2 (2026-09-09), by decision rather
+    than by accident** (`replacement-architecture.md` §11 item 29). The
+    predicate — renamed `ordering_cannot_change_outcome`, item 65 — now also
+    admits a bucket that is entirely `Amount(Multiplier(n ≥ 1))` on
+    `EventPattern::DealDamage`, under the same shared clauses. It goes false
+    the day (d) an `EventPattern::DealDamage` field reads the *amount* — RD-3's
+    `source` and `combat` fields do not — or (e) a `Multiplier(0)` is printed,
+    which the `n ≥ 1` clause refuses rather than defaults on. The debug
+    re-gather checks per group member since RD-2's group form, so (d) is
+    caught on any board a debug run reaches.
 
     **Reachability (2026-09-03):** nothing owed — expiry conditions for a
     predicate; the rule is "revisit in the same commit".
@@ -2769,7 +2799,7 @@ measurement; what follows is what a later phase has to know.
     **Sized:** none here.
 
 58. **Item 47's predicate has a fourth expiry condition, and RC-5 fired it.**
-    `order_invariant_entry_bucket`'s theorem has two halves — every member still
+    `ordering_cannot_change_outcome`'s theorem has two halves — every member still
     applies, and the applications commute — and the second was free while
     `EnterModsTemplate` held literals. It is not free now. The premise added is
     **exact rather than conservative**: an amount is order-invariant if it is
@@ -2919,7 +2949,7 @@ measurement; what follows is what a later phase has to know.
 
     **Reachability (2026-09-07):** closed — renamed.
 
-65. **`order_invariant_entry_bucket` is named after its implementation, not its
+65. **`order_invariant_entry_bucket` was named after its implementation, not its
     question.** The question is "does CR 616.1's ordering prompt have more than
     one outcome here" — §11 item 19's rule that the engine must not ask a
     player a question whose answer cannot matter. "Bucket" is CR 616.1a–e's
@@ -2935,6 +2965,29 @@ measurement; what follows is what a later phase has to know.
     item 64.
 
     **Sized:** none beyond item 64's PR.
+
+    **Closed by RD-2 (2026-09-09), and the counter-argument was wrong on a
+    fact.** The predicate is `ordering_cannot_change_outcome`, renamed when the
+    second admissible shape arrived (item 47) because a name saying "entry" had
+    become wrong as well as implementation-shaped. The counter-argument above —
+    leave it, because "bucket" is the codebase's word for what the function
+    takes — assumed the word was the CR's. **It is not**: CR 616.1a–e is a
+    ladder of *steps*, each reading "if any … one of them must be chosen. If
+    not, proceed to [the next]", and "bucket" appears nowhere in the rule. So
+    the mismatch was real in both directions and `forced_bucket` was renamed
+    with it, to `must_choose_among` — 616.1a's own sentence — with the local
+    `bucket` becoming `choosable` and the ~25 doc uses of the word in the
+    616.1 sense becoming "step". The word survives only in the
+    `DecisionProvider::allocate` API, where it means a bucket to allocate a
+    total across and is nobody's confusion.
+
+    **The finding underneath, worth more than the rename:** this is item 89's
+    shape again. The sentence "keeps its name — 'bucket' is CR 616.1a–e's own
+    word there" was written on 2026-09-09 in the RD-2 docs commit, was false
+    when written, and no test could fail on it. It was caught in review by a
+    reader asking what a bucket *was* — which is the only instrument this
+    project has for that class of claim, and the argument for
+    "Before card breadth" item 11's glossary check.
 
 ### Found by CM-1 — cost modification (2026-09-07)
 
@@ -3610,6 +3663,198 @@ worth more than the comments it corrects.
     when written. What is missing is a re-read, so it becomes an audit with an
     instrument, on the Deferred Migrations triage's own cadence —
     `engineering-practices.md` §2 now carries it.
+
+### Found by RD-2 — CR 615.7 prevention shields, and the loop's unit (2026-09-09)
+
+**Shipped:** `Primitive::CreateReplacement(def, Duration)`, filling its rows
+from a target, a filter recipient (CR 615.11) or as authored;
+`Uses::NextDamage`, `AmountRewrite::{PreventUpTo, PreventRemaining}`,
+`ReplacementDef::is_prevention()`; `Rider.prevented` and
+`AmountExpr::DamagePrevented`; `apply_replacements` in its group form —
+decisions per `(batch, subject)`, rewrites per member — with `consume_use`
+after `apply_rewrite`; `ChoiceKind::AllocateNextDamage`, `next_damage_shares`
+and `GameState::prevention_allocations`; the all-multiplier suppression.
+Four cards — Mending Hands (pooled), Samite Healer, Safe Passage, Samite
+Censer-Bearer. Items 25, 40, 47 and 65 are updated above; `replacement-
+architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
+`plans/traces/rd-2-a-decision-is-per-subject.html`.
+
+90. **A resolution-created row keeps its targets, and nothing reads them
+    yet.** `RegisteredReplacementEffect.targets` is written by
+    `Primitive::CreateReplacement` because the targets are unrecoverable a
+    moment later and Divine Deflection's rider — "deals that much damage to
+    any target", chosen at cast — needs them beside the event's subject
+    (`plans/handoffs/rd.md`, note 1). Threading them onto `ReplacementInstance`
+    and `Rider`, and giving `ReplacementDef::then` a recipient leaf that says
+    "the thing this effect targeted at resolution", is that card's PR, which
+    also needs `AmountExpr::Variable`; so is note 2's existence-and-type check
+    in the rider runner, which must not be `perform_action`'s loudness.
+
+    **Reachability (2026-09-09):** unreachable — no `then` can name a
+    resolution target, and no registered rider wants one.
+
+    **Sized:** ~80–120 — a field on the instance and the rider, one
+    `EffectRecipient` arm, `resolve_rider` building a context that carries
+    both, and the no-op check.
+
+91. **`AmountRewrite::PreventUpTo` has a performer and no printed producer.**
+    Guardian Seraph and Daunting Defender are its cards and need RD-3's
+    source-side `EventPattern::DealDamage` fields. RD-2 ships the arm because a
+    CR 615.7 count is cut down to it at application (`AmountRewrite::capped`)
+    and because the group form's member-uniform path needed a static partial
+    prevention to prove "rewrites per member" against two simultaneous
+    sources — done through a fixture row whose test name says whose card it
+    is waiting for.
+
+    **Reachability (2026-09-09):** unreachable from a game — no registered def
+    writes the arm directly; every count reaches it through `capped`.
+
+    **Sized:** RD-3's; nothing beyond the two cards.
+
+92. **A CR 615.7 count spanning subjects with two choosers is refused, not
+    answered.** `next_damage_shares` asserts one chooser across every bucket
+    and errors otherwise, because every printed multi-subject count is scoped
+    to one player and that player's permanents (Divine Deflection, Harm's
+    Way). A hypothetical "prevent the next 3 damage that would be dealt to any
+    number of target creatures" across two controllers would need CR 616.1's
+    last sentence applied to *shares* — an APNAP round of allocations — which
+    the rules do not describe for 615.7 and no card asks for.
+
+    **Reachability (2026-09-09):** unreachable — every registered count's
+    buckets share a chooser, and the error names the def.
+
+    **Sized:** unknown until a card asks; the error is the right answer until
+    then.
+
+93. **A later group's doubling moves the member, not the allocation.**
+    CR 615.7's allocation is taken at the members' then-current amounts, the
+    first time the instance is chosen in any group; a later group whose
+    CR 616.1 choice doubles a member ahead of the count applies the stored
+    share to the doubled amount (`min(share, amount)`). §9's RD decision 3
+    records this as CR 616.1's own per-subject ordering showing through —
+    Divine Deflection's "you don't decide until the point at which the damage
+    would be dealt" is satisfied, since the decision is made at that point for
+    the first group and the later group's doubling is its own choice — and
+    RD-2's review is where it is to be argued rather than smoothed over.
+
+    **Reachability (2026-09-09):** unreachable from the pool — it needs a
+    multi-subject count (item 90's card) beside a doubler on the later
+    subject.
+
+    **Sized:** none unless the review reverses the decision; then a re-ask
+    when a bucket's amount changes after allocation, ~40 lines in
+    `next_damage_shares`.
+
+94. **Kitsune Palliator's "each creature and each player" has no recipient.**
+    `EffectRecipient::FilteredPermanents` makes Samite Censer-Bearer's
+    per-creature rows; an each-player recipient does not exist, and
+    CR 615.11's per-player rows would be the same arm in `CreateReplacement`
+    over the player list. One customer, so it waits.
+
+    **Reachability (2026-09-09):** unreachable — no such recipient.
+
+    **Sized:** ~30 — an each-player `EffectRecipient` arm (or a `PlayerSet`
+    beside the filter) and one more branch in the primitive.
+
+95. **The row a `Primitive::Regenerate` makes still names the ephemeral
+    ability object; a `CreateReplacement` row names the permanent.**
+    CR 113.7a makes an ability's source the object that has it, so
+    `CreateReplacement` writes `ctx.ability_source.unwrap_or(ctx.source)` and
+    Samite Healer's row names the Healer — which outlives the stack object
+    CR 608.2n deletes and is what `ask_choose_replacement` offers a UI.
+    `Regenerate` keeps `ctx.source`; no registered card regenerates from an
+    activated ability, so its rows are never offered under a dead id.
+
+    **Reachability (2026-09-09):** unreachable — `Primitive::Regenerate` has
+    no registered producer at all; the row's `source` is read only by the
+    CR 616.1 prompt and by `remove_by_source`, which nothing calls.
+
+    **Sized:** one token, in the PR that registers the first regenerating
+    card.
+
+### Found by the RD-2 review (2026-09-09)
+
+Fourteen comments on PR #120, captured in `plans/handoffs/rd-2-review.md`,
+triaged, and absorbed here — the file is deleted in the review commit, as its
+contract says. Eight were answered in place (a doc comment, a rename, a
+restructure); three changed the **corpus** rather than the code, which is the
+half worth recording; two are deferred with a home and a size (`backlog.md`
+§2.24, "Before card breadth" item 11); and one closed item 65 while proving a
+claim in it false, which is item 97.
+
+96. **Two atoms moved in opposite directions, and the pair is the finding.**
+    `specdb` came out unchanged — 118 full, 50 partial — because one atom was
+    promoted and one demoted in the same pass, and the reasoning is the same
+    reasoning read from both ends.
+
+    **`COMP-614-616-DOUBLE-REPLACEMENT-001` was promoted to `COVERS`.** RD-2
+    had marked it partial on the grounds that "Player A chooses order" is a
+    half the engine deliberately does not build (§11 item 29's suppression).
+    The review's objection: *if the choice is provably immaterial, that points
+    at the atom rather than at the coverage*. Correct — and the atom now
+    carries an audit note saying so. CR 616.1e does give the player the
+    choice, and *because* multiplication commutes no rules-legal question
+    distinguishes the two orders: not the damage, not its source, not the
+    event log. An engine that asks and one that does not produce the same
+    game, so a test proving 2 → 4 → 8 with each doubler applying once covers
+    the atom. The clause that stays observable, and that a test here must not
+    drop, is CR 614.5's "each applies once".
+
+    **`BOUNDARY-DEF-615.1a-001` was demoted to `COVERS-PARTIAL`**, found while
+    answering a different question ("isn't that test tautological?" — half of
+    it was). The atom's out-of-set member is a *triggered ability*, and no type
+    in this engine can express one until critical-path item 6, so the test
+    substitutes the two nearest expressible non-members: a doubler, and
+    regeneration. Regeneration is the load-bearing one — a `Prevent` that is
+    **not** a prevention effect, because CR 615.1 is about damage and its
+    pattern is a destruction — and the test is now named for it.
+
+    **Reachability (2026-09-09):** nothing owed; `owed` is still 9 and neither
+    atom is in a shipped phase.
+
+    **Sized:** none. The out-of-set half of the boundary atom lands with
+    item 6.
+
+97. **A stale claim written the same day it was found, and only a reader
+    caught it.** RD-2's docs commit closed item 65 with "`forced_bucket` keeps
+    its name — 'bucket' is CR 616.1a–e's own word there". **It is not.**
+    CR 616.1a–e is a ladder of steps, each reading "if any … one of them must
+    be chosen. If not, proceed to [the next]"; the word "bucket" appears
+    nowhere in the rule, and it entered this codebase as an implementation
+    word. The reviewer did not check the rule — they asked what a bucket
+    *was*, which is the same instrument pointed at the same defect.
+
+    So the rename went through: `forced_bucket` → `must_choose_among`
+    (616.1a's own sentence), the local `bucket` → `choosable`, and the ~25
+    doc uses in the 616.1 sense → "step". The word survives in
+    `DecisionProvider::allocate`, where a bucket is a thing you allocate a
+    total across and is nobody's confusion.
+
+    **This is item 89's shape for the third time** — a comment stating a
+    checkable fact, false when written, invisible to every test. Item 89 said
+    the fix is "a re-read with an instrument". The instrument that worked here
+    was a human asking what a word meant, which does not scale and does not
+    run in CI; "Before card breadth" item 11's glossary check is the one that
+    would have.
+
+    **Reachability (2026-09-09):** closed — the claim is corrected in place
+    and item 65 records what it got wrong.
+
+    **Sized:** none beyond item 11.
+
+98. **`next_damage_shares` re-checked its own guard, and the second check read
+    as a mystery.** The chooser agreement test was `if chooser.is_none() ||
+    any(differs) { return Err }` followed by `chooser.expect("checked")` — and
+    the `expect` was read on review as *comparing a string*, which is a fair
+    reading of a line whose only visible argument is a string. It is one
+    `match` now, with no unreachable arm to explain. Recorded because the
+    lesson is not about `expect`: **a guard whose failure path returns and
+    whose success path re-derives the same fact wants to be one expression**,
+    and the tell is that the second step needs a comment.
+
+    **Reachability (2026-09-09):** closed.
+
+    **Sized:** none.
 
 ### Was the critical path complete? — audited 2026-08-27
 
@@ -4731,6 +4976,35 @@ first.
     Scheduled at Phase 8's gate (`roadmap-v2.md` §C), with the helper hoist
     above as the same PR's other half: both are "put the card layer in order
     before it triples", and neither is worth doing twice.
+
+### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
+
+11. **The codebase has enough invented vocabulary to need a glossary, and
+    nothing defines the words in one place.** Reported on the RD-2 review, on
+    "subject group" — a term RD-2 introduced, defined in a doc comment on
+    `Member` in `pipeline.rs`, used in three plans and in two commit messages.
+    It is not alone: *frame*, *rider*, *instance* vs *member* vs *candidate*,
+    *applied set*, *bucket* (which RD-2 deleted for exactly this reason), the
+    three senses of *shield*, *pool* (card pool) vs *pool* (mana pool),
+    *chokepoint*, *gate leg*, *arm*. A reader meets each of them in whichever
+    file happens to introduce it, and the definition is wherever the phase
+    that coined it put it.
+
+    **Reachability (2026-09-09):** reachable and costing time now — the review
+    that produced this item asked what two of these words meant, and both were
+    defined only in a doc comment inside the module that uses them.
+
+    **Sized:** ~150–200 lines, one PR of its own. Two constraints from the
+    scars this file already records: (a) it goes in `README.md`, not
+    `CLAUDE.md` — the budget there is 8 lines and a glossary is not an
+    invariant; and (b) **it needs an anti-rot check or it is item 89 waiting
+    to happen** (a comment stating a fact, going stale, with nothing re-reading
+    it). The check is the cheap kind trace tier 3 already wants: a script that
+    asserts every glossary term still appears in `mtgsim/src`, and that every
+    word in a short watch-list (the ones above) appears in the glossary — so a
+    rename breaks CI in the same commit, which is how `must_choose_among`
+    would have been caught. `check_claude_md.py` and `check_module_layout.py`
+    are the template.
 
 ### Before Triggered abilities (CR 603)
 

@@ -49,10 +49,12 @@
 //!   sweep.
 //! - **Static abilities functioning in other zones** are deferred past Phase RE.
 
+use crate::engine::replacement::ReplacementInstanceId;
+use crate::engine::resolve::ResolvedTarget;
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::replacement::ReplacementDef;
+use crate::types::replacement::{ReplacementDef, Uses};
 
 /// Unique identifier for a registered replacement effect.
 pub type ReplacementEffectId = u64;
@@ -74,6 +76,24 @@ pub struct RegisteredReplacementEffect {
     /// The turn it was created on, so a player-relative duration does not
     /// expire on the turn it was made.
     pub created_on_turn: u32,
+    /// The targets of the resolution that created this row, as chosen at cast
+    /// (CR 601.2c) — kept because they are unrecoverable a moment later and a
+    /// rider may need them.
+    ///
+    /// **Not the affected set.** For Mending Hands the two coincide (the row's
+    /// `Fixed` *is* its target); for Divine Deflection they do not — "prevent
+    /// the next X damage that would be dealt to you and/or permanents you
+    /// control … Divine Deflection deals that much damage to any target" has
+    /// its target chosen at cast and its affected set evaluated at the event,
+    /// and its rider needs both (`plans/handoffs/rd.md`). Empty for a row no
+    /// target chose: Safe Passage's, a regeneration's from an untargeted
+    /// resolution.
+    ///
+    /// No reader yet: the `EffectRecipient` leaf that would say "the thing this
+    /// effect targeted at resolution" arrives with the first rider that needs
+    /// it, and threads this onto `ReplacementInstance` and `Rider` then
+    /// (`codebase-state.md`, RD-2's Deferred Migrations line).
+    pub targets: Vec<ResolvedTarget>,
     /// What it watches for and what it does.
     pub def: ReplacementDef,
 }
@@ -122,6 +142,45 @@ impl DurationRow for RegisteredReplacementEffect {
 /// again to grow one.
 pub type ReplacementEffectRegistry = DurationRegistry<RegisteredReplacementEffect>;
 
+impl DurationRegistry<RegisteredReplacementEffect> {
+    /// Spend `prevented` of a row's CR 615.7 count, removing the row when it
+    /// reaches zero.
+    ///
+    /// > 615.7 … Each 1 damage that would be dealt to the shielded permanent
+    /// > or player is prevented. Preventing 1 damage reduces the remaining
+    /// > shield by 1.
+    ///
+    /// In place through [`DurationRegistry::update_rows`], so the id survives
+    /// and CR 614.5's applied-set key still names the same effect. Removal at
+    /// zero is CR 615.3's "until they're used up"; the other end, "or their
+    /// duration has expired", is the cleanup hook the registry already runs,
+    /// and neither end knows about the other. Spending 0 is a no-op — CR
+    /// 609.7b's "the shield isn't used up" — and is what an application that
+    /// prevented nothing does here.
+    ///
+    /// Returns the count left, or `None` when the row was not a
+    /// [`Uses::NextDamage`] row (or was already gone).
+    pub fn spend_next_damage(&mut self, id: RowId, prevented: u64) -> Option<u64> {
+        let mut left = None;
+        self.update_rows(|row| {
+            if row.id != id {
+                return false;
+            }
+            if let Uses::NextDamage(remaining) = row.def.uses {
+                let after = remaining.saturating_sub(prevented);
+                row.def.uses = Uses::NextDamage(after);
+                left = Some(after);
+                return prevented > 0;
+            }
+            false
+        });
+        if left == Some(0) {
+            self.remove(id);
+        }
+        left
+    }
+}
+
 /// CR 614.13a/b's two exclusion sets, for one batch of simultaneous entries.
 ///
 /// > 614.13a ... You can't choose the object that will become that permanent or
@@ -169,6 +228,53 @@ impl EntrySelectionScope {
     }
 }
 
+/// CR 615.7's allocation answers, for one batch of simultaneous damage.
+///
+/// > 615.7 … If damage would be dealt to the shielded permanent or player by
+/// > two or more applicable sources at the same time, the player or the
+/// > controller of the permanent chooses which damage the shield prevents.
+///
+/// **Per instance, not per subject group.** One "prevent the next N damage"
+/// effect is one instance — one registry row — and it owns one count, so it is
+/// asked once across every batch member it applies to, whatever their subjects:
+/// Mending Hands' members share one subject, Divine Deflection's "you and/or
+/// permanents you control" span several. The CR 616.1 loop decides one subject
+/// group at a time (`replacement-architecture.md` §9, RD decision 3), so the
+/// answer is taken the first time the instance is chosen in any group's loop
+/// and read by the groups decided after it.
+///
+/// Lives on `GameState` for `codebase-state.md` item 40's reason: the shares
+/// are consulted across later groups' CR 616.1 prompts, and a fork at one of
+/// those has to see them. Saved and restored by `execute_batch_inner` beside
+/// [`EntrySelectionScope`]; empty outside a batch, and empty in every batch no
+/// CR 615.7 count is chosen in, which is nearly all of them.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PreventionAllocationScope {
+    /// Each chosen instance's answer: how much of its count each batch member
+    /// (by index into the batch) is to be given. Members without an entry get
+    /// nothing from that instance.
+    ///
+    /// **A `Vec` scanned linearly, not a map**, for [`EntrySelectionScope`]'s
+    /// reasons and one more. The outer list holds one entry per CR 615.7 count
+    /// *chosen in this batch* — zero in nearly every batch, one in the rest —
+    /// and the inner one a share per bucket, which is the batch's own width:
+    /// two or three. Hashing a `ReplacementInstanceId` to find one of one costs
+    /// more than the comparison does. The third reason is the standing one: a
+    /// `HashMap` walk is not reproducible across processes, and everything in
+    /// this struct is downstream of a `DecisionProvider` answer.
+    pub allocations: Vec<(ReplacementInstanceId, Vec<(usize, u64)>)>,
+}
+
+impl PreventionAllocationScope {
+    /// The shares already decided for `instance`, if it has been asked.
+    pub fn shares_for(&self, instance: ReplacementInstanceId) -> Option<&[(usize, u64)]> {
+        self.allocations
+            .iter()
+            .find(|(id, _)| *id == instance)
+            .map(|(_, shares)| shares.as_slice())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,12 +289,63 @@ mod tests {
             controller: 0,
             duration,
             created_on_turn: 1,
+            targets: Vec::new(),
             def: ReplacementDef::new(
                 EventPattern::Destroy { source: None },
                 AffectedSet::Fixed(vec![source]),
                 Rewrite::Prevent,
             ),
         }
+    }
+
+    fn next_damage_row(source: ObjectId, n: u64) -> RegisteredReplacementEffect {
+        use crate::types::replacement::AmountRewrite;
+        RegisteredReplacementEffect {
+            id: 0,
+            source,
+            controller: 0,
+            duration: Duration::UntilEndOfTurn,
+            created_on_turn: 1,
+            targets: Vec::new(),
+            def: ReplacementDef::new(
+                EventPattern::DealDamage,
+                AffectedSet::Fixed(vec![source]),
+                Rewrite::Amount(AmountRewrite::PreventRemaining),
+            )
+            .next_damage(n),
+        }
+    }
+
+    // CR 615.7 — "preventing 1 damage reduces the remaining shield by 1", in
+    // place, with the id kept; CR 615.3's "until they're used up" at zero.
+    #[test]
+    fn spending_a_next_damage_count_keeps_the_row_until_it_reaches_zero() {
+        let mut reg = ReplacementEffectRegistry::new();
+        let src = Uuid::new_v4();
+        let id = reg.add(next_damage_row(src, 4));
+
+        assert_eq!(reg.spend_next_damage(id, 3), Some(1));
+        assert_eq!(
+            reg.iter().next().map(|r| (r.id, r.def.uses)),
+            Some((id, Uses::NextDamage(1)))
+        );
+
+        // CR 609.7b — an application that prevented nothing spends nothing.
+        assert_eq!(reg.spend_next_damage(id, 0), Some(1));
+        assert_eq!(reg.len(), 1);
+
+        assert_eq!(reg.spend_next_damage(id, 1), Some(0));
+        assert!(reg.is_empty(), "used up");
+        assert_eq!(reg.spend_next_damage(id, 1), None, "and gone");
+    }
+
+    // A `Once` row has no count to spend; the caller removes it whole.
+    #[test]
+    fn spending_is_only_for_next_damage_rows() {
+        let mut reg = ReplacementEffectRegistry::new();
+        let id = reg.add(row(Uuid::new_v4(), Duration::UntilEndOfTurn));
+        assert_eq!(reg.spend_next_damage(id, 2), None);
+        assert_eq!(reg.len(), 1);
     }
 
     #[test]

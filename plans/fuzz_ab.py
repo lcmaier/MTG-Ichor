@@ -71,6 +71,7 @@ ROWS = [
     ("Dependency checks", r"^\s+Dependency checks:\s+(\d+)"),
     ("Replacement gathers", r"^\s+Replacement gathers:\s+(\d+)"),
     ("Restriction queries", r"^\s+Restriction queries:\s+(\d+)"),
+    ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
 ]
 THRESHOLDS = ["Errors", "Panics", "Uncast resolved", "Hit turn limit"]
 # The §3 table's rows, in its order; the four thresholds stay out of it.

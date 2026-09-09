@@ -115,6 +115,7 @@ impl GameState {
             // A resolving spell or ability replaced nothing, so CR 615.5's
             // "that much" has no answer here — see `ResolutionContext`.
             replaced_amount: None,
+            damage_prevented: None,
         };
         self.resolve_effect(&entry.effect, &ctx, dp)?;
 

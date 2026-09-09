@@ -255,7 +255,7 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         │    static abilities off the EFFECTIVE ability list, never a
   │         │    registry — which is what lets Humility strip one for free
   │         ├─ filter to the applied-set-eligible (CR 614.5)
-  │         ├─ forced_bucket() → CR 616.1a–e's highest non-empty class
+  │         ├─ must_choose_among() → CR 616.1a–e's first non-empty step
   │         ├─ 0 candidates → done.  1 → apply it, no CR 616.1 prompt.
   │         │  2+ → DecisionProvider::choose (CR 616.1's ordering prompt)
   │         ├─ if `optional`: ask_apply_optional_replacement (CR 614.1a) —
@@ -797,7 +797,7 @@ fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction
                   .filter(|c| !declined.contains(c.instance))     # see below
         if cands.is_empty(): return Some(ev)
 
-        bucket  = forced_bucket(cands)                   # CR 616.1a -> b -> c -> d -> e
+        choosable = must_choose_among(cands)             # CR 616.1a -> b -> c -> d -> e
         chooser = affected_chooser(game, ev)             # CR 616.1 / 400.6
         chosen  = if bucket.len() == 1 { bucket[0] }
                   else { ask_choose_replacement(dp, chooser, bucket) }
@@ -825,7 +825,7 @@ Six things this encodes, each with its rule:
   which is what 614.5's "an event or any modified events that may replace that
   event" describes (§3.2d). `exempt_from_614_5` exists for exactly one rule
   (903.9b) and must not grow a second user without a CR cite.
-- **CR 616.1a–e** — `forced_bucket` returns the highest-priority non-empty class
+- **CR 616.1a–e** — `must_choose_among` returns the first non-empty step
   and only that class; 616.1e is the fallthrough.
 - **CR 616.1f** — the loop re-gathers after every application, so an effect made
   newly applicable by the modification is picked up (CR 616.2).
@@ -1022,6 +1022,19 @@ shared set the first death would consume Kalitas's application and the rest
 would go to the graveyard. (Wrath of God under Leyline of the Void is the same
 shape: all five zone changes get replaced, not one.)
 
+**Corrected by RD-2 (2026-09-09): the set is per `(batch, subject)`, not per
+member.** Kalitas's ruling holds either way — N deaths are N subjects — and it
+was CR 122.1c's ruling the per-member shape got wrong: two blockers hitting one
+creature with two shield counters spent two, where "only one shield counter is
+removed". `execute_batch_inner` now buckets the APNAP-ordered members by
+`subject_of` and `apply_replacements` runs one CR 616.1 loop per group, with one
+applied set and one chooser; an instance applies to every member of the group
+it applies to, its rider is queued once with the members' amounts summed, its
+use spent once. The batch, not the turn, is the scope — CR 510.4's two combat
+damage steps are two batches and spend two counters. §9's RD decision 3 and §11
+items 15 and 24 carry the argument; `plans/traces/rd-2-a-decision-is-per-subject.html`
+walks the boards read by read.
+
 What a shared set was reaching for is **CR 704.7**, and that rule is a
 *same-result collapse*, not a cross-member share: multiple state-based actions
 with the same result at the same time (a player who would lose the game for
@@ -1030,8 +1043,11 @@ that one event has one applied-set. Implement 704.7 as a dedupe step on the
 batch, upstream of `apply_replacements`.
 
 `Uses` needs no batch special-casing either way: `consume_use` writes game
-state, so a regeneration shield spent on batch member one is correctly gone
-when member two asks (CR 701.19a — one shield, one destruction replaced).
+state, so a regeneration shield spent on one group of a batch is correctly gone
+when the next group asks (CR 701.19a — one shield, one destruction replaced).
+Since RD-2 it is spent *after* the application, by what the application did
+(RD decision 7): `Once` when the rewrite took effect, `NextDamage` by the
+damage prevented.
 
 Callers that must batch: `apply_combat_damage` (CR 510.2), the SBA sweep
 (704.3), **the untap step (CR 502.1 — "all the permanents untap
@@ -3351,7 +3367,7 @@ existing evaluators match exhaustively, so each grows an arm rather than
 defaulting.
 
 **It fires item 47's expiry conditions, and the predicate is revisited in the
-same commit.** `order_invariant_entry_bucket`'s theorem has two halves — every
+same commit.** `ordering_cannot_change_outcome`'s theorem has two halves — every
 member still applies, and the applications commute — and the second was free
 while `merge` was `|=` and `+` over literals. An amount read off the frame is
 not free: "enters with X counters where X is its own power" applied before and
@@ -4026,7 +4042,7 @@ Thaumaturgist that Cytoshape turned into a copy of a Probe and which died on
 the spot, because CR 707.2 does not copy counters. That SBA had measured 0 at
 every game count since it was written, and the second route was not predicted.
 
-#### RD-2 — CR 615.7 prevention shields, and the loop's unit
+#### RD-2 — CR 615.7 prevention shields, and the loop's unit — ✅ landed 2026-09-09
 
 **Builds:** decisions 2, 3, 7, `PreventUpTo`/`PreventRemaining`, the rider's
 prevented amount (`Rider.prevented: u64`, read by `AmountExpr::DamagePrevented`
@@ -4086,6 +4102,80 @@ damage event meets, and the first `allocate` prompt reachable in a fuzz game.
 `ATOM-615.5-001`, `ATOM-615.11-001`, `BOUNDARY-DEF-615.1a-001`;
 `ATOM-615.6-001` as `COVERS-PARTIAL` (filed
 Phase 7 — its "the trigger does not fire" half is item 6's).
+
+##### As landed
+
+Six code commits and the docs, +2,393 / −237 across 30 files — roughly 1,180
+engine, 440 cards, 770 tests — at the top of the band and a little over the
+~1,800–2,000 prediction; the difference is `next_damage_shares`, which the
+sizing counted as "the group form" and which turned out to be its own
+function once the allocation had to reach across groups. Every decision above
+shipped as designed. What follows was decided in the writing:
+
+- **The allocation's buckets reach into groups not yet decided.**
+  `apply_replacements` takes the rest of the batch as `later`, read for one
+  thing: a multi-subject count's prompt spans every member the instance
+  applies to, at their proposed amounts, and the answer is kept on
+  `GameState::prevention_allocations` for the groups after, which read their
+  shares rather than asking (item 40's shape, `entry_selection`'s
+  precedent). One chooser is asserted across the buckets; a def that names
+  two sides is an error rather than a guess (`codebase-state.md` item 92).
+- **`PreventRemaining` uncapped prevents everything, and `capped` fills the
+  cap.** The type's arithmetic stays total; `apply_rewrite` refuses
+  `PreventRemaining` without a `NextDamage` count and a count without
+  `PreventRemaining`, so the uncapped arm is reachable from no def.
+- **A rider's count is not observable in the log, and the test says so.**
+  Angel of Suffering under two attackers: one rider milling 10 and two
+  milling 4 and 6 leave the same ten records under one batch id, because a
+  rider's moves join the batch the damage was in. The test pins the *sum*;
+  the shield-counter board is where the count itself shows.
+- **A row an ability makes names the permanent** (CR 113.7a):
+  `ctx.ability_source.unwrap_or(ctx.source)`, so Samite Healer's row
+  outlives the stack object CR 608.2n deletes and is what the CR 616.1
+  prompt offers a UI. `Regenerate` keeps `ctx.source` (item 95).
+- **The row keeps its targets and nothing reads them** (item 90) — the fact
+  half of Divine Deflection's note, done where the row type was written; the
+  reader is the card's PR.
+- **§11 item 29 was decided yes and built here**, as its own engine commit
+  ahead of registration so the A/B could carry it as an arm; the composite
+  atom drops to `COVERS-PARTIAL`, since it says the player chooses and the
+  engine now declines to ask. **Item 30's re-ask came back "no move."** The
+  trace page is `plans/traces/rd-2-a-decision-is-per-subject.html`.
+
+**Measured** (`plans/fuzz_ab.py`, four arms against a same-day `main`
+worktree, 200 games at seed 12345, both pools; `engineering-practices.md`
+§3's table re-recorded at 50): `main`; `loop` — the fix commit, the group
+form and consume-after-apply with pools unchanged; `suppress` — the item-29
+commit, pools unchanged; `new` — shipped.
+
+| | prediction | measured (`performance`, 200 games) |
+|---|---|---|
+| `Replacement gathers`, middle arms | flat — grouping changes decisions, not proposals | **498 → 498 → 498** (`stress` 526 → 526 → 525) |
+| `Layer walks`, middle arms | flat | **364 → 364 → 364** (`stress` 459 → 459 → 459) |
+| byte-identical outside `=== Timing ===` | **no**: one CR 616.1 prompt where a two-member batch under two Furnaces had two, and none where the suppression removes one, so the random agent's draws shift in those games | differs — **3 of 200** games between `main` and `loop`, **4 of 200** between `loop` and `suppress`, and every one of them has two Furnaces of Rath on the battlefield at the divergence (200-game event dumps, ids masked; the one other "difference" was a fizzle line printing an unmasked id) |
+| what a changed answer moves | the small rows, inside the spread | Memo hits 56,988 → 56,971 → 56,994; Total damage 56.7 → 56.4 → 56.0 |
+| CPU/game median | flat | 12.65 → 12.55 (−0.8%) → 12.53 (−0.9%) → 12.92 ms (+2.1%, the pool); ms / 1,000 walks −0.8%, −0.9%, +1.0% |
+
+The shipped arm is the pool change and reads as one — a {W} instant in every
+white deck, avg turns 29.7 → 30.1, one 95-turn game lifting p99. Zero errors
+and zero panics on every arm and pool; `deterministic: yes` on all four.
+
+**Reachability.** `Prevention allocations` — the row this section named — is
+**0.00** per game on `performance` and **0.02** on `stress`, unforced. Forced:
+Mending Hands in every performance deck is cast 229 / resolved 229 in 135 of
+200 games (68%), 1.60 copies per deck, with **0.01** allocations per game; the
+three unpooled cards in every stress deck give **0.05** per game — Samite
+Healer cast 197 / resolved 194 in 126 games (63%), Safe Passage 208 / 191 in
+131 (66%), Samite Censer-Bearer 194 / 191 in 136 (68%). So CR 615.7's choice
+is reachable from the pool and rare: it needs the shielded player to be the
+one two creatures attack in the same step, while the random agent aims "any
+target" with no preference for itself. That is the honest number; RD-3's
+Circle of Protection and RD-4's Pariah put a count on the player being
+attacked, which is where it will move.
+
+**Determinism.** `tests/determinism_test.rs` green; each arm's three timing
+rounds identical to its threaded run; three shell `fuzz_games` runs at one
+seed identical line for line outside `=== Timing ===`.
 
 #### RD-3 — sources
 
@@ -4336,6 +4426,17 @@ design check argued about rather than the happy path: two shield counters under
 two blockers (item 15), Furnace beside Mending Hands in both orders (the printed
 ruling), a `NextDamage(3)` under sources of 2 and 4 with the allocation, and
 Pinpoint Avalanche into a shield counter (the rider runs, nothing is spent).
+
+**Decided at RD-2's close (2026-09-09): yes.**
+`plans/traces/rd-2-a-decision-is-per-subject.html`, pinned at `fcc04da` (the
+last commit of the PR). It walks three of the four boards above — two
+shield counters under two blockers, Furnace beside Mending Hands in both
+orders, a `NextDamage(3)` under sources of 2 and 4 with the allocation — and,
+in place of Pinpoint Avalanche (RD-4's, since nothing can make damage
+unpreventable yet), the two boards where "nothing was consumed" is the whole
+answer: Safe Passage beside Mending Hands in both orders, and a `Once`
+half-prevention chosen against 1 damage. The payload table lists each read that
+differs between the per-member loop and the per-subject one.
 
 #### Exit criteria
 
@@ -4921,7 +5022,7 @@ there, because all three are about **what a rider can reach**.
     Adaptive Shimmerer under "creatures with power 1 or less enter tapped" is
     a real choice — tapped or untapped by the order — and
     `test_a_power_filter_beside_counters_is_a_real_choice` says so. The rule
-    that shipped (`pipeline::order_invariant_entry_bucket`) admits only members
+    that shipped (`pipeline::ordering_cannot_change_outcome`) admits only members
     whose applicability no `EnterMods` field can move: `EnterWith`, mandatory,
     static, under CR 614.5, not counter-derived, no rider, and an `affected`
     over leaves the counters cannot reach (`filter_is_mods_invariant`). It is
@@ -4979,9 +5080,14 @@ found them.
     reads as history from here.
 
 22. **`consume_use` runs before `apply_rewrite`, and three rules need it
-    after.** *Still open after RD-1, and correctly: RD-1 ships no `Uses::Once`
-    damage effect and no arm whose application can do nothing, so the order is
-    unobservable until RD-2's shields.* CR 609.7b ("if for any reason the shield prevents no damage or
+    after.** *Closed by RD-2 (2026-09-09): `consume_use` runs after
+    `apply_rewrite` and spends `Applied { took_effect, prevented }` — `Once`
+    only when the rewrite took effect, `NextDamage` by exactly the damage
+    prevented. The regression is a `Once` "prevent half, rounded down" chosen
+    against 1 damage, which prevents 0 and stays
+    (`a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s`).
+    RD-1 had left it, correctly: it shipped no arm whose application could do
+    nothing.* CR 609.7b ("if for any reason the shield prevents no damage or
     replaces no damage, the shield isn't used up"), CR 614.9 (a redirect whose
     destination is gone "does nothing"; `ATOM-614.9-001` says the shield is
     not spent) and CR 615.12 (an unpreventable event reduces no shield). Every
@@ -5018,9 +5124,13 @@ found them.
 
 24. **§11 item 15 is answered: decisions are per `(batch, subject)`, rewrites
     per member, and CR 615.7's allocation is the one non-uniform rewrite.**
-    *Unbuilt after RD-1 and unreachable there: the phase's four cards are all
-    `Uses::Static` and member-uniform, so per-member and per-subject give the
-    same answer on every board RD-1 can build. RD-2 builds it.* The
+    *Built by RD-2 (2026-09-09): `execute_batch_inner` groups by `subject_of`
+    and `apply_replacements` takes the group; the shield-counter board is
+    `two_shield_counters_under_two_blockers_lose_one_counter_and_take_no_damage`,
+    and its first-strike twin is what shows the key is the batch. The
+    allocation is `next_damage_shares`, per instance across every member it
+    applies to — later groups' members included — kept on
+    `GameState::prevention_allocations`. Closed.* The
     table in §9's RD section checks the rule against every ruling the batch
     has had to satisfy — Kalitas's N Zombies, CR 122.1c's one counter under two
     blockers, 614.5's ×4, 615.10's "separately to … events that would happen
@@ -5109,7 +5219,7 @@ found them.
     **replacement effects it is not**, and the reason is the one the reviewer
     reached unprompted: CR 616.1f re-gathers after every application, so the
     bucket is re-formed between members and "the other members" is not a fixed
-    set. That is exactly the premise `order_invariant_entry_bucket` spends its
+    set. That is exactly the premise `ordering_cannot_change_outcome` spends its
     longest clause on.
 
     **What is provable is narrower and still worth having.** A bucket every
@@ -5139,6 +5249,21 @@ found them.
     read at exactly the site it changes. Deciding it earlier would mean writing
     the clause twice.
 
+    **Decided at RD-2's close (2026-09-09): yes, and built.**
+    `ordering_cannot_change_outcome` — the predicate, renamed for item 65's
+    reason now that "entry" had become wrong as well as implementation-shaped —
+    admits a set of choosable effects that is entirely `Amount(Multiplier(n ≥ 1))` on
+    `EventPattern::DealDamage` beside the all-`EnterWith` one, under the same
+    shared clauses (mandatory, static, no rider, under CR 614.5, not
+    counter-derived). Two Furnaces ask nothing; the composite atom
+    `COMP-614-616-DOUBLE-REPLACEMENT-001` drops to `COVERS-PARTIAL`, because
+    "Player A chooses order" is the half deliberately not built. The debug
+    re-gather checks per member, since a candidate may apply to a subset of a
+    group from RD-3 on. `codebase-state.md` item 47 carries the two new expiry
+    conditions: an `EventPattern::DealDamage` field that reads the *amount*,
+    and a printed `Multiplier(0)`, which the `n ≥ 1` clause refuses. Measured
+    as its own arm of RD-2's A/B (§9, RD-2 as landed).
+
 30. **A test that asserts "nothing happened" cannot say *why* nothing
     happened, and the trace sink is the instrument.** Raised against Ghosts of
     the Innocent's "half of 1 rounded down is 0, so a source that would deal 1
@@ -5160,6 +5285,16 @@ found them.
     the argument for the sink actually gets stronger, since "nothing was
     consumed" has no event at all. Re-ask at RD-2's close, alongside the trace
     *page* decision §9 already schedules there.
+
+    **Re-asked at RD-2's close (2026-09-09): A4c stays where it is.** RD-2's
+    "nothing was consumed" boards turned out *not* to strengthen the case,
+    because a CR 615.7 count is materialized state: `Uses::NextDamage(remaining)`
+    sits on the row before and after, so "the shield was not spent" is a direct
+    assertion (`counts(&game)` in `phase_rd2_integration_test`), and a `Once`
+    row that prevented nothing is still in the registry to be counted. RD-1's
+    Ghosts board had only an absence to assert; RD-2's have a number. The
+    trace page walks the same boards by hand, which is tier 1's job; the
+    sink's argument and its slot are unchanged.
 
 ## 12. Explicitly out of scope
 

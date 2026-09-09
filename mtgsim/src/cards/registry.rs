@@ -47,7 +47,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 74] = [
+const PERFORMANCE_POOL: [&str; 75] = [
     "Plains",
     "Island",
     "Swamp",
@@ -150,8 +150,8 @@ const PERFORMANCE_POOL: [&str; 74] = [
     // RC-5 — the two new engine paths this phase opens, one card each.
     // Thunder-Thrash Elder is an application that *prompts and mutates*
     // (CR 614.13), the first rewrite that is not a pure function of the event,
-    // and the first non-`EnterWith` member a CR 616.1 entry bucket can hold —
-    // so `order_invariant_entry_bucket` has something it must refuse to
+    // and the first non-`EnterWith` member a CR 616.1 entry step can hold —
+    // so `ordering_cannot_change_outcome` has something it must refuse to
     // suppress. Sigarda is already here, which makes CR 101.2's candidate
     // filter live rather than fixtured. Master Biomancer is the dynamic
     // counter amount: a layer read per application, and §5b's asymmetry on a
@@ -231,6 +231,16 @@ const PERFORMANCE_POOL: [&str; 74] = [
     // bigger for coverage the stress pool already has. Loyalty Probe stays out
     // as a fixture; its reachability is a `--require` row instead.
     "Furnace of Rath",
+    // {W} and "any target": the first registry row a pooled damage event
+    // meets, and the first CR 615.7 `allocate` prompt a fuzz game can reach —
+    // two attackers into a shielded player is a board every combat step
+    // builds (`replacement-architecture.md` §9, RD-2). Samite Healer, Safe
+    // Passage and Samite Censer-Bearer stay out: the Healer opens the same
+    // path from an activation the random agent will take anyway in `stress`,
+    // Safe Passage is a whole-event prevention the pool already measures
+    // through Angel of Suffering's shape, and the Censer-Bearer's rows are
+    // one per creature at {W} plus itself — breadth, not a new cost.
+    "Mending Hands",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -509,6 +519,16 @@ impl CardRegistry {
         // Registered so a random agent's Lightning Bolt can find it — which is
         // what makes CR 704.5i reachable from a game — and pooled nowhere.
         registry.register("Loyalty Probe", phase_rd_cards::loyalty_probe);
+
+        // RD-2 — CR 615.7 prevention shields. One card per shape a
+        // resolution-created prevention effect takes: Mending Hands' targeted
+        // count (pooled), Samite Healer's tapped-for count, Safe Passage's
+        // filter asked at each event, and Samite Censer-Bearer's one row per
+        // creature at resolution (CR 615.11).
+        registry.register("Mending Hands", phase_rd_cards::mending_hands);
+        registry.register("Samite Healer", phase_rd_cards::samite_healer);
+        registry.register("Safe Passage", phase_rd_cards::safe_passage);
+        registry.register("Samite Censer-Bearer", phase_rd_cards::samite_censer_bearer);
 
         registry
     }

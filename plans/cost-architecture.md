@@ -422,7 +422,7 @@ Three things follow, and all three are used:
 - **The cast path asks anyway**, because the CR makes it the player's choice
   and this phase measured nothing that says the prompt is noise: it needs two
   reducers and a matching spell on one board, and a `RandomDecisionProvider`
-  answers it in one call. `pipeline::order_invariant_entry_bucket`'s elision
+  answers it in one call. `pipeline::ordering_cannot_change_outcome`'s elision
   (`codebase-state.md` item 47) was taken *after* a measurement — CR 616.1's
   prompt on every land drop under Root Maze — and carries expiry conditions.
   If this prompt ever shows up in a profile, the theorem above is the elision

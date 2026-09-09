@@ -1678,6 +1678,32 @@ Prevention shields with specific amounts ("Prevent the next N damage"). Each 1 d
 - **Phase:** Phase 6 (Prevention effects)
 - **Ticket:** NEW — Prevention shield allocation choice for simultaneous damage
 
+> **Audit note — only one printed shape reaches this rule (2026-09-09, RD-2
+> review).** The allocation exists because the shield is scoped to a *recipient*
+> and carries an *amount*: "prevent the next N damage that would be dealt to
+> [target] this turn" (Mending Hands, Healing Salve, Samite Healer, Divine
+> Deflection, Kitsune Palliator). Several sources can then hit one pool at
+> once, and CR 615.7's last sentence — "such effects count only the amount of
+> damage; the number of events or sources dealing it doesn't matter" — is what
+> makes the split a choice rather than arithmetic.
+>
+> The shields scoped to a *source* instead are CR **615.8**'s, and they are
+> whole-event: "the next time a source of your choice would deal damage to you
+> this turn, prevent that damage" (Circle of Protection: Red, Reverse Damage).
+> One source, one event, nothing to allocate — which is why 615.7 and 615.8 are
+> two rules and not one. Dark Sphere is the hybrid that still does not reach
+> this atom: a chosen source *and* an amount operation ("prevent half that
+> damage"), but the half is computed from the one event rather than drawn from
+> a pool.
+>
+> **The near-miss is Harm's Way**, which is source-scoped, amount-bearing and
+> multi-recipient all at once — and is a *redirection*, not a prevention, so it
+> reaches CR 614.9 instead. Nothing printed is a source-scoped amount **pool**.
+> If one is ever printed, this atom's mechanism widens rather than a new atom
+> being filed; the engine's `next_damage_shares` already asks per instance
+> across every applicable member, so the buckets would simply be filtered by
+> the source predicate too.
+
 ### 615.8 — TESTABLE
 
 "Prevent the next instance of damage from [source]" — prevents the entire next damage event from that source, regardless of amount. Subsequent instances from the same source deal damage normally.
@@ -1921,6 +1947,26 @@ Tests that require 2+ atomic mechanisms working together.
 - **Composes:** ATOM-614.5-001, ATOM-616.1-001
 - **Phase:** Phase 6 (Replacement effects)
 - **Ticket:** NEW
+
+> **Audit note — the choice is real in the rules and unobservable on this
+> board (2026-09-09, RD-2 review).** "Player A chooses order" is CR 616.1e and
+> the atom is right to say it. It is also the *reason* the expected result
+> reads "either way": multiplication commutes, neither doubler can take the
+> other's applicability away, and no rules-legal question distinguishes the two
+> orders — not the damage dealt, not its source, not the event log. An engine
+> that presents this choice and one that skips it produce the same game.
+>
+> So a test that proves 2 → 4 → 8 and that each doubler applies once **covers
+> this atom**, whether or not a prompt was shown. `mtgsim` skips it
+> deliberately (`replacement-architecture.md` §11 items 19 and 29): the
+> suppression is a theorem with stated expiry conditions, and the day a bucket
+> stops being all-multipliers the prompt is back. **The clause to be careful
+> with is "each applies once"** — that one is observable, it is CR 614.5, and
+> it is what a test on this atom must not drop.
+>
+> The counter-board is in the same phase and is *not* order-invariant:
+> `COMP-614-DAMAGE-ORDERING-001`, a halving beside a doubling on an odd amount,
+> where the two orders give different totals and the prompt is real.
 
 **COMP-614-DAMAGE-ORDERING-001**
 - **Rule:** 614.5 + 616.1 — Two damage-modification replacements: order matters for non-commutative operations

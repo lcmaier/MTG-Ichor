@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch replacement/rd-2-prevention-shields at fcc04da and the
+  frozen CR `tmnt`; never maintained — a later phase that changes these paths
+  gets its own page. Self-contained: fonts from Google Fonts, mermaid from
+  jsDelivr, nothing else.
+-->
+<title>A Decision Is Per Subject — RD-2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.registry { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .diff-old { color: var(--decide); }
+  .diff-new { color: var(--changed); font-weight: 600; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+</style>
+
+<div class="page">
+
+<h1>A Decision Is Per Subject</h1>
+<p class="lede">RD-2 changed the unit of the CR 616.1 loop — from the batch member to the pair <em>(batch, subject)</em> — moved the spending of a use to after its application, and gave CR 615.7's allocation a prompt. This page walks four boards through the code as it stands, read by read, and ends in the table of where each read differs from the loop RD-1 left.</p>
+<p class="meta"><span class="pin">replacement/rd-2-prevention-shields @ fcc04da</span><span class="pin">CR tmnt</span><span class="pin">2026-09-09</span> Authority for the design: <code>plans/replacement-architecture.md</code> §9 (RD decisions 3 and 7) and §11 items 15, 22, 24, 29. Tests: <code>mtgsim/tests/phase_rd2_integration_test.rs</code>.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>Four boards, each chosen because the design check argued about it rather than because it is typical:</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td>An attacker with <b>two shield counters</b>, blocked by two 2/2s; then the same board with one blocker a first striker</td><td>Is CR 614.5's "once" per member or per subject — and is the subject scoped by the batch or by the turn?</td><td><code>two_shield_counters_under_two_blockers_lose_one_counter_and_take_no_damage</code>, <code>…under_a_first_striker_and_a_regular_blocker_lose_two</code></td></tr>
+<tr><td><b>B</b></td><td><b>Furnace of Rath</b> beside <b>Mending Hands</b>, 5 damage, both orders</td><td>Does each application read the amount the other left, and is the count spent by 4 either way?</td><td><code>mending_hands_beside_furnace_prevents_then_doubles_or_doubles_then_prevents</code></td></tr>
+<tr><td><b>C</b></td><td>A <b>count of 3</b> under two attackers of 2 and 4</td><td>Where does CR 615.7's choice come from, who is asked, once or twice, and what does the answer spend?</td><td><code>two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_prevents_three</code></td></tr>
+<tr><td><b>D</b></td><td><b>Safe Passage</b> beside Mending Hands, 3 damage, both orders; and a <code>Once</code> "prevent half, rounded down" chosen against 1</td><td>When nothing is consumed, <em>why</em> was nothing consumed — never chosen, or chosen and did nothing?</td><td><code>safe_passage_beside_mending_hands_spends_the_count_only_when_it_prevented</code>, <code>a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s</code></td></tr>
+</table>
+</div>
+<div class="prose">
+<p>The fourth board §9 named for this page — Pinpoint Avalanche into a shield counter — is RD-4's: nothing can make a damage event unpreventable yet, so it cannot be traced honestly. D takes its place because it asks the same question from the side RD-2 can build.</p>
+</div>
+
+<h3>The path, with RD-2's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  EA["execute_actions(batch)"] --> EBI["execute_batch_inner"]
+  EBI --> AP["apnap_batch_order"]
+  AP --> GRP["group members by subject_of"]:::new
+  GRP --> AR["apply_replacements(group, later)"]:::changed
+  AR --> NH["never_happens, per member (614.7a)"]
+  NH --> GATH["is_prohibited + gather, per member,<br/>union keyed by ReplacementInstanceId"]:::changed
+  GATH --> FB["must_choose_among (616.1a–e)"]
+  FB --> OI["ordering_cannot_change_outcome<br/>all-EnterWith or all-Multiplier"]:::new
+  OI -->|one outcome| PICK
+  OI -->|a real choice| ASK["ask_choose_replacement"]:::decide
+  ASK --> PICK["chosen instance + the members it applies to"]
+  PICK --> SH["next_damage_shares (615.7)<br/>per instance, once"]:::new
+  SH -->|two or more sources| ALLOC["ask_allocate_next_damage"]:::decide
+  ALLOC --> STORE["GameState.prevention_allocations"]:::new
+  SH --> APPLY["apply_rewrite, per member"]
+  STORE --> APPLY
+  PICK --> APPLY
+  APPLY --> RIDER["one Rider per group:<br/>replaced_amount summed, prevented summed"]:::changed
+  RIDER --> CU["consume_use(outcome) — after the application"]:::changed
+  CU --> NH
+  NH -->|no live member, or no candidate| OUT["(index, Option&lt;GameAction&gt;) per member"]
+  OUT --> P2["phase 2: perform_action"]
+  P2 --> P3["phase 3: resolve_rider"]
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+  classDef decide fill:#F8E8EA,stroke:#8A2F3B,color:#1B2226;
+</pre>
+<div class="legend"><span class="n">new in RD-2</span><span class="c">changed by RD-2</span><span class="d">a player is asked</span></div>
+<div class="prose">
+<p>Every step below names the function and what it read. The read tags are the board <span class="read board">board</span>, the replacement registry <span class="read registry">registry</span>, a player's answer <span class="read player">player</span>, and batch-scoped state on <code>GameState</code> <span class="read state">state</span>.</p>
+</div>
+
+<h2>Trace A — two shield counters under two blockers</h2>
+<div class="prose">
+<p>§11 item 15's board, and the regression for the whole PR. Player 0's 3/3 with two shield counters attacks; player 1 blocks with two 2/2s. CR 510.2 makes all combat damage one event, so the four damage assignments arrive as one batch.</p>
+</div>
+<div class="callout rule"><b>CR 122.1c</b> — "One or more shield counters on a permanent create a single replacement effect and a single prevention effect … If damage would be dealt to this permanent, prevent that damage and remove a shield counter from it." The Streets of New Capenna release notes: two creatures dealing combat damage to it at once, <em>"that damage is prevented and only one shield counter is removed."</em></div>
+<ol class="trace">
+<li><span class="fn">process_combat_damage(dp, false)</span> → <span class="fn">assign_combat_damage</span> walks <code>battlefield_ordered</code> <span class="read board">board</span>. The attacker has two blockers, so <span class="fn">ask_choose_attacker_damage_assignment</span> asks player 0 <span class="read player">player</span>: 2 to the first blocker, 1 to the second. Four assignments, in battlefield order: <code>first→attacker 2</code>, <code>second→attacker 2</code>, <code>attacker→first 2</code>, <code>attacker→second 1</code>.</li>
+<li><span class="fn">apply_combat_damage</span> → <span class="fn">execute_actions</span> opens one batch id and calls <span class="fn">execute_batch_inner</span>.</li>
+<li><span class="fn">apnap_batch_order</span>: <span class="fn">chooser_for</span> reads each subject's controller <span class="read board">board</span>. Members 0 and 1 are about the attacker (player 0, the active player); members 2 and 3 are about player 1's blockers. Order <code>[0, 1, 2, 3]</code>.</li>
+<li class="new"><b>Grouping.</b> <span class="fn">subject_of</span> buckets the ordered members: <code>{attacker: [0, 1]}</code>, <code>{first: [2]}</code>, <code>{second: [3]}</code>. Three groups, three loops — where the per-member loop ran four.</li>
+<li class="changed"><span class="fn">apply_replacements(group {attacker})</span>, iteration 1. <span class="fn">never_happens</span>: neither 2 is 0. <span class="fn">EntryFrame::new</span> for a <code>DealDamage</code> builds nothing. Per member, <span class="fn">is_prohibited(Query::Event)</span> <span class="read board">board</span> — no restriction sweep applies — then <span class="fn">gather</span> <span class="read board">board</span>: the fast path opens because <span class="fn">any_replacement_counter</span> sees the shield counters; <span class="fn">counter_replacements(attacker)</span> synthesizes CR 122.1c's two effects and <span class="fn">pattern_watches</span> keeps the prevention half (<code>EventPattern::DealDamage</code>) and drops the replacement half (<code>Destroy</code>). <b>Both members gather the same instance</b> — <code>Counter(attacker, Shield, Prevention)</code> — and the union keyed by <code>ReplacementInstanceId</code> holds <b>one</b> <code>Candidate</code> with <code>members: [0, 1]</code>.</li>
+<li><span class="fn">must_choose_among</span>: one candidate, class <code>Other</code>. <span class="fn">chooser_for</span> answers player 0 for the whole group. One candidate, so nothing is asked and <span class="fn">ordering_cannot_change_outcome</span> is not consulted.</li>
+<li>Not optional. <code>applied.insert(Counter(attacker, Shield, Prevention))</code> — <b>one</b> slot in <b>one</b> applied set, for both members.</li>
+<li><span class="fn">next_damage_shares</span> is skipped: the rewrite is <code>Prevent</code>, not <code>PreventRemaining</code>.</li>
+<li class="changed"><b>Apply per member.</b> <span class="fn">apply_rewrite</span> on member 0: <code>Prevent</code> → <code>(None, Applied { took_effect: true, prevented: 0 })</code>. Member 1: the same. <code>replaced_amount</code> sums to <code>Some(4)</code>.</li>
+<li class="changed"><b>One rider.</b> <code>then</code> is <span class="fn">remove_one_counter(Shield)</span>; one <code>Rider { subject: attacker, replaced_amount: Some(4), prevented: 0 }</code> is pushed — not two.</li>
+<li class="changed"><span class="fn">consume_use(outcome)</span>: counter-derived, so nothing — the counter removal <em>is</em> the rider (CR 122.1c makes it the substituted event or the rider, never bookkeeping).</li>
+<li>Iteration 2: both members are <code>None</code>; <span class="fn">apply_replacements</span> returns <code>[(0, None), (1, None)]</code>.</li>
+<li>Groups <code>{first}</code> and <code>{second}</code>: <span class="fn">gather</span> finds nothing (no counters on the blockers, an empty registry) and each returns its member unchanged.</li>
+<li>Phase 2 performs members 2 and 3: 2 marked on the first blocker, 1 on the second <span class="read board">board</span>. Phase 3 runs the one rider: <span class="fn">resolve_rider</span> proposes <code>RemoveCounters { Shield, 1 }</code> through <span class="fn">execute_action</span> — its own batch of one, a fresh applied set — and the attacker goes from two counters to <b>one</b>. Damage marked on it: <b>0</b>.</li>
+</ol>
+<div class="callout before"><b>The per-member loop, on the same board.</b> Member 0's loop gathered the counter effect, applied it, queued a rider, returned <code>None</code>. Member 1's loop began with a <em>fresh</em> applied set, gathered the same effect — still two counters on the board, since riders run in phase 3 — applied it again, queued a <em>second</em> rider. Phase 3 then removed two counters. Both damages were prevented either way, which is why the bug was invisible with one counter: the second rider removed nothing, and the answer was accidentally right.</div>
+
+<h3>A′ — the same board with a first striker</h3>
+<div class="prose">
+<p>Replace the second blocker with Knight of Meadowgrain (first strike, in the pool). CR 510.4 makes two combat damage steps.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">process_combat_damage(dp, true)</span>: <span class="fn">assign_combat_damage</span> with <code>first_strike_only</code> keeps only the Knight → a batch of <b>one</b>: <code>knight→attacker 2</code>.</li>
+<li class="new">One group <code>{attacker: [0]}</code>. The counter's prevention applies, one rider, <b>one counter</b> removed at phase 3. The Knight is recorded in <code>dealt_first_strike_damage</code>.</li>
+<li><span class="fn">process_combat_damage(dp, false)</span>: the regular step's batch — <code>first→attacker 2</code>, <code>attacker→first 2</code>, <code>attacker→knight 1</code> (<span class="fn">should_deal_damage_this_step</span> excludes the Knight). Player 0 is asked the 2/1 split once more <span class="read player">player</span>.</li>
+<li class="new">Group <code>{attacker: [0]}</code> again — a <b>new batch</b>, a new group, a new applied set. The counter effect (one counter left) applies once more; the <b>second counter</b> goes.</li>
+</ol>
+<div class="callout"><b>What A and A′ prove together:</b> the key is <em>(batch, subject)</em> and not <em>(turn, subject)</em>. Same creature, same two blockers, same turn; one batch spends one counter, two batches spend two — which is exactly what the CR's two-step rule says should happen.</div>
+
+<h2>Trace B — Furnace of Rath beside Mending Hands, 5 damage, both orders</h2>
+<div class="prose">
+<p>Furnace of Rath's own ruling, at last with a printed prevention to order against: <em>"you can choose whether to prevent 4 and then double the remaining 1, or double to 10 and then prevent 4."</em> Player 0 controls Furnace; player 1 cast Mending Hands on themself; a 5-damage bolt from player 0's creature.</p>
+</div>
+<ol class="trace">
+<li class="new"><b>The row.</b> <span class="fn">resolve_effect</span> → <span class="fn">resolve_primitive(CreateReplacement)</span>. The recipient is <code>Target(Any)</code> and the resolved target is <code>Player(1)</code>, so the authored empty <code>Fixed</code> is filled: one <code>RegisteredReplacementEffect</code> with <code>affected_players: Fixed([1])</code>, <code>uses: NextDamage(4)</code>, <code>rewrite: Amount(PreventRemaining)</code>, <code>duration: UntilEndOfTurn</code>, <code>source</code> the spell, <code>controller</code> 1, <code>targets: [Player(1)]</code> <span class="read registry">registry</span>.</li>
+<li><span class="fn">execute_action(DealDamage 5 → Player 1)</span>: a batch of one, a group of one.</li>
+<li>Iteration 1, <span class="fn">gather</span>: <code>has_static_source</code> is true — Furnace is in <code>replacement_ability_sources</code> — so the sweep reads Furnace's effective abilities <span class="read board">board</span>; <span class="fn">set_affects</span> asks <code>PlayerSet::Everyone.contains(0, 1)</code> → yes. Then the registry <span class="read registry">registry</span>: Mending Hands' row, <code>Fixed([1]).contains(1)</code> → yes. Two candidates, sweep first: <code>[Furnace (StaticAbility), Mending Hands (Registered)]</code>.</li>
+<li class="new"><span class="fn">must_choose_among</span>: both <code>Other</code>. <span class="fn">ordering_cannot_change_outcome</span>: not all multipliers — one member is <code>PreventRemaining</code> — so <b>false</b>; this choice is real (it is the ruling).</li>
+<li class="decide"><span class="fn">ask_choose_replacement(player 1, sources [Furnace, Mending Hands])</span> <span class="read player">player</span>.</li>
+</ol>
+<div class="prose"><p><b>Order 1 — the shield first</b> (index 1):</p></div>
+<ol class="trace">
+<li class="new"><span class="fn">next_damage_shares</span>: the rewrite is <code>PreventRemaining</code> on <code>NextDamage(4)</code>. One applicable member, no <code>later</code> members → one bucket → <code>[min(4, 5)] = [4]</code>, nothing asked, nothing stored.</li>
+<li class="changed"><span class="fn">apply_rewrite(share 4)</span>: <code>PreventRemaining.capped(4) = PreventUpTo(4)</code>; <code>prevented 4</code>, <code>after 1</code>, <code>took_effect</code>. No rider on Mending Hands.</li>
+<li class="changed"><span class="fn">consume_use</span>, <em>after</em> the application: <span class="fn">spend_next_damage(row, 4)</span> → 0 → the row is removed <span class="read registry">registry</span>.</li>
+<li>Iteration 2 on the 1-damage event: <span class="fn">gather</span> finds Furnace only (the row is gone; Furnace is not yet in the applied set). One candidate, forced: <code>×2</code> → 2.</li>
+<li>Iteration 3: Furnace is in the applied set; no candidates. Phase 2 performs 2 damage → the contained <code>LoseLife</code> → player 1 at <b>18</b>.</li>
+</ol>
+<div class="prose"><p><b>Order 2 — Furnace first</b> (index 0):</p></div>
+<ol class="trace">
+<li>Iteration 1 applies <code>Multiplier(2)</code>: 5 → 10. <code>took_effect</code>; Furnace is <code>Static</code>, nothing to spend.</li>
+<li>Iteration 2: Mending Hands alone (Furnace applied). <span class="fn">next_damage_shares</span> → <code>[min(4, 10)] = [4]</code>; <code>PreventUpTo(4)</code> on 10 → <code>prevented 4</code>, <code>after 6</code>.</li>
+<li class="changed"><span class="fn">spend_next_damage(row, 4)</span> → removed. Iteration 3: nothing. Player 1 at <b>14</b>.</li>
+</ol>
+<div class="callout"><b>Either order spends the count by exactly 4</b>, because the spend happens after the application and reads what it did — not because 4 happened to be the count. Order 1 prevents 4 of 5; order 2 prevents 4 of 10. Under the old order of operations the count would have had to be reduced before anyone knew how much of it the event could take.</div>
+
+<h2>Trace C — a count of 3 under sources of 2 and 4</h2>
+<div class="prose">
+<p><code>ATOM-615.7-002</code>'s board. Player 1's Mending Hands is first brought from 4 to 3 by a 1-damage ping; then player 0's two attackers, powers 2 and 4, connect at once.</p>
+</div>
+<div class="callout rule"><b>CR 615.7</b> — "If damage would be dealt to the shielded permanent or player by two or more applicable sources at the same time, the player or the controller of the permanent chooses which damage the shield prevents." And its last sentence: "such effects count only the amount of damage; the number of events or sources dealing it doesn't matter."</div>
+<ol class="trace">
+<li class="changed"><b>The ping.</b> A batch of one; <span class="fn">next_damage_shares</span> → <code>[min(4, 1)] = [1]</code>; <code>prevented 1</code>, <code>after 0</code>. <span class="fn">spend_next_damage(row, 1)</span> edits the row <em>in place</em> through <span class="fn">update_rows</span> — same id, <code>NextDamage(3)</code> <span class="read registry">registry</span>. Iteration 2: <span class="fn">never_happens</span> drops the 0 (CR 614.7a). Nothing is dealt, nothing is announced.</li>
+<li><b>Combat.</b> <span class="fn">apply_combat_damage</span> → a batch of two: <code>A→Player 1: 2</code>, <code>B→Player 1: 4</code>, in battlefield order. Both choosers are player 1; <b>one group</b> <code>{Player 1: [0, 1]}</code>.</li>
+<li class="changed">Iteration 1, <span class="fn">gather</span> per member <span class="read registry">registry</span>: the row applies to both → one <code>Candidate</code>, <code>members: [0, 1]</code>. One candidate, so <b>no <code>ChooseReplacementEffect</code> prompt</b> — CR 616.1 has nothing to order.</li>
+<li class="new"><span class="fn">next_damage_shares</span>: <code>here = [(0, A, 2), (1, B, 4)]</code>. <span class="fn">prevention_allocations.shares_for(row)</span> <span class="read state">state</span> → none yet. <code>later</code> is empty (no other group). Two buckets; <span class="fn">chooser_for</span> on each member <span class="read board">board</span> → player 1 and player 1, one chooser. <span class="fn">record_prevention_allocation</span> ticks the reachability counter.</li>
+<li class="decide"><span class="fn">ask_allocate_next_damage(player 1, source Mending Hands, remaining 3, [(A, 2), (B, 4)])</span> <span class="read player">player</span>: total <code>min(3, 6) = 3</code>, mins <code>[0, 0]</code>, maxs <code>[2, 4]</code>. The scripted answer is <code>[2, 1]</code> in one run and <code>[0, 3]</code> in the other; <span class="fn">validate_allocation</span> checks the sum and the caps.</li>
+<li class="new">The answer is pushed onto <code>GameState.prevention_allocations</code> <span class="read state">state</span> as <code>(row, [(0, 2), (1, 1)])</code> — before anything is applied, so a fork at any later prompt in this batch would see it (item 40).</li>
+<li class="changed"><b>Apply per member, with its share.</b> Member 0: <code>capped(2)</code> → <code>prevented 2</code>, <code>after 0</code>. Member 1: <code>capped(1)</code> → <code>prevented 1</code>, <code>after 3</code>. <code>outcome.prevented = 3</code>, <code>took_effect</code>.</li>
+<li class="changed"><span class="fn">consume_use</span>: <span class="fn">spend_next_damage(row, 3)</span> → 0 → removed <span class="read registry">registry</span>.</li>
+<li>Iteration 2: member 0 is a 0 and <span class="fn">never_happens</span> drops it; member 1 gathers nothing. Return <code>[(0, None), (1, Some(3))]</code>. Phase 2: <code>DamageDealt(B, 3)</code>, player 1 at <b>17</b>. With <code>[0, 3]</code>: <code>DamageDealt(A, 2)</code> and <code>DamageDealt(B, 1)</code> — still 17.</li>
+</ol>
+<div class="callout before"><b>The per-member loop, on the same board.</b> Member 0's loop would prevent <code>min(3, 2) = 2</code> and spend 2; member 1's would prevent <code>min(1, 4) = 1</code>. The total is the same 3 — and the choice CR 615.7 gives the shielded player <em>never exists</em>. That is the "silent wrong choice" §9's RD decision 3 says a phase must not open: first-come allocation, with no prompt to show it happened.</div>
+
+<h3>C′ — the multi-subject instance</h3>
+<div class="prose">
+<p>The allocation is per <em>instance</em>, not per group. <code>a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_waits_on_variable</code> puts a count of 3 over "you and permanents you control" under attacker A (2, unblocked) and attacker B (4, blocked by your 5/5). Three members, three subjects; the count applies to two of them.</p>
+</div>
+<ol class="trace">
+<li>Groups in APNAP order: <code>{B: [wall→B 5]}</code> (player 0's creature, active player first), then <code>{Player 1: [A→you 2]}</code>, then <code>{wall: [B→wall 4]}</code>. Group B has no candidates.</li>
+<li class="new">Group <code>{Player 1}</code> chooses the count (forced). <span class="fn">next_damage_shares</span>: <code>here = [(1, A, 2)]</code>; no stored shares; <b>the <code>later</code> members</b> <span class="read board">board</span>: <code>B→wall 4</code> is <code>DealDamage</code> and <span class="fn">applies_to</span> says yes (the wall is player 1's, the row's <code>Filter</code> is <code>ByController(You)</code>). Two buckets across two subjects; both choosers are player 1.</li>
+<li class="decide"><span class="fn">ask_allocate_next_damage</span> over <code>[(A, 2), (B, 4)]</code>, total 3 <span class="read player">player</span> → <code>[1, 2]</code>, stored as <code>(row, [(1, 1), (2, 2)])</code> <span class="read state">state</span>. This group's share: <code>[1]</code>. Prevent 1 of 2; spend 1 → <code>NextDamage(2)</code>.</li>
+<li class="new">Group <code>{wall}</code>: the row is re-gathered with <code>NextDamage(2)</code>; <span class="fn">next_damage_shares</span> finds <b>stored</b> shares <span class="read state">state</span> and returns <code>[min(2, 4, 2)] = [2]</code> — <em>no second prompt</em>. Prevent 2 of 4; spend 2 → removed.</li>
+<li>Player 1 at 19, the wall marked 2, B marked 5 (the wall's own damage is nobody's business). One prompt, one instance, three subjects.</li>
+</ol>
+
+<h2>Trace D — nothing was consumed, and why</h2>
+<div class="prose">
+<p>Two boards where the count ends untouched, for two different reasons the code now keeps apart.</p>
+</div>
+<h3>D — Safe Passage beside Mending Hands, 3 damage, both orders</h3>
+<ol class="trace">
+<li>Rows, in registration order <span class="read registry">registry</span>: Safe Passage — <code>Filter {creatures you control} + PlayerSet::You</code>, <code>Prevent</code>, <code>Static</code>; Mending Hands — <code>Fixed([1])</code>, <code>NextDamage(4)</code>.</li>
+<li>Iteration 1: both apply to damage to player 1 (<code>You.contains(1, 1)</code>; <code>Fixed([1])</code>). Two candidates, not order-invariant → <span class="fn">ask_choose_replacement</span> <span class="read player">player</span>.</li>
+<li class="changed"><b>Safe Passage first</b> (index 0): <code>Prevent</code> → <code>None</code>, <code>took_effect</code>; <span class="fn">consume_use</span> on a <code>Static</code> spends nothing. Iteration 2: no live member; return. Mending Hands was <b>never chosen</b>: its row still says <code>NextDamage(4)</code>, and CR 614.5's opportunity for it never arose because the event stopped existing first.</li>
+<li class="changed"><b>Mending Hands first</b> (index 1): shares <code>[min(4, 3)] = [3]</code>; prevent 3, <code>after 0</code>; <span class="fn">spend_next_damage(row, 3)</span> → <code>NextDamage(1)</code>. Iteration 2: <span class="fn">never_happens</span> drops the 0 before Safe Passage is gathered again. Player 1 at 20 either way; the count reads <b>4</b> or <b>1</b>, and only the second spent anything — because only the second prevented anything.</li>
+</ol>
+<h3>D′ — chosen, and did nothing</h3>
+<div class="prose">
+<p>Dark Sphere's shape (RD-3's card), as a fixture: a <code>Once</code> row, <code>PreventHalf(Down)</code>, with a rider "you gain that much life", chosen against 1 damage.</p>
+</div>
+<div class="callout rule"><b>CR 609.7b</b> — "… If for any reason the shield prevents no damage or replaces no damage, the shield isn't used up."</div>
+<ol class="trace">
+<li>One candidate, forced. <span class="fn">apply_rewrite</span>: <code>PreventHalf(Down).prevented(1) = 0</code>, <code>apply(1) = 1</code>; so <code>Applied { took_effect: false, prevented: 0 }</code> — the event came out as it went in.</li>
+<li class="changed">The rider is queued regardless (CR 615.12's unconditional-once-queued), with <code>prevented: 0</code>.</li>
+<li class="changed"><span class="fn">consume_use</span>: <code>Once</code> and <code>!took_effect</code> → <b>return without removing the row</b> <span class="read registry">registry</span>. Under the old order the row was removed on being chosen, one line before anyone computed that it would do nothing.</li>
+<li>Phase 2 deals 1 (player 1 at 19). Phase 3: <span class="fn">resolve_rider</span> builds a context with <code>damage_prevented: Some(0)</code>; <code>GainLife(DamagePrevented)</code> evaluates to 0 and <span class="fn">never_happens</span> drops it (CR 119.10) — no <code>LifeChanged</code>. The next 5 damage meets the same row: prevents 2, gains 2, and <em>then</em> the row goes.</li>
+</ol>
+
+<h2>Where the reads differ</h2>
+<div class="prose"><p>The payload. Each row is one read the loop makes, before and after RD-2, and the board on which the difference is observable.</p></div>
+<div class="wrap">
+<table>
+<tr><th>Read</th><th>Per member (RD-1)</th><th>Per subject (RD-2)</th><th>Observable on</th></tr>
+<tr><td>CR 614.5's applied set</td><td class="diff-old">one per batch member, fresh each</td><td class="diff-new">one per <em>(batch, subject)</em> group</td><td>A — one counter, not two</td></tr>
+<tr><td>Who is asked, and how often</td><td class="diff-old"><code>chooser_for</code> per member; the same question per member</td><td class="diff-new">once per group; members of one subject share a chooser by construction</td><td>C — no CR 616.1 prompt with one candidate; one 615.7 prompt for two members</td></tr>
+<tr><td>What <code>gather</code> returns</td><td class="diff-old">one member's candidates</td><td class="diff-new">a union keyed by instance, each candidate carrying the members it applies to</td><td>A step 5; RD-3's source predicates will make the member lists uneven</td></tr>
+<tr><td>How a chosen instance is applied</td><td class="diff-old">to the one member</td><td class="diff-new">to every group member it applies to, in member order, each with its own share</td><td>C step 7 — <code>capped(2)</code> then <code>capped(1)</code></td></tr>
+<tr><td>How many riders</td><td class="diff-old">one per member that chose it</td><td class="diff-new">one per group, <code>replaced_amount</code> and <code>prevented</code> summed</td><td>A — one <code>RemoveCounters</code>; Angel of Suffering mills 10 once</td></tr>
+<tr><td>When a use is spent</td><td class="diff-old">on being chosen, before <code>apply_rewrite</code></td><td class="diff-new">after, by <code>Applied { took_effect, prevented }</code></td><td>B — 4 either way; D′ — not at all</td></tr>
+<tr><td>What <code>Once</code> costs</td><td class="diff-old">the row, always</td><td class="diff-new">the row iff the rewrite took effect (CR 609.7b)</td><td>D′</td></tr>
+<tr><td>What a CR 615.7 count costs</td><td class="diff-old">— (no count existed)</td><td class="diff-new"><code>spend_next_damage(row, prevented)</code>, in place, removed at 0</td><td>B, C — the same id from 4 to 3 to 0</td></tr>
+<tr><td>Where CR 615.7's choice lives</td><td class="diff-old">nowhere — first come, member order</td><td class="diff-new"><code>next_damage_shares</code>: one prompt per instance over every applicable member, later groups included; the answer on <code>GameState.prevention_allocations</code></td><td>C, C′</td></tr>
+<tr><td>What the frame reads</td><td>the one member</td><td>the first live member — a group with an entry is a group of one</td><td>unchanged for every RC board</td></tr>
+<tr><td>Which buckets ask nobody</td><td class="diff-old">all-<code>EnterWith</code> (item 19)</td><td class="diff-new">all-<code>EnterWith</code>, or all-<code>Multiplier(n ≥ 1)</code> on <code>DealDamage</code> (item 29)</td><td>two Furnaces of Rath: 0 prompts, ×4</td></tr>
+<tr><td>The debug re-gather after a suppressed choice</td><td class="diff-old">asserts every unsuppressed candidate still applies to the event</td><td class="diff-new">per member, and only for candidates that applied to that member</td><td>no registered board yet; RD-3's uneven member lists are why</td></tr>
+</table>
+</div>
+
+<h2>What RD-2 changed, trace by trace — and what is still open</h2>
+<div class="prose">
+<p><b>A</b> is the change of unit: <code>execute_batch_inner</code> groups by <code>subject_of</code>, and one applied set per group is what makes CR 122.1c's ruling come out right without making Kalitas's come out wrong. A′ is the proof that the batch scopes the group, which is the fact CR 510.4 hands the engine for free once the unit is right.</p>
+<p><b>B</b> is decision 7 made observable: because the spend follows the application, "prevent 4 then double" and "double then prevent 4" both cost the count 4 — the number the application reports, not the number the row started with.</p>
+<p><b>C</b> is decision 3's other half: CR 615.7's choice exists only when several sources meet one count at once, it is the affected side's, it is asked once per instance over every member the instance applies to, and its answer is state a fork must see. C′ is the same rule reaching across subjects, which is the shape Divine Deflection and Harm's Way will need and RD-2 tests through a fixture.</p>
+<p><b>D</b> separates two reasons for an untouched count — never chosen versus chosen and did nothing — which the old loop could not have told apart because it spent the use before it knew. That separation is also why §11 item 30's re-ask came back "no move": <code>NextDamage(remaining)</code> on the row is a number a test can read, not an absence.</p>
+<p><b>Open</b>, each with a dated line in <code>codebase-state.md</code>: the row's <code>targets</code> have no reader until Divine Deflection's recipient leaf (item 90); <code>PreventUpTo</code> waits for RD-3's source predicate to get a printed producer (91); a count spanning subjects with two choosers is refused rather than answered (92); a later group's doubling ahead of a stored share moves the member, not the share (93); Kitsune Palliator's each-player recipient does not exist (94). RD-3 inherits the group form with candidates that already carry per-member applicability, which is the seam its source predicates need — <code>plans/handoffs/rd.md</code> says what else.</p>
+</div>
+
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true, curve: "basis" } });
+</script>
+</body>
+</html>

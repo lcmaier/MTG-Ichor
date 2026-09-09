@@ -1,5 +1,6 @@
-//! Cards for Phase RD-1 — the damage event's two subjects and its results
-//! (CR 614.5, 615.10, 701.10g, 120.3).
+//! Cards for Phase RD — damage (CR 614.5, 615, 701.10g, 120.3).
+//!
+//! # RD-1 — the damage event's two subjects and its results
 //!
 //! **Four printed cards on two axes, and a fixture for the third result.**
 //! `replacement-architecture.md` §9's RD-1 section names them; what follows is
@@ -69,16 +70,42 @@
 //! pooled one; Ghosts of the Innocent is seven, Gisela six, Angel of Suffering
 //! five, and all three are registered for the stress pool, where the point is
 //! breadth rather than frequency.
+//!
+//! # RD-2 — CR 615.7 prevention shields, and the loop's unit
+//!
+//! **Four printed cards, one per shape a resolution-created prevention effect
+//! takes** (§9's RD-2 section; `engineering-practices.md` §3.3, tier 2). Every
+//! one of them is a [`Primitive::CreateReplacement`] — the durational form
+//! `Effect::Replacement` refused to be — and they differ in what the
+//! resolution fills in and where the count lives:
+//!
+//! | Card | Recipient | Rows at resolution | Count |
+//! |---|---|---|---|
+//! | [`mending_hands`] | `Target(Any)` | one, on the object or player it targeted | `NextDamage(4)` |
+//! | [`samite_healer`] | `Target(Any)`, from a `{T}` ability | one per activation | `NextDamage(1)` |
+//! | [`safe_passage`] | `Implicit` | one, `Filter` + `You`, asked at each event | none — `Uses::Static` |
+//! | [`samite_censer_bearer`] | `FilteredPermanents` | one **per creature** you control then (CR 615.11) | `NextDamage(1)` each |
+//!
+//! Mending Hands is the pooled one: the first registry row a damage event in
+//! the pool meets, and the first CR 615.7 `allocate` prompt a fuzz game can
+//! reach — two attackers into a shielded player is a board every combat step
+//! builds. Healing Salve was the canonical printing and is modal, which
+//! `Effect::Modal` cannot resolve yet, so its plain sibling ships instead. The
+//! other three are registered for the stress pool: Samite Healer is the
+//! repeatable source of rows the random agent will activate, Safe Passage is
+//! the set evaluated at the event rather than fixed at resolution (its rulings
+//! say so from both sides), and Samite Censer-Bearer is CR 615.11's own text.
 
 use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
+use crate::types::costs::Cost;
 use crate::types::ids::new_ability_id;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -395,6 +422,210 @@ pub fn loyalty_probe() -> Arc<CardData> {
         .build()
 }
 
+// ---------------------------------------------------------------------------
+// RD-2 — CR 615.7 prevention shields
+// ---------------------------------------------------------------------------
+
+/// A spell or activated ability whose whole effect is one atom.
+fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
+    AbilityDef {
+        id: new_ability_id(),
+        ability_type,
+        costs,
+        effect,
+        is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+    }
+}
+
+/// "Prevent the next `n` damage that would be dealt to … this turn" — the def
+/// every count-carrying card here shares.
+///
+/// [`AmountRewrite::PreventRemaining`] reads the count off
+/// `Uses::NextDamage(n)`, so the number is written once; the object set is the
+/// empty `Fixed` the resolution fills with its target — or, for Samite
+/// Censer-Bearer, with each creature its filter finds — and the duration is the
+/// card's "this turn", authored here because CR 608.2c will not let the engine
+/// infer it.
+fn prevent_the_next_this_turn(n: u64) -> Primitive {
+    Primitive::CreateReplacement(
+        Box::new(
+            ReplacementDef::new(
+                EventPattern::DealDamage,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::PreventRemaining),
+            )
+            .next_damage(n),
+        ),
+        Duration::UntilEndOfTurn,
+    )
+}
+
+/// "any target" — CR 115.4's creature, player or planeswalker.
+fn any_target() -> EffectRecipient {
+    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1))
+}
+
+/// "creatures you control", as a filter the layer walk resolves against the
+/// row's controller (CR 109.5).
+fn creatures_you_control() -> ObjectFilter {
+    ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    )
+}
+
+/// Mending Hands — {W}
+///
+/// > Prevent the next 4 damage that would be dealt to any target this turn.
+///
+/// The plain CR 615.7 shield: one row, `NextDamage(4)`, the target filled in at
+/// resolution as an object or a player, gone when the count reaches zero or at
+/// the cleanup step (CR 615.3's "until they're used up or their duration has
+/// expired"). Scryfall lists no rulings (2026-09-08), so its tests are the
+/// rule's own: the count depletes per point across events (`ATOM-615.7-001`), a
+/// 4 against 5 lets 1 through, two attackers into a shielded player are one
+/// `allocate` prompt whose every answer prevents the same total
+/// (`ATOM-615.7-002`), and a shield made after the damage prevents nothing
+/// (`ATOM-615.4-001`).
+///
+/// **The pooled card of the phase**, because it is the first registry row a
+/// pooled damage event meets and the first CR 615.7 prompt a fuzz game can
+/// reach. Healing Salve was the canonical printing and is modal.
+pub fn mending_hands() -> Arc<CardData> {
+    CardDataBuilder::new("Mending Hands")
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text("Prevent the next 4 damage that would be dealt to any target this turn.")
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(prevent_the_next_this_turn(4), any_target()),
+        ))
+        .build()
+}
+
+/// Samite Healer — {1}{W}
+///
+/// > {T}: Prevent the next 1 damage that would be dealt to any target this
+/// > turn.
+///
+/// The activated shape — a repeatable source of rows on a creature the random
+/// agent will tap — and the card that pins CR 113.7a on the row: an ability's
+/// source is the permanent that has it, so the row names the Healer, not the
+/// stack object CR 608.2n deletes the moment the ability finishes resolving.
+/// Scryfall lists no rulings (2026-09-08).
+pub fn samite_healer() -> Arc<CardData> {
+    CardDataBuilder::new("Samite Healer")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Cleric))
+        .power_toughness(1, 1)
+        .rules_text("{T}: Prevent the next 1 damage that would be dealt to any target this turn.")
+        .ability(one_shot(
+            AbilityType::Activated,
+            vec![Cost::Tap],
+            Effect::Atom(prevent_the_next_this_turn(1), any_target()),
+        ))
+        .build()
+}
+
+/// Safe Passage — {2}{W}
+///
+/// > Prevent all damage that would be dealt to you and creatures you control
+/// > this turn.
+///
+/// A `Filter` + `You` row with no count and `Uses::Static` — the shape whose
+/// set is evaluated **at the event**, which is the whole difference between it
+/// and Samite Censer-Bearer below.
+///
+/// # The rulings (Scryfall, 2026-09-08), and where each is tested
+///
+/// - *prevents all damage, not just combat damage* → a non-combat bolt to its
+///   caster is prevented.
+/// - *will prevent damage dealt to creatures that weren't on the battlefield
+///   at the time it resolved* → the load-bearing one: a creature placed after
+///   resolution is covered, because the row carries a `Filter` and not a
+///   `Fixed` — the opposite of CR 615.11's ruling on Censer-Bearer.
+/// - *doesn't prevent damage that would be dealt to planeswalkers you
+///   control* → Loyalty Probe under Safe Passage loses loyalty; the filter is
+///   `ByType(Creature)`.
+/// - *has no effect on damage that's already been dealt* → damage marked
+///   before it resolves stays marked (CR 615.4 from the other side).
+pub fn safe_passage() -> Arc<CardData> {
+    CardDataBuilder::new("Safe Passage")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "Prevent all damage that would be dealt to you and creatures you control this turn.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(
+                        ReplacementDef::new(
+                            EventPattern::DealDamage,
+                            AffectedSet::Filter { filter: creatures_you_control() },
+                            Rewrite::Prevent,
+                        )
+                        .affecting_players(PlayerSet::You),
+                    ),
+                    Duration::UntilEndOfTurn,
+                ),
+                EffectRecipient::Implicit,
+            ),
+        ))
+        .build()
+}
+
+/// Samite Censer-Bearer — {W}
+///
+/// > {W}, Sacrifice this creature: Prevent the next 1 damage that would be
+/// > dealt to each creature you control this turn.
+///
+/// CR 615.11's consumer: "creates a prevention shield for each applicable
+/// creature when the spell or ability … resolves". The recipient is
+/// `FilteredPermanents`, so the resolution makes **one row per creature** it
+/// finds, each with its own `NextDamage(1)` — the Censer-Bearer itself is
+/// already in the graveyard, sacrificed as the cost.
+///
+/// The ruling (Scryfall, 2026-09-08): *this ability sets up a separate 1-point
+/// damage prevention shield on each creature you control at the time the
+/// ability resolves* → a creature entering afterwards has none
+/// (`ATOM-615.11-001`), and two creatures each taking 2 each take 1, because
+/// the counts are separate. Kitsune Palliator's "each creature and each
+/// player" is this card plus an each-player recipient `EffectRecipient` lacks;
+/// one customer, so it waits.
+pub fn samite_censer_bearer() -> Arc<CardData> {
+    CardDataBuilder::new("Samite Censer-Bearer")
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Rebel))
+        .subtype(Subtype::Creature(CreatureType::Cleric))
+        .power_toughness(1, 1)
+        .rules_text(
+            "{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to \
+             each creature you control this turn.",
+        )
+        .ability(one_shot(
+            AbilityType::Activated,
+            vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf],
+            Effect::Atom(
+                prevent_the_next_this_turn(1),
+                EffectRecipient::FilteredPermanents(creatures_you_control()),
+            ),
+        ))
+        .build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -613,5 +844,182 @@ mod tests {
             game.battlefield[&probe].counter_count(CounterType::Loyalty),
             3
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // RD-2
+    // -----------------------------------------------------------------------
+
+    use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+    use crate::events::event::GameEvent;
+    use crate::state::replacement_effects::RegisteredReplacementEffect;
+    use crate::test_support::put_in_hand;
+    use crate::types::replacement::Uses;
+
+    /// Resolve `card`'s spell effect for `controller` against `targets`, the
+    /// way the stack would — the card's own id is the resolution's source.
+    fn resolve_spell(
+        game: &mut GameState,
+        card: Arc<CardData>,
+        controller: crate::types::ids::PlayerId,
+        targets: Vec<ResolvedTarget>,
+    ) -> crate::types::ids::ObjectId {
+        let id = put_in_hand(game, card.clone(), controller);
+        let ctx = ResolutionContext {
+            source: id,
+            ability_source: None,
+            controller,
+            targets,
+            replaced_amount: None,
+            damage_prevented: None,
+        };
+        let dp = crate::test_support::test_dp();
+        game.resolve_effect(&card.abilities[0].effect, &ctx, &dp).unwrap();
+        id
+    }
+
+    fn rows(game: &GameState) -> Vec<&RegisteredReplacementEffect> {
+        game.replacement_effects.iter().collect()
+    }
+
+    fn bolt(game: &mut GameState, source: crate::types::ids::ObjectId, target: DamageTarget, amount: u64) {
+        game.execute_action(
+            GameAction::DealDamage { source, target, amount, is_combat: false },
+            &test_ctx(),
+        )
+        .unwrap();
+    }
+
+    fn damage_dealt(game: &GameState) -> usize {
+        game.events.events().filter(|e| matches!(e, GameEvent::DamageDealt { .. })).count()
+    }
+
+    // The plain shield: one row, on the player it targeted, counting four,
+    // for this turn, with the resolution's target kept on it.
+    #[test]
+    fn mending_hands_makes_one_row_counting_four_on_its_target() {
+        let mut game = setup_two_player_game();
+        let spell = resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Player(1)]);
+        let rows = rows(&game);
+        assert_eq!(rows.len(), 1);
+        let row = rows[0];
+        assert_eq!(row.def.uses, Uses::NextDamage(4));
+        assert_eq!(row.def.affected, AffectedSet::NO_OBJECTS);
+        assert_eq!(row.def.affected_players, PlayerSet::Fixed(vec![1]));
+        assert_eq!(row.duration, Duration::UntilEndOfTurn);
+        assert_eq!(row.source, spell);
+        assert_eq!(row.controller, 0);
+        assert_eq!(row.targets, vec![ResolvedTarget::Player(1)]);
+        assert!(row.def.is_prevention());
+    }
+
+    // Targeting a creature fills the object half instead, and leaves the
+    // player half empty.
+    #[test]
+    fn mending_hands_on_a_creature_fills_the_object_set() {
+        let mut game = setup_two_player_game();
+        let bear = place_vanilla_creature(&mut game, 1, 2, 2, &[]);
+        resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bear)]);
+        let row = rows(&game)[0];
+        assert_eq!(row.def.affected, AffectedSet::Fixed(vec![bear]));
+        assert_eq!(row.def.affected_players, PlayerSet::Nobody);
+    }
+
+    // "Safe Passage prevents all damage, not just combat damage, that would be
+    // dealt to you and creatures you control this turn."
+    #[test]
+    fn safe_passage_prevents_noncombat_damage_to_its_caster() {
+        let mut game = setup_two_player_game();
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+        resolve_spell(&mut game, safe_passage(), 0, Vec::new());
+        bolt(&mut game, source, DamageTarget::Player(0), 3);
+        assert_eq!(game.players[0].life_total, 20);
+        assert_eq!(damage_dealt(&game), 0, "CR 615.6 — the damage never happened");
+    }
+
+    // "Safe Passage will prevent damage dealt to creatures that weren't on
+    // the battlefield at the time it resolved." The row is a `Filter`, asked
+    // at the event — the opposite of CR 615.11's fixed-at-resolution rows.
+    #[test]
+    fn safe_passage_covers_a_creature_that_entered_after_it_resolved() {
+        let mut game = setup_two_player_game();
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+        resolve_spell(&mut game, safe_passage(), 0, Vec::new());
+        let latecomer = place_vanilla_creature(&mut game, 0, 4, 4, &[]);
+        let theirs = place_vanilla_creature(&mut game, 1, 4, 4, &[]);
+        bolt(&mut game, source, DamageTarget::Object(latecomer), 3);
+        bolt(&mut game, source, DamageTarget::Object(theirs), 3);
+        assert_eq!(game.battlefield[&latecomer].damage_marked, 0);
+        assert_eq!(game.battlefield[&theirs].damage_marked, 3, "an opponent's creature is not covered");
+    }
+
+    // "Safe Passage doesn't prevent damage that would be dealt to
+    // planeswalkers you control." The filter is `ByType(Creature)`.
+    #[test]
+    fn safe_passage_does_not_cover_a_planeswalker_you_control() {
+        let mut game = setup_two_player_game();
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+        let probe = put_on_battlefield(&mut game, loyalty_probe(), 0);
+        resolve_spell(&mut game, safe_passage(), 0, Vec::new());
+        bolt(&mut game, source, DamageTarget::Object(probe), 2);
+        assert_eq!(game.battlefield[&probe].counter_count(CounterType::Loyalty), 1);
+    }
+
+    // "Safe Passage has no effect on damage that's already been dealt."
+    #[test]
+    fn safe_passage_has_no_effect_on_damage_already_dealt() {
+        let mut game = setup_two_player_game();
+        let source = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+        let mine = place_vanilla_creature(&mut game, 0, 4, 4, &[]);
+        bolt(&mut game, source, DamageTarget::Object(mine), 2);
+        resolve_spell(&mut game, safe_passage(), 0, Vec::new());
+        assert_eq!(game.battlefield[&mine].damage_marked, 2, "still marked");
+        bolt(&mut game, source, DamageTarget::Object(mine), 2);
+        assert_eq!(game.battlefield[&mine].damage_marked, 2, "and the next 2 are prevented");
+    }
+
+    // CR 113.7a — the row an ability makes names the permanent, which outlives
+    // the stack object CR 608.2n deletes when the ability finishes resolving.
+    // A real activation: `{T}` opens no mana window (CR 601.2g), so the one
+    // prompt is the target.
+    #[test]
+    fn samite_healer_taps_for_a_count_of_one_and_the_row_names_the_healer() {
+        use crate::ui::choice_types::ChoiceKind;
+        use crate::ui::decision::ScriptedDecisionProvider;
+
+        let mut game = setup_two_player_game();
+        let healer = put_on_battlefield(&mut game, samite_healer(), 0);
+        let dp = ScriptedDecisionProvider::new();
+        // `Any` offers the players first; index 1 is player 1.
+        dp.expect_pick_n(
+            ChoiceKind::SelectRecipients { recipient: any_target(), spell_id: healer },
+            vec![1],
+        );
+        game.activate_ability(0, healer, 0, &dp).expect("{T} is payable");
+        assert!(game.battlefield[&healer].tapped);
+        game.resolve_top_of_stack(&dp).unwrap();
+
+        let rows = rows(&game);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].source, healer);
+        assert!(game.objects.contains_key(&rows[0].source), "and it still exists");
+        assert_eq!(rows[0].def.uses, Uses::NextDamage(1));
+        assert_eq!(rows[0].def.affected_players, PlayerSet::Fixed(vec![1]));
+    }
+
+    // The cost is the card's: {W} and itself, in that order.
+    #[test]
+    fn samite_censer_bearer_costs_white_and_itself() {
+        let card = samite_censer_bearer();
+        let ability = &card.abilities[0];
+        assert_eq!(ability.ability_type, AbilityType::Activated);
+        assert_eq!(
+            ability.costs,
+            vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf]
+        );
+        assert!(matches!(
+            ability.effect,
+            Effect::Atom(_, EffectRecipient::FilteredPermanents(_))
+        ));
     }
 }

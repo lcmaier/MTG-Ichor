@@ -220,6 +220,103 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 - **Atoms** — 20, not re-filed.
 - **Owner** — none yet.
 
+### 2.24 "As though" effects (CR 609.4) — a rule fiction, scoped to one question
+
+**The surface that cannot express it.** Nothing in the engine can say "answer
+*this one* legality or cost question as if the board were different, and
+answer every other question normally". Every continuous effect the engine has
+changes what an object *is* (CR 613's layers) or forbids an action outright
+(CR 101.2's restrictions, `cant-effects-architecture.md`). An "as though"
+effect does neither: the object is unchanged for all purposes but one.
+
+**The CR names the category and scopes it**, which is the thing that makes
+this tractable rather than frightening:
+
+> **609.4.** Some effects state that a player may do something "as though" some
+> condition were true or a creature can do something "as though" some condition
+> were true. **This applies only to the stated effect. For purposes of that
+> effect, treat the game exactly as if the stated condition were true. For all
+> other purposes, treat the game normally.**
+
+So Masako the Humorless — "tapped creatures you control may block as though
+they were untapped" — does **not** make a creature untapped. It is still
+tapped for `Cost::Tap`, for "untap all creatures", for a "whenever a tapped
+creature" trigger, and for its own controller's next attack. Exactly one
+question, block legality, is answered against the fiction. That is the
+invariant to write down before anything is built, because the tempting
+implementation — a Layer-shaped "counts as untapped" row — gets every one of
+those other questions wrong at once.
+
+Two more rules matter and both make life easier:
+
+- **609.4a — they compose, and one can satisfy another's premise.** The CR's
+  own example is Vedalken Orrery ("cast spells as though they had flash") plus
+  Shaman's Trance ("play lands and cast spells from other players' graveyards
+  as though those cards were in your graveyard"): a sorcery with flashback in
+  an opponent's graveyard becomes castable. So the consult is a *union* over
+  applicable fictions, re-asked until it stops changing — the same shape
+  `is_prohibited` already unions restrictions in, not a precedence ladder.
+- **609.4b — spending mana "as though it were mana of any type" affects only
+  how a cost is paid.** "It doesn't change that cost, and it doesn't change
+  what mana was actually spent" — so this one is `cost-architecture.md`'s
+  payment side (CP-1), not cost *determination*, and it must not touch the
+  locked total. CR 118.14's "mana of any type can be spent" is the same rule.
+
+**The population, counted 2026-09-09.** Scryfall `o:"as though" -is:funny`:
+**287** cards. Not an edge case, and not one mechanic either — the shapes
+split by *which question* they re-answer:
+
+| Shape | Question re-answered | Examples | Rough count |
+|---|---|---|---|
+| Timing | may this be cast now (CR 601.3b–d, which the CR spells out for flash specifically) | Vedalken Orrery, Leyline of Anticipation | part of the **117** that pair "as though" with "you may cast"/"may play" |
+| Zone | may this be played from here | Shaman's Trance, Yawgmoth's Will, Wildfire Devils | the rest of that 117 |
+| Payment | may this mana pay that pip (609.4b) | Chromatic Lantern's cousins, Cascading Cataracts | **62** on `o:"spend mana as though"` |
+| Attack / block legality | may this attack or block | Masako the Humorless, **49** on `o:"as though it didn't have defender"` | ~50+ |
+| A value inside a check | what number does this rule read | "crew as though its power were 2 greater", "adapt as though it had no +1/+1 counters" (Biomancer's Familiar), Elvish Refueler's exhaust | **41** on `o:"as though" o:"power"`, plus the counter-fiction ones |
+
+**Why the first four are one mechanism and the fifth is the interesting one.**
+Waiving a check ("as though it didn't have defender", "as though it were
+untapped", "as though it had flash") is a *permission* consulted where a
+legality predicate is asked — the exact mirror of `Restriction`, which is
+already built, swept off effective ability lists, and asked through
+`is_prohibited(Query)` with one arm per decision site. A `Permission` def and
+an `is_permitted(Query)` beside it is a known shape done twice already
+(restrictions, cost modification), and CR 609.4a's union is `is_prohibited`'s
+union with the sign flipped.
+
+The fifth shape substitutes a **value** rather than waiving a check, and it is
+where the design question actually lives. The engine has the machinery: RC-4's
+`EntryFrame` already answers "what would this object's characteristics be
+under a hypothesis" for one bounded question, with `frame_of` returning the
+hypothetical for the object under test and the real board for everything else
+— which is CR 609.4's "for that effect / for all other purposes" split,
+built. So the likely shape is a **question-scoped frame**, not a new layer:
+the decision site names the question, the sweep supplies the fictions that
+apply to it, and the check runs against the overlay. What must be written
+down first, in the doc: **the fiction never reaches `compute_characteristics`
+and never reaches the layer walk** — the day it does, Masako's creature is
+untapped for the untap step and the whole rule inverts.
+
+**What it blocks.** Nothing on the critical path, and it is not a Phase 8
+breadth item either: it is a mechanism, and 287 cards is enough that Phase 8
+will hit it immediately. The three sub-shapes are separable and only the
+first is cheap.
+
+**Rough size.** The permission half (timing, zone, attack/block legality):
+~600–900, a `PermissionDef` mirroring `RestrictionDef`, `is_permitted` with
+one `Query` arm per site, the sweep, and 3–4 cards. The payment half
+(609.4b): ~200–300 on top of CP-1's payment, and it belongs with it. The
+value-substitution half: **unknown until scoped** — it needs the frame
+generalized past entries, which is RC-4's machinery pointed at a new
+question, and the sizing has to count the decision sites first. Graduates to
+`as-though-architecture.md` when scheduled; it is a sibling of
+`cant-effects-architecture.md` and should be written against it, because the
+two share the sweep, the union and the decision-site vocabulary and differ
+only in sign.
+
+**Prior art in this file:** §2.8 (where an ability functions) is the closest
+neighbour and overlaps on the zone shape.
+
 ### 2.23 Battles (CR 310), and CR 120.3h
 
 - **Rules** — CR 310 whole: casting a battle, its protector, defense counters
