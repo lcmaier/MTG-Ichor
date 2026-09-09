@@ -1622,6 +1622,24 @@ mod tests {
         assert!(rows(&game).is_empty(), "CR 615.3 — the duration expired");
     }
 
+    // The ruling: "It only affects damage dealt by the source one time. If the
+    // source damages you a second time this turn, the damage will not be
+    // reversed." And the rider is the printed reader of RD-2's prevented
+    // channel: 4 prevented is 4 life gained, once.
+    #[test]
+    fn reverse_damage_reverses_the_first_instance_only() {
+        let mut game = setup_two_player_game();
+        let source = put_on_battlefield(&mut game, lightning_bolt_creature(), 1);
+        resolve_spell(&mut game, reverse_damage(), 0, Vec::new());
+        assert_eq!(chosen_source(&game), Some(source));
+
+        bolt(&mut game, source, DamageTarget::Player(0), 4);
+        assert_eq!(life(&game, 0), 24, "prevented, and gained that much");
+
+        bolt(&mut game, source, DamageTarget::Player(0), 4);
+        assert_eq!(life(&game, 0), 20, "the second instance is not reversed");
+    }
+
     // The ruling: "if the source would deal 5 damage after two of these
     // abilities have resolved, the first one prevents 2 damage, reducing it to
     // 3 damage, then the second one prevents a further 1 damage, reducing the
