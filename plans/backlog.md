@@ -317,6 +317,17 @@ only in sign.
 **Prior art in this file:** §2.8 (where an ability functions) is the closest
 neighbour and overlaps on the zone shape.
 
+**The one piece of this that is scheduled, and it is not here.**
+`cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and RS-4**,
+written 2026-09-09 and deliberately ahead of this entry's own scheduling. Those
+two phases rewrite the combat validators and the payment sites, which are the
+sites an "as though" consult needs, and they are the only phases between now
+and this entry that touch them. §3.7 asks two things of that rewrite — that a
+consult can say *which* restriction forbade, and that a base-rule clause reads
+through an accessor rather than a field — so that this entry, whenever it is
+scheduled, is a normal diff rather than a second rewrite of the same four
+functions. Nothing else here is owed early.
+
 ### 2.23 Battles (CR 310), and CR 120.3h
 
 - **Rules** — CR 310 whole: casting a battle, its protector, defense counters

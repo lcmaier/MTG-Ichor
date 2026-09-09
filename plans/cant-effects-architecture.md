@@ -579,6 +579,86 @@ the exclusions are not re-litigated:
   belongs to the cost-modification phase `replacement-architecture.md` §9 asks
   for. 43 clauses, two existing homes.
 
+### 3.7 The mirror this document must not block — CR 609.4's "as though"
+
+**A fourth exclusion, added 2026-09-09, and the only one that comes with a
+constraint attached.** CR 609.4 is this document's opposite sign: effects that
+let a player or a creature do something *as though* some condition were true.
+It is not a CR 101.2 prohibition and never becomes one, so it is excluded from
+this phase — but it is enforced at **this phase's sites**, which is why the
+exclusion cannot be silent.
+
+> **609.4.** Some effects state that a player may do something "as though" some
+> condition were true or a creature can do something "as though" some condition
+> were true. **This applies only to the stated effect. For purposes of that
+> effect, treat the game exactly as if the stated condition were true. For all
+> other purposes, treat the game normally.**
+
+**It never fights CR 101.2, and that is the load-bearing good news.** A fiction
+is an *input* to a rule; a prohibition is a *veto* on the rule's answer. Masako
+the Humorless does not say "tapped creatures may block"; it says the blocking
+rule reads them as untapped. A separate "creatures you control can't block"
+still wins, and the creature is still tapped for its own controller's next
+attack, for a tap cost, and for a trigger watching tapped creatures. So the two
+compose in one fixed order — fiction, then rule, then prohibition — and
+`is_prohibited` keeps its last word. **There is no precedence question to
+design**, which is the thing that makes this a constraint on a seam rather than
+a second subsystem inside this one.
+
+**Measured 2026-09-09.** `backlog.md` §2.24 carries the census, the five
+shapes and the sizing; the numbers that matter here are that Scryfall's
+`o:"as though" -is:funny` is **287** cards, that **49** of them are
+"as though it didn't have defender", and that **62** are "spend mana as
+though". Combat and costs are the two biggest slices, and both are Tier 1a's
+and Tier 1e's sites.
+
+**Why it lands on this document rather than on a later one.** Combat legality
+has **zero** restriction consults today: `is_prohibited` has seven call sites
+and none is in `engine/combat`. `validate_attackers` reads `entry.tapped` and
+asks `has_keyword` for Defender inline; `can_block` reads `entry.tapped`. §7's
+RS-3a row rewrites **exactly** those functions — the two validators, `can_block`
+and the two enumerators — and re-expresses Defender as data. RS-4 and
+`cost-architecture.md`'s CP-1 do the same for the payment sites. **The seam an
+"as though" effect needs is cut once, by RS-3a and RS-4, and by nothing else
+between now and then.** Cut it one-sided and the same four functions are
+rewritten twice.
+
+**The constraint, and it is the whole of what this section asks. Two halves,
+both checkable at RS-3a's review.**
+
+1. **A consult must be able to say *which* restriction forbade, not only that
+   one did.** "Attack as though it didn't have defender" suppresses the
+   Defender-derived restriction and nothing else, so a creature that also has a
+   printed "can't attack" stays home. Today `is_prohibited` returns `bool` and
+   `restriction/predicate.rs` returns `true` on the first match, discarding the
+   attribution. **Free at RS-3a** if the combat consult carries the source
+   ability alongside its answer, since the sweep is already standing on the
+   effective ability list when it matches; a rewrite of the predicate
+   afterwards.
+2. **A base-rule clause must read through something interceptable.** CR
+   509.1a's "untapped" is a *rule*, not a restriction, so nothing in RS-3a's
+   table re-expresses it and Masako has no restriction to suppress — she
+   substitutes a value the rule reads. That is the half RS-3a would otherwise
+   get wrong by default, because the natural rewrite keeps `entry.tapped`
+   inline while moving only the *restriction* checks behind a consult. The ask
+   is one line of discipline: when the four functions are rewritten, each base
+   clause reads through an accessor rather than a field.
+
+**What this section does not ask for.** No `PermissionDef`, no `Query` arm, no
+card, no schedule change, and no sizing pass. CR 609.4's mechanism is
+`backlog.md` §2.24's and is sized there when it is scheduled; the argument for
+not sizing it now is that a design written far ahead of its build goes stale in
+this project, and §2.24 already carries enough to schedule against. This is the
+shape constraint alone, recorded before RS-3a so that it costs nothing.
+
+**The other half's constraint, for completeness.** Value substitution beyond
+combat — "crew as though its power were 2 greater", "adapt as though it had no
++1/+1 counters" — wants RC-4's look-ahead frame generalised past entries, and
+its own invariant is in §2.24: **the fiction never reaches
+`compute_characteristics`**. The day it does, Masako's creature is untapped for
+the untap step and the rule inverts. That half neither cheapens nor dears with
+time, so it is not this document's problem.
+
 ---
 
 ## 4. The enforcement points, one at a time
@@ -618,6 +698,10 @@ CR 122.1d's replacement).
 `rb-review.md` C6). The sweep is `gather`'s with the `Rewrite` half deleted.
 
 ### 4.2 Tier 1a — combat, and why it is a solver
+
+> **Before rewriting the validators, read §3.7.** CR 609.4's "as though" effects
+> are enforced at these exact sites and are not restrictions; the seam is cut
+> here once, and one-sided costs a second rewrite of the same four functions.
 
 **Rule.** CR 508.1c and 509.1b: the declaring player checks each creature
 against **restrictions**; if any are disobeyed the declaration is illegal. CR
@@ -877,6 +961,12 @@ hexproof is "by spells or abilities your **opponents** control", shroud is
 unconditional. One field, both keywords.
 
 ### 4.6 Tier 1e — costs, and the only *derived* restriction
+
+> **§3.7 binds this tier too.** "Spend mana as though it were mana of any
+> color" is 62 printed cards and CR 609.4b, which says it changes only how a
+> cost may be paid, never the cost. It is not a restriction; it is enforced at
+> the payment site RS-4 and CP-1 rewrite.
+
 
 **Rule.** CR 614.17b: "If an event can't happen, a player can't choose to pay a
 cost that includes that event."
