@@ -238,6 +238,7 @@ its consumer: two targets, no division, 36 real cards.
 | B5 | **RS-3a, RS-4, RS-3b** | combat predicates (1,267 of 1,277 Tier-1a clauses), costs, then the solver, which waits on A3 | 3 |
 | B6 | **CV-3 … CV-7** | CV-7 (merging, CR 729) is back-stopped before Phase 8 because a multi-component permanent is a fact every later phase would otherwise code against | ~5 |
 | B7 | **The lattice** (§4's table) | feature-shaped, order free; §2.8 (functioning zones, activation restrictions) first, since §2.3's cast-from-elsewhere keywords are written in it | 10–13 |
+| B8 | **"As though" effects** (CR 609.4) — `backlog.md` §2.24, graduating to `as-though-architecture.md` | **The permission half is back-stopped before C**, and this row is what schedules it: 287 cards, but a *mechanism* rather than breadth, so without it Phase 8 codes around it one card at a time — the same profile and the same back-stop as B6's CV-7 and as B4. **After B5, never before**: `cant-effects-architecture.md` §3.7 cuts its seam at RS-3a and RS-4, and going first would cut the same four combat functions from the permission side and retrofit the restrictions instead — the doubled rewrite mirrored. The **payment half** (609.4b) rides with **CP-1** rather than taking a slot, because §2.24 sizes it at ~200–300 *on top of* CP-1's payment site. The **value-substitution half** gets no back-stop on purpose: it is unsized, it needs RC-4's frame generalized past entries, and §2.24's own invariant — the fiction never reaches `compute_characteristics`, or Masako's creature is untapped for the untap step — has to be designed before a date means anything | 2 + CP-1 |
 
 ### C. Phase 8 — card breadth (643 atoms)
 
@@ -246,8 +247,9 @@ authored beside the cards that need them, the pool growing one card per new
 engine path (`engineering-practices.md` §3), and the deferred Scryfall import
 pipeline earning its slot when authoring speed binds. **Gates at its start:**
 A3 (no dependency-ordering-sensitive cards before it), B4 (no reveal or
-face-down cards before it), B6's CV-7, and **C0 below, which is the phase's
-first PR**. Milestone: **core-rules-complete** (§6).
+face-down cards before it), B6's CV-7, **B8's permission half** (no "as though"
+cards before it — 287 of them, and the entry was an inventory line with no date
+until 2026-09-09), and **C0 below, which is the phase's first PR**. Milestone: **core-rules-complete** (§6).
 
 **C0 — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
 Card definitions live in files named after the *engine phase* that first needed

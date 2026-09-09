@@ -317,16 +317,30 @@ only in sign.
 **Prior art in this file:** §2.8 (where an ability functions) is the closest
 neighbour and overlaps on the zone shape.
 
-**The one piece of this that is scheduled, and it is not here.**
-`cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and RS-4**,
-written 2026-09-09 and deliberately ahead of this entry's own scheduling. Those
-two phases rewrite the combat validators and the payment sites, which are the
-sites an "as though" consult needs, and they are the only phases between now
-and this entry that touch them. §3.7 asks two things of that rewrite — that a
-consult can say *which* restriction forbade, and that a base-rule clause reads
-through an accessor rather than a field — so that this entry, whenever it is
-scheduled, is a normal diff rather than a second rewrite of the same four
-functions. Nothing else here is owed early.
+**What is scheduled, and none of it is here — because this file is an
+inventory and §0 means it.** Two things now point outward, and the second was
+added 2026-09-09 after the observation that an entry with an owner and a size
+and no slot is not scheduled, it is merely recorded.
+
+1. **The back-stop lives on the route**: `roadmap-v2.md` §3a row **B8**, which
+   puts the permission half after B5 and before Phase 8, gates Phase 8's start
+   on it beside CV-7 and B4, rides the payment half with CP-1, and says why the
+   value-substitution half deliberately has no date. A back-stop is what turns
+   "recorded" into "scheduled", and it could not go in this file: §0 allows six
+   fields and no seventh, and "nothing here has a date" is the sentence that
+   makes the inventory trustworthy.
+2. **The seam is a constraint on two other phases.**
+   `cant-effects-architecture.md` §3.7 carries a constraint on **RS-3a and
+   RS-4**, written 2026-09-09 and deliberately ahead of this entry's own
+   scheduling. Those two phases rewrite the combat validators and the payment
+   sites, which are the sites an "as though" consult needs, and they are the
+   only phases between now and this entry that touch them. §3.7 asks two things
+   of that rewrite — that a consult can say *which* restriction forbade, and
+   that a base-rule clause reads through an accessor rather than a field — so
+   that this entry, whenever it is scheduled, is a normal diff rather than a
+   second rewrite of the same four functions.
+
+Nothing else here is owed early.
 
 ### 2.23 Battles (CR 310), and CR 120.3h
 
