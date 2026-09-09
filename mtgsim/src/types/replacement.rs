@@ -559,7 +559,7 @@ pub enum Rewrite {
     /// routed through `gather`'s `applies_to` either: a redirect whose
     /// destination is gone must still be gathered, offered to CR 616.1 and
     /// chosen — it applies and does nothing, rather than vanishing from the
-    /// list (`plans/handoffs/rd.md`, RD-3's note 2).
+    /// list (`replacement-architecture.md` §9, RD-4's "As landed", decision 3).
     ///
     /// Whole-event only. Harm's Way redirects *part* of one event, which is
     /// one `DealDamage` becoming two and a phase-1 member insertion rather

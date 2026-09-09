@@ -1126,7 +1126,8 @@ fn apply_rewrite(
         // **CR 615.12's second application site**, and there are two of them
         // because RD-3 gave `Rewrite::Prevent` a prevented amount of its own:
         // both arms have to answer the rule the same way, so both ask
-        // `prevented_or_0` (`plans/handoffs/rd.md`, RD-3's note 1).
+        // `is_unpreventable` (`replacement-architecture.md` §9, RD-4's
+        // "As landed").
         Rewrite::Amount(amount_rewrite) => match event {
             GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
                 // CR 615.7's cap is the instance's count. `PreventRemaining`

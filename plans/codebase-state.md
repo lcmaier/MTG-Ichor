@@ -78,7 +78,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
 | 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/cast.rs`, `engine/costs.rs` |
 | 119 | Life changes | ✅ with source attribution | `events/event.rs`, `engine/actions.rs` |
-| 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅. **CR 120.3's results are a list, decomposed off the target's effective types (RD-1, 2026-09-08)**: 120.3a proposes a contained `LoseLife { cause: Damage }` in the damage's batch, 120.3c proposes `RemoveCounters { Loyalty }` — so a planeswalker can die (CR 704.5i fires 4× in 400 stress games) — 120.3e is gated on the target being a creature, and 120.3f was already lifelink's. **120.3b/d/g/h ❌** — poison, wither's counters, toxic, a battle's defense counters; each is one more arm on the same `DamageResults`, and each has an owner (`backlog.md` §2.6 and §2.23; Deferred Migrations items 86 and 87) | `engine/actions.rs` (`DamageResults`), `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
+| 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅. **CR 120.3's results are a list, decomposed off the target's effective types (RD-1, 2026-09-08)**: 120.3a proposes a contained `LoseLife { cause: Damage }` in the damage's batch, 120.3c proposes `RemoveCounters { Loyalty }` — so a planeswalker can die (CR 704.5i fires 4× in 400 stress games) — 120.3e is gated on the target being a creature, and 120.3f was already lifelink's. **The event carries `unpreventable` from RD-4 (2026-09-09)** — CR 615.12's per-event shape, set by the effect that proposes the damage and carried through a CR 614.9 redirect, because "the same damage" is what a redirect moves. **120.3b/d/g/h ❌** — poison, wither's counters, toxic, a battle's defense counters; each is one more arm on the same `DamageResults`, and each has an owner (`backlog.md` §2.6 and §2.23; Deferred Migrations items 86 and 87) | `engine/actions.rs` (`DamageResults`), `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
 | 121 | Drawing | ✅ basic | `engine/actions.rs` |
 | 122 | Counters | ✅ 19 counter types (12 evergreen keyword + +1/+1, -1/-1, loyalty, charge, poison, commander damage), per-entity HashMap | `types/effects.rs`, `state/battlefield.rs`, `state/player.rs` |
 | 123 | Mana (pool, persistence, restrictions) | ✅ full `ManaPool` with restricted sidecar, persistence, grants, context-aware spending (T12b landed) | `types/mana.rs` (1370 lines) |
@@ -146,7 +146,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down); the CR 613.8 dependency algorithm (LI-2 — the board-wide pass it runs inside landed with LI-1, 2026-09-06, `engine/layers/board.rs`). Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | 🟡 **The pipeline is live. Phases RA (2026-08-25) and RB (2026-08-26) complete.** RA made every observable mutation a `GameAction` proposal carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution. RB put `apply_replacements` between proposal and mutation: CR 616.1a–g, 614.4/5/6/17, 616.2, CR 615.5 riders, CR 101.4 APNAP. Consumers: CR 122.1c/d/h counters, CR 701.19 regeneration, Kalitas, CR 903.9b. RC (2026-09-01–03) made entering one event through the CR 614.12 frame. **RD-1 (2026-09-08) and RD-2 (2026-09-09):** player scoping, `Rewrite::Amount`, CR 120.3's results; CR 615.7 counts from `Primitive::CreateReplacement`, decisions per `(batch, subject)`, a use spent by what it did (CR 609.7b), CR 615.7's allocation, CR 615.11's per-creature rows. **Not yet:** CR 614.15 self-replacement (bucket, no producer), CR 614.10/11/16 (RE), CR 615.8/9/10's source side and CR 609.7 (RD-3), CR 614.9 redirection and CR 615.12 (RD-4). See `plans/replacement-architecture.md` §9. |
+| **614–616** | **Replacement + prevention + interaction** | 🟡 **The pipeline is live. Phases RA (2026-08-25) and RB (2026-08-26) complete.** RA made every observable mutation a `GameAction` proposal carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution. RB put `apply_replacements` between proposal and mutation: CR 616.1a–g, 614.4/5/6/17, 616.2, CR 615.5 riders, CR 101.4 APNAP. Consumers: CR 122.1c/d/h counters, CR 701.19 regeneration, Kalitas, CR 903.9b. RC (2026-09-01–03) made entering one event through the CR 614.12 frame. **Phase RD complete (2026-09-08 – 09, four PRs).** RD-1 player scoping, `Rewrite::Amount`, CR 120.3's results; RD-2 CR 615.7 counts from `Primitive::CreateReplacement`, decisions per `(batch, subject)`, a use spent by what it did (CR 609.7b), CR 615.7's allocation, CR 615.11's per-creature rows; RD-3 CR 609.7's source predicate, 615.8/9/10; **RD-4 CR 614.9 redirection (`Rewrite::Retarget`, the destination re-check at application) and CR 615.12 (`DealDamage.unpreventable` plus `Restriction::ApplyReplacement { Prevention }`, meeting at one predicate where a prevention arm applies)**. `Rewrite` is now the closed algebra §3.2b claims: every arm has a printed customer. **Not yet:** CR 614.15 self-replacement (bucket, no producer), CR 614.10/11/16 (RE), CR 614.9's *partial* redirection (`backlog.md` §2.25). See `plans/replacement-architecture.md` §9. |
 
 ### CR 7 — Additional Rules
 
@@ -1466,6 +1466,22 @@ registered card returns an object.
     self-contained groups, so interleaving is a change to that loop rather than
     to `apply_replacements`. Revisit at RD-4.
 
+    **Reachability (2026-09-09, re-derived at RD-4's close):
+    reachable at last, and still not reached.** `Rewrite::Retarget` is the
+    rewrite every previous re-derivation said did not exist, and it *does*
+    change a member's subject — so it can change who CR 616.1 asks. The board:
+    an opponent's Pariah enchanting a creature **you** control moves damage
+    aimed at them onto an object you control, and your own group may already
+    have run to completion. That is CR 101.4d exactly.
+
+    **No card in either pool builds it**, and the reason is structural rather
+    than lucky: both printed redirects here are `PlayerSet::You`-scoped, so the
+    crossing needs an Aura played on an opponent's creature, which a random
+    agent does only by accident. The sizing is unchanged — phase 1 turned
+    inside out, a per-member state machine under an outer APNAP round-robin.
+    **Revisit at Phase 6**, where triggers make the other half of CR 101.4 live
+    anyway; not at RD, which is finished.
+
 26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
     should (`rb-review.md` H7).** If a batch carries two members naming one
     object — two `ZoneChange`s, or a `Destroy` and a `ZoneChange` — the first
@@ -1501,7 +1517,16 @@ section never asked.
     sized: `Rider.subject` is an `EventSubject` and `resolve_rider` emits
     `ResolvedTarget::Player`. Angel of Suffering's "mill twice that many cards"
     is the registered card that exercises it, and it is registered in the
-    stress pool. The original entry follows.
+    stress pool.
+
+    **Refined by RD-4 (2026-09-09).** The subject a rider carries is now the
+    subject of the first *member* the application touched, read before that
+    member's own rewrite — not the group's key. CR 614.9 can move a member's
+    subject mid-loop, so the two came apart; CR 615.5's "that much" is about
+    the event the effect replaced, which is the pre-rewrite reading.
+    `replacement-architecture.md` §11 item 35.
+
+    The original entry follows.
 
     **A rider cannot name the affected player, because `Rider` flattens the
     subject to an object.** `subject_object` (`engine/replacement/pipeline.rs`)
@@ -3368,7 +3393,8 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `Primitive::CreateReplacement` because the targets are unrecoverable a
     moment later and Divine Deflection's rider — "deals that much damage to
     any target", chosen at cast — needs them beside the event's subject
-    (`plans/handoffs/rd.md`, note 1). Threading them onto `ReplacementInstance`
+    (this item is the record; the handoff that first carried it is gone).
+    Threading them onto `ReplacementInstance`
     and `Rider`, and giving `ReplacementDef::then` a recipient leaf that says
     "the thing this effect targeted at resolution", is that card's PR, which
     also needs `AmountExpr::Variable`.
@@ -3628,14 +3654,30 @@ entries — one of them replacing a claim this review proved wrong — and the l
 audit is at the end.
 
 103. **`object_matches_filter`'s `Err` is swallowed at three sites, and the
-     three things that can raise it are all card-authoring errors.** Both legs
+     things that can raise it are card-authoring errors.** Both legs
      of `set_affects` and RD-3's source-side leg of `pattern_watches` end in
-     `.unwrap_or(false)`. The causes are exactly: an id with no object behind
-     it, `ObjectFilter::EachOther` (which neither an affected set nor a source
-     pattern has a source to be "other than" — the function refuses it rather
-     than guessing), and `PowerLE` against an object with no power. Every one
-     of them reads as **a card that silently does nothing**, which is the
-     failure mode this subsystem's own module doc names first.
+     `.unwrap_or(false)`. The causes were: an id with no object behind
+     it, `ObjectFilter::EachOther`, and `PowerLE` against an object with no
+     power. Every one of them reads as **a card that silently does nothing**,
+     which is the failure mode this subsystem's own module doc names first.
+
+     **`EachOther` is off the list from RD-4 (2026-09-09), and it never
+     belonged on it.** Palisade Giant's "other permanents you control" made it
+     live on its first board — the Giant redirected the damage aimed at *you*
+     and none of the damage aimed at your other permanents, because a player
+     subject never reaches the object filter. `set_affects` has carried the
+     effect's `source` since RB and the layer walk has answered the same leaf
+     off `FilterPlayers::source` since the layer system; the two simply were
+     not connected. `object_matches_filter_of_source` connects them, and the
+     two source-less entry points keep refusing the leaf, which is right for a
+     *selection*.
+
+     **The general lesson is about the instrument, not the leaf.** The 600-game
+     zero below is evidence about the **pool**, and a reachability zero can
+     only retire a concern the pool could have exercised. No card in either
+     pool used `EachOther` in an affected set, so the measurement said nothing
+     about it. It still holds for the two remaining causes, which are genuine
+     authoring errors.
 
      **Measured before deciding: zero.** The three sites were instrumented and
      run over 600 fuzz games — 200 `stress` at seed 12345, 200 `stress` at seed
@@ -3652,7 +3694,9 @@ audit is at the end.
      answer "not red" where the CR says "red".
 
      **Reachability (2026-09-09):** unreachable — instrumented at zero across
-     600 games on both pools, with the RD-3 cards forced.
+     600 games on both pools, with the RD-3 cards forced. Re-derived at RD-4's
+     close: unchanged for the two remaining causes, and the third is fixed
+     rather than measured.
 
      **Sized:** one change at all three sites or none — a `debug_assert!` on
      the `Err` arm keeps release behaviour and makes a debug run and `cargo
@@ -3766,6 +3810,63 @@ audit is at the end.
      §3 already has: the first phase whose engine path *is* an activated
      ability pools one deliberately and re-records the table, with item 104's
      numbers as the expected direction rather than as a reason to decline.
+
+### Found by RD-4 — redirection and unpreventable damage (2026-09-09)
+
+106. **`RetargetSpec::ToFixed(DamageTarget)` is the one arm §9 designed that
+     RD-4 did not build, and it is a *feature* on the triage rather than a
+     fact.** §9's RD-4 section names four arms; three shipped. A "fixed"
+     destination is Harm's Way's "any target" and Divine Deflection's — both
+     chosen **at cast**, which is the reason it is absent rather than an
+     oversight: a card file cannot author a target it has not chosen, so the
+     only thing that could fill the arm is
+     `RegisteredReplacementEffect.targets` threaded onto the instance, which is
+     item 90's work. Building the arm now would put an unreachable variant in a
+     closed algebra, which §3.2's growth contract forbids for exactly the
+     reason it would be dead.
+
+     **Reachability (2026-09-09):** unreachable — no registered card, and no
+     registrable one, can author a `ToFixed`.
+
+     **Sized:** one enum arm, one match arm in `apply_rewrite`, and the
+     resolution-side fill, which is item 90's — so it is item 90 plus ~20
+     lines, and it lands with the first card that needs it. Not stubbed: the
+     arm does not exist, so no card can silently do nothing.
+
+107. **CR 614.9's re-check is an existence-and-type check, and the temptation
+     to make it `validate_selection` is a real one with a printed answer.** A
+     redirect's destination has to be on the battlefield and still a creature,
+     planeswalker or battle, or a player still in the game — and that is
+     *all*. It is not CR 608.2b's legality re-check and never becomes one,
+     because **a redirect is not targeting** (CR 115.1): a hexproof or
+     shrouded creature is a perfectly good destination for redirected damage.
+     Divine Deflection's ruling draws the identical line from the rider's side
+     (item 90), and a `validate_selection` at either site would get shroud
+     wrong in the same way.
+
+     Written as `pipeline::redirection_is_legal`, taking *both* ends because
+     the rule names both — "redirected to **or from** a player who has left the
+     game". The "from" leg is unreachable in a two-player game and is built
+     anyway, because it is one `||` of a sentence the engine either implements
+     or does not.
+
+108. **A player who has left the game keeps their permanents, and CR 800.4a
+     says they should not.** `GameState::player_lost[p]` is set by the SBAs and
+     read by `Game::check_game_over`, by `entering_controller`'s opponent list
+     and now by CR 614.9's re-check. Nothing removes that player's objects from
+     the battlefield, their cards from their zones, or their spells from the
+     stack, which CR 800.4a requires.
+
+     **Reachability (2026-09-09):** unreachable in a two-player game, where the
+     loss ends the game in the same SBA sweep. Reachable the moment a game has
+     three or more players — which is v1's target, not a corner
+     (`v1-is-commander-and-parallel-ai`). `fuzz_games` plays two.
+
+     **Sized:** CR 800.4a is a list of six clauses over five zones plus the
+     stack plus control-change effects, each proposing through `change_zone`;
+     it is the multiplayer phase's, not a patch. Phase 9 (`roadmap-v2.md`,
+     formats and multiplayer) owns it. RD-4's own test builds the state by
+     hand and says so.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 

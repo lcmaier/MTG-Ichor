@@ -458,7 +458,12 @@ pub enum Restriction {
     /// CR names exactly two things that may be withheld there — regeneration
     /// shields (701.19c) and prevention effects (615.12). A second arm here
     /// would be a claim that the engine applies effects somewhere else.
-    ApplyReplacement { kind: ReplacementKindFilter, to: AffectedSet },
+    ApplyReplacement {
+        kind: ReplacementKindFilter,
+        to: AffectedSet,
+        // RD-4: the player half, for CR 615.12 over damage dealt to a player.
+        to_players: PlayerSet,
+    },
 }
 ```
 
@@ -1076,6 +1081,17 @@ different sites: CR 701.19c withholds a regeneration shield at `gather`'s door
 nothing — so the `Prevention` consult sits where the prevention arms are applied,
 in the pipeline, not in `push_if_applicable`.
 
+**Built by RD-4 (2026-09-09), and the supersession held.** `is_regeneration` is
+still a `bool` with one authored producer; `ReplacementDef::is_prevention()` is
+still derived. The consult is `pipeline::is_unpreventable`, and it turned out to
+have **two** call sites rather than one — RD-3 gave `Rewrite::Prevent` a
+prevented amount of its own beside `Rewrite::Amount`'s prevention arms, so both
+have to answer CR 615.12 the same way. `Restriction::ApplyReplacement` gained
+the `to_players: PlayerSet` this rule needs, because "damage can't be prevented"
+is about damage dealt to *players* as much as to permanents;
+`Restriction::Event` deliberately did not, since no printed "can't" the engine
+can express is about an event whose subject is a player.
+
 **Consumers.** 155 clauses of "can't be regenerated" and 32 of "damage can't be
 prevented", of which Skullcrack is both halves plus a Tier-2 restriction in one
 instant: *"Players can't gain life this turn. Damage can't be prevented this
@@ -1654,10 +1670,14 @@ Four things to act on rather than read past:
    contract. The one new thing is that a **restriction can now cause a CR 601.2
    rewind**, where today only an unpayable cost can. RS-2 should be reviewed for
    that, not for a search.
-3. **`ReplacementDef::is_regeneration` gains its second reader** (§4.7). Its own
-   doc says a second reader "would be the smell". It is the right reader, but
-   Phase RD should widen it to a `ReplacementKind` rather than adding a parallel
-   `is_prevention: bool`.
+3. ~~**`ReplacementDef::is_regeneration` gains its second reader** (§4.7)…
+   Phase RD should widen it to a `ReplacementKind`.~~ **Answered by RD's design
+   check and built by RD-4 (2026-09-09): it does not widen.** CR 615.1a makes
+   "prevention effect" a fact about the effect's text, so
+   `ReplacementDef::is_prevention()` is derived from the pattern and the
+   rewrite; `is_regeneration` keeps its bit because nothing in a regeneration
+   def distinguishes it from any other `Prevent`-with-a-rider. §4.7 carries the
+   whole argument.
 4. **Permission and prohibition are the same query with opposite signs.**
    Conduit of Worlds *grants* the land play Aggressive Mining removes; CR 601.3
    is phrased as "a rule or effect allows … and no rule or effect prohibits".

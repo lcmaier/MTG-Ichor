@@ -67,15 +67,16 @@ says nothing about progress, so there is one answer and it is derived.
 - `RD-1` — plans/replacement-architecture.md
 - `RD-2` — plans/replacement-architecture.md
 - `RD-3` — plans/replacement-architecture.md
+- `RD-4` — plans/replacement-architecture.md
 - `RS-1` — plans/cant-effects-architecture.md
 
 ## Counts
 
 | | |
 |---|---:|
-| Cards registered | 111 |
-| …of them in `PERFORMANCE_POOL` | 76 |
-| `#[test]` functions | 1177 |
+| Cards registered | 115 |
+| …of them in `PERFORMANCE_POOL` | 77 |
+| `#[test]` functions | 1203 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -83,15 +84,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 4850 of 5065 lines (95%) |
-| Numbered items | 156 |
+| Section size | 4951 of 5166 lines (95%) |
+| Numbered items | 159 |
 | …closed, still recorded | 38 |
-| …open — unreachable, and says why | 72 |
+| …open — unreachable, and says why | 75 |
 | **…open — reachable, wrong today** | **2** |
 | …open — reachable, not wrong (perf, a name, a harness) | 18 |
 | …open — nothing to build, a record for a later phase | 23 |
 | **…open — reachability *not* stated** | **3** |
-| …open, carrying an explicit `**Sized:**` | 114 of 118 |
+| …open, carrying an explicit `**Sized:**` | 116 of 121 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -123,7 +124,7 @@ was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/rd.md`
+- (none — nothing half-finished)
 
 ## What this file deliberately does not know
 

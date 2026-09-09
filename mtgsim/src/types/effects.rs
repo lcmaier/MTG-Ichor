@@ -837,7 +837,7 @@ pub enum Primitive {
     /// thing this effect targeted at resolution" rather than on the event's
     /// subject — Divine Deflection's "deals that much damage to any target",
     /// chosen at cast — has nowhere else to read them from
-    /// (`plans/handoffs/rd.md`).
+    /// (`codebase-state.md` item 90).
     ///
     /// The [`PatternFill`] is the other half of "what the resolution fills
     /// in", and it is a *third* argument rather than a recipient because the
