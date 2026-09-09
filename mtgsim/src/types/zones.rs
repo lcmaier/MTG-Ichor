@@ -173,3 +173,31 @@ impl DestructionSource {
         }
     }
 }
+
+/// Why a player is losing life — the third of this module's "why" carriers,
+/// beside [`ZoneChangeCause`] and [`DestructionSource`].
+///
+/// **A fact, not bookkeeping.** Whether a life loss was a result of damage is
+/// unrecoverable a moment later, and three separate things read it: CR 120.3a's
+/// decomposition needs the damage's source so `GameEvent::LifeChanged` can keep
+/// naming it, Ali from Cairo's family watches "damage that would reduce your
+/// life total" and is a `LoseLife` replacement rather than a prevention effect
+/// (its own ruling: "this effect does not prevent damage, it prevents the
+/// damage from turning into loss of life"), and CR 120.3b's poison counters
+/// hang off the same distinction. Recording it costs one field at six
+/// construction sites; re-deriving it later is impossible.
+///
+/// Life *gain* needs no counterpart: `GameAction::GainLife` already carries the
+/// source object, because lifelink was the first thing that gained any.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifeLossCause {
+    /// CR 120.3a — "damage dealt to a player causes that player to lose that
+    /// much life". Carries the damage's source, which is the object
+    /// `GameEvent::LifeChanged` names.
+    Damage { source: ObjectId },
+    /// A resolving spell or ability that says "loses N life".
+    Effect,
+    /// CR 118.4's life payment — Phyrexian mana and the additional costs that
+    /// spell it out. Not a loss of life "caused by" anything with a source.
+    Cost,
+}

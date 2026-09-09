@@ -48,11 +48,42 @@ pub(crate) struct Rider {
     /// `ResolutionContext::source`.
     pub source: ObjectId,
     pub controller: PlayerId,
-    /// The event's subject, when it had one. Becomes the rider's single
-    /// resolved target, so `EffectRecipient::Target` in a `then` names the
-    /// permanent the replacement was about.
-    pub subject: Option<ObjectId>,
+    /// The event's subject. Becomes the rider's single resolved target, so
+    /// `EffectRecipient::Target` in a `then` names the object or the player the
+    /// replacement was about.
+    ///
+    /// **An [`EventSubject`], not an `Option<ObjectId>`, from RD-1 on.** It was
+    /// the latter while every rider rode on an object event, and flattening a
+    /// player subject to `None` cost nothing then. Reverse Damage's "you gain
+    /// life" and Angel of Suffering's mill are riders on a *player* subject, and
+    /// they need to name that player (`replacement-architecture.md` §11
+    /// item 16, `codebase-state.md` item 27).
+    pub subject: EventSubject,
+    /// The amount the replaced event carried when this rider was queued, read
+    /// by `AmountExpr::ReplacedAmount` — CR 615.5's "that much"/"that many".
+    ///
+    /// Taken from the event as the loop sees it, so a rider queued after a
+    /// doubler reads the doubled number; `None` for an event with no amount.
+    /// Angel of Suffering's "mill twice that many cards" is the customer, and
+    /// its ruling that unpreventable damage still mills is why the number is
+    /// captured here rather than recomputed after the event.
+    pub replaced_amount: Option<u64>,
     pub effect: Effect,
+}
+
+/// The amount a proposal carries, for a rider that refers to it (CR 615.5).
+///
+/// Every amount-bearing `GameAction` arm, not just the damage one: "that much"
+/// is the same question of a life gain or a life loss, and a `_ => None`
+/// fallthrough on a match that already lists them is a smaller claim than an
+/// arm-by-arm audit would be.
+fn event_amount(action: &GameAction) -> Option<u64> {
+    match action {
+        GameAction::DealDamage { amount, .. }
+        | GameAction::GainLife { amount, .. }
+        | GameAction::LoseLife { amount, .. } => Some(*amount),
+        _ => None,
+    }
 }
 
 /// CR 614.7a / 120.8 / 119.10 — the proposals that describe an event which
@@ -270,7 +301,8 @@ pub(crate) fn apply_replacements(
             riders.push(Rider {
                 source: chosen.source,
                 controller: chosen.controller,
-                subject: subject_object(subject),
+                subject,
+                replaced_amount: event_amount(&event),
                 effect: then,
             });
         }
@@ -639,6 +671,31 @@ fn apply_rewrite(
                 "replacement {:?} modifies under whose control a permanent enters but \
                  matched {:?}, which is not an entry. Its `EventPattern` and its \
                  `Rewrite` describe different events.",
+                chosen.id, other
+            )),
+        },
+
+        // CR 614.5's doublers and CR 615.10's partial prevention. The one arm
+        // whose whole job is to read the amount the last application left,
+        // which is what makes CR 616.1's ordering choice observable.
+        //
+        // Nothing about CR 615.12 here yet: an unpreventable event and a
+        // "damage can't be prevented" restriction are both consulted at the
+        // site a *prevention* arm applies, and both are RD-4's — RD-1 has no
+        // producer for either, so a consult would be a branch nothing can take.
+        Rewrite::Amount(amount_rewrite) => match event {
+            GameAction::DealDamage { source, target, amount, is_combat } => {
+                Ok(Some(GameAction::DealDamage {
+                    source,
+                    target,
+                    amount: amount_rewrite.apply(amount),
+                    is_combat,
+                }))
+            }
+            // Its `EventPattern` and its `Rewrite` describe different events —
+            // the same card-authoring error every other arm reports.
+            other => Err(format!(
+                "replacement {:?} changes an amount but matched {:?}, which has none",
                 chosen.id, other
             )),
         },

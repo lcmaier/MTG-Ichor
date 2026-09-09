@@ -768,6 +768,7 @@ fn test_a_multi_target_destroy_is_one_event() {
             mtgsim::engine::resolve::ResolvedTarget::Object(b),
             mtgsim::engine::resolve::ResolvedTarget::Object(c),
         ],
+        replaced_amount: None,
     };
     let dp = ScriptedDecisionProvider::new();
     game.resolve_effect(

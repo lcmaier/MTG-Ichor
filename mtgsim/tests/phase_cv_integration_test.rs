@@ -73,6 +73,7 @@ fn resolve_spell(
         ability_source: None,
         controller,
         targets: targets.into_iter().map(ResolvedTarget::Object).collect(),
+        replaced_amount: None,
     };
     game.resolve_effect(&effect, &ctx, dp).expect("resolution failed");
 }

@@ -1,4 +1,6 @@
-use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use crate::engine::actions::{
+    ActionContext, DestructionSource, GameAction, LifeLossCause, ZoneChangeCause,
+};
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
@@ -39,6 +41,14 @@ pub struct ResolutionContext {
     pub controller: PlayerId,
     /// Resolved targets (validated before resolution begins)
     pub targets: Vec<ResolvedTarget>,
+    /// CR 615.5's "that much" — the amount the replaced event carried, for a
+    /// rider and for nothing else.
+    ///
+    /// `None` on every other resolution, which is what makes
+    /// `AmountExpr::ReplacedAmount` refuse rather than read a wrong number: a
+    /// resolving spell has no replaced event, so the question has no answer
+    /// rather than a default one.
+    pub replaced_amount: Option<u64>,
 }
 
 /// A resolved target — validated as legal when the spell/ability was put on the
@@ -201,6 +211,28 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 701.13a — "a player puts that many cards from the top of
+            // their library into their graveyard".
+            //
+            // N proposals, not one: each card's move is its own event, which is
+            // what lets the RB-registered Leyline of the Void replace the first
+            // mill in the pool for free. **"As much as it can" (CR 701.2)**:
+            // milling more cards than are in the library mills all of them and
+            // is not a failure — Angel of Suffering's own ruling.
+            Primitive::Mill(amount_expr) => {
+                let count = self.evaluate_amount(amount_expr, ctx)?;
+                let player_id = self.resolve_player_for_self(recipient, ctx);
+                for _ in 0..count {
+                    let Some(card_id) =
+                        self.get_player(player_id)?.library.last().copied()
+                    else {
+                        break;
+                    };
+                    self.change_zone(card_id, Zone::Graveyard, ZoneChangeCause::Milled, &actx)?;
+                }
+                Ok(())
+            }
+
             Primitive::GainLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let player_id = self.resolve_player_for_self(recipient, ctx);
@@ -218,6 +250,7 @@ impl GameState {
                 self.execute_action(GameAction::LoseLife {
                     player: player_id,
                     amount,
+                    cause: LifeLossCause::Effect,
                 }, &actx)?;
                 Ok(())
             }
@@ -921,7 +954,6 @@ impl GameState {
             | Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
             | Primitive::ShuffleIntoLibrary
-            | Primitive::Mill(_)
             | Primitive::Discard(_)
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
@@ -1397,6 +1429,17 @@ impl GameState {
             AmountExpr::DamageDealt => {
                 Err("DamageDealt amount resolution not yet implemented".to_string())
             }
+            // CR 615.5's "that much"/"that many". Only a rider has one, and a
+            // rider is the only resolution that sets the field — so this is an
+            // error rather than a 0: an effect written with this leaf outside a
+            // `ReplacementDef::then` is asking a question its context cannot
+            // answer, and answering it with a number would be silently wrong.
+            AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
+                "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
+            }),
+            AmountExpr::Multiply(inner, n) => {
+                Ok(self.evaluate_amount(inner, _ctx)?.saturating_mul(*n))
+            }
             // Meaningful only inside the layer walk, where "it" is the object
             // the continuous effect is being applied to. A resolving spell has
             // no such object — see `compute::evaluate_pt_value`.
@@ -1485,6 +1528,7 @@ mod tests {
             ability_source: None,
             controller: 0,
             targets,
+            replaced_amount: None,
         }
     }
 

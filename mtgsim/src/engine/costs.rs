@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, GameAction, LifeLossCause, ZoneChangeCause};
 use crate::types::costs::Cost;
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -411,7 +411,11 @@ impl GameState {
                 // subtraction. Bloodletter of Aclazotz doubles paid life
                 // precisely because it is a loss.
                 self.execute_action(
-                    GameAction::LoseLife { player: player_id, amount: *amount },
+                    GameAction::LoseLife {
+                        player: player_id,
+                        amount: *amount,
+                        cause: LifeLossCause::Cost,
+                    },
                     ctx,
                 )
             }

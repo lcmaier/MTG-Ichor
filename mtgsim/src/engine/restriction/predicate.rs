@@ -12,7 +12,7 @@ use crate::engine::replacement::{pattern_watches, set_affects, subject_of, Entry
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, Effect, PlayerRef};
+use crate::types::effects::{AffectedSet, Effect, PlayerRef, PlayerSet};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -199,14 +199,29 @@ fn matches(
     match (&def.what, query) {
         (Restriction::Event { pattern, affected, by }, Query::Event { action, cause, .. }) => {
             pattern_watches(game, pattern, action, controller)
-                && set_affects(game, affected, source, controller, subject_of(action), frame)
+                && set_affects(
+                    game,
+                    affected,
+                    // No `Restriction` names a player yet: RD-4 gives
+                    // `ApplyReplacement` its player set with "damage can't be
+                    // prevented" over damage to a player, and `Event` gets one
+                    // when a card asks for it.
+                    &PlayerSet::Nobody,
+                    source,
+                    controller,
+                    subject_of(action),
+                    frame,
+                )
                 && cause_matches(by.as_ref(), *cause, controller)
         }
 
         (
             Restriction::ApplyReplacement { kind, to },
             Query::ApplyReplacement { kind: asked, subject },
-        ) => kind == asked && set_affects(game, to, source, controller, *subject, None),
+        ) => {
+            kind == asked
+                && set_affects(game, to, &PlayerSet::Nobody, source, controller, *subject, None)
+        }
 
         (Restriction::Event { .. }, Query::ApplyReplacement { .. })
         | (Restriction::ApplyReplacement { .. }, Query::Event { .. }) => false,

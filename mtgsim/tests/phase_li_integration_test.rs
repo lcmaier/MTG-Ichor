@@ -55,6 +55,7 @@ fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgs
         ability_source: None,
         controller: 0,
         targets: vec![ResolvedTarget::Object(target)],
+        replaced_amount: None,
     };
     game.resolve_effect(&spell, &ctx, &test_dp()).unwrap();
 }

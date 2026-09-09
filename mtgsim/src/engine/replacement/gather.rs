@@ -27,8 +27,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive,
-    SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
@@ -458,6 +458,7 @@ pub(super) fn applies_to(
         && set_affects(
             game,
             &instance.def.affected,
+            &instance.def.affected_players,
             instance.source,
             instance.controller,
             subject,
@@ -465,22 +466,34 @@ pub(super) fn applies_to(
         )
 }
 
-/// Is the event's subject inside this `AffectedSet` — CR 614.1's "whatever
-/// they're affecting"?
+/// Is the event's subject inside this effect's two affected sets — CR 614.1's
+/// "whatever they're affecting"?
 ///
-/// Takes the set and its owner's two ids rather than a `ReplacementInstance`,
-/// because a "can't" asks the identical question of an identical `AffectedSet`
-/// and has no instance to offer (`cant-effects-architecture.md` §3.1: a
-/// restriction is discovered exactly the way a replacement effect is, and
-/// differs only in what it is asked at).
+/// **Two sets, unioned, because the CR names two kinds of subject.** An event
+/// about an object asks `AffectedSet`; an event about a player asks
+/// [`PlayerSet`]. Furnace of Rath's "a permanent or player" is `Filter { All }`
+/// plus `Everyone` and is one effect either way — which is why this is one
+/// function with two parameters rather than two functions
+/// (`replacement-architecture.md` §9, RD decision 0).
+///
+/// Takes the sets and their owner's two ids rather than a
+/// `ReplacementInstance`, because a "can't" asks the identical question of
+/// identical sets and has no instance to offer
+/// (`cant-effects-architecture.md` §3.1: a restriction is discovered exactly
+/// the way a replacement effect is, and differs only in what it is asked at).
+/// `Restriction::ApplyReplacement` has no player set of its own yet — RD-4 adds
+/// one with "damage can't be prevented" over damage to a player — so it passes
+/// `PlayerSet::Nobody` and keeps today's answer.
 ///
 /// `frame` is where CR 614.12 and 614.17d land on the object side: a `Filter`
 /// about an entering permanent is matched against the permanent *as it would
 /// exist on the battlefield*, not against the card. `SourceOnly` and `Fixed`
-/// match by id and never look.
+/// match by id and never look. A player subject reaches no frame at all — a
+/// player is not an object and no layer computes one.
 pub(crate) fn set_affects(
     game: &GameState,
     affected: &AffectedSet,
+    affected_players: &PlayerSet,
     source: ObjectId,
     controller: PlayerId,
     subject: EventSubject,
@@ -488,13 +501,10 @@ pub(crate) fn set_affects(
 ) -> bool {
     let id = match subject {
         EventSubject::Object(id) => id,
-        // No `AffectedSet` variant names a player, so an event about a player
-        // falls outside every set the type can express. That is not a silently
-        // wrong answer, it is the reason `EventPattern` has no
-        // `DrawCard`/`GainLife`/`LoseLife` arm: an effect that applies to a
-        // *player* needs a player-scoping mechanism, and it lands in Phase RE
-        // with the cards that want it.
-        EventSubject::Player(_) => return false,
+        // CR 109.5 resolves "you" against the effect's *current* controller,
+        // which is exactly what `controller` is here — the sweep reads it off
+        // the board on every gather rather than snapshotting it at ETB.
+        EventSubject::Player(pid) => return affected_players.contains(controller, pid),
     };
     match affected {
         AffectedSet::SourceOnly => source == id,

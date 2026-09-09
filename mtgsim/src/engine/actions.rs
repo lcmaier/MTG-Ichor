@@ -16,7 +16,7 @@ use crate::ui::decision::DecisionProvider;
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the cause, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DestructionSource, ZoneChangeCause};
+pub use crate::types::zones::{DestructionSource, LifeLossCause, ZoneChangeCause};
 
 /// Who is asking for a mutation, and what resolution it belongs to.
 ///
@@ -101,10 +101,23 @@ pub enum GameAction {
         source: ObjectId,
     },
 
-    /// A player loses life (not from damage).
+    /// A player loses life.
+    ///
+    /// **Including from damage, from RD-1 on.** CR 120.3a makes life loss one
+    /// of damage's *results* — "damage dealt to a player causes that player to
+    /// lose that much life" — so `DealDamage`'s performer proposes one of
+    /// these, contained in the damage's batch the way lifelink's gain is. That
+    /// is what lets an RE-era Bloodletter of Aclazotz double the loss while a
+    /// shield that already applied to the damage does not apply again (§3.2d
+    /// containment, `replacement-architecture.md` §9 RD decision 4).
+    ///
+    /// `cause` is the fact that decomposition would otherwise destroy — see
+    /// [`LifeLossCause`]. There is no catchall arm, for the reason
+    /// [`ZoneChangeCause`] has none.
     LoseLife {
         player: PlayerId,
         amount: u64,
+        cause: LifeLossCause,
     },
 
     /// Move an object from one zone to another.
@@ -472,26 +485,33 @@ impl GameState {
     ///
     /// Its `ResolutionContext` names the event's subject as the single resolved
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
-    /// permanent the replacement was about and one written with
-    /// `EffectRecipient::Controller` acts for that permanent's controller. The
+    /// object *or the player* the replacement was about and one written with
+    /// `EffectRecipient::Controller` acts for the effect's own controller. The
     /// actions it proposes re-enter the pipeline with a **fresh** applied set —
     /// a rider's actions are new events the replacement caused, not modified
     /// forms of the original (§3.2d containment).
+    ///
+    /// A player subject becomes a `ResolvedTarget::Player` rather than being
+    /// flattened away: Angel of Suffering's "prevent that damage and mill twice
+    /// that many cards" mills the player the damage was aimed at, and until
+    /// RD-1 the rider had no way to name one (`codebase-state.md` item 27).
     fn resolve_rider(
         &mut self,
         rider: crate::engine::replacement::Rider,
         ctx: &ActionContext,
     ) -> Result<(), String> {
+        use crate::engine::replacement::EventSubject;
         use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 
         let rctx = ResolutionContext {
             source: rider.source,
             ability_source: None,
             controller: rider.controller,
-            targets: rider
-                .subject
-                .map(|id| vec![ResolvedTarget::Object(id)])
-                .unwrap_or_default(),
+            targets: vec![match rider.subject {
+                EventSubject::Object(id) => ResolvedTarget::Object(id),
+                EventSubject::Player(pid) => ResolvedTarget::Player(pid),
+            }],
+            replaced_amount: rider.replaced_amount,
         };
         self.resolve_effect(&rider.effect, &rctx, ctx.dp)
     }
@@ -637,7 +657,7 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::LoseLife { player, amount } => {
+            GameAction::LoseLife { player, amount, cause } => {
                 // Stays here, unlike `GainLife`'s: CR 119.10 is written about
                 // life *gain* only, and no rule makes a 0 life loss a
                 // non-event. A local no-op guard, not CR 614.7a.
@@ -653,7 +673,13 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
-                    source: None,
+                    // CR 120.3a's loss names the damage's source, which is what
+                    // keeps the log line unchanged now that damage to a player
+                    // reaches life through here rather than around it.
+                    source: match cause {
+                        LifeLossCause::Damage { source } => Some(source),
+                        LifeLossCause::Effect | LifeLossCause::Cost => None,
+                    },
                 });
 
                 Ok(())
@@ -1091,6 +1117,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
+            cause: LifeLossCause::Cost,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 17);
@@ -1401,6 +1428,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
+            cause: LifeLossCause::Cost,
         }, &test_ctx()).unwrap();
 
         let life_events: Vec<_> = game.events.events().filter_map(|e| {
