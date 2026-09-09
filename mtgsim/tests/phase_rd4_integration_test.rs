@@ -382,6 +382,25 @@ fn a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row() {
     );
 }
 
+/// "… and **other permanents you control**" — the object half, and the first
+/// card in the crate whose affected set needs `ObjectFilter::EachOther`.
+#[test]
+fn palisade_giant_takes_the_damage_aimed_at_your_other_permanents() {
+    let mut game = setup_two_player_game();
+    let giant = put_on_battlefield(&mut game, palisade_giant(), 0);
+    let mine = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
+    let theirs = place_vanilla_creature(&mut game, 1, 3, 3, &[]);
+    let source = probe(&mut game, 1);
+    let ctx = test_ctx();
+
+    deal(&mut game, source, DamageTarget::Object(mine), 2, false, &ctx);
+    deal(&mut game, source, DamageTarget::Object(theirs), 2, false, &ctx);
+
+    assert_eq!(marked(&game, mine), 0, "a permanent its controller controls");
+    assert_eq!(marked(&game, theirs), 2, "one they do not");
+    assert_eq!(marked(&game, giant), 2);
+}
+
 // ---------------------------------------------------------------------------
 // CR 615.12 — damage that can't be prevented
 // ---------------------------------------------------------------------------
