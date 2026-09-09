@@ -526,6 +526,50 @@ games** — three Probes bolted to zero, and one Merfolk Thaumaturgist that
 Cytoshape turned into a copy of a Probe and which died on the spot, because
 CR 707.2 does not copy counters. That state-based action had measured 0 at
 every game count since it was written.
+
+**Re-recorded 2026-09-09 for RD-2** — `PERFORMANCE_POOL` +1 (Mending Hands,
+74 → 75) and the stress pool +4 (98 → 102). The table gains a row,
+**Prevention allocations**, which `plans/fuzz_ab.py` prints from here on: CR
+615.7's allocation prompts per game — a *reachability* count and not a cost,
+which is why it is not bold, and `?` on any binary older than RD-2. Every
+other movement below is the pool's: with the registry and pools unchanged,
+RD-2's engine (the `loop` arm) reproduces RD-1's 50-game `performance` table
+to the digit — 372 walks, 4,602 frames, 518 gathers — and the item-29
+suppression moves it by one game's worth (373 / 4,612 / 519); on `stress`
+both differ by a hair in the two-Furnace games (448 → 446 → 448 walks). The
+shipped columns are a different game set, because a one-mana instant in every
+white deck reshuffles every deck; read them as RD-1's were read.
+
+| | performance (75 cards) | stress (102 cards) |
+|---|---|---|
+| P0 / P1 | 26 (52.0%) / 24 (48.0%) | 26 (52.0%) / 24 (48.0%) |
+| Avg turns | 32.3 | 26.8 |
+| Spells cast | 23.9 | 21.2 |
+| Lands played | 18.7 | 16.4 |
+| Combat w/ atk | 10.8 | 8.4 |
+| Creatures died | 7.8 | 4.9 |
+| Damage events | 22.6 | 17.5 |
+| Total damage | 65.4 | 52.4 |
+| Life changes | 14.4 | 12.5 |
+| **Layer walks** | **399** | **419** |
+| **Board walks** | **258** | **237** |
+| **Memo hits** | **67,128** | **50,792** |
+| **Layer frames** | **4,717** | **4,023** |
+| **Frames/walk** | **11.82** | **9.59** |
+| **Dependency checks** | **16** | **18** |
+| **Replacement gathers** | **561** | **445** |
+| **Restriction queries** | **562** | **448** |
+| Prevention allocations | 0.00 | 0.00 |
+
+The engine's share, by the four-arm protocol (`replacement-architecture.md`
+§9, RD-2 as landed): gathers and walks flat on both middle arms; the middle
+arms differ from `main` outside the timing block in three and four of 200
+`performance` games, every one with two Furnaces of Rath on the battlefield —
+one CR 616.1 prompt where a two-member batch had two, then none where the
+suppression removes it — and in nothing else; CPU/game −0.8% and −0.9% on the
+middle arms, +2.1% shipped. Reachability is the `Prevention allocations` row
+and the `--require` counts in that section: 0.02 per `stress` game unforced,
+0.05 with the three unpooled cards forced.
 | Layer walks / frames | 378 / 4,504 | 379 / 4,510 |
 
 **Read `ms/1,000 queries` carefully here: it rises 41.8%, and that is the
@@ -1551,13 +1595,16 @@ Three existed when the practice was written down, and they are the template:
 | `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
 | `item-7-an-effect-waits-for-what-it-reads.html` | LI-2 + LI-3, closing item 7 | the CR 613.8 loop's fast and slow paths; the judge answer's four-card layer 4 step by step through `next_ready` and the journal; a condition that *is* a dependency (Simian Clause under Blood Moon, with the sabotage step that shows what `condition_reads` buys) and one that is not (Kird Ape, two layers apart); the read-by-read table |
 | `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
+| `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
 share, and it is why a phase that adds a card, an enum arm or a pool entry does
 not get one. The phases that qualify were listed when the practice started:
 RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, because the
-pass changed every read at once, and the close), **RS-2, critical-path item 6**. Budget
+pass changed every read at once, and the close), RD-2 ✓ (the loop's unit; the
+one RD phase that qualifies, decided at its close as §9 scheduled), **RS-2,
+critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 
