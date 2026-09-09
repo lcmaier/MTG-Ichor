@@ -483,9 +483,29 @@ Within an arm, constraints on the event's fields reuse existing vocabulary —
 `ObjectFilter`, `PlayerRef`, `ZoneChangeCause`, `CardType` — rather than
 inventing per-mechanic predicates. "If a **red source you control** would deal
 damage to an opponent or a permanent an opponent controls" (Torbran, Thane of
-Red Fell) is `And(ByColor(Red), ByController(You))` on the source and
-`ByController(Opponent)` on the target; all three leaves already existed, which
-is what RD-3 confirmed when it built them (§9, RD-3 as landed, decision 1).
+Red Fell) is `And(ByColor(Red), ByController(You))` on the source, and on the
+target it is **both** of CR 614.1's halves: `AffectedSet::Filter {
+ByController(Opponent) }` for the permanent and `PlayerSet::Opponents` for the
+player, unioned by `set_affects`. Every leaf already existed, which is what
+RD-3 confirmed when it built them (§9, RD-3 as landed, decision 1).
+
+**Naming only the object half, as this paragraph did on 2026-09-09, understates
+the card and the type.** "An opponent" is not an `ObjectFilter` question at
+all — RD-1's `affected_players` is what answers it, and without that field
+Torbran would add 2 to damage dealt to an opponent's creatures and nothing to
+the opponent, which is half a card. The same union is why `combat: None`
+covers *direct* damage as well as combat: neither field constrains how the
+damage arrives.
+
+**Battles are the case where "controls" and "defends" come apart, and
+`ObjectFilter` has a leaf for only the first.** CR 310.8 gives every battle a
+*protector*, chosen as it enters, and 310.8b makes a Siege attackable by its
+own controller — so a Siege you control while an opponent protects it is
+**not** "a permanent an opponent controls", and Torbran correctly adds nothing
+to damage dealt to it. That is the card's own word, not an approximation. What
+battles will need is a second relation this type cannot express — "a battle an
+opponent protects" — and it belongs to whoever builds CR 310 (`backlog.md`
+§2.23), not to `SourcePattern`.
 
 **The paraphrase this paragraph carried until 2026-09-09 was of a card that
 does not exist.** Daunting Defender says "If a source would deal damage to a
@@ -5446,7 +5466,7 @@ found them.
     trace page walks the same boards by hand, which is tier 1's job; the
     sink's argument and its slot are unchanged.
 
-### Found by RD-3 — sources (2026-09-09)
+### Found by RD-3 — sources, and its review (2026-09-09)
 
 31. **`Rewrite::Prevent` reports how much damage it prevented, and RD-4 will
     read it.** CR 615.6's "prevent that damage" is the whole amount, and
@@ -5495,6 +5515,65 @@ found them.
     activation, not the cast** — the report has no counter for it, and until it
     does the recipe is one `--dump-events` run and
     `grep "AbilityActivated: <name>"`.
+
+34. **Asked at the RD-3 review: should CR 616.1's prompt be skipped by
+    *simulating* both orders — `Lookahead`, compare the states, suppress if
+    they agree — rather than by a static predicate? No, and the case that
+    prompted the question is the reason why.**
+
+    The case is two Guardian Seraphs, both `Amount(PreventUpTo(1))`,
+    `Uses::Static`, no rider — the shape of item 29's multiplier bucket, and
+    the arithmetic does commute: `max(a − p − q, 0)` whichever applies first.
+    `ordering_cannot_change_outcome` does not admit it, and that is correct
+    rather than an omission.
+
+    **Three reasons, in increasing order of how hard they are to work around.**
+
+    - **A rewrite is not a pure function of the event, so "simulate it" is not
+      free of consequences.** `apply_rewrite` takes `&mut GameState` because
+      CR 614.13 is the rules' own statement that applying an entry replacement
+      *moves other objects* — `EnterAfterMoving` performs auxiliary zone
+      changes through `execute_actions_new_batch` and prompts a player for the
+      set. An ordering containing one cannot be speculatively executed and
+      rolled back without the `DecisionProvider` having been asked a question
+      that did not happen. `Lookahead`/`EntryFrame` is a *characteristics*
+      look-ahead — it answers "what would this permanent be" — and it is not a
+      board fork; the fork-and-search question (`codebase-state.md` item 44)
+      is a different and much larger piece of work.
+    - **Board equality is the wrong equivalence.** CR 616.1 gives the choice to
+      a player, so suppressing it is sound only when *no rules-legal question*
+      distinguishes the orders — and the event log is such a question.
+      CR 615.13 triggers "each time a prevention effect is applied to one or
+      more simultaneous damage events and prevents some or all of that damage",
+      which counts *applications*, not life totals. Two orders that reach the
+      same board by applying a prevention once versus twice are different games
+      the moment item 6 lands. A `GameState` comparison cannot see that; a
+      comparison that included the log would be comparing the thing the
+      shortcut exists to avoid producing.
+    - **And `PreventUpTo` is exactly that case.** Take `a = 2` against
+      `PreventUpTo(5)` and `PreventUpTo(1)`. Apply the 5 first: the event is
+      emptied, CR 614.7a drops it on the next iteration, and the 1 is never
+      gathered — **one** application. Apply the 1 first: 2 → 1, then the 5 →
+      0 — **two**. Same board, different number of CR 615.13 events. Deciding
+      which case a given board is in requires the **amount**, and
+      `ordering_cannot_change_outcome`'s signature is `(&[Candidate],
+      Option<ObjectId>)` — `Candidate` carries the instance and the member
+      *indices*, never their events. Reading the amount is precisely what
+      `codebase-state.md` item 47's condition (d) forbids, so the predicate
+      **structurally cannot** admit this arm. Two Guardian Seraphs keep their
+      prompt, and the prompt is real.
+
+    **The frequency says this was never a hot-path question.** Two Guardian
+    Seraphs share a battlefield in **19 of 200 games with the card forced into
+    every deck** (10%; four at once at the extreme, measured 2026-09-09). A
+    simulator would run on every multi-candidate prompt to remove a prompt that
+    rare.
+
+    **What is available, if a prompt ever does need removing:** another clause
+    on the static predicate, arriving the way item 29's did — with the rule
+    number that makes the orders indistinguishable, and with the event log
+    counted among the things that must agree. The bar is a proof, not a
+    comparison.
 
 ## 12. Explicitly out of scope
 

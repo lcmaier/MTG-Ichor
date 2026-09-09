@@ -550,8 +550,21 @@ pub(crate) fn pattern_watches(
         // battlefield** that have that property" — so the filter is asked of
         // the source wherever it is, and `object_matches_filter` walks the
         // layers for a spell on the stack exactly as it does for a permanent.
-        // An id with no object behind it matches nothing rather than
-        // erroring, which is `set_affects`'s answer to the same question.
+        //
+        // **The three `unwrap_or`s are not the same kind of thing.** The two
+        // on the `Option`s are the fields' meaning — `None` is "this effect
+        // does not ask", which is what every def written before RD-3 carries —
+        // and there is nothing there to fail. The one on `object_matches_filter`
+        // swallows an `Err`, and it has exactly three causes: an id with no
+        // object behind it, `ObjectFilter::EachOther` (which a source pattern
+        // has no source to be other than), and `PowerLE` against a source with
+        // no power. All three are card-authoring errors rather than board
+        // states, all three would show as a card silently doing nothing, and
+        // all three are unreached: instrumented at this site and at both of
+        // `set_affects`'s, **zero across 600 fuzz games** on both pools with
+        // the RD-3 cards forced (2026-09-09). `set_affects` makes the identical
+        // swallow one function below, so making either loud is one change at
+        // both sites and not this one — `codebase-state.md` item 103.
         (
             EventPattern::DealDamage { source, combat },
             GameAction::DealDamage { source: dealt_by, is_combat, .. },

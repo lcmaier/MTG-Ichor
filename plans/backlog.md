@@ -337,6 +337,14 @@ functions. Nothing else here is owed early.
   nothing reads them: `validation.rs` refuses a battle as an attack target,
   `perform_action(DealDamage)` marks damage on any object, and no protector
   is chosen anywhere. A whole subtype's rule set, not a missing leaf.
+- **The protector is a second control-like relation, and `ObjectFilter` has a
+  leaf for only one of them** (noted 2026-09-09, RD-3 review). CR 310.8a has
+  the *controller* choose a protector and 310.8b lets a Siege be attacked by
+  its own controller, so "a permanent an opponent controls" and "a battle an
+  opponent defends" are different questions about the same permanent. Nothing
+  registered reads the second — Torbran, Thane of Red Fell says "controls" and
+  is therefore already right about a Siege you control — so this is a leaf this
+  entry owes, not one `SourcePattern` or `AffectedSet` is missing today.
 - **Size** — one PR in the band, after item 6 (the flip is a trigger) and
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).

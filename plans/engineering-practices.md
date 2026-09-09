@@ -616,6 +616,22 @@ opposite of the prediction that asked for the number. The count came from
 `--dump-events` plus `grep "AbilityActivated: <name>"`, and until the report
 grows a counter that is the recipe. **A phase whose consumer is an activated
 ability should measure the activation, not the cast.**
+
+**Asked at the RD-3 review: cap how often the random agent may re-activate one
+ability? No** — and the reasons are this section's own doctrine. A cap makes
+every counter a function of a policy knob, which is exactly what keeps the
+seed-deterministic rows comparable across phases; the agent is not biased
+toward the ability in the first place, because `candidate_priority_actions`
+lists it **once** however many times it could be paid for, so what the number
+shows is leftover `{1}` having nothing else to buy; and the observed rate is
+already about 3–5 activations per turn, so a 3–5 cap would bind almost never
+while making the instrument dishonest. **The pool boundary is what protects the
+cost table, and it was already doing its job**: the Circle is registered and
+deliberately not pooled, and unforced `stress` is level with three controls
+from the same PR. `codebase-state.md` item 104 carries the control table —
++53% memo hits and +37% CPU over the nearest control when forced — and the
+conclusion that the wanted fix is a per-ability activation **counter**, a
+diagnostic, never a behavioural cap.
 | Layer walks / frames | 378 / 4,504 | 379 / 4,510 |
 
 **Read `ms/1,000 queries` carefully here: it rises 41.8%, and that is the

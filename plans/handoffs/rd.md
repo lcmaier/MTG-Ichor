@@ -6,6 +6,31 @@ working prevented-amount channel on *both* prevention shapes, a working
 allocation and a source-side predicate, so its risk is `Rewrite::Retarget`'s
 CR 614.9 re-check and decision 6's consult, neither of which is in the loop.**
 
+## What this file is, and what must not die with it
+
+**Scope is the phase, not the sub-phase, and that is deliberate** — it is what
+let RD-2's build hand RD-3 two notes that changed RD-3's design, and what lets
+RD-3 hand RD-4 two more. A per-sub-phase file would have had to be written,
+read and deleted three times, and the notes that mattered crossed sub-phase
+boundaries every time.
+
+**It is read on demand, not on load.** Nothing here is in `CLAUDE.md`'s budget
+or in `state-of-play.md`; a session opens it when it picks up RD work, which is
+the one time all of it is relevant. So length is not the cost — *staleness*
+is, and the rule for that is the one every landed section already follows:
+strike it, do not delete it, and say where the durable half went.
+
+**The eviction contract.** This file is deleted by the last RD PR to land.
+Before that happens, everything in it is either (a) about RD sub-phases that
+have shipped, whose durable half is an "As landed" block in
+`replacement-architecture.md` §9, (b) a note for a sub-phase still to come,
+which dies correctly with the phase, or (c) about a card outside RD — and (c)
+is the only category that can be lost. **It has one member**, the Divine
+Deflection notes below; they are now carried in full by `codebase-state.md`
+item 90, rulings included, so deleting this file loses nothing. Anything added
+here later that is category (c) must be copied to an item before it is written
+down here, not after.
+
 ## Where the work is
 
 - `plans/replacement-architecture.md` §9, "Phase RD" — the design check
@@ -218,6 +243,10 @@ would need a `Self` leaf with one customer.
    into the row.
 
 ## Two notes for a later PR, from Divine Deflection (verified on Scryfall 2026-09-08)
+
+**Category (c) — carried in full by `codebase-state.md` item 90, rulings
+included, because this is the only part of this file that outlives Phase RD.**
+
 
 Divine Deflection is *not* RD-2's or RD-3's consumer — it needs
 `AmountExpr::Variable` — but it is the card that decided two things about the

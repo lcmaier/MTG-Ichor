@@ -3694,8 +3694,35 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     (`plans/handoffs/rd.md`, note 1). Threading them onto `ReplacementInstance`
     and `Rider`, and giving `ReplacementDef::then` a recipient leaf that says
     "the thing this effect targeted at resolution", is that card's PR, which
-    also needs `AmountExpr::Variable`; so is note 2's existence-and-type check
-    in the rider runner, which must not be `perform_action`'s loudness.
+    also needs `AmountExpr::Variable`.
+
+    **The three rulings that pin the shape, carried here so they survive the
+    handoff file** (Divine Deflection, verified on Scryfall 2026-09-08; the
+    handoff is deleted when Phase RD lands and this item outlives it):
+
+    > Divine Deflection's only target is the permanent or player it may deal
+    > damage to. You choose that target as you cast Divine Deflection, not at
+    > the time it prevents damage.
+
+    — so a rider's `ResolutionContext` cannot be built from the event's subject
+    alone: the damage goes where the *cast* pointed, while the prevented amount
+    and the affected player come from the event. The damage is Divine
+    Deflection's own and is not combat damage even when the prevented damage
+    was, which is what makes this a rider and never a `Retarget`.
+
+    > If Divine Deflection can't deal damage to the targeted permanent or
+    > player … it will still prevent damage. It just won't deal any damage
+    > itself.
+
+    — the prevention is unconditional (CR 615.12) and the rider's own action
+    drops, so the check belongs where the rider resolves and must **not** be
+    `Destroy`-style loudness from `perform_action`, which would fail the batch.
+
+    > Whether the targeted permanent or player is still a legal target is not
+    > checked after Divine Deflection resolves.
+
+    — so it is an *existence and type* check, not CR 608.2b's legality
+    re-check. A rider that asked `validate_selection` would get shroud wrong.
 
     **Reachability (2026-09-09):** unreachable — no `then` can name a
     resolution target, and no registered rider wants one.
@@ -3966,6 +3993,133 @@ this PR added the fields it names.
      **Reachability (2026-09-09):** nothing owed.
 
      **Sized:** none.
+
+### Found by the RD-3 review (2026-09-09)
+
+Seven comments on PR #121. Two found a doc claim that was simply wrong — the
+`combat` field's "nothing printed asks for `Some(false)`" (nine cards do) and
+§3.2a's Torbran paraphrase, which named the object half of the target predicate
+and dropped the player half. Both are corrected in place. Three are answered
+where they were asked (`replacement-architecture.md` §11 item 34, §3.2a's
+battle paragraph, `backlog.md` §2.23). The two below are the ones that become
+entries, and the list audit the review asked for is at the end.
+
+103. **`object_matches_filter`'s `Err` is swallowed at three sites, and the
+     three things that can raise it are all card-authoring errors.** Both legs
+     of `set_affects` and RD-3's source-side leg of `pattern_watches` end in
+     `.unwrap_or(false)`. The causes are exactly: an id with no object behind
+     it, `ObjectFilter::EachOther` (which neither an affected set nor a source
+     pattern has a source to be "other than" — the function refuses it rather
+     than guessing), and `PowerLE` against an object with no power. Every one
+     of them reads as **a card that silently does nothing**, which is the
+     failure mode this subsystem's own module doc names first.
+
+     **Measured before deciding: zero.** The three sites were instrumented and
+     run over 600 fuzz games — 200 `stress` at seed 12345, 200 `stress` at seed
+     999 with six RD-3 cards forced, 200 `performance` at seed 4242 — and the
+     error path was not reached once. So this is a latent authoring trap, not a
+     live bug, and the argument for leaving it is that a mid-game panic is
+     worse than a card doing nothing.
+
+     The one cause that is *not* an authoring error deserves separating: an id
+     with no object behind it is a **source that has ceased to exist**, and
+     CR 608.2h's last-known-information would have such a source still match
+     its printed colour. Nothing reaches it today — a damage source is alive at
+     every registered proposal — but a `Prevent`-on-a-dying-source board would
+     answer "not red" where the CR says "red".
+
+     **Reachability (2026-09-09):** unreachable — instrumented at zero across
+     600 games on both pools, with the RD-3 cards forced.
+
+     **Sized:** one change at all three sites or none — a `debug_assert!` on
+     the `Err` arm keeps release behaviour and makes a debug run and `cargo
+     test` loud, ~10 lines. The LKI half is separate and larger, and belongs to
+     whichever phase gives a damage source a way to die first.
+
+104. **A cheap repeatable activation that creates a registry row is the most
+     expensive card shape the pool has met, and the cost is real rather than a
+     harness artifact.** Circle of Protection: Red's `{1}` makes a
+     `Uses::Once` row per activation; the rows accumulate for the turn (nothing
+     spends them unless the named source deals damage) and every one is gathered
+     against every damage event. Forced into every `stress` deck at 200 games it
+     is activated **12,660 times in 129 games** — about 98 per game it reaches
+     the battlefield, roughly 3 per turn of the game and ~5 per turn it is in
+     play.
+
+     **Against three controls from the same PR, forced the same way** (200
+     `stress` games, seed 12345):
+
+     | forced | Layer walks | Memo hits | Repl. gathers | CPU/game |
+     |---|---:|---:|---:|---:|
+     | Dark Sphere (`{T}`, sacrifices itself — one row, ever) | 484 | 72,133 | 548 | 21.2 ms |
+     | Fog (one-shot instant) | 496 | 79,181 | 566 | 23.9 ms |
+     | Guardian Seraph (static, no row) | 497 | 79,407 | 574 | 24.1 ms |
+     | **Circle of Protection: Red (repeatable `{1}`)** | **591** | **121,347** | **619** | **33.0 ms** |
+
+     +53% memo hits and +37% CPU over the nearest control, and the controls
+     agree with each other — so it is the repeatable row-making activation and
+     not "a card was forced".
+
+     **Asked at review: should the fuzz harness cap repeated activations of one
+     ability? No.** Three reasons, and the third is the one that settles it.
+     (1) It would make every counter a function of a policy knob, which is the
+     one thing `engineering-practices.md` §3 keeps out of the table — every
+     historical row would become incomparable. (2) The random agent is not
+     biased toward the ability: `candidate_priority_actions` lists it **once**
+     however many times it could be activated, so what the numbers show is
+     leftover `{1}` having nothing else to buy, which is the mana system being
+     right. (3) The observed rate is already ~3–5 activations per turn, which
+     is the range a 3–5 cap would impose — the cap would bind almost never and
+     would buy nothing for the cost of making the instrument dishonest.
+
+     **What actually protects the cost instrument is the pool boundary, and it
+     is already in place:** Circle of Protection: Red is in the default
+     registry and *not* in `PERFORMANCE_POOL`, so none of the above touches the
+     timing table. Unforced `stress` is walks 496 / gathers 563 — level with
+     the controls.
+
+     **Reachability (2026-09-09):** reachable — not wrong; a cost observation
+     on `--pool stress` only, and the pooled table is unaffected.
+
+     **Sized:** none for the harness. If the shape ever needs bounding, the
+     lever is a per-ability activation counter in the report (a *diagnostic*,
+     which the review also wants for its own sake — see
+     `engineering-practices.md` §3), never a behavioural cap. Phase 8 will have
+     more row-making activations, and this is the baseline to compare them to.
+
+### Deferred Migrations — is the list still working? Audited 2026-09-09
+
+Asked at the RD-3 review, on passing 100 numbered entries and having gained a
+dedicated `backlog.md` since the last check. Measured rather than felt.
+
+**What is working.** Every entry added since the 2026-09-03 triage carries a
+dated `**Reachability:**` verdict and an explicit `**Sized:**`, and
+`check_state_of_play.py` derives the board from them rather than from prose —
+153 items, 111 of 115 open ones sized, and only **3** without a stated
+reachability, all of them pre-triage. The classification is doing its job: the
+two bolded rows on `state-of-play.md` ("reachable, wrong today" = 2) are the
+ones a reader acts on, and they have stayed small.
+
+**What is not.** Two things, and neither is about classification.
+
+1) **Nothing is ever evicted.** 37 items are closed and still carry their full
+   text — some at 10 KB — so roughly **a third of the section is finished
+   work**, and the section is now 5,169 of `codebase-state.md`'s 5,384 lines
+   (96% of the file). The value of a closed item is its *reason*, which is one
+   paragraph; the rest is the record of a fix that `git log` already holds.
+2) **`backlog.md` arrived and nothing moved into it.** Its §1 draws the line —
+   a *mechanic the type surface cannot express* is backlog, an *implementation
+   debt in code that exists* is here — and several entries here are on the
+   wrong side of it by that test.
+
+**Proposed, not done** (it is a file-organisation call and would bury a review
+diff): move closed items to `plans/archive/codebase-state-closed.md`, leaving a
+one-line stub with the item number, the claim, and the PR that closed it, so
+every cross-reference in the architecture docs still resolves. ~37 items,
+mechanical, one commit, and it takes the live section under 3,500 lines. The
+audit block above is the record either way — the question was asked and
+answered with numbers, and the answer is "the triage works, the eviction does
+not exist yet".
 
 ### Was the critical path complete? — audited 2026-08-27
 

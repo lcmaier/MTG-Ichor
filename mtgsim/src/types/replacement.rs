@@ -189,11 +189,19 @@ pub enum EventPattern {
     /// `source` is CR 609.7's source-side predicate; see [`SourcePattern`] for
     /// which half of 609.7 each of its own fields is.
     ///
-    /// `combat` is CR 510.2's fact off the proposal's `is_combat`. Fog's
-    /// "prevent all **combat** damage" is `Some(true)`; nothing printed asks
-    /// for `Some(false)`, which is why this is an `Option<bool>` rather than a
-    /// flag — `None` means the effect does not ask, and it is the answer for
-    /// every effect written before RD-3.
+    /// `combat` is CR 510.2's fact off the proposal's `is_combat`, and **both
+    /// answers are printed.** Fog's "prevent all *combat* damage" is
+    /// `Some(true)`; "prevent all *noncombat* damage" is `Some(false)`, which
+    /// nine cards say (Scryfall 2026-09-09: Purity, Mark of Asylum, The
+    /// Wanderer, Blessed Sanctuary, Magebane Armor, Stormwild Capridor, Tajic,
+    /// Crystal Barricade, Drogskol Reinforcements). Purity is Reverse Damage's
+    /// def exactly, with this field where the chosen source goes.
+    ///
+    /// So the `Option` is not a two-arm enum wearing a `bool`: there are
+    /// **three** answers and `None` is the third — the effect does not ask
+    /// about combat at all, which is what every def written before RD-3
+    /// carries and what a card like Guardian Seraph means by "1 of any damage,
+    /// not just combat damage".
     ///
     /// **Neither field reads the amount, which is load-bearing**:
     /// `pipeline::ordering_cannot_change_outcome` suppresses CR 616.1's prompt
