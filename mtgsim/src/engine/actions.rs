@@ -287,7 +287,8 @@ impl DamageResults {
         remove_loyalty: false,
     };
 
-    fn of(game: &GameState, id: ObjectId) -> Self {
+    /// The results damage to `id` has, read off its **effective** types.
+    fn for_object(game: &GameState, id: ObjectId) -> Self {
         use crate::types::card_types::CardType;
         // One walk, two questions, and no clone of the type set: this runs on
         // every damage event, and combat is where damage lives.
@@ -645,7 +646,7 @@ impl GameState {
                                 "Target object {} not on battlefield", id
                             ));
                         }
-                        DamageResults::of(self, *id)
+                        DamageResults::for_object(self, *id)
                     }
                     DamageTarget::Player(_) => DamageResults::PLAYER,
                 };

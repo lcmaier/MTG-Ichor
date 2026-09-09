@@ -2387,6 +2387,11 @@ section never asked.
     the pool is **Sigarda at {2}{G}{W}{W}** — gold and five mana, so she is in
     one deck in sixteen and lands late when she lands at all. `gather`'s gate
     opened on turn two of most games because RC-2 put a *tapland* in the pool.
+    (**The "one deck in sixteen" half is history from 2026-09-03 on**: the
+    `Everywhere` land removed `random_deck`'s color filter, so every deck now
+    draws uniformly from every nonland. Sigarda's five mana is the whole of the
+    argument since then. Corrected 2026-09-08 by the RD-1 review, which found
+    the same stale claim repeated in two card files.)
 
     **So this is deferred rather than done, and the trigger is a card, not a
     date.** The fix is five lines and exactly `gather`'s — skip the permanent
@@ -3500,13 +3505,34 @@ types. Five cards registered — Furnace of Rath (pooled), Ghosts of the
 Innocent, Gisela, Blade of Goldnight, Angel of Suffering, and the Loyalty Probe
 fixture. Item 27 closes here; items 86 and 87 are placed.
 
-**Why 120.3e got a type gate nobody asked for.** The arm was a two-way `match`
-on the target: mark damage on any battlefield object, or subtract life from a
-player. Writing CR 120.3 as what it says — "one or more of the following
-results" — makes the ungated marking visible as bookkeeping the rule does not
-have, and makes the creature-planeswalker case (120.3c **and** 120.3e) fall out
-instead of needing a special case. It is unreachable from the registered pool
-and pinned by a test anyway, because the wither and infect arms land next to it.
+**Why 120.3e got a type gate nobody asked for.** Reworded 2026-09-08 after
+review found it too compressed to follow.
+
+*Before*, `perform_action`'s damage arm was a two-way `match` on the target and
+each arm did one thing: an object had `damage_marked += amount` written on it,
+a player had `life_total -= amount`. Two branches, mutually exclusive, and the
+object branch asked nothing about what kind of object it was.
+
+*After*, it asks the target which of CR 120.3's results it has. Three
+consequences, and only the first was designed:
+
+1. **A creature planeswalker gets two results.** CR 120.3 says damage "has
+   **one or more** of the following results". Damage to a permanent that is
+   both marks damage (120.3e) *and* removes loyalty (120.3c). Under a two-way
+   `match` that needs a special case, because the arms are alternatives; under
+   a struct of independent flags it is what the code already does.
+2. **A non-creature, non-planeswalker permanent takes no result at all.** This
+   is the part nobody asked for. Once each result names the type it belongs to,
+   the old unconditional `damage_marked` on *any* battlefield object has no
+   rule behind it — CR 120.3e is written about a creature — so it was
+   bookkeeping the CR does not have, invisible while the arm was shaped as
+   "object or player".
+3. It is unreachable from the registered pool, because
+   `SelectionFilter::Any` offers only creatures, planeswalkers and players, and
+   combat cannot attack anything else. It is pinned by a test anyway
+   (`damage_to_a_noncreature_nonplaneswalker_marks_nothing`), because the
+   wither, infect and toxic arms land in this same struct and will be written
+   by someone reading it.
 
 86. **CR 120.3b, 120.3d and 120.3g are absent — poison from infect and toxic,
     and wither's and infect's −1/−1 counters.** RD-1's `DamageResults` is the
@@ -3539,6 +3565,51 @@ and pinned by a test anyway, because the wither and infect arms land next to it.
     was filed 2026-09-08 because no doc owned CR 310 at all. The 120.3h result
     itself is one flag on `DamageResults` and one block, the same shape as
     120.3c; everything else about battles is the size.
+
+### Found by the RD-1 review (2026-09-08)
+
+Fourteen review notes on the RD-1 branch. Most were answered in place; three
+changed behavior or left a standing record, and one is a doc-hygiene finding
+worth more than the comments it corrects.
+
+88. **A mill of N was N batches, and it should have been one (fixed in the
+    same review).** `Primitive::Mill` looped `change_zone`, so each card's move
+    opened its own batch. CR 701.17a says "that player puts **that many cards**
+    from the top of their library into their graveyard" — one simultaneous
+    move — and the CR has no analogue here to CR 121.2's "cards may only be
+    drawn one at a time", which is the rule that makes *drawing* the exception.
+    The consequence is CR 603.2c's: "whenever one or more cards are put into
+    your graveyard" would have fired once per card. Now one `execute_actions`
+    batch of N `ZoneChange` members, which keeps each card its own event for
+    CR 614.5 (Leyline of the Void applies to every card, not the first) while
+    giving the whole mill one `BatchId`.
+
+    **Reachability (2026-09-08):** it was unreachable as a *wrong answer* —
+    no trigger exists — and reachable as a wrong *shape*, which is why it was
+    fixed rather than deferred: item 6 would have inherited it silently.
+    Pinned by `a_mill_is_one_batch_of_many_moves`.
+
+89. **A comment can state a measured fact and go stale without any code
+    changing, and nothing in the process re-reads it.** The RD-1 review found
+    three comments in two card files asserting that `fuzz_games::random_deck`
+    "filters nonlands by color", with derived probabilities — "roughly one deck
+    in sixteen", "about a third of decks". That filter was removed on
+    2026-09-03 when the `Everywhere` land landed, and `registry.rs`'s own note
+    records the removal. Nothing connected the two: the claims were true when
+    written, no test could fail on them, and the card files they justify were
+    selected on their basis.
+
+    **Reachability (2026-09-08):** reachable and *actively misleading* — a
+    later phase choosing cards on the stale rule would reject a gold card for a
+    reason that no longer exists. Corrected in all three places.
+
+    **Sized:** the fix is not a rule about comments, and this is the finding.
+    `CLAUDE.md`'s comment rule already says the right thing ("comment the *why*,
+    and only where it is not recoverable from the code plus one rule number"),
+    and no rule about comment *length* would have caught a claim that was true
+    when written. What is missing is a re-read, so it becomes an audit with an
+    instrument, on the Deferred Migrations triage's own cadence —
+    `engineering-practices.md` §2 now carries it.
 
 ### Was the critical path complete? — audited 2026-08-27
 
@@ -4528,6 +4599,32 @@ first.
 
    **Reachability (2026-09-03):** unreachable — still no registered card with an
    additional mana cost (`additional_cost` appears in no card file).
+
+10. **Card files have no shared helper module, so every phase re-writes the
+    same `AbilityDef` literal — and the only alternative on offer is
+    `test_support` (raised in the RD-1 review, 2026-09-08).** The static-ability
+    shape (`id: new_ability_id(), ability_type: Static, costs: vec![], effect,
+    is_characteristic_defining: false, activation_restriction: None`) is written
+    out **31** times across `src/cards/`, plus two private named helpers that
+    wrap it — `phase_li_cards::static_ability` and
+    `phase_rd_cards::static_replacement`, which cannot see each other. A card
+    file must not depend on `test_support`, so the pull today is toward a third
+    private copy rather than toward sharing.
+
+    **Reachability (2026-09-08):** reachable and not wrong — it is duplication,
+    not a defect, and nothing it produces is incorrect. What makes it a
+    *deadline* rather than a nit is Phase 8: card breadth multiplies the
+    per-file copies, and the moment a real card list arrives, the helpers have
+    to be somewhere that is not a phase file and not the test crate, or they
+    get cordoned off with the fixtures.
+
+    **Sized:** ~150–250 lines, mechanical — a `cards::helpers` module beside
+    the registry holding the ability constructors (static, activated, triggered
+    when it exists) and the recipient shorthands, with the 31 sites rewritten
+    to call them. It must not become a second `CardDataBuilder`: the builder
+    owns the *card*, this owns the *ability*, and the line between them is that
+    a helper here returns an `AbilityDef` and nothing else. Best done as its own
+    mechanical PR before the first Phase 8 card file, not folded into one.
 
 ### Before Triggered abilities (CR 603)
 

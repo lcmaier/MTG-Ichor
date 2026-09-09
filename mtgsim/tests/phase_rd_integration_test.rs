@@ -24,7 +24,6 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -74,6 +73,77 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
     game.players[player].life_total
 }
 
+/// A `DecisionProvider` that returns a scripted allocation and **records the
+/// per-bucket minimums it was offered**.
+///
+/// `ScriptedDecisionProvider` and `RecordingDecisionProvider` both answer an
+/// `allocate`, and neither can see its arguments — so neither can say what
+/// CR 702.19b's lethal requirement *was*, only what an assignment did. The
+/// trample test's claim is about the requirement, so it needs this.
+struct MinRecordingProvider {
+    allocation: Vec<u64>,
+    seen: std::cell::RefCell<Vec<Vec<u64>>>,
+}
+
+impl MinRecordingProvider {
+    fn assigning(allocation: Vec<u64>) -> Self {
+        MinRecordingProvider { allocation, seen: std::cell::RefCell::new(Vec::new()) }
+    }
+
+    /// The `per_bucket_mins` of each `allocate` so far, in prompt order.
+    fn mins(&self) -> Vec<Vec<u64>> {
+        self.seen.borrow().clone()
+    }
+}
+
+impl mtgsim::ui::decision::DecisionProvider for MinRecordingProvider {
+    fn pick_n(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &mtgsim::ui::choice_types::ChoiceContext,
+        _options: &[mtgsim::ui::choice_types::ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        (0..bounds.0).collect()
+    }
+
+    fn pick_number(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &mtgsim::ui::choice_types::ChoiceContext,
+        min: u64,
+        _max: u64,
+    ) -> u64 {
+        min
+    }
+
+    fn allocate(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &mtgsim::ui::choice_types::ChoiceContext,
+        _total: u64,
+        _buckets: &[mtgsim::ui::choice_types::ChoiceOption],
+        per_bucket_mins: &[u64],
+        _per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.seen.borrow_mut().push(per_bucket_mins.to_vec());
+        self.allocation.clone()
+    }
+
+    fn choose_ordering(
+        &self,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &mtgsim::ui::choice_types::ChoiceContext,
+        items: &[mtgsim::ui::choice_types::ChoiceOption],
+    ) -> Vec<usize> {
+        (0..items.len()).collect()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // CR 120.3a — the contained life loss
 // ---------------------------------------------------------------------------
@@ -93,6 +163,9 @@ fn damage_to_a_player_proposes_a_contained_life_loss_in_the_damages_batch() {
 
     bolt_player(&mut game, source, 1, 3);
 
+    // `ATOM-120.3a-001`'s whole board and expected result: a player at 20 takes
+    // 3 damage from a source without infect and is at 17. The batch assertions
+    // below are this phase's; this line is the atom's.
     assert_eq!(life(&game, 1), 17);
     let records = game.events.records_from(before);
     let damage: Vec<Option<BatchId>> = records
@@ -460,12 +533,21 @@ fn giselas_prevention_beside_an_opponents_furnace_does_not_commute() {
     );
 }
 
-/// Gisela's doubler and her prevention are two rows on one object, and only
-/// one of them applies to any given event: CR 102.1's "an opponent" and
-/// CR 109.5's "you" are disjoint. So her own controller's damage is never
-/// asked a CR 616.1 question by her alone.
+/// Gisela's doubler and her prevention are two rows on one object, and at most
+/// one of them applies to **one damage proposal** — one source, one subject —
+/// because CR 102.1's "an opponent" and CR 109.5's "you" are disjoint. So a
+/// single damage event is never asked a CR 616.1 question by her alone.
+///
+/// **Not a claim about a whole board wipe.** CR 120.4d calls all of a
+/// Pyroclasm's simultaneous damage "the damage event", and the CR uses the word
+/// both ways; the engine's unit is the batch *member*, which is what CR 614.5's
+/// applied set and CR 615.10's "separately to … events that would happen at the
+/// same time" are keyed on. A Pyroclasm across both players' creatures is one
+/// batch in which Gisela's doubler applies to the opponent's members and her
+/// prevention to her controller's — both halves live, on different members.
+/// The second board below is that case.
 #[test]
-fn giselas_two_halves_never_apply_to_the_same_event() {
+fn giselas_two_halves_never_apply_to_one_damage_proposal() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, gisela_blade_of_goldnight(), 0);
     let source = source_for(&mut game, 0);
@@ -477,7 +559,34 @@ fn giselas_two_halves_never_apply_to_the_same_event() {
     bolt_player_with(&mut game, &dp, source, 1, 5);
     assert_eq!(life(&game, 1), 10, "and the opponent's is doubled");
 
-    assert_eq!(dp.prompts(), 0, "one candidate per event is no choice at all");
+    assert_eq!(dp.prompts(), 0, "one candidate per proposal is no choice at all");
+
+    // The other half of the doc comment: one *batch* whose members are about
+    // different subjects sees both of Gisela's rows, each on its own member.
+    let mine = place_vanilla_creature(&mut game, 0, 9, 9, &[]);
+    let theirs = place_vanilla_creature(&mut game, 1, 9, 9, &[]);
+    let ctx = ActionContext::new(&dp);
+    game.execute_actions(
+        vec![
+            GameAction::DealDamage {
+                source,
+                target: DamageTarget::Object(mine),
+                amount: 3,
+                is_combat: false,
+            },
+            GameAction::DealDamage {
+                source,
+                target: DamageTarget::Object(theirs),
+                amount: 3,
+                is_combat: false,
+            },
+        ],
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(game.battlefield[&mine].damage_marked, 1, "prevent half of 3, up");
+    assert_eq!(game.battlefield[&theirs].damage_marked, 6, "doubled");
+    assert_eq!(dp.prompts(), 0, "still one candidate per member");
 }
 
 // ---------------------------------------------------------------------------
@@ -489,43 +598,46 @@ fn giselas_two_halves_never_apply_to_the_same_event() {
 ///
 /// Structural rather than coded: `assign_combat_damage` divides the attacker's
 /// power between the blocker and the defending player and proposes two events,
-/// so the pipeline never sees the undivided number. War Mammoth is the pool's
-/// trampler.
+/// so the pipeline never sees the undivided number. War Mammoth (3/3, trample)
+/// is the pool's trampler.
+///
+/// **The blocker is a 2/2, and that is the whole test.** With a 1/1 the two
+/// readings of CR 702.19b agree by accident — 1 is lethal before doubling and
+/// after — so the board says nothing. Against a 2/2 they disagree: lethal
+/// judged on the *printed* 3 forces 2 to the blocker and leaves 1 to trample
+/// through, while lethal judged on a doubled 6 would let the attacker assign 1
+/// (which Furnace would make 2, "lethal") and send 2 through. The assertion on
+/// the minimum the prompt carried is the direct form of that claim; the
+/// assertions on the board are what it produces.
 #[test]
-fn trample_divides_before_furnace_doubles() {
+fn trample_assigns_lethal_before_furnace_doubles() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, furnace_of_rath(), 0);
     let mammoth = put_on_battlefield(&mut game, keyword_creatures::war_mammoth(), 0);
-    let blocker = place_vanilla_creature(&mut game, 1, 1, 1, &[]);
+    let blocker = place_vanilla_creature(&mut game, 1, 2, 2, &[]);
 
     set_attacking(&mut game, mammoth, 1);
     set_blocked_by(&mut game, mammoth, vec![blocker]);
     set_blocking(&mut game, blocker, vec![mammoth]);
 
-    // CR 702.19b's division, made explicit: 1 lethal to the blocker and 2
-    // through. The attacker divides its *printed* 3, and neither the prompt
-    // nor the assignment knows a Furnace exists.
-    let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_allocation(
-        ChoiceKind::AssignTrampleDamage {
-            attacker_id: mammoth,
-            defending_target: DamageTarget::Player(1),
-        },
-        vec![1, 2],
+    let dp = MinRecordingProvider::assigning(vec![2, 1]);
+    let assignments = assign_combat_damage(&game, &dp, 0, false);
+    assert_eq!(
+        dp.mins(),
+        vec![vec![2u64, 0]],
+        "CR 702.19b's lethal requirement is 2 — the blocker's toughness, not          the 1 a doubled assignment would make lethal",
     );
-    let assignments = assign_combat_damage(&game, &scripted, 0, false);
     assert_eq!(assignments.len(), 3, "two halves of the Mammoth, plus the block");
 
-    let ctx = ActionContext::new(&scripted);
+    let ctx = ActionContext::new(&dp);
     game.apply_combat_damage(assignments, &ctx).unwrap();
 
-    // Each half is doubled on its own — 2 marked and 4 life — rather than 3
-    // doubled to 6 and then divided, which would be 2 and 4 only by accident
-    // and 6 to one of them if the DP had assigned it all one way.
-    assert_eq!(game.battlefield[&blocker].damage_marked, 2);
-    assert_eq!(life(&game, 1), 16);
-    // The blocker's own 1 power, doubled back at the Mammoth.
-    assert_eq!(game.battlefield[&mammoth].damage_marked, 2);
+    // Each half is doubled on its own: 2 -> 4 on the blocker, 1 -> 2 through.
+    // Doubling first and dividing after would have been 6 to split.
+    assert_eq!(game.battlefield[&blocker].damage_marked, 4);
+    assert_eq!(life(&game, 1), 18);
+    // The blocker's own 2 power, doubled back at the Mammoth.
+    assert_eq!(game.battlefield[&mammoth].damage_marked, 4);
 }
 
 // ---------------------------------------------------------------------------
@@ -552,35 +664,74 @@ fn angel_of_suffering_prevents_the_damage_and_mills_twice_that_many() {
     assert_eq!(game.players[0].graveyard.len(), 6);
 }
 
-/// "If you would mill more cards than are in your library, you mill all cards
-/// in your library" — CR 701.2's "as much as it can", and it is not a failure.
+/// Two rulings on one claim, so one test with two boards:
+///
+/// - *"If you would mill more cards than are in your library, you mill all
+///   cards in your library"* — CR 701.17b's "mill as many as possible", which
+///   is not a failure.
+/// - *"Damage that would be dealt to you will be prevented even if you can't
+///   mill twice that many"* — the prevention is decided in the CR 616.1 loop
+///   and the rider runs afterwards (§4.1a), so a short library cannot
+///   un-prevent it.
+///
+/// **The empty board is the sharper of the two and is why both are here.** A
+/// short library still proposes moves; an empty one proposes *none at all*, so
+/// it is the board that would fail if the prevention were ever made conditional
+/// on the rider having done something. They were two tests until review pointed
+/// out that they make one claim.
+///
+/// A genuine "can't mill" — a CR 101.2 restriction over the library→graveyard
+/// move — would be a third, distinct board, and nothing prints one; the
+/// fixture-without-a-card shape is RD-4's, where the "damage can't be
+/// prevented" family already needs it.
 #[test]
-fn angel_of_suffering_mills_a_short_library_dry() {
-    let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, angel_of_suffering(), 0);
-    fill_library(&mut game, 0, 3);
-    let source = source_for(&mut game, 1);
+fn angel_of_suffering_prevents_however_little_it_can_mill() {
+    for (library, milled) in [(3usize, 3usize), (0, 0)] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, angel_of_suffering(), 0);
+        fill_library(&mut game, 0, library);
+        let source = source_for(&mut game, 1);
 
-    bolt_player(&mut game, source, 0, 5);
+        bolt_player(&mut game, source, 0, 5);
 
-    assert_eq!(life(&game, 0), 20, "still prevented");
-    assert!(game.players[0].library.is_empty());
-    assert_eq!(game.players[0].graveyard.len(), 3);
+        assert_eq!(life(&game, 0), 20, "prevented with {library} cards to mill");
+        assert!(game.players[0].library.is_empty());
+        assert_eq!(game.players[0].graveyard.len(), milled);
+    }
 }
 
-/// "Damage that would be dealt to you will be prevented even if you can't mill
-/// twice that many." The prevention is decided in the CR 616.1 loop and the
-/// rider runs afterwards (§4.1a), so an empty library cannot un-prevent it.
+/// CR 701.17a — "that player puts **that many cards** from the top of their
+/// library into their graveyard" — is one simultaneous move, and the CR says
+/// nothing here like CR 121.2's "cards may only be drawn one at a time".
+///
+/// So a mill of six is **one batch of six members**, not six batches. The batch
+/// is what a CR 603.2c trigger will read: "whenever one or more cards are put
+/// into your graveyard" has to fire once. Each member is still its own event
+/// for CR 614.5, which is what lets Leyline of the Void apply to every card
+/// rather than to the first — the test below this one.
 #[test]
-fn angel_of_suffering_prevents_with_an_empty_library() {
+fn a_mill_is_one_batch_of_many_moves() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, angel_of_suffering(), 0);
+    fill_library(&mut game, 0, 20);
     let source = source_for(&mut game, 1);
+    let before = game.events.len();
 
-    bolt_player(&mut game, source, 0, 4);
+    bolt_player(&mut game, source, 0, 3);
 
-    assert_eq!(life(&game, 0), 20);
-    assert!(game.players[0].graveyard.is_empty());
+    let batches: Vec<Option<BatchId>> = game
+        .events
+        .records_from(before)
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
+        .map(|r| r.batch())
+        .collect();
+    assert_eq!(batches.len(), 6, "twice 3");
+    assert!(batches[0].is_some());
+    assert!(
+        batches.iter().all(|b| *b == batches[0]),
+        "CR 701.17a puts that many cards into the graveyard, once",
+    );
 }
 
 /// The Angel is scoped by `PlayerSet::You`, so it does nothing about damage to

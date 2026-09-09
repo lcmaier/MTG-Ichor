@@ -73,16 +73,30 @@ pub(crate) struct Rider {
 
 /// The amount a proposal carries, for a rider that refers to it (CR 615.5).
 ///
-/// Every amount-bearing `GameAction` arm, not just the damage one: "that much"
-/// is the same question of a life gain or a life loss, and a `_ => None`
-/// fallthrough on a match that already lists them is a smaller claim than an
-/// arm-by-arm audit would be.
+/// **Matched exhaustively, with no `_` arm**, for `filter_is_mods_invariant`'s
+/// reason: a `GameAction` variant added later has to be classified rather than
+/// defaulting to "no amount". The failure a fallthrough would cause is quiet at
+/// the point it happens and loud in the wrong place — `AmountExpr::ReplacedAmount`
+/// would report "no meaning outside a CR 615.5 rider" from inside a rider,
+/// which is the one message guaranteed to send a reader looking somewhere else.
+///
+/// `AddCounters`/`RemoveCounters` carry a count of *counters*, not the amount
+/// CR 615.5's "that much" is about, and no rider reads one; the first that does
+/// changes these two arms and says why.
 fn event_amount(action: &GameAction) -> Option<u64> {
     match action {
         GameAction::DealDamage { amount, .. }
         | GameAction::GainLife { amount, .. }
         | GameAction::LoseLife { amount, .. } => Some(*amount),
-        _ => None,
+        GameAction::AddCounters { .. }
+        | GameAction::RemoveCounters { .. }
+        | GameAction::DrawCard { .. }
+        | GameAction::ZoneChange { .. }
+        | GameAction::Untap { .. }
+        | GameAction::Tap { .. }
+        | GameAction::Attach { .. }
+        | GameAction::Destroy { .. }
+        | GameAction::EnterBattlefield { .. } => None,
     }
 }
 

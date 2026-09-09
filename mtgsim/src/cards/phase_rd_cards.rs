@@ -54,14 +54,21 @@
 //! at 0 across 200 stress games). It is registered in the stress pool and
 //! stays out of `PERFORMANCE_POOL`.
 //!
-//! # Colors, and what a random deck can draw
+//! # What a random deck can draw, and why it is no longer about color
 //!
-//! `random_deck` filters nonlands by color, so a two-color card reaches
-//! roughly one deck in sixteen. Furnace of Rath is mono-red at four mana and
-//! is the pooled one for that reason; Ghosts is mono-white at seven, Angel of
-//! Suffering mono-black at five, and Gisela is `{4}{R}{W}{W}` and legendary —
-//! registered for the stress pool, where the point is breadth rather than
-//! frequency.
+//! **`fuzz_games::random_deck` has not filtered nonlands by color since the
+//! `Everywhere` land landed (2026-09-03).** It draws 36 nonlands uniformly from
+//! every registered nonland, gives every deck one basic of each of the five
+//! types, and fills the rest of the mana base with a land that taps for any
+//! color — so every deck can cast anything, and a gold card is exactly as
+//! likely to be drawn as a mono-colored one. Earlier card files say otherwise
+//! and are stale; `registry.rs`'s `Everywhere` note is the change.
+//!
+//! What still separates these four is **mana value**, which decides whether a
+//! drawn card is ever cast. Furnace of Rath is the cheapest at four and is the
+//! pooled one; Ghosts of the Innocent is seven, Gisela six, Angel of Suffering
+//! five, and all three are registered for the stress pool, where the point is
+//! breadth rather than frequency.
 
 use std::sync::Arc;
 
@@ -82,7 +89,13 @@ use crate::types::replacement::{
 /// The static ability wrapper every card in this file uses.
 ///
 /// Local rather than shared with `test_support::static_ability`: that one is a
-/// test helper, and a card file must not depend on one.
+/// test helper, and a card file must not depend on one. It is the **second**
+/// named helper of this shape in `src/cards/` (`phase_li_cards::static_ability`
+/// is the first) and the shape is written out inline **31** more times, which
+/// is the argument for the hoist `codebase-state.md` "Before card breadth"
+/// item 10 now records: these belong in a `cards::helpers` module beside the
+/// real card list, not duplicated per phase file and not borrowed from
+/// `test_support`.
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
         id: new_ability_id(),
@@ -331,15 +344,15 @@ pub fn angel_of_suffering() -> Arc<CardData> {
              that many cards.",
         )
         .ability(static_replacement(
-            ReplacementDef::new(
+            // About a player and no object at all, which is what
+            // `ReplacementDef::for_players` names — a `Filter` would have to
+            // describe an empty set and `SourceOnly` would make the Angel
+            // shield *itself*.
+            ReplacementDef::for_players(
                 EventPattern::DealDamage,
-                // No object is affected. The empty `Fixed` is the honest way to
-                // say so: a `Filter` would have to describe an empty set, and
-                // `SourceOnly` would make the Angel shield *itself*.
-                AffectedSet::Fixed(Vec::new()),
+                PlayerSet::You,
                 Rewrite::Prevent,
             )
-            .affecting_players(PlayerSet::You)
             .with_then(Effect::Atom(
                 Primitive::Mill(AmountExpr::Multiply(Box::new(AmountExpr::ReplacedAmount), 2)),
                 // The rider's single resolved target is the event's subject —
@@ -459,9 +472,27 @@ mod tests {
     // "Half of 1 rounded down is 0. A source that would deal 1 damage won't
     // deal damage at all" — CR 614.7a drops the emptied event, so nothing is
     // marked and no `DamageDealt` is emitted.
+    //
+    // **Three boards, because "nothing happened" is not evidence on its own.**
+    // The absence of a `DamageDealt` event cannot, by itself, distinguish
+    // "Ghosts halved 1 to 0 and CR 614.7a dropped it" from "the damage never
+    // reached the pipeline at all" — so the same 1 damage without Ghosts is the
+    // control, and 2 damage with Ghosts shows the instance applying rather than
+    // being skipped. What is still not observable here is *which rule* dropped
+    // the event, which is a question for the trace sink (`roadmap-v2.md` A4c).
     #[test]
     fn ghosts_of_the_innocent_halves_one_damage_to_nothing() {
         use crate::events::event::GameEvent;
+
+        let (mut control, ids) = board();
+        deal(&mut control, &ids, 1);
+        assert_eq!(marked(&control, &ids), 1, "1 damage lands when nothing halves it");
+
+        let (mut game, ids) = board();
+        put_on_battlefield(&mut game, ghosts_of_the_innocent(), 0);
+        deal(&mut game, &ids, 2);
+        assert_eq!(marked(&game, &ids), 1, "and Ghosts is applying on this board");
+
         let (mut game, ids) = board();
         put_on_battlefield(&mut game, ghosts_of_the_innocent(), 0);
         deal(&mut game, &ids, 1);

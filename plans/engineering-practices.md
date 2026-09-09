@@ -94,6 +94,42 @@ existing density comes down, file by file, as those files are touched anyway.
 
 ---
 
+### 2.1 The comment audit — why the guard is a sweep and not a budget
+
+**Asked in the RD-1 review (2026-09-08): should `CLAUDE.md` grow a rule against
+over-commenting, or should the codebase get periodic sweeps?** The answer is
+the sweep, and the reason is what the review actually found.
+
+It found three comments in two card files asserting that `fuzz_games::random_deck`
+"filters nonlands by color", with probabilities derived from it. Every one was
+true when written; the filter was removed months later by an unrelated change
+(the `Everywhere` land, 2026-09-03) that had no reason to touch a card file.
+**A length budget would not have caught any of them** — they were short, they
+were *why* rather than *what*, and each one justified a real decision. What was
+missing was a re-read.
+
+So the guard is an audit with an instrument, on the Deferred Migrations
+triage's cadence — **every 15–20 PRs**, and at the close of any phase that
+changed a measurable:
+
+1. **Grep for claims that name a number**: `grep -rnE "(roughly|about|one in|
+   [0-9]+%|[0-9]+ of [0-9]+|measured|counted)" mtgsim/src plans` over comments.
+   A comment that carries a number is a comment that can go stale silently,
+   because nothing recomputes it.
+2. **Re-derive each one, or date it.** A claim that is still true gets a date;
+   a claim that has become history gets rewritten as history — "this was true
+   when X shipped, and Y changed it" — rather than deleted, because the
+   decision it justified is still in the tree.
+3. **Delete what the code now says.** A comment that restates a line it sits
+   above is the *other* failure, and this is where it gets removed — but it is
+   the cheaper of the two, because a redundant comment is noise while a stale
+   one is a wrong answer a reader will act on.
+
+**What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
+lines and every section costs another; the rule it already has is the right
+one, and a second rule that duplicates it in the negative would buy nothing
+that this sweep does not.
+
 ## 3. Two card pools
 
 `cards/registry.rs` builds two:
@@ -467,14 +503,20 @@ CPU/game falls **6.4%** because there is less game to play.
 | Damage events | 20.8 | 19.8 |
 | Total damage | 63.8 | 56.3 |
 | Life changes | 14.4 | 13.3 |
-| **Layer walks** | **372** | **449** |
-| **Board walks** | **245** | **247** |
-| **Memo hits** | **60,807** | **56,267** |
-| **Layer frames** | **4,602** | **4,414** |
-| **Frames/walk** | **12.36** | **9.83** |
+| **Layer walks** | **372** | **448** |
+| **Board walks** | **245** | **245** |
+| **Memo hits** | **60,807** | **56,268** |
+| **Layer frames** | **4,602** | **4,374** |
+| **Frames/walk** | **12.36** | **9.77** |
 | **Dependency checks** | **22** | **18** |
 | **Replacement gathers** | **518** | **480** |
 | **Restriction queries** | **520** | **483** |
+
+The `stress` column moved by a hair between the first recording and this one
+(449 → 448 walks, 4,414 → 4,374 frames) — the review's `Primitive::Mill` fix,
+which turns a mill of N into one batch instead of N and so bumps the layer
+epoch once rather than N times. Nothing a game can see changes;
+`performance` is untouched because Angel of Suffering is not in it.
 
 Reachability, 200 `stress` games with Loyalty Probe forced into every deck:
 cast 206, resolved 204, **in 133 games (66%)**, 1.49 copies per deck. It is

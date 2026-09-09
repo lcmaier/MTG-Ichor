@@ -5098,6 +5098,69 @@ found them.
     printed divides by anything but two, and a general divisor would be an
     arm with no second customer.
 
+### Found by the RD-1 review (2026-09-08)
+
+29. **Two Furnaces prompt, and multiplication commutes — so §11 item 19's
+    suppression theorem has a second candidate, and it is narrower than "N
+    identical effects".** Asked on review: is a bucket of N identical effects
+    that ask the player nothing always order-invariant, so CR 616.1's prompt is
+    noise? For *triggers* the answer is trivially yes — they go on the stack in
+    one APNAP pass and their relative order is fixed at that moment. For
+    **replacement effects it is not**, and the reason is the one the reviewer
+    reached unprompted: CR 616.1f re-gathers after every application, so the
+    bucket is re-formed between members and "the other members" is not a fixed
+    set. That is exactly the premise `order_invariant_entry_bucket` spends its
+    longest clause on.
+
+    **What is provable is narrower and still worth having.** A bucket every
+    member of which is `Amount(Multiplier(n))` is order-invariant: multiplication
+    over `u64` is commutative and associative (saturating included, since
+    saturation is monotone), and no multiplier can remove another's
+    applicability — an amount above 0 stays above 0 under any `n ≥ 1`, so
+    `never_happens` cannot fire between members, and `EventPattern::DealDamage`
+    carries no amount predicate for a member to fall out of. Two Furnaces are
+    that bucket, and the prompt in `two_furnaces_multiply_by_four_and_ask_once`
+    is noise a human player would resent.
+
+    **What breaks the moment the bucket is mixed** is the phase's own headline
+    board: `Halve` beside `Multiplier` does not commute (3 → 1 → 2 or 3 → 6 → 3),
+    which is `COMP-614-DAMAGE-ORDERING-001`. So the clause cannot be "all
+    members are `Amount`"; it has to be "all members are `Amount(Multiplier)`",
+    and `PreventHalf` and `Plus` each need their own argument if they ever want
+    one. `Plus` beside `Plus` commutes; `Plus` beside `Multiplier` does not.
+
+    **Is it worth it?** The cost is one more clause on a
+    semantics-assuming shortcut that already carries expiry conditions
+    (`layers-architecture.md` §12 item 3), plus a `check_order_invariance`
+    arm — and the clause goes false the day an `EventPattern` field reads the
+    amount, or a `Multiplier(0)` is printed, or `Uses::NextDamage` makes a
+    member spendable mid-bucket. **The verdict is: not RD-1's, and RD-2 decides
+    it**, because RD-2 changes the loop's unit and the suppression predicate is
+    read at exactly the site it changes. Deciding it earlier would mean writing
+    the clause twice.
+
+30. **A test that asserts "nothing happened" cannot say *why* nothing
+    happened, and the trace sink is the instrument.** Raised against Ghosts of
+    the Innocent's "half of 1 rounded down is 0, so a source that would deal 1
+    damage won't deal damage at all": the test asserts 0 damage marked and no
+    `DamageDealt` event, and neither distinguishes "Ghosts halved 1 to 0 and
+    CR 614.7a dropped the emptied proposal" from "the damage never reached the
+    pipeline". **The differential closes most of it** and was added — the same
+    1 damage without Ghosts marks 1, and 2 damage with Ghosts marks 1, so the
+    instance demonstrably applies on that board — but the *rule* that dropped
+    the event is still not observable, and no assertion available today makes
+    it so.
+
+    That is a general property of `Rewrite::Prevent` and of every arm that can
+    empty an event, so it is the trace sink's case rather than this test's, and
+    the sink is already scheduled as its own PR (`roadmap-v2.md` A4c, moved out
+    of A6 on 2026-09-08 and now after CM-4). **Nothing about RD moves it
+    earlier**: the differential is available on every board RD can build, and
+    RD-2's boards — a shield that prevents 0 without being spent — are where
+    the argument for the sink actually gets stronger, since "nothing was
+    consumed" has no event at all. Re-ask at RD-2's close, alongside the trace
+    *page* decision §9 already schedules there.
+
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.

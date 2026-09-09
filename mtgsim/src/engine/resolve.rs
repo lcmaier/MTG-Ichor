@@ -211,25 +211,46 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.13a — "a player puts that many cards from the top of
-            // their library into their graveyard".
+            // > 701.17a For a player to mill a number of cards, that player
+            // > puts that many cards from the top of their library into their
+            // > graveyard.
             //
-            // N proposals, not one: each card's move is its own event, which is
-            // what lets the RB-registered Leyline of the Void replace the first
-            // mill in the pool for free. **"As much as it can" (CR 701.2)**:
-            // milling more cards than are in the library mills all of them and
-            // is not a failure — Angel of Suffering's own ruling.
+            // **One batch, N members — not N batches.** "Puts that many cards"
+            // is one simultaneous move, and the CR says nothing here like
+            // CR 121.2's "cards may only be drawn one at a time", which is the
+            // rule that makes drawing the exception. The batch is what a
+            // CR 603.2c trigger reads: "whenever one or more cards are put into
+            // your graveyard" must fire once for a mill of five. Each member is
+            // still its own event for CR 614.5, so the RB-registered Leyline of
+            // the Void applies to every card rather than to the first
+            // (§4.2, and Kalitas's N Zombies is the same shape).
+            //
+            // > 701.17b A player can't mill a number of cards greater than the
+            // > number of cards in their library. ... If instructed to do so,
+            // > they mill as many as possible.
+            //
+            // So a short library is not a failure — Angel of Suffering's own
+            // ruling — and the cards are taken before any of them moves,
+            // because they all move at once.
             Primitive::Mill(amount_expr) => {
-                let count = self.evaluate_amount(amount_expr, ctx)?;
+                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, ctx);
-                for _ in 0..count {
-                    let Some(card_id) =
-                        self.get_player(player_id)?.library.last().copied()
-                    else {
-                        break;
-                    };
-                    self.change_zone(card_id, Zone::Graveyard, ZoneChangeCause::Milled, &actx)?;
+                let library = &self.get_player(player_id)?.library;
+                let batch: Vec<GameAction> = library
+                    .iter()
+                    .rev()
+                    .take(count)
+                    .map(|&object| GameAction::ZoneChange {
+                        object,
+                        from: Zone::Library,
+                        to: Zone::Graveyard,
+                        cause: ZoneChangeCause::Milled,
+                    })
+                    .collect();
+                if batch.is_empty() {
+                    return Ok(());
                 }
+                self.execute_actions(batch, &actx)?;
                 Ok(())
             }
 
@@ -1437,6 +1458,11 @@ impl GameState {
             AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
                 "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
             }),
+            // Saturating rather than checked: an overflow here is not a game
+            // state anyone can reach — the inner amount is a damage or life
+            // number and the factor is printed on a card — and the alternative
+            // is a debug panic and a release wrap, neither of which is an
+            // answer. `AmountRewrite::Multiplier` saturates for the same reason.
             AmountExpr::Multiply(inner, n) => {
                 Ok(self.evaluate_amount(inner, _ctx)?.saturating_mul(*n))
             }
