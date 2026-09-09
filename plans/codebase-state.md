@@ -3653,13 +3653,19 @@ battle paragraph, `backlog.md` §2.23). The three below are the ones that become
 entries — one of them replacing a claim this review proved wrong — and the list
 audit is at the end.
 
-103. **`object_matches_filter`'s `Err` is swallowed at three sites, and the
-     things that can raise it are card-authoring errors.** Both legs
-     of `set_affects` and RD-3's source-side leg of `pattern_watches` end in
-     `.unwrap_or(false)`. The causes were: an id with no object behind
-     it, `ObjectFilter::EachOther`, and `PowerLE` against an object with no
-     power. Every one of them reads as **a card that silently does nothing**,
-     which is the failure mode this subsystem's own module doc names first.
+103. **`object_matches_filter`'s `Err` is swallowed wherever a filter is asked
+     about an object, and the things that can raise it are card-authoring
+     errors.** `set_affects` and three legs of `pattern_watches` — RD-3's
+     source side and the two zone-change `object` filters — end in
+     `.unwrap_or(false)`. **Four sites, not the three this item said until
+     2026-09-09**: the original count named "both legs of `set_affects`" (the
+     frame and no-frame branches, which RD-4's fix collapsed into one call) and
+     missed the two zone-change legs entirely, which is its own small lesson
+     about counting call sites by reading rather than by grepping. The causes
+     were: an id with no object behind it, `ObjectFilter::EachOther`, and
+     `PowerLE` against an object with no power. Every one of them reads as **a
+     card that silently does nothing**, which is the failure mode this
+     subsystem's own module doc names first.
 
      **`EachOther` is off the list from RD-4 (2026-09-09), and it never
      belonged on it.** Palisade Giant's "other permanents you control" made it
@@ -3698,7 +3704,7 @@ audit is at the end.
      close: unchanged for the two remaining causes, and the third is fixed
      rather than measured.
 
-     **Sized:** one change at all three sites or none — a `debug_assert!` on
+     **Sized:** one change at all four sites or none — a `debug_assert!` on
      the `Err` arm keeps release behaviour and makes a debug run and `cargo
      test` loud, ~10 lines. The LKI half is separate and larger, and belongs to
      whichever phase gives a damage source a way to die first.
