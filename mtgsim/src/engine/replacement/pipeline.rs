@@ -13,6 +13,7 @@ use crate::types::replacement::{
 };
 use crate::types::zones::Zone;
 use crate::oracle::characteristics::get_effective_power;
+use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::ask_choose_entering_controller;
@@ -82,8 +83,27 @@ pub(crate) struct Rider {
 /// use is spent by (`replacement-architecture.md` §9, RD decision 7).
 #[derive(Debug, Clone, Copy, Default)]
 struct Applied {
+    /// Did the rewrite change the event? CR 609.7b's "prevents no damage or
+    /// replaces no damage" from the other side: a `Uses::Once` effect is spent
+    /// only when this is true.
+    took_effect: bool,
     /// How much damage it prevented (CR 615.1a's arms only; 0 otherwise).
     prevented: u64,
+}
+
+/// One member of a subject group as the loop carries it: its index in the
+/// batch, and its proposal as decided so far — `None` once dropped (CR 614.6,
+/// 614.7a, 614.17).
+struct Member {
+    index: usize,
+    event: Option<GameAction>,
+}
+
+/// One applicable effect in a group's iteration, with the members it applies
+/// to (positions into the group's member list, in member order).
+struct Candidate {
+    instance: ReplacementInstance,
+    members: Vec<usize>,
 }
 
 /// The amount a proposal carries, for a rider that refers to it (CR 615.5).
@@ -147,12 +167,36 @@ fn never_happens(action: &GameAction) -> bool {
     }
 }
 
-/// The CR 616.1 loop: decide what event actually happens.
+/// The CR 616.1 loop: decide what event actually happens, for every member
+/// of a batch that is about one subject.
 ///
-/// Returns `None` when the event does not happen at all (CR 614.6). Queued
-/// riders are pushed onto `riders` in application order and are the caller's to
-/// resolve *after* performing the returned event — including when the return is
+/// **Decisions are per `(batch, subject)`; rewrites are per member**
+/// (`replacement-architecture.md` §9, RD decision 3; §11 items 15 and 24).
+/// `group` is every batch member sharing one [`EventSubject`] — the two
+/// blockers' damage to one attacker, two attackers' damage to one player —
+/// and it gets **one** applied set, one chooser and one loop: a chosen
+/// instance is applied to each member it applies to, its rider queued once
+/// with the members' amounts summed, its use spent once by what the whole
+/// application did. Two printed rulings are what fixed the unit. Kalitas's
+/// says N opposing creatures dying at once make N Zombies — N subjects, N
+/// applications — and CR 122.1c's says two blockers hitting one creature with
+/// shield counters remove **one** counter — one subject, one application. The
+/// per-member shape got the second wrong; a per-batch shape would get the
+/// first wrong; the subject is the key both agree on. And it is the *batch*
+/// that scopes it, not the turn: CR 510.4's two combat damage steps are two
+/// batches, so a first striker and a regular blocker spend two counters.
+///
+/// Returns each member's index with what happens to it — `None` when its
+/// event does not happen at all (CR 614.6). Queued riders are pushed onto
+/// `riders` in application order and are the caller's to resolve *after*
+/// performing the surviving events, including for a member that ended as
 /// `None`, since CR 615.12 makes a rider unconditional once queued.
+///
+/// `later` is the rest of the batch — the groups not yet decided, at their
+/// proposed amounts — read for one thing only: CR 615.7's allocation is per
+/// *instance*, over every member it applies to whatever their subjects, so a
+/// count spanning "you and permanents you control" is asked once here and its
+/// answer kept on `GameState` for the groups after (`PreventionAllocationScope`).
 ///
 /// `inherited` is §3.2d's lineage rule: a **decomposed** event continues its
 /// parent's applied set (`DrawCards{2}` → two `DrawCard`s), a **contained**
@@ -162,11 +206,25 @@ fn never_happens(action: &GameAction) -> bool {
 /// is the termination argument, not a nicety.
 pub(crate) fn apply_replacements(
     game: &mut GameState,
-    action: GameAction,
+    group: Vec<(usize, GameAction)>,
+    later: &[(usize, &GameAction)],
     ctx: &ActionContext,
     inherited: &HashSet<ReplacementInstanceId>,
     riders: &mut Vec<Rider>,
-) -> Result<Option<GameAction>, String> {
+) -> Result<Vec<(usize, Option<GameAction>)>, String> {
+    let subject = subject_of(&group[0].1);
+    debug_assert!(
+        group.iter().all(|(_, a)| subject_of(a) == subject),
+        "a subject group is built by `execute_batch_inner` from one subject"
+    );
+    // An entry is its own subject, so the CR 614.12 frame below — built for
+    // one entering permanent — is built for a group of one.
+    debug_assert!(
+        group.len() == 1
+            || !group.iter().any(|(_, a)| matches!(a, GameAction::EnterBattlefield { .. })),
+        "an entry shares its subject with nothing"
+    );
+
     let mut applied: HashSet<ReplacementInstanceId> = inherited.clone();
     // Declining is tracked **separately from CR 614.5's applied set**, and it
     // has to be.
@@ -186,7 +244,11 @@ pub(crate) fn apply_replacements(
     // which owns the whole termination argument for the effects CR 614.5 does
     // not govern.
     let mut exempt_applied: Option<ReplacementInstanceId> = None;
-    let mut event = action;
+    let mut members: Vec<Member> = group
+        .into_iter()
+        .map(|(index, event)| Member { index, event: Some(event) })
+        .collect();
+    let finish = |members: Vec<Member>| members.into_iter().map(|m| (m.index, m.event)).collect();
 
     // Unbounded on purpose. **Every iteration consumes something finite**, and
     // the three things that guarantee it are each enforced in code rather than
@@ -198,59 +260,89 @@ pub(crate) fn apply_replacements(
     loop {
         // CR 614.7a: an event that never happens has no replacement to make,
         // and any rider it queued would be spent on nothing. Ahead of even the
-        // "can't" check, because there is no event here to forbid.
-        if never_happens(&event) {
-            return Ok(None);
+        // "can't" check, because there is no event here to forbid. Per member,
+        // because a prevention can empty one member of a group and leave the
+        // rest for the next iteration to see.
+        for m in &mut members {
+            if m.event.as_ref().is_some_and(never_happens) {
+                m.event = None;
+            }
         }
+        // Owned, because the gather below walks `members` mutably; one small
+        // clone per iteration of a loop that runs once for most proposals.
+        let Some(first) = members.iter().find_map(|m| m.event.clone()) else {
+            return Ok(finish(members));
+        };
 
         // CR 614.12 / 614.17d — the frame both questions below read for an
         // entering permanent, built once per iteration and computed only if a
         // filter asks. Per iteration and not per event, because clause (1)
         // says the frame accounts for the replacements already applied.
-        let frame = EntryFrame::new(game, &event);
-
-        // CR 614.17: a "can't" is checked ahead of the pipeline and wins
-        // (CR 101.2). Not a `ReplacementDef` and never one — modelling it as one
-        // would have put it in the CR 616.1 choice list, where a player could
-        // decline it.
-        //
-        // Re-asked on every iteration rather than once at the top, because
-        // CR 614.17c lets a self-replacement change the event's *type*, and an
-        // event of a different type is a different "can't" question.
-        let blocked = is_prohibited(
-            game,
-            &Query::Event {
-                action: &event,
-                // CR 101.2 scoped by cause (§2.6). `ActionContext` already
-                // threads the resolution that proposed this; a turn-based or
-                // state-based action has none, and no `SourceFilter` matches it.
-                cause: ctx.resolution.map(|r| r.controller),
-                lookahead: Some(&frame),
-            },
-        );
+        let frame = EntryFrame::new(game, &first);
 
         // CR 614.4 — gathered against live state at the moment of proposal.
         // There is no "go back in time" path because there is no other place
-        // to ask.
-        let applicable: Vec<ReplacementInstance> = gather(game, &event, ctx, blocked, &frame)
-            .into_iter()
-            // CR 614.5, with CR 903.9b as the rules' only stated exception.
-            .filter(|c| c.def.exempt_from_614_5 || !applied.contains(&c.id))
-            // No exception to this one — see `declined`.
-            .filter(|c| !declined.contains(&c.id))
-            .collect();
-
-        if applicable.is_empty() {
-            return Ok(if blocked { None } else { Some(event) });
+        // to ask. Per member, and the union keyed by CR 614.5's identity: one
+        // instance that applies to two members is one candidate with two
+        // members, and it is offered to the chooser once.
+        let mut candidates: Vec<Candidate> = Vec::new();
+        for (pos, m) in members.iter_mut().enumerate() {
+            let Some(event) = m.event.as_ref() else {
+                continue;
+            };
+            // CR 614.17: a "can't" is checked ahead of the pipeline and wins
+            // (CR 101.2). Not a `ReplacementDef` and never one — modelling it
+            // as one would have put it in the CR 616.1 choice list, where a
+            // player could decline it.
+            //
+            // Re-asked on every iteration rather than once at the top, because
+            // CR 614.17c lets a self-replacement change the event's *type*,
+            // and an event of a different type is a different "can't"
+            // question.
+            let blocked = is_prohibited(
+                game,
+                &Query::Event {
+                    action: event,
+                    // CR 101.2 scoped by cause (§2.6). `ActionContext` already
+                    // threads the resolution that proposed this; a turn-based
+                    // or state-based action has none, and no `SourceFilter`
+                    // matches it.
+                    cause: ctx.resolution.map(|r| r.controller),
+                    lookahead: Some(&frame),
+                },
+            );
+            let mut any = false;
+            for c in gather(game, event, ctx, blocked, &frame)
+                .into_iter()
+                // CR 614.5, with CR 903.9b as the rules' only stated exception.
+                .filter(|c| c.def.exempt_from_614_5 || !applied.contains(&c.id))
+                // No exception to this one — see `declined`.
+                .filter(|c| !declined.contains(&c.id))
+            {
+                any = true;
+                match candidates.iter_mut().find(|k| k.instance.id == c.id) {
+                    Some(k) => k.members.push(pos),
+                    None => candidates.push(Candidate { instance: c, members: vec![pos] }),
+                }
+            }
+            // CR 614.17c: a blocked event can only be replaced by a
+            // self-replacement effect, and with none left to offer it does
+            // not happen.
+            if blocked && !any {
+                m.event = None;
+            }
+        }
+        if candidates.is_empty() {
+            return Ok(finish(members));
         }
 
         // CR 616.1a–e.
-        let bucket = forced_bucket(applicable);
+        let bucket = forced_bucket(candidates, |c| c.instance.def.class);
 
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
-        // it has no controller) or the affected player.
-        let subject = subject_of(&event);
-        let chooser = chooser_for(game, &event);
+        // it has no controller) or the affected player. One subject, so one
+        // chooser for the whole group.
+        let chooser = chooser_for(game, &first);
 
         // **Never prompt with fewer than two candidates.** CR-correct (there is
         // no choice to make with one), and it is what keeps every existing
@@ -267,10 +359,10 @@ pub(crate) fn apply_replacements(
         let mut unsuppressed: Vec<ReplacementInstanceId> = Vec::new();
         let chosen = if bucket.len() == 1 {
             bucket.into_iter().next().expect("len checked")
-        } else if order_invariant_entry_bucket(&bucket, subject_object(subject)) {
+        } else if order_invariant_entry_bucket(bucket.iter().map(|c| &c.instance), subject_object(subject)) {
             let mut members = bucket.into_iter();
             let first = members.next().expect("len checked");
-            unsuppressed = members.map(|c| c.id).collect();
+            unsuppressed = members.map(|c| c.instance.id).collect();
             first
         } else {
             let Some(chooser) = chooser else {
@@ -284,15 +376,17 @@ pub(crate) fn apply_replacements(
                     subject
                 ));
             };
+            let sources: Vec<ObjectId> = bucket.iter().map(|c| c.instance.source).collect();
             let index = ask_choose_replacement(
                 ctx.dp,
                 game,
                 chooser,
                 subject_object(subject),
-                &bucket,
+                &sources,
             );
             bucket.into_iter().nth(index).expect("index validated by ask_*")
         };
+        let Candidate { instance: chosen, members: applicable } = chosen;
 
         // "You **may** ... instead". Declining marks it applied but does not
         // consume a use: being offered and refusing *is* CR 614.5's one
@@ -322,10 +416,44 @@ pub(crate) fn apply_replacements(
         if !chosen.def.exempt_from_614_5 {
             applied.insert(chosen.id);
         }
-        consume_use(game, &chosen);
 
-        let replaced_amount = event_amount(&event);
-        let (next, outcome) = apply_rewrite(game, ctx, &chosen, event, subject)?;
+        // CR 615.7's one non-uniform rewrite: a count facing several sources
+        // at once is split by its controller's allocation, decided once per
+        // instance. Every other rewrite is the same for every member.
+        let shares = match (&chosen.def.rewrite, chosen.def.uses) {
+            (Rewrite::Amount(AmountRewrite::PreventRemaining), Uses::NextDamage(remaining)) => {
+                Some(next_damage_shares(game, ctx, &chosen, remaining, &members, &applicable, later)?)
+            }
+            _ => None,
+        };
+
+        // Apply to each member it applies to, in member order. The rider
+        // reads the members' amounts summed — CR 615.7's last sentence, "such
+        // effects count only the amount of damage" — and the use is spent by
+        // what the whole application did (decision 7).
+        let mut replaced_amount: Option<u64> = None;
+        let mut outcome = Applied::default();
+        for (k, &pos) in applicable.iter().enumerate() {
+            let event = members[pos].event.take().expect("gathered this iteration, so live");
+            if let Some(amount) = event_amount(&event) {
+                replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
+            }
+            let share = shares.as_ref().map(|s| s[k]);
+            let (next, did) = apply_rewrite(game, ctx, &chosen, event, subject, share)?;
+            outcome.took_effect |= did.took_effect;
+            outcome.prevented += did.prevented;
+            if let Some(next) = &next {
+                // CR 616.1f — the modified event is what the next iteration
+                // re-gathers against, which is how CR 616.2's "a replacement
+                // effect can become applicable as the result of another"
+                // works without any special case.
+                check_exempt_terminates(game, &chosen, next, &mut exempt_applied)?;
+                check_order_invariance(game, ctx, next, &unsuppressed);
+            }
+            // CR 614.6 — `None` here means this member's event does not
+            // happen. Queued riders still run.
+            members[pos].event = next;
+        }
 
         // Queued, not resolved (§4.1a). A later replacement in the same loop
         // further modifying or even dropping the event does not un-queue this.
@@ -340,19 +468,117 @@ pub(crate) fn apply_replacements(
             });
         }
 
-        match next {
-            // CR 614.6 — the event does not happen. Queued riders still run.
-            None => return Ok(None),
-            // CR 616.1f — re-gather against the modified event, which is how
-            // CR 616.2's "a replacement effect can become applicable as the
-            // result of another" works without any special case.
-            Some(next) => {
-                check_exempt_terminates(game, &chosen, &next, &mut exempt_applied)?;
-                check_order_invariance(game, ctx, &next, &unsuppressed);
-                event = next;
+        consume_use(game, &chosen, outcome);
+    }
+}
+
+/// CR 615.7's allocation: how much of a "prevent the next N damage" count each
+/// of the group's applicable members is given.
+///
+/// > 615.7 … If damage would be dealt to the shielded permanent or player by
+/// > two or more applicable sources at the same time, the player or the
+/// > controller of the permanent chooses which damage the shield prevents.
+///
+/// **Per instance, over every batch member it applies to, asked once.** The
+/// buckets are this group's applicable members plus every not-yet-decided
+/// member of the batch the instance also applies to, at their current amounts
+/// — Divine Deflection's "you and/or permanents you control" spans subjects,
+/// and its ruling is "you don't decide until the point at which the damage
+/// would be dealt", so a later group's doubling chosen ahead of the count moves
+/// that member and not the allocation (§9's recorded corner). The answer is
+/// kept on `GameState` (`PreventionAllocationScope`, `codebase-state.md` item
+/// 40) and a later group's loop reads its own shares from it rather than
+/// asking again. **Never with one source**: with one, every point is prevented
+/// unasked, and nothing is recorded.
+///
+/// One chooser across the buckets, asserted rather than guessed: every printed
+/// multi-subject count is scoped to one player and that player's permanents.
+fn next_damage_shares(
+    game: &mut GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    remaining: u64,
+    members: &[Member],
+    applicable: &[usize],
+    later: &[(usize, &GameAction)],
+) -> Result<Vec<u64>, String> {
+    // This group's applicable members: batch index, damage source, amount.
+    let mut here: Vec<(usize, ObjectId, u64)> = Vec::with_capacity(applicable.len());
+    for &pos in applicable {
+        let m = &members[pos];
+        match m.event.as_ref() {
+            Some(GameAction::DealDamage { source, amount, .. }) => here.push((m.index, *source, *amount)),
+            other => {
+                return Err(format!(
+                    "replacement {:?} prevents \"the remaining\" damage but matched {:?}, \
+                     which is not damage. Its `EventPattern` and its `Rewrite` describe \
+                     different events.",
+                    chosen.id, other
+                ))
             }
         }
     }
+
+    // Asked already, by an earlier group of this batch: read our shares.
+    if let Some(stored) = game.prevention_allocations.shares_for(chosen.id) {
+        return Ok(here
+            .iter()
+            .map(|(index, _, amount)| {
+                stored
+                    .iter()
+                    .find(|(i, _)| i == index)
+                    .map(|(_, share)| *share)
+                    .unwrap_or(0)
+                    .min(*amount)
+                    .min(remaining)
+            })
+            .collect());
+    }
+
+    // The buckets: here, then the later members the instance also applies to,
+    // each with the chooser CR 616.1 would give its own group.
+    let mut buckets: Vec<(usize, ObjectId, u64, Option<PlayerId>)> = here
+        .iter()
+        .map(|&(index, source, amount)| {
+            let action = members.iter().find(|m| m.index == index).and_then(|m| m.event.as_ref());
+            (index, source, amount, action.and_then(|a| chooser_for(game, a)))
+        })
+        .collect();
+    for (index, action) in later {
+        if let GameAction::DealDamage { source, amount, .. } = action {
+            if applies_to(game, chosen, action, subject_of(action), None) {
+                buckets.push((*index, *source, *amount, chooser_for(game, action)));
+            }
+        }
+    }
+
+    if buckets.len() == 1 {
+        return Ok(vec![remaining.min(buckets[0].2)]);
+    }
+
+    let chooser = buckets[0].3;
+    if chooser.is_none() || buckets.iter().any(|b| b.3 != chooser) {
+        return Err(format!(
+            "replacement {:?}'s CR 615.7 count applies to simultaneous damage whose \
+             subjects have different choosers ({:?}); every printed \"next N damage\" \
+             effect is scoped to one player and that player's permanents, so this is a \
+             def that names two sides.",
+            chosen.id,
+            buckets.iter().map(|b| b.3).collect::<Vec<_>>()
+        ));
+    }
+    let chooser = chooser.expect("checked");
+    game.counters.record_prevention_allocation();
+    let offer: Vec<(ObjectId, u64)> = buckets.iter().map(|b| (b.1, b.2)).collect();
+    let shares = ask_allocate_next_damage(ctx.dp, game, chooser, chosen.source, remaining, &offer);
+
+    // Recorded before anything is applied, so a fork at a later group's
+    // prompt sees it (item 40), and so the later group reads rather than asks.
+    game.prevention_allocations.allocations.push((
+        chosen.id,
+        buckets.iter().zip(&shares).map(|(b, s)| (b.0, *s)).collect(),
+    ));
+    Ok(shares[..here.len()].to_vec())
 }
 
 /// §11 item 19 — is this CR 616.1 bucket one whose ordering choice provably
@@ -409,11 +635,11 @@ pub(crate) fn apply_replacements(
 /// review, recorded as `codebase-state.md` item 65. The question is "does
 /// CR 616.1's ordering prompt here have more than one outcome"; "bucket" is
 /// 616.1a–e's forced-choice class, which a reader has to already know.
-fn order_invariant_entry_bucket(
-    bucket: &[ReplacementInstance],
+fn order_invariant_entry_bucket<'a>(
+    bucket: impl Iterator<Item = &'a ReplacementInstance>,
     entering: Option<ObjectId>,
 ) -> bool {
-    bucket.iter().all(|c| {
+    bucket.into_iter().all(|c| {
         (match &c.def.rewrite {
             // Reads the frame only when the source is the object being
             // computed, so anything else is a board read and commutes.
@@ -582,25 +808,32 @@ fn subject_object(subject: EventSubject) -> Option<ObjectId> {
     }
 }
 
-/// Spend one application of the chosen effect.
+/// Spend the chosen effect by what its application did — after
+/// `apply_rewrite`, never before (`replacement-architecture.md` §9, RD
+/// decision 7; §11 item 22).
 ///
-/// `Uses::Once` (CR 701.19a's regeneration shield) removes the registry row, so
-/// a shield spent on one member of a batch is correctly gone when the next
-/// member asks — no batch special-casing needed either way, because this writes
-/// game state.
+/// > 609.7b … If for any reason the shield prevents no damage or replaces no
+/// > damage, the shield isn't used up.
+///
+/// So `Uses::Once` (CR 701.19a's regeneration shield, CR 615.8's "next time")
+/// removes the registry row only when the rewrite took effect — regeneration
+/// always does, since a `Prevent` on a `Destroy` cannot do nothing, which is
+/// why the order never mattered before RD-2 — and `Uses::NextDamage` is
+/// reduced by exactly the damage prevented (CR 615.7), which for an
+/// unpreventable event (RD-4) or a `Once` half that rounded to nothing is 0.
+/// Either way a shield spent on one group of a batch is correctly gone or
+/// reduced when the next group asks, because this writes game state.
 ///
 /// A counter-derived effect consumes nothing here on purpose: CR 122.1c/d make
 /// the counter removal the *substituted event* or the rider, which propose
 /// through `execute_action` like every other mutation. See `Uses`' own docs.
-fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
+fn consume_use(game: &mut GameState, chosen: &ReplacementInstance, outcome: Applied) {
     match chosen.def.uses {
         Uses::Static => {}
-        // Spent by the amount the application prevented, which is known only
-        // after `apply_rewrite` — the reordering `replacement-architecture.md`
-        // §9's RD decision 7 makes, in RD-2's fix commit. Until then the count
-        // is never reduced.
-        Uses::NextDamage(_) => {}
         Uses::Once => {
+            if !outcome.took_effect {
+                return;
+            }
             if let ReplacementInstanceId::Registered(row) = chosen.id {
                 game.replacement_effects.remove(row);
             } else {
@@ -610,6 +843,18 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
                      replacement has to live in the registry — a static ability and \
                      a counter are both re-derived on every gather, so 'spent' has \
                      nowhere to be recorded and the effect would apply forever.",
+                    chosen.id
+                );
+            }
+        }
+        Uses::NextDamage(_) => {
+            if let ReplacementInstanceId::Registered(row) = chosen.id {
+                game.replacement_effects.spend_next_damage(row, outcome.prevented);
+            } else {
+                debug_assert!(
+                    false,
+                    "`Uses::NextDamage` on a {:?}, which has no row to count down on. A \
+                     CR 615.7 count has to live in the registry, for `Uses::Once`'s reason.",
                     chosen.id
                 );
             }
@@ -630,7 +875,9 @@ fn consume_use(game: &mut GameState, chosen: &ReplacementInstance) {
 /// `EnterWith` asks CR 614.17d whether its counters may be put on and
 /// evaluates its amounts, `EnterUnderControlOf(Opponent)` may have to ask a
 /// player which opponent, and `EnterAfterMoving` prompts for a set of objects
-/// and moves them.
+/// and moves them. `share` is CR 615.7's answer for this member — how much of
+/// a `PreventRemaining` count it is given — decided by the caller across the
+/// members at once, and `None` for every other arm.
 ///
 /// **`&mut` because of that last one, and only that one.** CR 614.13 is the
 /// rules' own statement that applying an entry replacement may change the
@@ -644,9 +891,12 @@ fn apply_rewrite(
     chosen: &ReplacementInstance,
     event: GameAction,
     subject: EventSubject,
+    share: Option<u64>,
 ) -> Result<(Option<GameAction>, Applied), String> {
-    // Every arm but `Amount` prevents nothing (CR 615.1a).
-    let changed = Applied { prevented: 0 };
+    // Every arm but `Amount` changes the event whenever it is chosen — which
+    // is why the order of `consume_use` never mattered before RD-2 — and
+    // prevents nothing (CR 615.1a).
+    let changed = Applied { took_effect: true, prevented: 0 };
     match &chosen.def.rewrite {
         // CR 614.6 / 615.6.
         Rewrite::Prevent => Ok((None, changed)),
@@ -731,7 +981,7 @@ fn apply_rewrite(
                 // other arm reports.
                 let arm = match (amount_rewrite, chosen.def.uses) {
                     (AmountRewrite::PreventRemaining, Uses::NextDamage(remaining)) => {
-                        amount_rewrite.capped(remaining)
+                        amount_rewrite.capped(share.unwrap_or(remaining))
                     }
                     (AmountRewrite::PreventRemaining, uses) => {
                         return Err(format!(
@@ -755,7 +1005,7 @@ fn apply_rewrite(
                 let after = arm.apply(amount);
                 Ok((
                     Some(GameAction::DealDamage { source, target, amount: after, is_combat }),
-                    Applied { prevented },
+                    Applied { took_effect: after != amount, prevented },
                 ))
             }
             // Its `EventPattern` and its `Rewrite` describe different events —

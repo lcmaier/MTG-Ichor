@@ -699,18 +699,15 @@ pub fn ask_choose_replacement(
     game: &GameState,
     chooser: PlayerId,
     affected_object: Option<ObjectId>,
-    candidates: &[crate::engine::replacement::ReplacementInstance],
+    sources: &[ObjectId],
 ) -> usize {
     assert!(
-        candidates.len() >= 2,
+        sources.len() >= 2,
         "ask_choose_replacement: CR 616.1 makes a choice only among two or more \
          applicable effects; called with {}",
-        candidates.len(),
+        sources.len(),
     );
-    let options: Vec<ChoiceOption> = candidates
-        .iter()
-        .map(|c| ChoiceOption::Object(c.source))
-        .collect();
+    let options: Vec<ChoiceOption> = sources.iter().map(|s| ChoiceOption::Object(*s)).collect();
     let ctx = ChoiceContext {
         kind: ChoiceKind::ChooseReplacementEffect { affected_object },
     };

@@ -427,7 +427,7 @@ impl GameState {
         batch: Vec<GameAction>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        use crate::engine::replacement::{apply_replacements, Rider};
+        use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
 
         // Entering is the zone change, and `EnterBattlefield` is its only
         // proposal: a `ZoneChange` onto the battlefield here has bypassed
@@ -441,24 +441,36 @@ impl GameState {
              (replacement-architecture.md section 9, RC-4b)"
         );
 
-        // --- Phase 1: decide (CR 616.1), in APNAP order of chooser ----------
+        // --- Phase 1: decide (CR 616.1), per subject, in APNAP order of chooser
         //
         // CR 616.1's last sentence: "if two or more players have to make these
         // choices at the same time, choices are made in APNAP order (see rule
         // 101.4)". A batch whose members affect different players produces
         // different choosers, and this is the only place that can order them.
         //
+        // **The unit is the subject group, not the member** (RD-2; §9's RD
+        // decision 3): members about one object or player — two blockers'
+        // damage to one attacker — are decided by one CR 616.1 loop with one
+        // applied set, so an effect applies to the pair once, which is what
+        // CR 122.1c's "only one shield counter is removed" needs and what
+        // Kalitas's N Zombies still get, since N deaths are N subjects.
+        // Members sharing a subject share a chooser, so grouping them keeps
+        // the APNAP order between players intact; within one player the
+        // groups run in first-appearance order.
+        //
         // CR 101.4d's restart — a nonactive player's choice forcing an
         // earlier player to choose again — is not implemented. It has not come
         // up for a narrower reason than "unreachable": nothing in phase 1 can
-        // *create* a replacement effect, and each member's 616.1f loop runs to
+        // *create* a replacement effect, and each group's 616.1f loop runs to
         // completion before the next begins. That is a simplification, not a
-        // proof; interleaving the members is deferred (rb-review F6).
+        // proof; interleaving the groups is deferred (rb-review F6).
         // CR 614.13a/b's exclusion sets belong to *these* simultaneous entries.
         // Saved and restored like the event stamp: an auxiliary move's own
         // nested batch, and a rider's, are different events with their own.
         // Populated before the first member is decided, because 614.13a is
         // about what is entering rather than about what has entered.
+        // CR 615.7's allocation answers are scoped the same way, for the same
+        // reason.
         let outer_selection = std::mem::take(&mut self.entry_selection);
         self.entry_selection.entering = batch
             .iter()
@@ -467,14 +479,34 @@ impl GameState {
                 _ => None,
             })
             .collect();
+        let outer_allocations = std::mem::take(&mut self.prevention_allocations);
+
+        let mut groups: Vec<(EventSubject, Vec<usize>)> = Vec::new();
+        for index in self.apnap_batch_order(&batch) {
+            let subject = subject_of(&batch[index]);
+            match groups.iter_mut().find(|(s, _)| *s == subject) {
+                Some((_, members)) => members.push(index),
+                None => groups.push((subject, vec![index])),
+            }
+        }
 
         let mut riders: Vec<Rider> = Vec::new();
         let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
         let inherited = std::collections::HashSet::new();
         let mut decided_ok = Ok(());
-        for index in self.apnap_batch_order(&batch) {
-            match apply_replacements(self, batch[index].clone(), ctx, &inherited, &mut riders) {
-                Ok(action) => decided[index] = action,
+        for g in 0..groups.len() {
+            let members: Vec<(usize, GameAction)> =
+                groups[g].1.iter().map(|&i| (i, batch[i].clone())).collect();
+            let later: Vec<(usize, &GameAction)> = groups[g + 1..]
+                .iter()
+                .flat_map(|(_, idxs)| idxs.iter().map(|&i| (i, &batch[i])))
+                .collect();
+            match apply_replacements(self, members, &later, ctx, &inherited, &mut riders) {
+                Ok(results) => {
+                    for (i, action) in results {
+                        decided[i] = action;
+                    }
+                }
                 Err(e) => {
                     decided_ok = Err(e);
                     break;
@@ -482,6 +514,7 @@ impl GameState {
             }
         }
         self.entry_selection = outer_selection;
+        self.prevention_allocations = outer_allocations;
         decided_ok?;
 
         // --- Phase 2: perform, in batch order -------------------------------

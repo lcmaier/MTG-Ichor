@@ -767,17 +767,22 @@ fn remove_one_counter(counter: CounterType) -> Effect {
     )
 }
 
-/// CR 616.1a–e's forced buckets. Exposed for the pipeline's use.
-pub(crate) fn forced_bucket(candidates: Vec<ReplacementInstance>) -> Vec<ReplacementInstance> {
+/// CR 616.1a–e's forced buckets. Exposed for the pipeline's use; generic over
+/// what carries the instance, because the pipeline's candidates carry the
+/// members each applies to beside it.
+pub(crate) fn forced_bucket<T>(
+    candidates: Vec<T>,
+    class: impl Fn(&T) -> crate::types::replacement::ReplacementClass,
+) -> Vec<T> {
     // `ReplacementClass` derives `Ord` in CR order, so the minimum present
     // class is 616.1's highest-priority non-empty one and 616.1e's `Other` is
     // the fallthrough by construction. `top` came out of the candidates, so the
     // filter below always keeps at least the one that produced it — there is no
     // non-empty-bucket check to make.
-    let Some(top) = candidates.iter().map(|c| c.def.class).min() else {
+    let Some(top) = candidates.iter().map(&class).min() else {
         return candidates;
     };
-    candidates.into_iter().filter(|c| c.def.class == top).collect()
+    candidates.into_iter().filter(|c| class(c) == top).collect()
 }
 
 // ---------------------------------------------------------------------------
