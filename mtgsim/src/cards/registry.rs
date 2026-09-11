@@ -48,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 77] = [
+const PERFORMANCE_POOL: [&str; 78] = [
     "Plains",
     "Island",
     "Swamp",
@@ -276,6 +276,24 @@ const PERFORMANCE_POOL: [&str; 77] = [
     // Damage is the chosen-source path Circle of Protection: Red already
     // measured, at {3}{R}{W}.
     "Pariah",
+    // RE-1 — the pool's first card whose effect is a *dropped* turn-structure
+    // proposal. Every other replacement source here watches something a spell
+    // or a combat step proposes; this one watches a unit the turn machinery
+    // proposes on a fixed schedule, so from the moment it resolves it opens
+    // the per-permanent gather sweep on every player's upkeep, every turn,
+    // for the rest of the game.
+    //
+    // Colourless at five, so every deck can cast it, and its scope is
+    // `PlayerSet::Everyone` — the only pooled effect that applies to a player
+    // who is not its controller and is not about damage.
+    //
+    // The other four stay out, each for its own reason. Yawgmoth's Bargain
+    // gives the random agent a use for its life total and would empty
+    // libraries, which is RE-6's board and a distortion of every fixture until
+    // then; Time Walk's extra turn moves `Avg turns/game` by design; Meditate
+    // and Moment of Silence are one-shots whose engine path this card already
+    // opens.
+    "Eon Hub",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
