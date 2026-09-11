@@ -3436,7 +3436,7 @@ proposing no zone change (CR 701.22 moves nothing between zones).
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
-| **RE-1 — skips, and the turn queue** | `BeginTurn`/`BeginPhase`/`BeginStep`, three arms, three small performers emitting the three begin events; `advance_turn` as a queue drainer with proceed-past; `Primitive::ExtraTurn` and CR 500.7's order | `GameAction` exhaustive matches **3** ×3 variants; `advance_turn` **1** (~200 lines of it), `begin_turn` **1**, `Game::setup`'s first turn **1**, `run_turn`'s turn boundary **1**; `pattern_watches` **3**; the two `until_your_next_turn … extra_turn` tests already in the tree rewritten against a real queue. Predicted **~600 engine, ~350 cards, ~750 tests ≈ 1,700–1,900** | medium — the turn loop is the one piece of the engine with no batch discipline yet; a dropped turn touches durations, and an extra turn touches "next turn" |
+| **RE-1 — skips, and the turn queue** — ✅ landed | `BeginTurn`/`BeginPhase`/`BeginStep`, three arms, three small performers emitting the three begin events; `advance_turn` as a queue drainer with proceed-past; `Primitive::ExtraTurn` and CR 500.7's order | Predicted **~1,700–1,900**; shipped **+1,770 / −155** before the docs. The three exhaustive matches and `pattern_watches` were exactly as counted; `Game::setup`'s "first turn" was a *new* site rather than an existing one, and `turn_rotation` was a field nobody predicted (§11 items 47, 48) | medium — and the risk landed where it was named: the fixtures, six of which counted turn positions by hand |
 | **RE-2 — draw** | `DrawCards` outer + `DrawCard.cause`; two pattern arms; `GameActionTemplate::DrawCards { n, player }`; the outer performer's decomposition with the inherited applied set (item 29's producer) | exhaustive matches **3** + `pattern_watches` **2**; `DrawCard` producers **2** rewritten to the outer, performer **1**, test constructions **1**; `execute_batch_inner`'s `inherited` **1** call site; `Primitive::DrawCards` **1**. Predicted **~550 engine, ~350 cards, ~800 tests ≈ 1,700–1,900** | **highest** — the first decomposition, whose defect is a hang, and the `cause` stamping rule across nested outers |
 | **RE-3 — life** | `EventPattern::GainLife`, `LoseLife { cause }`; `AmountRewrite::LifeFloor`; `GameActionTemplate::{GainLife, LoseLife} { amount: TemplateAmount }`; `Restriction::Event.affected_players` | `pattern_watches` **2**; `apply_rewrite`'s `Amount` arm **1** and `Instead` arm **2**; `Restriction::Event` constructions **~6** + `is_prohibited`'s union **1**; `GainLife` producers **2**, `LoseLife` **3**, untouched. Predicted **~350 engine, ~450 cards, ~600 tests ≈ 1,400–1,600** | low-medium — patterns over events that already flow; the clamp is the one new arithmetic |
 | **RE-4 — tokens** | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850** | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
@@ -3459,77 +3459,28 @@ the line predictions are calibrated against RD-1 (+1,950 against a
 RD-2 (+2,393) and RD-3 (+2,035 against ~1,400–1,600), so the card columns
 above are written with the rulings pass in.
 
-#### RE-1 — skips, and the turn queue (CR 614.1b, 614.10, 614.10a, 500.7, 500.11)
+#### RE-1 — skips, and the turn queue (CR 614.1b, 614.10, 614.10a, 500.7, 500.11) — ✅ landed 2026-09-11
 
-**Builds:** decision 6 — the three variants, three arms, three performers
-emitting the three begin events, `advance_turn` as a queue drainer with the
-proceed-past, turn-number and duration rules, `Primitive::ExtraTurn` pushing
-CR 500.7's most-recent-first, and 800.4k's refusal at the turn site (a rule,
-ahead of the pipeline, reading `player_lost` — which RE-6 later makes true for
-a reason). **Consumers:**
+**Shipped.** `GameAction::{BeginTurn, BeginPhase, BeginStep}` with their three
+`EventPattern` arms and three performers, emitting the three `GameEvent`s the
+log has carried since it was written and nothing emitted — which is what item
+6's 2,656 "at the beginning of" triggers read. `advance_turn` rewritten as a
+drainer over CR 500.1's sequence with CR 500.11's proceed-past at all three
+levels; `GameState::turn_queue` (CR 500.7's stack) fed by
+`Primitive::ExtraTurn`, and `turn_rotation` beside it so an extra turn does not
+move the natural rotation. `Rewrite::Prevent` is the skip; no new `Rewrite`
+arm. CR 508.8 and CR 800.4k joined the proposal site as rules ahead of the
+pipeline. Eon Hub (pooled), Yawgmoth's Bargain, Meditate, Time Walk, Moment of
+Silence; `backlog.md` §2.17 graduated.
 
-- **Yawgmoth's Bargain** — "Skip your draw step. Pay 1 life: Draw a card."
-  `BeginStep { step: Some(Draw) }`, `Fixed(vec![])` + `You`, `Prevent`,
-  `Uses::Static`; and an activated ability with `Cost::PayLife(1)` and
-  `DrawCards(1)`, both of which exist. No rulings. Tests: the draw step's
-  *contents* are not proposed — no `CardDrawn`, no `StepBegin { Draw }`,
-  priority goes straight to the precombat main (`ATOM-614.10-001`). A random
-  agent with one use for its life total will empty its library, which is what
-  makes RE-6's Laboratory Maniac path reachable and is why this card is
-  registered and **not pooled**.
-- **Eon Hub** — "Players skip their upkeep steps." `BeginStep { step:
-  Some(Upkeep) }`, `Everyone`, `Prevent`, `Uses::Static`. Rulings, three, all
-  tests: *skipped entirely, untap to draw* → the event log; *"activate only
-  during your upkeep" can't be activated* → no such ability exists to assert
-  against, recorded; *untap-step triggers go on the stack at the draw step* →
-  item 6's. The four-player form: every player's upkeep, one static, no
-  prompt.
-- **Meditate** — "Draw four cards. You skip your next turn." `DrawCards(4)`
-  then `CreateReplacement` of a `BeginTurn` row, `You`, `Uses::Once`,
-  `Duration::Indefinite` — a row that ends by use and never by time, the
-  first of its kind, and `Duration::Indefinite` has waited for it. Ruling:
-  *you skip one turn* → test; and 614.10a's own sentence: **two Meditates
-  skip two turns** (`ATOM-614.10a-001`), the second row surviving the first
-  proposal. The "until your next turn" test rides on it: a Cerulean Wisps-class
-  effect on your creature lasts across the skipped turn to the one that
-  begins.
-- **Time Walk** — "Take an extra turn after this one." `Primitive::ExtraTurn`,
-  the queue's producer. Ruling: *multiple extra-turn effects in one turn are
-  taken in reverse order* → two Time Walks, the second resolved is the first
-  taken (CR 500.7's "most recently created turn will be taken first"). And
-  the board that puts skips and the queue in one PR: **Meditate then Time
-  Walk** — the extra turn is the "next occurrence" the skip consumes, and the
-  natural turn after it begins. The two `until_your_next_turn … extra_turn`
-  tests already in `continuous_effects.rs` and `duration_registry.rs`, which
-  simulate an extra turn by calling `begin_turn` twice, are rewritten against
-  the queue so they prove the engine rather than the harness.
-- **Moment of Silence** — "Target player skips their next combat phase this
-  turn." `BeginPhase { phase: Some(Combat) }`, `Fixed(vec![])` filled with the
-  target at resolution (Mending Hands' player fill), `Uses::Once`,
-  `UntilEndOfTurn`. Rulings, three, all tests: *only their next combat
-  phase, if any* → one row, spent once; *cast during combat: no effect* →
-  `ATOM-614.10-002`, the row meets no proposal and expires at cleanup; *cast
-  on a player when it is not their turn: no effect* → the subject is the
-  active player, so a row on another player watches nothing this turn. The
-  first targeted skip, and a four-player target.
-- **Chronatog** is the natural activated skip and is out: "activate only once
-  each turn" is an activation limit the ability model does not have, one
-  customer here, recorded on the card file's module doc. **Relentless
-  Assault** is the extra-phase shape and waits for the queue's second level.
+**Two things the sizing did not have.** `turn_rotation` is a field nobody
+predicted and it is what makes the queue N-player-shaped (§11 item 47), and
+`Game::setup` never began the first turn at all, so turn 1's untap step had run
+no turn-based action in any game the engine has played (§11 item 48).
 
-**`PERFORMANCE_POOL` +1, Eon Hub**, predicted: a static skip on every
-player's upkeep, every turn, in every game it reaches the battlefield — the
-first card whose effect is a *dropped* turn-structure proposal in a measured
-game. Time Walk is registered and not pooled: an extra turn in every blue deck
-moves avg turns by design. The middle arm's own move is decision 6's
-proposals, predicted below.
-
-**Atoms:** `ATOM-614.10-001`, `ATOM-614.10-002`, `ATOM-614.10a-001`,
-`BOUNDARY-DEF-614.1b-001`; `ATOM-614.10b-001` stays uncovered, decision 6's
-zero-card reason in the test file. CR 500.7 has no atom in the corpus
-(`backlog.md` §2.17 said it was thin); the two-Time-Walk test carries none and
-says so. `ATOM-502.3-002` and `ATOM-703.4c-002` ("doesn't untap") are
-`backlog.md` §2.14's and are not skips; this PR touches neither.
+→ The section as sized, what the building changed and the measurement:
+`plans/archive/replacement-architecture-landed.md`, "RE-1" (evicted
+2026-09-11).
 
 #### RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g)
 
@@ -4054,13 +4005,20 @@ worktree, both pools, the middle arm being the engine with `registry.rs` and
 add proposals**, so the counters will move on those and each PR predicts the
 number before running:
 
-- **RE-1:** the largest move in RE and the one to predict exactly — one gather
-  per step, phase and turn that begins, about **sixteen per turn**, so ~+450
-  gathers per 30-turn game; `Layer walks` flat (no source, row or counter
-  watches them, so the sweep's fast path returns before any walk); CPU inside
-  the spread. If CPU moves beyond it, the fix is §8's answer-preserving
-  event-kind gate and it is **this PR's to build**, not a later one's — which
-  is one more reason it goes first.
+- **RE-1 — measured 2026-09-11, and it is the one number the rest of RE reads.**
+  `Replacement gathers` **+447 per game** (507 → 954 on `performance`, 200
+  games / seed 12345) against a predicted ~+450, and `Restriction queries`
+  moved with it — one `is_prohibited` per proposal, which the prediction
+  missed. `Layer walks`, `Board walks`, `Layer frames` and `Dependency checks`
+  **flat**, and every gameplay row identical to `main`. `Memo hits` +1.6%,
+  because the fast path stops the walk and not the query. **CPU/game +5.0%**
+  (12.92 → 13.57 ms), inside the stated 2–6% spread but cleanly separated
+  round to round. A fourth arm with a hard-coded event-kind gate measured
+  **+2.5%**, so the sweep is half the cost and the chokepoint is the other
+  half — **the gate was not built**, with the reasoning and the trigger in
+  `plans/archive/replacement-architecture-landed.md`, "RE-1". **RE-9 is the PR
+  that reads this**: 2.5 points is what a gate would return it, and its own
+  bullet already calls it the one whose A/B could say no.
 - **RE-2:** `Replacement gathers` +1 per draw instruction (the outer), so
   roughly +1 per turn plus one per cantrip; `Layer walks` flat; 40-game event
   dumps identical but for one `CardDrawn` line's neighbour. The shipped arm
@@ -4359,7 +4317,10 @@ rule number) — confirm the merge at labelling time.
    also that `GameState.skip_first_draw` (CR 103.8a) is a **game rule**, not an
    effect, and stays a bool. **Confirmed at RE's sizing (2026-09-11): RE-1, §9
    RE decision 6 — and §9's older paragraph, which said `pending_skips`, is
-   struck; this item was right and it was not.**
+   struck; this item was right and it was not. Built and closed 2026-09-11
+   (RE-1): the proposal is `GameState::advance_turn`'s, the three units are
+   `GameAction::{BeginTurn, BeginPhase, BeginStep}`, and `skip_first_draw` is
+   still a bool in `process_draw_step`.**
 
 7. **Watch the `ScriptedDecisionProvider` blast radius.** Every existing test
    that reaches `execute_action` will now traverse the pipeline. The §4.1 rule
@@ -5279,6 +5240,41 @@ found them.
     Phase 8 on §8a's sentence while RD-1 had built `Primitive::Mill` inside
     a replacement PR for the same reason — a precedent seventeen days old
     that a re-read of §9's own RD-1 section would have surfaced.
+
+### Found by building RE-1 (2026-09-11)
+
+47. **A turn queue needs a second field, and two players hide it.** The
+    sizing asked whether the queue holds the player or the `(player, turn)`
+    pair and got the right answer (the player). It did not ask how the
+    *natural* rotation survives an extra turn, and `(active_player + 1) % n`
+    does not: CR 500.7 inserts an extra turn **after** a turn, so the rotation
+    resumes from the player whose natural turn it was. Every printed extra turn
+    in RE-1's reach says "you take an extra turn", and on two players with a
+    sorcery that is the same answer by accident — which is why nothing in the
+    sizing caught it. Final Fortune is an *instant*, so a four-player table has
+    P1 taking an extra turn during P0's and then their own natural one, and the
+    arithmetic skips the second. `GameState.turn_rotation` is the field, and it
+    advances when a natural turn is **proposed** rather than when one begins,
+    because CR 614.10a proceeds past a skipped turn rather than re-offering it.
+    Worth keeping because it is `CLAUDE.md`'s "write new systems N-player-shaped
+    from the start" biting a *queue* rather than a player set — the shape was
+    right and the cursor it moved was wrong. → RE-1, `codebase-state.md`
+    item 115.
+
+48. **The game's first turn had never begun, and no test could see it.**
+    `GameState::new` wrote turn 1, player 0 and the beginning phase's untap
+    step, and nothing ever called `on_step_begin` for that step — so turn 1's
+    untap sweep and land-drop reset had not run in any game the engine has
+    played. It is invisible because the untap step of an empty battlefield does
+    nothing and `lands_played_this_turn` is already zero, and it was about to
+    become visible for a much worse reason: item 6's 2,656 "at the beginning
+    of" triggers would have read every turn's events except the first's.
+    `Game::setup` now calls `start_first_turn`. **The class is the finding**:
+    a constructor that writes a *state* the engine elsewhere reaches through a
+    *transition* is a missing event, and RA's census could not have seen this
+    one either, because it walked emissions and this site emitted nothing —
+    the same blind spot as finding 43's mana pool. → RE-1,
+    `codebase-state.md` item 116.
 
 ## 12. Explicitly out of scope
 

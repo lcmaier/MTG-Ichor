@@ -3970,21 +3970,27 @@ named RE PR.
      **Sized:** one line in the `PlayerLoses` performer (clear on perform) or
      at the top of the check beside `last_sba_check_epoch`; RE-6.
 
-113. **A player who has lost stays in the turn and priority rotation.**
-     `turns.rs:44` advances to `(active_player + 1) % num_players` and the
-     priority loop rotates the same way; neither reads `player_lost`. CR
-     800.4k ("if a player who has left the game would begin a turn, that turn
-     doesn't begin") and 800.4j (priority passes over them). The rotation half
-     of "Before Commander" item 4, separated because RE-6 builds the
-     `PlayerLoses` performer and a performer that leaves the player in the
-     order is the two-player shape wearing an N-player event; 800.4a–e (their
-     objects) is RE-7's, the PR after — item 108.
+113. **A player who has lost stays in the priority rotation.** ~~The turn
+     half closed 2026-09-11 (RE-1)~~: `GameState::next_turn_taker` reads
+     `player_lost` and passes over a departed player, which is CR 800.4k ("if
+     a player who has left the game would begin a turn, that turn doesn't
+     begin") at the one site that can say it — ahead of the pipeline, because
+     a turn that does not begin is not an event a replacement effect could
+     have replaced. A queued extra turn for a lost player is popped and
+     discarded there too. **What is left is CR 800.4j**: the priority loop
+     still rotates `(priority_player + 1) % n` with no `player_lost` read.
+     The rotation half of "Before Commander" item 4, separated because RE-6
+     builds the `PlayerLoses` performer and a performer that leaves the player
+     in the order is the two-player shape wearing an N-player event; 800.4a–e
+     (their objects) is RE-7's, the PR after — item 108.
 
      **Reachability (2026-09-11):** unreachable — `fuzz_games` plays two
-     (`fuzz_games.rs:827`); reachable from `test_support::setup_game(4)`.
+     (`fuzz_games.rs:827`); reachable from `test_support::setup_game(4)`, and
+     the turn half is now covered there
+     (`phase_re1_integration_test::a_lost_players_turn_does_not_begin`).
 
-     **Sized:** ~40 lines at the two sites, RE-6, beside the `--players 4`
-     fuzz mode item 4 sized at ~50.
+     **Sized:** ~20 lines at the one remaining site, RE-6, beside the
+     `--players 4` fuzz mode item 4 sized at ~50.
 
 114. **`Restriction::Event` has no player set.** `{ pattern, affected, by }` —
      the object set only — so "players can't gain life" (Skullcrack, Leyline
@@ -4000,6 +4006,65 @@ named RE PR.
 
      **Sized:** one field plus a `set_affects`-style union in
      `is_prohibited`'s `Event` arm, ~40 lines; RE-3, read by RE-6.
+
+115. **`turn_rotation` is a second cursor beside `active_player`, and
+     nothing enforces that they agree.** RE-1 added it because CR 500.7
+     inserts an extra turn *after* a turn, so the natural rotation has to
+     resume from the player whose natural turn it was; `active_player` is
+     whose turn it is *now*, and an extra turn moves one without the other.
+     Any code that writes `active_player` directly and then crosses a turn
+     boundary gets that player's turn twice — which three test fixtures did,
+     and `test_support::set_active_player` is the answer for fixtures. **No
+     production writer exists outside `begin_turn`**, which is why this is a
+     recorded hazard rather than a bug.
+
+     **Reachability (2026-09-11):** unreachable in production — `begin_turn`
+     is the only production writer of `active_player` and `next_turn_taker`
+     the only writer of `turn_rotation`. Reachable from any new fixture.
+
+     **Sized:** the honest fix is to make `active_player` private behind
+     `begin_turn` and `turn_rotation` private behind `next_turn_taker`, ~15
+     call sites in tests; a `debug_assert` in `advance_turn` that the two
+     agree is wrong, because an extra turn is exactly when they do not. Do it
+     when a second production writer wants to exist, not before.
+
+116. **Extra phases and steps have no queue level — CR 500.8, 500.9,
+     500.10.** RE-1's drainer asks `state::game_state::next_phase` and
+     `next_step` for the natural order and the queue for extra *turns* only,
+     so "after this main phase, there is an additional combat phase followed
+     by an additional main phase" (Relentless Assault, Aggravated Assault) and
+     "you get that many additional upkeep steps" (Obeka, CR 500.10's own
+     example) have nowhere to go. The shape is a per-turn list the drainer
+     consults before falling through to `next_phase`, which is where the
+     comment now is.
+
+     **Reachability (2026-09-11):** unreachable — nothing registered creates
+     one, and `Primitive` has no producer. Relentless Assault is named in
+     `phase_re_cards`'s module doc as the card that is waiting.
+
+     **Sized:** the list plus its drain, ~120 lines on top of RE-1's drainer,
+     and CR 500.10's "any other steps that phase would normally have are
+     skipped" is a second consumer of the same proceed-past the drainer
+     already has. `backlog.md` §2.17, graduated in its turn half.
+
+117. **An untap-step skip would not reset land drops.** `process_untap_step`
+     calls `reset_lands_played` where CR 502 puts the untap step's turn-based
+     actions, and RE-1 made the untap step skippable: eight printed cards say
+     "skip your untap step", and under one of them a player's
+     `lands_played_this_turn` never returns to zero, so they play no land for
+     the rest of the game. "Until your next turn" moved to `on_turn_begin` for
+     exactly this reason (CR 611.2b says the turn); the land drop did not,
+     because no rule calls it a turn-start action and RE-1 registered no
+     untap-step skip to make it reachable.
+
+     **Reachability (2026-09-11):** unreachable — no registered card skips the
+     untap step. Reachable the day one is registered, which is Phase 8's
+     breadth or whichever PR wants Eon Hub's siblings.
+
+     **Sized:** one line moved into `on_turn_begin` plus the CR citation that
+     justifies it, ~10 lines; the care is that CR 505.5b counts land plays per
+     *turn* and no rule places the reset, so the move needs an argument rather
+     than a hunch.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 

@@ -578,9 +578,15 @@ are touched by none of RE's nine PRs. The site table above stands.
 - **Blocks** — every "until end of combat" pump; 511.3's combat cleanup of
   `AttackingInfo`/`BlockingInfo`; 703.4q's mana-pool emptying per step.
 - **Atoms** — 8.
-- **Owner** — none yet; the hooks are RE-1's begin/end emitters (2026-09-11),
-  and this is the PR after RE-1 once an "until end of combat" consumer
-  appears.
+- **Owner** — none yet, and the hooks now exist: RE-1 landed
+  `GameEvent::{TurnBegin, PhaseBegin, StepBegin}` and
+  `GameState::{begin_phase, begin_step}` (2026-09-11), so a step- or
+  phase-scoped `Duration` has a place to expire from. CR 500.4's "as a step or
+  phase **begins**" is `begin_step`/`begin_phase` after the proposal survives,
+  beside `on_turn_begin`, which RE-1 added for CR 611.2b's turn half; CR 500.5's
+  "as it **ends**" is `on_step_end`/`on_phase_end`, which RE-1 also made run
+  only for a unit that happened. This is the PR after RE-1 once an "until end
+  of combat" consumer appears.
 
 ### 2.13 Deck-construction limits are configured and unenforced
 
@@ -682,29 +688,30 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `replacement-architecture.md` §9, RE decision 4. Costs paid in energy wait
   for their first card. **Struck as graduated when RE-5 lands.**
 
-### 2.17 Extra turns and the turn queue (CR 500.7)
+### ~~2.17 Extra turns and the turn queue (CR 500.7)~~ — **graduated 2026-09-11, RE-1**
 
-- **Rules** — CR 500.7. Skips are CR 614.10's — the replacement track's, not
-  this entry's; the two meet on cards like Time Stop only at Phase 8.
-- **Verdict** — turns advance by iteration; **no turn queue exists**, so "take
-  an extra turn after this one" has nowhere to go. Additive: a queue the turn
-  loop drains before the natural order resumes. Extra *phases and steps*
-  (Aggravated Assault's class) are the same shape one level down.
-- **Size** — small for the queue itself; the care is CR 500.7's ordering —
-  most recently created turn first, APNAP when several players get them — and
-  the cleanup of "that turn"-scoped state.
-- **Blocks** — Time Walk's whole family, ~60 cards; "additional combat phase"
-  cards behind them.
-- **Atoms** — CR 500's atoms cover 500.1–500.5; 500.7 is thin — see §5.
-- **Owner** — **RE-1** (2026-09-11, re-cut on review): the skips PR rewrites
-  `advance_turn` once, as a drainer of a turn queue — CR 500.7's extra turns
-  most-recent-first, pushed by `Primitive::ExtraTurn`, with Time Walk as the
-  consumer and the Meditate-then-Time-Walk board (a skip consuming an extra
-  turn, 614.10a) as the test that puts the two in one PR rather than two
-  rewrites of one function. Extra phases and steps (500.8, 500.10) are the
-  queue's second level and wait for their first card —
-  `replacement-architecture.md` §9, RE decision 6. **Struck as graduated when
-  RE-1 lands.**
+**Built.** `GameState::turn_queue` is CR 500.7's stack — "the most recently
+created turn will be taken first" — pushed by `Primitive::ExtraTurn` and
+drained by `advance_turn`'s `next_turn_taker`, with Time Walk as the consumer.
+The entry holds the **player only**: the turn number is computed when the turn
+begins, and a skipped turn advances none (CR 614.10a). `turn_rotation` is the
+field the entry did not predict and the one that makes the queue N-player-
+shaped — an extra turn does not move the natural rotation, so P1 taking one on
+P0's turn still gets their own afterwards
+(`replacement-architecture.md` §11 item 47).
+
+**What stayed behind, and it is the entry's own "one level down".** CR 500.8's
+extra **phases** and CR 500.9/500.10's extra **steps** — Relentless Assault,
+Aggravated Assault, Obeka — are a per-turn list the drainer would consult
+before falling through to `next_phase`, and they wait for their first
+registered card. CR 500.7's other sentence, extra turns for several players
+added in APNAP order, has no producer either: no `EffectRecipient` this
+primitive accepts resolves to more than one player. Both are recorded on
+`Primitive::ExtraTurn` and on `state::game_state::next_phase`, where the next
+person to want them will be standing.
+
+**Atoms:** CR 500.7 still has none, which the sizing confirmed. RE-1's
+two-extra-turn test claims none and says so.
 
 ### 2.18 Mana payment — CR 732.1's reversal, and an auto-payment oracle
 

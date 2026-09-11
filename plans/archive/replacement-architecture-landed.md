@@ -1904,3 +1904,202 @@ leaf, which is right for a *selection*.
   `is_unpreventable`, which is where the per-event flag and
   `Restriction::ApplyReplacement`'s two sources meet. RD-3's note 1 asked for
   exactly that and it needed no more.
+
+#### RE-1 — skips, and the turn queue (CR 614.1b, 614.10, 614.10a, 500.7, 500.11) — ✅ landed 2026-09-11
+
+*Evicted 2026-09-11 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+
+**Builds:** decision 6 — the three variants, three arms, three performers
+emitting the three begin events, `advance_turn` as a queue drainer with the
+proceed-past, turn-number and duration rules, `Primitive::ExtraTurn` pushing
+CR 500.7's most-recent-first, and 800.4k's refusal at the turn site (a rule,
+ahead of the pipeline, reading `player_lost` — which RE-6 later makes true for
+a reason). **Consumers:**
+
+- **Yawgmoth's Bargain** — "Skip your draw step. Pay 1 life: Draw a card."
+  `BeginStep { step: Some(Draw) }`, `Fixed(vec![])` + `You`, `Prevent`,
+  `Uses::Static`; and an activated ability with `Cost::PayLife(1)` and
+  `DrawCards(1)`, both of which exist. No rulings. Tests: the draw step's
+  *contents* are not proposed — no `CardDrawn`, no `StepBegin { Draw }`,
+  priority goes straight to the precombat main (`ATOM-614.10-001`). A random
+  agent with one use for its life total will empty its library, which is what
+  makes RE-6's Laboratory Maniac path reachable and is why this card is
+  registered and **not pooled**.
+- **Eon Hub** — "Players skip their upkeep steps." `BeginStep { step:
+  Some(Upkeep) }`, `Everyone`, `Prevent`, `Uses::Static`. Rulings, three, all
+  tests: *skipped entirely, untap to draw* → the event log; *"activate only
+  during your upkeep" can't be activated* → no such ability exists to assert
+  against, recorded; *untap-step triggers go on the stack at the draw step* →
+  item 6's. The four-player form: every player's upkeep, one static, no
+  prompt.
+- **Meditate** — "Draw four cards. You skip your next turn." `DrawCards(4)`
+  then `CreateReplacement` of a `BeginTurn` row, `You`, `Uses::Once`,
+  `Duration::Indefinite` — a row that ends by use and never by time, the
+  first of its kind, and `Duration::Indefinite` has waited for it. Ruling:
+  *you skip one turn* → test; and 614.10a's own sentence: **two Meditates
+  skip two turns** (`ATOM-614.10a-001`), the second row surviving the first
+  proposal. The "until your next turn" test rides on it: a Cerulean Wisps-class
+  effect on your creature lasts across the skipped turn to the one that
+  begins.
+- **Time Walk** — "Take an extra turn after this one." `Primitive::ExtraTurn`,
+  the queue's producer. Ruling: *multiple extra-turn effects in one turn are
+  taken in reverse order* → two Time Walks, the second resolved is the first
+  taken (CR 500.7's "most recently created turn will be taken first"). And
+  the board that puts skips and the queue in one PR: **Meditate then Time
+  Walk** — the extra turn is the "next occurrence" the skip consumes, and the
+  natural turn after it begins. The two `until_your_next_turn … extra_turn`
+  tests already in `continuous_effects.rs` and `duration_registry.rs`, which
+  simulate an extra turn by calling `begin_turn` twice, are rewritten against
+  the queue so they prove the engine rather than the harness.
+- **Moment of Silence** — "Target player skips their next combat phase this
+  turn." `BeginPhase { phase: Some(Combat) }`, `Fixed(vec![])` filled with the
+  target at resolution (Mending Hands' player fill), `Uses::Once`,
+  `UntilEndOfTurn`. Rulings, three, all tests: *only their next combat
+  phase, if any* → one row, spent once; *cast during combat: no effect* →
+  `ATOM-614.10-002`, the row meets no proposal and expires at cleanup; *cast
+  on a player when it is not their turn: no effect* → the subject is the
+  active player, so a row on another player watches nothing this turn. The
+  first targeted skip, and a four-player target.
+- **Chronatog** is the natural activated skip and is out: "activate only once
+  each turn" is an activation limit the ability model does not have, one
+  customer here, recorded on the card file's module doc. **Relentless
+  Assault** is the extra-phase shape and waits for the queue's second level.
+
+**`PERFORMANCE_POOL` +1, Eon Hub**, predicted: a static skip on every
+player's upkeep, every turn, in every game it reaches the battlefield — the
+first card whose effect is a *dropped* turn-structure proposal in a measured
+game. Time Walk is registered and not pooled: an extra turn in every blue deck
+moves avg turns by design. The middle arm's own move is decision 6's
+proposals, predicted below.
+
+**Atoms:** `ATOM-614.10-001`, `ATOM-614.10-002`, `ATOM-614.10a-001`,
+`BOUNDARY-DEF-614.1b-001`; `ATOM-614.10b-001` stays uncovered, decision 6's
+zero-card reason in the test file. CR 500.7 has no atom in the corpus
+(`backlog.md` §2.17 said it was thin); the two-Time-Walk test carries none and
+says so. `ATOM-502.3-002` and `ATOM-703.4c-002` ("doesn't untap") are
+`backlog.md` §2.14's and are not skips; this PR touches neither.
+
+---
+
+## As landed (2026-09-11)
+
+Everything above shipped as sized, with two additions the sizing did not
+predict and one condition it set that was not met.
+
+**`turn_rotation`.** The section said the queue holds "the player only or the
+`(player, turn)` pair", and the answer is the player — a stored turn number
+means "the number this extra turn will have", which stops being true the first
+time a skip sits between the queue entry and the turn. What the section did not
+ask is how the *natural* rotation survives an extra turn, and
+`(active_player + 1) % n` does not: CR 500.7 inserts an extra turn after a
+turn, so the rotation has to resume from the player whose natural turn it was.
+With two players and "you take an extra turn" that is the same answer by
+accident; with four and Final Fortune at instant speed on someone else's turn
+it is not. `GameState.turn_rotation` is the second field, advanced when a
+natural turn is **proposed** rather than when one begins, because CR 614.10a
+proceeds past a skipped turn rather than re-offering it. → §11 item 47.
+
+**The first turn had never begun.** `GameState::new` parked the board on turn
+1's untap step and nothing called `on_step_begin` for it, so turn 1's untap
+sweep and land-drop reset had never run in any game the engine has played. The
+section asked for "the first turn's untap step is proposed like any other" as a
+*rule*; the tree made it a bug fix. `Game::setup` now calls `start_first_turn`,
+which proposes the turn, its beginning phase and its untap step through the
+chokepoint. The turn itself is unskippable there by construction rather than by
+exemption — CR 614.4 needs the effect to exist before the event, and before the
+first turn nothing has resolved. → §11 item 48.
+
+**The schedule is consumed at the proposal site, and that is not a chokepoint
+violation.** Popping `turn_queue` and advancing `turn_rotation` happen in
+`advance_turn`, outside `perform_action`. Neither is state a CR 614 replacement
+effect or a CR 603 trigger can see — they are what *builds* the proposal — and
+both have to be spent whether or not the turn begins: a skipped extra turn is
+gone (CR 614.10a), and the turn after a skipped P2 is P3's rather than P2's
+again. Doing either in the performer gives the wrong answer in the one board
+the phase exists for, Meditate against Time Walk.
+
+**CR 508.8 stopped being a priority suppressor.** It lived in `Game::run_turn`
+as "this step happens and grants nobody priority", which is not what the rule
+says. At the proposal site the step does not happen, and the three
+`attacks_declared` guards in `process_turn_based_actions` became a second
+reading of one rule and are gone. The visible consequence is that a turn with
+no attackers is **ten positions rather than thirteen**, which re-counted six
+test loops that had been counting positions by hand.
+
+**"Until your next turn" moved to the turn's begin hook** from the untap
+step's. CR 611.2b says the turn, and the difference is now reachable in two
+directions: eight printed cards skip the untap step, and CR 614.10a's "a
+skipped turn expires nothing" is the same sentence from the other side.
+
+**A fixture that hand-writes `active_player` now writes `turn_rotation` too**
+(`test_support::set_active_player`). Three existing fixtures crossed a turn
+boundary after moving the active player and got that player's turn twice.
+
+## Measured (2026-09-11)
+
+Three arms through `plans/fuzz_ab.py` against a same-day `main` worktree,
+200 games seed 12345; the numbers and the §3 table are in
+`engineering-practices.md` §3. The prediction was written before any arm ran.
+
+| | predicted | measured |
+|---|---|---|
+| `Replacement gathers`, `performance` | +~16/turn, ~+450/game | **+14.8/turn, +447/game** (507 → 954) |
+| `Restriction queries` | not predicted | +448/game (509 → 957) — one `is_prohibited` per proposal |
+| `Layer walks`, `Board walks`, `Layer frames`, `Dependency checks` | flat | **flat** (363, 241, 4,262, 36 — unchanged) |
+| `Memo hits` | flat | **58,262 → 59,191, +1.6%** — the prediction's one miss |
+| every gameplay row | identical to `main` | **identical** |
+| CPU/game | inside the spread | **+5.0%** (12.92 → 13.57 ms, five rounds, cleanly separated) |
+
+The `Memo hits` miss is worth keeping: `gather`'s fast path stops the *walk*,
+not the *query*, and `is_prohibited` asks one per proposal that the memo
+answers. A flat `Layer walks` beside a moved `Memo hits` is what the gate
+holding looks like.
+
+### §8's event-kind gate: measured, and not built — the decision, with its number
+
+§9's RE-1 bullet said "if CPU moves beyond [the spread], the fix is §8's
+answer-preserving event-kind gate and it is **this PR's to build**". +5.0% is
+inside the 2–6% spread `fuzz_ab` states, but the rounds separate cleanly, so
+the number is real rather than noise and the condition deserved an answer
+rather than a reading of the word "inside".
+
+**A fourth arm settled it.** A hard-coded event-kind gate in `gather` — return
+empty for the three begin actions, which is exactly what the maintained bitmask
+would compute on a pool with no card watching one — measured **13.24 ms,
++2.5%**. So the sweep is **half** the cost and the chokepoint is the other
+half: the batch open/close, the APNAP sort, `is_prohibited`, the grouping, the
+frame and the emitted event. No gate can remove that half, and it is what the
+three begin events *are* — 2,656 triggers read them.
+
+**Not built, and the trigger named instead.** Buying 2.5 points costs a
+per-`GameState` bitmask recomputed on every registry, battlefield and counter
+change — and `any_replacement_counter`'s own doc already refused a maintained
+set on exactly that ground: "counters have more than two chokepoints … a set
+maintained at a chokepoint that does not exist is exactly the drift, and it
+reads as a card that silently does nothing". A silently missing replacement
+effect is the worst failure shape this engine has, and §8's ordering says do
+not pre-optimize. **RE-9 is the PR that reads this number**: a proposal on
+every land tap is several per turn on top of RE-1's sixteen, its own bullet
+already calls it "the one whose A/B could say no", and 2.5 points is what the
+gate would return it. The attribution arm is reproducible — the probe is four
+lines in `gather` above `record_replacement_gather`.
+
+### The two atoms that stayed open, and why
+
+`ATOM-614.10b-001` — "skip …, then take another action" — has **no card**.
+The corpus's own audit note says `o:/skip.*then/` is empty and RE's census
+re-confirmed it at zero, so there is nothing to write the follow-up action onto
+and a fixture wearing the rule would assert the engine's guess. Recorded in
+`tests/phase_re1_integration_test.rs`'s module doc.
+
+CR 500.7 has **no atom in the corpus** (`backlog.md` §2.17 said it was thin;
+the sizing confirmed it), so `two_extra_turns_are_taken_most_recently_created_first`
+claims none and says so.
+
+`ATOM-614.10a-001` is `COVERS-PARTIAL`. Its board is two "skip your next draw
+step" effects, and **every printed draw-step skip is a static** — Yawgmoth's
+Bargain, Necropotence — so `Uses::Once`'s "one effect will be satisfied in
+skipping the first occurrence, while the other will remain" cannot be built on
+the draw step from the printed pool at all. Two Meditates are the same sentence
+on the unit that does print consumably.

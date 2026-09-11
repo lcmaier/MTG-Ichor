@@ -79,7 +79,11 @@ def counts():
         for f in (ROOT / base).rglob("*.rs"):
             tests += f.read_text(encoding="utf-8", errors="replace").count("#[test]")
     return {
-        "cards": reg.count("registry.register("),
+        # `registry.register("` and not `registry.register(`: the latter also
+        # matches `performance_pool`'s own loop, which re-registers a name it
+        # was handed rather than adding a card, so every board since this
+        # script was written has reported one card too many.
+        "cards": len(re.findall(r'registry\.register\(\s*"', reg)),
         "pool": int(pool.group(1)) if pool else 0,
         "tests": tests,
     }
