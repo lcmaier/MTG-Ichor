@@ -1555,6 +1555,23 @@ critical path still calls a landed phase "next", which is the drift that made
 the "can't" and copy docs record phases in sizing tables with no status marker,
 so normalising those is the next cheap thing anyone touching them can do.
 
+**A landed phase's section is a stub, and the body is in the archive.** Added
+2026-09-11, when the replacement doc reached 7,100 lines with 28% of it under ✅
+headings and RE's sizing found three answers it needed sitting unread in the
+same file (skips said twice, the discard row stale for sixteen days, RD-1's
+`Mill` precedent 2,000 lines above the paragraph it contradicted). The design
+sections have a budget (`replacement-architecture.md` §0) and it held; the
+record had none. The rule is `codebase-state.md`'s eviction rule applied to
+the architecture docs: **in the PR that lands a phase, its section's body —
+the plan as sized, "as landed", "measured", reachability — moves to
+`plans/archive/<doc>-landed.md` under the same heading, and the live doc keeps
+the heading, a stub of what shipped and a pointer.** `check_state_of_play.py
+--check` fails when a ✅ section keeps more than 40 lines. What stays live is
+what the *next* phase needs: the design sections, the sizing of unlanded
+phases, and §11-style findings still open. Rulings passes live in the card
+file's doc comment at registration, once; a sizing names the card and the
+rulings that become tests, one line each.
+
 ## 5. The spec database as a gate
 
 `plans/specdb.py` joins the atomic-test corpus to the test suite and the CR, so

@@ -29,7 +29,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
 | `plans/cards-unlocked-ledger.md` | Which cards each ticket unlocks. Live — but its `L##`/`T##` labels are the **archived** plan's vocabulary, **not a queue**: a `T##` names work, never schedules it. Never cite one as the owner of anything; the owner is `backlog.md` §2, an architecture doc, or the critical path |
 | `plans/roadmap-v2.md` | The route narrative: why the spine is ordered, card stakes per segment, milestones, sizing. Ordering authority stays with **Critical path to v1** below |
-| `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md`, `plans/archive/*` | **Historical — do not act on them.** Two things stayed live: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's D## deferred-item tables. The §8/§11 delta-log fork was resolved 2026-08-24 — trigger detection is the performed-action event stream (`codebase-state.md`) |
+| `design_doc.md`, `plans/roadmap.md`, `plans/workflow-prompts.md`, `plans/archive/*` | **Historical — do not act on them** (`archive/*-landed.md` hold shipped phases' evicted bodies: accurate records, still not plans). Two things stayed live: design_doc's §636–664 algorithm (adopted by `layers-architecture.md`) and roadmap's D## deferred-item tables. The §8/§11 delta-log fork was resolved 2026-08-24 — trigger detection is the performed-action event stream (`codebase-state.md`) |
 | `plans/references/*` | Research tooling, not rules authority. Fetch card text/rulings via Bash+curl with a UA header — Scryfall 403s `WebFetch` |
 
 ## The layer-system invariant
