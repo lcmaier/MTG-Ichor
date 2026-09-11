@@ -4066,6 +4066,27 @@ named RE PR.
      *turn* and no rule places the reset, so the move needs an argument rather
      than a hunch.
 
+118. **CR 514.3a's repeated cleanup step announces nothing.** RE-1 made a
+     step's beginning an event, and `Game::run_turn`'s 514.3a loop — "if
+     state-based actions are performed during the cleanup step, ... another
+     cleanup step begins" — re-runs `perform_cleanup_actions` and a priority
+     round without proposing a second `GameAction::BeginStep { Cleanup }`. So
+     the log shows one cleanup step where the rules had two, and a skip that
+     should meet the second occurrence meets nothing. Pre-existing in shape —
+     the loop has always re-run without a transition — and newly *visible*,
+     which is why it is recorded now rather than earlier.
+
+     **Reachability (2026-09-11):** reachable but not wrong today — nothing
+     triggers at cleanup (item 6's), and no printed card skips a cleanup step,
+     so the only reader of the missing event is the event log itself. It
+     becomes wrong the day either lands.
+
+     **Sized:** one `begin_step` call inside the 514.3a loop, ~10 lines, plus
+     the test that the log holds two `StepBegin { Cleanup }` when SBAs fire
+     during the first. The care is that CR 614.10's skips are per *occurrence*,
+     so the second cleanup step is genuinely skippable and must be proposed
+     rather than assumed.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a

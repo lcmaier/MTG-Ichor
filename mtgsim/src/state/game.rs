@@ -211,19 +211,26 @@ impl Game {
             self.state.advance_turn(&ActionContext::new(decisions))?;
 
             // **A skipped turn advances no turn number** (CR 614.10a), so this
-            // is not "the number went up" — it is "the drainer crossed a turn
-            // boundary that produced a turn". It still reads as `>`: the number
-            // is incremented by exactly the turns that begin, and the drainer
-            // does not return until one has. The board where nothing can begin
-            // — every player having left the game (CR 104.2a) — returns the
-            // position unchanged, and the `is_over` check at the top of this
-            // loop is what stops it, which is why that check is a loop
-            // invariant rather than a courtesy.
+            // is not "the number went up" — it is "the drainer produced a
+            // turn". It still reads as `>` all the same: the number is
+            // incremented by exactly the turns that begin, and the drainer does
+            // not return until one has.
             if self.state.turn_number > starting_turn {
                 return Ok(());
             }
-            if self.state.player_lost.iter().all(|&lost| lost) {
-                self.result = Some(GameResult::Draw);
+
+            // ...with one board where it returns without producing one, and
+            // that board is the reason this check is here rather than only
+            // after a priority round. CR 104.2a: every player has left the
+            // game, so `GameState::next_turn_taker` finds nobody to propose a
+            // turn for and the position stays put. The untap step grants no
+            // priority, so nothing else in this loop would notice, and it
+            // would re-enter forever. `check_game_over` is the one place that
+            // decides an outcome; it answers `None` everywhere else this can
+            // be reached, because a loss can only be recorded by a state-based
+            // action and those run inside the priority loop above.
+            if let Some(result) = self.check_game_over() {
+                self.result = Some(result);
                 return Ok(());
             }
         }
