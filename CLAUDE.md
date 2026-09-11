@@ -11,7 +11,7 @@ cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
 cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_state_of_play.py --check   # all must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check   # all must pass
 ```
 
 ## Where authority lives
