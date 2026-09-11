@@ -4050,6 +4050,18 @@ something it should not have**, and that is the whole reading of this PR's A/B.
 the band's floor, like RE-7's 800–950, and for the same reason: one type, one
 cursor, one producer, one card.
 
+**One naming decision to make before the type is written**, found by RE-1's
+glossary pass: **the crate already has a plan.** `plan_payment`, `pay_with_plan`
+and `plan_and_pay` are the cost system's, and `planned_sacrifices` sits one
+letter from `PlannedPhase`. That is the `ToSource` / `ToSourceController` shape
+the glossary's polysemy gate exists for, caught this time *before* the build
+rather than mid-PR. Keep `TurnPlan` — it is the name
+`state::game_state::next_phase`'s own TODO used and the payment one is a local
+idiom rather than a type — and **land the collision as `plan`'s two numbered
+senses in `plans/glossary.md`** with this PR. It cannot be added earlier: the
+gate asserts every defined term resolves in `mtgsim/src`, and `TurnPlan` does
+not exist yet.
+
 #### Out of RE, decided rather than absorbed
 
 - **`pending_skips`** — struck (decision 6). Not a deferral: a mechanism that
@@ -4203,8 +4215,9 @@ Reflections, Alms Collector beside one, and the three-Thief board.
    RE-1; a Deferred Migrations line for every arm left absent above.
 5. The trace-page decisions recorded at RE-2's and RE-4's close; §3.2d's
    Notion Thief correction and §10's Eligeth row landed with RE-2 and RE-8;
-   `backlog.md` §2.17 struck as graduated by RE-10 and CR 500.8 given an atom
-   in `session-4.md`;
+   `backlog.md` §2.17's phase half struck as graduated by RE-10, CR 500.8 given
+   an atom in `session-4.md`, and `plan` added to `check_glossary.py`'s
+   `POLYSEMOUS` with both senses;
    `check_state_of_play.py --write` after each merge; `plans/handoffs/re.md`
    opened by the first RE PR that spans a session and deleted by the last RE
    PR to land.

@@ -50,8 +50,9 @@ and its "use" is the rider removing a counter. → `replacement-architecture.md`
 
 **pool** — **(1)** a mana pool, CR 106.4: `ManaPool`, one per player, emptied at
 the end of each step and phase. **(2)** a *card* pool — which registered cards the fuzz
-harness plays. `PERFORMANCE_POOL` is the frozen set every recorded baseline was
-measured on; `--pool stress` is every registered card. →
+harness plays. `PERFORMANCE_POOL` is **representative, not frozen** (it was
+frozen for a year; revised 2026-09-01, and a phase that opens a new engine path
+adds one card to it); `--pool stress` is every registered card. →
 `engineering-practices.md` §3.
 
 **step** — **(1)** CR 500's turn step: `StepType`, an untap step, a combat
@@ -93,6 +94,30 @@ CR 613 continuous effects created by a resolution, each with a `Duration`.
 and for both, **membership is not effect existence** — CR 305.7 or Layer 6 can
 take the ability away without touching the row. → `CLAUDE.md`;
 `layers-architecture.md` §5.2.
+
+**queue** — three, and only one is a queue. **(1)** `GameState`'s `turn_queue`:
+CR 500.7's extra turns, and it is a **stack** — "the most recently created turn
+will be taken first" is `Vec::pop`, so the name says FIFO and the rule is LIFO.
+**(2)** `ScriptedDecisionProvider`'s expectation queue, which really is one:
+enqueued in test order, popped per decision. **(3)** a *queued* rider — CR 615.5's
+"and" clause, pushed during the CR 616.1 loop and resolved after the event
+(`Rider`, `execute_batch_inner`'s phase 3). →
+`replacement-architecture.md` §9's RE-1, §4.1a.
+
+**unit** — **(1)** one of CR 614.10's three replaceable pieces of turn
+structure: a turn, a phase or a step. `TurnUnit`, returned by `next_turn_unit`,
+and the thing a skip replaces with nothing. **(2)** a unit of *work* — one
+branch, one PR (`CLAUDE.md`'s Git workflow). Sense 2 predates sense 1 and is
+prose only; nothing in the crate is named for it.
+
+**schedule** — **(1)** what the turn machinery will propose next: `turn_queue`
+and `turn_rotation` together, read and **consumed** by `advance_turn` as it
+builds a proposal. Naming it is load-bearing — the schedule is an *input* to
+CR 614 rather than state a replacement effect or a trigger can see, which is
+why writing it outside `perform_action` is not a chokepoint violation. **(2)**
+an ordering of work over time, which `backlog.md` is explicitly **not** ("an
+inventory, not a schedule") and which a `T##` label in
+`cards-unlocked-ledger.md` never is. → `engine::turns`; `backlog.md` §0.
 
 ## The action pipeline (CR 614–616)
 
@@ -194,6 +219,24 @@ called it. → `layers-architecture.md` §13a decision 4.
 — Mirrorweave's target, Cytoshape's chosen permanent. The word exists because
 `exclude_donor` needed a noun for the thing a copy must not also be applied to.
 → `copy-effects-architecture.md`.
+
+## The turn structure (CR 500, 614.10)
+
+**drainer** / **cursor** — `advance_turn` is a *drainer*: it walks CR 500.1's
+sequence proposing each unit and stops when one begins, because CR 614.1b makes
+"skip" a replacement effect and the next unit in the sequence is not necessarily
+the one that happens. Its *cursor* is the last unit **considered**, which is not
+the last that happened — CR 500.11's "proceed past it as though it didn't
+exist" is the whole difference, and a skipped phase advances the cursor while
+beginning nothing. → `engine::turns::drain`; `replacement-architecture.md` §9's
+RE-1.
+
+**position** — where the drainer *stops*: a step, or a main phase, which has
+none. Not a synonym for unit — a phase with steps is a unit and never a
+position, since it is entered together with its first step. The word is load-
+bearing in fixtures, which count positions to walk a turn: with no attackers
+a turn is **ten** of them, because CR 508.8 refuses three combat steps. →
+`engine::turns`.
 
 ## Words that are not about one subsystem
 

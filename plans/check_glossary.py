@@ -52,17 +52,18 @@ CRATE_SRC = ROOT / "mtgsim" / "src"
 # English plus one rule number. Adding one here is the whole cost of coining it.
 WATCHLIST = [
     "applied set", "arm", "atom", "batch", "blocked", "bucket", "candidate",
-    "ceiling", "census", "chokepoint", "donor", "emitter", "epoch", "frame",
-    "gate", "host", "instance", "ladder", "leg", "member", "memo", "performer",
-    "pool", "proposal", "registry", "rider", "shield", "source", "step",
-    "subject", "subject group", "sweep", "walk",
+    "ceiling", "census", "chokepoint", "cursor", "donor", "drainer", "emitter",
+    "epoch", "frame", "gate", "host", "instance", "ladder", "leg", "member",
+    "memo", "performer", "pool", "position", "proposal", "queue", "registry",
+    "rider", "schedule", "shield", "source", "step", "subject",
+    "subject group", "sweep", "unit", "walk",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes
 # each. A new collision is a line here and a numbered sense there, together.
 POLYSEMOUS = {
-    "source": 3, "shield": 3, "registry": 3, "census": 2,
-    "pool": 2, "step": 2, "blocked": 2, "gate": 2,
+    "source": 3, "shield": 3, "registry": 3, "queue": 3, "census": 2,
+    "pool": 2, "step": 2, "blocked": 2, "gate": 2, "unit": 2, "schedule": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:
