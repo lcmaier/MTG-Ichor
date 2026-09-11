@@ -164,10 +164,10 @@ impl Game {
 
             // 2. Priority round (most steps grant priority)
             //
-            // Rule 508.8 used to be suppressed here, as a "this step happens
-            // and grants nobody priority". It is now a refusal at the proposal
-            // site (`GameState::begin_step`), so a step with no attackers
-            // never begins and this loop never sees it.
+            // Rule 508.8 is not read here: it refuses the step at the proposal
+            // site (`GameState::begin_step`), so a declare-blockers or
+            // combat-damage step with no attackers never begins and this loop
+            // never sees one.
             //
             // Rule 514.3a: Cleanup normally doesn't grant priority, but if
             // SBAs are performed during cleanup, players get priority and then
@@ -254,9 +254,7 @@ impl Game {
             }
             // No `attacks_declared` guard on these three: CR 508.8 refuses
             // the *step* when nothing attacked (`GameState::begin_step`), so
-            // reaching them at all means attackers were declared. A guard here
-            // would now be a second reading of one rule, and the quieter of
-            // the two.
+            // reaching them at all means attackers were declared.
             (PhaseType::Combat, Some(StepType::DeclareBlockers)) => {
                 self.state.process_declare_blockers(decisions)?;
             }

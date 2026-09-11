@@ -4087,6 +4087,74 @@ named RE PR.
      so the second cleanup step is genuinely skippable and must be proposed
      rather than assumed.
 
+119. **CR 103.6's "begin the game with this on the battlefield" has no
+     implementation, and RE-1 made the seam explicit.** Leyline of the Void is
+     registered with the clause recorded as dead text
+     (`phase_rb_cards::leyline_of_the_void`), and `PermanentState`'s
+     `control_since_turn = 0` is already documented as the pregame sentinel for
+     it. The insertion point is now a named place: `Game::setup`, between
+     CR 103.4's opening hands and `GameState::start_first_turn`. Gemstone
+     Caverns' ruling gives the ordering — *"the starting player takes all such
+     actions first in any order, followed by each other player in turn order.
+     Then the first turn begins"* — and Gemstone Caverns is the harder shape,
+     because it is conditional on not being the starting player and has a cost
+     (exile a card from your hand).
+
+     **Reachability (2026-09-11):** unreachable — the clause is a static
+     ability functioning in the *hand*, which is
+     `replacement-architecture.md` §3.3's source 2 and needs CR 113.6 (critical
+     path item 6a). Leyline of the Void is castable for `{2}{B}{B}` and does
+     nothing before it resolves, which is the whole of today's behaviour.
+
+     **Sized:** ~60 lines in `Game::setup` plus a `DecisionProvider` question
+     per eligible card per player, **after** 6a gives the hand-zone ability
+     lookup. The care is the ordering ruling above and CR 103.6's interaction
+     with mulligans, which are themselves stubbed.
+
+120. **`AbilityDef` has no named constructors, and five copies of two of them
+     live in three card files.** `static_replacement` and `one_shot` are each
+     written twice (`phase_rd_cards`, `phase_re_cards`) and `static_ability`
+     once (`phase_li_cards`) — one shape, three spellings: build an
+     `AbilityDef` with a fresh id, `is_characteristic_defining: false` and
+     `ActivationRestriction::None`. Every card file a later phase adds writes
+     it again.
+
+     **Not `test_support`**, which is the obvious home and the wrong one: it is
+     behind the `test-support` feature and release builds turn it off, while
+     `src/cards/` ships. The **big test-file migration will not catch these
+     either** — they are card files, not test files.
+
+     **Reachability (2026-09-11):** reachable, not wrong — five correct copies
+     of one constructor. It is a divergence risk rather than a defect: the day
+     two of them disagree about `is_characteristic_defining`, one card file's
+     abilities quietly stop being CDAs.
+
+     **Sized:** named constructors beside the type in
+     `objects/card_data.rs`, the way `ReplacementDef::new` sits beside
+     `ReplacementDef` — three functions and ~30 call sites across three card
+     files, ~120 lines net negative. **Its own PR**, so a mechanical sweep does
+     not ride inside a rules change.
+
+121. **Eon Hub's two trigger-shaped rulings have no test and cannot have one
+     until item 6.** *"Upkeep-triggered abilities don't trigger"* and *"any
+     triggered abilities that triggered during the untap step will go onto the
+     stack at the start of the draw step"* are the two halves of what a skipped
+     step does to CR 603, and RE-1 landed the events they read
+     (`GameEvent::StepBegin`) without anything to read them. The first falls
+     out — a step that does not begin emits nothing — and the second does not:
+     it says the *next* step that begins is where the waiting triggers go, and
+     nothing in RE-1 could assert that.
+
+     **Reachability (2026-09-11):** nothing to build — a record for item 6.
+     Eon Hub is in `PERFORMANCE_POOL`, so the board is in front of every
+     measured game already; what is missing is a trigger to watch.
+
+     **Sized:** two integration tests in item 6's file, ~60 lines, on a board
+     `phase_re_cards::eon_hub` plus one upkeep trigger and one untap-step
+     trigger. **Item 6's own doc should list them** — the card file's module
+     doc records both rulings as "item 6's" and this is the line that says
+     where they land.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a

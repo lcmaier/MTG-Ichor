@@ -245,6 +245,82 @@ fn two_extra_turns_are_taken_most_recently_created_first() {
     );
 }
 
+/// **Timesifter's own bookkeeping, which is what `turn_rotation` is.**
+///
+/// > *Remember which player would have taken the next turn if Timesifter's
+/// > ability hadn't triggered the first time. After Timesifter leaves the
+/// > battlefield and all extra turns have been taken, that player takes the
+/// > next turn.* (Scryfall, fetched 2026-09-11.)
+///
+/// Timesifter needs item 6's triggers to be registered, so the board is built
+/// from `Primitive::ExtraTurn` directly — but the shape is its, and it is the
+/// one the card is infamous for: *"With two Timesifters on the battlefield, two
+/// extra turns are created for each turn taken"*, in a four-player game, which
+/// is a queue that never empties. Two things are asserted and neither is
+/// reachable on two players: extra turns drain **most recently created first**
+/// across several players (CR 500.7), and when the queue finally empties the
+/// **natural** rotation resumes at the player it had reached — not at whoever
+/// took the last extra turn.
+#[test]
+fn a_deep_queue_drains_most_recent_first_and_leaves_the_rotation_where_it_was() {
+    let mut game = at_the_turn_boundary(4);
+
+    // Eight extra turns, created during player 0's turn, two per player, in
+    // the order a pair of Timesifters would hand them out.
+    for _ in 0..2 {
+        for player in 0..4 {
+            resolve_spell(&mut game, time_walk(), player, vec![]);
+        }
+    }
+    assert_eq!(game.turn_queue.len(), 8);
+
+    // A stack: the last created is the first taken, so the eight come back in
+    // reverse — P3 P2 P1 P0, twice.
+    let extra = next_turns(&mut game, &test_dp(), 8);
+    assert_eq!(
+        extra,
+        vec![(3, 2), (2, 3), (1, 4), (0, 5), (3, 6), (2, 7), (1, 8), (0, 9)],
+        "CR 500.7 — the most recently created turn is taken first"
+    );
+    assert!(game.turn_queue.is_empty());
+
+    // And now the ruling's last sentence: the rotation is still at player 0,
+    // whose natural turn the eight were added after, so the next natural turn
+    // is player 1's and the three after it are one per player in order —
+    // eight extra turns moved the rotation not at all.
+    //
+    // Player 0 also happens to have taken the *last* extra turn, so this one
+    // board cannot tell `turn_rotation` from `active_player`.
+    // `an_extra_turn_on_someone_elses_turn_does_not_consume_the_taker_s_own`
+    // is the board that can.
+    assert_eq!(
+        next_turns(&mut game, &test_dp(), 3),
+        vec![(1, 10), (2, 11), (3, 12)],
+        "the natural rotation resumes where it left off, once per player"
+    );
+}
+
+/// The distinguishing half of the board above: an extra turn for somebody who
+/// is **not** the player whose natural turn it is.
+///
+/// Final Fortune is the printed card — an *instant*, so it resolves on another
+/// player's turn — and this is the case `(active_player + 1) % n` gets wrong.
+/// Player 1 takes an extra turn during player 0's, and then still takes their
+/// own natural turn, because CR 500.7 inserts the extra turn after player 0's
+/// rather than in place of player 1's.
+#[test]
+fn an_extra_turn_on_someone_elses_turn_does_not_consume_the_taker_s_own() {
+    let mut game = at_the_turn_boundary(4);
+    // Player 0 is active; the extra turn is player 1's.
+    resolve_spell(&mut game, time_walk(), 1, vec![]);
+
+    assert_eq!(
+        next_turns(&mut game, &test_dp(), 4),
+        vec![(1, 2), (1, 3), (2, 4), (3, 5)],
+        "player 1's extra turn, then player 1's own, then the rotation"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // CR 614.10 — a skipped step's contents are not proposed
 // ---------------------------------------------------------------------------
@@ -459,6 +535,59 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
         "player 0's combat phase began"
     );
     assert_eq!(game.replacement_effects.len(), 1, "and the row is unspent");
+}
+
+/// Moment of Silence's first ruling, second sentence: *"If they manage to have
+/// two combat phases, then only their next one combat phase is skipped."*
+///
+/// **The board is built by moving the cursor, because CR 500.8's extra phases
+/// are unbuilt** (`codebase-state.md` item 116) — the turn queue RE-1 landed
+/// holds extra *turns* only, so nothing registered can produce a second combat
+/// phase. What the fixture produces is a genuine second
+/// `GameAction::BeginPhase { Combat }` proposal, which is the only thing the
+/// claim is about: a `Uses::Once` row created during the first combat phase
+/// meets no proposal there (CR 614.10's "once a phase has started, it can no
+/// longer be skipped") and is spent on the next one. Relentless Assault
+/// replaces the cursor move on the day its class lands.
+#[test]
+fn a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 20);
+
+    // The first combat phase, already under way.
+    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) };
+    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
+
+    // It finishes: CR 614.10's last sentence, and the row is unspent.
+    let before = game.events.len();
+    while game.phase.phase_type == PhaseType::Combat {
+        game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+    }
+    assert!(
+        steps_begun_from(&game, before).contains(&StepType::EndCombat),
+        "the combat phase that had started finished"
+    );
+    assert_eq!(game.replacement_effects.len(), 1, "and the row is unspent");
+
+    // A second combat phase, as CR 500.8 would insert one.
+    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
+    let before = game.events.len();
+    let (phase, step) = game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+
+    assert_eq!(
+        (phase, step),
+        (PhaseType::Postcombat, None),
+        "the second combat phase is the one that gets skipped"
+    );
+    let records = game.events.records_from(before);
+    assert!(
+        !records.iter().any(|r| matches!(
+            r.event,
+            GameEvent::PhaseBegin { phase: PhaseType::Combat }
+        )),
+        "and it announced nothing"
+    );
+    assert!(game.replacement_effects.is_empty(), "one use, one phase");
 }
 
 /// The phase-level skip, and the rule a step-level one cannot show: a skipped

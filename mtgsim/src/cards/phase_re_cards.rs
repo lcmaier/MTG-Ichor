@@ -52,7 +52,9 @@
 //!   skipped.
 //! - **Eon Hub**, *"Any triggered abilities that triggered during the untap
 //!   step will go onto the stack at the start of the draw step."* → item 6's,
-//!   for the same reason. Nothing triggers yet.
+//!   for the same reason. Nothing triggers yet. **Both Eon Hub rulings are
+//!   booked as two tests item 6 owes** — `codebase-state.md` item 121, which
+//!   names the board and sizes them.
 //! - **Meditate**, *"You skip one turn as part of the effect."* → one row,
 //!   `Uses::Once`, so one turn; and two Meditates skip two, which is
 //!   CR 614.10a's own sentence and the board that needed a real queue.
@@ -62,8 +64,10 @@
 //!   players so that the order is observable at all.
 //! - **Moment of Silence**, *"The player skips their next combat phase this
 //!   turn (if any). If they manage to have two combat phases, then only their
-//!   next one combat phase is skipped."* → `Uses::Once`; the second sentence
-//!   needs CR 500.8's extra phases and is recorded with them.
+//!   next one combat phase is skipped."* → `Uses::Once`, and the second
+//!   sentence is tested against a second `BeginPhase { Combat }` proposal the
+//!   fixture makes by moving the cursor, because CR 500.8's extra phases are
+//!   unbuilt (`codebase-state.md` item 116).
 //! - **Moment of Silence**, *"It must be used before the combat phase starts or
 //!   it has no effect."* → `ATOM-614.10-002`: a row created during combat meets
 //!   no proposal and expires at cleanup unused.

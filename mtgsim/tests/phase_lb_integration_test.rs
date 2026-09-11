@@ -184,8 +184,8 @@ fn test_two_giant_growths_stack() {
     assert_eq!(get_effective_toughness(&game, bears_id), Some(8));
     assert_eq!(game.continuous_effects.len(), 2);
 
-    // Advance to cleanup — both expire. Six positions, not nine: nothing
-    // attacked, so CR 508.8's three combat steps never begin (RE-1).
+    // Advance to cleanup — both expire. Six positions: nothing attacked, so
+    // CR 508.8's three combat steps never begin.
     for _ in 0..6 {
         game.advance_turn(&test_ctx()).unwrap();
     }
@@ -697,9 +697,8 @@ fn test_layer_effects_expire_at_cleanup() {
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
     assert_eq!(game.continuous_effects.len(), 3);
 
-    // Advance to cleanup — six positions from the precombat main phase, not
-    // nine: nothing attacked, so CR 508.8's three combat steps are refused at
-    // the proposal site and never become positions (RE-1).
+    // Six positions from the precombat main phase: nothing attacked, so
+    // CR 508.8's three combat steps are refused at the proposal site.
     for _ in 0..6 {
         game.advance_turn(&test_ctx()).unwrap();
     }

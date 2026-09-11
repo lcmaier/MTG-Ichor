@@ -83,9 +83,9 @@ fn test_full_opening_sequence() {
 
     // -- Advance through the rest of the turn --
     //
-    // Seven positions, not ten: CR 508.8's declare-blockers, first-strike and
+    // Seven positions: CR 508.8's declare-blockers, first-strike and
     // combat-damage steps are refused at the proposal site when nothing
-    // attacked (RE-1), so they are no longer positions `advance_turn` stops on.
+    // attacked, so `advance_turn` does not stop on them.
     for _ in 0..7 {
         game.advance_turn(&test_ctx()).unwrap();
     }

@@ -54,9 +54,11 @@ impl GameState {
     /// before the first turn nothing has resolved and no permanent has entered
     /// — so it is proposed with the number it already has rather than through
     /// [`Self::next_turn_taker`], which would rotate past the starting player.
-    /// Its untap step is proposed like any other, and until this existed
-    /// **turn 1's untap step ran no turn-based action at all**: nothing called
-    /// `on_step_begin` for the step `GameState::new` had already parked on.
+    /// Its untap step is proposed like any other.
+    ///
+    /// **CR 103.6's "begin the game with this on the battlefield" belongs
+    /// between the opening hands and this call** and has no implementation;
+    /// `codebase-state.md` item 119 owns the seam.
     pub fn start_first_turn(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let player = self.active_player;
         let turn = self.turn_number;
@@ -96,18 +98,18 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<(PhaseType, Option<StepType>), String> {
         loop {
-            let unit = next_unit(phase, step, phase_began);
+            let turn_unit = next_turn_unit(phase, step, phase_began);
 
             // CR 500.5 — a phase ends when nothing is left in it, and only a
             // phase that began ends. This is where the mana pools empty and
             // CR 511.3's combat state clears, so a skipped phase must not
             // reach it.
-            if phase_began && !matches!(unit, TurnUnit::Step(_)) {
+            if phase_began && !matches!(turn_unit, TurnUnit::Step(_)) {
                 self.on_phase_end(phase.expect("phase_began implies a phase"))?;
                 phase_began = false;
             }
 
-            match unit {
+            match turn_unit {
                 TurnUnit::Step(next) => {
                     if self.begin_step(next, ctx)? {
                         let current = phase.expect("a step belongs to a phase that began");
@@ -205,10 +207,7 @@ impl GameState {
         // declare blockers and combat damage steps". A **rule**, checked ahead
         // of the pipeline like CR 101.2's "can't"s: there is no event here for
         // a replacement effect to see, and a step that does not begin runs no
-        // turn-based action and grants no priority. It lived in
-        // `Game::run_turn` as a priority suppressor until the steps became
-        // proposals, which is the first time the engine could say "this step
-        // did not happen" rather than "this step happened and did nothing".
+        // turn-based action and grants no priority.
         if !self.attacks_declared
             && matches!(
                 step,
@@ -229,12 +228,12 @@ impl GameState {
     /// > 611.2b ... "until your next turn" ... it lasts until that player's
     /// > next turn begins.
     ///
-    /// Here and not in the untap step's begin hook, where it lived until RE-1,
-    /// and the difference is now reachable in two directions. Eight printed
-    /// cards skip the untap step, and an expiry hung off a step that may not
-    /// happen is an effect that never ends; and CR 614.10a's "a skipped turn
-    /// expires nothing" is the same sentence from the other side — this hook
-    /// runs only for a turn whose proposal survived.
+    /// Here and not in the untap step's begin hook, and the difference bites in
+    /// two directions. Eight printed cards skip the untap step, and an expiry
+    /// hung off a step that may not happen is an effect that never ends; and
+    /// CR 614.10a's "a skipped turn expires nothing" is the same sentence from
+    /// the other side — this hook runs only for a turn whose proposal
+    /// survived.
     fn on_turn_begin(&mut self) -> Result<(), String> {
         let player = self.active_player;
         let turn = self.turn_number;
@@ -452,7 +451,7 @@ enum TurnUnit {
 /// the cursor advances through a fixed, finite sequence on every iteration
 /// except the one where a turn is skipped, and that one consumes a schedule
 /// entry or the rotation.
-fn next_unit(
+fn next_turn_unit(
     phase: Option<PhaseType>,
     step: Option<StepType>,
     phase_began: bool,
@@ -528,12 +527,9 @@ mod tests {
         // Combat: BeginCombat, DeclareAttackers, EndCombat = 3 advances
         // Postcombat: 1 advance (no steps)
         // Ending: End, Cleanup = 2 advances
-        // Total: 10 advances to complete one turn
-        //
-        // **Ten and not thirteen, from RE-1 on.** CR 508.8's three steps used
-        // to happen and grant nobody priority; they are now refused at the
-        // proposal site, so with no attackers they do not happen at all and
-        // `advance_turn` does not stop on them.
+        // Total: 10 advances to complete one turn — CR 508.8 refuses the
+        // declare-blockers, first-strike and combat-damage steps when nothing
+        // attacked, so they are not positions `advance_turn` stops on.
 
         for _ in 0..10 {
             game.advance_turn(&test_ctx()).unwrap();

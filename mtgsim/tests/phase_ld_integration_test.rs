@@ -271,9 +271,8 @@ fn test_type_change_expires_at_cleanup() {
     let types = get_effective_types(&game, bears_id);
     assert!(types.contains(&CardType::Artifact));
 
-    // Advance to cleanup — six positions from the precombat main phase, not
-    // nine: nothing attacked, so CR 508.8's three combat steps are refused at
-    // the proposal site and never become positions (RE-1).
+    // Six positions from the precombat main phase: nothing attacked, so
+    // CR 508.8's three combat steps are refused at the proposal site.
     for _ in 0..6 {
         game.advance_turn(&test_ctx()).unwrap();
     }

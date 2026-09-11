@@ -5256,6 +5256,22 @@ found them.
     arithmetic skips the second. `GameState.turn_rotation` is the field, and it
     advances when a natural turn is **proposed** rather than when one begins,
     because CR 614.10a proceeds past a skipped turn rather than re-offering it.
+
+    **And a printed ruling says the field out loud** (Timesifter, fetched at
+    the review on 2026-09-11): *"Remember which player would have taken the
+    next turn if Timesifter's ability hadn't triggered the first time. After
+    Timesifter leaves the battlefield and all extra turns have been taken, that
+    player takes the next turn."* That is `turn_rotation`'s whole
+    specification, written by the people who adjudicate it, on the card
+    notorious for the deepest queue in the format — *"with two Timesifters on
+    the battlefield, two extra turns are created for each turn taken"*, in a
+    four-player game. **Third time a rulings pass has decided a design rather
+    than a test** (after Furnace of Rath's numbers and Notion Thief's arm, item
+    42), and the first where the ruling arrived *after* the code and confirmed
+    it. Timesifter itself waits on item 6's triggers; the shape is tested
+    without it — `phase_re1_integration_test::
+    a_deep_queue_drains_most_recent_first_and_leaves_the_rotation_where_it_was`.
+
     Worth keeping because it is `CLAUDE.md`'s "write new systems N-player-shaped
     from the start" biting a *queue* rather than a player set — the shape was
     right and the cursor it moved was wrong. → RE-1, `codebase-state.md`
