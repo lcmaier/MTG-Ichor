@@ -274,11 +274,16 @@ Authority order — when two docs disagree, the higher one wins.
 | [`MTG-Rules/versions/`](MTG-Rules/versions/) | The CR itself; `tmnt.txt` is the baseline the engine targets |
 | [`plans/cards-unlocked-ledger.md`](plans/cards-unlocked-ledger.md) | Which cards each ticket unlocks |
 | [`plans/engineering-practices.md`](plans/engineering-practices.md) | Process: `CLAUDE.md`'s line budget, the comment rule, the two card pools, phase sizing, the specdb gate |
+| [`plans/glossary.md`](plans/glossary.md) | The vocabulary — what this codebase means by *subject group*, *rider*, *leg*, and the seven words that mean more than one thing |
 | [`design_doc.md`](design_doc.md) | The original design. **Historical**, except its §636–664 algorithm, adopted verbatim by `layers-architecture.md` |
 | `plans/archive/` | Superseded. Do not act on it |
 
 `spec.sqlite` and the generated index files under `plans/atomic-tests/` come from
 `specdb.py build` — never hand-edit them; fix the session file and rebuild.
+
+`plans/glossary.md` is checked by `plans/check_glossary.py`: a term that stops
+appearing in `mtgsim/src`, a watched word with no definition, or a word with two
+meanings carrying one of them fails the build.
 
 ---
 
@@ -289,6 +294,8 @@ Authority order — when two docs disagree, the higher one wins.
   leans on its written record, and squashing discards per-commit messages.
 - A bugfix must be shown to fail against the pre-fix tree before it is committed.
 - New cards go in `mtgsim/src/cards/`, integration tests in `mtgsim/tests/`.
+- A word the codebase invents gets an entry in [`plans/glossary.md`](plans/glossary.md)
+  and a line on `check_glossary.py`'s watch-list, in the commit that coins it.
 - Annotate tests with `// COVERS:` / `// COVERS-PARTIAL:` atom ids at write time. Never
   claim an atom a test does not prove — a false link is worse than a blank.
 
