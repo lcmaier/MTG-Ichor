@@ -3548,6 +3548,10 @@ time). `GameState::draw_cards` had had no caller since before RA and is an
 N-draw path with no proposal at all (item 50). And the first three-round timing
 said +6.0% on a 27% outlier; seven rounds say **+0.5%** (item 54).
 
+**Trace page:** `plans/traces/re-2-a-draw-carries-its-lineage.html` — two
+Thought Reflections, Teferi beside one in the draw step, Alms Collector in both
+encodings with the loop the sized one produces, and the three-Thief board.
+
 → The section as sized, what the building changed and the measurement:
 `plans/archive/replacement-architecture-landed.md`, "RE-2" (evicted
 2026-09-11).
@@ -4181,15 +4185,18 @@ number before running:
 §3's table is re-recorded once per PR that moves the pool, at 50 games, after
 the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — decide at RE-2's close, and again at RE-4's
+#### Trace page — ✅ written at RE-2's close; decide again at RE-4's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
 RE-4 changes how an entry's frame is answered inside a plural batch (a token is
 decided against a board its siblings have not entered). Neither is the happy
 path, and both are the boards §3.2d and §5b argued about. Decide each at that
-PR's close; if yes, `re-2-a-draw-carries-its-lineage.html` walks two Thought
-Reflections, Alms Collector beside one, and the three-Thief board.
+PR's close. **RE-2: yes** — `plans/traces/re-2-a-draw-carries-its-lineage.html`,
+written 2026-09-11. It walks the three boards named here plus Teferi beside a
+Thought Reflection in the draw step, and Alms Collector is traced in **both**
+encodings, because the difference between them is a loop and a test can only
+show that the loop does not happen.
 
 #### Exit criteria
 

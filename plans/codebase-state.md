@@ -4167,6 +4167,20 @@ named RE PR.
      doc records both rulings as "item 6's" and this is the line that says
      where they land.
 
+### Found by RE-2 — draw (2026-09-11)
+
+**Shipped:** `GameAction::{DrawCards, DrawCard}` as CR 121.2a's instruction and
+CR 121.1's draw, with `DrawCause`, the two `EventPattern` arms,
+`GameActionTemplate::DrawCards { n, player }` in both its legs, and the outer
+performer's decomposition handing each inner the applied set its own CR 616.1
+loop accumulated — `execute_actions_inheriting` beside `execute_actions`, and
+`apply_replacements` returning the group's applied set beside the members'
+decided events. `GameState::draw_cards` deleted. Four cards — Thought
+Reflection (pooled), Teferi's Ageless Insight, Alms Collector, Notion Thief.
+Item 29 closes; `replacement-architecture.md` §11 items 18 and 42 close and
+items 50–54 open, of which 53 is the one worth reading. Trace page:
+[`plans/traces/re-2-a-draw-carries-its-lineage.html`](traces/re-2-a-draw-carries-its-lineage.html).
+
 122. **CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
      first customer.** *"If more than one player is instructed to draw cards,
      the active player performs all of their draws first, then each other

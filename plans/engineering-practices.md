@@ -1854,6 +1854,7 @@ Three existed when the practice was written down, and they are the template:
 | `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
 | `item-7-an-effect-waits-for-what-it-reads.html` | LI-2 + LI-3, closing item 7 | the CR 613.8 loop's fast and slow paths; the judge answer's four-card layer 4 step by step through `next_ready` and the journal; a condition that *is* a dependency (Simian Clause under Blood Moon, with the sabotage step that shows what `condition_reads` buys) and one that is not (Kird Ape, two layers apart); the read-by-read table |
 | `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
+| `re-2-a-draw-carries-its-lineage.html` | RE-2 | the first decomposed event: two Thought Reflections through the applied set that travels with it, and the same board without it — a stack overflow at depth two rather than a wrong number; Teferi's exception living in the shape of the event tree instead of a counter; **Alms Collector in both encodings**, the shipped one and the one §9 sized, which is a CR 104.4b loop; three Notion Thieves moving the event's subject and CR 616.1's chooser with it; the read-by-read table |
 | `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
@@ -1862,14 +1863,22 @@ share, and it is why a phase that adds a card, an enum arm or a pool entry does
 not get one. The phases that qualify were listed when the practice started:
 RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, because the
 pass changed every read at once, and the close), RD-2 ✓ (the loop's unit; the
-one RD phase that qualifies, decided at its close as §9 scheduled), **RS-2,
-critical-path item 6**. Budget
+one RD phase that qualifies, decided at its close as §9 scheduled), RE-2 ✓ (the
+applied set answered for a decomposed event; one of the two RE phases §9 named,
+decided at its close), **RE-4, RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 
 **Its examples are the phase's findings, not its feature list.** A page that
 walks the happy path explains the feature; a page that walks the board the
 review argued about explains the phase.
+
+**And a page may walk a design the phase rejected** — RE-2's does, side by side
+with the one that shipped. That is not a second feature list: the two Alms
+Collector encodings differ by a printed ruling and by whether the game
+terminates, and the *test* for it can only assert that the loop does not happen.
+Where a phase's finding is "this other reading is wrong", the page is the only
+artifact that can show why.
 
 **Naming: `<phase>-<claim>.html`**, kebab-case, where the claim is the sentence
 the page proves — `rc-4b-entering-is-one-event`, not `rc-4b-traces`. The file
