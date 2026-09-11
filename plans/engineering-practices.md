@@ -673,6 +673,14 @@ Splinters at +13.8% and rejected Altar's Reap at +20.2%. Zero errors and zero
 panics on every arm and pool; three shell runs at one seed identical outside
 the timing lines.
 
+**Reachability.** `--require "Eon Hub"` on `performance`, 200 games / seed
+12345: cast 211, resolved 209, in **129 of 200 games (64%)**, copies/deck
+1.57 — so the two-copy board is common, and CR 616.1's prompt between two
+applicable skips on one upkeep is answered by the random agent in a measured
+game rather than only in a fixture. Zero errors and zero panics on that run.
+Unforced, the shipped arm's `Replacement gathers` is 1003 against the middle
+arm's 954, which is the card reaching the battlefield without being pushed.
+
 **The stress column is not an engine reading this time, and saying so is the
 point.** `--pool stress` draws from `default_registry`, which RE-1 grew by
 five, so its decks are different in the middle arm as well as the shipped one
