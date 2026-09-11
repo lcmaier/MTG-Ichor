@@ -73,6 +73,32 @@ fn advance(game: &mut GameState, dp: &dyn DecisionProvider, steps: usize) {
     }
 }
 
+/// Walk until a turn **begins**, and report which one.
+///
+/// Counted by the event rather than by positions, which is the point of the
+/// whole PR: a skipped turn produces no event and no position, so a test that
+/// advanced a fixed number of steps would be asserting the step arithmetic of
+/// whatever it happened to skip.
+fn to_next_turn(game: &mut GameState, dp: &dyn DecisionProvider) -> (PlayerId, u32) {
+    let ctx = ActionContext::new(dp);
+    let before = game.events.len();
+    for _ in 0..200 {
+        game.advance_turn(&ctx).expect("advancing");
+        if let Some(begun) = game.events.records_from(before).iter().find_map(|r| match &r.event {
+            GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
+            _ => None,
+        }) {
+            return begun;
+        }
+    }
+    panic!("no turn began within 200 positions");
+}
+
+/// The next `n` turns that begin, in order.
+fn next_turns(game: &mut GameState, dp: &dyn DecisionProvider, n: usize) -> Vec<(PlayerId, u32)> {
+    (0..n).map(|_| to_next_turn(game, dp)).collect()
+}
+
 /// Every turn that actually began, in order, as `(player, turn number)`.
 fn turns_begun(game: &GameState) -> Vec<(PlayerId, u32)> {
     game.events
@@ -150,28 +176,12 @@ fn two_meditates_make_a_player_skip_their_next_two_turns() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
 
-    let before = game.events.len();
-    // Five turn boundaries: enough for player 0 to reach a turn that is not
-    // skipped. 13 positions per turn is the natural count, and a skipped turn
-    // costs none.
-    advance(&mut game, &dp, 13 * 5);
-
-    let turns: Vec<(PlayerId, u32)> = game
-        .events
-        .records_from(before)
-        .iter()
-        .filter_map(|r| match &r.event {
-            GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
-            _ => None,
-        })
-        .collect();
-
     // Player 0's next two turns do not happen and advance no turn number
     // (CR 614.10a, 500.11): player 1 takes turns 2, 3 and 4 in a row, and
     // player 0's next turn is number 5.
     assert_eq!(
-        &turns[..4],
-        &[(1, 2), (1, 3), (1, 4), (0, 5)],
+        next_turns(&mut game, &dp, 4),
+        vec![(1, 2), (1, 3), (1, 4), (0, 5)],
         "two rows, two skipped turns, then a turn that happens"
     );
     assert!(game.replacement_effects.is_empty(), "both rows spent, one per occurrence");
@@ -191,24 +201,11 @@ fn a_skip_consumes_the_extra_turn_and_the_natural_turn_still_arrives() {
     resolve_spell(&mut game, time_walk(), 0, vec![]);
     assert_eq!(game.turn_queue.len(), 1, "Time Walk queued one extra turn");
 
-    let before = game.events.len();
-    advance(&mut game, &test_dp(), 13 * 3);
-
-    let turns: Vec<(PlayerId, u32)> = game
-        .events
-        .records_from(before)
-        .iter()
-        .filter_map(|r| match &r.event {
-            GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
-            _ => None,
-        })
-        .collect();
-
     // The extra turn is proposed first (CR 500.7's "directly after the
     // specified turn") and Meditate's row replaces it with nothing. Player 1's
     // natural turn follows, and player 0's own natural turn after that — the
     // extra turn was skipped, not the natural one.
-    assert_eq!(&turns[..2], &[(1, 2), (0, 3)]);
+    assert_eq!(next_turns(&mut game, &test_dp(), 2), vec![(1, 2), (0, 3)]);
     assert!(game.turn_queue.is_empty(), "a skipped extra turn is spent on being skipped");
     assert!(game.replacement_effects.is_empty(), "and so is the row that skipped it");
 }
@@ -220,19 +217,10 @@ fn an_extra_turn_is_taken_by_its_controller_before_the_rotation_resumes() {
     let mut game = at_the_turn_boundary(2);
     resolve_spell(&mut game, time_walk(), 0, vec![]);
 
-    let before = game.events.len();
-    advance(&mut game, &test_dp(), 13 * 3);
-
-    let turns: Vec<(PlayerId, u32)> = game
-        .events
-        .records_from(before)
-        .iter()
-        .filter_map(|r| match &r.event {
-            GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(&turns[..3], &[(0, 2), (1, 3), (0, 4)]);
+    assert_eq!(
+        next_turns(&mut game, &test_dp(), 3),
+        vec![(0, 2), (1, 3), (0, 4)]
+    );
 }
 
 /// CR 500.7's ordering sentence, on the only board that makes it observable:
@@ -247,24 +235,14 @@ fn two_extra_turns_are_taken_most_recently_created_first() {
     resolve_spell(&mut game, time_walk(), 1, vec![]);
     resolve_spell(&mut game, time_walk(), 2, vec![]);
 
-    let before = game.events.len();
-    advance(&mut game, &test_dp(), 13 * 4);
-
-    let turns: Vec<(PlayerId, u32)> = game
-        .events
-        .records_from(before)
-        .iter()
-        .filter_map(|r| match &r.event {
-            GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
-            _ => None,
-        })
-        .collect();
-
     // Player 2's Time Walk resolved second, so player 2's extra turn is taken
     // first. Then player 1's. Then the natural rotation resumes from player 0,
     // whose turn the two extra ones were added after — so player 1, not
     // player 3.
-    assert_eq!(&turns[..3], &[(2, 2), (1, 3), (1, 4)]);
+    assert_eq!(
+        next_turns(&mut game, &test_dp(), 3),
+        vec![(2, 2), (1, 3), (1, 4)]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -338,14 +316,13 @@ fn eon_hub_skips_every_players_upkeep_on_a_four_player_table() {
     put_on_battlefield(&mut game, eon_hub(), 0);
 
     let before = game.events.len();
-    advance(&mut game, &test_dp(), 13 * 4);
+    assert_eq!(
+        next_turns(&mut game, &test_dp(), 4),
+        vec![(1, 2), (2, 3), (3, 4), (0, 5)],
+        "the rotation is untouched; only the upkeep steps are gone"
+    );
 
     let records = game.events.records_from(before);
-    let turns = records
-        .iter()
-        .filter(|r| matches!(r.event, GameEvent::TurnBegin { .. }))
-        .count();
-    assert!(turns >= 3, "at least three turns began; saw {turns}");
     assert!(
         !records.iter().any(|r| matches!(
             r.event,
@@ -531,14 +508,12 @@ fn until_your_next_turn_waits_for_the_first_turn_that_is_not_skipped() {
     assert_eq!(game.continuous_effects.len(), 1);
 
     // Player 1's turn: the wrong player, so nothing expires.
-    advance(&mut game, &test_dp(), 13);
-    assert_eq!(game.active_player, 1);
+    assert_eq!(to_next_turn(&mut game, &test_dp()), (1, 2));
     assert_eq!(game.continuous_effects.len(), 1, "not this player's turn");
 
-    // Player 0's next turn is skipped, so it expires nothing — and player 1
-    // takes another.
-    advance(&mut game, &test_dp(), 13);
-    assert_eq!(game.active_player, 1, "player 0's turn was skipped");
+    // Player 0's next turn is skipped, so it expires nothing — and the turn
+    // that does begin is player 1's again.
+    assert_eq!(to_next_turn(&mut game, &test_dp()), (1, 3));
     assert_eq!(
         game.continuous_effects.len(),
         1,
@@ -546,8 +521,7 @@ fn until_your_next_turn_waits_for_the_first_turn_that_is_not_skipped() {
     );
 
     // The first turn of player 0's that is not skipped is the one it ends on.
-    advance(&mut game, &test_dp(), 13);
-    assert_eq!(game.active_player, 0);
+    assert_eq!(to_next_turn(&mut game, &test_dp()), (0, 4));
     assert!(game.continuous_effects.is_empty());
 }
 
@@ -561,9 +535,11 @@ fn until_your_next_turn_expires_on_a_real_extra_turn() {
     pump_until_your_next_turn(&mut game, creature, 0);
     resolve_spell(&mut game, time_walk(), 0, vec![]);
 
-    advance(&mut game, &test_dp(), 13);
-    assert_eq!(game.active_player, 0, "the extra turn is player 0's");
-    assert_eq!(game.turn_number, 2);
+    assert_eq!(
+        to_next_turn(&mut game, &test_dp()),
+        (0, 2),
+        "the extra turn is player 0's, and it is the next turn there is"
+    );
     assert!(
         game.continuous_effects.is_empty(),
         "an extra turn for the controller IS their next turn (CR 611.2b)"
@@ -601,10 +577,19 @@ fn pump_until_your_next_turn(game: &mut GameState, creature: ObjectId, controlle
 fn an_ordinary_turn_announces_its_turn_its_five_phases_and_its_steps() {
     let mut game = at_the_turn_boundary(2);
 
+    // One whole turn, cut at its own boundaries: everything the log records
+    // between this turn beginning and the next one.
     let before = game.events.len();
-    advance(&mut game, &test_dp(), 13);
+    to_next_turn(&mut game, &test_dp());
+    to_next_turn(&mut game, &test_dp());
+    let all = game.events.records_from(before);
+    let records: Vec<_> = all
+        .iter()
+        .skip_while(|r| !matches!(r.event, GameEvent::TurnBegin { .. }))
+        .skip(1)
+        .take_while(|r| !matches!(r.event, GameEvent::TurnBegin { .. }))
+        .collect();
 
-    let records = game.events.records_from(before);
     let phases: Vec<PhaseType> = records
         .iter()
         .filter_map(|r| match &r.event {
@@ -686,19 +671,11 @@ fn a_lost_players_turn_does_not_begin() {
     let mut game = at_the_turn_boundary(4);
     game.player_lost[1] = true;
 
-    let before = game.events.len();
-    advance(&mut game, &test_dp(), 13 * 2);
-
-    let turns: Vec<(PlayerId, u32)> = game
-        .events
-        .records_from(before)
-        .iter()
-        .filter_map(|r| match &r.event {
-            GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(&turns[..2], &[(2, 2), (3, 3)], "player 1 is skipped over entirely");
+    assert_eq!(
+        next_turns(&mut game, &test_dp(), 2),
+        vec![(2, 2), (3, 3)],
+        "player 1 is passed over entirely, and the turn numbers are the two that began"
+    );
 }
 
 // ---------------------------------------------------------------------------

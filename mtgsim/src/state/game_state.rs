@@ -229,7 +229,8 @@ pub struct GameState {
     /// after a skipped P2 is P3's and not P2's again.
     ///
     /// Starts at CR 103.7's starting player, because [`Self::new`] starts with
-    /// that player's first turn already in progress.
+    /// that player's first turn already in progress — and a fixture that
+    /// hand-writes `active_player` writes this too, for the same reason.
     pub turn_rotation: PlayerId,
 
     // --- Combat tracking ---
@@ -454,8 +455,12 @@ impl Phase {
     }
 }
 
-/// Get the initial step for a phase (None for main phases which have no steps)
-fn initial_step(phase_type: PhaseType) -> Option<StepType> {
+/// The first step of a phase, or `None` for a main phase, which has none.
+///
+/// `pub(crate)` for `engine::turns`: the drainer proposes a phase and its first
+/// step as two separate events (CR 614.10 replaces either), so it needs to ask
+/// for the first step rather than read it off a `Phase` the performer built.
+pub(crate) fn initial_step(phase_type: PhaseType) -> Option<StepType> {
     match phase_type {
         PhaseType::Beginning => Some(StepType::Untap),
         PhaseType::Precombat => None,
@@ -489,15 +494,18 @@ pub fn next_step(phase_type: PhaseType, current_step: StepType) -> Option<StepTy
     }
 }
 
-/// Get the next phase in turn order.
+/// The next phase in CR 500.1's order, wrapping from the ending phase to the
+/// next turn's beginning phase.
 ///
-/// **Future: TurnPlan for extra phases.** Effects like "after this phase, there
-/// is an additional combat phase followed by an additional main phase" cannot
-/// be expressed by a fixed state machine. When we implement combat (Phase 3),
-/// `next_phase` will be replaced by a `TurnPlan` — a mutable Vec of
-/// `(PhaseType, Vec<StepType>)` that the engine walks. Effects insert extra
-/// entries into the plan, and `advance_turn` reads from it instead of calling
-/// this function.
+/// **Still a fixed sequence, and RE-1 is why that is now a decision rather
+/// than a stub.** The turn queue it built holds *extra turns* (CR 500.7), and
+/// `engine::turns`'s drainer asks this function for the natural order the
+/// queue interleaves with. CR 500.8's extra **phases** and CR 500.9's extra
+/// **steps** — Relentless Assault's "an additional combat phase followed by an
+/// additional main phase" — are the queue's second level: a per-turn list the
+/// drainer would consult before falling through to here. They wait for their
+/// first registered card (`replacement-architecture.md` §9, RE decision 6;
+/// `backlog.md` §2.17).
 pub fn next_phase(phase_type: PhaseType) -> PhaseType {
     match phase_type {
         PhaseType::Beginning => PhaseType::Precombat,

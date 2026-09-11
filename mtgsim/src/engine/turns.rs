@@ -1,68 +1,253 @@
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::state::game_state::{GameState, Phase, PhaseType, StepType, next_step, next_phase};
-use crate::types::ids::ObjectId;
+use crate::state::game_state::{
+    initial_step, next_phase, next_step, GameState, PhaseType, StepType,
+};
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 
-/// Turn structure engine.
+/// Turn structure engine — CR 500, and CR 614.10's three replaceable units.
 ///
-/// Handles advancing through phases and steps, processing phase/step-specific
-/// actions (untap, draw, etc.), and turn transitions.
-
+/// # `advance_turn` is a drainer, not a step function
+///
+/// Every turn, phase and step is *proposed* before it starts (CR 614.1b makes
+/// "skip" a replacement effect), so the engine cannot assume the next unit in
+/// CR 500.1's sequence is the one that happens. It walks forward from a cursor,
+/// proposing each unit in turn, until one of them begins — and CR 500.11's
+/// "proceed past it as though it didn't exist" is what a dropped proposal
+/// means: a skipped phase proposes none of its steps, a skipped turn advances
+/// no turn number and expires nothing, and the sequence resumes from the unit
+/// that did not happen rather than from the last one that did.
+///
+/// **The schedule is read and consumed here, not in a performer.** Popping
+/// `turn_queue` and advancing `turn_rotation` are what *build* the proposal;
+/// neither is state a CR 614 replacement effect or a CR 603 trigger can see,
+/// and both have to be spent whether or not the turn begins — a skipped extra
+/// turn is gone (CR 614.10a's "anything scheduled for a skipped turn won't
+/// happen"), and the turn after a skipped P2 is P3's rather than P2's again.
 impl GameState {
-    /// Advance the game state to the next step or phase.
+    /// Advance to the next step or phase that actually begins.
     ///
-    /// Returns the new (PhaseType, Option<StepType>) after advancing.
+    /// Returns the position it landed on. Ends the current one first: only a
+    /// unit that began ends (CR 500.5).
     pub fn advance_turn(
         &mut self,
         ctx: &ActionContext,
     ) -> Result<(PhaseType, Option<StepType>), String> {
-        // If we're in a phase with steps, try to advance to the next step
-        if let Some(current_step) = self.phase.step {
-            if let Some(next) = next_step(self.phase.phase_type, current_step) {
-                // Execute end-of-step cleanup for the old step
-                self.on_step_end(current_step)?;
-
-                // Move to the next step within this phase
-                self.phase.step = Some(next);
-                self.on_step_begin(next, ctx)?;
-
-                return Ok((self.phase.phase_type, self.phase.step));
-            }
-            // No more steps in this phase — fall through to advance phase
-            self.on_step_end(current_step)?;
-        }
-
-        // Advance to the next phase
-        let old_phase = self.phase.phase_type;
-        self.on_phase_end(old_phase)?;
-
-        let new_phase_type = next_phase(old_phase);
-
-        // Check for turn transition (Ending -> Beginning = new turn)
-        if old_phase == PhaseType::Ending && new_phase_type == PhaseType::Beginning {
-            self.on_turn_end()?;
-            let next_player = (self.active_player + 1) % self.num_players();
-            self.begin_turn(self.turn_number + 1, next_player);
-            self.priority_player = self.active_player;
-        }
-
-        self.phase = Phase::new(new_phase_type);
-        self.on_phase_begin(new_phase_type)?;
-
-        // If the new phase starts with a step, process that step's begin
         if let Some(step) = self.phase.step {
-            self.on_step_begin(step, ctx)?;
+            self.on_step_end(step)?;
         }
+        self.drain(Some(self.phase.phase_type), self.phase.step, true, true, ctx)
+    }
 
-        Ok((self.phase.phase_type, self.phase.step))
+    /// Begin the game's first turn, its beginning phase and its untap step —
+    /// through the chokepoint, like every later one.
+    ///
+    /// Called once, by `Game::setup`, after CR 103.4's opening hands.
+    /// [`GameState::new`] leaves the board *describing* turn 1 (turn number,
+    /// active player, the beginning phase) so that a bare `GameState` in a unit
+    /// test reads the way it always has; this is what makes those units
+    /// **events**, which is what item 6's "at the beginning of your upkeep"
+    /// triggers will read on turn 1 as on every other.
+    ///
+    /// The turn itself is unskippable here by construction rather than by
+    /// exemption — CR 614.4 needs the effect to exist before the event, and
+    /// before the first turn nothing has resolved and no permanent has entered
+    /// — so it is proposed with the number it already has rather than through
+    /// [`Self::next_turn_taker`], which would rotate past the starting player.
+    /// Its untap step is proposed like any other, and until this existed
+    /// **turn 1's untap step ran no turn-based action at all**: nothing called
+    /// `on_step_begin` for the step `GameState::new` had already parked on.
+    pub fn start_first_turn(&mut self, ctx: &ActionContext) -> Result<(), String> {
+        let player = self.active_player;
+        let turn = self.turn_number;
+        let performed =
+            self.execute_actions(vec![GameAction::BeginTurn { player, turn }], ctx)?;
+        if performed.is_empty() {
+            return Err(
+                "the game's first turn was replaced, which CR 614.4 makes impossible \
+                 before anything has resolved — an engine bug rather than a rules corner"
+                    .to_string(),
+            );
+        }
+        self.on_turn_begin()?;
+        self.drain(None, None, false, true, ctx)?;
+        Ok(())
+    }
+
+    /// The drainer's loop: propose units in CR 500.1's order until one begins.
+    ///
+    /// The cursor is *the last unit considered*, which is not the same as the
+    /// last unit that happened — that is the whole of CR 500.11. `phase` is
+    /// `None` only for the moment after a turn begins and before its beginning
+    /// phase is proposed; `phase_began` is false for a phase that was skipped,
+    /// and it is what stops the drainer from ending a phase that never started
+    /// or from proposing a skipped phase's steps.
+    ///
+    /// Unbounded, as the rules are: CR 614.10 puts no cap on how many
+    /// consecutive turns may be skipped, and the one board that cannot make
+    /// progress — every player having left the game — is the one
+    /// [`Self::next_turn_taker`] reports as `None`.
+    fn drain(
+        &mut self,
+        mut phase: Option<PhaseType>,
+        mut step: Option<StepType>,
+        mut phase_began: bool,
+        mut turn_began: bool,
+        ctx: &ActionContext,
+    ) -> Result<(PhaseType, Option<StepType>), String> {
+        loop {
+            let unit = next_unit(phase, step, phase_began);
+
+            // CR 500.5 — a phase ends when nothing is left in it, and only a
+            // phase that began ends. This is where the mana pools empty and
+            // CR 511.3's combat state clears, so a skipped phase must not
+            // reach it.
+            if phase_began && !matches!(unit, TurnUnit::Step(_)) {
+                self.on_phase_end(phase.expect("phase_began implies a phase"))?;
+                phase_began = false;
+            }
+
+            match unit {
+                TurnUnit::Step(next) => {
+                    if self.begin_step(next, ctx)? {
+                        let current = phase.expect("a step belongs to a phase that began");
+                        // Turn-based actions, after the event and only for a
+                        // step that began (CR 703.4). Outside the proposal's
+                        // batch on purpose: the untap sweep is its own
+                        // CR 603.2c event, not a result of the step beginning.
+                        self.on_step_begin(next, ctx)?;
+                        return Ok((current, Some(next)));
+                    }
+                    step = Some(next);
+                }
+
+                TurnUnit::Phase(next) => {
+                    phase = Some(next);
+                    step = None;
+                    phase_began = self.begin_phase(next, ctx)?;
+                    // A main phase *is* the position; a phase with steps is
+                    // entered together with its first one, which the next
+                    // iteration proposes.
+                    if phase_began && initial_step(next).is_none() {
+                        return Ok((next, None));
+                    }
+                }
+
+                TurnUnit::Turn => {
+                    if turn_began {
+                        self.on_turn_end()?;
+                        turn_began = false;
+                    }
+                    let Some(player) = self.next_turn_taker() else {
+                        // Every player has left the game (CR 104.2a), so there
+                        // is no turn to advance to. The position stays where it
+                        // is and `Game::check_game_over` is what ends the game.
+                        return Ok((self.phase.phase_type, self.phase.step));
+                    };
+                    let turn = self.turn_number + 1;
+                    let performed =
+                        self.execute_actions(vec![GameAction::BeginTurn { player, turn }], ctx)?;
+                    if performed.is_empty() {
+                        // CR 614.10a — a skipped turn advances no turn number
+                        // and expires nothing. The cursor does not move, so the
+                        // next iteration proposes the turn after it.
+                        continue;
+                    }
+                    self.on_turn_begin()?;
+                    turn_began = true;
+                    phase = None;
+                }
+            }
+        }
+    }
+
+    /// Who takes the next turn — CR 500.7's queue first, then the natural
+    /// rotation — or `None` when no player is left to take one.
+    ///
+    /// **Consumes what it reads**, and both halves have to. A queued extra turn
+    /// that gets skipped is spent on being skipped (CR 614.10a), and a natural
+    /// turn that gets skipped still advances the rotation, or the drainer would
+    /// propose the same player's turn forever. So this is called once per
+    /// proposal, not once per turn that begins.
+    ///
+    /// CR 800.4k — "if a player who has left the game would begin a turn, that
+    /// turn doesn't begin" — is checked here rather than in the pipeline,
+    /// because a turn that does not begin is not an event a replacement effect
+    /// could have replaced. RE-6 is what makes `player_lost` true for a reason;
+    /// this is the site it will use.
+    fn next_turn_taker(&mut self) -> Option<PlayerId> {
+        while let Some(player) = self.turn_queue.pop() {
+            if !self.player_lost[player] {
+                return Some(player);
+            }
+        }
+        let n = self.num_players();
+        for _ in 0..n {
+            self.turn_rotation = (self.turn_rotation + 1) % n;
+            if !self.player_lost[self.turn_rotation] {
+                return Some(self.turn_rotation);
+            }
+        }
+        None
+    }
+
+    /// Propose `phase`'s beginning; report whether it happened.
+    fn begin_phase(&mut self, phase: PhaseType, ctx: &ActionContext) -> Result<bool, String> {
+        let player = self.active_player;
+        let performed =
+            self.execute_actions(vec![GameAction::BeginPhase { phase, player }], ctx)?;
+        Ok(!performed.is_empty())
+    }
+
+    /// Propose `step`'s beginning; report whether it happened.
+    fn begin_step(&mut self, step: StepType, ctx: &ActionContext) -> Result<bool, String> {
+        // CR 508.8 — "if no creatures are declared as attackers ... skip the
+        // declare blockers and combat damage steps". A **rule**, checked ahead
+        // of the pipeline like CR 101.2's "can't"s: there is no event here for
+        // a replacement effect to see, and a step that does not begin runs no
+        // turn-based action and grants no priority. It lived in
+        // `Game::run_turn` as a priority suppressor until the steps became
+        // proposals, which is the first time the engine could say "this step
+        // did not happen" rather than "this step happened and did nothing".
+        if !self.attacks_declared
+            && matches!(
+                step,
+                StepType::DeclareBlockers | StepType::FirstStrikeDamage | StepType::CombatDamage
+            )
+        {
+            return Ok(false);
+        }
+        let player = self.active_player;
+        let performed = self.execute_actions(vec![GameAction::BeginStep { step, player }], ctx)?;
+        Ok(!performed.is_empty())
+    }
+
+    // --- Turn lifecycle callbacks ---
+
+    /// CR 500.4's expiries, for a turn that **began**.
+    ///
+    /// > 611.2b ... "until your next turn" ... it lasts until that player's
+    /// > next turn begins.
+    ///
+    /// Here and not in the untap step's begin hook, where it lived until RE-1,
+    /// and the difference is now reachable in two directions. Eight printed
+    /// cards skip the untap step, and an expiry hung off a step that may not
+    /// happen is an effect that never ends; and CR 614.10a's "a skipped turn
+    /// expires nothing" is the same sentence from the other side — this hook
+    /// runs only for a turn whose proposal survived.
+    fn on_turn_begin(&mut self) -> Result<(), String> {
+        let player = self.active_player;
+        let turn = self.turn_number;
+        self.continuous_effects.remove_expired_at_turn_start(player, turn);
+        // CR 611.2b applies to replacement effects with a duration the same
+        // way — a regeneration shield or "prevent all damage this turn" ends
+        // when its duration does.
+        self.replacement_effects.remove_expired_at_turn_start(player, turn);
+        self.restrictions.remove_expired_at_turn_start(player, turn);
+        Ok(())
     }
 
     // --- Phase lifecycle callbacks ---
-
-    fn on_phase_begin(&mut self, _phase_type: PhaseType) -> Result<(), String> {
-        // Future: emit PhaseBegin events for triggered abilities
-        Ok(())
-    }
 
     fn on_phase_end(&mut self, phase_type: PhaseType) -> Result<(), String> {
         // Mana pools empty at end of each phase (rule 106.4)
@@ -95,22 +280,8 @@ impl GameState {
     fn on_step_begin(&mut self, step_type: StepType, ctx: &ActionContext) -> Result<(), String> {
         match step_type {
             StepType::Untap => {
-                // Expire "until your next turn" effects for the active player
-                self.continuous_effects.remove_expired_at_turn_start(
-                    self.active_player,
-                    self.turn_number,
-                );
-                // CR 611.2b applies to replacement effects with a duration the
-                // same way — a regeneration shield or "prevent all damage this
-                // turn" ends when its duration does. Same hook, same instant.
-                self.replacement_effects.remove_expired_at_turn_start(
-                    self.active_player,
-                    self.turn_number,
-                );
-                self.restrictions.remove_expired_at_turn_start(
-                    self.active_player,
-                    self.turn_number,
-                );
+                // "Until your next turn" expires at `on_turn_begin`, not here:
+                // this step can be skipped and a turn cannot un-begin.
                 self.process_untap_step(ctx)?;
             }
             StepType::Draw => {
@@ -183,9 +354,12 @@ impl GameState {
         Ok(())
     }
 
+    /// The counterpart of [`Self::on_turn_begin`], and empty for a reason:
+    /// per-turn resets (land drops) happen in `process_untap_step`, where
+    /// CR 502 puts them, and CR 514.2's cleanup is the cleanup step's.
+    ///
+    /// Runs only for a turn that began — a skipped turn has no end.
     fn on_turn_end(&mut self) -> Result<(), String> {
-        // Per-turn resets (land drops, etc.) happen in process_untap_step,
-        // which is the canonical location per rules (rule 502).
         Ok(())
     }
 
@@ -250,6 +424,57 @@ impl GameState {
 
 }
 
+/// The next thing CR 500.1's sequence offers the drainer.
+///
+/// Three arms because CR 614.10 replaces three units and each is proposed
+/// separately: a phase that begins does not drag its first step in with it, or
+/// a card that skips the upkeep step would have to skip the beginning phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TurnUnit {
+    /// Another step inside the phase that is happening.
+    Step(StepType),
+    /// The phase after the cursor's — CR 500.1's order, wrapping to the next
+    /// turn's beginning phase.
+    Phase(PhaseType),
+    /// The turn boundary: the ending phase is behind the cursor.
+    Turn,
+}
+
+/// CR 500.1's sequence, read off the drainer's cursor.
+///
+/// `phase` is `None` for the instant after a turn begins, when no phase of it
+/// has been proposed yet. `phase_began` false is CR 500.11's "as though it
+/// didn't exist": a skipped phase offers no steps, so the sequence goes
+/// straight to the phase after it.
+///
+/// A free function rather than a method because it reads nothing but the
+/// cursor — which is what makes the drainer's termination argument checkable:
+/// the cursor advances through a fixed, finite sequence on every iteration
+/// except the one where a turn is skipped, and that one consumes a schedule
+/// entry or the rotation.
+fn next_unit(
+    phase: Option<PhaseType>,
+    step: Option<StepType>,
+    phase_began: bool,
+) -> TurnUnit {
+    let Some(current) = phase else {
+        return TurnUnit::Phase(PhaseType::Beginning);
+    };
+    if phase_began {
+        let next = match step {
+            Some(last) => next_step(current, last),
+            None => initial_step(current),
+        };
+        if let Some(next) = next {
+            return TurnUnit::Step(next);
+        }
+    }
+    if current == PhaseType::Ending {
+        return TurnUnit::Turn;
+    }
+    TurnUnit::Phase(next_phase(current))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::types::replacement::EnterMods;
@@ -300,12 +525,17 @@ mod tests {
         // Advance through all phases/steps of turn 1
         // Beginning: Untap, Upkeep, Draw = 3 advances
         // Precombat: 1 advance (no steps)
-        // Combat: BeginCombat, DeclareAttackers, DeclareBlockers, FirstStrikeDamage, CombatDamage, EndCombat = 6 advances
+        // Combat: BeginCombat, DeclareAttackers, EndCombat = 3 advances
         // Postcombat: 1 advance (no steps)
         // Ending: End, Cleanup = 2 advances
-        // Total: 13 advances to complete one turn
+        // Total: 10 advances to complete one turn
+        //
+        // **Ten and not thirteen, from RE-1 on.** CR 508.8's three steps used
+        // to happen and grant nobody priority; they are now refused at the
+        // proposal site, so with no attackers they do not happen at all and
+        // `advance_turn` does not stop on them.
 
-        for _ in 0..13 {
+        for _ in 0..10 {
             game.advance_turn(&test_ctx()).unwrap();
         }
 

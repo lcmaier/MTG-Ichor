@@ -82,7 +82,11 @@ fn test_full_opening_sequence() {
     assert!(game.activate_mana_ability(0, land_id, ability_id, &test_ctx()).is_err());
 
     // -- Advance through the rest of the turn --
-    for _ in 0..10 {
+    //
+    // Seven positions, not ten: CR 508.8's declare-blockers, first-strike and
+    // combat-damage steps are refused at the proposal site when nothing
+    // attacked (RE-1), so they are no longer positions `advance_turn` stops on.
+    for _ in 0..7 {
         game.advance_turn(&test_ctx()).unwrap();
     }
 
@@ -110,7 +114,7 @@ fn test_two_turn_land_and_mana_cycle() {
     game.activate_mana_ability(0, land1_id, ability1, &test_ctx()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
 
-    for _ in 0..10 {
+    for _ in 0..7 {
         game.advance_turn(&test_ctx()).unwrap();
     }
 
@@ -128,7 +132,7 @@ fn test_two_turn_land_and_mana_cycle() {
     game.activate_mana_ability(1, land2_id, ability2, &test_ctx()).unwrap();
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Red), 1);
 
-    for _ in 0..10 {
+    for _ in 0..7 {
         game.advance_turn(&test_ctx()).unwrap();
     }
 

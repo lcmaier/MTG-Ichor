@@ -561,21 +561,11 @@ mod tests {
         assert_eq!(reg.len(), 0);
     }
 
-    #[test]
-    fn test_until_your_next_turn_expires_on_extra_turn() {
-        // Extra turns advance turn_number, so an extra turn for the controller
-        // IS their "next turn" and the effect correctly expires at its start.
-        let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
-
-        let mut effect = make_effect(src, Layer::Layer7cModifyPT, 1);
-        effect.duration = Duration::UntilYourNextTurn;
-        effect.controller = 0;
-        effect.created_on_turn = 1;
-        reg.add(effect);
-
-        // Turn 2 is an extra turn for player 0 — effect expires (turn 2 > 1)
-        let removed = reg.remove_expired_at_turn_start(0, 2);
-        assert_eq!(removed.len(), 1);
-    }
+    // The extra-turn case used to live here as a second copy of the test above
+    // with a hand-written turn number and a comment asserting what the engine
+    // would do with it. RE-1 gave the engine a CR 500.7 turn queue, so the
+    // claim is now made against one: `tests/phase_re1_integration_test.rs`,
+    // `until_your_next_turn_expires_on_a_real_extra_turn` resolves Time Walk
+    // and watches the row go. A fixture that reproduces the predicate proves
+    // the predicate twice and the engine never.
 }

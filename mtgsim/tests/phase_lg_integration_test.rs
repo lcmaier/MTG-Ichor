@@ -23,7 +23,8 @@ use mtgsim::state::game_state::{GameState, Phase, PhaseType, StackEntry, StepTyp
 use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{
     aura_enchanting_your_creature, card_of_type, equipment, fill_library, pacifism,
-    pass_turn, put_in_graveyard, put_on_battlefield, put_on_battlefield_this_turn, setup_game,
+    pass_turn, put_in_graveyard, put_on_battlefield, put_on_battlefield_this_turn,
+    set_active_player, setup_game,
     setup_two_player_game, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -435,7 +436,7 @@ fn test_untap_step_untaps_the_permanents_you_effectively_control() {
     // Walk into P0's untap step. P1 is active and in their ending phase, so the
     // next turn transition makes P0 active and `on_step_begin(Untap)` runs the
     // sweep as part of `advance_turn`.
-    game.active_player = 1;
+    set_active_player(&mut game, 1);
     game.phase = Phase::new(PhaseType::Ending);
     while game.phase.step != Some(StepType::Untap) {
         game.advance_turn(&test_ctx()).unwrap();

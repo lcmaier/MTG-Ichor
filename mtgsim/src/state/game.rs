@@ -130,6 +130,14 @@ impl Game {
         //   ask decisions.choose_mulligan(&self.state, player_id)
         //   if mulligan: shuffle hand into library, draw 7, bottom N
 
+        // CR 103.7 — the first turn begins, and it begins the way every later
+        // one does: a `BeginTurn` proposal, its beginning phase, its untap
+        // step. Before RE-1 the first turn was a state `GameState::new` had
+        // already written and its untap step ran no turn-based action at all,
+        // because nothing called `on_step_begin` for the step the constructor
+        // had parked on.
+        self.state.start_first_turn(&actx)?;
+
         Ok(())
     }
 
@@ -156,16 +164,11 @@ impl Game {
 
             // 2. Priority round (most steps grant priority)
             //
-            // Rule 508.8: if no creatures were declared as attackers, the
-            // declare blockers and combat damage steps are skipped entirely
-            // (no turn-based actions, no priority).
-            let skipped_by_508_8 = !self.state.attacks_declared && matches!(
-                (phase_type, step),
-                (PhaseType::Combat, Some(StepType::DeclareBlockers))
-                | (PhaseType::Combat, Some(StepType::FirstStrikeDamage))
-                | (PhaseType::Combat, Some(StepType::CombatDamage))
-            );
-
+            // Rule 508.8 used to be suppressed here, as a "this step happens
+            // and grants nobody priority". It is now a refusal at the proposal
+            // site (`GameState::begin_step`), so a step with no attackers
+            // never begins and this loop never sees it.
+            //
             // Rule 514.3a: Cleanup normally doesn't grant priority, but if
             // SBAs are performed during cleanup, players get priority and then
             // a new cleanup step begins (re-remove damage, re-discard, re-check).
@@ -188,7 +191,7 @@ impl Game {
                     self.perform_cleanup_actions(decisions)?;
                 }
             } else {
-                let gets_priority = !skipped_by_508_8 && !matches!(
+                let gets_priority = !matches!(
                     (phase_type, step),
                     (PhaseType::Beginning, Some(StepType::Untap))  // rule 502.3
                 );
@@ -207,7 +210,20 @@ impl Game {
             // 4. Advance to next step/phase
             self.state.advance_turn(&ActionContext::new(decisions))?;
 
+            // **A skipped turn advances no turn number** (CR 614.10a), so this
+            // is not "the number went up" — it is "the drainer crossed a turn
+            // boundary that produced a turn". It still reads as `>`: the number
+            // is incremented by exactly the turns that begin, and the drainer
+            // does not return until one has. The board where nothing can begin
+            // — every player having left the game (CR 104.2a) — returns the
+            // position unchanged, and the `is_over` check at the top of this
+            // loop is what stops it, which is why that check is a loop
+            // invariant rather than a courtesy.
             if self.state.turn_number > starting_turn {
+                return Ok(());
+            }
+            if self.state.player_lost.iter().all(|&lost| lost) {
+                self.result = Some(GameResult::Draw);
                 return Ok(());
             }
         }
@@ -229,20 +245,19 @@ impl Game {
             (PhaseType::Combat, Some(StepType::DeclareAttackers)) => {
                 self.state.process_declare_attackers(decisions)?;
             }
+            // No `attacks_declared` guard on these three: CR 508.8 refuses
+            // the *step* when nothing attacked (`GameState::begin_step`), so
+            // reaching them at all means attackers were declared. A guard here
+            // would now be a second reading of one rule, and the quieter of
+            // the two.
             (PhaseType::Combat, Some(StepType::DeclareBlockers)) => {
-                if self.state.attacks_declared {
-                    self.state.process_declare_blockers(decisions)?;
-                }
+                self.state.process_declare_blockers(decisions)?;
             }
             (PhaseType::Combat, Some(StepType::FirstStrikeDamage)) => {
-                if self.state.attacks_declared {
-                    self.state.process_combat_damage(decisions, true)?;
-                }
+                self.state.process_combat_damage(decisions, true)?;
             }
             (PhaseType::Combat, Some(StepType::CombatDamage)) => {
-                if self.state.attacks_declared {
-                    self.state.process_combat_damage(decisions, false)?;
-                }
+                self.state.process_combat_damage(decisions, false)?;
             }
             // --- Cleanup step ---
             (PhaseType::Ending, Some(StepType::Cleanup)) => {
