@@ -425,7 +425,7 @@ the audit workstream ran low, and RB ran to +5,475 because nobody counted.
 
 | Segment | Phases | PRs (guess) |
 |---|---|---:|
-| Item 5 remainder | RC, RD, RE | 3–5 guessed; **RC 7 ✅, RD 4 ✅, RE 7** (sized 2026-09-11) |
+| Item 5 remainder | RC, RD, RE | 3–5 guessed; **RC 6 ✅, RD 4 ✅, RE 7** (sized 2026-09-11) |
 | Item 5b | RS-1–RS-4 | ~4 |
 | Item 5c | CV-1–CV-7 | ~7 |
 | Item 6 | triggers + LKI + conditional statics | 4–6, unsized — size first |
