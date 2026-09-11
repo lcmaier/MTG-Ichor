@@ -615,7 +615,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
    sort by `GameObject.zone_change_epoch` and the unit test the size named, in
    their own commits, which is what the estimate said it would take.
    Annihilation joining the SBA batch is ~40 lines (two
-   `RemoveCounters` members per object). Player loss is RE-5's
+   `RemoveCounters` members per object). Player loss is RE-6's
    `GameAction::PlayerLoses` (`replacement-architecture.md` §9, sized
    2026-09-11 — the four loops become CR 704.3 batch members); the detach
    pair lands with Equip.
@@ -1624,7 +1624,7 @@ section never asked.
     `GameAction::DrawCard { player }` still has no count field, so every nested
     call is containment.
 
-    **Owner (2026-09-11):** RE-1 — `replacement-architecture.md` §9, RE
+    **Owner (2026-09-11):** RE-2 — `replacement-architecture.md` §9, RE
     decision 1; the outer `DrawCards` performer is the producer.
 
 30. **Nothing records what was spent to pay a cost, and five rules want it
@@ -2248,7 +2248,7 @@ section never asked.
     `kind`, ~60–80 lines plus tests; the first commit of RE's doubler, before
     the doubler is written.
 
-    **Owner (2026-09-11):** RE-4 — `replacement-architecture.md` §9, RE
+    **Owner (2026-09-11):** RE-5 — `replacement-architecture.md` §9, RE
     decision 4; Vorinclex, Monstrous Raider is the field's first reader.
 
 44. **`is_prohibited`'s battlefield sweep has the gate defect `gather` just had,
@@ -2386,7 +2386,7 @@ section never asked.
     `CreateToken` loops `propose_entry` (`resolve.rs:630`), and Kalitas makes
     one token per death.
 
-    **Owner (2026-09-11):** RE-3 — `replacement-architecture.md` §9, RE
+    **Owner (2026-09-11):** RE-4 — `replacement-architecture.md` §9, RE
     decision 3; Raise the Alarm and Hordeling Outburst are the first plural
     creations, and CR 613.7m's prompt is *not* asked for a homogeneous batch.
 
@@ -2538,7 +2538,7 @@ section never asked.
     (Rest in Peace, Leyline and Kalitas act on graveyard-bound moves), and
     Hallowed Moonlight is not registered.
 
-    **Owner (2026-09-11):** RE-3 — `replacement-architecture.md` §9, RE
+    **Owner (2026-09-11):** RE-4 — `replacement-architecture.md` §9, RE
     decision 3: a `from`-less `CreateTokenIn` variant rather than an `Option`
     on `ZoneChange.from`, with Hallowed Moonlight registered as the consumer.
 
@@ -3889,11 +3889,13 @@ audit is at the end.
      formats and multiplayer) owns it. RD-4's own test builds the state by
      hand and says so.
 
-     **RE's sizing (2026-09-11):** owner unchanged. RE-5 builds the
-     `PlayerLoses` performer this hangs from, takes the rotation half (800.4j/k,
-     item 113) and the `--players 4` fuzz mode, so this item becomes
-     *reachable and wrong* the day RE-5 lands — the ledger working, not a
-     regression. See "Before Commander" item 4.
+     **Owner (2026-09-11, re-cut on review): RE-7** — `replacement-architecture.md`
+     §9, RE decision 5 — immediately after RE-6, which builds the `PlayerLoses`
+     performer this hangs from, the rotation half (800.4j/k, item 113) and the
+     `--players 4` fuzz mode. The first cut left this with B3; the review's
+     objection stands: the day RE-6 lands this is *reachable and wrong* in
+     the four-player run, and the ledger's rule is that a reachable wrong answer
+     is fixed first. CR 802's defending player stays "Before Commander" item 4's.
 
 109. **The `EachOther` fix stopped one site short of the sites that have a
      source, and the biggest one is `Primitive`'s filter recipient.** RD-4 gave
@@ -3951,7 +3953,7 @@ named RE PR.
      **Reachability (2026-09-11):** reachable — every land tap in every game;
      wrong in the *log*, not on the board, since nothing watches mana yet.
 
-     **Sized:** RE-7, `replacement-architecture.md` §9 — one
+     **Sized:** RE-9, `replacement-architecture.md` §9 — one
      `GameAction::ProduceMana`, one performer replacing two writers, ~300
      engine lines; the A/B on the hottest path is the risk, not the diff.
 
@@ -3966,22 +3968,22 @@ named RE PR.
      the game in the same sweep, and nothing replaces a loss yet.
 
      **Sized:** one line in the `PlayerLoses` performer (clear on perform) or
-     at the top of the check beside `last_sba_check_epoch`; RE-5.
+     at the top of the check beside `last_sba_check_epoch`; RE-6.
 
 113. **A player who has lost stays in the turn and priority rotation.**
      `turns.rs:44` advances to `(active_player + 1) % num_players` and the
      priority loop rotates the same way; neither reads `player_lost`. CR
      800.4k ("if a player who has left the game would begin a turn, that turn
      doesn't begin") and 800.4j (priority passes over them). The rotation half
-     of "Before Commander" item 4, separated because RE-5 builds the
+     of "Before Commander" item 4, separated because RE-6 builds the
      `PlayerLoses` performer and a performer that leaves the player in the
      order is the two-player shape wearing an N-player event; 800.4a–e (their
-     objects) stays item 108's and B3's.
+     objects) is RE-7's, the PR after — item 108.
 
      **Reachability (2026-09-11):** unreachable — `fuzz_games` plays two
      (`fuzz_games.rs:827`); reachable from `test_support::setup_game(4)`.
 
-     **Sized:** ~40 lines at the two sites, RE-5, beside the `--players 4`
+     **Sized:** ~40 lines at the two sites, RE-6, beside the `--players 4`
      fuzz mode item 4 sized at ~50.
 
 114. **`Restriction::Event` has no player set.** `{ pattern, affected, by }` —
@@ -3997,7 +3999,7 @@ named RE PR.
      `ApplyReplacement`.
 
      **Sized:** one field plus a `set_affects`-style union in
-     `is_prohibited`'s `Event` arm, ~40 lines; RE-2, read by RE-5.
+     `is_prohibited`'s `Event` arm, ~40 lines; RE-3, read by RE-6.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
@@ -4843,7 +4845,7 @@ first.
    **Reachability (2026-09-03):** unreachable — as main item 52, re-checked
    there.
 
-   **Sized:** with item 52, ~150 lines inside RE — **RE-3** as of 2026-09-11
+   **Sized:** with item 52, ~150 lines inside RE — **RE-4** as of 2026-09-11
    (`replacement-architecture.md` §9, RE decision 3), with Hallowed Moonlight
    registered there as the card that reaches it.
 
@@ -5141,9 +5143,10 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
    **Sized:** ~300–500 lines (800.4a–k; a defending-player choice
    on `AttackTarget`), plus a `--players 4` fuzz mode (~50 lines) so it is
-   reachable at all; Commander interleave. **RE-5 carries the fuzz mode and
-   800.4j/k (2026-09-11, `replacement-architecture.md` §9 RE decision 5);
-   800.4a–e and CR 802 stay here.**
+   reachable at all; Commander interleave. **RE-6 carries the fuzz mode and
+   800.4j/k, and RE-7 carries 800.4a–e and 800.4m (2026-09-11, re-cut on
+   review; `replacement-architecture.md` §9 RE decision 5); CR 802's defending
+   player and 800.4f–h's choices stay here.**
 
 ### Cross-cutting — keep this section honest
 

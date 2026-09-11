@@ -186,18 +186,18 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   captured their tickets; the remainder stay on their shipped phases —
   `orphaned --bucket unbuilt` lists them under CR 701 (11 at the 2026-08-31
   re-count). Nothing of this section remains in `owed`.
-- **Sent here by RE's sizing (2026-09-11)** — `Discard` and `Scry`, which
-  `replacement-architecture.md` §8a had scheduled for RE. The replacement arm
-  for discards has existed since RB (`EventPattern::ZoneChange { cause:
-  Some(Discarded) }`); what the seventeen "causes you to discard" cards need is
-  this section's producer plus two feature-shaped pieces sized in §9's RE
-  section: a `caused_by` on the zone-change pattern read off the batch's
-  resolution stamp (~60 lines; sixteen of the seventeen say "an opponent
-  controls"), and a to-battlefield leg on `Instead(ZoneChangeTo)` that returns
-  an `EnterBattlefield` proposal (~40 lines; Dodecapod, Wilt-Leaf Liege).
-  Scry's two "would scry" cards (Eligeth, Crossroads Augur) and §10's
-  `test_goggles_with_eligeth_draws_two_and_never_scrys` land with the
-  `Scry` producer; the kind-changing `Instead` they need is RE-2's.
+- **`Discard` and `Scry` are RE-8's (2026-09-11)** — on RD-1's precedent
+  (`Primitive::Mill` landed inside a replacement PR because a rider needed it).
+  The replacement arm for discards has existed since RB (`EventPattern::
+  ZoneChange { cause: Some(Discarded) }`); RE-8 builds the producer with
+  CR 701.9b's default and random choosers, a `caused_by` on the zone-change
+  pattern (sixteen of the seventeen "causes you to discard" cards say "an
+  opponent controls"), the to-battlefield leg on `Instead(ZoneChangeTo)`
+  (Dodecapod, Wilt-Leaf Liege), and `GameAction::Scry` with Opt and Eligeth,
+  Crossroads Augur. The sizing's first cut sent both here on §8a's sentence;
+  the review overturned it on cost of delay — item 6's 1,045 discard-watchers
+  would otherwise test against fixtures. "Another player chooses" (701.9b's
+  third shape) stays here with its first card.
 - **Owner** — none yet.
 
 ### 2.6 CR 702 keyword abilities
@@ -403,7 +403,7 @@ place RE turns one event into several — CR 121.2's draw decomposition — is a
 *performer's* loop over `execute_action`, one inner draw per batch, never a
 second member inserted into the batch being decided; `apply_replacements`'
 `Vec<(usize, Option<GameAction>)>` and `execute_batch_inner`'s `decided[i]`
-are touched by none of RE's seven PRs. The site table above stands.
+are touched by none of RE's nine PRs. The site table above stands.
 
 ### 2.23 Battles (CR 310), and CR 120.3h
 
@@ -578,7 +578,9 @@ are touched by none of RE's seven PRs. The site table above stands.
 - **Blocks** — every "until end of combat" pump; 511.3's combat cleanup of
   `AttackingInfo`/`BlockingInfo`; 703.4q's mana-pool emptying per step.
 - **Atoms** — 8.
-- **Owner** — none yet.
+- **Owner** — none yet; the hooks are RE-1's begin/end emitters (2026-09-11),
+  and this is the PR after RE-1 once an "until end of combat" consumer
+  appears.
 
 ### 2.13 Deck-construction limits are configured and unenforced
 
@@ -670,10 +672,15 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   iterates permanents and players in a single sweep.
 - **Blocks** — every energy card; the experience-counter commanders;
   proliferate reaching players; the "or player" halves of Vorinclex,
-  Monstrous Raider and Winding Constrictor (RE-4 registers their object
-  halves and records these here, 2026-09-11).
+  Monstrous Raider and Winding Constrictor.
 - **Atoms** — thin under the obvious phrasings; see §5.
-- **Owner** — none yet.
+- **Owner** — **RE-5** (2026-09-11, re-cut on review): `AddCounters` gains a
+  `CounterSubject { Object, Player }` beside its putter field while the type
+  is on the table, `PlayerState.poison_counters` becomes the kind → count map
+  this entry designed, CR 704.5c reads the map, Live Fast is the producer and
+  Vorinclex's and Winding Constrictor's player halves the watchers —
+  `replacement-architecture.md` §9, RE decision 4. Costs paid in energy wait
+  for their first card. **Struck as graduated when RE-5 lands.**
 
 ### 2.17 Extra turns and the turn queue (CR 500.7)
 
@@ -689,7 +696,15 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
 - **Blocks** — Time Walk's whole family, ~60 cards; "additional combat phase"
   cards behind them.
 - **Atoms** — CR 500's atoms cover 500.1–500.5; 500.7 is thin — see §5.
-- **Owner** — none yet.
+- **Owner** — **RE-1** (2026-09-11, re-cut on review): the skips PR rewrites
+  `advance_turn` once, as a drainer of a turn queue — CR 500.7's extra turns
+  most-recent-first, pushed by `Primitive::ExtraTurn`, with Time Walk as the
+  consumer and the Meditate-then-Time-Walk board (a skip consuming an extra
+  turn, 614.10a) as the test that puts the two in one PR rather than two
+  rewrites of one function. Extra phases and steps (500.8, 500.10) are the
+  queue's second level and wait for their first card —
+  `replacement-architecture.md` §9, RE decision 6. **Struck as graduated when
+  RE-1 lands.**
 
 ### 2.18 Mana payment — CR 732.1's reversal, and an auto-payment oracle
 
