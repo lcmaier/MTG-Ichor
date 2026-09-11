@@ -500,12 +500,14 @@ pub fn next_step(phase_type: PhaseType, current_step: StepType) -> Option<StepTy
 /// **Still a fixed sequence, and RE-1 is why that is now a decision rather
 /// than a stub.** The turn queue it built holds *extra turns* (CR 500.7), and
 /// `engine::turns`'s drainer asks this function for the natural order the
-/// queue interleaves with. CR 500.8's extra **phases** and CR 500.9's extra
-/// **steps** — Relentless Assault's "an additional combat phase followed by an
-/// additional main phase" — are the queue's second level: a per-turn list the
-/// drainer would consult before falling through to here. They wait for their
-/// first registered card (`replacement-architecture.md` §9, RE decision 6;
-/// `backlog.md` §2.17).
+/// queue interleaves with.
+///
+/// CR 500.8's extra **phases** and CR 500.9/500.10's extra **steps** are not a
+/// list beside this function: a turn with two combat phases makes "what
+/// follows" unanswerable from a phase *type*, so they need the cursor to index
+/// a per-turn plan and this chain to go. That is `backlog.md` §2.17, and
+/// `replacement-architecture.md` §11 item 49 is why it is an ordering call
+/// rather than a deferral.
 pub fn next_phase(phase_type: PhaseType) -> PhaseType {
     match phase_type {
         PhaseType::Beginning => PhaseType::Precombat,

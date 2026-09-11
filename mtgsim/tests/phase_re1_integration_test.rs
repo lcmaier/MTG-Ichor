@@ -541,9 +541,9 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
 /// two combat phases, then only their next one combat phase is skipped."*
 ///
 /// **The board is built by moving the cursor, because CR 500.8's extra phases
-/// are unbuilt** (`codebase-state.md` item 116) — the turn queue RE-1 landed
-/// holds extra *turns* only, so nothing registered can produce a second combat
-/// phase. What the fixture produces is a genuine second
+/// are unbuilt** (`backlog.md` §2.17) — the turn queue RE-1 landed holds extra
+/// *turns* only, and the drainer's cursor holds a phase *type*, so it could
+/// not tell two combat phases apart even if something produced one. What the fixture produces is a genuine second
 /// `GameAction::BeginPhase { Combat }` proposal, which is the only thing the
 /// claim is about: a `Uses::Once` row created during the first combat phase
 /// meets no proposal there (CR 614.10's "once a phase has started, it can no

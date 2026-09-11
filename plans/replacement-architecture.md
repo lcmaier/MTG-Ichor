@@ -3029,8 +3029,9 @@ needed it), and the leave-the-game rules become *reachable and wrong* the day
 the game's-end PR lands its four-player fuzz mode. Two more things moved on
 the same review — skips go first, because they are item 6's prerequisite, and
 `advance_turn` is written as a turn queue so `backlog.md` §2.17 does not
-rewrite it a second time; and counters on players (§2.16) join the counters PR
-while the type is on the table.
+rewrite it a second time (**true of §2.17's turn half only** — the phase half
+needs a cursor change, §11 item 49); and counters on players (§2.16) join the
+counters PR while the type is on the table.
 
 RD was one kind cut four ways along its mechanisms; RE is seven kinds that share
 one mechanism — each adds a `GameAction` family, its `EventPattern` arm, a
@@ -3950,10 +3951,19 @@ because its ticket is not `NEW`).
   should not be built.
 - **CR 802's defending player**, and 800.4f–h's choices by a departed player
   — B3's ("Before Commander" item 4), with RE-7 having built the seam.
-- **Extra phases and steps** (CR 500.8, 500.10; Relentless Assault) — the
-  queue's second level, with its first card. **Step- and phase-scoped
-  durations** (`backlog.md` §2.12) — hang off RE-1's emitters; the PR after
-  RE-1 when an "until end of combat" consumer appears.
+- **Extra phases and steps** (CR 500.8, 500.9, 500.10) — the queue's second
+  level. **Re-opened at RE-1's review (2026-09-11) and still out, as a
+  decision rather than an omission**: it adds no event kind, which is what
+  this phase is, and no other RE PR touches `advance_turn`, so waiting costs
+  one cursor rewrite and no interest. Against that, the "written once"
+  argument that pulled CR 500.7 in applies one level down and is unkept, 46
+  printed cards make an additional combat phase, and Moment of Silence is
+  *registered* with a ruling only a fixture covers. `backlog.md` §2.17 carries
+  both sides and the sizing; §11 item 49 is the finding; **`CLAUDE.md` owns
+  the ordering call.** Aggravated Assault is the cheapest whole card if it
+  lands here. **Step- and phase-scoped durations** (`backlog.md` §2.12) — hang
+  off RE-1's emitters; the PR after RE-1 when an "until end of combat"
+  consumer appears.
 - **Concession** (104.3a), **CR 104.3f**, **CR 104.4c** — each with no atom
   a test could claim or no producer; named in RE-6.
 - **CR 121.2c** — each player's draws in APNAP order — needs an each-player
@@ -5291,6 +5301,39 @@ found them.
     one either, because it walked emissions and this site emitted nothing —
     the same blind spot as finding 43's mana pool. → RE-1,
     `codebase-state.md` item 116.
+
+49. **"`advance_turn` is written as a turn queue so `backlog.md` §2.17 does not
+    rewrite it a second time" is an overclaim, and it covers the turn level
+    only.** Decision 6's own sentence, and the argument that pulled CR 500.7
+    into a skips PR. It holds for extra *turns*: the queue is a list beside a
+    cursor and the cursor never had to change shape for it. It does not hold
+    for CR 500.8's extra **phases**, and the reason is the cursor RE-1 wrote.
+    `next_turn_unit` answers "what follows" from `(Option<PhaseType>,
+    Option<StepType>, phase_began)` — a phase **type** — so a turn holding two
+    combat phases cannot say which one the cursor is at. The shape that can is
+    the per-turn `TurnPlan` that `state::game_state::next_phase`'s pre-RE-1
+    TODO already described, indexed rather than chained; RE-1 rewrote that TODO
+    into a pointer instead of building it. So the function *is* rewritten
+    twice, and the second time is a cursor change rather than an addition.
+
+    **Raised by the review, on the fixture** that
+    `a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase` needs:
+    a registered card (Moment of Silence) has a ruling with no engine-produced
+    board. Three things bound the cost of having waited, and all three were
+    checked rather than assumed: `advance_turn` is named in **no other RE PR's
+    sizing** (RE-6's line for it was CR 800.4j/k, which RE-1 spent), the corpus
+    files 500.8–500.10 as **DEFERRED with no atom ids**, so no phase's exit
+    criteria move, and CR 500.10 needs item 6's triggers whatever happens to
+    500.8 (Obeka is the only card for it). So waiting costs one extra rewrite
+    and no interest — which is what makes this an **ordering call rather than a
+    debt**, and `CLAUDE.md` owns ordering. `backlog.md` §2.17 carries the
+    sizing and the two sides.
+
+    Worth keeping for the general shape: **a "we built it once so nobody
+    rewrites it" claim is only as wide as the cursor it is made about.** RE-1's
+    was made about a queue and is true of the queue; the sentence did not say
+    which level it covered, and nobody read it against the level below until
+    the fixture forced it.
 
 ## 12. Explicitly out of scope
 

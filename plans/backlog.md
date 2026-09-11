@@ -688,30 +688,60 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `replacement-architecture.md` §9, RE decision 4. Costs paid in energy wait
   for their first card. **Struck as graduated when RE-5 lands.**
 
-### ~~2.17 Extra turns and the turn queue (CR 500.7)~~ — **graduated 2026-09-11, RE-1**
+### 2.17 Extra phases and steps (CR 500.8, 500.9, 500.10)
 
-**Built.** `GameState::turn_queue` is CR 500.7's stack — "the most recently
-created turn will be taken first" — pushed by `Primitive::ExtraTurn` and
-drained by `advance_turn`'s `next_turn_taker`, with Time Walk as the consumer.
-The entry holds the **player only**: the turn number is computed when the turn
-begins, and a skipped turn advances none (CR 614.10a). `turn_rotation` is the
-field the entry did not predict and the one that makes the queue N-player-
-shaped — an extra turn does not move the natural rotation, so P1 taking one on
-P0's turn still gets their own afterwards
-(`replacement-architecture.md` §11 item 47).
+**The turn half graduated 2026-09-11 to `replacement-architecture.md` (RE-1):**
+`GameState::turn_queue` is CR 500.7's stack, pushed by `Primitive::ExtraTurn`,
+drained by `advance_turn`'s `next_turn_taker`, with `turn_rotation` beside it
+so an extra turn does not move the natural rotation. CR 500.7's APNAP sentence
+has no producer — no `EffectRecipient` that primitive accepts resolves to more
+than one player. **This entry is the half that did not graduate**, and it is a
+mechanic rather than a migration, which is why it is here and not in
+`codebase-state.md` (item 116 is a pointer).
 
-**What stayed behind, and it is the entry's own "one level down".** CR 500.8's
-extra **phases** and CR 500.9/500.10's extra **steps** — Relentless Assault,
-Aggravated Assault, Obeka — are a per-turn list the drainer would consult
-before falling through to `next_phase`, and they wait for their first
-registered card. CR 500.7's other sentence, extra turns for several players
-added in APNAP order, has no producer either: no `EffectRecipient` this
-primitive accepts resolves to more than one player. Both are recorded on
-`Primitive::ExtraTurn` and on `state::game_state::next_phase`, where the next
-person to want them will be standing.
-
-**Atoms:** CR 500.7 still has none, which the sizing confirmed. RE-1's
-two-extra-turn test claims none and says so.
+- **Rules** — CR 500.8 (extra phases), 500.9 (extra steps), 500.10 + 500.10a
+  (a step added after a *phase* creates the containing phase, and that phase's
+  other steps are **skipped** — CR 500.11, which makes this rule a skip
+  *producer* and the reason it reads as replacement-adjacent).
+- **Verdict** — **the drainer's cursor cannot hold two of the same phase.**
+  RE-1 wrote it as `(Option<PhaseType>, Option<StepType>, phase_began)` and
+  `next_turn_unit` answers "what follows" from the phase *type*, so a turn with
+  two combat phases cannot say which one the cursor is at. The shape that can
+  is the `TurnPlan` `state::game_state::next_phase`'s pre-RE-1 TODO described
+  and RE-1 re-pointed at rather than built: a per-turn `Vec` of phases the
+  cursor indexes, spliced by a new producer. **So `advance_turn` is rewritten a
+  second time** — see `replacement-architecture.md` §11 item 49, which is the
+  finding this entry exists to carry.
+- **Size** — the plan plus its index cursor, one `Primitive`, and the per-turn
+  clear: ~250–350 additions, plus a card and its tests. Well inside one PR.
+  **Aggravated Assault is the cheapest whole card** ({2}{R} enchantment,
+  `{3}{R}{R}` activated, `ActivationRestriction::OnlyAsSorcery`, which exists):
+  its only other need is `Primitive::Untap` accepting an
+  `EffectRecipient::FilteredPermanents`, the arm `DealDamage` and
+  `CreateReplacement` already have. Seize the Day needs flashback and World at
+  War needs rebound and "creatures that attacked this turn"; Obeka needs item
+  6's triggers, so **CR 500.10 cannot land before item 6** whatever happens to
+  500.8.
+- **Blocks** — `o:"additional combat phase"` is **46 cards** (Scryfall,
+  2026-09-11), `o:"additional main phase"` 9, `o:"additional upkeep step"` 3.
+  And one card that is *already registered*: Moment of Silence's first ruling —
+  "if they manage to have two combat phases, then only their next one combat
+  phase is skipped" — has no engine-produced board, only the cursor-moving
+  fixture in `phase_re1_integration_test`.
+- **Atoms** — **none.** `session-4.md` marks 500.8, 500.9 and 500.10 DEFERRED
+  with no atom ids and assigns them to *Phase 9*, whose stated content is
+  formats and multiplayer; that assignment reads like the era's `TurnPlan` TODO
+  rather than a judgement, and is flagged here rather than edited, because the
+  corpus is authored and corrections land in the session file. Either way
+  `specdb owed` cannot ask for these and no phase's exit criteria move.
+- **Owner** — **open, and it is an ordering call.** The argument that pulled
+  the turn queue into RE-1 — "written once, so this entry does not rewrite
+  `advance_turn` a second time" — applies verbatim one level down and is
+  currently unkept. Against it: RE is defined as "the remaining **event
+  kinds**" and this adds none, the corpus files it elsewhere, and no other RE
+  PR touches `advance_turn` (RE-6's sizing line for it was 800.4j/k, which RE-1
+  spent), so waiting costs exactly one extra rewrite and no interest.
+  `CLAUDE.md`'s critical path owns the ordering.
 
 ### 2.18 Mana payment — CR 732.1's reversal, and an auto-payment oracle
 

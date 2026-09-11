@@ -4028,24 +4028,20 @@ named RE PR.
      agree is wrong, because an extra turn is exactly when they do not. Do it
      when a second production writer wants to exist, not before.
 
-116. **Extra phases and steps have no queue level — CR 500.8, 500.9,
-     500.10.** RE-1's drainer asks `state::game_state::next_phase` and
-     `next_step` for the natural order and the queue for extra *turns* only,
-     so "after this main phase, there is an additional combat phase followed
-     by an additional main phase" (Relentless Assault, Aggravated Assault) and
-     "you get that many additional upkeep steps" (Obeka, CR 500.10's own
-     example) have nowhere to go. The shape is a per-turn list the drainer
-     consults before falling through to `next_phase`, which is where the
-     comment now is.
+116. **Extra phases and steps — CR 500.8, 500.9, 500.10 — are
+     `backlog.md` §2.17's, and this is a pointer.** Filed here at RE-1's close
+     and re-filed at its review: `state-of-play.md` draws the line this got
+     wrong — a Deferred Migration is *one code change* owed by scaffolding
+     already in the tree, and a backlog entry is *one mechanic* the engine will
+     need. Extra phases are a mechanic. The entry carries the verdict (RE-1's
+     cursor holds a phase *type*, so it cannot tell two combat phases apart),
+     the sizing, the 46-card population and the open ordering call.
 
-     **Reachability (2026-09-11):** unreachable — nothing registered creates
-     one, and `Primitive` has no producer. Relentless Assault is named in
-     `phase_re_cards`'s module doc as the card that is waiting.
+     **Reachability (2026-09-11):** nothing to build here — a record for
+     whichever phase takes §2.17.
 
-     **Sized:** the list plus its drain, ~120 lines on top of RE-1's drainer,
-     and CR 500.10's "any other steps that phase would normally have are
-     skipped" is a second consumer of the same proceed-past the drainer
-     already has. `backlog.md` §2.17, graduated in its turn half.
+     **Sized:** in the entry. `replacement-architecture.md` §11 item 49 is the
+     finding that made it a decision rather than a deferral.
 
 117. **An untap-step skip would not reset land drops.** `process_untap_step`
      calls `reset_lands_played` where CR 502 puts the untap step's turn-based
