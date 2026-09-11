@@ -1627,6 +1627,19 @@ section never asked.
     **Owner (2026-09-11):** RE-2 — `replacement-architecture.md` §9, RE
     decision 1; the outer `DrawCards` performer is the producer.
 
+    **~~Closed 2026-09-11 by RE-2.~~** `GameAction::DrawCards`'s performer hands
+    each of its `n` inner `DrawCard`s the applied set the outer's own CR 616.1
+    loop accumulated, which took four signatures rather than the one call site
+    this item sized: `apply_replacements` returns the group's applied set,
+    `execute_batch_inner` carries it per member into phase 2, `perform_action`
+    takes it, and `execute_actions_inheriting` hands it back down. The
+    regression is `test_two_thought_reflections_draw_four_not_infinity` — Thought
+    Reflection and not the Teferi §3.2d named, because Teferi's Ageless Insight
+    is legendary. **The sizing's one thing worth keeping**: it called the failure
+    a hang, and it is worse than that — the recursion overflows the stack, which
+    aborts the whole test binary rather than one test. The bound is in the
+    provider, not the engine.
+
 30. **Nothing records what was spent to pay a cost, and five rules want it
     (found 2026-08-31 by the type-surface audit; `cr-coverage-audit.md` §5.1).**
     `StackEntry.chosen_alternative_cost` and `additional_costs_paid` hold the
@@ -4184,8 +4197,45 @@ named RE PR.
      neither is built: §8c's "two customers before a leaf", applied to an
      ordering rule rather than a filter.
 
+     **Narrowed 2026-09-11, at RE-2's close.** Alms Collector's rider turned out
+     to be one draw and not two — CR 614.5 forced the affected player's half
+     into the rewrite (item 53 there) — so the order is no longer the card's
+     text order but a structural one: the replaced event is performed, then the
+     rider (§4.1a). That is still not CR 121.2c's, and it is now wrong in a
+     narrower and more predictable way: the affected player always draws first,
+     where the rule says the active player does. The facility is unchanged and
+     so is the sizing.
+
      → `replacement-architecture.md` §11 item 52. **Owner: RE-6**, which is
      where turn order stops being `(0..n)` because a lost player has left it.
+
+123. **CR 121.6c has no producer, and the reason is that `Effect` cannot name
+     the card an earlier instruction drew.** *"Some effects perform additional
+     actions on a card after it's drawn. If the draw is replaced, the additional
+     action is not performed on any cards that are drawn as a result of that
+     replacement effect."* The printed shape is "draw a card, then discard that
+     card", and nothing in the crate can write it: `Primitive::DrawCards` returns
+     no object ids to a later atom, and `Effect::Sequence` composes instructions
+     without threading anything between them. So the rule cannot be violated
+     today, and it cannot be tested either.
+
+     **Reachability (2026-09-11):** nothing to build — no `Primitive` acts on
+     the card a sibling instruction drew, so there is no site at which the rule
+     could be got wrong. `ATOM-614.11b-001` stays uncovered with this reason in
+     `tests/phase_re2_integration_test.rs`'s module doc, which is RE's exit
+     criteria item 2.
+
+     **Sized: a field on `ResolutionContext`, not a `Primitive`.** The general
+     facility is "what the instruction before this one produced" — the same
+     shape `replaced_amount` and `damage_prevented` already have, and the same
+     shape CR 701's "the cards milled this way" and "the token created this way"
+     will want. One field, written by the draw performer through the resolution
+     that proposed it, plus an `EffectRecipient` or `SelectionFilter` leaf that
+     reads it: ~80 lines. **Two customers before it is written** (§8c's rule):
+     Chains of Mephistopheles is not one — its discard is a *replacement's*
+     output, not a sibling instruction — so the first two are a "draw N, then
+     discard N" card and a mill-and-return card, and neither is in reach before
+     RE-8. → `replacement-architecture.md` §9, RE decision 1.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 

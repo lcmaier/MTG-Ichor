@@ -3523,135 +3523,34 @@ no turn-based action in any game the engine has played (§11 item 48).
 `plans/archive/replacement-architecture-landed.md`, "RE-1" (evicted
 2026-09-11).
 
-#### RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g)
+#### RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g) — ✅ landed 2026-09-11
 
-**Builds:** decision 1 whole — `DrawCards { player, n, cause }`, `DrawCard {
-player, cause }`, `DrawCause`, `EventPattern::DrawCards { at_least }` and
-`DrawCard { cause }`, `GameActionTemplate::DrawCards { n, player }`, the outer
-performer's one-at-a-time decomposition handing the inherited applied set to
-each inner (the first producer of `apply_replacements`' `inherited`), and the
-two producers rewritten: `Primitive::DrawCards` proposes one outer; the draw
-step proposes `DrawCards { n: 1, cause: TurnBased }`. `Game::setup`'s opening
-hands keep calling `draw_card` (CR 103.4; the comment there is right — no
-replacement can exist yet). **Consumers**, each with its rulings pass:
+**Shipped.** `GameAction::DrawCards { player, n, cause }` as CR 121.2a's
+instruction and `DrawCard { player, cause }` as the draw, with
+`EventPattern::DrawCards { at_least }` and `DrawCard { cause }`,
+`GameActionTemplate::DrawCards { n, player }`, and the outer performer's
+one-at-a-time decomposition handing each inner the applied set its own CR 616.1
+loop accumulated — the first producer of `apply_replacements`' `inherited`,
+empty at its one call site since RB (§11 item 18, `codebase-state.md` item 29).
+`DrawCause { TurnBased, Effect }` is stamped by the outer's performer off the
+loop index and inherited through a substitution, which is the whole of "except
+the first one you draw in each of your draw steps" and needs no count of cards
+drawn this step. Both producers rewritten; `Game::setup` still calls the
+performer (CR 103.4) and its comment now says so. Thought Reflection (pooled),
+Teferi's Ageless Insight, Alms Collector, Notion Thief.
 
-- **Thought Reflection** — "If you would draw a card, draw two cards instead."
-  `EventPattern::DrawCard { cause: None }`, `Fixed(vec![])` + `You`,
-  `Instead(DrawCards { n: 2, player: None })`, `Uses::Static`. Rulings, three:
-  *Harmonize draws six* → test (`ATOM-121.2a-001`'s shape from the inner side);
-  *two Thought Reflections draw four, three draw eight* → **the acid test**,
-  `test_two_teferis_draw_four_not_infinity` on two of these, since it is not
-  legendary and the pool can build two (§10; §3.2d); *the drawing player orders
-  them* → the 4-player form with Alms Collector below.
-- **Teferi's Ageless Insight** — "… except the first one you draw in each of
-  your draw steps, draw two cards instead." `DrawCard { cause: Some(Effect) }`.
-  Rulings, three: *a card put into hand without "draw" is not drawn* →
-  structurally true (`ZoneChangeCause::PutIntoHand` proposes no draw), asserted;
-  *ordering* → as above; *two copies draw four* → the legend rule makes this
-  Thought Reflection's test. Its own test is the one decision 1 wrote:
-  Teferi beside Thought Reflection during the draw step draws **three**.
-- **Alms Collector** — "Flash. If an opponent would draw two or more cards,
-  instead you and that player each draw a card." `EventPattern::DrawCards {
-  at_least: Some(2) }`, `Fixed(vec![])` + `Opponents`. **Sized here as `Prevent`
-  with a rider of two `DrawCards(1)`, and that is wrong** — §11 item 53: the
-  affected player's half has to be the rewrite (`Instead(DrawCards { n: 1 })`)
-  or CR 614.5 does not cover it and the card loops against an opponent's Thought
-  Reflection. One rider, the controller's draw. Rulings, six, and
-  four are tests: *applies to the instruction before any per-card effect* →
-  `ATOM-616.1g-001`, with Thought Reflection on the other side; *Thought
-  Reflection can double the resulting draws without Alms applying again* →
-  test; *count the word "draw"* → Ancestral Recall (in the pool) meets it,
-  two `Primitive::DrawCards(1)` in one resolution do not; *two players each
-  control one and a third player would draw two or more: the third chooses
-  which applies* → the 4-player test, `setup_game(4)`, and the only
-  three-player CR 616.1 prompt reachable from two printed cards.
-- **Notion Thief** — "Flash. If an opponent would draw a card except the
-  first one they draw in each of their draw steps, instead that player skips
-  that draw and you draw a card." `DrawCard { cause: Some(Effect) }`,
-  `Opponents`, `Instead(DrawCards { n: 1, player: Some(You) })` — decision 1's
-  correction. Rulings, three, all tests: *the opponent still discards* →
-  Night's Whisper is not the shape (draw-then-lose-life), so a fixture
-  draw-then-discard resolution is until RE-8's Mind Rot; *two Thieves: the
-  drawing player picks one, then that Thief's controller picks among the
-  rest, each once* → the three-player board, and the two-player one where "it
-  really will be that player who draws"; both are the lineage rule observed
-  from outside.
+**Three things the sizing did not have.** Alms Collector is not the `then` case
+§3.2d filed it as, and its own ruling says so — as `Prevent` plus riders the
+card is an infinite loop against an opponent's Thought Reflection, and CR
+614.5's "any modified events that may replace that event" is why half of it has
+to be the rewrite (§11 item 53, and §3.2d is corrected in place for the second
+time). `GameState::draw_cards` had had no caller since before RA and is an
+N-draw path with no proposal at all (item 50). And the first three-round timing
+said +6.0% on a 27% outlier; seven rounds say **+0.5%** (item 54).
 
-**`PERFORMANCE_POOL` +1, Thought Reflection**, predicted: the first static
-draw source in the pool, so it opens the gather sweep on every draw step while
-it is on the battlefield — and the first `Instead` whose output is decomposed.
-It is seven mana, so the `--require` count beside `copies/deck` is read and
-recorded.
-
-**Atoms:** `ATOM-121.2a-001`, `ATOM-614.11-001`, `ATOM-121.6a-001`,
-`ATOM-614.11a-001`, `ATOM-616.1g-001`, `BOUNDARY-DEF-614.1a-001` (uncovered
-since RB and claimable by any `Instead` consumer — this one takes it);
-`ATOM-614.11b-001` stays uncovered, decision 1's reason in the test file.
-`ATOM-121.2-001` (ALREADY-IMPL) gains a `COVERS:` from the decomposition test.
-
-**The three the section left open, decided 2026-09-11 before a line of code.**
-
-1. **`DrawCause` rides on both variants, and a substituted outer keeps the cause
-   it replaced.** The outer needs the field because the outer's performer is
-   what stamps its inners, and the stamp is `if i == 0 { outer.cause } else {
-   Effect }` — which is decision 1's "first inner `TurnBased`, every later one
-   `Effect`" when the outer is `TurnBased` and "all `Effect`" when it is not.
-   CR 614.6 makes a substituted event the *same* event in modified form, so
-   Thought Reflection's `DrawCards { n: 2 }` inherits the draw step's
-   `TurnBased` — and that is the whole of "the first one you draw in each of
-   your draw steps": the recursion answers it, and no counter of cards-drawn-
-   this-step is needed. Teferi beside Thought Reflection in the draw step draws
-   three because the outer's first inner is the excepted card and its second is
-   `Effect`; Teferi's own doubling is then an `Effect` outer whose *first* inner
-   is `Effect` too, so it stops at three rather than running to four. **A rider's
-   draw is `Effect`** — §4.1a gives a rider a fresh lineage, and Alms Collector's
-   two draws are new instructions rather than the draw step's turn-based action,
-   so the affected player's Teferi doubles them, which is right: they are not the
-   first card that player drew. `Primitive::DrawCards` is `Effect` at every call
-   site; the draw step is the one `TurnBased` producer in the engine (CR 121.1).
-2. **The stamp lives in the outer's performer, off the loop index.** A field
-   threaded through the decomposition would have to be set by whoever built the
-   outer *and* by every rewrite that produces one, which is a field a card can
-   forget — the argument `ReplacementClass::from_rewrite` and
-   `ReplacementDef::is_prevention` already make. The index is already in hand
-   where the decomposition happens and nowhere else needs it.
-3. **An outer `DrawCards { n: 0 }` reaches the loop.** `never_happens` is
-   CR 614.7a, and the two rules filed under it — 120.8 and 119.10 — each say in
-   so many words that the event does not occur. CR 121.2 says only that the
-   player "performs that many individual card draws", which is zero of them, and
-   no rule says the *instruction* is not an event. Alms Collector's
-   `at_least: Some(2)` does not match it and nothing prints `at_least: None`, so
-   reaching the loop costs one gather and answers nothing wrongly, while dropping
-   it upstream would be a rule the CR does not have. The performer's loop runs
-   zero times, which is the no-op with no guard — `LoseLife`'s 0 is the same
-   shape and the same reason it is a local convenience in `perform_action` rather
-   than CR 614.7a.
-
-**Re-counted against the tree (2026-09-11, after RE-1 landed), and three of the
-row's numbers were wrong.** The three exhaustive matches are still three
-(`subject_of`, `event_amount`, `perform_action`) and `pattern_watches` still
-falls through to `false` at one `_` arm; `DrawCard`'s producers are two
-(`resolve.rs`'s `Primitive::DrawCards` loop, `turns.rs`'s draw step) and
-`Primitive::DrawCards` is one. What moved:
-
-- **Test constructions: 1 → 0.** Nothing in `mtgsim/tests` or any `#[cfg(test)]`
-  module constructs a `GameAction::DrawCard`; every draw test goes through
-  `Primitive::DrawCards` and asserts a hand size. The `cause` field costs the
-  test suite nothing.
-- **`inherited`'s "1 call site" is the parameter, not the plumbing.** Feeding it
-  is four signatures: `apply_replacements` has to *return* the group's applied
-  set, `execute_batch_inner` has to carry it per member into phase 2,
-  `perform_action` has to take it, and a third entry point beside
-  `execute_actions` / `execute_actions_new_batch` has to hand it back down.
-  §4.2's note that "a third caller needs the same argument made again" is
-  answered here on the other axis: the lineage variant joins the enclosing batch
-  exactly as `execute_actions` does, and differs only in what it seeds the
-  applied set with.
-- **`GameState::draw_cards` has no callers and is a third producer waiting to
-  happen** (§11 item 50). Deleted by this PR.
-- **`Game::setup`'s comment is wrong and RE-2 makes it wronger** (§11 item 51).
-  The behaviour is right — CR 103.4's opening hands cannot meet a replacement —
-  but the comment claims a route the code does not take.
+→ The section as sized, what the building changed and the measurement:
+`plans/archive/replacement-architecture-landed.md`, "RE-2" (evicted
+2026-09-11).
 
 #### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event)
 
@@ -4822,9 +4721,19 @@ there, because all three are about **what a rider can reach**.
     the failure mode §3.2d names is a **hang** rather than a wrong answer, and
     because "a correct mechanism with no customer" is precisely the shape
     `codebase-state.md`'s Deferred Migrations section exists to catch. Item 29
-    there has the sizing; the regression is the one §3.2d already names,
-    `test_two_teferis_draw_four_not_infinity`, and **RE-2** is the PR that
-    needs it (§9, sized 2026-09-11: the outer draw's performer is the producer).
+    there has the sizing; the regression is the one §3.2d already names, and
+    **RE-2** is the PR that needs it (§9, sized 2026-09-11: the outer draw's
+    performer is the producer).
+
+    **Closed 2026-09-11 by RE-2.** The producer is `GameAction::DrawCards`'s
+    performer and the regression shipped as
+    `test_two_thought_reflections_draw_four_not_infinity` — on Thought
+    Reflection rather than the Teferi the name predicted, because Teferi's
+    Ageless Insight is legendary and the two-copy board it takes is unbuildable.
+    The bound the item asked for is the `ScriptedDecisionProvider`: a correct run
+    makes exactly one CR 616.1 prompt, so a provider primed with one turns the
+    second into a red test at depth two rather than a binary that never returns.
+    Mutation-checked both ways.
 
 ### Found by asking what RC-3's own test proves (2026-09-02)
 
@@ -5425,6 +5334,14 @@ found them.
     printed ruling decided a rewrite's *arm* rather than its numbers — the
     rulings pass is doing design work, not just test work. → RE-2.
 
+    **Landed 2026-09-11, and it has a twin.** The encoding shipped as written
+    and `two_notion_thieves_hand_the_draw_across_the_table_and_back` is the
+    two-player board the ruling's last sentence names. What this item did not
+    see is that Alms Collector is the *same* mis-filing — item 53 — and that
+    the rule underneath both is CR 614.5's "any modified events that may replace
+    that event" rather than anything about the word "instead". §3.2d now states
+    it as a rule about where to split a printed "instead X and Y".
+
 43. **Mana production is a chokepoint violation, and RA's census could not
     have seen it.** `resolve_mana_effect` (`mana.rs:91`) and
     `Primitive::ProduceMana` (`resolve.rs:337`) both write the pool directly,
@@ -5636,6 +5553,23 @@ found them.
     for itself, which is the argument for the bound
     `test_two_thought_reflections_draw_four_not_infinity` carries and for
     putting one on every board in RE-2's file that can hold two of anything.
+
+54. **A three-round median said +6.0% and the number was noise.** RE-2's middle
+    arm is the engine with the pool unchanged, and `fuzz_ab.py`'s default three
+    timing rounds put `main` at 14.78 / 15.97 / 20.32 ms — a 27% outlier inside
+    one arm, which makes the median 15.97 and the middle arm's tight 16.67–17.05
+    look like a 6% regression. Seven rounds put `main` at 15.74–16.62 and the
+    delta at **+0.5%**, which is what +34 gathers a game should cost beside
+    RE-1's +5.0% for +447.
+
+    **The rule, and it is cheap:** when one arm's rounds straddle another arm's,
+    raise `--rounds` before writing the delta down. `fuzz_ab.py --rounds 7
+    --no-fixtures` re-runs the timing block alone in about 70 seconds, against
+    35 for the whole default sitting. Worth an item rather than a footnote
+    because the number would have been *published* — §8's whole discipline is
+    recording measured CPU deltas, and a phase that records a wrong one poisons
+    every later phase that reads it. RE-9's decision is scheduled to turn on a
+    2.5-point gate, and 6 points of noise is more than that gate is worth.
 
 ## 12. Explicitly out of scope
 

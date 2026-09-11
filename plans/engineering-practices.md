@@ -690,6 +690,87 @@ decks itself, which takes `Avg turns` 31.2 → 29.1 and `Total damage` 60.9 →
 registered and not pooled; the engine delta is the `performance` column, where
 the decks are byte-identical.
 
+**Re-recorded 2026-09-11 for RE-2** — `PERFORMANCE_POOL` +1 (Thought
+Reflection, 78 → 79) and the stress pool +4 (119 → 123). **The middle arm is
+free, and the shipped arm is faster than `main`** — both readings need a
+sentence, and neither says what it looks like it says.
+
+*The engine's share, `performance`, 200 games / seed 12345.* Every
+seed-dependent gameplay row is **identical to `main`** — turns 31.6, spells
+23.6, lands 18.4, combats 10.1, deaths 7.1, damage events 21.0, total damage
+59.1, life changes 13.7, wins 117/83 — and so is every layer row: walks 375,
+board walks 249, frames 4,549, frames/walk 12.13, dependency checks 24, all
+unchanged. `Memo hits` 64,069 → 64,160 (+0.14%). What moved is
+**`Replacement gathers` 1003 → 1037 and `Restriction queries` 1006 → 1039,
+both +34** at 31.6 turns a game — one per turn for the draw step's instruction
+plus about two per game for the pool's cantrips, which is §9's prediction
+("+1 per draw instruction, so roughly +1 per turn plus one per cantrip") to
+within a rounding. The new proposal is the *outer*; the inner is the event that
+was already being proposed, which is why the count moves by one per instruction
+rather than by one per card drawn.
+
+*And it costs nothing measurable.* CPU/game median **16.15 → 16.23 ms, +0.5%**
+(seven interleaved rounds, `--threads 1`; main 15.74–16.62, middle
+15.92–17.03). **Seven rounds and not three, because three said +6.0% and the
+three were wrong**: one `main` round came in at 20.32 ms against its own
+15.97 median, and a 27% outlier in a three-round median is a 6% answer. The
+rule that follows is worth more than the number — **when an arm's rounds
+straddle another arm's, raise `--rounds` before writing the delta down**, and
+`fuzz_ab.py --rounds 7 --no-fixtures` re-runs the timing block alone in about
+70 seconds. RE-1 cost +5.0% for +447 gathers; +34 gathers costing +0.5% is the
+same per-proposal price, which is the cross-check that says both numbers are
+real.
+
+| | performance (79 cards) | stress (123 cards) |
+|---|---|---|
+| P0 / P1 | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 21 (42.0%) |
+| Avg turns | 28.2 | 28.2 |
+| Spells cast | 22.5 | 21.0 |
+| Lands played | 17.7 | 17.4 |
+| Combat w/ atk | 9.4 | 9.5 |
+| Creatures died | 6.3 | 4.4 |
+| Damage events | 20.2 | 19.9 |
+| Total damage | 58.1 | 51.8 |
+| Life changes | 13.3 | 13.6 |
+| **Layer walks** | **360** | **469** |
+| **Board walks** | **232** | **260** |
+| **Memo hits** | **53,921** | **70,035** |
+| **Layer frames** | **4,338** | **4,945** |
+| **Frames/walk** | **12.05** | **10.55** |
+| **Dependency checks** | **12** | **55** |
+| **Replacement gathers** | **928** | **986** |
+| **Restriction queries** | **930** | **988** |
+| Prevention allocations | 0.02 | 0.02 |
+
+**The shipped arm's −5.0% is the game getting shorter, not the engine getting
+faster, and every absolute counter on it has to be read that way.** At 200
+games `performance` goes 31.6 turns → 29.6, spells 23.6 → 22.8, and
+`Replacement gathers` **1003 → 974 — down, on the arm that adds a card**. Per
+turn it is the middle arm's: 31.7 for `main`, 32.8 for middle, 32.9 for the
+shipped arm, so Thought Reflection's own contribution to the sweep is about a
+tenth of a gather per turn and the 63-gather drop is two fewer turns. CPU/game
+median 16.15 → 15.35 (**−5.0%**) is the same arithmetic; `CPU/turn p50` is
+0.440 → 0.450 (**+2.3%**), which is what the slot actually costs. A card that
+draws extra cards ends games sooner, and a per-game counter cannot tell that
+from an engine that got cheaper — **so a pooled card that changes game length
+is read per turn**, which no earlier pool addition had forced.
+
+**Reachability.** `--require "Thought Reflection"` on `performance`, 200 games
+/ seed 12345: cast 133, resolved 131, in **91 of 200 games (46%)**, copies/deck
+1.58. Seven mana is the most any pooled card has cost and this is the number
+that was measured rather than argued: Eon Hub reaches 64% at five. Zero errors
+and zero panics. The other three were forced through `stress` the same way and
+are recorded because two of them can loop if their encoding is wrong
+(`replacement-architecture.md` §11 items 42 and 53): Alms Collector 134/134 in
+98 games (49%), Teferi's Ageless Insight 144/143 in 99 (50%), Notion Thief
+130/129 in 91 (46%) — zero errors and zero panics on each.
+
+**The stress column is not an engine reading this time either**, for RE-1's
+reason: `default_registry` grew by four, so the middle and shipped arms play
+different decks from `main` on that pool and are byte-identical to each other.
+`Avg turns` 29.1 → 29.0 and `Dependency checks` 33 → 46 are the new cards being
+drawn, not the pipeline.
+
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
 about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
