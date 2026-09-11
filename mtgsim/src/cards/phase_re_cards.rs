@@ -29,8 +29,10 @@
 //! limit `ActivationRestriction` does not have and this PR has exactly one
 //! customer for; Relentless Assault's "an additional combat phase followed by
 //! an additional main phase" is CR 500.8's extra *phases*, the turn queue's
-//! second level (`backlog.md` §2.17), which §9 cut from this phase and the
-//! review re-opened as an ordering call.
+//! second level, which §9 cut from this phase and RE-1's review took back in
+//! as **RE-10** — where Aggravated Assault is the card, because Relentless
+//! Assault also needs "creatures that attacked this turn" and nothing tracks
+//! it.
 //!
 //! # The rulings pass (Scryfall, 2026-09-11)
 //!
@@ -68,7 +70,7 @@
 //!   next one combat phase is skipped."* → `Uses::Once`, and the second
 //!   sentence is tested against a second `BeginPhase { Combat }` proposal the
 //!   fixture makes by moving the cursor, because CR 500.8's extra phases are
-//!   unbuilt (`backlog.md` §2.17).
+//!   unbuilt. **RE-10 replaces the fixture with Aggravated Assault.**
 //! - **Moment of Silence**, *"It must be used before the combat phase starts or
 //!   it has no effect."* → `ATOM-614.10-002`: a row created during combat meets
 //!   no proposal and expires at cleanup unused.

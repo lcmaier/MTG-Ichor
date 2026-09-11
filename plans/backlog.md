@@ -734,14 +734,20 @@ mechanic rather than a migration, which is why it is here and not in
   rather than a judgement, and is flagged here rather than edited, because the
   corpus is authored and corrections land in the session file. Either way
   `specdb owed` cannot ask for these and no phase's exit criteria move.
-- **Owner** — **open, and it is an ordering call.** The argument that pulled
-  the turn queue into RE-1 — "written once, so this entry does not rewrite
-  `advance_turn` a second time" — applies verbatim one level down and is
-  currently unkept. Against it: RE is defined as "the remaining **event
-  kinds**" and this adds none, the corpus files it elsewhere, and no other RE
-  PR touches `advance_turn` (RE-6's sizing line for it was 800.4j/k, which RE-1
-  spent), so waiting costs exactly one extra rewrite and no interest.
-  `CLAUDE.md`'s critical path owns the ordering.
+- **Owner** — **`replacement-architecture.md` §9, RE-10** (2026-09-11): the
+  owner's call at RE-1's review, on the argument that the "written once"
+  sentence is unkept and that 46 cards plus a registered card's fixture-only
+  ruling outweigh "RE is event kinds". **The phase half of this entry graduates
+  when RE-10 lands**, leaving the step half below.
+
+- **What RE-10 does not take: CR 500.9 and 500.10's extra *steps*.** They
+  cannot come into RE at all — their only producer is Obeka, Splitter of
+  Seconds, whose ability is **triggered**, so they are critical-path item 6's
+  whatever RE does. RE-10 decision 4 names the one field they want, an
+  `Option<Vec<StepType>>` on `PlannedPhase` that overrides a phase's natural
+  step list, which is precisely 500.10's *"any other steps that phase would
+  normally have are skipped"*. **This entry stays open for that half** after
+  RE-10 lands.
 
 ### 2.18 Mana payment — CR 732.1's reversal, and an auto-payment oracle
 

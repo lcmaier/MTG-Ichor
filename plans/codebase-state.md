@@ -4028,20 +4028,23 @@ named RE PR.
      agree is wrong, because an extra turn is exactly when they do not. Do it
      when a second production writer wants to exist, not before.
 
-116. **Extra phases and steps — CR 500.8, 500.9, 500.10 — are
-     `backlog.md` §2.17's, and this is a pointer.** Filed here at RE-1's close
-     and re-filed at its review: `state-of-play.md` draws the line this got
-     wrong — a Deferred Migration is *one code change* owed by scaffolding
-     already in the tree, and a backlog entry is *one mechanic* the engine will
-     need. Extra phases are a mechanic. The entry carries the verdict (RE-1's
-     cursor holds a phase *type*, so it cannot tell two combat phases apart),
-     the sizing, the 46-card population and the open ordering call.
+116. **Extra phases and steps — CR 500.8, 500.9, 500.10 — and this is a
+     pointer.** Filed here at RE-1's close and re-filed twice at its review.
+     First to `backlog.md` §2.17, because `state-of-play.md` draws the line
+     this got wrong: a Deferred Migration is *one code change* owed by
+     scaffolding already in the tree, and a backlog entry is *one mechanic* the
+     engine will need. Then **CR 500.8's half graduated to
+     `replacement-architecture.md` §9, RE-10**, which is where its design,
+     sizing and card now live. CR 500.9/500.10's half stays in §2.17 and is
+     item 6's, because Obeka is a triggered ability.
 
-     **Reachability (2026-09-11):** nothing to build here — a record for
-     whichever phase takes §2.17.
+     **Reachability (2026-09-11):** nothing to build here — a record pointing
+     at the two docs that own the halves.
 
-     **Sized:** in the entry. `replacement-architecture.md` §11 item 49 is the
-     finding that made it a decision rather than a deferral.
+     **Sized:** RE-10 is ~1,100–1,300; the step half is one
+     `Option<Vec<StepType>>` field and waits on item 6.
+     `replacement-architecture.md` §11 item 49 is the finding that turned a
+     deferral into a decision.
 
 117. **An untap-step skip would not reset land drops.** `process_untap_step`
      calls `reset_lands_played` where CR 502 puts the untap step's turn-based

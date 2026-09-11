@@ -502,12 +502,12 @@ pub fn next_step(phase_type: PhaseType, current_step: StepType) -> Option<StepTy
 /// `engine::turns`'s drainer asks this function for the natural order the
 /// queue interleaves with.
 ///
-/// CR 500.8's extra **phases** and CR 500.9/500.10's extra **steps** are not a
-/// list beside this function: a turn with two combat phases makes "what
-/// follows" unanswerable from a phase *type*, so they need the cursor to index
-/// a per-turn plan and this chain to go. That is `backlog.md` §2.17, and
-/// `replacement-architecture.md` §11 item 49 is why it is an ordering call
-/// rather than a deferral.
+/// CR 500.8's extra **phases** are not a list beside this function: a turn with
+/// two combat phases makes "what follows" unanswerable from a phase *type*, so
+/// they need the cursor to index a per-turn plan and **this chain to go**. That
+/// is `replacement-architecture.md` §9's RE-10, which spends the TODO this doc
+/// comment replaced; CR 500.9/500.10's extra *steps* stay with item 6
+/// (`backlog.md` §2.17).
 pub fn next_phase(phase_type: PhaseType) -> PhaseType {
     match phase_type {
         PhaseType::Beginning => PhaseType::Precombat,
