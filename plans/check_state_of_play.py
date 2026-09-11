@@ -368,6 +368,44 @@ def contradictions():
     return bad
 
 
+LANDED_STUB_MAX = 40
+
+
+def oversized_landed():
+    """Landed sections that kept their body in the live doc.
+
+    A ✅ heading marks a shipped phase, and what a shipped phase's section
+    holds is a record — the design as sized, what the building changed, the
+    measurement. Records are append-only, and by 2026-09-11 they were 28% of
+    the replacement doc, which is how two answers to one question (skips) and a
+    row that was wrong for sixteen days (discard) survived unread. The rule is
+    `codebase-state.md`'s eviction rule applied to the architecture docs: the
+    body moves to `plans/archive/<doc>-landed.md`, the heading stays with a stub
+    and a pointer, and this is the gate (`engineering-practices.md` §4). A
+    section's extent runs to the next heading of the same or a higher level, so
+    a `#####` inside it cannot hide the overrun.
+    """
+    out = []
+    for doc in ARCH_DOCS:
+        try:
+            lines = read(doc).split("\n")
+        except FileNotFoundError:
+            continue
+        heads = [(i, l) for i, l in enumerate(lines) if re.match(r"^#{2,5} ", l)]
+        for k, (i, l) in enumerate(heads):
+            if "✅" not in l:
+                continue
+            level = len(l.split(" ")[0])
+            end = len(lines)
+            for i2, l2 in heads[k + 1:]:
+                if len(l2.split(" ")[0]) <= level:
+                    end = i2
+                    break
+            if end - i > LANDED_STUB_MAX:
+                out.append((doc, l.lstrip("# ").split(" — ")[0], end - i))
+    return out
+
+
 def flight():
     import subprocess
     print("Open PRs:")
@@ -407,6 +445,12 @@ def main():
             problems.append(
                 f"CLAUDE.md's critical path calls {code} 'next', but an architecture "
                 f"doc records it as landed"
+            )
+        for doc, code, n in oversized_landed():
+            problems.append(
+                f"{doc}: {code} is landed but keeps {n} lines in the live doc "
+                f"(max {LANDED_STUB_MAX}) — evict the body to plans/archive/<doc>-landed.md "
+                f"and leave a stub"
             )
         if problems:
             print("state-of-play: FAILED")
