@@ -578,9 +578,15 @@ are touched by none of RE's nine PRs. The site table above stands.
 - **Blocks** — every "until end of combat" pump; 511.3's combat cleanup of
   `AttackingInfo`/`BlockingInfo`; 703.4q's mana-pool emptying per step.
 - **Atoms** — 8.
-- **Owner** — none yet; the hooks are RE-1's begin/end emitters (2026-09-11),
-  and this is the PR after RE-1 once an "until end of combat" consumer
-  appears.
+- **Owner** — none yet, and the hooks now exist: RE-1 landed
+  `GameEvent::{TurnBegin, PhaseBegin, StepBegin}` and
+  `GameState::{begin_phase, begin_step}` (2026-09-11), so a step- or
+  phase-scoped `Duration` has a place to expire from. CR 500.4's "as a step or
+  phase **begins**" is `begin_step`/`begin_phase` after the proposal survives,
+  beside `on_turn_begin`, which RE-1 added for CR 611.2b's turn half; CR 500.5's
+  "as it **ends**" is `on_step_end`/`on_phase_end`, which RE-1 also made run
+  only for a unit that happened. This is the PR after RE-1 once an "until end
+  of combat" consumer appears.
 
 ### 2.13 Deck-construction limits are configured and unenforced
 
@@ -682,29 +688,66 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `replacement-architecture.md` §9, RE decision 4. Costs paid in energy wait
   for their first card. **Struck as graduated when RE-5 lands.**
 
-### 2.17 Extra turns and the turn queue (CR 500.7)
+### 2.17 Extra phases and steps (CR 500.8, 500.9, 500.10)
 
-- **Rules** — CR 500.7. Skips are CR 614.10's — the replacement track's, not
-  this entry's; the two meet on cards like Time Stop only at Phase 8.
-- **Verdict** — turns advance by iteration; **no turn queue exists**, so "take
-  an extra turn after this one" has nowhere to go. Additive: a queue the turn
-  loop drains before the natural order resumes. Extra *phases and steps*
-  (Aggravated Assault's class) are the same shape one level down.
-- **Size** — small for the queue itself; the care is CR 500.7's ordering —
-  most recently created turn first, APNAP when several players get them — and
-  the cleanup of "that turn"-scoped state.
-- **Blocks** — Time Walk's whole family, ~60 cards; "additional combat phase"
-  cards behind them.
-- **Atoms** — CR 500's atoms cover 500.1–500.5; 500.7 is thin — see §5.
-- **Owner** — **RE-1** (2026-09-11, re-cut on review): the skips PR rewrites
-  `advance_turn` once, as a drainer of a turn queue — CR 500.7's extra turns
-  most-recent-first, pushed by `Primitive::ExtraTurn`, with Time Walk as the
-  consumer and the Meditate-then-Time-Walk board (a skip consuming an extra
-  turn, 614.10a) as the test that puts the two in one PR rather than two
-  rewrites of one function. Extra phases and steps (500.8, 500.10) are the
-  queue's second level and wait for their first card —
-  `replacement-architecture.md` §9, RE decision 6. **Struck as graduated when
-  RE-1 lands.**
+**The turn half graduated 2026-09-11 to `replacement-architecture.md` (RE-1):**
+`GameState::turn_queue` is CR 500.7's stack, pushed by `Primitive::ExtraTurn`,
+drained by `advance_turn`'s `next_turn_taker`, with `turn_rotation` beside it
+so an extra turn does not move the natural rotation. CR 500.7's APNAP sentence
+has no producer — no `EffectRecipient` that primitive accepts resolves to more
+than one player. **This entry is the half that did not graduate**, and it is a
+mechanic rather than a migration, which is why it is here and not in
+`codebase-state.md` (item 116 is a pointer).
+
+- **Rules** — CR 500.8 (extra phases), 500.9 (extra steps), 500.10 + 500.10a
+  (a step added after a *phase* creates the containing phase, and that phase's
+  other steps are **skipped** — CR 500.11, which makes this rule a skip
+  *producer* and the reason it reads as replacement-adjacent).
+- **Verdict** — **the drainer's cursor cannot hold two of the same phase.**
+  RE-1 wrote it as `(Option<PhaseType>, Option<StepType>, phase_began)` and
+  `next_turn_unit` answers "what follows" from the phase *type*, so a turn with
+  two combat phases cannot say which one the cursor is at. The shape that can
+  is the `TurnPlan` `state::game_state::next_phase`'s pre-RE-1 TODO described
+  and RE-1 re-pointed at rather than built: a per-turn `Vec` of phases the
+  cursor indexes, spliced by a new producer. **So `advance_turn` is rewritten a
+  second time** — see `replacement-architecture.md` §11 item 49, which is the
+  finding this entry exists to carry.
+- **Size** — the plan plus its index cursor, one `Primitive`, and the per-turn
+  clear: ~250–350 additions, plus a card and its tests. Well inside one PR.
+  **Aggravated Assault is the cheapest whole card** ({2}{R} enchantment,
+  `{3}{R}{R}` activated, `ActivationRestriction::OnlyAsSorcery`, which exists):
+  its only other need is `Primitive::Untap` accepting an
+  `EffectRecipient::FilteredPermanents`, the arm `DealDamage` and
+  `CreateReplacement` already have. Seize the Day needs flashback and World at
+  War needs rebound and "creatures that attacked this turn"; Obeka needs item
+  6's triggers, so **CR 500.10 cannot land before item 6** whatever happens to
+  500.8.
+- **Blocks** — `o:"additional combat phase"` is **46 cards** (Scryfall,
+  2026-09-11), `o:"additional main phase"` 9, `o:"additional upkeep step"` 3.
+  And one card that is *already registered*: Moment of Silence's first ruling —
+  "if they manage to have two combat phases, then only their next one combat
+  phase is skipped" — has no engine-produced board, only the cursor-moving
+  fixture in `phase_re1_integration_test`.
+- **Atoms** — **none.** `session-4.md` marks 500.8, 500.9 and 500.10 DEFERRED
+  with no atom ids and assigns them to *Phase 9*, whose stated content is
+  formats and multiplayer; that assignment reads like the era's `TurnPlan` TODO
+  rather than a judgement, and is flagged here rather than edited, because the
+  corpus is authored and corrections land in the session file. Either way
+  `specdb owed` cannot ask for these and no phase's exit criteria move.
+- **Owner** — **`replacement-architecture.md` §9, RE-10** (2026-09-11): the
+  owner's call at RE-1's review, on the argument that the "written once"
+  sentence is unkept and that 46 cards plus a registered card's fixture-only
+  ruling outweigh "RE is event kinds". **The phase half of this entry graduates
+  when RE-10 lands**, leaving the step half below.
+
+- **What RE-10 does not take: CR 500.9 and 500.10's extra *steps*.** They
+  cannot come into RE at all — their only producer is Obeka, Splitter of
+  Seconds, whose ability is **triggered**, so they are critical-path item 6's
+  whatever RE does. RE-10 decision 4 names the one field they want, an
+  `Option<Vec<StepType>>` on `PlannedPhase` that overrides a phase's natural
+  step list, which is precisely 500.10's *"any other steps that phase would
+  normally have are skipped"*. **This entry stays open for that half** after
+  RE-10 lands.
 
 ### 2.18 Mana payment — CR 732.1's reversal, and an auto-payment oracle
 

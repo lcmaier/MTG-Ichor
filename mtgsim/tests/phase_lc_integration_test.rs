@@ -102,8 +102,9 @@ fn test_color_change_expires_at_cleanup() {
     assert!(colors.contains(&Color::Blue));
     assert!(!colors.contains(&Color::Green));
 
-    // Advance to cleanup (9 steps from precombat main)
-    for _ in 0..9 {
+    // Six positions from the precombat main phase: nothing attacked, so
+    // CR 508.8's three combat steps are refused at the proposal site.
+    for _ in 0..6 {
         game.advance_turn(&test_ctx()).unwrap();
     }
 

@@ -21,3 +21,4 @@ pub mod phase_lh_cards;
 pub mod phase_li_cards;
 pub mod phase_cm_cards;
 pub mod phase_rd_cards;
+pub mod phase_re_cards;

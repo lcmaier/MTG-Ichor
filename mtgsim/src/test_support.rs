@@ -72,6 +72,24 @@ pub fn setup_game(num_players: usize) -> GameState {
     game
 }
 
+/// Make `player` the active player, as though the natural rotation had reached
+/// them.
+///
+/// **Two fields, because CR 500.7 made them two facts.** `active_player` is
+/// whose turn it is; `turn_rotation` is where the natural rotation has got to,
+/// and an extra turn moves the first without the second. A fixture that writes
+/// only `active_player` and then crosses a turn boundary gets that player's
+/// turn a second time, which reads as "the untap step ran for the wrong
+/// player" three assertions later.
+///
+/// Only for fixtures that go on to cross a turn boundary; a test that sets the
+/// active player to check a priority or targeting question never asks the
+/// rotation anything.
+pub fn set_active_player(game: &mut GameState, player: PlayerId) {
+    game.active_player = player;
+    game.turn_rotation = player;
+}
+
 /// Advance `game` to the beginning of the next player's turn.
 ///
 /// Walks the real phase machinery, so everything a turn transition records —

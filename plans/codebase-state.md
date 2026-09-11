@@ -3970,21 +3970,27 @@ named RE PR.
      **Sized:** one line in the `PlayerLoses` performer (clear on perform) or
      at the top of the check beside `last_sba_check_epoch`; RE-6.
 
-113. **A player who has lost stays in the turn and priority rotation.**
-     `turns.rs:44` advances to `(active_player + 1) % num_players` and the
-     priority loop rotates the same way; neither reads `player_lost`. CR
-     800.4k ("if a player who has left the game would begin a turn, that turn
-     doesn't begin") and 800.4j (priority passes over them). The rotation half
-     of "Before Commander" item 4, separated because RE-6 builds the
-     `PlayerLoses` performer and a performer that leaves the player in the
-     order is the two-player shape wearing an N-player event; 800.4a–e (their
-     objects) is RE-7's, the PR after — item 108.
+113. **A player who has lost stays in the priority rotation.** ~~The turn
+     half closed 2026-09-11 (RE-1)~~: `GameState::next_turn_taker` reads
+     `player_lost` and passes over a departed player, which is CR 800.4k ("if
+     a player who has left the game would begin a turn, that turn doesn't
+     begin") at the one site that can say it — ahead of the pipeline, because
+     a turn that does not begin is not an event a replacement effect could
+     have replaced. A queued extra turn for a lost player is popped and
+     discarded there too. **What is left is CR 800.4j**: the priority loop
+     still rotates `(priority_player + 1) % n` with no `player_lost` read.
+     The rotation half of "Before Commander" item 4, separated because RE-6
+     builds the `PlayerLoses` performer and a performer that leaves the player
+     in the order is the two-player shape wearing an N-player event; 800.4a–e
+     (their objects) is RE-7's, the PR after — item 108.
 
      **Reachability (2026-09-11):** unreachable — `fuzz_games` plays two
-     (`fuzz_games.rs:827`); reachable from `test_support::setup_game(4)`.
+     (`fuzz_games.rs:827`); reachable from `test_support::setup_game(4)`, and
+     the turn half is now covered there
+     (`phase_re1_integration_test::a_lost_players_turn_does_not_begin`).
 
-     **Sized:** ~40 lines at the two sites, RE-6, beside the `--players 4`
-     fuzz mode item 4 sized at ~50.
+     **Sized:** ~20 lines at the one remaining site, RE-6, beside the
+     `--players 4` fuzz mode item 4 sized at ~50.
 
 114. **`Restriction::Event` has no player set.** `{ pattern, affected, by }` —
      the object set only — so "players can't gain life" (Skullcrack, Leyline
@@ -4000,6 +4006,153 @@ named RE PR.
 
      **Sized:** one field plus a `set_affects`-style union in
      `is_prohibited`'s `Event` arm, ~40 lines; RE-3, read by RE-6.
+
+115. **`turn_rotation` is a second cursor beside `active_player`, and
+     nothing enforces that they agree.** RE-1 added it because CR 500.7
+     inserts an extra turn *after* a turn, so the natural rotation has to
+     resume from the player whose natural turn it was; `active_player` is
+     whose turn it is *now*, and an extra turn moves one without the other.
+     Any code that writes `active_player` directly and then crosses a turn
+     boundary gets that player's turn twice — which three test fixtures did,
+     and `test_support::set_active_player` is the answer for fixtures. **No
+     production writer exists outside `begin_turn`**, which is why this is a
+     recorded hazard rather than a bug.
+
+     **Reachability (2026-09-11):** unreachable in production — `begin_turn`
+     is the only production writer of `active_player` and `next_turn_taker`
+     the only writer of `turn_rotation`. Reachable from any new fixture.
+
+     **Sized:** the honest fix is to make `active_player` private behind
+     `begin_turn` and `turn_rotation` private behind `next_turn_taker`, ~15
+     call sites in tests; a `debug_assert` in `advance_turn` that the two
+     agree is wrong, because an extra turn is exactly when they do not. Do it
+     when a second production writer wants to exist, not before.
+
+116. **Extra phases and steps — CR 500.8, 500.9, 500.10 — and this is a
+     pointer.** Filed here at RE-1's close and re-filed twice at its review.
+     First to `backlog.md` §2.17, because `state-of-play.md` draws the line
+     this got wrong: a Deferred Migration is *one code change* owed by
+     scaffolding already in the tree, and a backlog entry is *one mechanic* the
+     engine will need. Then **CR 500.8's half graduated to
+     `replacement-architecture.md` §9, RE-10**, which is where its design,
+     sizing and card now live. CR 500.9/500.10's half stays in §2.17 and is
+     item 6's, because Obeka is a triggered ability.
+
+     **Reachability (2026-09-11):** nothing to build here — a record pointing
+     at the two docs that own the halves.
+
+     **Sized:** RE-10 is ~1,100–1,300; the step half is one
+     `Option<Vec<StepType>>` field and waits on item 6.
+     `replacement-architecture.md` §11 item 49 is the finding that turned a
+     deferral into a decision.
+
+117. **An untap-step skip would not reset land drops.** `process_untap_step`
+     calls `reset_lands_played` where CR 502 puts the untap step's turn-based
+     actions, and RE-1 made the untap step skippable: eight printed cards say
+     "skip your untap step", and under one of them a player's
+     `lands_played_this_turn` never returns to zero, so they play no land for
+     the rest of the game. "Until your next turn" moved to `on_turn_begin` for
+     exactly this reason (CR 611.2b says the turn); the land drop did not,
+     because no rule calls it a turn-start action and RE-1 registered no
+     untap-step skip to make it reachable.
+
+     **Reachability (2026-09-11):** unreachable — no registered card skips the
+     untap step. Reachable the day one is registered, which is Phase 8's
+     breadth or whichever PR wants Eon Hub's siblings.
+
+     **Sized:** one line moved into `on_turn_begin` plus the CR citation that
+     justifies it, ~10 lines; the care is that CR 505.5b counts land plays per
+     *turn* and no rule places the reset, so the move needs an argument rather
+     than a hunch.
+
+118. **CR 514.3a's repeated cleanup step announces nothing.** RE-1 made a
+     step's beginning an event, and `Game::run_turn`'s 514.3a loop — "if
+     state-based actions are performed during the cleanup step, ... another
+     cleanup step begins" — re-runs `perform_cleanup_actions` and a priority
+     round without proposing a second `GameAction::BeginStep { Cleanup }`. So
+     the log shows one cleanup step where the rules had two, and a skip that
+     should meet the second occurrence meets nothing. Pre-existing in shape —
+     the loop has always re-run without a transition — and newly *visible*,
+     which is why it is recorded now rather than earlier.
+
+     **Reachability (2026-09-11):** reachable but not wrong today — nothing
+     triggers at cleanup (item 6's), and no printed card skips a cleanup step,
+     so the only reader of the missing event is the event log itself. It
+     becomes wrong the day either lands.
+
+     **Sized:** one `begin_step` call inside the 514.3a loop, ~10 lines, plus
+     the test that the log holds two `StepBegin { Cleanup }` when SBAs fire
+     during the first. The care is that CR 614.10's skips are per *occurrence*,
+     so the second cleanup step is genuinely skippable and must be proposed
+     rather than assumed.
+
+119. **CR 103.6's "begin the game with this on the battlefield" has no
+     implementation, and RE-1 made the seam explicit.** Leyline of the Void is
+     registered with the clause recorded as dead text
+     (`phase_rb_cards::leyline_of_the_void`), and `PermanentState`'s
+     `control_since_turn = 0` is already documented as the pregame sentinel for
+     it. The insertion point is now a named place: `Game::setup`, between
+     CR 103.4's opening hands and `GameState::start_first_turn`. Gemstone
+     Caverns' ruling gives the ordering — *"the starting player takes all such
+     actions first in any order, followed by each other player in turn order.
+     Then the first turn begins"* — and Gemstone Caverns is the harder shape,
+     because it is conditional on not being the starting player and has a cost
+     (exile a card from your hand).
+
+     **Reachability (2026-09-11):** unreachable — the clause is a static
+     ability functioning in the *hand*, which is
+     `replacement-architecture.md` §3.3's source 2 and needs CR 113.6 (critical
+     path item 6a). Leyline of the Void is castable for `{2}{B}{B}` and does
+     nothing before it resolves, which is the whole of today's behaviour.
+
+     **Sized:** ~60 lines in `Game::setup` plus a `DecisionProvider` question
+     per eligible card per player, **after** 6a gives the hand-zone ability
+     lookup. The care is the ordering ruling above and CR 103.6's interaction
+     with mulligans, which are themselves stubbed.
+
+120. **`AbilityDef` has no named constructors, and five copies of two of them
+     live in three card files.** `static_replacement` and `one_shot` are each
+     written twice (`phase_rd_cards`, `phase_re_cards`) and `static_ability`
+     once (`phase_li_cards`) — one shape, three spellings: build an
+     `AbilityDef` with a fresh id, `is_characteristic_defining: false` and
+     `ActivationRestriction::None`. Every card file a later phase adds writes
+     it again.
+
+     **Not `test_support`**, which is the obvious home and the wrong one: it is
+     behind the `test-support` feature and release builds turn it off, while
+     `src/cards/` ships. The **big test-file migration will not catch these
+     either** — they are card files, not test files.
+
+     **Reachability (2026-09-11):** reachable, not wrong — five correct copies
+     of one constructor. It is a divergence risk rather than a defect: the day
+     two of them disagree about `is_characteristic_defining`, one card file's
+     abilities quietly stop being CDAs.
+
+     **Sized:** named constructors beside the type in
+     `objects/card_data.rs`, the way `ReplacementDef::new` sits beside
+     `ReplacementDef` — three functions and ~30 call sites across three card
+     files, ~120 lines net negative. **Its own PR**, so a mechanical sweep does
+     not ride inside a rules change.
+
+121. **Eon Hub's two trigger-shaped rulings have no test and cannot have one
+     until item 6.** *"Upkeep-triggered abilities don't trigger"* and *"any
+     triggered abilities that triggered during the untap step will go onto the
+     stack at the start of the draw step"* are the two halves of what a skipped
+     step does to CR 603, and RE-1 landed the events they read
+     (`GameEvent::StepBegin`) without anything to read them. The first falls
+     out — a step that does not begin emits nothing — and the second does not:
+     it says the *next* step that begins is where the waiting triggers go, and
+     nothing in RE-1 could assert that.
+
+     **Reachability (2026-09-11):** nothing to build — a record for item 6.
+     Eon Hub is in `PERFORMANCE_POOL`, so the board is in front of every
+     measured game already; what is missing is a trigger to watch.
+
+     **Sized:** two integration tests in item 6's file, ~60 lines, on a board
+     `phase_re_cards::eon_hub` plus one upkeep trigger and one untap-step
+     trigger. **Item 6's own doc should list them** — the card file's module
+     doc records both rulings as "item 6's" and this is the line that says
+     where they land.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 

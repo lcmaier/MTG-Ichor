@@ -90,6 +90,13 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::AddCounters { object, .. } => EventSubject::Object(*object),
         GameAction::RemoveCounters { object, .. } => EventSubject::Object(*object),
         GameAction::Attach { attachment, .. } => EventSubject::Object(*attachment),
+        // CR 614.10's three units are all about a *player* — "skip **your**
+        // next turn", "**players** skip their upkeep steps" — so CR 616.1's
+        // chooser is the player whose turn it is and Eon Hub on a four-player
+        // table asks nobody.
+        GameAction::BeginTurn { player, .. } => EventSubject::Player(*player),
+        GameAction::BeginPhase { player, .. } => EventSubject::Player(*player),
+        GameAction::BeginStep { player, .. } => EventSubject::Player(*player),
     }
 }
 
@@ -660,6 +667,17 @@ pub(crate) fn pattern_watches(
             EventPattern::CounterChange { counter, adding },
             GameAction::RemoveCounters { counter: actual, .. },
         ) => !*adding && counter.map(|c| c == *actual).unwrap_or(true),
+
+        // CR 614.1b's skips. Which *player* the effect is around is
+        // `set_affects`'s question, one function below — these ask only which
+        // unit the effect names, and `None` asks nothing.
+        (EventPattern::BeginTurn, GameAction::BeginTurn { .. }) => true,
+        (EventPattern::BeginPhase { phase }, GameAction::BeginPhase { phase: actual, .. }) => {
+            phase.map(|p| p == *actual).unwrap_or(true)
+        }
+        (EventPattern::BeginStep { step }, GameAction::BeginStep { step: actual, .. }) => {
+            step.map(|s| s == *actual).unwrap_or(true)
+        }
 
         _ => false,
     }

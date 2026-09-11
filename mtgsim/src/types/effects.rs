@@ -778,6 +778,26 @@ pub enum Primitive {
     /// Surveil N (rule 701.25)
     Surveil(AmountExpr),
 
+    // === Turn structure (rule 500.7) ===
+    /// Take an extra turn after this one (CR 500.7).
+    ///
+    /// **The turn queue's only producer**, and it schedules rather than
+    /// mutates: the extra turn is an entry on `GameState::turn_queue`, and the
+    /// turn itself is proposed as a `GameAction::BeginTurn` when the drainer
+    /// reaches it — which is what lets a skip replace it (CR 614.10a's "the
+    /// first occurrence that isn't skipped").
+    ///
+    /// "The most recently created turn will be taken first" is the push: the
+    /// queue is a stack, so two of these resolving in one turn are taken in
+    /// the reverse of the order they resolved, which is Time Walk's own ruling.
+    ///
+    /// The recipient names the player, which is `Controller` for every printed
+    /// card in reach ("take an extra turn"). CR 500.7's other sentence — extra
+    /// turns for *several* players are added in APNAP order — has no producer,
+    /// because no recipient this primitive accepts resolves to more than one
+    /// player; the first that does adds the sort and says so.
+    ExtraTurn,
+
     // === Mana ===
     /// Produce mana (for mana abilities, rule 605)
     ProduceMana(ManaOutput),

@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
+use super::phase_re_cards;
 use super::phase_cv_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
@@ -47,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 77] = [
+const PERFORMANCE_POOL: [&str; 78] = [
     "Plains",
     "Island",
     "Swamp",
@@ -275,6 +276,24 @@ const PERFORMANCE_POOL: [&str; 77] = [
     // Damage is the chosen-source path Circle of Protection: Red already
     // measured, at {3}{R}{W}.
     "Pariah",
+    // RE-1 — the pool's first card whose effect is a *dropped* turn-structure
+    // proposal. Every other replacement source here watches something a spell
+    // or a combat step proposes; this one watches a unit the turn machinery
+    // proposes on a fixed schedule, so from the moment it resolves it opens
+    // the per-permanent gather sweep on every player's upkeep, every turn,
+    // for the rest of the game.
+    //
+    // Colourless at five, so every deck can cast it, and its scope is
+    // `PlayerSet::Everyone` — the only pooled effect that applies to a player
+    // who is not its controller and is not about damage.
+    //
+    // The other four stay out, each for its own reason. Yawgmoth's Bargain
+    // gives the random agent a use for its life total and would empty
+    // libraries, which is RE-6's board and a distortion of every fixture until
+    // then; Time Walk's extra turn moves `Avg turns/game` by design; Meditate
+    // and Moment of Silence are one-shots whose engine path this card already
+    // opens.
+    "Eon Hub",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -598,6 +617,19 @@ impl CardRegistry {
         registry.register("Palisade Giant", phase_rd_cards::palisade_giant);
         registry.register("Pinpoint Avalanche", phase_rd_cards::pinpoint_avalanche);
         registry.register("Reflect Damage", phase_rd_cards::reflect_damage);
+
+        // RE-1 — skips, and the turn queue. The axis is which CR 614.10 unit a
+        // skip names and where the effect comes from: a static on you
+        // (Yawgmoth's Bargain), a static on everyone (Eon Hub), a consumable
+        // row on you (Meditate), a targeted row (Moment of Silence) — plus
+        // Time Walk, which makes the turn the others skip. Eon Hub is pooled;
+        // the rest are registered for the stress pool, and the module doc says
+        // why each stays out.
+        registry.register("Yawgmoth's Bargain", phase_re_cards::yawgmoths_bargain);
+        registry.register("Eon Hub", phase_re_cards::eon_hub);
+        registry.register("Meditate", phase_re_cards::meditate);
+        registry.register("Time Walk", phase_re_cards::time_walk);
+        registry.register("Moment of Silence", phase_re_cards::moment_of_silence);
 
         registry
     }

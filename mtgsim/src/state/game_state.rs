@@ -200,6 +200,38 @@ pub struct GameState {
     pub active_player: PlayerId,
     pub priority_player: PlayerId,
     pub phase: Phase,
+    /// CR 500.7's extra turns, **as a stack**: "the most recently created turn
+    /// will be taken first".
+    ///
+    /// One entry per extra turn, naming the player who takes it and nothing
+    /// else. Not a `(player, turn)` pair: the turn *number* is
+    /// `turn_number + 1` computed when the turn actually begins, and a skipped
+    /// turn advances no number (CR 614.10a), so a number stored here would go
+    /// stale the first time a skip met a queued turn — a field that means one
+    /// thing on Tuesday and another on Wednesday.
+    ///
+    /// Pushed by `Primitive::ExtraTurn` and drained by
+    /// [`Self::next_turn_taker`], which is the **only** reader. Extra *phases*
+    /// and *steps* (CR 500.8, 500.10) are this queue's second level and wait
+    /// for their first card.
+    pub turn_queue: Vec<PlayerId>,
+    /// The player the **natural** rotation has reached — CR 500.7's extra turns
+    /// do not advance it.
+    ///
+    /// That is the whole of why it exists rather than being
+    /// `(active_player + 1) % n`: an extra turn is inserted *after* a turn, so
+    /// the rotation resumes from the player whose natural turn it was. With
+    /// four players, P1 taking an extra turn during P0's turn is followed by
+    /// P1's own natural turn, which the arithmetic on `active_player` skips.
+    ///
+    /// Advanced when a natural turn is **proposed**, not when one begins:
+    /// CR 614.10a says the sequence proceeds past a skipped turn, so the turn
+    /// after a skipped P2 is P3's and not P2's again.
+    ///
+    /// Starts at CR 103.7's starting player, because [`Self::new`] starts with
+    /// that player's first turn already in progress — and a fixture that
+    /// hand-writes `active_player` writes this too, for the same reason.
+    pub turn_rotation: PlayerId,
 
     // --- Combat tracking ---
     pub attacks_declared: bool,
@@ -423,8 +455,12 @@ impl Phase {
     }
 }
 
-/// Get the initial step for a phase (None for main phases which have no steps)
-fn initial_step(phase_type: PhaseType) -> Option<StepType> {
+/// The first step of a phase, or `None` for a main phase, which has none.
+///
+/// `pub(crate)` for `engine::turns`: the drainer proposes a phase and its first
+/// step as two separate events (CR 614.10 replaces either), so it needs to ask
+/// for the first step rather than read it off a `Phase` the performer built.
+pub(crate) fn initial_step(phase_type: PhaseType) -> Option<StepType> {
     match phase_type {
         PhaseType::Beginning => Some(StepType::Untap),
         PhaseType::Precombat => None,
@@ -458,15 +494,20 @@ pub fn next_step(phase_type: PhaseType, current_step: StepType) -> Option<StepTy
     }
 }
 
-/// Get the next phase in turn order.
+/// The next phase in CR 500.1's order, wrapping from the ending phase to the
+/// next turn's beginning phase.
 ///
-/// **Future: TurnPlan for extra phases.** Effects like "after this phase, there
-/// is an additional combat phase followed by an additional main phase" cannot
-/// be expressed by a fixed state machine. When we implement combat (Phase 3),
-/// `next_phase` will be replaced by a `TurnPlan` — a mutable Vec of
-/// `(PhaseType, Vec<StepType>)` that the engine walks. Effects insert extra
-/// entries into the plan, and `advance_turn` reads from it instead of calling
-/// this function.
+/// **Still a fixed sequence, and RE-1 is why that is now a decision rather
+/// than a stub.** The turn queue it built holds *extra turns* (CR 500.7), and
+/// `engine::turns`'s drainer asks this function for the natural order the
+/// queue interleaves with.
+///
+/// CR 500.8's extra **phases** are not a list beside this function: a turn with
+/// two combat phases makes "what follows" unanswerable from a phase *type*, so
+/// they need the cursor to index a per-turn plan and **this chain to go**. That
+/// is `replacement-architecture.md` §9's RE-10, which spends the TODO this doc
+/// comment replaced; CR 500.9/500.10's extra *steps* stay with item 6
+/// (`backlog.md` §2.17).
 pub fn next_phase(phase_type: PhaseType) -> PhaseType {
     match phase_type {
         PhaseType::Beginning => PhaseType::Precombat,
@@ -506,6 +547,8 @@ impl GameState {
             active_player: 0,
             priority_player: 0,
             phase: Phase::new(PhaseType::Beginning),
+            turn_queue: Vec::new(),
+            turn_rotation: 0,
             attacks_declared: false,
             blockers_declared: false,
             blocker_damage_divisions: HashMap::new(),

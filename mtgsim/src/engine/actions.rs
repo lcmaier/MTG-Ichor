@@ -2,7 +2,7 @@ use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
-use crate::state::game_state::GameState;
+use crate::state::game_state::{GameState, Phase, PhaseType, StepType};
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
@@ -261,6 +261,62 @@ pub enum GameAction {
         controller: PlayerId,
         mods: EnterMods,
         cause: Option<ZoneChangeCause>,
+    },
+
+    /// A turn begins (CR 500.11, 614.10) — **the unit a "skip your next turn"
+    /// replaces**.
+    ///
+    /// The subject is `player`, so CR 616.1's chooser is the player whose turn
+    /// it is and Eon Hub's four-player form asks nobody. Its performer writes
+    /// `turn_number` / `active_player` and announces
+    /// [`GameEvent::TurnBegin`](crate::events::event::GameEvent::TurnBegin),
+    /// which has been in the log since the log was written and emitted at zero
+    /// sites: §8b counts 2,656 "at the beginning of" triggers, and none of them
+    /// has anything to read until this proposal exists.
+    ///
+    /// `turn` is the number this turn *would* be — `turn_number + 1` — and a
+    /// dropped proposal never advances it. That is CR 614.10a's "anything
+    /// scheduled for a skipped turn won't happen" in the one place the engine
+    /// can say it: `begin_turn` is the only writer of `last_turn_began`, so a
+    /// turn that does not begin expires no "until your next turn" effect and
+    /// starts no CR 302.6 clock.
+    ///
+    /// **Who takes the turn is not on the event**, and that is deliberate:
+    /// CR 500.7's extra turns and the natural rotation are the *schedule* the
+    /// proposal is built from, not a fact about the event. See
+    /// `GameState::next_turn_taker`.
+    BeginTurn {
+        player: PlayerId,
+        turn: u32,
+    },
+
+    /// A phase begins (CR 500.11, 614.10) — Moment of Silence's unit.
+    ///
+    /// The subject is the active player, which is what makes Moment of
+    /// Silence's ruling fall out rather than be coded: a row on a player who
+    /// is not the active player watches nothing, so "if cast on a player when
+    /// it is not their turn, it has no effect".
+    ///
+    /// A skipped phase proposes none of its steps (CR 500.11's "proceed past
+    /// it as though it didn't exist"), which is the drainer's rule, not this
+    /// performer's.
+    BeginPhase {
+        phase: PhaseType,
+        player: PlayerId,
+    },
+
+    /// A step begins (CR 500.11, 614.10) — Yawgmoth's Bargain's and Eon Hub's
+    /// unit.
+    ///
+    /// The subject is the active player, as for [`Self::BeginPhase`]. Turn-based
+    /// actions are **not** performed here: CR 703.4's actions are their own
+    /// events, the untap sweep needs its own batch for CR 603.2c, and a
+    /// performer nests a proposal only when the outer event is real without it
+    /// (`replacement-architecture.md` §11 item 20). The drainer runs them after
+    /// this event, and only for a step that began.
+    BeginStep {
+        step: StepType,
+        player: PlayerId,
     },
 
     // === Phase 3+ actions — add variants here as primitives are implemented ===
@@ -1047,6 +1103,42 @@ impl GameState {
                     }
                 }
                 self.place_on_battlefield(object, controller, &mods);
+                Ok(())
+            }
+
+            // --- Turn structure (CR 500, 614.10) ----------------------------
+            //
+            // Three small performers, and each writes exactly the one field
+            // that makes its unit "the one that is happening". They announce
+            // the three `GameEvent`s that have existed since the log was
+            // written and were emitted nowhere, which is what item 6's
+            // "at the beginning of" triggers will read.
+            //
+            // None of them runs a turn-based action or an expiry: those are
+            // separate events (CR 703.4, 500.4), and the drainer runs them
+            // after the proposal survives — see `engine::turns`.
+            GameAction::BeginTurn { player, turn } => {
+                // `begin_turn` is the one writer of `last_turn_began`, so a
+                // turn that is skipped starts no CR 302.6 clock and expires no
+                // "until your next turn" effect (CR 614.10a).
+                self.begin_turn(turn, player);
+                self.priority_player = player;
+                self.events.emit(GameEvent::TurnBegin { player, turn_number: turn });
+                Ok(())
+            }
+
+            GameAction::BeginPhase { phase, player: _ } => {
+                // `Phase::new` would fill in the phase's first step; the step is
+                // its own proposal, and a phase whose first step is skipped
+                // must not look as though that step is happening.
+                self.phase = Phase { phase_type: phase, step: None };
+                self.events.emit(GameEvent::PhaseBegin { phase });
+                Ok(())
+            }
+
+            GameAction::BeginStep { step, player: _ } => {
+                self.phase.step = Some(step);
+                self.events.emit(GameEvent::StepBegin { step });
                 Ok(())
             }
         }

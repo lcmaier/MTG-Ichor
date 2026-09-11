@@ -607,6 +607,89 @@ eight cards in every deck. CPU/game median 14.10 → 14.15 ms (+0.4%); zero
 errors and zero panics on every arm and pool; three shell runs at one seed
 identical outside the timing lines.
 
+**Re-recorded 2026-09-11 for RE-1** — `PERFORMANCE_POOL` +1 (Eon Hub,
+77 → 78) and the stress pool +5 (114 → 119). **The first re-recording whose
+middle arm is not free**, and the two halves are worth separating.
+
+*The engine's share, `performance`, 200 games / seed 12345.* Every
+seed-dependent gameplay row is **identical to `main`** — turns, spells, lands,
+combats, deaths, damage events, total damage, life changes, wins — and so is
+every layer row: walks 363, board walks 241, frames 4,262, frames/walk 11.73,
+dependency checks 36, all unchanged. Three real behaviour changes moved none of
+them, which is what the prediction said they would do: turn 1's untap step now
+runs (on an empty battlefield, with a land-drop count already at zero),
+CR 508.8's three combat steps no longer happen (they granted no priority and
+ran no turn-based action when they did), and "until your next turn" expires at
+the turn's begin rather than at the untap step's (the same instant while
+nothing in either pool skips the untap step).
+
+What moved is the proposals: **`Replacement gathers` 507 → 954** and
+**`Restriction queries` 509 → 957**, both +447 per game — one turn, five phases
+and eight steps per turn with no attackers, eleven with, at 30.2 turns a game.
+§9's RE-1 bullet predicted "about sixteen per turn … ~+450 per game" and it
+landed at +14.8. **`Memo hits` 58,262 → 59,191 (+1.6%) is the row the
+prediction got wrong**, and the correction is worth keeping: `gather`'s fast
+path stops the *walk*, not the *query*, and `is_prohibited` asks one per
+proposal, which the memo answers. A flat `Layer walks` beside a moved
+`Memo hits` is what "the gate held" looks like, not a contradiction.
+
+*And it costs.* CPU/game median **12.92 → 13.57 ms, +5.0%** (five interleaved
+rounds, `--threads 1`, cleanly separated: main 12.90–12.99, middle 13.55–13.66).
+A fourth arm with a hard-coded event-kind gate in `gather` — the shape §8's
+answer-preserving lever would have — measured **13.24, +2.5%**, which attributes
+exactly half the cost to the sweep and half to the chokepoint itself: the batch,
+the APNAP sort, `is_prohibited`, the grouping and the event. The second half is
+not recoverable by any gate and is what the three begin events cost.
+`replacement-architecture.md` §9 records the decision that followed.
+
+| | performance (78 cards) | stress (119 cards) |
+|---|---|---|
+| P0 / P1 | 30 (60.0%) / 20 (40.0%) | 27 (54.0%) / 23 (46.0%) |
+| Avg turns | 30.1 | 26.8 |
+| Spells cast | 22.9 | 20.6 |
+| Lands played | 17.9 | 16.3 |
+| Combat w/ atk | 10.1 | 8.3 |
+| Creatures died | 6.9 | 3.6 |
+| Damage events | 20.9 | 17.2 |
+| Total damage | 59.2 | 47.5 |
+| Life changes | 14.3 | 12.5 |
+| **Layer walks** | **351** | **429** |
+| **Board walks** | **233** | **242** |
+| **Memo hits** | **58,082** | **58,549** |
+| **Layer frames** | **4,163** | **4,249** |
+| **Frames/walk** | **11.85** | **9.91** |
+| **Dependency checks** | **14** | **21** |
+| **Replacement gathers** | **949** | **868** |
+| **Restriction queries** | **951** | **871** |
+| Prevention allocations | 0.02 | 0.00 |
+
+At 200 games the shipped arm is `performance` walks 363 → 375 and gathers
+954 → 1003 — Eon Hub opens the per-permanent sweep on every begin proposal for
+as long as it is on the battlefield, which is the first pooled card whose
+static watches something the *turn machinery* proposes rather than something a
+spell does. CPU/game median 12.99 → 14.80 (+13.9% against `main`, +7.9% against
+the middle arm), which is the ordinary price of a slot: §3.1a measured Bone
+Splinters at +13.8% and rejected Altar's Reap at +20.2%. Zero errors and zero
+panics on every arm and pool; three shell runs at one seed identical outside
+the timing lines.
+
+**Reachability.** `--require "Eon Hub"` on `performance`, 200 games / seed
+12345: cast 211, resolved 209, in **129 of 200 games (64%)**, copies/deck
+1.57 — so the two-copy board is common, and CR 616.1's prompt between two
+applicable skips on one upkeep is answered by the random agent in a measured
+game rather than only in a fixture. Zero errors and zero panics on that run.
+Unforced, the shipped arm's `Replacement gathers` is 1003 against the middle
+arm's 954, which is the card reaching the battlefield without being pushed.
+
+**The stress column is not an engine reading this time, and saying so is the
+point.** `--pool stress` draws from `default_registry`, which RE-1 grew by
+five, so its decks are different in the middle arm as well as the shipped one
+— Yawgmoth's Bargain gives the random agent a use for its life total and it
+decks itself, which takes `Avg turns` 31.2 → 29.1 and `Total damage` 60.9 →
+48.0. That is the card doing exactly what §9 predicted and why it is
+registered and not pooled; the engine delta is the `performance` column, where
+the decks are byte-identical.
+
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
 about an *activated ability*: Circle of Protection: Red resolves in 130 of 200

@@ -19,8 +19,8 @@ use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::test_support::{
-    pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_attacking,
-    set_blocked_by,
+    pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_active_player,
+    set_attacking, set_blocked_by,
     set_blocking, setup_game, setup_two_player_game, stock_libraries, test_ctx, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -1012,7 +1012,7 @@ fn test_every_permanent_the_active_player_controls_untaps_as_one_event() {
     }
 
     // Player 1's turn ends, player 0's begins — untap step runs for player 0.
-    game.active_player = 1;
+    set_active_player(&mut game, 1);
     pass_turn(&mut game);
 
     for id in &mine {
@@ -1052,7 +1052,7 @@ fn test_a_stun_counter_survives_a_real_untap_step() {
     game.battlefield.get_mut(&free).unwrap().tapped = true;
     add_counters(&mut game, stunned, CounterType::Stun, 1);
 
-    game.active_player = 1;
+    set_active_player(&mut game, 1);
     pass_turn(&mut game);
 
     assert!(game.battlefield[&stunned].tapped, "the stun counter ate the untap");

@@ -147,7 +147,13 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         | GameAction::Tap { .. }
         | GameAction::Attach { .. }
         | GameAction::Destroy { .. }
-        | GameAction::EnterBattlefield { .. } => None,
+        | GameAction::EnterBattlefield { .. }
+        // A turn's number is not an amount: no rider says "that many" about a
+        // turn, a phase or a step, and 614.10b — the one rule that makes a
+        // skip do something afterwards — has zero printed cards.
+        | GameAction::BeginTurn { .. }
+        | GameAction::BeginPhase { .. }
+        | GameAction::BeginStep { .. } => None,
     }
 }
 

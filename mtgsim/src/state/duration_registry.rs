@@ -499,14 +499,9 @@ mod tests {
         assert!(reg.is_empty());
     }
 
-    #[test]
-    fn until_your_next_turn_expires_on_an_extra_turn() {
-        // Extra turns advance turn_number, so an extra turn for the controller
-        // IS their "next turn" and the row correctly expires at its start.
-        let mut reg: DurationRegistry<Row> = DurationRegistry::new();
-        let src = Uuid::new_v4();
-        reg.add(Row::new(src, Duration::UntilYourNextTurn));
-
-        assert_eq!(reg.remove_expired_at_turn_start(0, 2).len(), 1);
-    }
+    // Its extra-turn twin is gone, for the reason
+    // `state::continuous_effects`'s is: RE-1 built the CR 500.7 queue, so
+    // `tests/phase_re1_integration_test.rs`'s
+    // `until_your_next_turn_expires_on_a_real_extra_turn` makes the claim
+    // against a turn the engine actually took.
 }
