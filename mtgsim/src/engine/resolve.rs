@@ -327,6 +327,17 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 500.7 — scheduling, not a mutation of the board: the extra
+            // turn becomes a `GameAction::BeginTurn` proposal when the drainer
+            // reaches it, which is what a skip replaces (CR 614.10a). Pushed,
+            // because the rule's order is "the most recently created turn will
+            // be taken first".
+            Primitive::ExtraTurn => {
+                let player = self.resolve_player_for_self(recipient, ctx);
+                self.turn_queue.push(player);
+                Ok(())
+            }
+
             Primitive::ProduceMana(output) => {
                 // Evaluate dynamic amounts before taking &mut player
                 let resolved: Vec<_> = output.mana.iter()

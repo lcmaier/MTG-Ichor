@@ -39,6 +39,7 @@
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet,
 };
+use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::ObjectId;
 use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 
@@ -157,18 +158,22 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # Why seven arms and not ten
+/// # Why ten arms and not fourteen
 ///
-/// `GameAction` ships eleven variants and this enum seven. `CounterChange`
+/// `GameAction` ships fifteen variants and this enum ten. `CounterChange`
 /// covers `AddCounters` and `RemoveCounters` through its `adding` field — the
 /// one place the projection is not 1:1, and that arm's own doc says so.
 ///
-/// The three with no arm at all are `DrawCard`, `GainLife`
-/// and `LoseLife`. They land in Phase RE, which is where
-/// `replacement-architecture.md` §9 schedules draw replacement (CR 614.11) and
-/// life-gain replacement (CR 119.10) anyway. Adding an arm is a normal diff —
-/// this enum is matched exhaustively and is not `#[non_exhaustive]`, so every
-/// reader fails to compile rather than defaulting.
+/// The four with no arm at all are `Attach` — on purpose, since nothing
+/// replaces an attach — and `DrawCard`, `GainLife` and `LoseLife`. Those three
+/// land in RE-2 and RE-3, which is where `replacement-architecture.md` §9
+/// schedules draw replacement (CR 614.11) and life-gain replacement
+/// (CR 119.10) anyway. Adding an arm is a normal diff — this enum is matched
+/// exhaustively and is not `#[non_exhaustive]`, so every reader fails to
+/// compile rather than defaulting. **`gather::pattern_watches` is the reader
+/// that does not**: it falls through to `false`, so a `GameAction` variant with
+/// no arm there is silently unwatchable, which is `Attach`'s intended state and
+/// the trap for everything else.
 ///
 /// **Until RD-1 the reason given here was that no set could scope one to a
 /// player, and that reason is gone.** [`ReplacementDef::affected_players`]
@@ -296,6 +301,41 @@ pub enum EventPattern {
         counter: Option<CounterType>,
         /// `true` matches `AddCounters`, `false` matches `RemoveCounters`.
         adding: bool,
+    },
+
+    /// CR 614.1b / 614.10 — "skip your next turn". The event's subject is the
+    /// player whose turn it would be.
+    ///
+    /// **No fields, and that is the census talking.** The twenty-two printed
+    /// turn skips say "skip your next turn", "that player skips their next
+    /// turn" or "players skip their turns" — every one of them scoped by
+    /// *which player*, which is [`ReplacementDef::affected_players`]'s question
+    /// and not this one's. Nothing prints a constraint on the turn itself, and
+    /// an arm the pipeline cannot apply is worse than a missing one (§3.2a).
+    /// The field a later card could want is CR 500.7's "is this an extra
+    /// turn"; no printed card asks, and it lives on the *schedule* rather than
+    /// on the event for that reason — see `GameAction::BeginTurn`.
+    BeginTurn,
+
+    /// CR 614.1b / 614.10 — "skips their next combat phase". The event's
+    /// subject is the active player.
+    ///
+    /// `None` matches any phase. Nothing printed says "skips their next phase"
+    /// unqualified, so the registered def names one; the field is here because
+    /// six printed cards name the combat phase and two name a main phase, and
+    /// a pattern that could not tell them apart would make Moment of Silence
+    /// eat the beginning phase.
+    BeginPhase {
+        phase: Option<PhaseType>,
+    },
+
+    /// CR 614.1b / 614.10 — "skip your draw step", "players skip their upkeep
+    /// steps". The event's subject is the active player.
+    ///
+    /// `None` matches any step, which is how "skip all of your steps" would be
+    /// written if a card printed it; both registered defs name one.
+    BeginStep {
+        step: Option<StepType>,
     },
 }
 

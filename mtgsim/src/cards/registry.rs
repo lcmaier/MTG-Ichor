@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
+use super::phase_re_cards;
 use super::phase_cv_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
@@ -598,6 +599,19 @@ impl CardRegistry {
         registry.register("Palisade Giant", phase_rd_cards::palisade_giant);
         registry.register("Pinpoint Avalanche", phase_rd_cards::pinpoint_avalanche);
         registry.register("Reflect Damage", phase_rd_cards::reflect_damage);
+
+        // RE-1 — skips, and the turn queue. The axis is which CR 614.10 unit a
+        // skip names and where the effect comes from: a static on you
+        // (Yawgmoth's Bargain), a static on everyone (Eon Hub), a consumable
+        // row on you (Meditate), a targeted row (Moment of Silence) — plus
+        // Time Walk, which makes the turn the others skip. Eon Hub is pooled;
+        // the rest are registered for the stress pool, and the module doc says
+        // why each stays out.
+        registry.register("Yawgmoth's Bargain", phase_re_cards::yawgmoths_bargain);
+        registry.register("Eon Hub", phase_re_cards::eon_hub);
+        registry.register("Meditate", phase_re_cards::meditate);
+        registry.register("Time Walk", phase_re_cards::time_walk);
+        registry.register("Moment of Silence", phase_re_cards::moment_of_silence);
 
         registry
     }

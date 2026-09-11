@@ -200,6 +200,37 @@ pub struct GameState {
     pub active_player: PlayerId,
     pub priority_player: PlayerId,
     pub phase: Phase,
+    /// CR 500.7's extra turns, **as a stack**: "the most recently created turn
+    /// will be taken first".
+    ///
+    /// One entry per extra turn, naming the player who takes it and nothing
+    /// else. Not a `(player, turn)` pair: the turn *number* is
+    /// `turn_number + 1` computed when the turn actually begins, and a skipped
+    /// turn advances no number (CR 614.10a), so a number stored here would go
+    /// stale the first time a skip met a queued turn — a field that means one
+    /// thing on Tuesday and another on Wednesday.
+    ///
+    /// Pushed by `Primitive::ExtraTurn` and drained by
+    /// [`Self::next_turn_taker`], which is the **only** reader. Extra *phases*
+    /// and *steps* (CR 500.8, 500.10) are this queue's second level and wait
+    /// for their first card.
+    pub turn_queue: Vec<PlayerId>,
+    /// The player the **natural** rotation has reached — CR 500.7's extra turns
+    /// do not advance it.
+    ///
+    /// That is the whole of why it exists rather than being
+    /// `(active_player + 1) % n`: an extra turn is inserted *after* a turn, so
+    /// the rotation resumes from the player whose natural turn it was. With
+    /// four players, P1 taking an extra turn during P0's turn is followed by
+    /// P1's own natural turn, which the arithmetic on `active_player` skips.
+    ///
+    /// Advanced when a natural turn is **proposed**, not when one begins:
+    /// CR 614.10a says the sequence proceeds past a skipped turn, so the turn
+    /// after a skipped P2 is P3's and not P2's again.
+    ///
+    /// Starts at CR 103.7's starting player, because [`Self::new`] starts with
+    /// that player's first turn already in progress.
+    pub turn_rotation: PlayerId,
 
     // --- Combat tracking ---
     pub attacks_declared: bool,
@@ -506,6 +537,8 @@ impl GameState {
             active_player: 0,
             priority_player: 0,
             phase: Phase::new(PhaseType::Beginning),
+            turn_queue: Vec::new(),
+            turn_rotation: 0,
             attacks_declared: false,
             blockers_declared: false,
             blocker_damage_divisions: HashMap::new(),
