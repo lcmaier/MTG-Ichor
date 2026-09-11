@@ -341,6 +341,68 @@ fn eon_hub_skips_every_players_upkeep_on_a_four_player_table() {
 // ---------------------------------------------------------------------------
 
 // COVERS: ATOM-614.10-002
+//
+// The atom's own board, on the atom's own unit: the skip arrives *during* a
+// draw step, and CR 614.10's last sentence — "once a step, phase, or turn has
+// started, it can no longer be skipped" — is the proposal site. The current
+// draw step is not retroactively ended; the next one never begins.
+#[test]
+fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
+    let mut game = at_the_turn_boundary(2);
+
+    // Walk to player 1's draw step, which is where the skip will arrive.
+    to_next_turn(&mut game, &test_dp());
+    while game.phase.step != Some(StepType::Draw) {
+        game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+    }
+    let drawn_before = cards_drawn(&game);
+    assert_eq!(game.active_player, 1);
+
+    // Yawgmoth's Bargain enters mid-draw-step. Its controller has already
+    // drawn: the step is under way and is not un-started.
+    put_on_battlefield(&mut game, yawgmoths_bargain(), 1);
+    let before = game.events.len();
+    game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+    assert_eq!(
+        game.phase,
+        Phase { phase_type: PhaseType::Precombat, step: None },
+        "the draw step ended the way it would have anyway"
+    );
+    assert!(
+        !game.events.records_from(before).iter().any(|r| matches!(
+            r.event,
+            GameEvent::StepBegin { step: StepType::Draw }
+        )),
+        "and it was not re-proposed on its way out"
+    );
+    assert_eq!(cards_drawn(&game), drawn_before, "the draw had already happened");
+
+    // Player 1's next draw step is the first occurrence the skip can meet, and
+    // it does not happen.
+    to_next_turn(&mut game, &test_dp());
+    assert_eq!(to_next_turn(&mut game, &test_dp()), (1, 4));
+    let before = game.events.len();
+    let drawn_before = cards_drawn(&game);
+    while game.phase.phase_type == PhaseType::Beginning {
+        game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+    }
+    assert!(
+        !game.events.records_from(before).iter().any(|r| matches!(
+            r.event,
+            GameEvent::StepBegin { step: StepType::Draw }
+        )),
+        "the draw step of the next occurrence did not begin (CR 614.10)"
+    );
+    assert_eq!(cards_drawn(&game), drawn_before, "and nothing scheduled for it happened");
+}
+
+// COVERS-PARTIAL: ATOM-614.10-002
+//
+// Moment of Silence's own ruling — "it must be used before the combat phase
+// starts or it has no effect" — which is the atom's first half on a different
+// unit. The second half has no board here: the row is `UntilEndOfTurn`, so
+// there is no next occurrence for it to wait for, and the test above is the
+// one that builds both.
 #[test]
 fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
     let mut game = setup_two_player_game();
