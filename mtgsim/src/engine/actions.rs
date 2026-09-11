@@ -566,10 +566,10 @@ impl GameState {
     /// borrow this function is already holding.
     ///
     /// Nothing else lives in the split — it is not a phase boundary or an
-    /// extension point. The third caller, RE-2's
-    /// [`Self::execute_actions_inheriting`], made §3.2d's argument about
-    /// *lineage* rather than §4.2's about batch identity; a fourth needs one or
-    /// the other, not a reason to reuse this body.
+    /// extension point. [`Self::execute_actions_inheriting`] is the third caller
+    /// and it makes §3.2d's argument about *lineage* rather than §4.2's about
+    /// batch identity, so a fourth needs one or the other — not a reason to
+    /// reuse this body.
     ///
     /// **Deciding is separated from performing, and that is CR 704.3.** "The
     /// game checks for any of the listed conditions ... then performs all

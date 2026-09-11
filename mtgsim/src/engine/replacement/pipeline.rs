@@ -1200,10 +1200,10 @@ fn apply_rewrite(
             }
             // Its `EventPattern` and its `Rewrite` describe different events —
             // the same card-authoring error every other arm reports. The
-            // wording is about the *arm* rather than about the event since
-            // RE-2: `DrawCards` carries CR 121.2a's count, which a rider reads
-            // through `event_amount`, and `Rewrite::Amount`'s arithmetic is
-            // still CR 615's and still only about damage.
+            // wording is about the *arm* and not about the event, because
+            // `DrawCards` carries CR 121.2a's count — a rider reads it through
+            // `event_amount` — while `Rewrite::Amount`'s arithmetic is CR 615's
+            // and still only about damage.
             other => Err(format!(
                 "replacement {:?} changes an amount but matched {:?}, which has no `Rewrite::Amount` arm",
                 chosen.id, other
