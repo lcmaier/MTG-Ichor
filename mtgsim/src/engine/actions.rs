@@ -213,7 +213,7 @@ pub enum GameAction {
     ///
     /// Indestructible is **not** checked here and is not a replacement effect.
     /// CR 702.12b makes it a "can't" (CR 614.17), which is checked ahead of the
-    /// pipeline and wins — see `engine::replacement::is_blocked`.
+    /// pipeline and wins — see `engine::restriction::is_prohibited`.
     Destroy {
         object: ObjectId,
         source: DestructionSource,

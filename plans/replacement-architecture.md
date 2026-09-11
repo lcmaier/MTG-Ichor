@@ -764,7 +764,8 @@ the failure mode that shows up as a card silently doing nothing:
    hooks `ContinuousEffectRegistry` already uses.
 4. **Shields from resolutions.** CR 615.7/615.8, CR 701.19a regeneration. Also
    the registry, with `Uses::Once` or `Uses::NextDamage(n)` (named `Shield(n)`
-   until RD's design check; §9's shield glossary says why it moved).
+   until RD's design check; §9 says why it moved, and `plans/glossary.md`
+   under *shield* separates the three things that word names).
 5. **Counters.** CR 122.1c (shield), 122.1d (stun), 122.1h (finality). These
    come from the *counter*, not from any ability — nothing on the card says so.
    Synthesized during the sweep from `PermanentState.counters`.
@@ -3612,26 +3613,16 @@ trigger was named as RD; RD-1 carries `EventSubject` on the rider and emits
 `ResolvedTarget::Player`, because Reverse Damage's "you gain life" is the
 first rider that rides routinely on a player-subject event.
 
-**Three things the CR calls a shield, and what each is called here** — stated
-once, because RD-2 is where they meet and the word was already doing double
-duty. (1) CR 614.1's metaphor: every replacement and prevention effect "act[s]
-like a shield" around what it affects; that is `ReplacementDef`, and nothing
-in code borrows the word for it. (2) CR 615.7's prevention shield ("these work
-like shields") and CR 701.19a's regeneration shield: a **resolution-created
-registry row** with a `Uses`. Regeneration is `Uses::Once` plus its authored
-bit; 615.7's amount-bearing one is **`Uses::NextDamage(remaining)`** — named
-for the rule's own phrase, "the next 3 damage", because it counts damage and
-never uses: 615.7's last sentence is "such effects count only the amount of
-damage; the number of events or sources dealing it doesn't matter", and a
-first name, `DamagePoints(remaining)`, could be read as either. It
-deliberately does not take the word "shield" in code, because
-`ReplacementDef.affected`'s doc reserved that word for the next item. (3) CR
-122.1c's shield **counter**, `CounterType::Shield`: a counter that *creates*
-one replacement and one prevention effect, synthesized by `gather` since RB.
-It is not a 615.7 shield — it has no amount, its prevention half is a
-whole-event `Prevent`, and its "use" is the rider removing a counter. The two
-meet in exactly one place, decision 3: a counter's prevention applies once to
-a subject's group, and a 615.7 row's `NextDamage` is allocated across one.
+**`Uses::NextDamage(remaining)` is named for the rule's own phrase**, "the next
+3 damage", because it counts damage and never uses: 615.7's last sentence is
+"such effects count only the amount of damage; the number of events or sources
+dealing it doesn't matter", and a first name, `DamagePoints(remaining)`, could
+be read as either. It deliberately does not take the word "shield" in code —
+**three different things are called a shield here**, and which is which is
+`plans/glossary.md`, under *shield*. That disambiguation was written out in this
+section, because RD-2 is where the three meet; the glossary pass (2026-09-11)
+moved it, since a reader who needs it is usually not reading RD. Decision 3
+below is still the one place senses 2 and 3 meet.
 
 **1. Partial prevention is `Rewrite::Amount(AmountRewrite::PreventUpTo(n))`,
 and `Instead` gets no "N − k" template.** §3.2b already lists `Amount` as the

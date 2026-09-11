@@ -517,7 +517,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **`apply_replacements`** — §4.1's loop, inside `execute_actions` upstream of `perform_action`. CR 616.1a–f, CR 614.5's applied set keyed on effect *instance*, CR 616.2's re-gather, CR 614.6's dropped event, CR 614.17/17c's blocked path, §4.1a's rider timing. `ActionContext.dp` has its first reader.
 - **`execute_actions` is three phases, and the split is CR 704.3**: decide for every batch member against one board, then perform, then run riders. That is where §4.3's CR 101.4 APNAP ordering lives — choices in APNAP order of chooser, performance in batch order, riders last (CR 615.5). It returns `Result<Vec<GameAction>, String>` again, and the SBA sweep is the customer that earned it back.
 - **New event vocabulary**: `GameAction::Destroy { source: DestructionSource }` (the outer event; its performer proposes the inner `ZoneChange`), `AddCounters`, `RemoveCounters`. `CounterType::{Shield, Stun, Finality}`; `GameEvent::CountersChanged`.
-- **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked`, not filtered at the two call sites that each held their own copy of it.
+- **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked` (RB's name; RS-1 replaced it with `engine::restriction::is_prohibited`), not filtered at the two call sites that each held their own copy of it.
 - **Three consumers**: counters (CR 122.1c/d/h, no card text, 164 cards), regeneration (CR 701.19a/b/c, `Primitive::Regenerate` + the rider CR 701.19a spells out), and Kalitas, Traitor of Ghet — the only RB card, chosen for difficulty.
 - **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement. Since 2026-08-30 (`rb-review.md` H4) 704.6d's accepted moves join the SBA batch instead of being performed one at a time as they are offered — 704.3's "single event" is all of 704, not just 704.5, and each offer being its own event let a later owner decide against a board an earlier owner's move had changed.
 - Eight primitives: four stubs given implementations (`Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`) and four new (`Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`).
@@ -4911,32 +4911,13 @@ first.
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
-11. **The codebase has enough invented vocabulary to need a glossary, and
-    nothing defines the words in one place.** Reported on the RD-2 review, on
-    "subject group" — a term RD-2 introduced, defined in a doc comment on
-    `Member` in `pipeline.rs`, used in three plans and in two commit messages.
-    It is not alone: *frame*, *rider*, *instance* vs *member* vs *candidate*,
-    *applied set*, *bucket* (which RD-2 deleted for exactly this reason), the
-    three senses of *shield*, *pool* (card pool) vs *pool* (mana pool),
-    *chokepoint*, *gate leg*, *arm*. A reader meets each of them in whichever
-    file happens to introduce it, and the definition is wherever the phase
-    that coined it put it.
-
-    **Reachability (2026-09-09):** reachable and costing time now — the review
-    that produced this item asked what two of these words meant, and both were
-    defined only in a doc comment inside the module that uses them.
-
-    **Sized:** ~150–200 lines, one PR of its own. Two constraints from the
-    scars this file already records: (a) it goes in `README.md`, not
-    `CLAUDE.md` — the budget there is 8 lines and a glossary is not an
-    invariant; and (b) **it needs an anti-rot check or it is item 89 waiting
-    to happen** (a comment stating a fact, going stale, with nothing re-reading
-    it). The check is the cheap kind trace tier 3 already wants: a script that
-    asserts every glossary term still appears in `mtgsim/src`, and that every
-    word in a short watch-list (the ones above) appears in the glossary — so a
-    rename breaks CI in the same commit, which is how `must_choose_among`
-    would have been caught. `check_claude_md.py` and `check_module_layout.py`
-    are the template.
+11. **~~The codebase has enough invented vocabulary to need a glossary, and
+    nothing defines the words in one place~~ — ✅ CLOSED 2026-09-11 (the
+    glossary pass).** — archived.
+    **Reachability (2026-09-11):** closed — `plans/glossary.md` and
+    `plans/check_glossary.py`, PR #123.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Before card breadth
+    (Phase 8) — added by the RD-2 review" item 11.
 
 ### Before Triggered abilities (CR 603)
 
