@@ -840,6 +840,91 @@ It was a record for item 70's fix — the answer was right, re-derived
     **Reachability (2026-09-03):** closed — a record; the corpus was corrected.
 
 
+## Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
+
+11. **The codebase has enough invented vocabulary to need a glossary, and
+    nothing defines the words in one place.** Reported on the RD-2 review, on
+    "subject group" — a term RD-2 introduced, defined in a doc comment on
+    `Member` in `pipeline.rs`, used in three plans and in two commit messages.
+    It is not alone: *frame*, *rider*, *instance* vs *member* vs *candidate*,
+    *applied set*, *bucket* (which RD-2 deleted for exactly this reason), the
+    three senses of *shield*, *pool* (card pool) vs *pool* (mana pool),
+    *chokepoint*, *gate leg*, *arm*. A reader meets each of them in whichever
+    file happens to introduce it, and the definition is wherever the phase
+    that coined it put it.
+
+    **Reachability (2026-09-09):** reachable and costing time now — the review
+    that produced this item asked what two of these words meant, and both were
+    defined only in a doc comment inside the module that uses them.
+
+    **Sized:** ~150–200 lines, one PR of its own. Two constraints from the
+    scars this file already records: (a) it goes in `README.md`, not
+    `CLAUDE.md` — the budget there is 8 lines and a glossary is not an
+    invariant; and (b) **it needs an anti-rot check or it is item 89 waiting
+    to happen** (a comment stating a fact, going stale, with nothing re-reading
+    it). The check is the cheap kind trace tier 3 already wants: a script that
+    asserts every glossary term still appears in `mtgsim/src`, and that every
+    word in a short watch-list (the ones above) appears in the glossary — so a
+    rename breaks CI in the same commit, which is how `must_choose_among`
+    would have been caught. `check_claude_md.py` and `check_module_layout.py`
+    are the template.
+
+    **Closed 2026-09-11 by the glossary pass** (`plans/glossary.md`,
+    `plans/check_glossary.py`, PR #123). 31 terms, seven of them carrying more
+    than one meaning. Three things the item did not predict:
+
+    - **The check wants three assertions, not two.** The RD-4 review supplied
+      the third: *a word with more than one meaning carries all its senses,
+      numbered*. One sense per word is what let `Rewrite::Retarget`'s arms reach
+      the build as `ToSource` and `ToSourceController` — two different sources,
+      adjacent in one enum — and both had to be renamed mid-PR. `POLYSEMOUS` in
+      the script is the list, and a new collision is a line there and a numbered
+      sense in the doc, together.
+    - **The seed watch-list was wrong in both directions.** *gate leg* is not a
+      phrase anybody writes — *gate* and *leg* are separate words and both are
+      used constantly — so it was split. *census* turned out polysemous and was
+      not on the list at all (a Scryfall card census, and a call-site census).
+      *bucket*, which this item recorded as deleted, is alive: it is a recipient
+      slot in an `allocate` decision, and only its choice-ladder sense went
+      away. The list is the check's input, so a word on it that nobody uses is a
+      false alarm forever; it was pruned and extended against the tree.
+    - **Writing the entries found a name.** `codebase-state.md` item 110:
+      `engine::replacement::is_blocked`, named by `CLAUDE.md` and two doc
+      comments, has never existed. The glossary records it; fixing it is its own
+      PR, because this pass defines and does not rename.
+
+    **Two decisions the PR owed, both recorded here.**
+
+    1. **Where it lives: `plans/glossary.md`, not `README.md` — this item's
+       answer overruled.** README is 299 lines and is the project's front door;
+       a 200-line glossary makes it 40% glossary and buries Getting started
+       under vocabulary. The audience is also wrong for it: the glossary defines
+       `EntryFrame`, `must_choose_among` and `gather`'s legs, which is a reader
+       already inside the code, while README's reader is deciding whether to go
+       in. Every other authority in this project lives under `plans/` and is
+       reached from the Documentation map, and that indirection already exists
+       for exactly this. README gains the map row, a note that the file is
+       checked, and a Contributing line — 7 lines, not 200.
+    2. **A word the pass found genuinely ambiguous gets defined, not renamed.**
+       Item 110 is the one that came up, and it is a `codebase-state.md` line
+       and its own PR. A glossary that also renames is unreviewable: the diff
+       would mix "here is what this word means" with "and therefore three files
+       change", and a reviewer cannot check the second without re-deriving the
+       first.
+
+    **What the glossary deliberately does not do.** It does not restate. Each
+    entry says what the word means and names the file or doc section that owns
+    the reasoning, the same budget `CLAUDE.md` keeps for invariants — an entry
+    that re-argues §4.1 is a second copy, and the second copy is the one that
+    goes stale. The one block that *moved* rather than being summarized is
+    `replacement-architecture.md` §9's "Three things the CR calls a shield",
+    which was vocabulary sitting inside a design section and findable only by
+    someone reading RD; §9 keeps the `Uses::NextDamage` naming argument, which
+    is design, and points at the glossary for the disambiguation.
+
+    **Reachability (2026-09-11):** closed — the glossary pass, PR #123.
+
+
 ## Before Triggered abilities (CR 603)
 
 4. **~~The entry hop: Containment Priest's substitute leaves a permanent's worth of zone changes in the log for a card the CR says never entered~~ — ✅ CLOSED 2026-09-02 (RC-4b).** Entering is one proposal: `GameAction::EnterBattlefield` carries `from`, `change_zone` routes a battlefield destination to it, and its performer moves the card, announces the zone change, builds the entity and announces the entry. The Priest's substitute is one `ZoneChange { Graveyard → Exile }` with no LKI and one epoch, a dropped entry leaves the card where it was, and a "can't enter" may watch the entry (`phase_rc4b_integration_test`; `replacement-architecture.md` §9, RC-4b). The token residual is item 52. The record as found (2026-09-02, RC-4; sharpened in review): The `ZoneChange` performer moves the card into the battlefield zone and *then* proposes the `EnterBattlefield` (RC-2's one-`emit`-wide window), so "exile it instead" is performed as a `ZoneChange { from: Battlefield, to: Exile }`. Three things observe that: (a) the log holds a `ZoneChange` *into* the battlefield, so an ETB matcher on the zone change would fire — it must key on `PermanentEnteredBattlefield`, the performer's event, which a permanent that never entered does not have; (b) the log holds a `ZoneChange` *out of* it, `from: Battlefield` with a CR 603.10a LKI frame, so a leaves-the-battlefield or "exiled from the battlefield" matcher would fire, and a "leaves your graveyard" matcher would not, because the recorded `from` is wrong; (c) `zone_change_epoch` advances twice, so CR 400.7 sees two new objects. None is reachable today — no trigger matcher exists — but (b) and (c) have no keying rule that fixes them, so this is a bug-in-waiting for item 6, not a convention. **The fix is to reverse the nesting**, and it is the same restructuring as Deferred Migrations item 46: `GameAction::EnterBattlefield` carries `from`, its performer does the move, the placement and both emissions, and the `ZoneChange { to: Battlefield }` arm forwards to it *before* moving anything. Then the Priest's substitute is one `ZoneChange { from: <source zone>, to: Exile }`, the window is gone, `propose_entry`'s "replaced away" error is gone (a dropped entry leaves the card where it was, which is CR 614.6), a CR 614.17d "can't enter" may watch the entry, and a multi-entry batch is decided in phase 1 like any other proposal. The Priest stays in Root Maze's CR 616.1 bucket, which is what §11 item 19 needs reachable — moving the Priest to the zone change instead would split that bucket and force Priest-first. **Sized:** ~300–500 additions in `actions.rs` (two arms, `propose_entry`), `pipeline.rs` (the `Instead` arm), the token path in `resolve.rs` (`from: None`), and the RC-4 Priest tests' log assertions; CLAUDE.md's "one emitter" line is restated to name the entry performer. **Planned as RC-4b** — `replacement-architecture.md` §9 has the design, the token and CR 608.3e decisions, and the sizing — as its own PR ahead of RC-5, which needs entries to be batch members anyway.

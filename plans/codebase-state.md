@@ -3912,6 +3912,34 @@ audit is at the end.
      exists and answers `false`, which is the silent-card failure, so this line
      is the record that it does.
 
+### Found by the glossary pass (2026-09-11)
+
+110. **`engine::replacement::is_blocked` has never existed.** `CLAUDE.md`'s
+     replacement-pipeline section names it as where CR 614.17's "can't" check
+     lives, and two doc comments send a reader there — `engine/actions.rs:216`
+     and `engine/resolve.rs:412`; a third, `pipeline.rs:170`, compares against
+     the bare name. The mechanism is `engine::restriction::is_prohibited`, asked
+     with a `Query::Event`, in `engine/restriction/predicate.rs`. It is not free
+     either: `is_blocked` is taken, by `AttackingInfo` (CR 509), so a reader
+     following the pointer with a grep lands on combat.
+
+     Found while writing the *blocked* entry in `plans/glossary.md`, which is
+     the first thing that asked what every name in this vocabulary resolves to.
+     `check_glossary.py` would have caught a `::`-path whose last segment
+     vanished; it does not catch this one, because `is_blocked` resolves — to
+     the wrong thing. That is the limit of a text check, stated in its docstring
+     rather than papered over.
+
+     **Reachability (2026-09-11):** reachable and costing time now — `CLAUDE.md`
+     loads before every task, which is the case its own budget rule exists for:
+     "a stale claim here is worse than no claim". Nothing behaves wrongly; a
+     reader is sent to a function that is not there.
+
+     **Sized:** four words in `CLAUDE.md` and two doc comments, ~6 lines, and
+     **its own PR** — the glossary pass defines and does not rename, and
+     `CLAUDE.md`'s invariant text is not something to edit in a docs PR whose
+     licence there was one line inside the Commands fence.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a
@@ -4911,32 +4939,13 @@ first.
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
-11. **The codebase has enough invented vocabulary to need a glossary, and
-    nothing defines the words in one place.** Reported on the RD-2 review, on
-    "subject group" — a term RD-2 introduced, defined in a doc comment on
-    `Member` in `pipeline.rs`, used in three plans and in two commit messages.
-    It is not alone: *frame*, *rider*, *instance* vs *member* vs *candidate*,
-    *applied set*, *bucket* (which RD-2 deleted for exactly this reason), the
-    three senses of *shield*, *pool* (card pool) vs *pool* (mana pool),
-    *chokepoint*, *gate leg*, *arm*. A reader meets each of them in whichever
-    file happens to introduce it, and the definition is wherever the phase
-    that coined it put it.
-
-    **Reachability (2026-09-09):** reachable and costing time now — the review
-    that produced this item asked what two of these words meant, and both were
-    defined only in a doc comment inside the module that uses them.
-
-    **Sized:** ~150–200 lines, one PR of its own. Two constraints from the
-    scars this file already records: (a) it goes in `README.md`, not
-    `CLAUDE.md` — the budget there is 8 lines and a glossary is not an
-    invariant; and (b) **it needs an anti-rot check or it is item 89 waiting
-    to happen** (a comment stating a fact, going stale, with nothing re-reading
-    it). The check is the cheap kind trace tier 3 already wants: a script that
-    asserts every glossary term still appears in `mtgsim/src`, and that every
-    word in a short watch-list (the ones above) appears in the glossary — so a
-    rename breaks CI in the same commit, which is how `must_choose_among`
-    would have been caught. `check_claude_md.py` and `check_module_layout.py`
-    are the template.
+11. **~~The codebase has enough invented vocabulary to need a glossary, and
+    nothing defines the words in one place~~ — ✅ CLOSED 2026-09-11 (the
+    glossary pass).** — archived.
+    **Reachability (2026-09-11):** closed — `plans/glossary.md` and
+    `plans/check_glossary.py`, PR #123.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Before card breadth
+    (Phase 8) — added by the RD-2 review" item 11.
 
 ### Before Triggered abilities (CR 603)
 
