@@ -630,6 +630,13 @@ impl CardRegistry {
         registry.register("Meditate", phase_re_cards::meditate);
         registry.register("Time Walk", phase_re_cards::time_walk);
         registry.register("Moment of Silence", phase_re_cards::moment_of_silence);
+        registry.register("Thought Reflection", phase_re_cards::thought_reflection);
+        registry.register(
+            "Teferi's Ageless Insight",
+            phase_re_cards::teferis_ageless_insight,
+        );
+        registry.register("Alms Collector", phase_re_cards::alms_collector);
+        registry.register("Notion Thief", phase_re_cards::notion_thief);
 
         registry
     }

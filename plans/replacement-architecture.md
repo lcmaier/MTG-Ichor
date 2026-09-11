@@ -696,9 +696,35 @@ a fresh proposal with a fresh applied set, so two Thieves as `Prevent` +
 `then` trade the draw forever. The Thief's draw is **the same event with a new
 subject** — CR 614.5's "modified events that may replace that event" — and so
 `Instead(DrawCards { n: 1, player: Some(You) })`, keeping the lineage. Alms
-Collector stays the `then` case: "you and that player each draw a card" is two
-unlike things, and its ruling that Thought Reflection may double the resulting
-draws without Alms applying again holds either way. §9, RE decision 1.
+Collector is **half** the `then` case, which the correction above got wrong and
+RE-2's own tests caught two paragraphs later.
+
+**Corrected again 2026-09-11 (building RE-2): a rider does not carry the
+lineage, so whatever has to carry it belongs in the rewrite.** Alms Collector
+was filed as `Prevent` plus two riders on the reading that "you and that player
+each draw a card" is two unlike things. Its second ruling refuses that: *"once
+Alms Collector's replacement effect has modified the effect of a player's
+Divination, Thought Reflection can double that player's resulting card draw
+**without Alms Collector's replacement effect applying again**."* CR 614.5's own
+words are the test — an effect gets one opportunity to affect "an event **or any
+modified events that may replace that event**" — and only the rewrite's output
+is such a modified event. As riders the board is not a wrong number but an
+infinite loop: the rider's one draw is doubled back to two, Alms applies again,
+and the two effects trade cards until CR 104.4b calls the game a draw. Measured
+as a stack overflow the first time the test ran.
+
+**The rule, and it is the one both "and" cards needed.** Split a printed
+"instead X and Y" by asking which half CR 614.5 has to cover; that half is the
+rewrite, and only what is left over is `then`. Notion Thief's is the draw with a
+new subject; Alms Collector's is the same draw with a smaller count, which is
+this section's own homogeneous case hiding inside a heterogeneous sentence. Each
+card's own ruling names the loop the other filing produces, and neither card's
+remainder needs the lineage: "you draw a card" is a different player's draw and
+nothing watches it twice. **What this does not yet answer** is a card whose
+second half needs the lineage *and* cannot be folded into the rewrite — one
+event, two subjects, both under CR 614.5. Nothing in RE prints it; the day one
+does, `ReplacementOutcome`'s arity is the thing that has to move, not `then`'s
+timing. §9, RE decision 1; §11 item 53.
 
 **Honest note on why `Split` went.** It was first removed because the question
 "does a fanned-out branch inherit the CR 614.5 applied-set" had no answer. The
@@ -954,10 +980,17 @@ afterward*. Three consequences, each load-bearing:
   not to the survival of the event — a later replacement in the same loop
   further modifying or even dropping the event does not un-queue an earlier
   rider.
-- **Fresh lineage.** A rider's actions are new events the replacement caused,
-  not modified forms of the original, so they re-enter the pipeline with a
-  fresh applied-set (§3.2d containment). Not theoretical: Kalitas plus Doubling
-  Season makes two Zombies — the rider's `CreateTokens` is itself replaceable.
+- **Fresh lineage — and that is a constraint on what may be a rider, not just a
+  fact about one.** A rider's actions are new events the replacement caused, not
+  modified forms of the original, so they re-enter the pipeline with a fresh
+  applied-set (§3.2d containment). Not theoretical in either direction: Kalitas
+  plus Doubling Season makes two Zombies, because the rider's `CreateTokens` is
+  itself replaceable; and Alms Collector's draws had to *stop* being riders,
+  because CR 614.5 covers "any modified events that may replace that event" and
+  its own ruling says it does not apply to the draw it produced. Reading this
+  bullet as permission to put an effect's whole output in `then` is what
+  produced that loop, so §3.2d states the converse as a card-authoring rule:
+  whatever must carry the lineage goes in the rewrite.
 
 **Two: "A, then B" in card text** — Goggles of Night: "Whenever equipped
 creature deals combat damage to a player, scry 1, then draw a card." This
@@ -3519,9 +3552,11 @@ replacement can exist yet). **Consumers**, each with its rulings pass:
   Teferi beside Thought Reflection during the draw step draws **three**.
 - **Alms Collector** — "Flash. If an opponent would draw two or more cards,
   instead you and that player each draw a card." `EventPattern::DrawCards {
-  at_least: Some(2) }`, `Fixed(vec![])` + `Opponents`, `Prevent` with a rider
-  of two `DrawCards(1)` — one to the effect's controller, one to the affected
-  player (`Rider` carries the `EventSubject` since RD-1). Rulings, six, and
+  at_least: Some(2) }`, `Fixed(vec![])` + `Opponents`. **Sized here as `Prevent`
+  with a rider of two `DrawCards(1)`, and that is wrong** — §11 item 53: the
+  affected player's half has to be the rewrite (`Instead(DrawCards { n: 1 })`)
+  or CR 614.5 does not cover it and the card loops against an opponent's Thought
+  Reflection. One rider, the controller's draw. Rulings, six, and
   four are tests: *applies to the instruction before any per-card effect* →
   `ATOM-616.1g-001`, with Thought Reflection on the other side; *Thought
   Reflection can double the resulting draws without Alms applying again* →
@@ -5573,6 +5608,34 @@ found them.
     and which CR 121.2d (shared team turns) extends; one rider is one customer
     and the rule wants two. `codebase-state.md` has the line and the sizing.
     → RE-6, which is where a lost player stops being in turn order at all.
+
+53. **Alms Collector as `Prevent` plus riders is an infinite loop, and its own
+    ruling says so.** §9's RE decision 1 kept it as the heterogeneous case on
+    §3.2d's rule — "you and that player each draw a card" is two unlike things —
+    and that filing is what a rider's fresh applied set punishes: an opponent's
+    Thought Reflection doubles the rider's one draw back to two, Alms applies
+    again, and the two effects trade cards forever. Found by
+    `alms_collector_does_not_apply_again_to_the_draws_it_produced`, which
+    overflowed the stack the first time it ran; the ruling that decides it is
+    the same one the test is named for.
+
+    **Third time a printed ruling has decided a rewrite's arm rather than its
+    numbers** — Furnace of Rath's, then Notion Thief's (item 42), now this —
+    and the first time one has decided it *against* a correction made three
+    hours earlier. Worth the entry for what the two Thief/Collector corrections
+    share once they are side by side: the misreading is not about "instead"
+    versus "and", it is about assuming `then` is where the second clause goes.
+    CR 614.5's "any modified events that may replace that event" is the test,
+    and §3.2d now states it as a rule about where to split rather than as a
+    description of two cards.
+
+    **And the failure mode is worth a line of its own.** Both mis-filings
+    produce a loop rather than a wrong number, both loops are the kind CR 104.4b
+    calls a draw, and CR 731 loop detection is §12's — explicitly out of scope.
+    So an encoding error in this corner is a crash the engine cannot diagnose
+    for itself, which is the argument for the bound
+    `test_two_thought_reflections_draw_four_not_infinity` carries and for
+    putting one on every board in RE-2's file that can hold two of anything.
 
 ## 12. Explicitly out of scope
 

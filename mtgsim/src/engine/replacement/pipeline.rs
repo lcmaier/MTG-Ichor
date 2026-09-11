@@ -1305,20 +1305,33 @@ fn apply_rewrite(
                 }
             }
 
-            // CR 614.1a's "instead ... draw", on the individual draw — and the
-            // substitute is the **instruction** (CR 121.2a). Thought
-            // Reflection's "draw two cards instead" is one "draw" of two, so an
-            // inner-shaped substitute would hide from Alms Collector the very
-            // event it watches for.
+            // CR 614.1a's "instead ... draw", and the substitute is always the
+            // **instruction** (CR 121.2a) whichever of the two draw events it
+            // replaced. Thought Reflection's "draw two cards instead" is one
+            // "draw" of two, so an inner-shaped substitute would hide from Alms
+            // Collector the very event it watches for.
             //
             // **The cause travels with the event**, because CR 614.6 makes this
             // the original in modified form: a doubled draw-step draw still has
             // a first card that is `DrawCause::TurnBased` and a second that is
             // not, which is how Teferi's Ageless Insight's exception survives
             // being doubled. Nothing here counts cards drawn this step.
+            //
+            // Two legs, one per draw event, because both are printed. Thought
+            // Reflection, Teferi's Ageless Insight and Notion Thief replace an
+            // individual draw; Alms Collector replaces an instruction with a
+            // smaller one, and CR 614.5's "any modified events that may replace
+            // that event" is why that half of its text has to be the rewrite
+            // rather than a rider — the affected player's one draw carries the
+            // applied set only this way, and its own ruling is that Alms
+            // Collector does not apply again to it.
             (
                 GameActionTemplate::DrawCards { n, player },
                 GameAction::DrawCard { player: affected, cause },
+            )
+            | (
+                GameActionTemplate::DrawCards { n, player },
+                GameAction::DrawCards { player: affected, cause, .. },
             ) => Ok((
                 Some(GameAction::DrawCards {
                     player: draw_recipient(chosen, player.as_ref(), affected)?,
