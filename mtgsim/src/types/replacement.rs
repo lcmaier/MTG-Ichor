@@ -41,7 +41,7 @@ use crate::types::effects::{
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::ObjectId;
-use crate::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use crate::types::zones::{DestructionSource, DrawCause, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
 ///
@@ -245,6 +245,41 @@ pub enum EventPattern {
 
     /// CR 122.1d. The event's subject is the permanent being untapped.
     Untap,
+
+    /// CR 121.2a / 614.11 — **the instruction**, "if an opponent would draw
+    /// two or more cards". The event's subject is the drawing player.
+    ///
+    /// `at_least` is the only constraint printed on a draw instruction and it
+    /// is printed once: Alms Collector. Two other cards say "two or more"
+    /// about draws and both are triggers (Scryfall, 2026-09-11). `None` asks
+    /// nothing about the count and has no printed customer either — it is the
+    /// field's honest default rather than an arm, the same way
+    /// [`Self::BeginStep`]'s `None` is.
+    ///
+    /// **This never watches a [`Self::DrawCard`], and that is the ruling
+    /// rather than an implementation choice.** *"To determine whether a player
+    /// is instructed to draw multiple once or instructed multiple times to
+    /// draw one card, count how many times the word 'draw' is used."* One
+    /// instruction of two cards is this event; two cantrips are two individual
+    /// draws with no instruction over them for this to match.
+    DrawCards {
+        at_least: Option<u64>,
+    },
+
+    /// CR 121.1 / 614.11 — **one card being drawn**, which is what Thought
+    /// Reflection, Teferi's Ageless Insight and Notion Thief watch. The event's
+    /// subject is the drawing player.
+    ///
+    /// `cause` is the draw's own
+    /// [`DrawCause`](crate::types::zones::DrawCause), not its instruction's:
+    /// `Some(Effect)` is the ten cards' "except the first one you draw in each
+    /// of your draw steps", and `None` — Thought Reflection's — matches either.
+    /// A doubler applied to the draw step's draw leaves a first card that is
+    /// still `TurnBased` and a second that is not, which is how the exception
+    /// survives being doubled.
+    DrawCard {
+        cause: Option<DrawCause>,
+    },
 
     /// CR 603.2e's counterpart. No printed customer in RB; the arm exists
     /// because `GameAction::Tap` exists and the contract above says one arm
@@ -1031,6 +1066,27 @@ pub enum GameActionTemplate {
     /// with a stun counter on it would become untapped, instead remove a stun
     /// counter from it".
     RemoveCountersFromAffected { counter: CounterType, n: u32 },
+
+    /// Draw instead (CR 121.2a) — the substitute for an individual draw, and
+    /// it is the **instruction**, not another individual draw.
+    ///
+    /// Two customers, and they differ only in `player`. Thought Reflection's
+    /// "draw two cards instead" is `{ n: 2, player: None }` — the draw stays
+    /// with the player who would have drawn. Notion Thief's "instead that
+    /// player skips that draw and you draw a card" is
+    /// `{ n: 1, player: Some(PlayerRef::You) }`: **the same event with a new
+    /// subject**, which is CR 614.5's "modified events that may replace that
+    /// event" and the only encoding its own ruling admits. As a `Prevent` with
+    /// a rider the Thief's draw would be a fresh proposal with a fresh applied
+    /// set, and two Thieves would trade one draw forever instead of each
+    /// applying once (`replacement-architecture.md` §3.2d, corrected
+    /// 2026-09-11).
+    ///
+    /// `None` on `player` is the affected player rather than an absent value:
+    /// the field exists because one of the two customers moves the draw, and
+    /// the other one saying so explicitly would be a `PlayerRef` the pipeline
+    /// resolves to the same answer it already has.
+    DrawCards { n: u64, player: Option<PlayerRef> },
 }
 
 /// CR 616.1a–e — the steps of the rule's choice ladder, in its own order.

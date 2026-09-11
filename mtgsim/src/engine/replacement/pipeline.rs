@@ -139,6 +139,11 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         GameAction::DealDamage { amount, .. }
         | GameAction::GainLife { amount, .. }
         | GameAction::LoseLife { amount, .. } => Some(*amount),
+        // CR 121.2a's "the number of cards drawn" is exactly what CR 615.5's
+        // "that many" would mean about a draw instruction, so the instruction
+        // reports it and the individual draw does not — one card, and no rider
+        // says "that many" about one.
+        GameAction::DrawCards { n, .. } => Some(*n),
         GameAction::AddCounters { .. }
         | GameAction::RemoveCounters { .. }
         | GameAction::DrawCard { .. }
@@ -209,10 +214,13 @@ fn never_happens(action: &GameAction) -> bool {
 /// batches, so a first striker and a regular blocker spend two counters.
 ///
 /// Returns each member's index with what happens to it — `None` when its
-/// event does not happen at all (CR 614.6). Queued riders are pushed onto
-/// `riders` in application order and are the caller's to resolve *after*
-/// performing the surviving events, including for a member that ended as
-/// `None`, since CR 615.12 makes a rider unconditional once queued.
+/// event does not happen at all (CR 614.6) — **and the group's applied set**,
+/// which is what a performer that decomposes hands to the events it decomposes
+/// into (§3.2d; the `inherited` paragraph below is the same rule from the
+/// other end). Queued riders are pushed onto `riders` in application order and
+/// are the caller's to resolve *after* performing the surviving events,
+/// including for a member that ended as `None`, since CR 615.12 makes a rider
+/// unconditional once queued.
 ///
 /// `later` is the rest of the batch — the groups not yet decided, at their
 /// proposed amounts — read for one thing only: CR 615.7's allocation is per
@@ -233,7 +241,7 @@ pub(crate) fn apply_replacements(
     ctx: &ActionContext,
     inherited: &HashSet<ReplacementInstanceId>,
     riders: &mut Vec<Rider>,
-) -> Result<Vec<(usize, Option<GameAction>)>, String> {
+) -> Result<(Vec<(usize, Option<GameAction>)>, HashSet<ReplacementInstanceId>), String> {
     let subject = subject_of(&group[0].1);
     debug_assert!(
         group.iter().all(|(_, a)| subject_of(a) == subject),
@@ -270,7 +278,9 @@ pub(crate) fn apply_replacements(
         .into_iter()
         .map(|(index, event)| Member { index, event: Some(event) })
         .collect();
-    let finish = |members: Vec<Member>| members.into_iter().map(|m| (m.index, m.event)).collect();
+    let finish = |members: Vec<Member>| -> Vec<(usize, Option<GameAction>)> {
+        members.into_iter().map(|m| (m.index, m.event)).collect()
+    };
 
     // Unbounded on purpose. **Every iteration consumes something finite**, and
     // the three things that guarantee it are each enforced in code rather than
@@ -293,7 +303,7 @@ pub(crate) fn apply_replacements(
         // Owned, because the gather below walks `members` mutably; one small
         // clone per iteration of a loop that runs once for most proposals.
         let Some(first) = members.iter().find_map(|m| m.event.clone()) else {
-            return Ok(finish(members));
+            return Ok((finish(members), applied));
         };
 
         // **The group's key is not the members' subject after RD-4**, and the
@@ -368,7 +378,7 @@ pub(crate) fn apply_replacements(
             }
         }
         if candidates.is_empty() {
-            return Ok(finish(members));
+            return Ok((finish(members), applied));
         }
 
         // CR 616.1a–e's ladder: everything below the first non-empty step is
@@ -1189,9 +1199,13 @@ fn apply_rewrite(
                 ))
             }
             // Its `EventPattern` and its `Rewrite` describe different events —
-            // the same card-authoring error every other arm reports.
+            // the same card-authoring error every other arm reports. The
+            // wording is about the *arm* rather than about the event since
+            // RE-2: `DrawCards` carries CR 121.2a's count, which a rider reads
+            // through `event_amount`, and `Rewrite::Amount`'s arithmetic is
+            // still CR 615's and still only about damage.
             other => Err(format!(
-                "replacement {:?} changes an amount but matched {:?}, which has none",
+                "replacement {:?} changes an amount but matched {:?}, which has no `Rewrite::Amount` arm",
                 chosen.id, other
             )),
         },
@@ -1291,10 +1305,39 @@ fn apply_rewrite(
                 }
             }
 
+            // CR 614.1a's "instead ... draw", on the individual draw — and the
+            // substitute is the **instruction** (CR 121.2a). Thought
+            // Reflection's "draw two cards instead" is one "draw" of two, so an
+            // inner-shaped substitute would hide from Alms Collector the very
+            // event it watches for.
+            //
+            // **The cause travels with the event**, because CR 614.6 makes this
+            // the original in modified form: a doubled draw-step draw still has
+            // a first card that is `DrawCause::TurnBased` and a second that is
+            // not, which is how Teferi's Ageless Insight's exception survives
+            // being doubled. Nothing here counts cards drawn this step.
+            (
+                GameActionTemplate::DrawCards { n, player },
+                GameAction::DrawCard { player: affected, cause },
+            ) => Ok((
+                Some(GameAction::DrawCards {
+                    player: draw_recipient(chosen, player.as_ref(), affected)?,
+                    n: *n,
+                    cause,
+                }),
+                changed,
+            )),
+
             // A template that cannot be built from this event is a card-
             // authoring error rather than a rules corner: the pattern is what
             // decides which events reach the rewrite, so a mismatch means the
             // two halves of one `ReplacementDef` disagree.
+            (GameActionTemplate::DrawCards { .. }, other) => Err(format!(
+                "replacement {:?} rewrites to a draw but matched {:?}, which is not an \
+                 individual card draw. Its `EventPattern` and its `Rewrite` describe \
+                 different events.",
+                chosen.id, other
+            )),
             (GameActionTemplate::ZoneChangeTo { .. }, other) => Err(format!(
                 "replacement {:?} rewrites to a zone change but matched {:?}, which is \
                  neither one nor an entry. Its `EventPattern` and its `Rewrite` describe \
@@ -1302,6 +1345,36 @@ fn apply_rewrite(
                 chosen.id, other
             )),
         },
+    }
+}
+
+/// Who a [`GameActionTemplate::DrawCards`] substitution hands the draw to.
+///
+/// `None` is the affected player — Thought Reflection and Teferi's Ageless
+/// Insight both leave the draw where it was — and [`PlayerRef::You`] is the
+/// effect's controller, which is Notion Thief's whole point.
+///
+/// **`Owner` and `Opponent` are refused rather than guessed.** A draw's subject
+/// is a player, so there is no object for `Owner` to be the owner of; and
+/// `Opponent` would need a prompt to pick one of several, which CR 616.1 has
+/// nowhere to hang — the choice that rule defines is *which effect applies*,
+/// not where an applied effect's draw lands. Nothing prints either one, each is
+/// one printed card away from an arm, and an arm the pipeline cannot apply is
+/// worse than a missing one.
+fn draw_recipient(
+    chosen: &ReplacementInstance,
+    player: Option<&PlayerRef>,
+    affected: PlayerId,
+) -> Result<PlayerId, String> {
+    match player {
+        None => Ok(affected),
+        Some(PlayerRef::You) => Ok(chosen.controller),
+        Some(PlayerRef::Player(pid)) => Ok(*pid),
+        Some(other) => Err(format!(
+            "replacement {:?} substitutes a draw for {:?}, which names no player a draw \
+             event has: a draw's subject is a player, not an object.",
+            chosen.id, other
+        )),
     }
 }
 

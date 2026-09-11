@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
+use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
@@ -16,7 +19,7 @@ use crate::ui::decision::DecisionProvider;
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the cause, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DestructionSource, LifeLossCause, ZoneChangeCause};
+pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeCause};
 
 /// Who is asking for a mutation, and what resolution it belongs to.
 ///
@@ -103,11 +106,49 @@ pub enum GameAction {
         unpreventable: bool,
     },
 
-    /// A single card draw for a player.
+    /// **The instruction to draw** (CR 121.2, 121.2a) — "draw N cards",
+    /// including N = 1.
     ///
-    /// Drawing N cards is N individual `DrawCard` actions (rule 121.2).
+    /// > 121.2a An instruction to draw multiple cards can be modified by
+    /// > replacement effects that refer to the number of cards drawn. This
+    /// > modification occurs before considering any of the individual card
+    /// > draws.
+    ///
+    /// **Every draw instruction proposes this, "draw a card" included**, and
+    /// Alms Collector's ruling is why it has to: *"to determine whether a player
+    /// is instructed to draw multiple once or instructed multiple times to draw
+    /// one card, count how many times the word 'draw' is used."* One "draw" of
+    /// two cards is one of these with `n = 2`; two "draw a card"s are two of
+    /// these with `n = 1`. An engine that skipped the instruction level for
+    /// `n = 1` would have no event to tell the two apart on.
+    ///
+    /// Performing it proposes `n` individual [`Self::DrawCard`]s **one at a
+    /// time**, each completing before the next is proposed (CR 121.2, 121.6b),
+    /// and each inheriting this event's CR 614.5 applied set: the draws are this
+    /// event at finer grain rather than events it caused, which is §3.2d's
+    /// lineage rule and the reason two Teferi's Ageless Insights draw four cards
+    /// instead of hanging.
+    ///
+    /// `n = 0` is an instruction that draws nothing. It still reaches the
+    /// pipeline: CR 614.7a's "never happens" is 120.8's and 119.10's, each
+    /// printed about its own event, and CR 121.2 says only that the player
+    /// performs that many individual draws.
+    DrawCards {
+        player: PlayerId,
+        n: u64,
+        cause: DrawCause,
+    },
+
+    /// A single card draw (CR 121.1) — **the inner event**, and
+    /// [`Self::DrawCards`]'s performer is its only producer.
+    ///
+    /// `cause` is *this draw's*, not its instruction's: an instruction's first
+    /// individual draw carries the instruction's cause and every later one is
+    /// [`DrawCause::Effect`]. See [`DrawCause`] for why that is the whole of
+    /// "except the first one you draw in each of your draw steps".
     DrawCard {
         player: PlayerId,
+        cause: DrawCause,
     },
 
     /// A player gains life.
@@ -451,7 +492,34 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
-        let result = self.execute_batch_inner(batch, ctx);
+        let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
+        self.events.close_batch(previous);
+        result
+    }
+
+    /// [`Self::execute_actions`], but the batch's CR 616.1 loop starts from
+    /// `inherited` rather than from an empty applied set.
+    ///
+    /// **One caller, and it needs a rule to exist** — CR 121.2's decomposition
+    /// of a draw instruction into individual draws. The batch joins the
+    /// enclosing one exactly as [`Self::execute_actions`] does, because the
+    /// inner draws *are* the result of the outer instruction; the only
+    /// difference is what CR 614.5's applied set starts as.
+    ///
+    /// A second caller needs §3.2d's argument made again, and it is **not**
+    /// "these are nested" — every nested call in the crate is nested. It is
+    /// that the inner event is the outer one **at finer grain** rather than an
+    /// event the outer one caused. `DealDamage`'s contained `LoseLife` and a
+    /// token creation's entries are the other shape, and each takes the fresh
+    /// set `execute_actions` gives it.
+    pub(crate) fn execute_actions_inheriting(
+        &mut self,
+        batch: Vec<GameAction>,
+        ctx: &ActionContext,
+        inherited: &HashSet<ReplacementInstanceId>,
+    ) -> Result<Vec<GameAction>, String> {
+        let previous = self.events.open_batch(ctx.resolution_stamp());
+        let result = self.execute_batch_inner(batch, ctx, inherited);
         self.events.close_batch(previous);
         result
     }
@@ -479,7 +547,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_new_batch(ctx.resolution_stamp());
-        let result = self.execute_batch_inner(batch, ctx);
+        let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
         self.events.close_batch(previous);
         result
     }
@@ -498,8 +566,10 @@ impl GameState {
     /// borrow this function is already holding.
     ///
     /// Nothing else lives in the split — it is not a phase boundary or an
-    /// extension point. A third caller would need §4.2's argument about batch
-    /// identity, not a reason to reuse this body.
+    /// extension point. The third caller, RE-2's
+    /// [`Self::execute_actions_inheriting`], made §3.2d's argument about
+    /// *lineage* rather than §4.2's about batch identity; a fourth needs one or
+    /// the other, not a reason to reuse this body.
     ///
     /// **Deciding is separated from performing, and that is CR 704.3.** "The
     /// game checks for any of the listed conditions ... then performs all
@@ -512,6 +582,7 @@ impl GameState {
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
+        inherited: &HashSet<ReplacementInstanceId>,
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
 
@@ -578,7 +649,13 @@ impl GameState {
 
         let mut riders: Vec<Rider> = Vec::new();
         let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
-        let inherited = std::collections::HashSet::new();
+        // What each member's CR 616.1 loop applied, carried into phase 2 for
+        // the one performer that decomposes. Per member rather than per group
+        // only because `decided` is indexed that way; a group's members share
+        // one loop and therefore one set. The clone is of an empty `HashSet`
+        // for every event no replacement touched, which allocates nothing.
+        let mut applied_to: Vec<HashSet<ReplacementInstanceId>> =
+            vec![HashSet::new(); batch.len()];
         let mut decided_ok = Ok(());
         for g in 0..groups.len() {
             let members: Vec<(usize, GameAction)> =
@@ -587,10 +664,11 @@ impl GameState {
                 .iter()
                 .flat_map(|(_, idxs)| idxs.iter().map(|&i| (i, &batch[i])))
                 .collect();
-            match apply_replacements(self, members, &later, ctx, &inherited, &mut riders) {
-                Ok(results) => {
+            match apply_replacements(self, members, &later, ctx, inherited, &mut riders) {
+                Ok((results, applied)) => {
                     for (i, action) in results {
                         decided[i] = action;
+                        applied_to[i] = applied.clone();
                     }
                 }
                 Err(e) => {
@@ -610,8 +688,9 @@ impl GameState {
         // order they are written in is still observable (a graveyard is
         // ordered), and it is the caller's `battlefield_ids_ordered` sweep.
         let mut performed = Vec::with_capacity(decided.len());
-        for action in decided.into_iter().flatten() {
-            self.perform_action(action.clone(), ctx)?;
+        for (i, action) in decided.into_iter().enumerate() {
+            let Some(action) = action else { continue };
+            self.perform_action(action.clone(), ctx, &applied_to[i])?;
             performed.push(action);
         }
 
@@ -734,10 +813,21 @@ impl GameState {
     /// because this is where it is used *first*: RA-2 routes lifelink's life
     /// gain through `execute_action`, and that proposal is made from inside the
     /// `DealDamage` arm below.
+    ///
+    /// `lineage` is what this event's own CR 616.1 loop applied, and exactly one
+    /// arm reads it: a performer that **decomposes** hands it to the events it
+    /// decomposes into, because those are this event at finer grain and CR
+    /// 614.5's applied set has to continue across them (§3.2d). A performer that
+    /// *contains* another event — `DealDamage`'s CR 120.3a life loss, an entry
+    /// caused by a creation — proposes it through `execute_action` and it gets
+    /// the fresh set that call gives it. §3.2d's discriminator is whether the
+    /// derived event is the same kind of thing as its parent, and it is answered
+    /// here, at the call, rather than inferred.
     fn perform_action(
         &mut self,
         action: GameAction,
         _ctx: &ActionContext,
+        lineage: &HashSet<ReplacementInstanceId>,
     ) -> Result<(), String> {
         match action {
             // `unpreventable` is read by the pipeline and by nothing here:
@@ -871,7 +961,44 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::DrawCard { player } => {
+            // > 121.2. Cards may only be drawn one at a time. If a player is
+            // > instructed to draw multiple cards, that player performs that
+            // > many individual card draws.
+            //
+            // **One at a time is literal**, and CR 121.6b says why it has to
+            // be: "if an effect replaces a draw within a sequence of card
+            // draws, the replacement effect is completed before resuming the
+            // sequence." Each inner is its own batch, so its replacements are
+            // decided and its riders run before the next one is proposed.
+            //
+            // `lineage` is what each inner starts its CR 614.5 applied set
+            // from. These are this instruction at finer grain, not events it
+            // caused, so the set continues (§3.2d) — which is the difference
+            // between two Teferi's Ageless Insights drawing four cards and the
+            // game hanging.
+            //
+            // No guard on `n == 0`: the loop is the no-op.
+            GameAction::DrawCards { player, n, cause } => {
+                for i in 0..n {
+                    self.execute_actions_inheriting(
+                        vec![GameAction::DrawCard {
+                            player,
+                            // CR 121.1's turn-based action is one card. Every
+                            // draw after an instruction's first belongs to the
+                            // effect that produced it, whatever the instruction
+                            // was — which is what "except the first one you
+                            // draw in each of your draw steps" means once a
+                            // doubler has been applied to the draw step's draw.
+                            cause: if i == 0 { cause } else { DrawCause::Effect },
+                        }],
+                        _ctx,
+                        lineage,
+                    )?;
+                }
+                Ok(())
+            }
+
+            GameAction::DrawCard { player, cause: _ } => {
                 // Delegate to `draw_card`, which handles empty-library flagging
                 // (CR 121.6a) and proposes the library→hand move through
                 // `change_zone` — so the move is a nested batch member, not a
