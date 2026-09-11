@@ -3,7 +3,7 @@
 check_glossary - the codebase's invented vocabulary, as a gate rather than a doc.
 
 `plans/glossary.md` states facts about the tree: that `Member` is a batch
-member, that `ToEffectSource` is one of two things called a source. A doc that
+member, that `ToEffectSource` is one of three things called a source. A doc that
 states facts and has nothing re-reading it is `codebase-state.md` item 89 with
 a new name - it goes stale in the commit that renames something and nobody
 finds out. This is the re-reader.
@@ -24,11 +24,14 @@ Three assertions:
      and both had to be renamed mid-PR.
 
 **What assertion 1 does and does not prove.** It is a text search over every
-`.rs` file, comments included, so a rename that leaves a "this used to be X"
-note behind still passes. That is deliberate: such a note is the pointer a
-reader following the old name needs, and four of them exist today. What fails
-is a name that vanishes from the crate entirely, which is the case the glossary
-cannot survive.
+`.rs` file, comments included. Two things therefore pass that a reader would
+call stale. A rename leaving a "this used to be X" note behind: deliberate, and
+four such notes exist today, each the pointer a reader following the old name
+needs. And a deleted name another subsystem still uses for something else -
+`engine::replacement::is_blocked` was RB's CR 614.17 check until RS-1, and
+`is_blocked` keeps resolving because combat's `AttackingInfo` has a field by
+that name. What fails is a name that vanishes from the crate entirely, which is
+the case the glossary cannot survive.
 
 `check_claude_md.py` and `check_module_layout.py` are the template, and
 CLAUDE.md's Commands fence runs all three.
@@ -51,15 +54,15 @@ WATCHLIST = [
     "applied set", "arm", "atom", "batch", "blocked", "bucket", "candidate",
     "ceiling", "census", "chokepoint", "donor", "emitter", "epoch", "frame",
     "gate", "host", "instance", "ladder", "leg", "member", "memo", "performer",
-    "pool", "proposal", "rider", "shield", "source", "step", "subject",
-    "subject group", "sweep",
+    "pool", "proposal", "registry", "rider", "shield", "source", "step",
+    "subject", "subject group", "sweep", "walk",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes
 # each. A new collision is a line here and a numbered sense there, together.
 POLYSEMOUS = {
-    "source": 3, "shield": 3, "census": 2, "pool": 2,
-    "step": 2, "blocked": 2, "gate": 2,
+    "source": 3, "shield": 3, "registry": 3, "census": 2,
+    "pool": 2, "step": 2, "blocked": 2, "gate": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:
@@ -170,8 +173,9 @@ def main() -> int:
             print(f"  {line}")
         print(
             "\nFix the glossary, not this script - unless the word really is gone,\n"
-            "in which case drop it from WATCHLIST in the same commit. A rename that\n"
-            "argues for itself belongs in `plans/codebase-state.md` and its own PR."
+            "in which case drop it from WATCHLIST in the same commit. Renaming a live\n"
+            "symbol to settle an ambiguity is its own PR; fixing a pointer to one\n"
+            "already gone is not, and belongs to whoever noticed."
         )
         return 1
 

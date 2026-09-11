@@ -888,10 +888,27 @@ It was a record for item 70's fix — the answer was right, re-derived
       slot in an `allocate` decision, and only its choice-ladder sense went
       away. The list is the check's input, so a word on it that nobody uses is a
       false alarm forever; it was pruned and extended against the tree.
-    - **Writing the entries found a name.** `codebase-state.md` item 110:
-      `engine::replacement::is_blocked`, named by `CLAUDE.md` and two doc
-      comments, has never existed. The glossary records it; fixing it is its own
-      PR, because this pass defines and does not rename.
+    - **Writing the entries found five stale pointers to one name, and fixed
+      them here.** `engine::replacement::is_blocked` was real: RB's CR 614.17
+      check, born 42e0516 and deleted by RS-1 (68bfdad) when the "can't" spine
+      became `engine::restriction::is_prohibited`. Six references outlived it.
+      Four were live pointers and now name `is_prohibited` — `CLAUDE.md`,
+      `engine/actions.rs`, `engine/resolve.rs` and `pipeline.rs`'s bare use.
+      Two are dated history and were dated rather than rewritten:
+      `cant-effects-architecture.md` §1, which argues about what RB built, and
+      the live file's "Status 2026-08-26: Phase RB ✅" block, where the name was
+      correct when written. It was carried as a deferred item for about an hour
+      before the owner called it correctly: a six-line doc correction inside a
+      PR whose subject is *what the words mean* is not a rename, and filing it
+      as its own PR is how the backlog bloats.
+
+      Two lessons, and the second is sharper. The first draft of this record
+      said the name had "never existed" — nobody had run `git log -S`, and the
+      pointer being *wrong* is a different claim from the pointer being *stale*.
+      The second: `check_glossary.py` cannot catch this class. `is_blocked`
+      still resolves as a word, because combat has an `AttackingInfo` field by
+      that name, so assertion 1 passes on a pointer aimed at the wrong
+      subsystem. The docstring says so rather than papering over it.
 
     **Two decisions the PR owed, both recorded here.**
 
@@ -905,12 +922,15 @@ It was a record for item 70's fix — the answer was right, re-derived
        reached from the Documentation map, and that indirection already exists
        for exactly this. README gains the map row, a note that the file is
        checked, and a Contributing line — 7 lines, not 200.
-    2. **A word the pass found genuinely ambiguous gets defined, not renamed.**
-       Item 110 is the one that came up, and it is a `codebase-state.md` line
-       and its own PR. A glossary that also renames is unreviewable: the diff
-       would mix "here is what this word means" with "and therefore three files
-       change", and a reviewer cannot check the second without re-deriving the
-       first.
+    2. **A word the pass found genuinely ambiguous gets defined, not renamed —
+       and a stale pointer is not a rename.** No word came up needing a rename;
+       `is_blocked` is the case that tested the line, and the owner drew it in
+       the right place. Renaming a live symbol carries a diff a reviewer cannot
+       check without re-deriving the definition, so it stays out. Correcting a
+       pointer to a symbol deleted five commits ago carries no such diff — it is
+       six lines, it belongs to whoever noticed, and deferring it to "its own
+       PR" is how a backlog grows entries nobody will ever pick up. The rule is
+       about the *reviewability* of the change, not about which file it touches.
 
     **What the glossary deliberately does not do.** It does not restate. Each
     entry says what the word means and names the file or doc section that owns

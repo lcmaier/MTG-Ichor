@@ -74,8 +74,11 @@ not hidden.
 
 ### What RB built, and why it is correct
 
-`engine::replacement::is_blocked` is a `bool`-returning match over `GameAction`,
+`engine::replacement::is_blocked` was a `bool`-returning match over `GameAction`,
 consulted at the top of every CR 616.1f iteration and winning over the pipeline.
+(RB's name and RB's shape, written up before RS-1; the mechanism is
+`engine::restriction::is_prohibited` asked with a `Query::Event` since 68bfdad,
+which is this section's argument carried out.)
 Three things about it are *right* and this design keeps all three:
 
 - **A "can't" is not a `ReplacementDef`.** Modelling indestructible as one would

@@ -409,7 +409,7 @@ impl GameState {
                 // **Indestructible is no longer filtered here.** CR 702.12b
                 // makes it a "can't" (CR 614.17), not a replacement effect, so
                 // it belongs ahead of the pipeline rather than ahead of the
-                // proposal — `engine::replacement::is_blocked`. Filtering here
+                // proposal — `engine::restriction::is_prohibited`. Filtering here
                 // was observationally right and structurally wrong: a "can't"
                 // that never becomes a proposal cannot be replaced by a
                 // CR 614.15 self-replacement (614.17c), and nothing downstream

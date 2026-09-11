@@ -764,7 +764,8 @@ the failure mode that shows up as a card silently doing nothing:
    hooks `ContinuousEffectRegistry` already uses.
 4. **Shields from resolutions.** CR 615.7/615.8, CR 701.19a regeneration. Also
    the registry, with `Uses::Once` or `Uses::NextDamage(n)` (named `Shield(n)`
-   until RD's design check; §9's shield glossary says why it moved).
+   until RD's design check; §9 says why it moved, and `plans/glossary.md`
+   under *shield* separates the three things that word names).
 5. **Counters.** CR 122.1c (shield), 122.1d (stun), 122.1h (finality). These
    come from the *counter*, not from any ability — nothing on the card says so.
    Synthesized during the sweep from `PermanentState.counters`.

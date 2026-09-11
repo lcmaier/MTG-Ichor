@@ -13,16 +13,12 @@ second copy, and the second copy is the one that goes stale. It also **defines
 without renaming**: where this pass found a name genuinely wrong, the finding is
 a `codebase-state.md` line and its own PR.
 
-**It is checked.** `python plans/check_glossary.py` asserts three things:
-
-1. every term defined here, and every code anchor an entry names, still resolves
-   in `mtgsim/src` — so a rename fails CI in the commit that renames;
-2. every word on the script's watch-list is defined here — so a new coinage
-   cannot land undefined;
-3. a word the script lists as polysemous carries **all** of its senses here,
-   numbered. That is the assertion with a scar: `Rewrite::Retarget`'s arms
-   reached the build as `ToSource` and `ToSourceController` — two *different*
-   sources, adjacent in one enum — and both had to be renamed mid-PR.
+**It is checked.** `python plans/check_glossary.py` asserts that every term and
+every code anchor here still resolves in `mtgsim/src`, that every word on its
+watch-list is defined, and that a word it lists as polysemous carries **all** of
+its senses, numbered. The last is the one with a scar: `Rewrite::Retarget`'s
+arms reached the build as `ToSource` and `ToSourceController` — two *different*
+sources, adjacent in one enum — and both had to be renamed mid-PR.
 
 ## Words that mean more than one thing
 
@@ -31,11 +27,13 @@ that dealt or produced it, carried by `GameAction::DealDamage` and matched by
 `EventPattern`. **(2)** The object whose ability an effect *is* —
 `ReplacementInstance`'s `source` field, `RegisteredReplacementEffect`'s,
 `ContinuousEffect`'s. Also CR 609.7, and in a damage event it is a different
-object from sense 1. **(3)** A *gather source*: one of the numbered routes a
-discovery pass looks down, not an object at all. → senses 1 and 2 are adjacent
-in `RetargetSpec`, which is why its arms are `ToEffectSource` and
-`ToDamageSourceController`; sense 3 is `replacement-architecture.md` §3.3's five
-and `cost-architecture.md` §4's two.
+object from sense 1. **(3)** A *gather source*: one of the numbered places
+`gather` looks to find the replacement effects that could apply to a proposed
+event — a permanent's static abilities, a registry row, a counter. Not an object
+at all, and the list being wrong is the failure that shows up as a card silently
+doing nothing. → senses 1 and 2 are adjacent in `RetargetSpec`, which is why its
+arms are `ToEffectSource` and `ToDamageSourceController`; sense 3 is
+`replacement-architecture.md` §3.3's five and `cost-architecture.md` §4's two.
 
 **shield** — three, and RD-2 is where they meet. **(1)** CR 614.1's metaphor:
 every replacement and prevention effect "act[s] like a shield" around what it
@@ -64,10 +62,11 @@ rule's own word, which was right for that name and made this pair.
 
 **blocked** — **(1)** combat: a creature a blocker blocked, CR 509.
 `AttackingInfo`'s `is_blocked`. **(2)** prose only: an event a CR 614.17 "can't"
-forbids, checked ahead of the replacement pipeline. There is no function by that
-name — the mechanism is `is_prohibited` with a `Query::Event`. `CLAUDE.md` and
-two doc comments still point at `engine::replacement::is_blocked`, which has
-never existed; `codebase-state.md` item 110.
+forbids, checked ahead of the replacement pipeline and winning over it
+(CR 101.2). Sense 2 had a function — RB's `engine::replacement::is_blocked`,
+which RS-1 deleted; the mechanism is `engine::restriction::is_prohibited` asked
+with a `Query::Event`. Four pointers outlived the name, and a grep after one
+lands on sense 1.
 
 **gate** — **(1)** a cheap precondition deciding whether to do expensive work:
 "a gate, not an answer". It may over-approximate and cost a walk; it may never
@@ -84,6 +83,16 @@ cards by mechanism, to size a phase before designing it.
 writing it, and recording the number so the prediction can be scored afterwards.
 Sense 2 is what missed `apply_lifelink` — it censused `emit` sites, and lifelink
 wrote `life_total` by hand while emitting loudly.
+
+**registry** — three tables wear the name and only two are game state.
+**(1)** `CardRegistry`: card name → constructor, the definitions themselves,
+nothing to do with a game in progress. **(2)** `ContinuousEffectRegistry`:
+CR 613 continuous effects created by a resolution, each with a `Duration`.
+**(3)** `ReplacementEffectRegistry`: CR 614.3 / 615.7 / 701.19a rows, with a
+`Duration` and a `Uses`. Senses 2 and 3 are both `DurationRegistry` instances,
+and for both, **membership is not effect existence** — CR 305.7 or Layer 6 can
+take the ability away without touching the row. → `CLAUDE.md`;
+`layers-architecture.md` §5.2.
 
 ## The action pipeline (CR 614–616)
 
@@ -110,11 +119,15 @@ they are not the same field.
 
 **subject group** — the members of one batch that share a subject — two
 blockers' damage to one attacker. CR 616.1's unit is the group, not the member:
-one loop, one chooser, one applied set, so an effect applies to the pair once.
-→ `engine/actions.rs`'s phase-1 comment; `replacement-architecture.md` §9.
+one pass of the rule, one chooser, one applied set — so an effect applies to the
+pair once, not once each. → `engine/actions.rs`'s phase-1 comment;
+`replacement-architecture.md` §9.
 
-**member** — `Member`: one proposal inside a batch as the loop carries it — its
-index and its event as decided so far, `None` once dropped (CR 614.6, 614.7a).
+**member** — `Member`: one proposal inside a batch, as the replacement pipeline
+works through it — the proposal's index into the batch, plus its event as
+rewritten so far. The event becomes `None` when a replacement drops the proposal
+outright (CR 614.6, 614.7a, 614.17); the member itself stays, so the index it
+carries stays valid.
 
 **candidate** — `Candidate`: one applicable effect in a group's iteration, with
 the members it applies to. A candidate is not yet applied; `must_choose_among`
@@ -153,6 +166,10 @@ at most once per pipeline iteration. → `engine/layers/board.rs`,
 `engine/replacement/lookahead.rs`.
 
 ## The layer system (CR 613)
+
+**walk** — one run of `compute_characteristics` over CR 613's layers for one
+object, producing that object's frame. A *walk input* is anything that would
+change its answer, which is what bumps the epoch.
 
 **epoch** — `GameState`'s `layer_epoch`, bumped by anything that changes a walk
 input. A frame computed at the current epoch is a hit; anything older is

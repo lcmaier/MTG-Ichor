@@ -167,7 +167,7 @@ fn event_amount(action: &GameAction) -> Option<u64> {
 /// 0-power attackers out of the assignment, but `Primitive::DealDamage` does no
 /// such filtering: any X=0 or computed-0 damage effect proposes it.
 ///
-/// Re-asked every iteration, like `is_blocked`: CR 616.1f rewrites the event
+/// Re-asked every iteration, like `is_prohibited`: CR 616.1f rewrites the event
 /// between iterations, and a prevention that reduces damage to 0 arrives here
 /// by that road.
 ///

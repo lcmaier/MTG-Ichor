@@ -99,7 +99,7 @@ rules, each of which has already cost something. → `replacement-architecture.m
   among "two or more"; the short circuit is what keeps every test at zero prompts, so relaxing
   it is a design error, not a test fix.
 - **A "can't" is not a replacement effect (CR 614.17).** Checked ahead of the pipeline, and it
-  wins (CR 101.2) — `engine::replacement::is_blocked`, never a `ReplacementDef`.
+  wins (CR 101.2) — `engine::restriction::is_prohibited`, never a `ReplacementDef`.
 - **A static replacement ability is discovered off the *effective* ability list, never a
   registry.** Two gates, three legs each — printed, granted, copied; Layer 3 is the route left.
   **A new gather source, or a new route to that list, needs a leg on every gate** or it is dead.

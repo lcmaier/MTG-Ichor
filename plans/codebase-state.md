@@ -517,7 +517,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **`apply_replacements`** — §4.1's loop, inside `execute_actions` upstream of `perform_action`. CR 616.1a–f, CR 614.5's applied set keyed on effect *instance*, CR 616.2's re-gather, CR 614.6's dropped event, CR 614.17/17c's blocked path, §4.1a's rider timing. `ActionContext.dp` has its first reader.
 - **`execute_actions` is three phases, and the split is CR 704.3**: decide for every batch member against one board, then perform, then run riders. That is where §4.3's CR 101.4 APNAP ordering lives — choices in APNAP order of chooser, performance in batch order, riders last (CR 615.5). It returns `Result<Vec<GameAction>, String>` again, and the SBA sweep is the customer that earned it back.
 - **New event vocabulary**: `GameAction::Destroy { source: DestructionSource }` (the outer event; its performer proposes the inner `ZoneChange`), `AddCounters`, `RemoveCounters`. `CounterType::{Shield, Stun, Finality}`; `GameEvent::CountersChanged`.
-- **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked`, not filtered at the two call sites that each held their own copy of it.
+- **Indestructible is a CR 614.17 "can't"**, checked ahead of the pipeline in `engine::replacement::is_blocked` (RB's name; RS-1 replaced it with `engine::restriction::is_prohibited`), not filtered at the two call sites that each held their own copy of it.
 - **Three consumers**: counters (CR 122.1c/d/h, no card text, 164 cards), regeneration (CR 701.19a/b/c, `Primitive::Regenerate` + the rider CR 701.19a spells out), and Kalitas, Traitor of Ghet — the only RB card, chosen for difficulty.
 - **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement. Since 2026-08-30 (`rb-review.md` H4) 704.6d's accepted moves join the SBA batch instead of being performed one at a time as they are offered — 704.3's "single event" is all of 704, not just 704.5, and each offer being its own event let a later owner decide against a board an earlier owner's move had changed.
 - Eight primitives: four stubs given implementations (`Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`) and four new (`Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`).
@@ -3911,34 +3911,6 @@ audit is at the end.
      card, not with RD-4, whose scope is redirection. Not stubbed: the filter
      exists and answers `false`, which is the silent-card failure, so this line
      is the record that it does.
-
-### Found by the glossary pass (2026-09-11)
-
-110. **`engine::replacement::is_blocked` has never existed.** `CLAUDE.md`'s
-     replacement-pipeline section names it as where CR 614.17's "can't" check
-     lives, and two doc comments send a reader there — `engine/actions.rs:216`
-     and `engine/resolve.rs:412`; a third, `pipeline.rs:170`, compares against
-     the bare name. The mechanism is `engine::restriction::is_prohibited`, asked
-     with a `Query::Event`, in `engine/restriction/predicate.rs`. It is not free
-     either: `is_blocked` is taken, by `AttackingInfo` (CR 509), so a reader
-     following the pointer with a grep lands on combat.
-
-     Found while writing the *blocked* entry in `plans/glossary.md`, which is
-     the first thing that asked what every name in this vocabulary resolves to.
-     `check_glossary.py` would have caught a `::`-path whose last segment
-     vanished; it does not catch this one, because `is_blocked` resolves — to
-     the wrong thing. That is the limit of a text check, stated in its docstring
-     rather than papered over.
-
-     **Reachability (2026-09-11):** reachable and costing time now — `CLAUDE.md`
-     loads before every task, which is the case its own budget rule exists for:
-     "a stale claim here is worse than no claim". Nothing behaves wrongly; a
-     reader is sent to a function that is not there.
-
-     **Sized:** four words in `CLAUDE.md` and two doc comments, ~6 lines, and
-     **its own PR** — the glossary pass defines and does not rename, and
-     `CLAUDE.md`'s invariant text is not something to edit in a docs PR whose
-     licence there was one line inside the Commands fence.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
