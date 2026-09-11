@@ -316,8 +316,11 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 | `DrawCards { player, n }` (outer) | 121.2a, 616.1g | RE | contains N `DrawCard` inner events |
 | `GainLife` / `LoseLife` | 119.10 | exists → RE | |
 | `CreateTokens { defs: Vec<TokenDef>, controller }` | 614.16 | RE | **`Vec`, not `(def, n)`** — Academy Manufactor's "one of each", Chatterfang's "those tokens plus that many Squirrels", Divine Visitation's substitution (§3.2c) |
-| `BeginStep` / `BeginPhase` / `BeginTurn` | 614.10 | RE | skips replace these |
-| `ProduceMana` | 106.6a | RE | |
+| `BeginStep` / `BeginPhase` / `BeginTurn` | 614.10 | RE | skips replace these — RE-1, proposed by a turn queue `advance_turn` drains, which is also CR 500.7's extra turns (`backlog.md` §2.17) |
+| `Scry { player, n }` | 701.22 | RE | RE-8, with `Primitive::Scry`; Eligeth replaces it |
+| `ProduceMana` | 106.6a | RE | RE-9; one proposal from the two silent writers `mana.rs` and `resolve.rs` hold today |
+| `PlayerLoses { player, reason }` / `PlayerWins { player }` | 104.2b, 104.3e, 704.5a–c, 704.7 | RE | added by §8a's audit (2026-08-24); RE-6, where the four SBA loops become batch members |
+| `CreateTokenIn { object, zone }` | 111, 704.5d | RE | RE-4: the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
 
 `ZoneChangeCause` is the semantic carrier that makes CR 701.8b answerable:
 
@@ -683,6 +686,19 @@ Notion Thief is `Prevent` + `then:` you draw one; its ruling confirms the
 boundary is real, since "that opponent still discards a card" if the original
 instruction was draw-then-discard. Homogeneous multiplicity is a count field;
 heterogeneous multiplicity is `then`. Between them, nothing needs a fan-out.
+
+**Corrected 2026-09-11 (RE's sizing): Notion Thief is not the `then` case.**
+Its 2018-03-16 ruling walks two Thieves in a two-player game — the drawing
+player applies one, "then the player whose Notion Thief's effect was chosen
+repeats this process among the remaining", each "applied to the card draw only
+once", and "it really will be that player who draws a card". A rider's draw is
+a fresh proposal with a fresh applied set, so two Thieves as `Prevent` +
+`then` trade the draw forever. The Thief's draw is **the same event with a new
+subject** — CR 614.5's "modified events that may replace that event" — and so
+`Instead(DrawCards { n: 1, player: Some(You) })`, keeping the lineage. Alms
+Collector stays the `then` case: "you and that player each draw a card" is two
+unlike things, and its ruling that Thought Reflection may double the resulting
+draws without Alms applying again holds either way. §9, RE decision 1.
 
 **Honest note on why `Split` went.** It was first removed because the question
 "does a fanned-out branch inherit the CR 614.5 applied-set" had no answer. The
@@ -1564,7 +1580,7 @@ item 4), which is not the overlay's but the two-event entry it sits on.
 | `state/game_state.rs::register_static_effects` | skip `Effect::Replacement` bodies without tripping the loud-lowering assert | RB |
 | `engine/layers/compute.rs` | ✅ RC-3 — the filter membership gate reads the battlefield *zone*, so it admits entering objects (§5c) | RC-3 |
 | `engine/layers/compute.rs` | battlefield reads go through one accessor (overlay seam) | RC-4 |
-| `engine/turns.rs::advance_turn` | gains `dp`; consults pending skips (CR 614.10) | RA / RE |
+| `engine/turns.rs::advance_turn` | gains `dp` (RA); proposes `BeginTurn` / `BeginPhase` / `BeginStep` ahead of each unit and proceeds past a dropped one (CR 614.10, 500.11) — "consults pending skips" was the first draft and is struck, §9 RE decision 6 | RA / RE-1 |
 | `engine/keywords.rs::apply_lifelink` | the gain becomes an `execute_action(GainLife)` proposal — Tainted Remedy-class watchers must see lifelink. Found at audit 2026-08-25: it writes `life_total` directly and *emits* `LifeChanged`, which is exactly how a census of emissions missed it | RA |
 | `engine/costs.rs:184` `Cost::PayLife` | routes through `execute_action(LoseLife)` — CR 119.4 makes paying life a life loss (Bloodletter doubles it). Same audit finding, same emit-without-propose shape | RA |
 | `engine/actions.rs` `DealDamage` performer | CR 120.3 results decomposition — player damage contains a `LoseLife`, planeswalker damage removes loyalty counters (CR 120.3c, unimplemented; tracked in `codebase-state.md`) | RD |
@@ -1719,6 +1735,23 @@ Damage-to-life-total replacement (Ali from Cairo, 8 cards) is a `DealDamage`
 replacement and already covered; mill (2), paying life (1 — Ashiok, and it is
 CR 614.13c's own example) and untap (2, plus 92 stun-counter cards) fold into
 existing variants.
+
+**Re-read at RE's sizing (2026-09-11), and the table is wrong in both
+directions.** The discard row was written before RB and never re-read:
+`EventPattern::ZoneChange { cause: Some(Discarded) }` has watched discards
+since RB, so "the pattern arm does not [exist]" has been false for sixteen
+days of RE being scheduled to add it. What the seventeen cards lack is a
+*producer* — `Primitive::Discard` is `NotImplemented` and the cleanup discard
+is the only site — plus a `caused_by` field (sixteen say "a spell or ability
+an opponent controls causes") and a to-battlefield leg on the substitute — and
+all three are RE-8's, on RD-1's precedent (`Primitive::Mill` landed inside a
+replacement PR because a rider needed it); the first cut of §9's RE section
+sent them to Phase 8 on this section's own sentence, and the review overturned
+that on cost of delay. The scry row is the same shape and the same PR. And the Ali from Cairo sentence just above is
+stale since RD decision 1: Ali watches the contained `LoseLife`, not the
+damage, and is RE-3's. Two things the table could not have known are named in
+§9 (RE, "The census"): mana production is a direct write with no event at all,
+and a lost player keeps taking turns in any game of three or more.
 
 ### Two deliberate non-events, re-checked (2026-08-30, `rb-review.md` E4)
 
@@ -4774,20 +4807,1114 @@ it and Harm's Way is `backlog.md` §2.25, which makes RD-4 the last RD PR — so
 `plans/handoffs/rd.md` is deleted here, its one category-(c) block already
 carried in full by `codebase-state.md` item 90.
 
-### Phase RE — the remaining event kinds we know of (see §8a)
+### Phase RE — the remaining event kinds we know of (see §8a) — sized 2026-09-11, nine PRs
 
-Draw replacement (614.11, 614.11a/b, 121.2a's outer event, 121.6a empty
-library), skips (614.10/a/b — per-player consumable `pending_skips` consulted at
-step/phase/turn begin), token and counter doublers (614.16 — `CreateTokens`
-as a proposal, which is also where RC-4b's token residual lands: a creation
-whose destination the entry's decision sets, `codebase-state.md` item 52 and
-"Before card breadth" item 8 — a Phase 8 back-stop, not a nicety; **and where
-`Primitive::CreateToken`'s loop over `propose_entry` stops**, which is the
-other half of `codebase-state.md` item 46 and the first *plural* entry the
-engine will produce),
-life-gain replacement (119.10), mana replacement (106.6a), and the three kinds
-§8a's audit added: `PlayerLoses` / `PlayerWins` (CR 104, 6 cards) and the discard
-pattern arm (CR 701.9, 17 cards).
+**RE ships as nine PRs: seven event kinds, one PR of CR 701 producers, and one
+that makes a lost player leave the game.** It was sized at seven the morning of
+2026-09-11 and re-cut to nine the same afternoon on review, and both additions
+are cost-of-delay arguments rather than scope creep: the producers had a
+precedent the first cut missed (RD-1 landed `Primitive::Mill` because a rider
+needed it), and the leave-the-game rules become *reachable and wrong* the day
+the game's-end PR lands its four-player fuzz mode. Two more things moved on
+the same review — skips go first, because they are item 6's prerequisite, and
+`advance_turn` is written as a turn queue so `backlog.md` §2.17 does not
+rewrite it a second time; and counters on players (§2.16) join the counters PR
+while the type is on the table.
+
+RD was one kind cut four ways along its mechanisms; RE is seven kinds that share
+one mechanism — each adds a `GameAction` family, its `EventPattern` arm, a
+performer that moves an existing direct write behind the chokepoint, and printed
+cards that watch it. `engineering-practices.md` §4's seam test cuts between
+every pair of kinds and inside none of them, and no two kinds share a consumer
+except where one card carries two statics (Doubling Season, Alhammarret's
+Archive), which is an ordering constraint and not a merge. Every number below
+was read from the tree and from Scryfall on 2026-09-11, before a line of code,
+and **the census disagreed with the paragraph it replaces in both directions**.
+Branches are `replacement/re-<n>-…`.
+
+The paragraph it replaces, kept for the record: *draw replacement (614.11,
+614.11a/b, 121.2a's outer event, 121.6a empty library), skips (614.10/a/b —
+per-player consumable `pending_skips` consulted at step/phase/turn begin), token
+and counter doublers (614.16 — `CreateTokens` as a proposal, which is also where
+RC-4b's token residual lands: a creation whose destination the entry's decision
+sets, `codebase-state.md` item 52 and "Before card breadth" item 8 — a Phase 8
+back-stop, not a nicety; and where `Primitive::CreateToken`'s loop over
+`propose_entry` stops, which is the other half of `codebase-state.md` item 46
+and the first plural entry the engine will produce), life-gain replacement
+(119.10), mana replacement (106.6a), and the three kinds §8a's audit added:
+`PlayerLoses` / `PlayerWins` (CR 104, 6 cards) and the discard pattern arm
+(CR 701.9, 17 cards).* That is still the scope, minus one mechanism that should
+not be built, plus two debts it never named and two neighbours the review pulled
+in.
+
+#### The census — the tree against the paragraph
+
+`GameAction` has twelve variants and `EventPattern` seven arms (`CounterChange`
+covers two variants). **Three variants have no arm and are RE's**: `DrawCard`,
+`GainLife`, `LoseLife`. The fourth, `Attach`, has none on purpose. Three
+`match`es are exhaustive over `GameAction` — `subject_of`, `event_amount`,
+`perform_action` — so a new variant costs three compiler-forced arms plus one
+`pattern_watches` arm, which is not forced: it falls through to `false`, and a
+variant with no pattern arm is silently unwatchable, which is `Attach`'s
+intended state and the trap for everything else. Counted per kind:
+
+| Kind | The paragraph said | The tree on 2026-09-11 | Printed customers (Scryfall, same day) |
+|---|---|---|---|
+| **Skips** | `pending_skips` counters | nothing — and `pending_skips` is the wrong shape (decision 6); `GameEvent::{TurnBegin, PhaseBegin, StepBegin}` exist and are emitted **nowhere**, which item 6's 2,656 "at the beginning of" triggers (§8b) will read | "skip" **58**: draw step 18, turn 22 ("your next turn" 9), untap step 8, combat 6, upkeep 2; static "Players skip their …" 2; "each player skips" 1; 614.10b's "skip … then" **0**. "doesn't untap during" 249 is `backlog.md` §2.14's, not a skip |
+| **Draw** | a `DrawCard` arm | `DrawCard { player }` exists, no arm, no count field; two producers (`Primitive::DrawCards` loops it, the draw step proposes it), one performer (`draw_card`); `apply_replacements`' `inherited` set handed `{}` at its one call site (item 29) | `o:/would draw a card/` **45**; `o:/if you would draw/` 26; "draw two cards instead" 12; "except the first one you draw" **10**; "next time you would draw a card this turn" 8 (the five *Words of* and three more); Lab Maniac's shape 5; "two or more cards" 2 |
+| **Life** | `GainLife`/`LoseLife` arms | both exist, no arm; `LoseLife.cause` since RD-1; `never_happens` already drops a 0 gain (119.10) | "would gain life" **21** (six of them "twice"); "would lose life" 2; Ali from Cairo's clamp **7**; "can't gain life" **25** and "can't lose life" 2 — RS's, and `Restriction::Event` has **no `PlayerSet`** to hold them |
+| **Tokens** | `CreateTokens` | no variant; `Primitive::CreateToken` (one producer, Kalitas's rider) loops `propose_entry` one token per batch; a substituted token entry logs `from: Battlefield` (item 52) | "would create one or more tokens" 9; "twice that many … tokens" **10**; "would create … instead" 15; "that many … tokens are created instead" 9; "can't create tokens" 0 |
+| **Counters** | doublers on `CounterChange` | arm exists since RB; `AddCounters` carries no *putter* and no *player* subject (`PlayerState.poison_counters: u32` hard-codes one kind); entry counters bypass it — `place_on_battlefield` calls `add_counters` directly (`game_state.rs:741`), which CR 122.6 says a doubler must see | "counters would be put on … instead" **21**; "that many plus one" 18; "would put one or more … counters" 7; "would get counters" 1 (a player); "can't have counters" 4 |
+| **Losing / winning** | `PlayerLoses`/`PlayerWins`, 6 cards | nothing: four SBA loops write `player_lost` directly (main item 6), `GameResult` lives on `Game`, `has_drawn_from_empty_library` is set and **never cleared**, and `advance_turn` and the priority loop rotate over lost players; nothing removes a lost player's objects (item 108) | "would lose the game" **4** (three "if", one "next time"); "would win the game" **0**; "can't lose" 11 and "can't win" 9 — RS's; effects that say "you win" 38 and "loses the game" 54, nearly all triggers |
+| **Mana** | `ProduceMana` | nothing — **two silent writers** (`mana.rs:91`, `resolve.rs:337`) and `GameEvent::ManaAdded` emitted at zero sites: RA's census missed it because nothing emitted | "if you tap a permanent for mana" **2**; "produces twice/three times" 3; "would add … mana … instead" 1; "for mana, add an additional" 8 — triggered mana abilities, CR 605.1b, item 6's |
+| **Discard** | "the pattern arm does not [exist]" | **it does**, since RB: `EventPattern::ZoneChange { cause: Some(Discarded) }`. What is missing is a producer — `Primitive::Discard` is `NotImplemented`; the cleanup discard is the only effect site and `Cost::Discard` the only other — and two pieces decision 8 names | "causes you to discard" **17**, sixteen of them "a spell or ability *an opponent controls* causes"; "would discard" 0 |
+| **Scry** (§10's Eligeth test) | "RE at the earliest" | `Primitive::Scry` is `NotImplemented` | "would scry" 2 |
+
+Two corrections the census forces, both argued below rather than absorbed:
+**skips go through the pipeline** with the proposal built by the turn machinery,
+exactly as §11 item 6 already said, and the paragraph's `pending_skips` is
+struck; and **discard is not an RE kind, but it is an RE PR** — its arm exists,
+and what the seventeen cards need is a producer, which RE-8 builds on RD-1's
+precedent (decision 8). The first cut of this section sent that producer to
+Phase 8 on §8a's sentence; the review asked what the delay would cost, and the
+answer was item 6's 1,045 discard-watchers testing against fixtures and a pool
+that never discards outside cleanup. Two debts the paragraph did not name and
+RE inherits: mana production is a chokepoint violation today (a direct write
+with no event), and a lost player keeps taking turns in any game with three or
+more — the two-player assumption `CLAUDE.md` said would hide in `PlayerLoses`,
+found where it said.
+
+#### The design check — nine decisions
+
+Read against CR 104, 106.6a, 119.5, 119.10, 121.2–121.6, 122.1, 122.6, 500.7,
+500.11, 614.1b, 614.10–614.11, 614.16, 616.1g, 616.2, 701.9, 701.22, 704.5a–c,
+704.7 and 800.4 (`MTG-Rules/versions/tmnt.txt`), §3.2d, §4.1's six rules, §8a,
+§8b and §11 items 6, 18, 21, 26. Every consumer named below had its oracle text
+and rulings fetched from Scryfall on 2026-09-11 (`engineering-practices.md`
+§3.4); one ruling contradicted this document, and decision 1 says which.
+
+**0. Seven kinds, one algebra, no new `Rewrite` arm.** Every kind lands on an
+arm that already has a customer: draw on `Instead` and `Prevent`; life, tokens,
+counters and mana on `Amount`; losing on `Prevent` with a rider; winning on
+`Instead`; skips on `Prevent` (CR 614.1b's "replaced with nothing" *is*
+614.6). What grows is the two open payloads §3.2b already names as open —
+`AmountRewrite` gains one variant (decision 2) and `GameActionTemplate` gains
+three arms (`DrawCards`, `GainLife`/`LoseLife`, `PlayerWins`), each with a
+printed customer in the PR that lands it. §3.2c's census said 0 of 574
+clauses needed a sixth arm; RE is the half of that census that was not yet
+built, and it holds.
+
+**1. Draw is two events, and the instruction is the outer one.** CR 121.2a:
+"an instruction to draw multiple cards can be modified by replacement effects
+that refer to the number of cards drawn. This modification occurs before
+considering any of the individual card draws." So `GameAction::DrawCards {
+player, n, cause }` is the instruction and `DrawCard { player, cause }` the
+draw; the outer's performer proposes `n` inners one at a time (CR 121.2), and
+**those inners inherit the outer's applied set** — §3.2d's decomposition rule,
+whose parameter has waited since RB for this producer (§11 item 18,
+`codebase-state.md` item 29). `test_two_teferis_draw_four_not_infinity` is the
+regression and hangs rather than fails, so it is written first with a bounded
+guard. **Every draw instruction proposes the outer, including "draw a card"**
+— one path, and Alms Collector's ruling is the reason it is honest: "count how
+many times the word 'draw' is used". Its "two or more" is
+`EventPattern::DrawCards { at_least: Option<u64> }`; `EventPattern::DrawCard {
+cause: Option<DrawCause> }` is everything else. CR 616.1g's "the second effect
+can't be chosen until after the first" is the nesting: the outer is decided and
+performed before an inner exists.
+
+`DrawCause { TurnBased, Effect }` is a fact on the event, on RD-1's
+`LifeLossCause` reasoning: ten printed cards say "except the first one you draw
+in each of your draw steps" and the answer is unrecoverable a moment later. The
+draw step's instruction is `TurnBased`; **its first inner is `TurnBased` and
+every later one is `Effect`**, at every level of decomposition — so Thought
+Reflection doubling the draw-step draw yields a first card Teferi's Ageless
+Insight excepts and a second it doubles, which is what "the first one" means.
+
+**The ruling that corrects this document.** §3.2d encodes Notion Thief as
+`Prevent` with a rider ("that player skips that draw *and* you draw a card").
+Its 2018-03-16 ruling describes two Thieves in a two-player game: the drawing
+player applies one, then "the player whose Notion Thief's effect was chosen
+repeats this process among the remaining", each "applied to the card draw only
+once", and "it really will be that player who draws a card". That only holds if
+the Thief's draw is **the same event with a new subject** — CR 614.5's "modified
+events that may replace that event" — because a rider's draw is a fresh
+proposal with a fresh applied set, and two Thieves would trade the draw forever.
+So Notion Thief is `Instead(DrawCards { n: 1, player: Some(You) })`, a subject
+change that keeps the lineage, and the `DrawCards` template carries `player:
+Option<PlayerRef>` with `None` meaning the affected player — one arm, two
+customers (Thought Reflection's `{ n: 2, player: None }`). Alms Collector stays
+`Prevent` with a rider: "you and that player each draw a card" is heterogeneous
+(§3.2d's own category), and its ruling that Thought Reflection may then double
+the resulting draws while Alms "does not apply again" holds either way, since
+neither resulting draw is "two or more". §3.2d is corrected in place, dated.
+
+CR 614.11 / 121.6a — a draw replacement applies with an empty library — is
+already true by construction: `draw_card` flags the empty library *after* the
+pipeline, which is why its comment says so. CR 614.11a / 121.6b — the
+replacement completes before the sequence resumes — is the outer performer
+proposing one inner at a time and each inner's riders running before the next
+(§4.1a). CR 614.11b / 121.6c (an additional action on a drawn card is not
+performed when the draw is replaced) has no producer: nothing in `Primitive`
+does something to *the card it drew*, so `ATOM-614.11b-001` stays uncovered
+with that reason, on the corpus's Phase 6.
+
+**2. Life gains its arms, `LoseLife`'s `cause` gets its first reader, and the
+one new `AmountRewrite` reads player state.** `EventPattern::GainLife` and
+`EventPattern::LoseLife { cause: Option<LifeLossCause> }`. Ali from Cairo —
+"damage that would reduce your life total to less than 1 reduces it to 1
+instead" — watches the contained `LoseLife { cause: Damage }` (its own ruling:
+"this effect does not prevent damage, it prevents the damage from turning into
+loss of life"; RD decision 4 built the `cause` for it) and needs the clamp
+§3.2c budgeted: `AmountRewrite::LifeFloor(i64)`, the loss capped so the total
+does not drop below the floor, applied against the affected player's life *now*
+— the second arm of `apply_rewrite` that reads `GameState` (item 53), and a
+read, not a write. The name is open; the CR has no noun for it and §3.2c said
+"clamp". `is_prevention` is untouched: its first test is "the pattern is
+damage", and this one is not.
+
+Two kind-changing substitutions land here, and they are the mechanism §10's
+Eligeth test wanted: `GameActionTemplate::GainLife { amount }` and `LoseLife {
+amount }` with `amount: TemplateAmount::{Fixed(u64), ReplacedAmount}`. Words of
+Worship turns a draw into "gain 5 life" (`Fixed`); Tainted Remedy turns an
+opponent's gain into "loses that much life" (`ReplacedAmount`). Each template
+arm has its two customers before it is written.
+
+"Players can't gain life" is a **"can't"**, and Skullcrack and Leyline of
+Punishment have waited on it since RD-4 (§11 item 26). `Restriction::Event {
+pattern, affected, by }` has no player set, so RE-3 gives it
+`affected_players: PlayerSet` — RD-1's field, RD-4's `to_players` precedent,
+unioned the way `set_affects` unions — and `is_prohibited` refuses the
+`GainLife` proposal ahead of the pipeline (CR 101.2). Leyline of Punishment's
+own ruling then falls out of the order of the two checks: "effects that replace
+an event with gaining life (like Words of Worship's) will end up replacing the
+event with nothing" — the substituted `GainLife` is proposed, refused, and
+nothing happens.
+
+**3. `CreateTokens` is the outer event, each entry is contained, and a
+substituted entry is a creation somewhere else.** `GameAction::CreateTokens {
+defs: Vec<TokenDef>, controller }` — `Vec`, as §3.1 decided for Academy
+Manufactor's "one of each" and Anointed Procession's ruling ("twice as many of
+each kind"). Its performer creates the objects, then proposes **every entry as
+one batch** — `codebase-state.md` item 46's first plural entry, so two tokens
+entering together are decided against the pre-batch board (RC-4b's frame) and
+"can't apply to … any other permanent entering the battlefield at the same
+time as it" (Winding Constrictor's and Pir's rulings) is true of them the day
+they exist. CR 616.1g makes the token half of Doubling Season a fresh choice per
+token (§3.2d's contrast case) — the entries are *contained*, not decomposed,
+and get fresh applied sets.
+
+**The residual, item 52.** A substituted token entry — Hallowed Moonlight's
+"exile it instead", whose ruling is "it's put into exile instead and then
+ceases to exist" — is performed today as `ZoneChange { from: Battlefield }` for
+an object that was never there, which is the line Dour Port-Mage and Aang read.
+The honest event is an *appearance*: the token is created in exile, from
+nowhere. `GameAction::ZoneChange.from` stays `Zone` — twenty constructions in
+`src/`, five in tests, three readers of `from` in the move path, and an
+`Option` there is a catchall-shaped `None` on every card move for one token's
+sake. Instead the `Instead(ZoneChangeTo)` arm on an entry with `from: None`
+returns a `from`-less variant — working name `GameAction::CreateTokenIn {
+object, zone }` — whose performer puts the object into that zone's collection
+and emits a new `GameEvent::TokenCreated { object_id, zone }`; CR 704.5d takes
+it from there. The name is open. It gets no `EventPattern` arm (nothing prints
+"if a token would be created in exile") and joins `Attach` as the second
+deliberate exemption from one-arm-per-variant, said in its doc. A *dropped*
+entry still un-creates the object (CR 111.5), unchanged.
+
+**CR 613.7m's decision point is not asked, and the reason is RC-4's.** Tokens
+created by one effect are identical and enter under one controller, so "in the
+order of that player's choice" is a choice with one outcome, and RC-4's rule
+("never prompt for a choice with one outcome") applies. The first creation with
+distinguishable members — Bestial Menace, Academy Manufactor — is the prompt's
+customer, and neither is in reach; "Before card breadth" item 4 records the
+prompt as owed at that card, and the batch order is the creation's order until
+then.
+
+**4. The entry is a door for the counter pattern too, who puts the counters
+on is a fact on the event, and a player can be the subject.** CR 122.6:
+"putting counters on that object … refers … also to an object that's given
+counters as it enters the battlefield" — Doubling Season's ruling is
+"planeswalkers will enter with double the normal number of loyalty counters",
+and Hardened Scales', Primal Vigor's and Corpsejack Menace's each say the same
+of +1/+1. Entry counters are `EnterMods.counters` and never an `AddCounters`
+proposal (RC-2's decision, kept: they are part of the entry event, CR 614.1c),
+so `EventPattern::CounterChange` gains a second door exactly as
+`EventPattern::ZoneChange` did in RC-4b: it watches an `EnterBattlefield` whose
+`mods.counters` carries a matching kind, and `Amount` applied to an entry
+rewrites that kind's count in the mods. The Master Biomancer + Doubling Season
+board then needs nothing new: Biomancer's `EnterWith` makes the doubler
+applicable (CR 616.2), the affected player orders them (616.1e), and 614.5
+stops the doubler re-applying to counters added after it — which is the printed
+interaction.
+
+`AddCounters` gains `by: PlayerId` and `EnterMods.counters` its
+`Option<PlayerId>` — `codebase-state.md` item 43, sized there at ~60–80 lines
+and told to land "before RE's first doubler". Vorinclex, Monstrous Raider is
+the reader: "if *you* would put one or more counters … twice that many; if an
+opponent would … half that many, rounded down", and its ruling says it "cares
+deeply about who is putting the counters on". `EventPattern::CounterChange {
+counter, adding, by: Option<PlayerRef> }` is RD-3's `SourcePattern` on the
+player axis. CR 122.6a's default — the object's controller puts entry counters
+on — is what `default_enter_mods` and every `EnterWith` write unless the effect
+names a player, and today none does.
+
+**Counters on players join here, because the type is open on the table.**
+CR 122.1 lets "a player" have counters, and `backlog.md` §2.16 already has the
+design: `PlayerState.poison_counters: u32` becomes a kind → count map sharing
+`CounterType`, since CR 701.34a's proliferate sweeps permanents and players in
+one pass. `AddCounters`' subject becomes `CounterSubject { Object(ObjectId),
+Player(PlayerId) }` — `DamageTarget`'s shape, `subject_of` answers the player,
+CR 616.1's chooser is that player — and widening it later would be a site
+sweep of exactly the kind RD-4 paid for `DealDamage` (44 sites) when RE-5 can
+do it at three. The producer is a printed card with nothing else in it, Live
+Fast ("you draw two cards, lose 2 life, and get {E}{E}"), whose rulings say
+energy counters are "a kind of counter that a player may have" and that
+"effects that interact with counters a player gets … can interact with" them;
+the watchers are Vorinclex's "or player" and Winding Constrictor's "if you
+would get one or more counters". CR 704.5c reads the map for poison, and RD-1's
+seam for infect's poison half (`backlog.md` §2.6, 120.3b) and Commander's
+experience counters are the next producers. Costs that pay energy wait for
+their first card.
+
+Two rulings fall out of RC-3 and RC-4b rather than being built: "can't apply to
+itself as it's entering" (RC-3's membership rule — an entering permanent's own
+filter-scoped replacement does not reach itself) and "or to any other permanent
+entering the battlefield at the same time" (decision 3's plural batch).
+
+**5. Losing and winning are proposals; the SBA sweep builds them as batch
+members; CR 704.7's collapse gains a per-player leg.** `GameAction::PlayerLoses
+{ player, reason: LossReason }` and `PlayerWins { player }`. The four loops in
+`check_state_based_actions` that write `player_lost` (704.5a/b/c and 903.10a)
+become members of the CR 704.3 batch, evaluated against the one board the rest
+of the sweep already reads; a player who would lose for two reasons in one check
+is **one member** (CR 704.7 — Lich's Mirror's ruling: "a single Lich's Mirror
+will replace all of them"), carrying the first reason in CR order, which is
+what RA-3's per-object dedupe does for zone changes. `EventPattern::PlayerLoses`
+carries no `reason` field: every printed replacement applies to every reason
+(Exquisite Archangel's ruling, "any time you would lose the game"), so a field
+would be one nothing reads. The performer marks `player_lost`, emits
+`PlayerLost`, and clears `has_drawn_from_empty_library` — today it is never
+cleared, which CR 704.5b's "since the last time state-based actions were
+checked" forbids and Exquisite Archangel's ruling ("you won't lose again until
+you try to draw again") makes observable. `PlayerWins`' performer records the
+result on `GameState` — CR 104.1, "immediately" — so `GameResult` moves there
+from `Game` and `check_game_over` reads it.
+
+**N-player, where the paragraph would have hidden a two-player assumption.**
+In a game of three or more, a lost player does not leave the rotation today:
+`advance_turn` takes `(active_player + 1) % num_players` and the priority loop
+does the same. CR 800.4k ("if a player who has left the game would begin a
+turn, that turn doesn't begin") and 800.4j (priority passes over them) are two
+sites and ~40 lines, and RE-6 carries them with the `--players 4` fuzz mode
+"Before Commander" item 4 sized at ~50 lines, because a `PlayerLoses` performer
+that leaves the player in the turn order is the two-player shape wearing an
+N-player event. **CR 800.4a–e — their objects leaving the game — is RE-7, the
+PR after, and not B3's any more.** The first cut left it with `codebase-state.md`
+item 108 and B3; the review's objection stands: the day RE-6 lands, item 108
+flips from "unreachable" to "reachable and wrong" in the four-player run, and
+a dead player's permanents on the battlefield distort every four-player number
+measured after it. The ledger's own rule ("the four wrong answers are the
+phase-independent output") says a reachable wrong answer is fixed first, so
+RE-7 follows RE-6 immediately; CR 802's defending player stays B3's.
+
+"Can't lose" and "can't win" are `Restriction::Event` rows over the two new
+patterns through decision 2's `affected_players`, refused ahead of the pipeline;
+Platinum Angel's ruling — "no game effect can cause you to lose … you keep
+playing" — is that refusal, and Exquisite Archangel's "if an effect says that
+you can't lose the game, Exquisite Archangel's effect doesn't apply" is the
+CR 101.2 order the two checks already have. Concession (104.3a) is a *leave*
+that then loses, not a replaceable loss ("does nothing if you concede", every
+ruling above), and it arrives with the harness that offers it; CR 104.3f
+(win and lose at once → lose) has no atom and no consumer and is recorded, not
+built.
+
+**6. Skips are the pipeline's; the proposal is built by a turn queue that
+`advance_turn` drains; `pending_skips` is struck.** §11 item 6 said the first
+half on 2026-08-30 and §9's RE paragraph, older, said the other thing. A
+per-player counter consulted at step begin is a second mechanism for a CR 614
+effect — it cannot express a static ("Players skip their upkeep steps", Eon
+Hub) without a third shape, it cannot be stripped by Layer 6 or CR 305.7, and
+it cannot be ordered against another effect on the same event by CR 616.1.
+Three variants, because the three units name three different things and have
+three different performers: `BeginTurn { player, turn }`, `BeginPhase { phase,
+player }`, `BeginStep { step, player }`, each with its pattern arm (`BeginStep
+{ step: Option<StepType> }`, `BeginPhase { phase: Option<PhaseType> }`,
+`BeginTurn`). The subject is the player whose turn it is, so CR 616.1's chooser
+is that player and Eon Hub on a four-player table asks nobody. The performer is
+small: it writes `phase`/`step`/`active_player` and emits the
+`TurnBegin`/`PhaseBegin`/`StepBegin` that exist today and nothing emits, which
+is what item 6's "at the beginning of" triggers will read — **and that is why
+this PR goes first**: §8b counts 2,656 of them, more than any other kind, and
+item 6 cannot start until the three events exist through the chokepoint. Turn-
+based actions stay in `on_step_begin` and `process_turn_based_actions`, run only
+for a unit that began.
+
+**The queue is the shape, and it is why `backlog.md` §2.17 graduates here.**
+`advance_turn` is rewritten once, as a drainer: the next unit is the head of a
+queue — an extra turn, phase or step if one is pending, else the natural next —
+and it is *proposed* before it starts. A dropped proposal is proceeded past as
+though the unit did not exist (CR 500.11, 614.10): a skipped phase proposes none
+of its steps, a skipped turn advances no turn number and expires nothing —
+"until your next turn" waits for the first turn that is not skipped, 614.10a's
+own sentence — and the first turn's untap step is proposed like any other.
+CR 500.7's extra turns are pushed "most recently created … first", so the
+queue's turn half is a stack fed by a new `Primitive::ExtraTurn`, with Time
+Walk as its consumer; the Meditate + Time Walk board — a skip consuming an
+extra turn, 614.10a's "the first occurrence that isn't skipped" — is the test
+that shows the two belong in one PR rather than in two rewrites of one
+function. Extra phases and steps (500.8, 500.10, Relentless Assault's class)
+are the same queue one level down and wait for their first card. `backlog.md`
+§2.12's step- and phase-scoped durations hang off the same emitters and wait for
+an "until end of combat" consumer.
+
+Three CR sentences then cost nothing: "once a step … has started, it can no
+longer be skipped" is the proposal site (Moment of Silence's ruling, "must be
+used before the combat phase starts or it has no effect", is a `Uses::Once` row
+that meets no proposal until the next combat); 614.10a's "two effects … skip the
+next two" is two `Uses::Once` rows, the first spent on the first proposal and
+the second surviving to the next; and 800.4k is a rule at the same site, ahead
+of the pipeline, once RE-6 gives it `player_lost`. 614.10b ("skip …, then take
+another action") has **zero printed cards** by the census and no consumer; its
+atom stays uncovered with that reason.
+
+**7. Mana is one proposal from two silent writers, and "tapped for mana" is a
+fact about the activation.** `GameAction::ProduceMana { player, source, mana:
+Vec<(ManaType, u64)>, special: Vec<ManaAtom>, tapped: bool }`, performed by
+the one arm that writes the pool and emits `ManaAdded` — an event that has
+existed since the log was written and has never once been emitted, which is how
+the RA census missed the two writers (`resolve_mana_effect` for a mana ability,
+`Primitive::ProduceMana` for a spell). `EventPattern::ProduceMana { tapped:
+Option<bool> }`; `Amount(Multiplier)` scales every type in `mana`; CR 106.6a's
+"any restrictions or additional effects … apply to all mana produced" is
+`special` riding through unchanged. `tapped` is CR 106's "tapping a permanent
+for mana" — Mana Reflection's ruling: "only if you're activating a mana ability
+of that permanent that includes the {T} symbol in its cost" — and CM-3's
+lock-in already knows what was paid. Mana abilities activated inside CM-4's
+payment window propose through the same site with the same `ctx`, and
+`resolve_mana_effect`'s `Fixed`-only limitation is untouched. Triggered mana
+abilities ("whenever you tap a land for mana, add an additional …", 8 cards)
+are CR 605.1b's and item 6's, and Mana Reflection's ruling says so in as many
+words. This is the hottest path RE touches — every land tap — so RE-9 goes
+last, where its A/B decides nothing else; `backlog.md` §2.19's any-color mana
+rewrites the same function and is ordered after it.
+
+**8. A CR 701 producer that a replacement customer is waiting on lands in RE,
+on RD-1's precedent.** `Primitive::Mill` was a stub until Angel of Suffering's
+rider needed it, and RD-1 built it rather than wait for Phase 8's CR 701 sweep.
+Discard and scry are the same case with the same argument, and the first cut
+of this section got it wrong by reading §8a's sentence without the precedent.
+`Primitive::Discard(n)` moves cards through `change_zone(.., Discarded)` with
+CR 701.9b's chooser — the discarding player by default, "at random" as the one
+other shape a registered card prints (Hymn to Tourach; "another player
+chooses" waits for its card) — asked through the same `ChoiceKind` the cleanup
+discard uses. It proposes no outer event: nothing prints "would discard", and
+the seventeen cards watch the zone change. What they need beside the producer
+is `caused_by: Option<PlayerRef>` on `EventPattern::ZoneChange`, read off the
+batch's resolution stamp (the cleanup discard has none, which is right — it is
+not "a spell or ability"), and a to-battlefield leg on `Instead(ZoneChangeTo)`:
+a substitute whose destination is the battlefield returns an
+`EnterBattlefield` proposal, since RC-4b's performer refuses a `ZoneChange`
+onto it, and the loop's next iteration builds the entry's frame from the
+rewritten event, which it already does. `GameAction::Scry { player, n }` is an
+event because Eligeth, Crossroads Augur replaces it ("if you would scry a
+number of cards, draw that many cards instead" — `Instead(DrawCards { n:
+ReplacedAmount })`, decision 2's template amount on decision 1's template);
+its performer asks one `ChoiceKind::Scry` and reorders the library in the arm,
+proposing no zone change (CR 701.22 moves nothing between zones).
+
+#### Why nine, and the count
+
+| PR | Shape | Measured size | Risk |
+|---|---|---|---|
+| **RE-1 — skips, and the turn queue** | `BeginTurn`/`BeginPhase`/`BeginStep`, three arms, three small performers emitting the three begin events; `advance_turn` as a queue drainer with proceed-past; `Primitive::ExtraTurn` and CR 500.7's order | `GameAction` exhaustive matches **3** ×3 variants; `advance_turn` **1** (~200 lines of it), `begin_turn` **1**, `Game::setup`'s first turn **1**, `run_turn`'s turn boundary **1**; `pattern_watches` **3**; the two `until_your_next_turn … extra_turn` tests already in the tree rewritten against a real queue. Predicted **~600 engine, ~350 cards, ~750 tests ≈ 1,700–1,900** | medium — the turn loop is the one piece of the engine with no batch discipline yet; a dropped turn touches durations, and an extra turn touches "next turn" |
+| **RE-2 — draw** | `DrawCards` outer + `DrawCard.cause`; two pattern arms; `GameActionTemplate::DrawCards { n, player }`; the outer performer's decomposition with the inherited applied set (item 29's producer) | exhaustive matches **3** + `pattern_watches` **2**; `DrawCard` producers **2** rewritten to the outer, performer **1**, test constructions **1**; `execute_batch_inner`'s `inherited` **1** call site; `Primitive::DrawCards` **1**. Predicted **~550 engine, ~350 cards, ~800 tests ≈ 1,700–1,900** | **highest** — the first decomposition, whose defect is a hang, and the `cause` stamping rule across nested outers |
+| **RE-3 — life** | `EventPattern::GainLife`, `LoseLife { cause }`; `AmountRewrite::LifeFloor`; `GameActionTemplate::{GainLife, LoseLife} { amount: TemplateAmount }`; `Restriction::Event.affected_players` | `pattern_watches` **2**; `apply_rewrite`'s `Amount` arm **1** and `Instead` arm **2**; `Restriction::Event` constructions **~6** + `is_prohibited`'s union **1**; `GainLife` producers **2**, `LoseLife` **3**, untouched. Predicted **~350 engine, ~450 cards, ~600 tests ≈ 1,400–1,600** | low-medium — patterns over events that already flow; the clamp is the one new arithmetic |
+| **RE-4 — tokens** | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850** | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
+| **RE-5 — counters, on permanents and players** | `CounterChange`'s entry door and `by`; `AddCounters.by` and its `CounterSubject`; item 43's `EnterMods` player half; `Amount` on an entry's mods; `PlayerState`'s counter map (§2.16) | `pattern_watches` **1** more arm; `AddCounters` constructions **2** + performer **1**; `EnterMods`/`EnterModsTemplate` merge **2**; `apply_rewrite`'s `Amount` arm **1**; `poison_counters` readers **4** (one production, `sba.rs:142`) → the map. Predicted **~650 engine, ~550 cards, ~800 tests ≈ 1,900–2,100** | medium-high — top of the band; an `Amount` arm that edits `EnterMods` is new, and the subject enum touches every counter site |
+| **RE-6 — the game's end** | `PlayerLoses`, `PlayerWins`, their arms; four SBA loops → batch members; 704.7's player leg; the flag reset; `GameResult` onto `GameState`; `Primitive::{LoseGame, WinGame, SetLifeTotal}` (CR 119.5); 800.4j/k at two rotation sites; `--players 4` | exhaustive matches **3** ×2; `sba.rs` loops **4**; the dedupe **1**; `check_game_over` **1** + `Game.result` readers **~4**; `advance_turn` **1**, priority loop **1**; `fuzz_games` **~50 lines**. Predicted **~550 engine, ~400 cards, ~80 harness, ~800 tests ≈ 1,800–2,100** | **high** — top of the band; the sweep's shape changes, and the N-player half is measured for the first time |
+| **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favour end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
+| **RE-8 — the producers (CR 701.9, 701.22)** | `Primitive::Discard` with 701.9b's chooser; `caused_by` on the zone-change pattern; the to-battlefield leg; `GameAction::Scry`, its arm, `Primitive::Scry` and `ChoiceKind::Scry` | `resolve.rs` stubs **2** made real; `pattern_watches` **1** field + **1** arm; `apply_rewrite`'s `Instead(ZoneChangeTo)` **1** leg; exhaustive matches **3** for `Scry`; `DecisionProvider` impls **3** for the scry choice. Predicted **~450 engine, ~400 cards, ~500 tests ≈ 1,300–1,500** | low-medium — two producers of the plainest kind; the leg's frame rebuild is already how the loop runs |
+| **RE-9 — mana** | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped` from the activation | exhaustive matches **3**; writers **2** → **1**; `resolve_mana_effect` **1**, `Primitive::ProduceMana` **1**; `pattern_watches` **1**. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150** | low on shape, **the one whose A/B could say no** — a proposal on every land tap |
+
+**≈ 13,200–15,000 across nine, each inside the band, RE-5 and RE-6 at its
+top.** Hard orders: RE-2 → RE-3 (Words of Worship needs the draw pattern and
+the life template; Alhammarret's Archive needs both halves); RE-3 → RE-8
+(Eligeth's `ReplacedAmount`); RE-4 → RE-5 (Doubling Season is registered whole,
+in RE-5); RE-2 → RE-6 (Laboratory Maniac's draw; Stunning Reversal's rider
+draws seven); RE-6 → RE-7 (the performer and the fuzz mode). RE-1 first, on
+decision 6's argument, and it depends on nothing; RE-9 last, on decision 7's.
+The rest commutes. The counts are call sites read from the tree on 2026-09-11;
+the line predictions are calibrated against RD-1 (+1,950 against a
+~1,500–1,700 prediction — the card files' rulings pass was the difference),
+RD-2 (+2,393) and RD-3 (+2,035 against ~1,400–1,600), so the card columns
+above are written with the rulings pass in.
+
+#### RE-1 — skips, and the turn queue (CR 614.1b, 614.10, 614.10a, 500.7, 500.11)
+
+**Builds:** decision 6 — the three variants, three arms, three performers
+emitting the three begin events, `advance_turn` as a queue drainer with the
+proceed-past, turn-number and duration rules, `Primitive::ExtraTurn` pushing
+CR 500.7's most-recent-first, and 800.4k's refusal at the turn site (a rule,
+ahead of the pipeline, reading `player_lost` — which RE-6 later makes true for
+a reason). **Consumers:**
+
+- **Yawgmoth's Bargain** — "Skip your draw step. Pay 1 life: Draw a card."
+  `BeginStep { step: Some(Draw) }`, `Fixed(vec![])` + `You`, `Prevent`,
+  `Uses::Static`; and an activated ability with `Cost::PayLife(1)` and
+  `DrawCards(1)`, both of which exist. No rulings. Tests: the draw step's
+  *contents* are not proposed — no `CardDrawn`, no `StepBegin { Draw }`,
+  priority goes straight to the precombat main (`ATOM-614.10-001`). A random
+  agent with one use for its life total will empty its library, which is what
+  makes RE-6's Laboratory Maniac path reachable and is why this card is
+  registered and **not pooled**.
+- **Eon Hub** — "Players skip their upkeep steps." `BeginStep { step:
+  Some(Upkeep) }`, `Everyone`, `Prevent`, `Uses::Static`. Rulings, three, all
+  tests: *skipped entirely, untap to draw* → the event log; *"activate only
+  during your upkeep" can't be activated* → no such ability exists to assert
+  against, recorded; *untap-step triggers go on the stack at the draw step* →
+  item 6's. The four-player form: every player's upkeep, one static, no
+  prompt.
+- **Meditate** — "Draw four cards. You skip your next turn." `DrawCards(4)`
+  then `CreateReplacement` of a `BeginTurn` row, `You`, `Uses::Once`,
+  `Duration::Indefinite` — a row that ends by use and never by time, the
+  first of its kind, and `Duration::Indefinite` has waited for it. Ruling:
+  *you skip one turn* → test; and 614.10a's own sentence: **two Meditates
+  skip two turns** (`ATOM-614.10a-001`), the second row surviving the first
+  proposal. The "until your next turn" test rides on it: a Cerulean Wisps-class
+  effect on your creature lasts across the skipped turn to the one that
+  begins.
+- **Time Walk** — "Take an extra turn after this one." `Primitive::ExtraTurn`,
+  the queue's producer. Ruling: *multiple extra-turn effects in one turn are
+  taken in reverse order* → two Time Walks, the second resolved is the first
+  taken (CR 500.7's "most recently created turn will be taken first"). And
+  the board that puts skips and the queue in one PR: **Meditate then Time
+  Walk** — the extra turn is the "next occurrence" the skip consumes, and the
+  natural turn after it begins. The two `until_your_next_turn … extra_turn`
+  tests already in `continuous_effects.rs` and `duration_registry.rs`, which
+  simulate an extra turn by calling `begin_turn` twice, are rewritten against
+  the queue so they prove the engine rather than the harness.
+- **Moment of Silence** — "Target player skips their next combat phase this
+  turn." `BeginPhase { phase: Some(Combat) }`, `Fixed(vec![])` filled with the
+  target at resolution (Mending Hands' player fill), `Uses::Once`,
+  `UntilEndOfTurn`. Rulings, three, all tests: *only their next combat
+  phase, if any* → one row, spent once; *cast during combat: no effect* →
+  `ATOM-614.10-002`, the row meets no proposal and expires at cleanup; *cast
+  on a player when it is not their turn: no effect* → the subject is the
+  active player, so a row on another player watches nothing this turn. The
+  first targeted skip, and a four-player target.
+- **Chronatog** is the natural activated skip and is out: "activate only once
+  each turn" is an activation limit the ability model does not have, one
+  customer here, recorded on the card file's module doc. **Relentless
+  Assault** is the extra-phase shape and waits for the queue's second level.
+
+**`PERFORMANCE_POOL` +1, Eon Hub**, predicted: a static skip on every
+player's upkeep, every turn, in every game it reaches the battlefield — the
+first card whose effect is a *dropped* turn-structure proposal in a measured
+game. Time Walk is registered and not pooled: an extra turn in every blue deck
+moves avg turns by design. The middle arm's own move is decision 6's
+proposals, predicted below.
+
+**Atoms:** `ATOM-614.10-001`, `ATOM-614.10-002`, `ATOM-614.10a-001`,
+`BOUNDARY-DEF-614.1b-001`; `ATOM-614.10b-001` stays uncovered, decision 6's
+zero-card reason in the test file. CR 500.7 has no atom in the corpus
+(`backlog.md` §2.17 said it was thin); the two-Time-Walk test carries none and
+says so. `ATOM-502.3-002` and `ATOM-703.4c-002` ("doesn't untap") are
+`backlog.md` §2.14's and are not skips; this PR touches neither.
+
+#### RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g)
+
+**Builds:** decision 1 whole — `DrawCards { player, n, cause }`, `DrawCard {
+player, cause }`, `DrawCause`, `EventPattern::DrawCards { at_least }` and
+`DrawCard { cause }`, `GameActionTemplate::DrawCards { n, player }`, the outer
+performer's one-at-a-time decomposition handing the inherited applied set to
+each inner (the first producer of `apply_replacements`' `inherited`), and the
+two producers rewritten: `Primitive::DrawCards` proposes one outer; the draw
+step proposes `DrawCards { n: 1, cause: TurnBased }`. `Game::setup`'s opening
+hands keep calling `draw_card` (CR 103.4; the comment there is right — no
+replacement can exist yet). **Consumers**, each with its rulings pass:
+
+- **Thought Reflection** — "If you would draw a card, draw two cards instead."
+  `EventPattern::DrawCard { cause: None }`, `Fixed(vec![])` + `You`,
+  `Instead(DrawCards { n: 2, player: None })`, `Uses::Static`. Rulings, three:
+  *Harmonize draws six* → test (`ATOM-121.2a-001`'s shape from the inner side);
+  *two Thought Reflections draw four, three draw eight* → **the acid test**,
+  `test_two_teferis_draw_four_not_infinity` on two of these, since it is not
+  legendary and the pool can build two (§10; §3.2d); *the drawing player orders
+  them* → the 4-player form with Alms Collector below.
+- **Teferi's Ageless Insight** — "… except the first one you draw in each of
+  your draw steps, draw two cards instead." `DrawCard { cause: Some(Effect) }`.
+  Rulings, three: *a card put into hand without "draw" is not drawn* →
+  structurally true (`ZoneChangeCause::PutIntoHand` proposes no draw), asserted;
+  *ordering* → as above; *two copies draw four* → the legend rule makes this
+  Thought Reflection's test. Its own test is the one decision 1 wrote:
+  Teferi beside Thought Reflection during the draw step draws **three**.
+- **Alms Collector** — "Flash. If an opponent would draw two or more cards,
+  instead you and that player each draw a card." `EventPattern::DrawCards {
+  at_least: Some(2) }`, `Fixed(vec![])` + `Opponents`, `Prevent` with a rider
+  of two `DrawCards(1)` — one to the effect's controller, one to the affected
+  player (`Rider` carries the `EventSubject` since RD-1). Rulings, six, and
+  four are tests: *applies to the instruction before any per-card effect* →
+  `ATOM-616.1g-001`, with Thought Reflection on the other side; *Thought
+  Reflection can double the resulting draws without Alms applying again* →
+  test; *count the word "draw"* → Ancestral Recall (in the pool) meets it,
+  two `Primitive::DrawCards(1)` in one resolution do not; *two players each
+  control one and a third player would draw two or more: the third chooses
+  which applies* → the 4-player test, `setup_game(4)`, and the only
+  three-player CR 616.1 prompt reachable from two printed cards.
+- **Notion Thief** — "Flash. If an opponent would draw a card except the
+  first one they draw in each of their draw steps, instead that player skips
+  that draw and you draw a card." `DrawCard { cause: Some(Effect) }`,
+  `Opponents`, `Instead(DrawCards { n: 1, player: Some(You) })` — decision 1's
+  correction. Rulings, three, all tests: *the opponent still discards* →
+  Night's Whisper is not the shape (draw-then-lose-life), so a fixture
+  draw-then-discard resolution is until RE-8's Mind Rot; *two Thieves: the
+  drawing player picks one, then that Thief's controller picks among the
+  rest, each once* → the three-player board, and the two-player one where "it
+  really will be that player who draws"; both are the lineage rule observed
+  from outside.
+
+**`PERFORMANCE_POOL` +1, Thought Reflection**, predicted: the first static
+draw source in the pool, so it opens the gather sweep on every draw step while
+it is on the battlefield — and the first `Instead` whose output is decomposed.
+It is seven mana, so the `--require` count beside `copies/deck` is read and
+recorded.
+
+**Atoms:** `ATOM-121.2a-001`, `ATOM-614.11-001`, `ATOM-121.6a-001`,
+`ATOM-614.11a-001`, `ATOM-616.1g-001`, `BOUNDARY-DEF-614.1a-001` (uncovered
+since RB and claimable by any `Instead` consumer — this one takes it);
+`ATOM-614.11b-001` stays uncovered, decision 1's reason in the test file.
+`ATOM-121.2-001` (ALREADY-IMPL) gains a `COVERS:` from the decomposition test.
+
+#### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event)
+
+**Builds:** decision 2 — the two pattern arms, `AmountRewrite::LifeFloor`,
+the two life templates with `TemplateAmount`, and `Restriction::Event.affected_players`
+with its `is_prohibited` union (§11 item 26 closes). **Consumers:**
+
+- **Rhox Faithmender** — "Lifelink. If you would gain life, you gain twice
+  that much life instead." `GainLife`, `Fixed(vec![])` + `You`,
+  `Amount(Multiplier(2))`. Rulings, three: *two Faithmenders quadruple* →
+  test (`Amount` composing on a player subject, RD-1's Furnace pair on the
+  other kind); *"becomes 10" from 3 becomes 17* → RE-6's `SetLifeTotal` test,
+  when it exists; *2HG* → n/a. **Reachable from the pool today**: lifelink's
+  contained `GainLife` (Vampire Nighthawk, Knight of Meadowgrain) is the first
+  proposal it meets.
+- **Tainted Remedy** — "If an opponent would gain life, that player loses that
+  much life instead." `GainLife`, `Opponents`, `Instead(LoseLife {
+  ReplacedAmount })`. Rulings, two, both tests: *Alhammarret's Archive beside
+  it: the gaining player picks double-then-lose-6 or lose-3-then-nothing* →
+  the ordering test, and Archive's second application not existing is
+  `never_happens` on a proposal that is no longer a gain; *two Remedies: the
+  second has no gain to apply to* → CR 614.7 by the same road. Four-player:
+  three opponents, three rows' worth of one static.
+- **Words of Worship** — "{1}: The next time you would draw a card this turn,
+  you gain 5 life instead." A `Primitive::CreateReplacement` row, `DrawCard`,
+  `Uses::Once`, `UntilEndOfTurn`, `Instead(GainLife { Fixed(5) })` — the
+  kind-changing substitution, from a draw (RE-2's pattern) to life (this PR's
+  template), and the first `Once` draw row. Ruling: *several Words used before
+  a draw: choose which applies each time* → CR 616.1 among rows of one player.
+  Leyline of Punishment's ruling about it — the gain refused, the draw
+  replaced with nothing — is the "can't" test below.
+- **Ali from Cairo** — "Damage that would reduce your life total to less than
+  1 reduces it to 1 instead." `LoseLife { cause: Some(Damage) }`, `You`,
+  `Amount(LifeFloor(1))`. Rulings, three, all tests: *not effects that reduce
+  life without damage* → `Primitive::LoseLife` goes through; *works if Ali
+  dies in the same event* → the SBA batch decides against one board, so a
+  lethal Earthquake to Ali and to you is decided while Ali is there;
+  *damage is still dealt, triggers on damage still see it* → `DamageDealt`
+  carries the full amount and only the contained loss is clamped.
+- **Alhammarret's Archive** — both halves: `GainLife` ×2 and `DrawCard {
+  cause: Some(Effect) }` ×2 on one legendary artifact, RE-2's arm and this
+  one's on one consumer, Gisela's shape. Its rulings are Rhox Faithmender's
+  and Teferi's, already tests.
+- **Skullcrack** — "Players can't gain life this turn. Damage can't be
+  prevented this turn. Skullcrack deals 3 damage to target player or
+  planeswalker." Two `Primitive::Restrict` rows, `UntilEndOfTurn`: the RD-4
+  fixture's `ApplyReplacement { Prevention }` row, now printed, and the new
+  `Event { GainLife, affected_players: Everyone }`. Rulings, two, both tests:
+  *replacements that turn gain into something else won't apply because
+  gaining is impossible* → Tainted Remedy under Skullcrack does nothing;
+  *"becomes N" higher than current does nothing* → RE-6's. **Leyline of
+  Punishment** is the static form (`Effect::Restriction` on the permanent,
+  RS-1's sweep) and its opening-hand clause is §3.3 source 2's, which would be
+  dead under a real name — so Leyline is *not* registered, and the static form
+  is proved by the RD-4 fixture extended with the life arm. Recorded so the
+  omission reads as the rule and not as an oversight.
+- **Bloodletter of Aclazotz** is recorded as a shape and not registered: "if
+  an opponent would lose life during your turn" is a conditional static whose
+  condition — it is your turn — the `Condition` AST has no leaf for, with one
+  customer. `LoseLife`'s pattern and `Opponents` are built here for it.
+
+**`PERFORMANCE_POOL` +1, Rhox Faithmender**, predicted: the first static
+`GainLife` source, opening the sweep on every lifelink gain, and a four-drop
+with lifelink of its own.
+
+**Atoms:** `ATOM-119.10-001` (the 0-gain non-event, already `never_happens`;
+the test now has a watcher to prove nothing was offered). Nothing else in the
+corpus is filed under life-gain replacement; the ordering board is
+`COMP-614-DAMAGE-ORDERING-001`'s sibling and is a test with no atom, which
+`specdb suspicious` will not mind.
+
+#### RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g; items 46 and 52)
+
+**Builds:** decision 3 — `CreateTokens { defs, controller }`,
+`EventPattern::CreateTokens`, the performer that creates the objects and
+proposes their entries as one batch, `CreateTokenIn { object, zone }` with
+`TokenCreated`, and `Amount` over a `Vec` (a multiplier repeats each def).
+`Primitive::CreateToken(def, amount)` becomes one proposal. **Consumers:**
+
+- **Parallel Lives** — "If an effect would create one or more tokens under
+  your control, it creates twice that many of those tokens instead."
+  `CreateTokens`, `Fixed(vec![])` + `You` (the subject is the controller the
+  tokens are created under), `Amount(Multiplier(2))`, `Uses::Static`.
+  Rulings, two, both tests: *two Parallel Lives create four times* →
+  `Amount` composing (the Furnace pair, third kind); *everything specified
+  by the creating effect is true of the extra tokens* → structurally true of a
+  repeated def, asserted on a token's characteristics. `ATOM-614.16-001` —
+  "token replacement applies to tokens from other replacements" — is Kalitas's
+  rider making a Zombie under Parallel Lives: two Zombies, and the atom's
+  board is in the pool already.
+- **Raise the Alarm** and **Hordeling Outburst** — "Create two 1/1 white
+  Soldier creature tokens." / "Create three 1/1 red Goblin creature tokens."
+  The first plural creations in the crate, and so **the first plural entry
+  batch** (item 46): the test is RC-5's
+  `test_two_biomancers_entering_together_give_each_other_nothing` reached from
+  a printed card — two Soldiers under Master Biomancer each get Biomancer's
+  counters and neither gets the other's — plus Root Maze asking once per token
+  (CR 616.1g's per-entry fresh choice, §3.2d's contrast case).
+- **Hallowed Moonlight** — "Until end of turn, if a creature would enter and
+  it wasn't cast, exile it instead. Draw a card." A `Primitive::CreateReplacement`
+  row, `EnterBattlefield { cast: Some(false) }`, `Filter { creatures }` +
+  `Everyone`, `Instead(ZoneChangeTo { Exile })`, `UntilEndOfTurn` — every
+  piece exists since RC-4b, and it is the card that reaches item 52. Rulings,
+  two, both tests: *a creature token is put into exile instead and then
+  ceases to exist* → the log holds `CreateTokens`, `TokenCreated { Exile }`
+  and CR 704.5d's `TokenCeasedToExist`, and **no `ZoneChange { from:
+  Battlefield }`** — the line Dour Port-Mage would have read, asserted absent;
+  *a cast creature is unaffected, from any zone* → Grizzly Bears resolves
+  normally under it.
+
+**`PERFORMANCE_POOL` +2, Parallel Lives and Raise the Alarm**, predicted: the
+first `CreateTokens` static source, and the producer that makes a plural entry
+batch happen in a measured game — the engine path item 46 wanted measured, and
+the first board on which CR 616.1 is asked once per token. Kalitas's rider
+already makes single tokens in the stress pool, so the middle arm moves by one
+gather per Zombie and nothing else.
+
+**Atoms:** `ATOM-614.16-001`; `ATOM-111.5-002` (Phase 8 — a token not created
+when a permanent with its characteristics can't enter: Worms of the Earth's
+`ZoneChange` prohibition over a land token, covered where it is, not
+re-filed); `ATOM-613.7m-001` stays on its `L03` ticket with decision 3's
+"not asked" reason written beside it, since a homogeneous batch has no
+observable order.
+
+#### RE-5 — counters, on permanents and players (CR 614.16's counter half, 122.1, 122.6, 122.6a; item 43, `backlog.md` §2.16)
+
+**Builds:** decision 4 — the second door on `CounterChange`, `Amount` on an
+entry's mods, `AddCounters.by` and its `CounterSubject`, item 43's `EnterMods`
+player half with the merge keyed on `(kind, player)`, `CounterChange.by`, and
+`PlayerState`'s kind → count map with CR 704.5c reading it. **Consumers:**
+
+- **Doubling Season** — both abilities, registered whole now that RE-4 built
+  the first. Tokens: Parallel Lives' def. Counters: `CounterChange { counter:
+  None, adding: true, by: None }`, `Filter { ByController(You) }`,
+  `Amount(Multiplier(2))`. Rulings, five, four are tests: *planeswalkers
+  enter with double loyalty* → Loyalty Probe enters with 6, through the entry
+  door; *permanents that enter with counters* → Chainbreaker's rust counters,
+  and Master Biomancer's grant on a creature entering (the CR 616.2 ordering
+  board, decision 4); *loyalty paid as a cost is not doubled* → `Cost::
+  AddCounters` does not propose, and no `CounterChange` sees it — asserted
+  against the RD-1 fixture; *two Seasons quadruple* → §10's
+  `test_two_doubling_seasons_quadruple`, on both halves.
+- **Hardened Scales** — "If one or more +1/+1 counters would be put on a
+  creature you control, that many plus one +1/+1 counters are put on it
+  instead." `CounterChange { counter: Some(PlusOnePlusOne), .. }`, `Filter {
+  Creature ∧ ByController(You) }`, `Amount(Plus(1))` — RD-3's `Plus`, second
+  kind. Rulings, three, all tests: *enters with that many plus one* → the
+  entry door on a +1/+1 entry (Master Biomancer's grant); *you choose the
+  order no matter who controls the sources* → Scales beside an opponent's
+  Doubling Season, the affected permanent's controller asked; *each extra
+  Scales adds one* → two rows, each once.
+- **Vorinclex, Monstrous Raider** — "Trample, haste. If you would put one or
+  more counters on a permanent or player, put twice that many … instead. If
+  an opponent would put one or more counters …, they put half that many …
+  rounded down." Two rows: `CounterChange { by: Some(You) }` +
+  `Multiplier(2)` and `{ by: Some(Opponent) }` + `Halve(Down)`, both over
+  `Filter { All }` + `Everyone` — decision 4's putter predicate on both
+  subjects, and RD-1's rounding on a new kind. Rulings, three: *cares who is
+  putting* → an opponent's Battlegrowth on your creature halves to 0 (a 0
+  count meets the `RemoveCounters`-style no-op guard, not `never_happens` —
+  CR 614.7a is written about damage and life gain, and the test says which
+  guard fired); *122.6a's default* → the entry door with `by` unset reads the
+  controller; *ordering* → as Scales. Its "or player" half is **built**: your
+  Live Fast under your Vorinclex gets four energy.
+- **Winding Constrictor** — "If one or more counters would be put on an
+  artifact or creature you control, that many plus one of each of those
+  kinds …. If you would get one or more counters, you get that many plus one
+  of each of those kinds of counters instead." The second player-subject
+  watcher, on `Plus(1)`, and the object half's "each of those kinds" is
+  `Amount` applied per matching kind, which the entry door already does.
+  Rulings, six, four are tests: *enters with that many plus one* → entry
+  door; *multiple instructions in one effect each get plus one* → two
+  `Primitive::AddCounters` in one resolution, two proposals; *two
+  Constrictors: plus two* → two rows; *can't apply to itself or to anything
+  entering with it* → RC-3's membership rule and RE-4's batch, asserted.
+- **Live Fast** — "You draw two cards, lose 2 life, and get {E}{E}." The
+  producer: `AddCounters { subject: Player(you), counter: Energy, n: 2, by:
+  you }`, and every other instruction it carries exists (RE-2's draw, RA's
+  loss). No rulings beyond energy's definition, which is the test: a player
+  has a map, the map has a kind, and nothing else changes.
+- **Primal Vigor** — "If one or more tokens would be created, twice that many
+  … If one or more +1/+1 counters would be put on a creature, twice that many
+  …" — `Everyone` on both halves, and the ruling "it doesn't matter who
+  controls the tokens or the creature" is the four-player test: an opponent's
+  Raise the Alarm makes four.
+
+**`PERFORMANCE_POOL` +1, Hardened Scales**, predicted: a one-mana static that
+opens the sweep on every `AddCounters` (Battlegrowth is in the pool) and every
+counter-bearing entry (Chainbreaker, Master Biomancer's grants, Loyalty Probe
+in the stress pool). Doubling Season is registered and not pooled — a
+five-drop, and its token half would double the pool's Zombies, which is a
+gameplay change the A/B should not carry with the engine change.
+
+**Atoms:** `ATOM-122.6a-001` moves from the default half to a named-player test
+(item 43's field, read by Vorinclex); `ATOM-122.1f-001` and `ATOM-704.5c-001`
+(Phase 5-Pre, poison — read off the map now, and covered where they are); the
+rest of §2.16 is thin under its phrasings, and the doubling tests say so.
+
+#### RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j–k)
+
+**Builds:** decision 5 — the two variants and arms, the SBA batch members,
+704.7's per-player leg, the flag reset, `GameResult` on `GameState`,
+`Primitive::LoseGame`, `Primitive::WinGame`, `Primitive::SetLifeTotal` (CR
+119.5 — "the player gains or loses the necessary amount", proposed through
+`GainLife`/`LoseLife` so Rhox Faithmender's "3 becomes 10 becomes 17" ruling
+is a test here), `GameActionTemplate::PlayerWins`, the two rotation sites, and
+`fuzz_games --players N`. **Consumers:**
+
+- **Laboratory Maniac** — "If you would draw a card while your library has no
+  cards in it, you win the game instead." `DrawCard { cause: None }`, `You`,
+  `Instead(PlayerWins)`, gated on a new `Condition::LibraryEmpty` evaluated
+  at gather — the leaf's second customer is Jace, Wielder of Mysteries, a
+  planeswalker, so the leaf is written for one card and says so; CR 121.6a
+  is what makes the proposal reach the pipeline at all. Rulings, two, both
+  tests: *if you can't win (Angel's Grace), you don't lose for the attempted
+  draw either — the draw was still replaced* → Platinum Angel's row refuses
+  the `PlayerWins`, the draw never performs, no flag is set; *two Maniacs and
+  an each-player draw: APNAP, and the game ends at the first win* → needs an
+  each-player draw producer, which `EffectRecipient` lacks (RD-2's Kitsune
+  Palliator note); recorded on the card, not tested.
+- **Exquisite Archangel** — "Flying. If you would lose the game, instead exile
+  this creature and your life total becomes equal to your starting life
+  total." `PlayerLoses`, `You`, `Prevent` with a rider of `Exile(self)` and
+  `SetLifeTotal(starting)`. Rulings, nine, five are tests: *lethal damage to
+  it and to you at once: its effect applies, and you choose exile or
+  graveyard* → the SBA batch decides against one board, and the rider's exile
+  meets the death's `ZoneChange` as two proposals on one object — the CR 704.7
+  same-object collapse from RA-3, now with a player loss beside it; *drew
+  from an empty library: you won't lose again until you try again* → the
+  flag reset; *two Archangels: you choose which* → CR 616.1 among two
+  printed statics; *an effect saying you can't lose: doesn't apply* → Platinum
+  Angel's row ahead of the pipeline; *life -4 becomes 20 is a 24-life gain,
+  and cards that interact with gain see it* → Rhox Faithmender makes it 44,
+  which is the `SetLifeTotal` decomposition observed. **`ATOM-704.7-001`** —
+  Lich's Mirror's board, 0 life and an empty library in one check, one
+  replacement replacing both — is built with the Archangel; `COVERS` if the
+  atom's board is generic, `COVERS-PARTIAL` naming Lich's Mirror if it is not,
+  read at write time. Lich's Mirror itself waits on `ShuffleIntoLibrary`.
+- **Stunning Reversal** — "The next time you would lose the game this turn,
+  instead draw seven cards and your life total becomes 1. Exile Stunning
+  Reversal." A `CreateReplacement` row, `PlayerLoses`, `Uses::Once`,
+  `UntilEndOfTurn`, `Prevent` with a rider of `DrawCards(7)` and
+  `SetLifeTotal(1)`, then `Exile(self)` as the resolution's second instruction
+  (CR 608.2c, not part of the row). Rulings, ten, four are tests: *fewer than
+  seven cards: you lose immediately after* → the rider's draws flag the empty
+  library and the next check proposes a loss the spent row cannot see;
+  *everyone would lose at once but this applies to you: you win as soon as
+  everyone else has lost* → the four-player board, CR 104.2a from a batch
+  with four `PlayerLoses` members and one replaced; *can't lose: can't
+  apply*; *does nothing if you concede* → recorded, no harness.
+- **Platinum Angel** — "Flying. You can't lose the game and your opponents
+  can't win the game." Two `Effect::Restriction` statics, `Event {
+  PlayerLoses, affected_players: You }` and `Event { PlayerWins, Opponents }`.
+  Rulings, three: *no game effect can cause you to lose — 0 life, empty
+  library, ten poison, Phage — you keep playing* → the SBA proposal refused
+  every check, and the game continues through it (the first fuzz-reachable
+  game that runs past a lethal board); *concession still loses* → recorded;
+  *effects saying the game is a draw are unaffected* → CR 104.4c has no
+  producer, recorded.
+
+**`PERFORMANCE_POOL` +1, Laboratory Maniac**, predicted: a three-drop static
+draw watcher, and the first card that makes decking a *win* in a measured game
+— fuzz games deck out rarely, so the `--require` count and "games ended by a
+win" are the rows to read. Platinum Angel is registered and not pooled: a
+seven-drop that turns lethal boards into stalls would move avg turns by design
+and not by engine.
+
+**The four-player run is this PR's second measurement.** `fuzz_games
+--players 4` at 200 games on `performance`: zero panics is the bar, and every
+row it moves is written down as the *starting point* for RE-7 — item 108's
+permanents that stay — and for B3's 802.
+
+**Atoms:** `ATOM-704.7-001`, `ATOM-614.11-002` (Laboratory Maniac, the
+corpus's own example), `ATOM-104.2b-001` and `ATOM-104.3e-001` (Phase 8, the
+two primitives — covered where they are, not re-filed), `ATOM-119.5-001` and
+`-002` (Phase 8, `SetLifeTotal`, same), `ATOM-104.4a-001` (ALREADY-IMPL,
+gains its `COVERS:` from the four-loss batch), `ATOM-800.4j-001` as
+`COVERS-PARTIAL` (the priority half; "the turn continues without an active
+player" is RE-7's).
+
+#### RE-7 — leaving the game (CR 800.4a–e, 800.4m)
+
+**Builds:** the rest of decision 5's N-player half, inside `PlayerLoses`'
+performer as CR 800.4a says — "this is not a state-based action. It happens as
+soon as the player leaves the game." In the rule's own order: every object the
+player owns leaves the game (removed from hand, library, graveyard, exile,
+command zone, battlefield and stack, one `GameEvent::LeftTheGame { object }`
+each — not a zone change, CR 400.11: outside the game is not a zone); every
+control-changing row in that player's favour ends (a Layer 2 row keyed by the
+departed controller, `ContinuousEffect.controller`); their stack objects not
+represented by cards cease to exist; and anything they still control is exiled
+through `change_zone` with a new `ZoneChangeCause::ControllerLeftTheGame`,
+which no catchall may absorb. 800.4b and 800.4d are refusals at
+`propose_entry`, `CreateTokens`' performer and Layer 2's control change for a
+departed player; 800.4e is a refusal at combat damage assignment; 800.4m sets
+each "until that player's next turn" duration to expire when that turn would
+have begun, on all three duration registries. 800.4c — a control effect ending
+with no default controller left — is main item 9's revert and lands here as
+its own arm. **Consumer:** Act of Treason, which is in the pool, both ways
+round — the thief loses and the stolen creature goes home (800.4a's second
+clause); the owner loses and the creature the thief still controls leaves the
+game (first clause) — plus `setup_game(4)` tests for each clause and the
+four-player fuzz run RE-6 opened, whose "permanents that stay" row this PR
+zeroes. No cards.
+
+**`PERFORMANCE_POOL`: no change.** The measurement is the four-player table:
+RE-6's starting point against this PR's, and CPU on the two-player pools
+byte-identical, since nothing here runs before a third player exists.
+
+**Atoms:** `ATOM-800.4a-001`, `ATOM-800.4a-002`, `ATOM-800.4b-001`,
+`ATOM-800.4c-001`, `ATOM-800.4d-001`, `ATOM-800.4e-001` (all Phase 9, covered
+where they are); `COMP-800-PLAYER-LEAVES-COMMANDER-001` as `COVERS-PARTIAL`
+until commander damage exists; `ATOM-800.4j-001` completes.
+
+#### RE-8 — the producers (CR 701.9, 701.9b, 701.22)
+
+**Builds:** decision 8 — `Primitive::Discard(n, DiscardChooser)` with
+`ChoiceKind::Discard` (the cleanup discard's, reused) and "at random" from
+`GameState.rng`; `caused_by: Option<PlayerRef>` on `EventPattern::ZoneChange`;
+the to-battlefield leg on `Instead(ZoneChangeTo)`; `GameAction::Scry { player,
+n }`, its arm, `Primitive::Scry` and `ChoiceKind::Scry`. **Consumers:**
+
+- **Mind Rot** — "Target player discards two cards." The default chooser;
+  the target's choice through `EffectRecipient::Target` on a player. Its test
+  is Notion Thief's ruling from RE-2, now against a printed card: a
+  draw-then-discard the Thief modified still discards.
+- **Hymn to Tourach** — "Target player discards two cards at random." The
+  second chooser, from the owned `rng` (`CLAUDE.md`: randomness is never
+  ambient), so `tests/determinism_test.rs` covers it by construction.
+- **Dodecapod** — "If a spell or ability an opponent controls causes you to
+  discard this card, put it onto the battlefield with two +1/+1 counters on
+  it instead of putting it into your graveyard." `ZoneChange { from:
+  Some(Hand), cause: Some(Discarded), caused_by: Some(Opponent) }`,
+  `SourceOnly`, `Instead(ZoneChangeTo { to: Battlefield })` — the leg, and
+  the entry it returns carries `EnterMods` with two counters, which RE-5's
+  doubler then sees. Rulings, three, all tests: *the opponent's spell had you
+  choose: still applies* → Mind Rot; *you still discarded — discard triggers
+  will trigger* → the performed `ZoneChange { Discarded }` is in the log
+  beside the entry, item 6's; *"the discarded card" refers to the Dodecapod
+  on the battlefield* → recorded, no reader.
+- **Wilt-Leaf Liege** — the same clause on a lord ("other green creatures you
+  control get +1/+1", twice), so the leg's second customer is a permanent the
+  layer walk already understands; and its ruling — *Leyline of the Void and
+  the Liege both want the discarded card: you choose* — is a CR 616.1 prompt
+  between an RB card and an RE-8 one.
+- **Opt** — "Scry 1. Draw a card." The scry producer, and CR 608.2c's "A,
+  then B" in one resolution.
+- **Eligeth, Crossroads Augur** — "Flying. If you would scry a number of
+  cards, draw that many cards instead. Partner." `EventPattern::Scry`, `You`,
+  `Instead(DrawCards { n: ReplacedAmount, player: None })`. Partner is
+  CR 702.124's deck-construction ability with no in-game text, so nothing is
+  dead under the name. Its test is §10's acid test with a different producer:
+  `test_opt_with_eligeth_draws_two_and_never_scrys` — Opt under Eligeth draws
+  two and the log holds no scry — proves §4.1a's instruction split and the
+  kind-changing `Instead` reading the event's amount; the Goggles of Night
+  form waits for item 6, since Goggles scries from a *trigger*.
+- **Library of Leng** and **Loxodon Smiter** stay out: a hand size
+  (`backlog.md` §2.15) and "can't be countered" (§8a's missing counter event),
+  each one facility away.
+
+**`PERFORMANCE_POOL` +2, Mind Rot and Opt**, predicted: the pool's first
+discard outside cleanup and its first scry, so `ZoneChange { Discarded }` and
+`Scry` become rows item 6 can read from a measured game, and the random agent
+finally reaches CR 701.9b's choice. Dodecapod is registered and not pooled:
+four mana for a 3/3 in a pool that rarely discards is a slot with nothing to
+measure until Mind Rot is common.
+
+**Atoms:** `ATOM-701.9b-001`, `ATOM-701.9b-002` as `COVERS-PARTIAL` ("another
+player chooses" has no printed producer here), `ATOM-701.22a-001`,
+`ATOM-701.22b-001` (Phase 8, covered where they are, not re-filed; scry 0 is a
+`never_happens` arm, CR 701.22b's own words).
+
+#### RE-9 — mana (CR 106.6a; RA's unnamed debt)
+
+**Builds:** decision 7 — `ProduceMana`, its arm, the one performer replacing
+`resolve_mana_effect`'s and `Primitive::ProduceMana`'s direct writes,
+`ManaAdded` emitted for the first time, and `tapped` read off the activation's
+paid cost. **Consumers:**
+
+- **Mana Reflection** — "If you tap a permanent for mana, it produces twice as
+  much of that mana instead." `ProduceMana { tapped: Some(true) }`,
+  `Fixed(vec![])` + `You`, `Amount(Multiplier(2))`. Rulings, four, three are
+  tests: *only a mana ability with {T} in its cost* → Dark Ritual (in the
+  pool) adds three, not six; *a triggered mana ability is unaffected* → item
+  6's, recorded; *restrictions and riders apply to all the mana* →
+  `ATOM-106.6a-001`, on a fixture ability with a `special` atom, since no
+  registered land restricts its mana; *two Reflections quadruple* → the
+  `Amount` pair, fourth kind.
+- **Nyxbloom Ancient** — "Trample. If you tap a permanent for mana, it
+  produces three times as much of that mana instead." `Multiplier(3)`, the
+  second factor the arm has seen. Ruling: *two Ancients: nine times* → test.
+
+**`PERFORMANCE_POOL` +1, Mana Reflection**, predicted: a six-drop static on
+the hottest path in the engine. Its row is the one this PR exists to read.
+
+**Atoms:** `ATOM-106.6a-001`; `ATOM-106.6-001` (Phase 5-Pre, the restriction
+survives the type — covered by the same fixture, and it is not in `owed`'s nine
+because its ticket is not `NEW`).
+
+#### Out of RE, decided rather than absorbed
+
+- **`pending_skips`** — struck (decision 6). Not a deferral: a mechanism that
+  should not be built.
+- **CR 802's defending player**, and 800.4f–h's choices by a departed player
+  — B3's ("Before Commander" item 4), with RE-7 having built the seam.
+- **Extra phases and steps** (CR 500.8, 500.10; Relentless Assault) — the
+  queue's second level, with its first card. **Step- and phase-scoped
+  durations** (`backlog.md` §2.12) — hang off RE-1's emitters; the PR after
+  RE-1 when an "until end of combat" consumer appears.
+- **Concession** (104.3a), **CR 104.3f**, **CR 104.4c** — each with no atom
+  a test could claim or no producer; named in RE-6.
+- **CR 121.2c** — each player's draws in APNAP order — needs an each-player
+  recipient `EffectRecipient` lacks (RD-2's note); Phase 8's atom, no
+  producer. Laboratory Maniac's second ruling is the same gap.
+- **Costs paid in energy** (`{E}` in a cost) — with their first card, after
+  RE-5 made the counters exist.
+- **`Condition::IsYourTurn`** (Bloodletter of Aclazotz) — one customer for a
+  leaf; recorded as a shape in RE-3.
+- **Triggered mana abilities** (CR 605.1b, 8 cards) — item 6's. **Any-color
+  mana** (`backlog.md` §2.19) — the PR after RE-9, since both rewrite
+  `resolve_mana_effect`.
+- **"Another player chooses" discards** (701.9b's third shape), **Chronatog's
+  "activate only once each turn"**, **Lich's Mirror's shuffle**, **Library of
+  Leng's hand size**, **Loxodon Smiter's "can't be countered"**, **Academy
+  Manufactor's predefined tokens** (each needs a Treasure, Food or Clue the
+  token vocabulary cannot express; §2.19 for Treasure) — each one facility
+  away, each with one customer here.
+
+#### Cut, and argued
+
+RD cut `RetargetSpec::ToFixed` on "an arm the pipeline cannot apply is worse
+than a missing one". RE's cuts, on the same rule and its §8c corollary ("two
+customers before a leaf"):
+
+- **No `reason` on `EventPattern::PlayerLoses`.** Every printed replacement and
+  every printed "can't" applies to every reason; a field would be matched by
+  nothing.
+- **No outer `Discard` event.** Nothing prints "would discard"; the seventeen
+  cards watch the zone change, and Library of Leng's ruling ("decide on each
+  of the cards") says the instruction is not what they see.
+- **No `GameActionTemplate::CreateTokens`.** Words of Wilding ("create a 2/2
+  Bear instead" of a draw) wants a fixed def; Divine Visitation ("that many
+  4/4 Angels … instead") wants the event's count with a substituted def. Two
+  shapes, one customer each. Both recorded; the arm arrives with the second
+  customer of either.
+- **No prompt for CR 613.7m on a token batch** — decision 3: one outcome.
+- **No `DrawCause::Cost`.** Nothing prints "draw a card" as a cost; the enum
+  has the two causes the ten cards distinguish.
+- **`ProduceMana` carries no "could produce" (CR 106.7)** — that is a query
+  about abilities that have not resolved, not an event, and it is
+  `backlog.md`'s the day a card asks.
+
+#### Measured — what to expect, and why the direction is known
+
+Three arms per PR through `plans/fuzz_ab.py` against a same-day `main`
+worktree, both pools, the middle arm being the engine with `registry.rs` and
+`PERFORMANCE_POOL` unchanged — and unlike RD, **five of the nine middle arms
+add proposals**, so the counters will move on those and each PR predicts the
+number before running:
+
+- **RE-1:** the largest move in RE and the one to predict exactly — one gather
+  per step, phase and turn that begins, about **sixteen per turn**, so ~+450
+  gathers per 30-turn game; `Layer walks` flat (no source, row or counter
+  watches them, so the sweep's fast path returns before any walk); CPU inside
+  the spread. If CPU moves beyond it, the fix is §8's answer-preserving
+  event-kind gate and it is **this PR's to build**, not a later one's — which
+  is one more reason it goes first.
+- **RE-2:** `Replacement gathers` +1 per draw instruction (the outer), so
+  roughly +1 per turn plus one per cantrip; `Layer walks` flat; 40-game event
+  dumps identical but for one `CardDrawn` line's neighbour. The shipped arm
+  adds walks only while Thought Reflection is on the battlefield.
+- **RE-3:** flat on the middle arm — patterns over events that already flow.
+  A move is the card.
+- **RE-4:** gathers +1 per token creation (Kalitas's rider on `stress`; zero on
+  `performance` until Raise the Alarm is pooled); `Layer walks` +N per plural
+  creation for the frame each entry is decided against, which RC-5 measured
+  per entry already.
+- **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
+  branch that no def reaches until Hardened Scales is registered, and the
+  subject enum changes no proposal's count.
+- **RE-6:** +1 gather per game (the loss), flat everywhere else. The
+  four-player run is its own table, not an A/B.
+- **RE-7:** byte-identical on both two-player pools, by construction; the
+  four-player table against RE-6's is the measurement.
+- **RE-8:** +1 gather per discard and per scry that resolves, on the shipped
+  arm only (no pooled card discards or scries before it); middle arm flat.
+- **RE-9:** +1 gather per mana ability that resolves — every land tap, several
+  per turn — and the same fast-path argument as RE-1. The prediction is flat
+  CPU and a moved `Replacement gathers` row; a fourth binary with the proposal
+  reverted is the recipe if it is not, and the §8 gate is the fix. **If the
+  gate is needed and does not close the gap, RE-9 is the PR the owner decides
+  against, and the two writers keep their direct write with a Deferred
+  Migrations line that names the number.**
+
+§3's table is re-recorded once per PR that moves the pool, at 50 games, after
+the A/B; from RE-6 on, the four-player table beside it.
+
+#### Trace page — decide at RE-2's close, and again at RE-4's
+
+`engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
+applied set is answered for a decomposed event (a draw carries its lineage), and
+RE-4 changes how an entry's frame is answered inside a plural batch (a token is
+decided against a board its siblings have not entered). Neither is the happy
+path, and both are the boards §3.2d and §5b argued about. Decide each at that
+PR's close; if yes, `re-2-a-draw-carries-its-lineage.html` walks two Thought
+Reflections, Alms Collector beside one, and the three-Thief board.
+
+#### Exit criteria
+
+1. Nine PRs merged in the orders above, each with its consumers registered and
+   its predicted `PERFORMANCE_POOL` move made or explicitly declined with the
+   A/B that decided it; RE-9's decision recorded either way.
+2. Every atom listed above annotated `COVERS:` or `COVERS-PARTIAL:` with the
+   partial's reason in the test; `ATOM-614.11b-001` and `ATOM-614.10b-001`
+   uncovered with their reasons in the test files; `python plans/specdb.py
+   owed` still 9 — none of RE's atoms is in a shipped phase, so the gate cannot
+   move by construction, and the Phase 6 CR 614.10/11/16 slice is what each
+   PR's list above closes.
+3. `cargo test` green and `cargo build --all-targets` warning-free at every
+   commit but the red-test commits; `tests/determinism_test.rs` and three shell
+   `fuzz_games` runs at one seed line-for-line outside `=== Timing ===`, and
+   the same for `--players 4` from RE-6 on.
+4. §11 findings 42–46 each closed, moved or re-dated; `codebase-state.md`
+   items 6 (the loss half), 9, 29, 43, 46, 52, 108, 111–114, "Before card
+   breadth" item 8 and "Before Commander" item 4 updated by the PR that
+   touches each; `backlog.md` §2.16 and §2.17 struck as graduated by RE-5 and
+   RE-1; a Deferred Migrations line for every arm left absent above.
+5. The trace-page decisions recorded at RE-2's and RE-4's close; §3.2d's
+   Notion Thief correction and §10's Eligeth row landed with RE-2 and RE-8;
+   `check_state_of_play.py --write` after each merge; `plans/handoffs/re.md`
+   opened by the first RE PR that spans a session and deleted by the last RE
+   PR to land.
 
 ### Interleaved — Commander
 
@@ -4842,7 +5969,7 @@ quietly wrong. Write them as the phase's first tests, not its last:
 | `test_declined_optional_is_not_reoffered` | §4.1's decline path marking applied without consuming a use | hangs |
 | `test_kalitas_simultaneous_deaths_each_exile_and_make_a_zombie` | §4.2 per-event applied sets — Kalitas's printed ruling | one Zombie instead of N; N−1 cards reach the graveyard |
 | `test_then_rider_resolves_after_the_performed_event` | §4.1a rider timing (CR 615.5) | passes vacuously until events/LKI order is asserted — assert on the event log, not the end state |
-| `test_goggles_with_eligeth_draws_two_and_never_scrys` | §4.1a's instruction split + kind-changing `Instead` (needs the `Scry` event kind — RE at the earliest, §8a) | wrong draw count, or a scry event exists in the log |
+| `test_goggles_with_eligeth_draws_two_and_never_scrys` | §4.1a's instruction split + kind-changing `Instead` (needs the `Scry` event kind — **RE-8, 2026-09-11**: the `Scry` producer lands there with Opt and Eligeth, and the test is written first as `test_opt_with_eligeth_draws_two_and_never_scrys`; the Goggles of Night form scries from a *trigger* and waits for item 6) | wrong draw count, or a scry event exists in the log |
 
 The first and fourth hang rather than fail, which is the argument for writing
 them before the code they check.
@@ -5019,7 +6146,9 @@ rule number) — confirm the merge at labelling time.
    mutation. They still go through the pipeline (they are replacement effects
    per 614.1b/614.10), but their proposal is built by the turn machinery. Note
    also that `GameState.skip_first_draw` (CR 103.8a) is a **game rule**, not an
-   effect, and stays a bool.
+   effect, and stays a bool. **Confirmed at RE's sizing (2026-09-11): RE-1, §9
+   RE decision 6 — and §9's older paragraph, which said `pending_skips`, is
+   struck; this item was right and it was not.**
 
 7. **Watch the `ScriptedDecisionProvider` blast radius.** Every existing test
    that reaches `execute_action` will now traverse the pipeline. The §4.1 rule
@@ -5286,8 +6415,8 @@ there, because all three are about **what a rider can reach**.
     because "a correct mechanism with no customer" is precisely the shape
     `codebase-state.md`'s Deferred Migrations section exists to catch. Item 29
     there has the sizing; the regression is the one §3.2d already names,
-    `test_two_teferis_draw_four_not_infinity`, and **RE** is the phase that
-    needs it.
+    `test_two_teferis_draw_four_not_infinity`, and **RE-2** is the PR that
+    needs it (§9, sized 2026-09-11: the outer draw's performer is the producer).
 
 ### Found by asking what RC-3's own test proves (2026-09-02)
 
@@ -5518,7 +6647,9 @@ found them.
     Everlasting Torment has wither, Combust "can't be countered" (§8a's missing
     counter event). Pinpoint Avalanche is clean and is RD-4's per-event
     consumer; the restriction consult is built against a fixture row and
-    Skullcrack lands it in a game after RE. Recorded so the arm's producer
+    Skullcrack lands it in a game in RE-3 (§9, sized 2026-09-11), which also
+    gives `Restriction::Event` the `affected_players` the row needs — see
+    item 45. Recorded so the arm's producer
     status is not misread as an omission.
 
 27. **CR 120.3 has eight results, RD ships two of them, and the other four
@@ -5870,6 +7001,73 @@ found them.
     `affected`/`affected_players` keeps its own names, where `affected` reads
     as the generic noun rather than as a preposition, and the asymmetry there is
     the older one.
+
+### Found by RE's sizing (2026-09-11)
+
+42. **§3.2d's Notion Thief encoding contradicts the card's ruling, and the
+    lineage rule is what catches it.** "That player skips that draw and you
+    draw a card" was filed as `Prevent` + `then`, the heterogeneous case.
+    Its ruling walks two Thieves and says each is "applied to the card draw
+    only once" and that in a two-player game "it really will be that player
+    who draws" — which a rider's fresh proposal cannot deliver, since two
+    Thieves would trade the draw forever. The Thief's draw is the same event
+    with a new subject, `Instead(DrawCards { n: 1, player: Some(You) })`,
+    and §3.2d is corrected in place. Alms Collector stays a rider. Worth
+    keeping because it is the second time (after Furnace of Rath's) that a
+    printed ruling decided a rewrite's *arm* rather than its numbers — the
+    rulings pass is doing design work, not just test work. → RE-2.
+
+43. **Mana production is a chokepoint violation, and RA's census could not
+    have seen it.** `resolve_mana_effect` (`mana.rs:91`) and
+    `Primitive::ProduceMana` (`resolve.rs:337`) both write the pool directly,
+    and `GameEvent::ManaAdded` — in the enum since the log was written — is
+    emitted at zero sites. RA's audit walked *emissions* (§6's table was built
+    from `events.emit` sites), so a mutation that emitted nothing was invisible
+    to it, the mirror of the lifelink finding, which emitted without proposing.
+    Two printed replacements (Mana Reflection, Nyxbloom Ancient) and item 6's
+    "whenever you tap a land for mana" family read the event. → RE-9, and
+    `codebase-state.md` item 111.
+
+44. **A lost player keeps taking turns and receiving priority in any game of
+    three or more, and `has_drawn_from_empty_library` never clears.**
+    `advance_turn` takes `(active_player + 1) % num_players` and the priority
+    loop rotates the same way; nothing reads `player_lost` on either path.
+    `fuzz_games` plays two, where a loss ends the game in the same sweep, so it
+    has never shown. This is exactly the two-player assumption `CLAUDE.md`
+    said `PlayerLoses` would hide, found by looking where it said. The flag is
+    the same shape one rule over: CR 704.5b's window is "since the last time
+    state-based actions were checked", and Exquisite Archangel's ruling ("you
+    won't lose again until you try to draw again") is what a never-cleared
+    flag gets wrong. → RE-6; `codebase-state.md` items 112 and 113 — and
+    the objects a departed player leaves behind (item 108) are RE-7's, the PR
+    after, since the day RE-6's four-player mode lands they are reachable and
+    wrong.
+
+45. **`Restriction::Event` carries no `PlayerSet`, so four printed "can't"
+    families have no row shape.** "Players can't gain life" (25 cards),
+    "can't lose life" (2), "you can't lose the game" (11), "your opponents
+    can't win the game" (9) all scope a prohibition to players, and
+    `Restriction::Event { pattern, affected, by }` has only the object set.
+    RD-1 added `affected_players` to `ReplacementDef` and RD-4 added
+    `to_players` to `ApplyReplacement`; this is the third instance of the same
+    field and the last type without it. → RE-3 (Skullcrack), read by RE-6
+    (Platinum Angel); `codebase-state.md` item 114; closes item 26.
+
+46. **This document held two answers on skips for twelve days.** §11 item 6
+    (2026-08-30) said skips go through the pipeline with the proposal built by
+    the turn machinery; §9's RE paragraph (older) said a per-player
+    `pending_skips` counter consulted at step begin. Nobody read them against
+    each other until RE was sized, and the paragraph was the one a builder
+    would have started from. Same for §8a's discard row, which said the
+    pattern arm did not exist for sixteen days after RB built it. The rule
+    that follows is `state-of-play.md`'s reason generalised: **a scope
+    paragraph for an unsized phase goes stale in the merge that builds part of
+    it, and re-reading it is the first step of sizing, not a courtesy** — the
+    prompt for this sizing said so, and it was right twice. The review the
+    same afternoon found a third: the first cut sent discard's producer to
+    Phase 8 on §8a's sentence while RD-1 had built `Primitive::Mill` inside
+    a replacement PR for the same reason — a precedent seventeen days old
+    that a re-read of §9's own RD-1 section would have surfaced.
 
 ## 12. Explicitly out of scope
 
