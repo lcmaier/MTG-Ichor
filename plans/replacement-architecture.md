@@ -3554,6 +3554,70 @@ since RB and claimable by any `Instead` consumer — this one takes it);
 `ATOM-614.11b-001` stays uncovered, decision 1's reason in the test file.
 `ATOM-121.2-001` (ALREADY-IMPL) gains a `COVERS:` from the decomposition test.
 
+**The three the section left open, decided 2026-09-11 before a line of code.**
+
+1. **`DrawCause` rides on both variants, and a substituted outer keeps the cause
+   it replaced.** The outer needs the field because the outer's performer is
+   what stamps its inners, and the stamp is `if i == 0 { outer.cause } else {
+   Effect }` — which is decision 1's "first inner `TurnBased`, every later one
+   `Effect`" when the outer is `TurnBased` and "all `Effect`" when it is not.
+   CR 614.6 makes a substituted event the *same* event in modified form, so
+   Thought Reflection's `DrawCards { n: 2 }` inherits the draw step's
+   `TurnBased` — and that is the whole of "the first one you draw in each of
+   your draw steps": the recursion answers it, and no counter of cards-drawn-
+   this-step is needed. Teferi beside Thought Reflection in the draw step draws
+   three because the outer's first inner is the excepted card and its second is
+   `Effect`; Teferi's own doubling is then an `Effect` outer whose *first* inner
+   is `Effect` too, so it stops at three rather than running to four. **A rider's
+   draw is `Effect`** — §4.1a gives a rider a fresh lineage, and Alms Collector's
+   two draws are new instructions rather than the draw step's turn-based action,
+   so the affected player's Teferi doubles them, which is right: they are not the
+   first card that player drew. `Primitive::DrawCards` is `Effect` at every call
+   site; the draw step is the one `TurnBased` producer in the engine (CR 121.1).
+2. **The stamp lives in the outer's performer, off the loop index.** A field
+   threaded through the decomposition would have to be set by whoever built the
+   outer *and* by every rewrite that produces one, which is a field a card can
+   forget — the argument `ReplacementClass::from_rewrite` and
+   `ReplacementDef::is_prevention` already make. The index is already in hand
+   where the decomposition happens and nowhere else needs it.
+3. **An outer `DrawCards { n: 0 }` reaches the loop.** `never_happens` is
+   CR 614.7a, and the two rules filed under it — 120.8 and 119.10 — each say in
+   so many words that the event does not occur. CR 121.2 says only that the
+   player "performs that many individual card draws", which is zero of them, and
+   no rule says the *instruction* is not an event. Alms Collector's
+   `at_least: Some(2)` does not match it and nothing prints `at_least: None`, so
+   reaching the loop costs one gather and answers nothing wrongly, while dropping
+   it upstream would be a rule the CR does not have. The performer's loop runs
+   zero times, which is the no-op with no guard — `LoseLife`'s 0 is the same
+   shape and the same reason it is a local convenience in `perform_action` rather
+   than CR 614.7a.
+
+**Re-counted against the tree (2026-09-11, after RE-1 landed), and three of the
+row's numbers were wrong.** The three exhaustive matches are still three
+(`subject_of`, `event_amount`, `perform_action`) and `pattern_watches` still
+falls through to `false` at one `_` arm; `DrawCard`'s producers are two
+(`resolve.rs`'s `Primitive::DrawCards` loop, `turns.rs`'s draw step) and
+`Primitive::DrawCards` is one. What moved:
+
+- **Test constructions: 1 → 0.** Nothing in `mtgsim/tests` or any `#[cfg(test)]`
+  module constructs a `GameAction::DrawCard`; every draw test goes through
+  `Primitive::DrawCards` and asserts a hand size. The `cause` field costs the
+  test suite nothing.
+- **`inherited`'s "1 call site" is the parameter, not the plumbing.** Feeding it
+  is four signatures: `apply_replacements` has to *return* the group's applied
+  set, `execute_batch_inner` has to carry it per member into phase 2,
+  `perform_action` has to take it, and a third entry point beside
+  `execute_actions` / `execute_actions_new_batch` has to hand it back down.
+  §4.2's note that "a third caller needs the same argument made again" is
+  answered here on the other axis: the lineage variant joins the enclosing batch
+  exactly as `execute_actions` does, and differs only in what it seeds the
+  applied set with.
+- **`GameState::draw_cards` has no callers and is a third producer waiting to
+  happen** (§11 item 50). Deleted by this PR.
+- **`Game::setup`'s comment is wrong and RE-2 makes it wronger** (§11 item 51).
+  The behaviour is right — CR 103.4's opening hands cannot meet a replacement —
+  but the comment claims a route the code does not take.
+
 #### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event)
 
 **Builds:** decision 2 — the two pattern arms, `AmountRewrite::LifeFloor`,
@@ -5464,6 +5528,51 @@ found them.
     was made about a queue and is true of the queue; the sentence did not say
     which level it covered, and nobody read it against the level below until
     the fixture forced it.
+
+### Found by building RE-2 (2026-09-11)
+
+50. **`GameState::draw_cards` has had no caller since before RA and is a draw
+    path with no proposal.** A `pub fn draw_cards(player, count, ctx)` that loops
+    `draw_card` — the *performer* — so an N-card draw through it would make N
+    library-to-hand moves with no `DrawCard` event, no CR 121.2 instruction and
+    no lineage. It was correct-and-unused while `Primitive::DrawCards` looped
+    `execute_action` itself; after RE-2 it is a second spelling of the outer
+    performer that skips the pipeline entirely. The census counted `DrawCard`'s
+    *producers* and this is not one — it produces no action at all, which is
+    exactly the shape RA's emission-walk audit missed for mana (item 43) and
+    §8a's table missed for discard. **Deleted rather than routed**, because a
+    plural helper beside a plural `GameAction` is the ambiguity, not the
+    convenience: `Primitive::DrawCards` is the one way to ask for N draws.
+
+51. **`Game::setup`'s opening-hand comment claims a route the code does not
+    take, and has since RA-2.** The comment reads "CR 103.4 calls this drawing,
+    so it goes through the chokepoint like any other draw", and RA-2's commit
+    message says routing the opening hands was a deliberate deviation from the
+    plan. The diff threaded an `ActionContext` and left the call at
+    `state.draw_card(..)` — the performer. What *is* true is the comment's
+    second half and the reason RE-2 leaves the call alone: the battlefield is
+    empty and the registry has no rows, so no replacement can be gathered and no
+    choice can arise (CR 103.6 puts Leylines after this point). The correction
+    is one comment, and it is worth making now because "like any other draw"
+    stops meaning "reaches `execute_action`" and starts meaning "proposes a
+    `DrawCards` outer that decomposes" — a claim the reader can check and find
+    false. **The general shape: a comment that names a mechanism ages with the
+    mechanism**, and this one was written about a route the same commit chose
+    not to take.
+
+52. **CR 121.2c orders two players' draws and nothing can express it.** "If more
+    than one player is instructed to draw cards, the active player performs all
+    of their draws first, then each other player in turn order does the same."
+    Alms Collector's rider is the first thing in the crate that instructs two
+    players to draw from one effect — `Effect::Sequence([draw for you, draw for
+    that player])` — and a `Sequence` resolves in text order, so when the
+    affected opponent is the active player the engine draws in the wrong order.
+    Observable in the event log today and in gameplay the day item 6's
+    "whenever you draw" triggers land. **Not built here**: the facility is
+    APNAP ordering over *an effect's recipients*, which no `Effect` arm carries
+    and which CR 121.2d (shared team turns) extends; one rider is one customer
+    and the rule wants two. `codebase-state.md` has the line and the sizing.
+    → RE-6, which is where a lost player stops being in turn order at all.
 
 ## 12. Explicitly out of scope
 

@@ -4154,6 +4154,39 @@ named RE PR.
      doc records both rulings as "item 6's" and this is the line that says
      where they land.
 
+122. **CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
+     first customer.** *"If more than one player is instructed to draw cards,
+     the active player performs all of their draws first, then each other
+     player in turn order does the same."* Alms Collector's rider — "instead
+     **you and that player** each draw a card" — is the first effect in the
+     crate that instructs two players to draw, and it is an `Effect::Sequence`,
+     which resolves in the order the card's text was written. When the affected
+     opponent is the active player the two draws come out backwards.
+
+     **Reachability (2026-09-11):** reachable, wrong today, and only in the
+     event log. Alms Collector is registered and not pooled, so no fuzz game
+     reaches it; a fixture does, and the order is asserted nowhere because
+     asserting it would freeze the wrong answer. It becomes gameplay-visible
+     the day item 6 lands "whenever you draw a card", where two players'
+     triggers would go on the stack in the wrong order.
+
+     **Sized: not one line.** The facility is APNAP ordering over *an effect's
+     recipients*, and `Effect` has no arm that says "these atoms are one
+     instruction to several players" — a `Sequence` is CR 608.2c's instruction
+     sequencing, which is deliberately *not* reordered. The two candidate
+     shapes are a recipient-plural draw primitive
+     (`Primitive::DrawCards` with an `EffectRecipient::Filter`-style player set,
+     ordered by `apnap_index` at resolution, ~40 lines and one new recipient
+     reading) or a `Effect::Simultaneous` arm that sorts its atoms by chooser
+     the way `apnap_batch_order` already sorts a batch (~60 lines, and a second
+     ordering rule beside the batch's). CR 121.2d's shared-team-turns variant
+     is a third leg on whichever lands. **One customer today**, which is why
+     neither is built: §8c's "two customers before a leaf", applied to an
+     ordering rule rather than a filter.
+
+     → `replacement-architecture.md` §11 item 52. **Owner: RE-6**, which is
+     where turn order stops being `(0..n)` because a lost player has left it.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a
