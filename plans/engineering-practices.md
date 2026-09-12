@@ -1611,6 +1611,21 @@ useful as the first:
 Fetch them with `curl` and a UA header, like the oracle text (`CLAUDE.md`'s
 references row): `/cards/named?exact=…` carries a `rulings_uri`.
 
+**Where it goes: in the card's own doc comment, under `# The rulings, and where
+each is tested`** — RD-1's shape, and the one to copy. Written down after RE-3's
+review asked the same question it had asked at RE-2's: RE-1, RE-2 and RE-3 each
+appended a module-level "rulings pass" block, and by the third the header of
+`phase_re_cards.rs` was **412 lines** of prose a reader had to scroll past to
+reach a card. Moved onto the cards it costs nothing and reads better — the
+rulings for Ali from Cairo are the paragraph above Ali from Cairo — and the
+module doc keeps what is genuinely about the *phase*: the axes, the design
+claims the cards were chosen to press on, and what a random deck can draw.
+
+**Format-variant rulings are dropped, not answered.** A Two-Headed Giant ruling
+gets no line: CR 810 is not implemented, "n/a" is not one of the three answers,
+and the list's whole value is that every entry names a board. The same goes for
+any ruling about a format §9 has not built.
+
 **What it caught on its first outing (CM-3, five cards, eleven rulings).** Six
 became tests, and none of them was a board the corpus had:
 

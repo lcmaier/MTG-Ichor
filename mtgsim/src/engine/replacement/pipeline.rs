@@ -719,12 +719,9 @@ fn next_damage_shares(
 /// either, `LifeFloor` beside one does not (3 → 1 → 2 or 3 → 6 → 1), and a
 /// prevention arm can empty the event.
 ///
-/// **It is not "the pattern is damage", and it was until RE-3.** The clause the
-/// theorem needs is that no member can stop applying as another member changes
-/// the number, which is a property of the pattern rather than a list of kinds:
-/// [`EventPattern::reads_the_amount`]. Two Rhox Faithmenders are the board that
-/// found it — they commute for exactly the reason two Furnaces of Rath do, and
-/// the damage gate asked them CR 616.1's question anyway.
+/// The clause is [`EventPattern::reads_the_amount`] and not a list of event
+/// kinds: what the theorem needs is that no member can stop applying as another
+/// member changes the number (§11 item 58).
 ///
 /// **Every member an `Instead(DrawCards { n ≥ 1, player: None })` on
 /// `EventPattern::DrawCard`, and every member's pattern admits `DrawCause::Effect`

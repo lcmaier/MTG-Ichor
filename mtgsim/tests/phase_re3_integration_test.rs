@@ -179,7 +179,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
 
 // ---------------------------------------------------------------------------
-// CR 614.5 over a player subject — the acid board
+// CR 614.5 over a player subject
 // ---------------------------------------------------------------------------
 
 /// **Two Faithmenders quadruple, and nobody is asked which applies first.**

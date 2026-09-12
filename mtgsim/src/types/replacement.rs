@@ -510,21 +510,15 @@ impl EventPattern {
     /// any order *only if* no member can stop applying as another member
     /// changes the number. A pattern that reads no amount cannot.
     ///
-    /// **It lives here rather than beside its caller, and that is the third
-    /// time this premise has been got wrong.** RD-1 wrote it as "the pattern is
-    /// `EventPattern::DealDamage`" and RE-2 found the same clause missing from
-    /// the draw shape (`replacement-architecture.md` §11 items 19, 55); RE-3
-    /// found a `Multiplier` over a life gain falling through the damage gate.
-    /// Each time the axis that moved was **this enum**, which grows one arm per
-    /// `GameAction` variant every replacement phase — so the classification
-    /// belongs where the arm is written, in front of whoever writes it, rather
-    /// than in a predicate they have no reason to open. Matched exhaustively,
-    /// so a new arm has to answer rather than defaulting to "safe".
-    ///
-    /// The contrast is `pipeline::filter_is_mods_invariant`, which stays at its
-    /// caller: that one classifies an `ObjectFilter` against a property of
-    /// `EnterMods`, a relation between two types and so a fact about neither.
-    /// This is a property of one arm, answerable from its own definition.
+    /// **It lives here rather than beside its caller** because it is a property
+    /// of one arm, answerable from that arm's own definition — so the question
+    /// is in front of whoever writes the next arm. The contrast is
+    /// `pipeline::filter_is_mods_invariant`, which stays at its caller because
+    /// it classifies an `ObjectFilter` against a property of `EnterMods`: a
+    /// relation between two types, and so a fact about neither.
+    /// (`replacement-architecture.md` §11 item 58 is why the rule was worth
+    /// writing down.) Matched exhaustively, so a new arm has to answer rather
+    /// than defaulting to "safe".
     pub fn reads_the_amount(&self) -> bool {
         match self {
             // CR 121.2a's "two or more cards" — Alms Collector, and the only
