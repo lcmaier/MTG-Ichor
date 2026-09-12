@@ -45,6 +45,7 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -176,14 +177,33 @@ fn cant_be_prevented_this_turn(game: &mut GameState, source: ObjectId, controlle
 /// rather than kept in a registry — so Humility strips it for free and it lasts
 /// exactly while the source is on the battlefield.
 ///
-/// Leyline of Punishment and Everlasting Torment are the printed cards, and
-/// each carries the same missing half as the row above.
+/// **Leyline of Punishment entire, as of RE-3**, minus the one line that keeps
+/// it unregistered. The card is three sentences: an opening-hand clause that is
+/// §3.3 source 2's zone-reaching static and would be dead text under a real
+/// card name, "players can't gain life", and "damage can't be prevented". RE-3
+/// built the first of those two as a `Restriction::Event` with a `PlayerSet`
+/// and landed it in a game on Skullcrack; this fixture is where the *static*
+/// form of both halves is proved, which is what §9 asks of it. Everlasting
+/// Torment is the other printed carrier, and it has wither.
 fn leyline_fixture() -> Arc<CardData> {
     CardDataBuilder::new("Prevention Ban Probe")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Enchantment)
-        .rules_text("Damage can't be prevented.")
+        .rules_text("Players can't gain life.\nDamage can't be prevented.")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+                pattern: EventPattern::GainLife,
+                affected: AffectedSet::NO_OBJECTS,
+                affected_players: PlayerSet::Everyone,
+                by: None,
+            }))),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
         .ability(AbilityDef {
             id: new_ability_id(),
             ability_type: AbilityType::Static,
@@ -199,6 +219,43 @@ fn leyline_fixture() -> Arc<CardData> {
             activation_restriction: ActivationRestriction::None,
         })
         .build()
+}
+
+/// The life half of the fixture above, which is Leyline of Punishment's
+/// static form of Skullcrack's first sentence (RE-3, §11 item 26).
+///
+/// **A static "can't" is a sweep, not a row**, and the difference is what this
+/// asserts beyond the RE-3 file's registry-row boards: the prohibition is read
+/// off the source's *effective* ability list on every proposal, so it starts
+/// when the permanent enters and stops when it leaves, with nothing to expire.
+#[test]
+fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() {
+    let mut game = setup_two_player_game();
+    let leyline = put_on_battlefield(&mut game, leyline_fixture(), 0);
+    let source = probe(&mut game, 0);
+    let before = life(&game, 1);
+
+    let gain = Effect::Atom(
+        Primitive::GainLife(AmountExpr::Fixed(4)),
+        EffectRecipient::Controller,
+    );
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 1,
+        targets: Vec::new(),
+        replaced_amount: None,
+        damage_prevented: None,
+    };
+    game.resolve_effect(&gain, &ctx, &ScriptedDecisionProvider::new()).unwrap();
+    assert_eq!(life(&game, 1), before, "CR 101.2 refuses the proposal");
+
+    // And it ends with the permanent rather than at cleanup — the sweep reads
+    // a battlefield that no longer holds it.
+    game.change_zone(leyline, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .unwrap();
+    game.resolve_effect(&gain, &ctx, &ScriptedDecisionProvider::new()).unwrap();
+    assert_eq!(life(&game, 1), before + 4, "the ability left with its source");
 }
 
 /// A source with no ability of its own — something for a fixture row to hang
