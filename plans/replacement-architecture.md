@@ -5708,6 +5708,37 @@ found them.
     about stale scope paragraphs, applied to the atom list rather than to the
     design.
 
+60. **The fourth suppression shape has the shortest premise of the four, and it
+    was nearly not built because the reason for skipping it was a cost
+    argument.** RE-3 left two Tainted Remedies prompting and wrote down "no
+    pooled card reaches this board" — true, and not the question. RC-4's rule is
+    *never prompt for a choice with one outcome*, and this choice provably has
+    one; the review that asked "why not?" was reading the rule and the PR was
+    reading the budget.
+
+    What the check produced is worth more than the fix. The premise the other
+    three shapes carry is about *what the members do to the number* —
+    multiplication commutes, entry mods merge, doublers compose one level out.
+    This one needs none of that: **if every member carries the same `Rewrite`
+    and applying it is a pure function of the event, the event after one
+    application is the same whichever member applied it**, so the set of members
+    still applicable to it is the same, and by induction so is the whole trace
+    — however many end up applying, and whatever their patterns are. It is the
+    only one of the four that does not mention `EventPattern`.
+
+    **The clause that is not free is instance-invariance**, and it is what makes
+    the leaf table earn its place rather than answering `true` everywhere:
+    `GameActionTemplate::GainLife` embeds CR 609.6's source and
+    `DrawCards { player: Some(You) }` the applying effect's controller, so two
+    otherwise-identical statics on different permanents substitute *different*
+    events. Extracting `substitute` from `apply_rewrite`'s `Instead` arm is what
+    makes the purity a fact of the signature rather than a comment.
+
+    And the shape needed its own debug check, on item 55's rule: a suppressed
+    member here does not have to keep applying — Tainted Remedy's ruling is that
+    it stops — so what is asserted is that its own `substitute` would have
+    produced the same event.
+
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.

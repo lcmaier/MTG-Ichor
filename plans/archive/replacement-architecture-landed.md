@@ -2386,13 +2386,18 @@ and that is the calibration RE-4 should carry forward: RD-1's +1,950 against
   `perform_action`'s local guard makes silent, and a watcher would see the
   proposal — which is what the rules say and what no printed card yet asks
   about.
-- **Two identical kind-changing substitutions are not a fourth suppression
-  shape.** Two Tainted Remedies do prompt: both are applicable at the first
-  iteration, and CR 616.1's question is "choose one to apply", not "choose one
-  if it matters". Its ruling says the *outcome* is unaffected, which the test
-  asserts the stronger way — the prompt happens and both answers are three
-  life. A fourth semantics-assuming shortcut would carry its own expiry
-  conditions for a board no ruling calls a choice and no pooled card reaches.
+- **Two identical substitutions ~~are not~~ *are* a fourth suppression shape**,
+  and the first answer was wrong. Two Tainted Remedies were left prompting on a
+  cost argument — no pooled card reaches the board — where the project has a
+  rule, RC-4's "never prompt for a choice with one outcome". Review pushed back,
+  and checking it turned up a premise **shorter** than the other three shapes'
+  and one that does not mention the pattern at all: if every member carries the
+  same `Rewrite` and that rewrite is a pure, instance-invariant function of the
+  event, the event after one application is the same whichever member applied
+  it, so the whole trace is. The clause that is not free is instance-invariance
+  — `GameActionTemplate::GainLife` embeds CR 609.6's source and
+  `DrawCards { player: Some(You) }` the controller — and it is
+  `template_is_instance_invariant`. §11 item 60.
 
 **`codebase-state.md` item 53's open question, answered.** "Will the next
 `apply_rewrite` arm need `&mut GameState`?" — the review's answer was "mostly

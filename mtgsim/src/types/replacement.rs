@@ -293,6 +293,17 @@ pub enum EventPattern {
     /// amount, and an arm the pipeline cannot apply is worse than a missing
     /// one (§3.2a).
     ///
+    /// **The claim is about what is *printed*, and the retrofit is cheap enough
+    /// that it should stay that way.** A card could be printed — "if you would
+    /// gain life from a source an opponent controls" is a sentence Magic could
+    /// write — and a custom card could want it tomorrow. Giving this arm a field
+    /// costs **four constructions** (three cards and one fixture), one
+    /// `pattern_watches` arm and one [`Self::reads_the_amount`] arm: about
+    /// fifteen lines, all of them compiler-forced. That is the number that makes
+    /// "wait for the customer" the right default rather than a gamble — a field
+    /// nothing reads is a field every card author has to decide about, and this
+    /// one can be added the day it is read for less than it costs to carry.
+    ///
     /// **Reading no amount is load-bearing**, and it is the same clause
     /// [`Self::DealDamage`] carries: `pipeline::ordering_cannot_change_outcome`
     /// suppresses CR 616.1's prompt for a bucket of commuting multipliers over

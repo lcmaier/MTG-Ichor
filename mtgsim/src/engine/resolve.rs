@@ -1021,6 +1021,15 @@ impl GameState {
                 // naming both would make a second copy of the spell a no-op
                 // under CR 614.5.
                 //
+                // **Not CR 608.2b**, which is the other thing a target decides
+                // and is not this code's: a spell whose only target is illegal
+                // on resolution never reaches `resolve_effect` at all, so no row
+                // is created by any route. What this decides is the opposite
+                // question — for a spell that *did* resolve, whether its
+                // restriction is about the thing it targeted. Skullcrack is both
+                // at once: its damage is about its target and its two
+                // prohibitions are about everyone.
+                //
                 // Everything else is complete as authored and gets one row.
                 // Skullcrack is the first card that needs the distinction:
                 // "players can't gain life this turn" is `Everyone` with no
