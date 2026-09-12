@@ -5741,6 +5741,32 @@ found them.
     it stops — so what is asserted is that its own `substitute` would have
     produced the same event.
 
+    **The premise as first written had a false step, found by the review asking
+    what the check actually checks** (2026-09-12, after merge). It argued that
+    after one application "the same set of members is still applicable, since
+    applicability is decided against that event". It is not: `applies_to`
+    resolves the affected sets against *each instance's own* controller and
+    source, so two defs that are `==` as data can differ on one event —
+    `PlayerSet::Opponents` around two different permanents is the printed case.
+    So order can change **which** members apply and **how many**.
+
+    What was holding the theorem up unstated is **idempotence**: an `Instead`
+    overwrites rather than accumulates, and the only field a template reads off
+    the event is one the previous application already set to the value it will
+    read — `ReplacedAmount` applied to a gain of 3 makes a loss of 3, and applied
+    to that reads 3 again. So every trace ends at `T(e)` whatever `k` is. Now a
+    second leaf table (`template_is_idempotent`), a second release-mode clause
+    and a second debug assertion, because the arm that would break it is easy to
+    write: "loses twice that much life instead" as a *template* rather than as an
+    `AmountRewrite`, which is why doubling lives on that type.
+
+    **Worth the entry for the general shape.** The first three shapes were each
+    got wrong by under-specifying the *pattern* side (items 19, 55, 58); this one
+    was got wrong by under-specifying the *iteration* side, and the two failures
+    rhyme. A suppression premise has to say what is true of one application and
+    what is true of repeating it, and a premise that only argues the first is a
+    premise that has assumed the second.
+
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.
