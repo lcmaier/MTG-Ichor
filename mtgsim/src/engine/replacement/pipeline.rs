@@ -158,7 +158,11 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         // skip do something afterwards — has zero printed cards.
         | GameAction::BeginTurn { .. }
         | GameAction::BeginPhase { .. }
-        | GameAction::BeginStep { .. } => None,
+        | GameAction::BeginStep { .. }
+        // A game's end has no amount; Stunning Reversal's "draw seven" is a
+        // number printed on the card, not one read off the loss.
+        | GameAction::PlayerLoses { .. }
+        | GameAction::PlayerWins { .. } => None,
     }
 }
 
@@ -925,6 +929,10 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
         GameActionTemplate::GainLife { .. } => false,
         // A substituted loss carries `LifeLossCause::Effect` and no source.
         GameActionTemplate::LoseLife { .. } => true,
+        // Built from the event's subject: "you win" on Laboratory Maniac is
+        // the drawing player, who is also its controller by the def's
+        // `PlayerSet::You`, so no instance's own field reaches the event.
+        GameActionTemplate::PlayerWins => true,
     }
 }
 
@@ -952,6 +960,13 @@ fn template_is_idempotent(template: &GameActionTemplate) -> bool {
         GameActionTemplate::DrawCards { .. } => true,
         GameActionTemplate::GainLife { .. } => true,
         GameActionTemplate::LoseLife { .. } => true,
+        // The one arm whose answer is worth deriving rather than reading off.
+        // `T(e)` reads the subject and preserves it, so `T(T(e)) = T(e)` as a
+        // function — and beyond the function, a win is *terminal*: CR 104.1
+        // ends the game at the first, so no `k > 1` trace is ever performed
+        // whatever the loop computes. Two Laboratory Maniacs on one draw are
+        // therefore one outcome with no prompt, which is this table's job.
+        GameActionTemplate::PlayerWins => true,
     }
 }
 
@@ -1775,6 +1790,21 @@ fn substitute(
                 "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
                  is an object, not a player. Its `EventPattern` and its `Rewrite` \
                  describe different events.",
+                chosen.id, event
+            )),
+        },
+
+        // CR 614.1a from a draw to the game's end — Laboratory Maniac's "you
+        // win the game instead". The affected player wins, for the two life
+        // templates' reason: nothing printed hands a substituted win to
+        // somebody else, so there is no `player` field and the day one is
+        // printed it arrives as `DrawCards`'s already has.
+        (GameActionTemplate::PlayerWins, event) => match subject_of(&event) {
+            EventSubject::Player(player) => Ok(GameAction::PlayerWins { player }),
+            EventSubject::Object(_) => Err(format!(
+                "replacement {:?} rewrites to a win but matched {:?}, whose subject is \
+                 an object, not a player. Its `EventPattern` and its `Rewrite` describe \
+                 different events.",
                 chosen.id, event
             )),
         },

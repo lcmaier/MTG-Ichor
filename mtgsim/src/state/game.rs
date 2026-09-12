@@ -4,8 +4,7 @@ use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
-use crate::state::game_state::{GameState, PhaseType, StepType};
-use crate::types::ids::PlayerId;
+use crate::state::game_state::{GameResult, GameState, PhaseType, StepType};
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_discard;
 use crate::ui::decision::DecisionProvider;
@@ -13,26 +12,22 @@ use crate::ui::decision::DecisionProvider;
 /// A decklist: ordered list of card definitions that make up a player's deck.
 pub type Decklist = Vec<Arc<CardData>>;
 
-/// The outcome of a completed game.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GameResult {
-    Winner(PlayerId),
-    Draw,
-}
-
 /// Top-level game lifecycle wrapper.
 ///
-/// `Game` owns the `GameState`, `GameConfig`, and game result. It is the
-/// entry point that threads a `DecisionProvider` into the engine. Engine
-/// methods on `GameState` (e.g. `cast_spell`, `run_priority_loop`) accept
-/// `&dyn DecisionProvider` as a parameter for target selection, mana
-/// allocation, priority actions, etc. `Game` is responsible for providing
-/// the provider to those calls and for decision-requiring logic that lives
-/// outside the engine (e.g. cleanup discard, mulligans).
+/// `Game` owns the `GameState` and `GameConfig`. It is the entry point that
+/// threads a `DecisionProvider` into the engine. Engine methods on `GameState`
+/// (e.g. `cast_spell`, `run_priority_loop`) accept `&dyn DecisionProvider` as a
+/// parameter for target selection, mana allocation, priority actions, etc.
+/// `Game` is responsible for providing the provider to those calls and for
+/// decision-requiring logic that lives outside the engine (e.g. cleanup
+/// discard, mulligans).
+///
+/// **The result is not this wrapper's** — it is [`GameState::result`], written
+/// where CR 104.1's "immediately" happens, inside the chokepoint. `Game` only
+/// reads it, which is why nothing here can end a game that the engine has not.
 pub struct Game {
     pub state: GameState,
     pub config: GameConfig,
-    pub result: Option<GameResult>,
 }
 
 impl Game {
@@ -77,11 +72,7 @@ impl Game {
             state.skip_first_draw = true;
         }
 
-        Ok(Game {
-            state,
-            config,
-            result: None,
-        })
+        Ok(Game { state, config })
     }
 
     /// Make this game replayable from `seed` — same seed, same shuffle.
@@ -184,8 +175,7 @@ impl Game {
                     self.state.check_state_based_actions_loop(decisions)?;
                     self.state.run_priority_loop(decisions)?;
 
-                    if let Some(result) = self.check_game_over() {
-                        self.result = Some(result);
+                    if self.is_over() {
                         return Ok(());
                     }
 
@@ -201,8 +191,7 @@ impl Game {
                     self.state.run_priority_loop(decisions)?;
 
                     // 3. Game-over check after each priority round
-                    if let Some(result) = self.check_game_over() {
-                        self.result = Some(result);
+                    if self.is_over() {
                         return Ok(());
                     }
                 }
@@ -222,16 +211,13 @@ impl Game {
 
             // ...with one board where it returns without producing one, and
             // that board is the reason this check is here rather than only
-            // after a priority round. CR 104.2a: every player has left the
+            // after a priority round. CR 104.4a: every player has left the
             // game, so `GameState::next_turn_taker` finds nobody to propose a
             // turn for and the position stays put. The untap step grants no
             // priority, so nothing else in this loop would notice, and it
-            // would re-enter forever. `check_game_over` is the one place that
-            // decides an outcome; it answers `None` everywhere else this can
-            // be reached, because a loss can only be recorded by a state-based
-            // action and those run inside the priority loop above.
-            if let Some(result) = self.check_game_over() {
-                self.result = Some(result);
+            // would re-enter forever. The batch that performed those losses
+            // settled the result, which is what this reads.
+            if self.is_over() {
                 return Ok(());
             }
         }
@@ -248,8 +234,16 @@ impl Game {
         step: Option<StepType>,
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        // CR 800.4j — a turn whose active player has left "continues to its
+        // completion without an active player". The two turn-based actions
+        // *that player* performs — declaring attackers (508.1) and the
+        // cleanup discard (514.1) — have nobody to perform them; the untap
+        // step's and the draw step's are `engine::turns`'s and gate the same
+        // way there. Their permanents staying to be untapped is RE-7's.
+        let no_active_player = !self.state.in_game(self.state.active_player);
         match (phase_type, step) {
             // --- Combat phase ---
+            (PhaseType::Combat, Some(StepType::DeclareAttackers)) if no_active_player => {}
             (PhaseType::Combat, Some(StepType::DeclareAttackers)) => {
                 self.state.process_declare_attackers(decisions)?;
             }
@@ -266,6 +260,7 @@ impl Game {
                 self.state.process_combat_damage(decisions, false)?;
             }
             // --- Cleanup step ---
+            (PhaseType::Ending, Some(StepType::Cleanup)) if no_active_player => {}
             (PhaseType::Ending, Some(StepType::Cleanup)) => {
                 self.handle_cleanup_discard(decisions)?;
             }
@@ -287,53 +282,19 @@ impl Game {
         while !self.is_over() {
             self.run_turn(decisions)?;
         }
-        self.result.clone().ok_or_else(|| "Game ended without a result".to_string())
+        self.result().ok_or_else(|| "Game ended without a result".to_string())
     }
 
+    /// CR 104.1 — has the game ended? A read of [`GameState::result`].
     pub fn is_over(&self) -> bool {
-        self.result.is_some()
+        self.state.result.is_some()
     }
 
-    /// Check if the game should end based on player loss flags.
-    ///
-    /// Examines `GameState::player_lost` flags (set by SBAs) and determines
-    /// the game result. In a 2-player game:
-    /// - One player lost → other player wins
-    /// - Both lost simultaneously → draw
-    pub fn check_game_over(&self) -> Option<GameResult> {
-        let losers: Vec<PlayerId> = self.state.player_lost.iter()
-            .copied()
-            .enumerate()
-            .filter(|&(_, lost)| lost)
-            .map(|(id, _)| id)
-            .collect();
-
-        if losers.is_empty() {
-            return None;
-        }
-
-        let num_players = self.state.num_players();
-        if losers.len() >= num_players {
-            // All players lost simultaneously → draw
-            return Some(GameResult::Draw);
-        }
-
-        if num_players == 2 {
-            // Two-player game: the other player wins
-            let winner = if losers[0] == 0 { 1 } else { 0 };
-            return Some(GameResult::Winner(winner));
-        }
-
-        // Multiplayer: last player standing wins
-        let survivors: Vec<PlayerId> = (0..num_players)
-            .filter(|id| !self.state.player_lost[*id])
-            .collect();
-        if survivors.len() == 1 {
-            return Some(GameResult::Winner(survivors[0]));
-        }
-
-        // Multiple survivors remain — game continues
-        None
+    /// The outcome, once there is one. A read of [`GameState::result`]: the
+    /// engine records it at the batch that ended the game, and this wrapper
+    /// derives nothing from the loss flags any more.
+    pub fn result(&self) -> Option<GameResult> {
+        self.state.result.clone()
     }
 
     /// Perform cleanup step actions: remove damage from all permanents,
@@ -387,7 +348,6 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
     use crate::types::mana::ManaType;
-    use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::ScriptedDecisionProvider;
 
     fn make_test_decklist(count: usize) -> Decklist {
@@ -452,40 +412,59 @@ mod tests {
         assert!(game.state.skip_first_draw);
     }
 
+    /// A loss proposed the way `Primitive::LoseGame` proposes one, in its own
+    /// batch, so the settlement is the batch's (CR 104.2a / 104.4a).
+    fn lose(game: &mut Game, player: usize) {
+        use crate::engine::actions::GameAction;
+        use crate::events::event::LossReason;
+        let dp = ScriptedDecisionProvider::new();
+        game.state
+            .execute_action(
+                GameAction::PlayerLoses { player, reason: LossReason::Effect },
+                &ActionContext::new(&dp),
+            )
+            .unwrap();
+    }
+
     #[test]
-    fn test_check_game_over_no_losers() {
+    fn test_no_losers_no_result() {
         let config = GameConfig::test();
         let game = Game::new(
             config,
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        assert!(game.check_game_over().is_none());
+        assert!(game.result().is_none());
+        assert!(!game.is_over());
     }
 
+    // COVERS: ATOM-104.2a-001
     #[test]
-    fn test_check_game_over_one_loser() {
+    fn test_one_loser_and_the_other_player_wins() {
         let config = GameConfig::test();
         let mut game = Game::new(
             config,
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        game.state.player_lost[1] = true;
-        assert_eq!(game.check_game_over(), Some(GameResult::Winner(0)));
+        lose(&mut game, 1);
+        assert_eq!(game.result(), Some(GameResult::Winner(0)));
+        assert!(game.is_over());
     }
 
     #[test]
-    fn test_check_game_over_both_lose_is_draw() {
+    fn test_two_losses_in_two_batches_are_not_a_draw() {
+        // CR 104.1 ended the game at the first batch; a loss performed after
+        // it is the game continuing to be over, not a second result.
         let config = GameConfig::test();
         let mut game = Game::new(
             config,
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        game.state.player_lost[0] = true;
-        game.state.player_lost[1] = true;
-        assert_eq!(game.check_game_over(), Some(GameResult::Draw));
+        lose(&mut game, 0);
+        lose(&mut game, 1);
+        assert_eq!(game.result(), Some(GameResult::Winner(1)));
     }
 
     #[test]
@@ -508,14 +487,13 @@ mod tests {
         game.run_turn(&decisions).unwrap();
         assert_eq!(game.state.turn_number, starting_turn + 1);
 
-        // Set poison to 10; SBA fires during upkeep priority, player 1 loses
+        // Set poison to 10; the SBA check ahead of the upkeep's first priority
+        // grant performs player 1's loss, and CR 104.1 ends the game there —
+        // nobody is asked to pass in a game that has ended.
         game.state.players[1].poison_counters = 10;
-        // SBA kills player 1 during upkeep — only 2 passes consumed before game ends
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         game.run_turn(&decisions).unwrap();
         assert!(game.is_over());
-        assert_eq!(game.result, Some(GameResult::Winner(0)));
+        assert_eq!(game.result(), Some(GameResult::Winner(0)));
     }
 
     #[test]

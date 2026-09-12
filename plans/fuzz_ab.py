@@ -143,6 +143,9 @@ def main():
                     help="for the counter and fixture runs; timing is always --threads 1")
     ap.add_argument("--require", default=None, help="also run --require NAMES on every arm (performance, threaded)")
     ap.add_argument("--no-fixtures", action="store_true", help="skip the 50-game §3 rows")
+    ap.add_argument("--players", type=int, default=None,
+                    help="seats at the table, passed to every run (default: the binary's, two). "
+                         "The four-player run is its own table in §3, diffed RE-7 against RE-6, never against a two-player arm")
     ap.add_argument("--out", default=None, help="directory for the raw outputs (default: a temp dir)")
     args = ap.parse_args()
 
@@ -156,6 +159,8 @@ def main():
     out = args.out or tempfile.mkdtemp(prefix="fuzz_ab_")
     os.makedirs(out, exist_ok=True)
     common = ["--seed", str(args.seed)]
+    if args.players is not None:
+        common += ["--players", str(args.players)]
     t0 = time.time()
     print(f"outputs: {out}")
 

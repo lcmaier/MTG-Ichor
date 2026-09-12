@@ -3722,87 +3722,45 @@ gameplay change the A/B should not carry with the engine change.
 (Phase 5-Pre, poison — read off the map now, and covered where they are); the
 rest of §2.16 is thin under its phrasings, and the doubling tests say so.
 
-#### RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j–k)
+#### RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j–k) — ✅ landed 2026-09-12
 
-**Builds:** decision 5 — the two variants and arms, the SBA batch members,
-704.7's per-player leg, the flag reset, `GameResult` on `GameState`,
-`Primitive::LoseGame`, `Primitive::WinGame`, `Primitive::SetLifeTotal` (CR
-119.5 — "the player gains or loses the necessary amount", proposed through
-`GainLife`/`LoseLife` so Rhox Faithmender's "3 becomes 10 becomes 17" ruling
-is a test here), `GameActionTemplate::PlayerWins`, the two rotation sites, and
-`fuzz_games --players N`. **Consumers:**
+**Shipped.** `GameAction::{PlayerLoses, PlayerWins}` with two fieldless
+`EventPattern` arms and `GameActionTemplate::PlayerWins`; the four state-based
+loss loops as members of the CR 704.3 batch, deduped per player by
+`subject_of` (704.7's per-player leg); CR 704.5b's window closed at the check;
+`GameResult` on `GameState`, written by the `PlayerWins` performer and by a
+batch's settlement of CR 104.2a/104.4a; CR 104.1 at the chokepoint, the check
+and the priority loop; CR 800.4j at the rotation and the three turn-based
+actions a departed active player has nobody to perform; `Primitive::{LoseGame,
+WinGame, SetLifeTotal}`, `Primitive::Exile` made real, `AmountExpr::StartingLifeTotal`,
+`Condition::LibraryEmpty` with the gather's "as long as" leg; `fuzz_games
+--players N`. Laboratory Maniac (pooled), Exquisite Archangel, Stunning
+Reversal, Platinum Angel. Items 6 (the loss half), 112, 113 (the priority
+half) and 123 close; 108 is re-dated and measured; 122 is re-owned.
 
-- **Laboratory Maniac** — "If you would draw a card while your library has no
-  cards in it, you win the game instead." `DrawCard { cause: None }`, `You`,
-  `Instead(PlayerWins)`, gated on a new `Condition::LibraryEmpty` evaluated
-  at gather — the leaf's second customer is Jace, Wielder of Mysteries, a
-  planeswalker, so the leaf is written for one card and says so; CR 121.6a
-  is what makes the proposal reach the pipeline at all. Rulings, two, both
-  tests: *if you can't win (Angel's Grace), you don't lose for the attempted
-  draw either — the draw was still replaced* → Platinum Angel's row refuses
-  the `PlayerWins`, the draw never performs, no flag is set; *two Maniacs and
-  an each-player draw: APNAP, and the game ends at the first win* → needs an
-  each-player draw producer, which `EffectRecipient` lacks (RD-2's Kitsune
-  Palliator note); recorded on the card, not tested.
-- **Exquisite Archangel** — "Flying. If you would lose the game, instead exile
-  this creature and your life total becomes equal to your starting life
-  total." `PlayerLoses`, `You`, `Prevent` with a rider of `Exile(self)` and
-  `SetLifeTotal(starting)`. Rulings, nine, five are tests: *lethal damage to
-  it and to you at once: its effect applies, and you choose exile or
-  graveyard* → the SBA batch decides against one board, and the rider's exile
-  meets the death's `ZoneChange` as two proposals on one object — the CR 704.7
-  same-object collapse from RA-3, now with a player loss beside it; *drew
-  from an empty library: you won't lose again until you try again* → the
-  flag reset; *two Archangels: you choose which* → CR 616.1 among two
-  printed statics; *an effect saying you can't lose: doesn't apply* → Platinum
-  Angel's row ahead of the pipeline; *life -4 becomes 20 is a 24-life gain,
-  and cards that interact with gain see it* → Rhox Faithmender makes it 44,
-  which is the `SetLifeTotal` decomposition observed. **`ATOM-704.7-001`** —
-  Lich's Mirror's board, 0 life and an empty library in one check, one
-  replacement replacing both — is built with the Archangel; `COVERS` if the
-  atom's board is generic, `COVERS-PARTIAL` naming Lich's Mirror if it is not,
-  read at write time. Lich's Mirror itself waits on `ShuffleIntoLibrary`.
-- **Stunning Reversal** — "The next time you would lose the game this turn,
-  instead draw seven cards and your life total becomes 1. Exile Stunning
-  Reversal." A `CreateReplacement` row, `PlayerLoses`, `Uses::Once`,
-  `UntilEndOfTurn`, `Prevent` with a rider of `DrawCards(7)` and
-  `SetLifeTotal(1)`, then `Exile(self)` as the resolution's second instruction
-  (CR 608.2c, not part of the row). Rulings, ten, four are tests: *fewer than
-  seven cards: you lose immediately after* → the rider's draws flag the empty
-  library and the next check proposes a loss the spent row cannot see;
-  *everyone would lose at once but this applies to you: you win as soon as
-  everyone else has lost* → the four-player board, CR 104.2a from a batch
-  with four `PlayerLoses` members and one replaced; *can't lose: can't
-  apply*; *does nothing if you concede* → recorded, no harness.
-- **Platinum Angel** — "Flying. You can't lose the game and your opponents
-  can't win the game." Two `Effect::Restriction` statics, `Event {
-  PlayerLoses, affected_players: You }` and `Event { PlayerWins, Opponents }`.
-  Rulings, three: *no game effect can cause you to lose — 0 life, empty
-  library, ten poison, Phage — you keep playing* → the SBA proposal refused
-  every check, and the game continues through it (the first fuzz-reachable
-  game that runs past a lethal board); *concession still loses* → recorded;
-  *effects saying the game is a draw are unaffected* → CR 104.4c has no
-  producer, recorded.
+**Four things the sizing did not have.** CR 104.1 is a line at the top of
+`execute_batch_inner`, so a decomposition's later inners and the riders of the
+batch that ended the game perform nothing (§11 item 62). CR 704.3's "performed"
+is read off the event log, because a loss Exquisite Archangel replaced performs
+no member but its rider does, and Stunning Reversal's "immediately after" needs
+that to count (item 61). `Primitive::Exile` and CR 608.2m at the stack were
+nowhere in the row: the Archangel's rider and Stunning Reversal's second
+instruction both exile the effect's own source. And the four-player run's first
+finding was the harness's own board — a departed seat still offered as an
+attack target (CR 506.2), fixed here (item 66).
 
-**`PERFORMANCE_POOL` +1, Laboratory Maniac**, predicted: a three-drop static
-draw watcher, and the first card that makes decking a *win* in a measured game
-— fuzz games deck out rarely, so the `--require` count and "games ended by a
-win" are the rows to read. Platinum Angel is registered and not pooled: a
-seven-drop that turns lethal boards into stalls would move avg turns by design
-and not by engine.
+**Decided here, and written down**: `Condition::LibraryEmpty` is asked at
+gather through `settled_holds` — CR 604.2 and 614.4, with CR 121.6a putting the
+proposal in front of that gather (item 64); `GameResult` is the chokepoint's,
+settled per *batch* and never per member, which is the four-loss Stunning
+Reversal board (item 62); `never_happens` gains no arm, since the game's end
+has no amount for a zero to mean anything, and a departed player not losing
+again is CR 800.4k's gate at the proposal rather than a non-event.
 
-**The four-player run is this PR's second measurement.** `fuzz_games
---players 4` at 200 games on `performance`: zero panics is the bar, and every
-row it moves is written down as the *starting point* for RE-7 — item 108's
-permanents that stay — and for B3's 802.
+**Trace page: no**, decided at the close — the same CR 616.1 loop over a new kind, and the two boards worth walking are two tests.
 
-**Atoms:** `ATOM-704.7-001`, `ATOM-614.11-002` (Laboratory Maniac, the
-corpus's own example), `ATOM-104.2b-001` and `ATOM-104.3e-001` (Phase 8, the
-two primitives — covered where they are, not re-filed), `ATOM-119.5-001` and
-`-002` (Phase 8, `SetLifeTotal`, same), `ATOM-104.4a-001` (ALREADY-IMPL,
-gains its `COVERS:` from the four-loss batch), `ATOM-800.4j-001` as
-`COVERS-PARTIAL` (the priority half; "the turn continues without an active
-player" is RE-7's).
+→ As sized, as built and as measured: `plans/archive/replacement-architecture-landed.md`,
+"RE-6" (evicted 2026-09-12).
 
 #### RE-7 — leaving the game (CR 800.4a–e, 800.4m)
 
@@ -4143,8 +4101,21 @@ number before running:
 - **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
   branch that no def reaches until Hardened Scales is registered, and the
   subject enum changes no proposal's count.
-- **RE-6:** +1 gather per game (the loss), flat everywhere else. The
-  four-player run is its own table, not an A/B.
+- **RE-6 — measured 2026-09-12, and the prediction held to the digit.**
+  `Replacement gathers` **999 → 1000** and `Restriction queries` **1001 →
+  1002** per game on `performance` (200 games / seed 12345) — the loss,
+  proposed once — with every gameplay row and `Layer walks` identical to
+  `main`. The one other movement is `Memo hits` −0.3%, and it is CR 104.1:
+  a player who had just lost no longer receives priority until the phase
+  ends, so the middle arm reads `differ` outside `=== Timing ===` and the
+  check is the aggregates (§11 item 65). CPU/game **−1.0% and −1.7%** across
+  two sittings, `ms / 1,000 walks` the same two numbers, `CPU/turn p50`
+  0.440 → 0.440 and 0.490 → 0.480 — flat. The pooled arm is a re-record
+  (Laboratory Maniac, −4.7% and −5.0%, walks 385 → 373), `--require` reaches
+  117 of 200 games (58%), and games ended by a win are **zero** on every
+  table. The four-player table is `engineering-practices.md` §3's, first
+  recorded here as RE-7's baseline — after its first run turned out to be a
+  measurement of the harness (item 66).
 - **RE-7:** byte-identical on both two-player pools, by construction; the
   four-player table against RE-6's is the measurement.
 - **RE-8:** +1 gather per discard and per scry that resolves, on the shipped
@@ -4170,7 +4141,7 @@ number before running:
 §3's table is re-recorded once per PR that moves the pool, at 50 games, after
 the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; **no** at RE-3's; decide again at RE-4's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-3's and RE-6's; decide again at RE-4's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -4192,6 +4163,16 @@ answer is *written down*. Nothing reads differently, no board takes a path it
 did not take, and the two boards worth walking (two Faithmenders, and the
 Archive beside Tainted Remedy) are a product and a two-branch prompt that two
 tests state completely.
+
+**RE-6: no**, decided at its close (2026-09-12), and the section's own
+sentence — "the sweep's shape changes" — was the candidate. It changes what is
+*proposed* (four writes become four members) and not how any read is answered:
+the loss goes through the same CR 616.1 loop every other kind does, the
+subject-keyed dedupe is RA-3's with a second key type, and the settlement is
+a read of `player_lost` after a batch. The two boards a page would walk — a
+loss for two reasons replaced once, and four losses with one replaced settling
+the survivor's win before the rider — are each one test with one assertion
+that a trace would only narrate.
 
 #### Exit criteria
 
@@ -5373,7 +5354,11 @@ found them.
     flag gets wrong. → RE-6; `codebase-state.md` items 112 and 113 — and
     the objects a departed player leaves behind (item 108) are RE-7's, the PR
     after, since the day RE-6's four-player mode lands they are reachable and
-    wrong.
+    wrong. **✅ Closed 2026-09-12 (RE-6)**, its turn half having closed at
+    RE-1: the priority loop rotates through `next_player_in_game`, the flag
+    clears at the check that reads it, and the four-player mode measures the
+    one part that stays open — item 108's permanents, 32 per game at the end
+    — as RE-7's starting point.
 
 45. **`Restriction::Event` carries no `PlayerSet`, so four printed "can't"
     families have no row shape.** "Players can't gain life" (25 cards),
@@ -5766,6 +5751,93 @@ found them.
     rhyme. A suppression premise has to say what is true of one application and
     what is true of repeating it, and a premise that only argues the first is a
     premise that has assumed the second.
+
+### Found by building RE-6 (2026-09-12)
+
+61. **CR 704.3's "performed" is not the performed set, and it took a ruling to
+    say so.** The state-based check repeated only when `execute_actions`
+    returned a member — right for the indestructible creature whose `Destroy`
+    a "can't" drops, and wrong the first time a replaced state-based action was
+    *all* rider: Exquisite Archangel's loss performs no member, and Stunning
+    Reversal's eighth ruling — a short library loses "immediately after" —
+    needs the check to repeat, or a priority window opens between the rider's
+    draw that re-arms CR 704.5b and the check that reads it. CR 614.6 makes the
+    rider's work the state-based action in modified form, so it *was*
+    performed. The check now asks whether the event log grew, which a refused
+    proposal never makes it do. **What this admits, named:** a `Uses::Static`
+    replacement whose rider does not clear the condition is CR 104.4b's
+    mandatory loop, and the engine would spin in it — Lich's Mirror controlled
+    but not owned, ruling twelve — `codebase-state.md` item 127, with the
+    iteration cap that settles a draw sized against its first card.
+
+62. **CR 104.2a is a fact about a batch, and CR 104.1 is a line at the
+    chokepoint.** The section said `PlayerWins`' performer records the result
+    and `check_game_over` reads it; it did not say where the losses' outcome is
+    decided, and the first place to hand was the `PlayerLoses` performer —
+    which, asked "is anyone left" after the first of two simultaneous losses,
+    crowns the second loser's opponent where CR 104.4a says draw. Stunning
+    Reversal's four-player ruling is the same rule from the other side: four
+    members, one replaced, and the survivor "wins the game as soon as everyone
+    else has lost". So `execute_batch_inner` settles once every member has
+    performed, and `GameResult` lives on `GameState` because that is where the
+    batch is. "Immediately" then has one home too: a check at the top of the
+    same function, which stops a decomposition's later inners, a resolution's
+    later instructions and the ending batch's own riders at one line — the
+    survivor never draws the seven cards the ruling says they could lose to.
+
+63. **A rider runs after the batch, and one printed ruling wants it inside.**
+    Exquisite Archangel's first ruling: lethal to it and to you at once, "its
+    effect applies ... You choose whether Exquisite Archangel is moved to exile
+    or to your graveyard." The loss and the death are two members of one batch
+    decided against one board, so the replacement applies; but §4.1a's timing
+    — riders after the performed events, CR 615.5 — means the death has
+    happened when the rider's exile looks, and CR 400.7 makes the graveyard
+    card a new object it does not find. The engine takes the graveyard outcome
+    and offers no choice. It is one of the ruling's two answers, tested as it
+    behaves, and `codebase-state.md` item 125 sizes the two ways of getting
+    the other: the rider as a phase-1 member, which is the "one rewrite, one
+    event" boundary §3.2d drew, or a prompt when a rider's object left in the
+    batch it rides on. Lich's Mirror's fifteenth ruling is the second customer.
+
+64. **The first `Condition` a replacement effect reads is asked at gather, and
+    the argument is two rules that were already there.** CR 604.2 makes a
+    conditional static's effect exist while its condition holds; CR 614.4 asks
+    whether the effect exists *before the event*; so the "as long as" is part
+    of "which replacement effects exist right now", which is the gather's
+    question and not the rewrite's. Asked at application instead, a Laboratory
+    Maniac with cards left would be a candidate that does nothing — a prompt
+    beside Thought Reflection with one live option, which RC-4's rule forbids.
+    CR 121.6a is what makes the board reachable: the draw reaches the pipeline
+    with nothing to draw, and the condition is true at exactly that gather; the
+    doubled draw whose first inner takes the last card and whose second is the
+    win is the test that separates the readings. One evaluator —
+    `settled_holds`, shared with CR 613.11's cost effects — so a leaf is one
+    question wherever it is asked. **The leg exists for replacements only**:
+    a conditional "can't" is registered as a source and never read, item 129.
+
+65. **CR 104.1 removed the post-mortem tail, and that is the one two-player
+    stream change — read the way RE-3's review said to.** Since the harness
+    existed, a player who had just lost kept receiving priority until the phase
+    ended, and a random agent in that window cast spells and drew from its RNG.
+    Nobody receives priority in a game that has ended now, so the middle arm
+    reads `differ` outside `=== Timing ===` on both pools while every gameplay
+    row is identical to the printed digit and `Layer walks` to the integer;
+    `Memo hits` −0.3% is the size of the tail. The A/B's byte-identity line
+    is a *sufficient* check and not the check, and this is the second phase to
+    say so (RE-3's suppression was the first).
+
+66. **The four-player run's first table was a measurement of the harness.**
+    Avg turns 86.6, total damage 496 per game, and a departed player at −516
+    life in the one turn-limit game's log: the attack-target list was
+    `(0..n).filter(pid != active)`, so the random agent spent a hundred turns
+    hitting empty chairs and the two survivors' game never had to end. CR 506.2
+    — the defending players are the active player's *opponents*, and a player
+    who has left is nobody's — is one `in_game` read, and the table it leaves
+    (61.4 turns, 157 damage) is the one §3 records. Two things worth keeping:
+    a wider table's first number is a measurement of the harness until the
+    harness is checked, and the check that found it was reading the event log
+    of the outlier rather than the averages — the same recipe as
+    `engineering-practices.md` §3.2's tail rule.
 
 ## 12. Explicitly out of scope
 

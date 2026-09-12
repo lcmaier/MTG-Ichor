@@ -866,6 +866,102 @@ worth, which is the check the rule prescribes. The table above is the re-run.
 RC-4's entry suppression had the same property and nothing said so; this is the
 line that says it.
 
+**Re-recorded 2026-09-12 for RE-6** — `PERFORMANCE_POOL` +1 (Laboratory
+Maniac, 80 → 81) and the stress pool +4 (129 → 133). **The middle arm moves
+exactly the row §9 predicted and nothing else in gameplay**: `Replacement
+gathers` 999 → 1000 and `Restriction queries` 1001 → 1002 per game on
+`performance` — the loss, proposed once per game — with every gameplay row
+identical to `main` and `Layer walks` identical. `Memo hits` 61,652 → 61,444
+(−0.3%) is the one other movement, and it is CR 104.1: a player who had just
+lost used to keep receiving priority until the phase ended, and the questions
+their random agent asked in that tail are gone. So the middle arm reads
+`differ` outside `=== Timing ===` on both pools and the check is the
+aggregates, which are identical to the printed digit. CPU/game −1.0% and −1.7%
+across two sittings, `ms / 1,000 walks` −1.0% and −1.7%, `CPU/turn p50`
+0.440 → 0.440 and 0.490 → 0.480: flat, and the two sittings' medians (15.7
+and 17.5 ms) are §8's reminder about stored milliseconds.
+
+*The pooled column is a re-record, not a speed-up.* Laboratory Maniac is a 2/2
+for three displacing a slot's share of costlier cards: `Layer walks` 385 → 373,
+`Layer frames` 4,629 → 4,487, `Dependency checks` 41 → 34, CPU/game −4.7% and
+−5.0%. **Reachability:** `--require "Laboratory Maniac"` on `performance`, 200
+games / seed 12345: cast 203, resolved 201, in **117 of 200 games (58%)**,
+copies/deck 1.57, board diversity 100%. **Games ended by a win: zero** on
+every table at 200 games; the path that makes decking a win is walked in 58%
+of games and reached its end in none at two seats — a 30-turn game does not
+empty a 60-card library. Zero errors, zero panics.
+
+| | performance (81 cards) | stress (133 cards) |
+|---|---|---|
+| P0 / P1 | 30 (60.0%) / 20 (40.0%) | 26 (52.0%) / 24 (48.0%) |
+| Avg turns | 30.8 | 30.4 |
+| Spells cast | 24.3 | 22.6 |
+| Lands played | 18.9 | 18.0 |
+| Combat w/ atk | 10.9 | 9.5 |
+| Creatures died | 7.3 | 4.5 |
+| Damage events | 22.9 | 20.9 |
+| Total damage | 58.9 | 52.1 |
+| Life changes | 15.2 | 15.7 |
+| **Layer walks** | **388** | **490** |
+| **Board walks** | **250** | **289** |
+| **Memo hits** | **62,231** | **76,188** |
+| **Layer frames** | **4,774** | **5,534** |
+| **Frames/walk** | **12.31** | **11.30** |
+| **Dependency checks** | **32** | **20** |
+| **Replacement gathers** | **1043** | **1045** |
+| **Restriction queries** | **1045** | **1047** |
+| Prevention allocations | 0.00 | 0.02 |
+
+**The stress column is not an engine reading**, for RE-1's reason: the
+registry grew by four, so the arms play different decks from `main` there.
+
+**The four-player table (first recorded 2026-09-12, RE-6) — RE-7's baseline,
+never diffed against a two-player arm.** `fuzz_games --players 4`, the same
+seed and the same shape as the table above, plus the two rows only a table of
+three or more can move. `python plans/fuzz_ab.py --players 4 --arm
+re6=<binary>` prints all of it; RE-7 runs it with two arms and diffs.
+**Departed-owned permanents** is `codebase-state.md` item 108's wrong answer
+counted — permanents a player who has left still owns when the game ends —
+and RE-7 zeroes it. Zero errors and zero panics on both pools; one `stress`
+game of 200 ran to its 200th turn and ended there with a win (seed 12413, all
+four seats took about fifty turns). Three shell runs at one seed line-for-line
+outside `=== Timing ===`. **Read the first version of this table as a
+warning**: its first run had avg turns 86.6 and total damage 496 per game,
+because a departed seat was still an attack target and the random agent had
+been hitting empty chairs for a hundred turns — CR 506.2, fixed in RE-6
+(`replacement-architecture.md` §11 item 66). A wider table's first number is a
+measurement of the harness until the harness is checked.
+
+| 4 players, 50 games / seed 12345 | performance (81 cards) | stress (133 cards) |
+|---|---|---|
+| P0 / P1 / P2 / P3 | 23 (46%) / 13 (26%) / 9 (18%) / 5 (10%) | 28 (56%) / 13 (26%) / 5 (10%) / 4 (8%) |
+| Avg turns | 63.1 | 61.7 |
+| Spells cast | 44.7 | 43.5 |
+| Lands played | 37.4 | 36.1 |
+| Combat w/ atk | 26.3 | 23.9 |
+| Creatures died | 16.2 | 8.6 |
+| Damage events | 55.9 | 52.2 |
+| Total damage | 160.6 | 138.3 |
+| Life changes | 39.0 | 39.4 |
+| Turns after a departure | 23.2 | 19.0 |
+| **Departed-owned permanents** | **32.5** | **32.9** |
+| **Layer walks** | **848** | **1,075** |
+| **Board walks** | **522** | **555** |
+| **Memo hits** | **224,307** | **251,039** |
+| **Layer frames** | **18,384** | **19,332** |
+| **Frames/walk** | **21.67** | **17.98** |
+| **Dependency checks** | **199** | **218** |
+| **Replacement gathers** | **2196** | **2218** |
+| **Restriction queries** | **2200** | **2225** |
+| Prevention allocations | 0.00 | 0.06 |
+
+At 200 games the same run reads: `performance` avg turns 61.4, P0/P1/P2/P3
+87/64/35/14, turns after a departure 21.2, departed-owned permanents 32.1,
+gathers 2112, CPU/game median 69.7 ms with `CPU/turn p50` 0.880 ms — a
+four-player game costs about four times a two-player one and lasts twice as
+long, so the turn is twice as expensive, which is the board being twice as
+wide; `stress` avg turns 66.2, 86/54/46/14, 22.6 and 34.1, gathers 2502.
+
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
 about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
@@ -1842,9 +1938,73 @@ the plan as sized, "as landed", "measured", reachability — moves to
 the heading, a stub of what shipped and a pointer.** `check_state_of_play.py
 --check` fails when a ✅ section keeps more than 40 lines. What stays live is
 what the *next* phase needs: the design sections, the sizing of unlanded
-phases, and §11-style findings still open. Rulings passes live in the card
-file's doc comment at registration, once; a sizing names the card and the
-rulings that become tests, one line each.
+phases, and §11-style findings still open. Rulings passes live in the *card's* own doc
+comment at registration (§3.4, corrected at RE-3's review); a sizing names the
+card and the rulings that become tests, one line each.
+
+### 4.1 The standing review question
+
+**"What does this actually check, and what happens if it runs twice?"**
+
+Ask it of any claim the engine makes about itself. It is written down because
+`pipeline::ordering_cannot_change_outcome` — one predicate, whose whole job is
+to prove that a CR 616.1 prompt has one outcome — has been **corrected in three
+consecutive PRs**, and because of *how* the three were found.
+
+**The three** (`replacement-architecture.md` §11 items 55, 58, 60; item 19 is the
+founding argument, not a defect). Two of them mis-stated the premise as a **list
+of shapes**: RD-1 wrote the multiplier shape as "the pattern is
+`EventPattern::DealDamage`", RE-2 found the draw shape needed a clause that list
+could not express, and RE-3 found a `Multiplier` over `EventPattern::GainLife`
+falling straight through the damage gate into a prompt the rules do not require.
+Each time the axis that moved was `EventPattern`, which grows one arm per
+`GameAction` variant every replacement phase — so every new arm landed outside a
+premise written before it existed. The third mis-stated it about **one
+application**: it argued the event after one rewrite is the same either way and
+inferred that the same members are still applicable, when applicability resolves
+against each instance's own controller. What was holding that theorem up was
+idempotence, which nothing had said.
+
+**How they were found is the argument for a standing question.** Two came out of
+review rather than from a test. The third came from a test that asserted *the
+absence of a prompt* — and that kind of test only exists because the review
+before it had established that it should. None of the three is a shape CI finds
+on its own: a suppression that is wrong produces a question nobody needed, or an
+answer that is right for a reason that will stop being true.
+
+So the question has two halves, and both earn their place:
+
+1. **What does this actually check?** Name the values being compared and their
+   types, in a sentence. *"`Rewrite: PartialEq` compares def data a card file
+   wrote; the release predicate reads no board at all; the debug check compares
+   one `GameAction` to one `GameAction`"* is the sentence that exposed item 60 —
+   the hole was invisible until someone had to write down what was being
+   compared. If the answer seems obvious, write it anyway: the writing is the
+   check.
+2. **What happens if it runs twice?** Any predicate that suppresses, memoizes or
+   short-circuits inside a loop has an iteration count it is not controlling. A
+   premise that argues one application has *assumed* something about repeating
+   it; make it say which.
+
+**When to ask it — a list, so it is a gate and not a mood.** Any change to
+`ordering_cannot_change_outcome` or its leaf tables; any new `EventPattern`,
+`Rewrite` or `GameActionTemplate` arm; any `debug_assert` standing in for a
+proof; and any "this is safe because …" in a doc comment where the *because* is
+a list of cases rather than a property.
+
+**The cheap tell, if you only remember one thing:** a premise that enumerates
+shapes will be wrong when the shape list grows, and the shape list always grows.
+Prefer a property on the type whose arms grow — `EventPattern::reads_the_amount`
+rather than `matches!(pattern, DealDamage { .. })` — and put it beside the enum,
+so the question is in front of whoever writes the next arm rather than buried in
+a predicate they have no reason to open. The contrast is
+`pipeline::filter_is_mods_invariant`, which stays at its caller because it
+relates *two* types and so is a fact about neither.
+
+**A reviewer does not need to know the subsystem to ask this.** All three were
+caught by asking about the *form* of the claim, not about Magic — which is why
+it belongs here rather than in a rules doc, and why it is worth asking even when
+the answer turns out to be "checked, and it holds".
 
 ## 5. The spec database as a gate
 

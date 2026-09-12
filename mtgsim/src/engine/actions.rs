@@ -4,8 +4,8 @@ use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
-use crate::events::event::{DamageTarget, GameEvent, ResolutionStamp};
-use crate::state::game_state::{GameState, Phase, PhaseType, StepType};
+use crate::events::event::{DamageTarget, GameEvent, LossReason, ResolutionStamp};
+use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
@@ -364,6 +364,33 @@ pub enum GameAction {
         player: PlayerId,
     },
 
+    /// CR 104.3 — this player would lose the game. The event's subject is the
+    /// player.
+    ///
+    /// Proposed by the state-based-action check for CR 704.5a–c and 704.6c,
+    /// one member per player whatever the number of reasons (CR 704.7 — Lich's
+    /// Mirror's ruling: "a single Lich's Mirror will replace all of them"),
+    /// carrying the first reason in CR order; and by `Primitive::LoseGame` for
+    /// CR 104.3e. Concession (104.3a) is a *leave* that then loses and is not
+    /// proposed through here.
+    PlayerLoses {
+        player: PlayerId,
+        reason: LossReason,
+    },
+
+    /// CR 104.2b — this player would win the game. The event's subject is the
+    /// player.
+    ///
+    /// Proposed by `Primitive::WinGame` and substituted by Laboratory Maniac's
+    /// `GameActionTemplate::PlayerWins`. CR 104.2a's win is **not** proposed:
+    /// it is the outcome a batch of losses implies, recorded when that batch
+    /// settles (`GameState::settle_game_result`), because "overrides all
+    /// effects that would preclude that player from winning" is a rule with
+    /// nothing for a replacement or a "can't" to see.
+    PlayerWins {
+        player: PlayerId,
+    },
+
     // === Phase 3+ actions — add variants here as primitives are implemented ===
     // Sacrifice { object: ObjectId },
     // Exile { object: ObjectId },
@@ -612,6 +639,19 @@ impl GameState {
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
 
+        // CR 104.1 — "a game ends immediately when a player wins [or] the
+        // game is a draw". Asked here, at the chokepoint, so every proposal
+        // after the batch that ended the game stops at one line: the rest of
+        // a resolution's instructions, a decomposition's remaining inners,
+        // and the riders of the batch that ended it. Stunning Reversal's
+        // survivor "wins the game as soon as everyone else has lost", and
+        // the seven cards the rider would then draw are the game continuing
+        // to be over. The ending batch's own members all perform — they were
+        // one event — and its settlement is what makes this true afterwards.
+        if self.result.is_some() {
+            return Ok(Vec::new());
+        }
+
         // Entering is the zone change, and `EnterBattlefield` is its only
         // proposal: a `ZoneChange` onto the battlefield here has bypassed
         // `change_zone`'s routing and would be performed with no entity.
@@ -718,6 +758,18 @@ impl GameState {
             let Some(action) = action else { continue };
             self.perform_action(action.clone(), ctx, &applied_to[i])?;
             performed.push(action);
+        }
+
+        // CR 104.2a / 104.4a are read off the batch, not off a member. Two
+        // players losing in one state-based check is one simultaneous event
+        // whose outcome is a draw; a performer that asked "is anyone left"
+        // after the first of them would have crowned the second. Stunning
+        // Reversal's four-player ruling is the same rule from the other side:
+        // four losses proposed, one replaced, and the survivor "wins the game
+        // as soon as everyone else has lost" — settled here, before the rider
+        // that then makes them draw seven.
+        if performed.iter().any(|a| matches!(a, GameAction::PlayerLoses { .. })) {
+            self.settle_game_result();
         }
 
         // --- Phase 3: the queued riders, in application order ----------------
@@ -1288,6 +1340,46 @@ impl GameState {
             GameAction::BeginStep { step, player: _ } => {
                 self.phase.step = Some(step);
                 self.events.emit(GameEvent::StepBegin { step });
+                Ok(())
+            }
+
+            // --- The game's end (CR 104) ------------------------------------
+            //
+            // Loud on a player who has already left, like `Tap` on something
+            // off the battlefield: the SBA check gates on `player_lost` before
+            // proposing, so a second loss is a caller bug and not CR 800.4a.
+            //
+            // `has_drawn_from_empty_library` is **not** cleared here. CR 704.5b's
+            // window closes at the check that reads it, whether or not the loss
+            // it proposed was then replaced or refused — see
+            // `check_state_based_actions`.
+            //
+            // CR 104.2a and 104.4a are not decided here either: whether the
+            // survivors have won or everyone has drawn is a fact about the
+            // *batch* these losses were performed in, and `execute_batch_inner`
+            // settles it once the whole batch has performed.
+            GameAction::PlayerLoses { player, reason } => {
+                if self.player_lost[player] {
+                    return Err(format!("player {} has already left the game", player));
+                }
+                self.player_lost[player] = true;
+                self.events.emit(GameEvent::PlayerLost { player_id: player, reason });
+                Ok(())
+            }
+
+            // CR 104.1 — "immediately". The result is recorded here and read by
+            // everything that asks whether the game is over; a second winner
+            // in the same batch cannot arise (the first ends the game) and a
+            // recorded result is never overwritten. CR 104.3f — win and lose at
+            // once → lose — has no producer and is recorded, not built.
+            GameAction::PlayerWins { player } => {
+                if self.player_lost[player] {
+                    return Err(format!("player {} has left the game and cannot win it", player));
+                }
+                if self.result.is_none() {
+                    self.result = Some(GameResult::Winner(player));
+                }
+                self.events.emit(GameEvent::PlayerWon { player_id: player });
                 Ok(())
             }
         }
