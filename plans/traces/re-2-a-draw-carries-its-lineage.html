@@ -6,7 +6,8 @@
 <!--
   plans/traces — hand-authored trace pages, one per phase (tier 1;
   `plans/engineering-practices.md` §7 is the authority for the practice).
-  Pinned to branch replacement/re-2-draw at 3e09c72 and the
+  Pinned to branch replacement/re-2-draw at 9cf5b2d (revised at the
+  2026-09-12 review, which changed trace A) and the
   frozen CR `tmnt`; never maintained — a later phase that changes these paths
   gets its own page. Self-contained: fonts from Google Fonts, mermaid from
   jsDelivr, nothing else.
@@ -108,7 +109,7 @@
 
 <h1>A Draw Carries Its Lineage</h1>
 <p class="lede">RE-2 split drawing into CR 121.2a's <em>instruction</em> and CR 121.1's <em>draw</em>, and made the second a <b>decomposition</b> of the first — the engine's first events that continue their parent's CR 614.5 applied set instead of starting a fresh one. This page walks four boards through the code as it stands, read by read, and ends in the table of where each read differs from the single <code>DrawCard</code> that RB left and RD never touched.</p>
-<p class="meta"><span class="pin">replacement/re-2-draw @ 3e09c72</span><span class="pin">CR tmnt</span><span class="pin">2026-09-11</span> Authority for the design: <code>plans/replacement-architecture.md</code> §3.2d, §4.1a and §9 (RE decision 1), with §11 items 18, 42, 53. Tests: <code>mtgsim/tests/phase_re2_integration_test.rs</code>.</p>
+<p class="meta"><span class="pin">replacement/re-2-draw @ 9cf5b2d</span><span class="pin">CR tmnt</span><span class="pin">2026-09-11, revised 09-12</span> Authority for the design: <code>plans/replacement-architecture.md</code> §3.2d, §4.1a and §9 (RE decision 1), with §11 items 18, 42, 53. Tests: <code>mtgsim/tests/phase_re2_integration_test.rs</code>.</p>
 
 <h2>The map</h2>
 <div class="prose">
