@@ -30,6 +30,7 @@ use mtgsim::test_support::{
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -355,33 +356,58 @@ fn tainted_remedy_leaves_its_own_controllers_gain_alone() {
 /// second produces no candidate at the re-gather rather than being filtered out
 /// of one, and there is no second application to double the loss.
 ///
-/// **CR 616.1 still asks which one, and that is right.** Both are applicable at
-/// the first iteration, and the rule's question is "choose one to apply", not
-/// "choose one if it matters". `ordering_cannot_change_outcome` is a proof
-/// obligation rather than a requirement, and this shape is deliberately not one
-/// of its three: a fourth semantics-assuming shortcut would have to carry its
-/// own expiry conditions for a board no printed ruling calls a choice and no
-/// pooled card reaches. So the ruling is asserted the stronger way — the prompt
-/// happens, and both answers are the same three life.
+/// **And nobody is asked which one**, which is `ordering_cannot_change_outcome`'s
+/// fourth shape: every member carries the same `Instead`, and an `Instead` is a
+/// pure function of the event, so the event after one application is the same
+/// whichever member applied it — and so, by induction, is everything after that.
+/// The shape does not mention the pattern at all.
+///
+/// [`two_tainted_remedies_lose_the_same_three_whichever_applies`] is the same
+/// board with the choice forced both ways, which is what the suppression is
+/// claiming and the only way to state it now that the engine does not ask.
 #[test]
 fn a_second_tainted_remedy_has_no_gain_left_to_apply_to() {
-    for chosen in [0usize, 1usize] {
-        let mut game = setup_game(2);
-        put_on_battlefield(&mut game, tainted_remedy(), 0);
-        put_on_battlefield(&mut game, tainted_remedy(), 0);
-        let before = life(&game, 1);
+    let mut game = setup_game(2);
+    put_on_battlefield(&mut game, tainted_remedy(), 0);
+    put_on_battlefield(&mut game, tainted_remedy(), 0);
+    let before = life(&game, 1);
 
-        let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![chosen]);
-        gain_life(&mut game, 1, 3, &dp);
+    let dp = ScriptedDecisionProvider::new();
+    gain_life(&mut game, 1, 3, &dp);
 
-        assert!(dp.is_empty(), "one prompt, not two: the second has nothing left to watch");
-        assert_eq!(
-            life(&game, 1),
-            before - 3,
-            "lost three once, whichever Remedy was picked"
-        );
+    assert_eq!(life(&game, 1), before - 3, "lost three once, not twice and not back");
+    assert!(dp.is_empty(), "and the choice between them has one outcome, so nobody was asked");
+}
+
+/// The claim [`a_second_tainted_remedy_has_no_gain_left_to_apply_to`] suppresses,
+/// stated the only way a suppressed choice can be: **by making the choice
+/// itself**, with a third Remedy so that CR 616.1 has a question the engine
+/// cannot prove away.
+///
+/// Three identical statics share one rewrite, so the fourth shape fires and
+/// there is still no prompt — which is the point. What this board adds is the
+/// *sources*: the three Remedies are different permanents, so if the substitute
+/// read the applying effect (as a `GameActionTemplate::GainLife` would, through
+/// CR 609.6) the three answers would differ. They do not, because
+/// `template_is_instance_invariant` refuses that template and admits this one.
+#[test]
+fn two_tainted_remedies_lose_the_same_three_whichever_applies() {
+    let mut game = setup_game(2);
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, tainted_remedy(), 0);
     }
+    let before = life(&game, 1);
+
+    let dp = ScriptedDecisionProvider::new();
+    gain_life(&mut game, 1, 3, &dp);
+
+    assert_eq!(life(&game, 1), before - 3, "one loss of three, from three identical rows");
+    assert_eq!(
+        life_changes(&game, 1),
+        vec![(before, before - 3)],
+        "and one event: CR 614.6 puts the modified event in the original's place once"
+    );
+    assert!(dp.is_empty());
 }
 
 /// **Tainted Remedy's own ordering ruling, both branches, with its numbers.**
@@ -657,6 +683,39 @@ fn ali_helps_on_the_earthquake_that_kills_him() {
     .unwrap();
 
     assert_eq!(life(&game, 0), 1, "decided against the board Ali was still on");
+}
+
+/// **A lifelinking 3/3 that hits a player at 1 life under Ali from Cairo still
+/// gains its controller 3**, and the two halves of the ruling are what make
+/// that so: the full damage is dealt, and only the contained loss is clamped.
+///
+/// CR 120.3f's lifelink gain is a *result of the damage*, sized by the damage,
+/// and it is a sibling of CR 120.3a's loss rather than something downstream of
+/// it. So clamping one does not touch the other. Bloodletter of Aclazotz's
+/// ruling is the same boundary walked the other way: doubling an opponent's
+/// loss *"doesn't change the amount of damage dealt ... they would lose 2 life,
+/// but you'd still gain only 1"*.
+///
+/// The board is worth having because the engine's order makes it easy to get
+/// right by accident and hard to notice if it is wrong: `apply_lifelink` runs
+/// before the contained loss is even proposed, so an implementation that sized
+/// the gain off the *loss* would pass every other test in this file.
+#[test]
+fn ali_clamps_the_loss_and_lifelink_still_gains_the_full_damage() {
+    let mut game = setup_game(2);
+    put_on_battlefield(&mut game, ali_from_cairo(), 1);
+    game.players[1].life_total = 1;
+    let attacker = place_vanilla_creature(&mut game, 0, 3, 3, &[KeywordFlag::Lifelink]);
+    let gainer_before = life(&game, 0);
+
+    bolt_player(&mut game, attacker, 1, 3);
+
+    assert_eq!(life(&game, 1), 1, "the clamp held the victim at the floor");
+    assert_eq!(
+        life(&game, 0) - gainer_before,
+        3,
+        "and lifelink gained the damage, which the clamp never touched"
+    );
 }
 
 /// A clamp from a total already at the floor takes the whole loss, and the

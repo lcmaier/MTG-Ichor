@@ -403,13 +403,16 @@ pub(crate) fn apply_replacements(
         // rule, and `unsuppressed` — the members it was chosen over, each with
         // the group members it applied to — is what the debug build checks it
         // against after the rewrite below.
-        let mut unsuppressed: Vec<(ReplacementInstanceId, Vec<usize>)> = Vec::new();
+        let mut unsuppressed: Vec<(ReplacementInstance, Vec<usize>)> = Vec::new();
         let chosen = if choosable.len() == 1 {
             choosable.into_iter().next().expect("len checked")
         } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first) {
             let mut rest = choosable.into_iter();
             let first = rest.next().expect("len checked");
-            unsuppressed = rest.map(|c| (c.instance.id, c.members)).collect();
+            // The instance rather than its id, and it costs nothing: `rest`
+            // owns these and was dropping them. The fourth shape's check needs
+            // the *rewrite* to compute its premise the other way.
+            unsuppressed = rest.map(|c| (c.instance, c.members)).collect();
             first
         } else {
             let Some(chooser) = chooser else {
@@ -499,6 +502,10 @@ pub(crate) fn apply_replacements(
             let member_subject = subject_of(&event);
             rider_subject.get_or_insert(member_subject);
             let share = shares.as_ref().map(|s| s[k]);
+            // Kept for `check_order_invariance`'s fourth shape, which asks what
+            // a *different* member would have substituted for this same event.
+            // Debug-only work, so the clone is behind the same gate.
+            let before = cfg!(debug_assertions).then(|| event.clone());
             let (next, did) = apply_rewrite(game, ctx, &chosen, event, member_subject, share)?;
             outcome.took_effect |= did.took_effect;
             outcome.prevented += did.prevented;
@@ -508,7 +515,18 @@ pub(crate) fn apply_replacements(
                 // effect can become applicable as the result of another"
                 // works without any special case.
                 check_exempt_terminates(game, &chosen, next, &mut exempt_applied)?;
-                check_order_invariance(game, ctx, next, pos, &unsuppressed);
+                if let Some(before) = &before {
+                    check_order_invariance(
+                        game,
+                        ctx,
+                        &chosen,
+                        before,
+                        next,
+                        member_subject,
+                        pos,
+                        &unsuppressed,
+                    );
+                }
             }
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
@@ -778,7 +796,8 @@ fn ordering_cannot_change_outcome(
     });
     let all_draw_doublers = matches!(event, GameAction::DrawCard { .. })
         && choosable.iter().all(|c| draw_doubler_commutes(&c.instance.def, event));
-    if !(all_entries || all_multipliers || all_draw_doublers) {
+    let all_one_substitution = one_shared_instance_invariant_instead(choosable);
+    if !(all_entries || all_multipliers || all_draw_doublers || all_one_substitution) {
         return false;
     }
     choosable.iter().all(|c| {
@@ -792,6 +811,10 @@ fn ordering_cannot_change_outcome(
             }
             Rewrite::Amount(AmountRewrite::Multiplier(_)) => true,
             Rewrite::Instead(GameActionTemplate::DrawCards { .. }) => true,
+            // The fourth shape's members, admitted by
+            // `one_shared_instance_invariant_instead` having already checked
+            // that they are all the *same* rewrite.
+            Rewrite::Instead(t) if all_one_substitution => template_is_instance_invariant(t),
             _ => false,
         }) && !def.optional
             && def.then.is_none()
@@ -823,6 +846,71 @@ fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
     *n >= 1
         && cause.map(|c| c == *actual).unwrap_or(true)
         && cause.map(|c| c == DrawCause::Effect).unwrap_or(true)
+}
+
+/// [`ordering_cannot_change_outcome`]'s fourth shape: every member carries the
+/// **same** [`Rewrite`], and that rewrite is an `Instead` whose substitute is a
+/// pure function of the event.
+///
+/// Two Tainted Remedies are the printed board. The argument is shorter than the
+/// other three shapes' and does not mention the pattern at all: a `Rewrite` that
+/// is a pure, instance-invariant function `T` of the event produces the same
+/// event whichever member applies it, so after the first application the loop is
+/// in an identical state in either order — same event, and the same set of
+/// members still applicable to it, since applicability is decided against that
+/// event. By induction the whole trace is the same, however many members end up
+/// applying and whatever their patterns are.
+///
+/// **Instance-invariance is the clause that is not free**, and
+/// [`template_is_instance_invariant`] is where it lives: a substitute that
+/// embeds the *applying* instance's source or controller is a different event
+/// per member, and then the first application already differs.
+///
+/// `Rewrite` derives `PartialEq`, so "the same rewrite" is the data being equal.
+/// Two defs that are equal as data may still resolve their affected sets
+/// differently — `PlayerSet::Opponents` against two controllers — and the
+/// argument does not care: both are in `choosable`, so both apply now, and what
+/// happens next is decided by an event they agree on.
+fn one_shared_instance_invariant_instead(choosable: &[Candidate]) -> bool {
+    let Some(first) = choosable.first() else {
+        return false;
+    };
+    let Rewrite::Instead(template) = &first.instance.def.rewrite else {
+        return false;
+    };
+    template_is_instance_invariant(template)
+        && choosable
+            .iter()
+            .all(|c| c.instance.def.rewrite == first.instance.def.rewrite)
+}
+
+/// Does this template produce the same `GameAction` whichever instance applies
+/// it?
+///
+/// The leaf table [`one_shared_instance_invariant_instead`] rests on. Matched
+/// exhaustively, so a new template arm has to classify itself rather than
+/// defaulting to "safe" — and the two `false`s are the reason the table is not
+/// a constant.
+fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
+    match template {
+        // Built from the event's own object and `from`.
+        GameActionTemplate::ZoneChangeTo { .. } => true,
+        // Built from the event's subject.
+        GameActionTemplate::RemoveCountersFromAffected { .. } => true,
+        // `None` keeps the event's own player; `PlayerRef::You` is
+        // `chosen.controller` and `Owner`/`Opponent` are refused by
+        // `draw_recipient`, so only the explicit `You` varies per instance.
+        GameActionTemplate::DrawCards { player, .. } => {
+            !matches!(player, Some(PlayerRef::You))
+        }
+        // CR 609.6's source is the *applying* effect's own, which is exactly
+        // what varies between two otherwise-identical statics — and it is
+        // visible on `GameEvent::LifeChanged` and to item 6's "whenever a
+        // source causes you to gain life".
+        GameActionTemplate::GainLife { .. } => false,
+        // A substituted loss carries `LifeLossCause::Effect` and no source.
+        GameActionTemplate::LoseLife { .. } => true,
+    }
 }
 
 /// Can no `EnterMods` field change whether this set matches the entering
@@ -878,16 +966,59 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
 /// the inners that instruction decomposes into. So for that shape the gather is
 /// taken against the **first inner**, which is the one carrying the parent's
 /// cause; the premise's `Effect` clause is what makes checking one inner enough.
+///
+/// **And the fourth shape asks a different *question*, not a different event.**
+/// Its members share one `Instead`, so a suppressed one does not have to keep
+/// applying — Tainted Remedy's own ruling is that it stops. What that shape
+/// claims instead is that every member would have produced the *same* event, so
+/// that is what is asserted, by running each suppressed member's own
+/// [`substitute`] against the event the chosen one replaced. A shape that cannot
+/// be checked the same way needs its own check rather than an exemption
+/// (`replacement-architecture.md` §11 item 55).
 fn check_order_invariance(
     game: &GameState,
     ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    before: &GameAction,
     next: &GameAction,
+    subject: EventSubject,
     member: usize,
-    unsuppressed: &[(ReplacementInstanceId, Vec<usize>)],
+    unsuppressed: &[(ReplacementInstance, Vec<usize>)],
 ) {
     if !cfg!(debug_assertions) || unsuppressed.is_empty() {
         return;
     }
+    let mine: Vec<&(ReplacementInstance, Vec<usize>)> =
+        unsuppressed.iter().filter(|(_, m)| m.contains(&member)).collect();
+    if mine.is_empty() {
+        return;
+    }
+
+    // The fourth shape: one shared `Instead`, so the claim is sameness of
+    // output rather than continued applicability.
+    if let Rewrite::Instead(_) = &chosen.def.rewrite {
+        if mine.iter().all(|(i, _)| i.def.rewrite == chosen.def.rewrite) {
+            for (instance, _) in &mine {
+                let Rewrite::Instead(template) = &instance.def.rewrite else {
+                    unreachable!("equal to the chosen rewrite, which is an `Instead`");
+                };
+                let theirs = substitute(instance, template, before.clone(), subject);
+                debug_assert!(
+                    theirs.as_ref().ok() == Some(next),
+                    "CR 616.1 prompt suppressed as order-invariant was not: {:?} would \
+                     have produced {:?} where {:?} produced {:?}. \
+                     `template_is_instance_invariant` admitted a substitute that reads \
+                     the applying effect.",
+                    instance.id,
+                    theirs,
+                    chosen.id,
+                    next
+                );
+            }
+            return;
+        }
+    }
+
     let probe = match next {
         GameAction::DrawCards { player, cause, .. } => {
             GameAction::DrawCard { player: *player, cause: *cause }
@@ -899,11 +1030,11 @@ fn check_order_invariance(
         .into_iter()
         .map(|c| c.id)
         .collect();
-    for (id, _) in unsuppressed.iter().filter(|(_, m)| m.contains(&member)) {
+    for (instance, _) in &mine {
         debug_assert!(
-            still.contains(id),
+            still.contains(&instance.id),
             "CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped applying to {:?}",
-            id,
+            instance.id,
             probe
         );
     }
@@ -1379,160 +1510,12 @@ fn apply_rewrite(
             )),
         },
 
-        Rewrite::Instead(template) => match (template, event) {
-            (
-                GameActionTemplate::ZoneChangeTo { to, cause },
-                GameAction::ZoneChange { object, from, .. },
-            ) => Ok((
-                Some(GameAction::ZoneChange { object, from, to: *to, cause: *cause }),
-                changed,
-            )),
-
-            // Containment Priest: "if a nontoken creature would enter … exile
-            // it instead". The entry is the zone change (CR 614.1c), so the
-            // substitute is a zone change from where the card is — one move,
-            // no hop through the battlefield — and the card never becomes a
-            // permanent: `PermanentEnteredBattlefield` is the entry
-            // performer's to emit, and it never runs.
-            //
-            // A token has no `from`. It is created in the battlefield zone and
-            // sits there with no entity until its entry is decided
-            // (`Primitive::CreateToken`), so the substitute moves it out of
-            // that zone, and the log says `from: Battlefield` for a token
-            // CR 111 says was created in exile. That is the cheap answer, on
-            // record under Phase RE, whose `CreateTokens` proposal is where a
-            // creation's destination belongs (`replacement-architecture.md`
-            // §9, RC-4b).
-            (
-                GameActionTemplate::ZoneChangeTo { to, cause },
-                GameAction::EnterBattlefield { object, from, .. },
-            ) => Ok((
-                Some(GameAction::ZoneChange {
-                    object,
-                    from: from.unwrap_or(Zone::Battlefield),
-                    to: *to,
-                    cause: *cause,
-                }),
-                changed,
-            )),
-
-            (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
-                match subject_object(subject) {
-                    Some(object) => Ok((
-                        Some(GameAction::RemoveCounters { object, counter: *counter, n: *n }),
-                        changed,
-                    )),
-                    None => Err(format!(
-                        "a `RemoveCountersFromAffected` rewrite on {:?} has no affected \
-                         object to take counters from",
-                        chosen.id
-                    )),
-                }
-            }
-
-            // CR 614.1a's "instead ... draw", and the substitute is always the
-            // **instruction** (CR 121.2a) whichever of the two draw events it
-            // replaced. Thought Reflection's "draw two cards instead" is one
-            // "draw" of two, so an inner-shaped substitute would hide from Alms
-            // Collector the very event it watches for.
-            //
-            // **The cause travels with the event**, because CR 614.6 makes this
-            // the original in modified form: a doubled draw-step draw still has
-            // a first card that is `DrawCause::TurnBased` and a second that is
-            // not, which is how Teferi's Ageless Insight's exception survives
-            // being doubled. Nothing here counts cards drawn this step.
-            //
-            // Two legs, one per draw event, because both are printed. Thought
-            // Reflection, Teferi's Ageless Insight and Notion Thief replace an
-            // individual draw; Alms Collector replaces an instruction with a
-            // smaller one, and CR 614.5's "any modified events that may replace
-            // that event" is why that half of its text has to be the rewrite
-            // rather than a rider — the affected player's one draw carries the
-            // applied set only this way, and its own ruling is that Alms
-            // Collector does not apply again to it.
-            (
-                GameActionTemplate::DrawCards { n, player },
-                GameAction::DrawCard { player: affected, cause },
-            )
-            | (
-                GameActionTemplate::DrawCards { n, player },
-                GameAction::DrawCards { player: affected, cause, .. },
-            ) => Ok((
-                Some(GameAction::DrawCards {
-                    player: draw_recipient(chosen, player.as_ref(), affected)?,
-                    n: *n,
-                    cause,
-                }),
-                changed,
-            )),
-
-            // CR 614.1a's kind-changing substitutions, and the pair is what
-            // §10's Eligeth test wanted: a draw becomes a life gain (Words of
-            // Worship), a gain becomes a loss (Tainted Remedy).
-            //
-            // **The subject does not move**, which is why neither carries a
-            // `player`. Both printed customers leave the life where the
-            // replaced event put it, and the affected player is what
-            // `subject_of` already answered — the `EventSubject::Object` arm is
-            // the authoring error, since nothing here can hand life to a
-            // permanent.
-            //
-            // A substituted loss is `LifeLossCause::Effect` and never
-            // `Damage`: it is produced by a replacement effect, and calling it
-            // damage would hand it to Ali from Cairo's clamp, which watches
-            // CR 120.3a's loss and nothing else.
-            (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
-                EventSubject::Player(player) => Ok((
-                    Some(GameAction::GainLife {
-                        player,
-                        amount: template_amount(chosen, *amount, &event)?,
-                        // CR 609.6: the replacement effect's own source is the
-                        // source of what it substitutes.
-                        source: chosen.source,
-                    }),
-                    changed,
-                )),
-                EventSubject::Object(_) => Err(format!(
-                    "replacement {:?} rewrites to a life gain but matched {:?}, whose subject \
-                     is an object, not a player. Its `EventPattern` and its `Rewrite` \
-                     describe different events.",
-                    chosen.id, event
-                )),
-            },
-            (GameActionTemplate::LoseLife { amount }, event) => match subject_of(&event) {
-                EventSubject::Player(player) => Ok((
-                    Some(GameAction::LoseLife {
-                        player,
-                        amount: template_amount(chosen, *amount, &event)?,
-                        cause: LifeLossCause::Effect,
-                    }),
-                    changed,
-                )),
-                EventSubject::Object(_) => Err(format!(
-                    "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
-                     is an object, not a player. Its `EventPattern` and its `Rewrite` \
-                     describe different events.",
-                    chosen.id, event
-                )),
-            },
-
-            // A template that cannot be built from this event is a card-
-            // authoring error rather than a rules corner: the pattern is what
-            // decides which events reach the rewrite, so a mismatch means the
-            // two halves of one `ReplacementDef` disagree.
-            (GameActionTemplate::DrawCards { .. }, other) => Err(format!(
-                "replacement {:?} rewrites to a draw but matched {:?}, which is not an \
-                 individual card draw. Its `EventPattern` and its `Rewrite` describe \
-                 different events.",
-                chosen.id, other
-            )),
-            (GameActionTemplate::ZoneChangeTo { .. }, other) => Err(format!(
-                "replacement {:?} rewrites to a zone change but matched {:?}, which is \
-                 neither one nor an entry. Its `EventPattern` and its `Rewrite` describe \
-                 different events.",
-                chosen.id, other
-            )),
-        },
+        // Every leg is a pure function of the event and the applying instance
+        // — see [`substitute`], which is where they live so that the fourth
+        // suppression shape can call them without a board.
+        Rewrite::Instead(template) => {
+            substitute(chosen, template, event, subject).map(|a| (Some(a), changed))
+        }
     }
 }
 
@@ -1598,6 +1581,162 @@ fn template_amount(
                 chosen.id, event
             )
         }),
+    }
+}
+
+/// The substitute event a [`Rewrite::Instead`] produces — CR 614.1a's "instead".
+///
+/// **A pure function of the event, the applying instance and the subject, and
+/// the signature is what says so.** `apply_rewrite` takes `&mut GameState`
+/// because CR 614.13's entry arm needs it; this one is extracted because
+/// [`ordering_cannot_change_outcome`]'s fourth shape rests on the purity, and
+/// its debug check calls this against an event it must not mutate.
+///
+/// The two things it reads off `chosen` are exactly the two
+/// [`template_is_instance_invariant`] is about: CR 609.6's source for a
+/// substituted life gain, and the controller for a draw handed to
+/// [`PlayerRef::You`].
+fn substitute(
+    chosen: &ReplacementInstance,
+    template: &GameActionTemplate,
+    event: GameAction,
+    subject: EventSubject,
+) -> Result<GameAction, String> {
+    match (template, event) {
+        (
+            GameActionTemplate::ZoneChangeTo { to, cause },
+            GameAction::ZoneChange { object, from, .. },
+        ) => Ok(GameAction::ZoneChange { object, from, to: *to, cause: *cause }),
+
+        // Containment Priest: "if a nontoken creature would enter … exile
+        // it instead". The entry is the zone change (CR 614.1c), so the
+        // substitute is a zone change from where the card is — one move,
+        // no hop through the battlefield — and the card never becomes a
+        // permanent: `PermanentEnteredBattlefield` is the entry
+        // performer's to emit, and it never runs.
+        //
+        // A token has no `from`. It is created in the battlefield zone and
+        // sits there with no entity until its entry is decided
+        // (`Primitive::CreateToken`), so the substitute moves it out of
+        // that zone, and the log says `from: Battlefield` for a token
+        // CR 111 says was created in exile. That is the cheap answer, on
+        // record under Phase RE, whose `CreateTokens` proposal is where a
+        // creation's destination belongs (`replacement-architecture.md`
+        // §9, RC-4b).
+        (
+            GameActionTemplate::ZoneChangeTo { to, cause },
+            GameAction::EnterBattlefield { object, from, .. },
+        ) => Ok(GameAction::ZoneChange {
+                object,
+                from: from.unwrap_or(Zone::Battlefield),
+                to: *to,
+                cause: *cause,
+            }),
+
+        (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
+            match subject_object(subject) {
+                Some(object) => Ok(GameAction::RemoveCounters { object, counter: *counter, n: *n }),
+                None => Err(format!(
+                    "a `RemoveCountersFromAffected` rewrite on {:?} has no affected \
+                     object to take counters from",
+                    chosen.id
+                )),
+            }
+        }
+
+        // CR 614.1a's "instead ... draw", and the substitute is always the
+        // **instruction** (CR 121.2a) whichever of the two draw events it
+        // replaced. Thought Reflection's "draw two cards instead" is one
+        // "draw" of two, so an inner-shaped substitute would hide from Alms
+        // Collector the very event it watches for.
+        //
+        // **The cause travels with the event**, because CR 614.6 makes this
+        // the original in modified form: a doubled draw-step draw still has
+        // a first card that is `DrawCause::TurnBased` and a second that is
+        // not, which is how Teferi's Ageless Insight's exception survives
+        // being doubled. Nothing here counts cards drawn this step.
+        //
+        // Two legs, one per draw event, because both are printed. Thought
+        // Reflection, Teferi's Ageless Insight and Notion Thief replace an
+        // individual draw; Alms Collector replaces an instruction with a
+        // smaller one, and CR 614.5's "any modified events that may replace
+        // that event" is why that half of its text has to be the rewrite
+        // rather than a rider — the affected player's one draw carries the
+        // applied set only this way, and its own ruling is that Alms
+        // Collector does not apply again to it.
+        (
+            GameActionTemplate::DrawCards { n, player },
+            GameAction::DrawCard { player: affected, cause },
+        )
+        | (
+            GameActionTemplate::DrawCards { n, player },
+            GameAction::DrawCards { player: affected, cause, .. },
+        ) => Ok(GameAction::DrawCards {
+                player: draw_recipient(chosen, player.as_ref(), affected)?,
+                n: *n,
+                cause,
+            }),
+
+        // CR 614.1a's kind-changing substitutions, and the pair is what
+        // §10's Eligeth test wanted: a draw becomes a life gain (Words of
+        // Worship), a gain becomes a loss (Tainted Remedy).
+        //
+        // **The subject does not move**, which is why neither carries a
+        // `player`. Both printed customers leave the life where the
+        // replaced event put it, and the affected player is what
+        // `subject_of` already answered — the `EventSubject::Object` arm is
+        // the authoring error, since nothing here can hand life to a
+        // permanent.
+        //
+        // A substituted loss is `LifeLossCause::Effect` and never
+        // `Damage`: it is produced by a replacement effect, and calling it
+        // damage would hand it to Ali from Cairo's clamp, which watches
+        // CR 120.3a's loss and nothing else.
+        (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
+            EventSubject::Player(player) => Ok(GameAction::GainLife {
+                    player,
+                    amount: template_amount(chosen, *amount, &event)?,
+                    // CR 609.6: the replacement effect's own source is the
+                    // source of what it substitutes.
+                    source: chosen.source,
+                }),
+            EventSubject::Object(_) => Err(format!(
+                "replacement {:?} rewrites to a life gain but matched {:?}, whose subject \
+                 is an object, not a player. Its `EventPattern` and its `Rewrite` \
+                 describe different events.",
+                chosen.id, event
+            )),
+        },
+        (GameActionTemplate::LoseLife { amount }, event) => match subject_of(&event) {
+            EventSubject::Player(player) => Ok(GameAction::LoseLife {
+                    player,
+                    amount: template_amount(chosen, *amount, &event)?,
+                    cause: LifeLossCause::Effect,
+                }),
+            EventSubject::Object(_) => Err(format!(
+                "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
+                 is an object, not a player. Its `EventPattern` and its `Rewrite` \
+                 describe different events.",
+                chosen.id, event
+            )),
+        },
+
+        // A template that cannot be built from this event is a card-
+        // authoring error rather than a rules corner: the pattern is what
+        // decides which events reach the rewrite, so a mismatch means the
+        // two halves of one `ReplacementDef` disagree.
+        (GameActionTemplate::DrawCards { .. }, other) => Err(format!(
+            "replacement {:?} rewrites to a draw but matched {:?}, which is not an \
+             individual card draw. Its `EventPattern` and its `Rewrite` describe \
+             different events.",
+            chosen.id, other
+        )),
+        (GameActionTemplate::ZoneChangeTo { .. }, other) => Err(format!(
+            "replacement {:?} rewrites to a zone change but matched {:?}, which is \
+             neither one nor an entry. Its `EventPattern` and its `Rewrite` describe \
+             different events.",
+            chosen.id, other
+        )),
     }
 }
 
