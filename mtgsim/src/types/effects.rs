@@ -91,6 +91,11 @@ pub enum AmountExpr {
     ///
     /// Only a rider has one; every other evaluator refuses it.
     DamagePrevented,
+    /// CR 103.3's starting life total — "your life total becomes equal to
+    /// your starting life total" (Exquisite Archangel). A leaf rather than a
+    /// `Fixed(20)` because v1 is Commander, where it is 40, and the number is
+    /// the game's (`GameState::starting_life`) and not the card's.
+    StartingLifeTotal,
 }
 
 /// Which objects an effect queries or iterates over
@@ -351,6 +356,18 @@ pub enum Condition {
     /// no layer writes it and `board::condition_reads` declares nothing for
     /// it: it can never be a CR 613.8 dependency.
     SourceUntapped,
+    /// "While your library has no cards in it" — Laboratory Maniac, and its
+    /// planeswalker twin Jace, Wielder of Mysteries. "Your" is CR 109.5's
+    /// controller of the source, read the way `LifeAtLeast` reads it.
+    ///
+    /// **Written for one card and says so.** The leaf's first reader is a
+    /// replacement effect's "as long as", evaluated by `replacement::gather`
+    /// at each proposal through `condition::settled_holds` — the same
+    /// evaluator the layer pass and CR 613.11's cost effects use, so a
+    /// conditional static's condition is one question wherever it is asked.
+    /// A library is off `GameState`, not off any frame, so
+    /// `board::condition_reads` declares nothing for it.
+    LibraryEmpty,
 }
 
 /// How many modes to choose (rule 700.2)
@@ -769,6 +786,21 @@ pub enum Primitive {
     GainLife(AmountExpr),
     /// Lose life
     LoseLife(AmountExpr),
+    /// CR 119.5 — "your life total becomes N": the player gains or loses the
+    /// difference, proposed as a `GainLife` or a `LoseLife` so that both
+    /// replacement families and every "can't gain life" see it. Rhox
+    /// Faithmender's ruling — "becomes 10" from 3 becomes 17 — and Skullcrack's
+    /// — "becomes N" higher than the current total does nothing — both fall
+    /// out of that rather than being coded.
+    SetLifeTotal(AmountExpr),
+
+    // === The game's end (CR 104.2b, 104.3e) ===
+    /// "Target player loses the game" — a `GameAction::PlayerLoses` with
+    /// `LossReason::Effect`, so it can be replaced or refused like a
+    /// state-based loss.
+    LoseGame,
+    /// "You win the game" — a `GameAction::PlayerWins`.
+    WinGame,
 
     // === Card flow ===
     /// Draw N cards

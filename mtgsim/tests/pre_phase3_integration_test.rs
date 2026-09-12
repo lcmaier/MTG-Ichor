@@ -8,9 +8,9 @@ use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::game::{Decklist, Game, GameResult};
+use mtgsim::state::game::{Decklist, Game};
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::state::game_state::{GameState, PhaseType};
+use mtgsim::state::game_state::{GameResult, GameState, PhaseType};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
@@ -100,23 +100,21 @@ fn test_game_over_bolt_to_zero() {
         spell_id: bolt_id,
     }, vec![1]);
     // CastSpell returns ActionTaken immediately (no extra pass needed)
-    // Both pass → resolve + SBA (player 1 at 0 life → loses)
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    // After resolve + SBA, both pass → phase ends
+    // Both pass → resolve + SBA (player 1 at 0 life → loses). CR 104.1: the
+    // game ends there, and nobody receives priority in a game that has ended
+    // — the round after the loss is not granted.
     scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     // Cast and resolve via priority loop
     game.state.run_priority_loop(&scripted).unwrap();
 
-    // Player 1 at 0 life → SBA should flag them as lost
+    // Player 1 at 0 life → the SBA's `PlayerLoses` performed
     assert_eq!(game.state.players[1].life_total, 0);
     assert!(game.state.player_lost[1]);
 
-    // Game should detect the result
-    let result = game.check_game_over();
-    assert_eq!(result, Some(GameResult::Winner(0)));
+    // The batch that performed the loss settled the result (CR 104.2a).
+    assert_eq!(game.result(), Some(GameResult::Winner(0)));
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +151,7 @@ fn test_sba_flags_player_loss_empty_library() {
 // Test 5: Both players lose simultaneously = Draw
 // ---------------------------------------------------------------------------
 
+// COVERS: ATOM-104.4a-001
 #[test]
 fn test_both_players_lose_is_draw() {
     let config = GameConfig::test();
@@ -161,10 +160,15 @@ fn test_both_players_lose_is_draw() {
         vec![make_test_decklist(20), make_test_decklist(20)],
     ).unwrap();
 
-    game.state.player_lost[0] = true;
-    game.state.player_lost[1] = true;
+    // Both at 0 life in one check: two `PlayerLoses` members of one CR 704.3
+    // batch, and the batch settles CR 104.4a's draw rather than crowning
+    // whichever member happened to perform second.
+    game.state.players[0].life_total = 0;
+    game.state.players[1].life_total = 0;
+    assert!(game.state.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap());
 
-    assert_eq!(game.check_game_over(), Some(GameResult::Draw));
+    assert!(game.state.player_lost[0] && game.state.player_lost[1]);
+    assert_eq!(game.result(), Some(GameResult::Draw));
 }
 
 // ---------------------------------------------------------------------------

@@ -547,6 +547,9 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         | Condition::SourceUntapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_) => {}
+        // A library's card count is off `GameState`, like a life total, and
+        // the leaf's threshold is a constant — nothing on any frame.
+        Condition::LibraryEmpty => {}
     }
 }
 

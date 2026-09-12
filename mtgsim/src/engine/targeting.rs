@@ -204,6 +204,15 @@ impl GameState {
                 if *pid >= self.players.len() {
                     return Err(format!("Player {} does not exist", pid));
                 }
+                // CR 800.4a — a player who has left the game is not a player,
+                // so not a legal target: not offered at CR 601.2c, and a
+                // spell that targeted them before they left has an illegal
+                // target at CR 608.2b. Without this a "target player draws"
+                // resolving after its target left would draw for a seat the
+                // game no longer has.
+                if !self.in_game(*pid) {
+                    return Err(format!("Player {} has left the game", pid));
+                }
                 Ok(())
             }
             ResolvedTarget::Object(_) => {

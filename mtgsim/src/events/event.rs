@@ -165,8 +165,16 @@ pub enum GameEvent {
     // Graveyard, lki, .. }` and asks the frame what died. `ui/display.rs` and
     // `fuzz_games` both do exactly that.
 
-    // --- Player loss ---
+    // --- The game's end ---
+    /// Emitted by the `GameAction::PlayerLoses` performer, so a loss a
+    /// replacement effect prevented (Exquisite Archangel) or a "can't" refused
+    /// (Platinum Angel) announces nothing.
     PlayerLost { player_id: PlayerId, reason: LossReason },
+    /// CR 104.2b — an effect stated that this player wins. Emitted by the
+    /// `GameAction::PlayerWins` performer. CR 104.2a's win — the last player
+    /// standing — is not an event: it is the outcome the losses imply, recorded
+    /// on `GameState::result` when the batch that performed them settles.
+    PlayerWon { player_id: PlayerId },
 
     // --- Counters ---
     /// Counters were put on or taken off a permanent (CR 122.1).
@@ -209,8 +217,13 @@ pub enum GameEvent {
     StateBasedActionPerformed,
 }
 
-/// Why a player lost the game (for event logging).
-#[derive(Debug, Clone, PartialEq)]
+/// Why a player lost the game.
+///
+/// Carried by `GameAction::PlayerLoses` and read by nothing that decides: every
+/// printed "would lose the game" replacement and every printed "can't lose"
+/// applies to every reason (`replacement-architecture.md` §9, RE decision 5),
+/// so `EventPattern::PlayerLoses` has no field for it and this is the log's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LossReason {
     /// Life total reached 0 or below (rule 704.5a)
     LifeReachedZero,
@@ -218,8 +231,10 @@ pub enum LossReason {
     DrawnFromEmptyLibrary,
     /// Accumulated 10 or more poison counters (rule 704.5c)
     PoisonCounters,
-    /// Dealt 21 or more combat damage by a single commander (rule 704.5)
+    /// Dealt 21 or more combat damage by a single commander (rule 704.6c)
     CommanderDamage,
+    /// An effect said so (rule 104.3e) — `Primitive::LoseGame`.
+    Effect,
 }
 
 /// What damage is being dealt to.

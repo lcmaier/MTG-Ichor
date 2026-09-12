@@ -219,6 +219,25 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **How to use this section:** before opening the first ticket of a listed target system, re-read that system's subsection and treat the items as prerequisites to schedule before or alongside the system's core work.
 
+**What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
+answer sized under about thirty lines, with a fixture that can prove it, is
+**fixed in the PR that found it**, not recorded. This list is what a *later
+system* has to carry — a facility that does not exist yet, an arm with no
+customer, a wrong answer whose fix is a phase — and an entry longer than its
+fix is the sign it should have been a commit. RE-6's first cut recorded six
+entries and four were that shape (`replacement-architecture.md` §11 item 67).
+**The backlog of small fixes as of 2026-09-12**, read off every open item's
+own `**Sized:**` line, for a miscellaneous PR: items 12 (an explicit `None`
+toughness arm, 10 lines), 49 (`is_prohibited`'s entering-permanent leg, 20),
+84 (two dead helpers, 20), 103 (a `debug_assert!` on the swallowed filter
+`Err`, 10), 117 (land drops reset at turn begin, 10), 118 (the repeated
+cleanup step announced, 10), 32 (`DeckLimits` validated, 40) and "Before card
+breadth" item 1 (CR 208.3's no-P/T gate, 10) — about 130 lines of engine and
+their fixtures, no new arm among them; plus two perf items that want the A/B
+beside them, 22 (the counter fast path's set, 15) and 50 (one enumeration per
+CDA, 30), and one harness diagnostic, 104 (an activation counter, 20). The
+other small-sized items are each one card or one system away and stay.
+
 **Item ids are section-scoped, not unique (decided 2026-09-03).** Four runs
 share the numbers 1–65: the main run, which spans every dated "Found by …"
 subsection, and one run each inside "Before Layers", "Before card breadth",
@@ -597,7 +616,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Replacement
     effects (CR 614–616)" item 5.
 
-6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `PermanentState` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential**: it writes `player_lost[i]` and emits `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once, ATOM-704.7-001 — cannot be expressed at all. RA-3's dedupe covers same-object zone changes and not this. The `!player_lost[i]` guard makes the outcome right by accident. Needs `GameAction::PlayerLoses` (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE, where the 6 printed cards live). They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6) — **the attach half landed with LH-2 (2026-09-05): `GameAction::Attach`, performed through `GameState::attach`, emitting `Attached` on the transition; the SBA detach (704.5n/p and the catch-all) still calls `detach` directly and stays here.** Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep was also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`; closed 2026-09-04 (83333e9):** `engine/sba.rs`'s 704.5d gather iterated `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emitted `TokenCeasedToExist` in per-process order. It was invisible to `fuzz_games`' summary, which counts no such ordering, and showed up only in a `--dump-events` diff on the `stress` pool (adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. **The fix is a key, not the routing.** `GameObject.zone_change_epoch` orders the gather: `move_object` stamps it on every move, one tick per move, so tokens leaving in one batch carry distinct ticks in batch order, and a token is only ever created *in* the battlefield zone, so one reaching the sweep has moved. Routing was the obvious fix and is the wrong one — a token ceasing to exist is not a zone change (CR 704.5d removes it from the game), so the sweep has nothing to propose and needed an order, not a batch. **Measured.** At 200 `stress` games / seed 12345 the run holds exactly one multi-token sweep — game 108, three of Kalitas's Zombies sacrificed at once — and three same-binary `--dump-events` runs of the pre-fix tree order them **three different ways**, while four runs of the fixed tree give one order, the order the three tokens left the battlefield. The two streams are otherwise identical line for line (101,214 lines), so no event count moves and `engineering-practices.md` §3's fixture table is confirmed rather than re-recorded. The other three direct writes are untouched, and so is the routing they are recorded for.
+6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `PermanentState` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **~~Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential~~ — ✅ closed 2026-09-12 (RE-6).** The four loops are `GameAction::PlayerLoses` members of the CR 704.3 batch, deduped per player by the same subject-keyed collapse that dedupes the zone changes (CR 704.7), so `ATOM-704.7-001`'s board is a test (partial — the Archangel stands in for Lich's Mirror). The `!player_lost[i]` guard is now the gate ahead of the proposal, for CR 800.4k's reason and not by accident. *Original entry:* it wrote `player_lost[i]` and emitted `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once — could not be expressed at all. They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6) — **the attach half landed with LH-2 (2026-09-05): `GameAction::Attach`, performed through `GameState::attach`, emitting `Attached` on the transition; the SBA detach (704.5n/p and the catch-all) still calls `detach` directly and stays here.** Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep was also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`; closed 2026-09-04 (83333e9):** `engine/sba.rs`'s 704.5d gather iterated `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emitted `TokenCeasedToExist` in per-process order. It was invisible to `fuzz_games`' summary, which counts no such ordering, and showed up only in a `--dump-events` diff on the `stress` pool (adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. **The fix is a key, not the routing.** `GameObject.zone_change_epoch` orders the gather: `move_object` stamps it on every move, one tick per move, so tokens leaving in one batch carry distinct ticks in batch order, and a token is only ever created *in* the battlefield zone, so one reaching the sweep has moved. Routing was the obvious fix and is the wrong one — a token ceasing to exist is not a zone change (CR 704.5d removes it from the game), so the sweep has nothing to propose and needed an order, not a batch. **Measured.** At 200 `stress` games / seed 12345 the run holds exactly one multi-token sweep — game 108, three of Kalitas's Zombies sacrificed at once — and three same-binary `--dump-events` runs of the pre-fix tree order them **three different ways**, while four runs of the fixed tree give one order, the order the three tokens left the battlefield. The two streams are otherwise identical line for line (101,214 lines), so no event count moves and `engineering-practices.md` §3's fixture table is confirmed rather than re-recorded. The other three direct writes are untouched, and so is the routing they are recorded for.
 
    **Reachability (2026-09-04):** unreachable — the one wrong part is fixed and
    the three that remain are right today. The CR 704.5d sweep's `HashMap` order
@@ -2894,19 +2913,16 @@ games; with Humility forced beside her, both are on the board in 52%.
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
 
-73. **A conditional replacement or restriction static is inert.**
-    `register_static_effects` inserts a gate source when `ability.effect`
-    *is* an `Effect::Replacement` or `Effect::Restriction`; a conditional
-    one — `Effect::Conditional(cond, Replacement)`, Trinisphere's shape on a
-    replacement — is never inserted, and `gather`/`is_prohibited` match the
-    body the same way. The cost gate sees through the wrapper with
-    `Effect::as_cost_modification`, which is the fix's shape for both.
-
-    **Reachability (2026-09-07):** unreachable — no registered card prints
-    a conditional replacement or restriction static.
-
-    **Sized:** an `as_replacement`/`as_restriction` peel used at the three
-    sites each, ~40 lines; with the first such card.
+73. **~~A conditional replacement or restriction static is inert.~~ — ✅
+    closed 2026-09-12 (RE-6).** `register_static_effects` records a source
+    through the `Effect::Conditional` wrapper for both kinds, and both sweeps
+    — `replacement::gather`'s static leg and `is_prohibited`'s — peel it and
+    ask `settled_holds` at the proposal, the evaluator CR 613.11's cost effects
+    already use. Laboratory Maniac is the first such card on the replacement
+    side; the restriction side is a fixture
+    (`a_conditional_static_cant_is_honoured_while_its_condition_holds`).
+    *Original entry:* a conditional one was never inserted as a source, and
+    the sweeps matched only the bare body.
 
 74. **The generic split and the mana window read only the first `Cost::Mana` —
     closed by CM-1's merge.** — ✅ closed, archived.
@@ -3918,6 +3934,18 @@ audit is at the end.
      the four-player run, and the ledger's rule is that a reachable wrong answer
      is fixed first. CR 802's defending player stays "Before Commander" item 4's.
 
+     **Reachability (2026-09-12, RE-6 landed): reachable, wrong today, and
+     measured.** `fuzz_games --players 4` plays it in every game that has a
+     departure before the end, and the harness prints the wrong answer as a
+     row: **"Departed-owned permanents"** is the count of battlefield
+     permanents a player who has left still owns when the game ends, and
+     **"Turns after a departure"** is how long they stayed. Both are in
+     `engineering-practices.md` §3's four-player table, recorded as RE-7's
+     starting point; RE-7 zeroes the first. The two-player verdict above
+     stands unchanged: a loss there ends the game in the same sweep. **Owner
+     unchanged: RE-7**, and the closer is the one named there — CR 800.4a
+     inside the `PlayerLoses` performer.
+
 109. **The `EachOther` fix stopped one site short of the sites that have a
      source, and the biggest one is `Primitive`'s filter recipient.** RD-4 gave
      `set_affects` a source to answer `ObjectFilter::EachOther` against
@@ -3978,18 +4006,18 @@ named RE PR.
      `GameAction::ProduceMana`, one performer replacing two writers, ~300
      engine lines; the A/B on the hottest path is the risk, not the diff.
 
-112. **`has_drawn_from_empty_library` is set and never cleared.** `zones.rs:135`
-     sets it; `sba.rs:130` reads it; no site clears it. CR 704.5b's window is
-     "since the last time state-based actions were checked", and Exquisite
-     Archangel's ruling — "if you would have lost the game because you tried
-     to draw from an empty library, you won't lose again until you try to draw
-     again" — is the observable consequence.
-
-     **Reachability (2026-09-11):** unreachable — the flag's only reader ends
-     the game in the same sweep, and nothing replaces a loss yet.
-
-     **Sized:** one line in the `PlayerLoses` performer (clear on perform) or
-     at the top of the check beside `last_sba_check_epoch`; RE-6.
+112. **~~`has_drawn_from_empty_library` is set and never cleared.~~ — ✅ closed
+     2026-09-12 (RE-6).** The check reads every player's flag into the batch
+     and clears it, beside `last_sba_check_epoch`, because CR 704.5b's window
+     is the same sentence as 704.6d's — "since the last time state-based
+     actions were checked". **At the check and not in the performer**, which
+     the sizing left open: a replaced loss (Exquisite Archangel) and a refused
+     one (Platinum Angel) both perform nothing, and a flag cleared by the
+     performer would have re-proposed the same loss at every later check. The
+     Archangel's ruling is the test
+     (`a_replaced_empty_library_loss_is_not_proposed_again_until_the_next_draw`).
+     *Original entry:* `zones.rs:135` set it, `sba.rs:130` read it, no site
+     cleared it; unobservable only because the one reader ended the game.
 
 113. **A player who has lost stays in the priority rotation.** ~~The turn
      half closed 2026-09-11 (RE-1)~~: `GameState::next_turn_taker` reads
@@ -4012,6 +4040,18 @@ named RE PR.
 
      **Sized:** ~20 lines at the one remaining site, RE-6, beside the
      `--players 4` fuzz mode item 4 sized at ~50.
+
+     **✅ The priority half closed 2026-09-12 (RE-6).** `run_priority_round`
+     starts from the active player if they are still in the game and from
+     `next_player_in_game` after them otherwise, rotates through that
+     function, and ends a round when everyone *still in the game* has passed
+     — plus the three turn-based actions a departed active player has nobody
+     to perform (attackers, the draw, the cleanup discard), so the turn
+     "continues to its completion without an active player". CR 104.1 landed
+     at the same loop: nobody receives priority in a game that has ended,
+     where before a player who had just lost kept acting until the phase
+     ended. `--players 4` exists and is measured (item 108). What is left of
+     item 4's multiplayer list is CR 800.4a–e (RE-7) and CR 802.
 
 114. **`Restriction::Event` has no player set.** `{ pattern, affected, by }` —
      the object set only — so "players can't gain life" (Skullcrack, Leyline
@@ -4238,8 +4278,16 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
      where the rule says the active player does. The facility is unchanged and
      so is the sizing.
 
-     → `replacement-architecture.md` §11 item 52. **Owner: RE-6**, which is
-     where turn order stops being `(0..n)` because a lost player has left it.
+     → `replacement-architecture.md` §11 item 52. ~~**Owner: RE-6**, which is
+     where turn order stops being `(0..n)` because a lost player has left it.~~
+     **Re-owned 2026-09-12, at RE-6's close.** RE-6 did make the rotation
+     read `player_lost` (`GameState::next_player_in_game`), and that is not
+     this item: the facility here is APNAP ordering over *an effect's
+     recipients*, which §9's "Out of RE" declines on the same one-customer
+     argument as before — Laboratory Maniac's second ruling is the second
+     customer, and it is unexpressible for the same reason. **Owner: the
+     first each-player draw producer**, wherever Phase 8 lands it; the
+     rotation it will sort by exists now.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
@@ -5388,6 +5436,17 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    review; `replacement-architecture.md` §9 RE decision 5); CR 802's defending
    player and 800.4f–h's choices stay here.**
 
+   **✅ The fuzz mode and 800.4j/k landed 2026-09-12 (RE-6).** `fuzz_games
+   --players N` — one random deck per seat off the one stream, a
+   two-player run byte identical to before, two rows only a wider table
+   can move, and a "wins by effect" outcome key — and the four-player table
+   is recorded in `engineering-practices.md` §3 as RE-7's baseline. The mode
+   was ~90 harness lines rather than ~50, because "a flag" was the optimistic
+   reading: the deck loop, the copies count and the outcome key all had two
+   players in them. **Reachability (2026-09-12):** the rest of this item —
+   800.4a–e, 800.4m (RE-7) and CR 802 — is *reachable* now in every
+   four-player game with a departure, which is most of them at 200 games.
+
 ### Cross-cutting — keep this section honest
 
 **~~The existence check is CR 604.2, not CR 613.7a (2026-09-06, LI-1 review).~~ — ✅ swept 2026-09-06.** `static_ability_still_exists` and every comment and doc line around it had called the "does the source still have the ability" question "CR 613.7a" since 2026-08-21. 613.7a is the timestamp rule; the question is CR 604.2 — "these effects are active as long as the permanent with the ability remains on the battlefield and has the ability" — and 611.3b says the same.
@@ -5519,23 +5578,18 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 **The perf protocol is trustworthy again.** "200 games / seed 12345, back to back, ±3% band" now compares equal work, so avg-turns is a *check* rather than a variable: if two runs at the same seed report different turn counts, something reintroduced process state into a decision, and the perf reading is meaningless until it is found. Median-of-five ms/turn remains the better statistic, but for machine noise now, not for divergence.
 
-123. **`Primitive::SetLifeTotal` does not exist, and three registered cards'
-     rulings wait on it.** CR 119.5 — "if an effect sets a player's life total
-     to a specific number, the player gains or loses the necessary amount of
-     life to end up with the new total" — is the board Rhox Faithmender's second
-     ruling ("becomes 10" from 3 becomes **17**), Alhammarret's Archive's first
-     and Skullcrack's fourth all describe, and the engine has no way to state
-     any of them.
-
-     **Reachability (2026-09-12):** unreachable — no `Primitive` produces a
-     set-life-total, so no board can be built. Recorded here rather than as a
-     gap because three registered cards' rulings now name it, which is a
-     different kind of owing from "a card might want it".
-
-     **Sized:** RE-6's, with CR 119.5 beside `PlayerLoses` — §9's RE-6 row
-     already lists it. One `Primitive` arm that computes the difference and
-     proposes a `GainLife` or a `LoseLife`, so both replacement families see it
-     for free; ~40 lines plus the three tests.
+123. **~~`Primitive::SetLifeTotal` does not exist, and three registered cards'
+     rulings wait on it.~~ — ✅ closed 2026-09-12 (RE-6).** One arm that
+     proposes the difference as a `GainLife` or a `LoseLife` and never writes
+     the total, so the three rulings are three tests:
+     `rhox_faithmender_makes_becomes_ten_from_three_seventeen`,
+     `setting_a_life_total_higher_under_a_cant_gain_does_nothing` (Skullcrack's
+     fourth, and Alhammarret's Archive's first is Rhox's board on a second
+     card), with `ATOM-119.5-001`/`-002` claimed beside them.
+     `AmountExpr::StartingLifeTotal` came with it, because Exquisite Archangel
+     says "your starting life total" and v1's is 40. *Original entry:* CR 119.5
+     had no producer, and Rhox Faithmender's, Alhammarret's Archive's and
+     Skullcrack's rulings all named it.
 
 124. **Three types carry an object set called `affected`, and two of them now
      have a player sibling — so the bare name is wrong in two places and will be
@@ -5566,6 +5620,67 @@ What the *shape* says, as opposed to what one endpoint suggested:
      already object-only, and the name says "affected" where the field name
      now says it twice.
 
-- Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
+### Found by RE-6 — the game's end (2026-09-12)
+
+**Shipped:** `GameAction::{PlayerLoses, PlayerWins}` with their two
+`EventPattern` arms and `GameActionTemplate::PlayerWins`; the four
+state-based loss loops as CR 704.3 batch members, deduped per player by
+`subject_of`; CR 704.5b's window closed at the check; `GameResult` on
+`GameState`, written by the `PlayerWins` performer and by the batch's
+settlement (CR 104.2a/104.4a per batch, never per member); CR 104.1 at the
+chokepoint, the state-based check and the priority loop; CR 104.4b's draw as
+a cap on the state-based loop; CR 800.4j at the priority rotation and the
+three turn-based actions a departed active player has nobody to perform;
+CR 800.4a at the target rule and the attack-target list;
+`Primitive::{LoseGame, WinGame, SetLifeTotal}`, `Primitive::Exile` for the
+effect's own source and for a targeted card wherever it is,
+`AmountExpr::StartingLifeTotal`, `Condition::LibraryEmpty` and the CR 604.2
+leg in both static sweeps through `settled_holds`; `fuzz_games --players N`.
+Four cards — Laboratory Maniac (pooled), Exquisite Archangel, Stunning
+Reversal, Platinum Angel. Items 6 (the loss half), 73, 112, 113 (the
+priority half) and 123 close; 108 is re-dated and measured; 122 is re-owned;
+"Before Commander" item 4's fuzz mode is built. `replacement-architecture.md`
+§11 items 61–67. **One line here, not six**: the review of this PR's first cut
+found four small wrong answers recorded as debt with fixes shorter than their
+entries, and they were fixed instead (§11 item 67 and the rule at the foot of
+this section); a fifth was CR 104.3f, which is a catch-all and not a
+migration.
+
+125. **Exquisite Archangel dying in the check that would lose you the game
+     takes the graveyard outcome, and the rider structure cannot offer the
+     ruling's choice.** The card's first ruling: *"its effect applies ... You
+     choose whether Exquisite Archangel is moved to exile or to your
+     graveyard."* The loss and the death are two members of one batch decided
+     against one board, so the replacement applies; but the card's "instead
+     exile this creature and your life total becomes ..." is *two* events
+     about two subjects, and a rewrite produces one (§3.2d), so the Archangel
+     is encoded as `Prevent` plus a rider — and riders resolve after the batch
+     performs (CR 615.5, §4.1a). The death has happened by then, the card in
+     the graveyard is a new object (CR 400.7), and the rider's `Exile` finds
+     nothing. Lich's Mirror's fifteenth ruling is the same board with a
+     shuffle.
+
+     **Reachability (2026-09-12):** reachable in `stress` — the Archangel is
+     registered, and one combat with it blocking a 5-power attacker while
+     another attacker is lethal to you is the board. **Wrong in the narrow
+     sense**: the engine takes one of the ruling's two outcomes and never asks;
+     the other is unreachable by construction. Tested as it behaves
+     (`exquisite_archangel_replaces_the_loss_while_dying_in_the_same_check`).
+
+     **Sized: it is `backlog.md` §2.25's facility, not a patch.** A
+     replacement whose result is more than one event — the exile and the life
+     total, simultaneous with the rest of the batch — needs a rewrite to yield
+     *members* inserted into the batch in phase 1, which is exactly the
+     one-event-becoming-two that RD-5 gated closed for Harm's Way (≈30
+     mechanical sites in `apply_replacements`' return shape and
+     `execute_batch_inner`'s phase-2 write, plus whatever the split itself
+     needs); on top of it, two members moving one object to two zones must
+     turn the CR 704.7 same-subject *collapse* into a *prompt* (~40 lines and
+     a `ChoiceKind`). §2.25 now records the Archangel as its second customer,
+     which is what §8c's "two customers before a leaf" asks for before that
+     facility is built. Until then the engine's answer is the graveyard and
+     this line is the record that the choice is missing.
+
+- Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

@@ -8,6 +8,7 @@
 //! last one is a property of CR 101.2 rather than a simplification.
 
 use crate::engine::actions::GameAction;
+use crate::engine::layers::condition::settled_holds;
 use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
@@ -111,8 +112,20 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
                 if ability.ability_type != AbilityType::Static {
                     continue;
                 }
-                let Effect::Restriction(def) = &ability.effect else {
-                    continue;
+                // Through a CR 604.2 "as long as" wrapper too, asked at the
+                // proposal against the settled board — the same leg, with the
+                // same evaluator, that `replacement::gather` gives a
+                // conditional replacement.
+                let def = match &ability.effect {
+                    Effect::Restriction(def) => def,
+                    Effect::Conditional(condition, inner) => {
+                        let Effect::Restriction(def) = inner.as_ref() else { continue };
+                        if !settled_holds(condition, game, id) {
+                            continue;
+                        }
+                        def
+                    }
+                    _ => continue,
                 };
                 if matches(game, def, id, controller, query, frame) {
                     return true;

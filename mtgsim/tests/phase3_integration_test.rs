@@ -13,7 +13,8 @@ use mtgsim::cards::creatures;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::{Decklist, Game, GameResult};
+use mtgsim::state::game::{Decklist, Game};
+use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{PhaseType, StepType};
 use mtgsim::types::card_types::CardType;
@@ -429,15 +430,13 @@ fn test_combat_damage_kills_player() {
     // Player 1 at 0 life
     assert_eq!(game.state.players[1].life_total, 0);
 
-    // Run priority loop — SBAs fire, flagging player 1 as lost
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Run priority loop — the SBA check ahead of the first grant performs
+    // player 1's loss, the batch settles the result, and CR 104.1 ends the
+    // game there: nobody is asked to pass.
     game.state.run_priority_loop(&scripted).unwrap();
     assert!(game.state.player_lost[1]);
 
-    // Game should detect winner
-    let result = game.check_game_over();
-    assert_eq!(result, Some(GameResult::Winner(0)));
+    assert_eq!(game.result(), Some(GameResult::Winner(0)));
 }
 
 // ---------------------------------------------------------------------------

@@ -158,17 +158,16 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # Why ten arms and not fourteen
+/// # Why sixteen arms and not seventeen
 ///
-/// `GameAction` ships fifteen variants and this enum ten. `CounterChange`
+/// `GameAction` ships seventeen variants and this enum sixteen. `CounterChange`
 /// covers `AddCounters` and `RemoveCounters` through its `adding` field — the
 /// one place the projection is not 1:1, and that arm's own doc says so.
 ///
-/// The four with no arm at all are `Attach` — on purpose, since nothing
-/// replaces an attach — and `DrawCard`, `GainLife` and `LoseLife`. Those three
-/// land in RE-2 and RE-3, which is where `replacement-architecture.md` §9
-/// schedules draw replacement (CR 614.11) and life-gain replacement
-/// (CR 119.10) anyway. Adding an arm is a normal diff — this enum is matched
+/// The one with no arm at all is `Attach` — on purpose, since nothing
+/// replaces an attach. `DrawCard`, `GainLife` and `LoseLife` gained theirs in
+/// RE-2 and RE-3, and `PlayerLoses`/`PlayerWins` in RE-6, each with the card
+/// that watches it. Adding an arm is a normal diff — this enum is matched
 /// exhaustively and is not `#[non_exhaustive]`, so every reader fails to
 /// compile rather than defaulting. **`gather::pattern_watches` is the reader
 /// that does not**: it falls through to `false`, so a `GameAction` variant with
@@ -419,6 +418,30 @@ pub enum EventPattern {
     BeginStep {
         step: Option<StepType>,
     },
+
+    /// CR 104.3 — "if you would lose the game". The event's subject is the
+    /// player who would lose.
+    ///
+    /// **No `reason` field, and the census is why** (`replacement-architecture.md`
+    /// §9, RE decision 5): every printed replacement — Exquisite Archangel,
+    /// Stunning Reversal, Lich's Mirror — applies "any time you would lose the
+    /// game", and every printed "can't lose" is the same. A field would be one
+    /// nothing reads. `GameAction::PlayerLoses` carries the reason for the
+    /// log, and CR 704.7 collapses two reasons into one member before this
+    /// pattern ever sees the event.
+    PlayerLoses,
+
+    /// CR 104.2b — "would win the game". The event's subject is the player who
+    /// would win.
+    ///
+    /// Zero printed replacements watch this (Scryfall, 2026-09-11) and nine
+    /// printed "can't win"s do; the arm exists for `Restriction::Event`, which
+    /// reuses this enum verbatim, and because the contract above is one arm
+    /// per `GameAction` variant. CR 104.2a's win — the last player standing —
+    /// never becomes this event: the rule "overrides all effects that would
+    /// preclude that player from winning", which is exactly the sentence that
+    /// puts it outside the pipeline.
+    PlayerWins,
 }
 
 /// CR 609.7's source-side predicate — "a **red** source of your choice", "a
@@ -564,6 +587,8 @@ impl EventPattern {
             | EventPattern::BeginTurn
             | EventPattern::BeginPhase { .. }
             | EventPattern::BeginStep { .. } => false,
+            // The game's end has no number at all, and neither arm has a field.
+            EventPattern::PlayerLoses | EventPattern::PlayerWins => false,
         }
     }
 }
@@ -1292,6 +1317,19 @@ pub enum GameActionTemplate {
     /// reading `Some(Damage)` is what makes that distinction load-bearing
     /// rather than cosmetic.
     LoseLife { amount: TemplateAmount },
+
+    /// Win the game instead — CR 614.1a, from a draw.
+    ///
+    /// One customer, Laboratory Maniac ("if you would draw a card while your
+    /// library has no cards in it, you win the game instead"), and its
+    /// planeswalker twin Jace, Wielder of Mysteries prints the same sentence.
+    /// The affected player wins; no printed substitution hands a win to
+    /// somebody else, so there is no `player` field, for [`Self::GainLife`]'s
+    /// reason.
+    ///
+    /// **The first template whose idempotence is a derivation rather than a
+    /// reading** — `pipeline::template_is_idempotent` says why it holds.
+    PlayerWins,
 }
 
 /// How a life template gets its number.

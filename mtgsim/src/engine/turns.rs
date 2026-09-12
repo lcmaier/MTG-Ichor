@@ -143,7 +143,8 @@ impl GameState {
                     let Some(player) = self.next_turn_taker() else {
                         // Every player has left the game (CR 104.2a), so there
                         // is no turn to advance to. The position stays where it
-                        // is and `Game::check_game_over` is what ends the game.
+                        // is and `GameState::result`, settled by the batch that performed
+                        // the last loss, is what `Game` reads to end the game.
                         return Ok((self.phase.phase_type, self.phase.step));
                     };
                     let turn = self.turn_number + 1;
@@ -421,10 +422,18 @@ impl GameState {
             // Divination and a pair of cantrips are told apart by `n` rather
             // than by which event the producer happened to build. This is the
             // engine's one `DrawCause::TurnBased` site (CR 121.1).
-            self.execute_action(
-                GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
-                ctx,
-            )?;
+            //
+            // Not for an active player who has left the game (CR 800.4j —
+            // "the turn continues to its completion without an active
+            // player"): the turn-based action is theirs to perform, and there
+            // is nobody to perform it. A departed player drawing would also
+            // re-arm CR 704.5b for a player the check no longer proposes for.
+            if self.in_game(active) {
+                self.execute_action(
+                    GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
+                    ctx,
+                )?;
+            }
         }
 
         self.priority_player = active;
