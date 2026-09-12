@@ -511,16 +511,38 @@ impl GameState {
     /// that the inner event is the outer one **at finer grain** rather than an
     /// event the outer one caused. `DealDamage`'s contained `LoseLife` and a
     /// token creation's entries are the other shape, and each takes the fresh
-    /// set `execute_actions` gives it.
-    pub(crate) fn execute_actions_inheriting(
+    /// set `execute_actions` gives it. The name says *decomposing* rather than
+    /// *inheriting* because the inheritance is the consequence and the
+    /// decomposition is the claim a second caller has to make.
+    ///
+    /// **The debug assertion is the lineage rule computed the other way.** A
+    /// call at depth `d` exists because `d - 1` substitutions happened above it,
+    /// and a substitution that is not CR 903.9b-exempt inserts an instance into
+    /// the applied set — so `d <= inherited.len() + 1` on any correct board, and
+    /// the bound is derived rather than chosen. Break the inheritance and depth
+    /// climbs while the set does not, which fires here at depth 2, before the
+    /// recursion is deep enough to overflow the stack and take the whole test
+    /// binary with it. No exempt draw replacement exists (CR 903.9b is about
+    /// commanders), and the first one would relax this by exactly its count.
+    pub(crate) fn execute_actions_decomposing(
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
         inherited: &HashSet<ReplacementInstanceId>,
     ) -> Result<Vec<GameAction>, String> {
+        self.decomposition_depth += 1;
+        debug_assert!(
+            self.decomposition_depth <= inherited.len() + 1,
+            "a decomposed event at depth {} inherited only {} applied effects: \
+             CR 614.5's set is what bounds the nesting, so the lineage is broken \
+             (replacement-architecture.md section 3.2d)",
+            self.decomposition_depth,
+            inherited.len()
+        );
         let previous = self.events.open_batch(ctx.resolution_stamp());
         let result = self.execute_batch_inner(batch, ctx, inherited);
         self.events.close_batch(previous);
+        self.decomposition_depth -= 1;
         result
     }
 
@@ -566,7 +588,7 @@ impl GameState {
     /// borrow this function is already holding.
     ///
     /// Nothing else lives in the split — it is not a phase boundary or an
-    /// extension point. [`Self::execute_actions_inheriting`] is the third caller
+    /// extension point. [`Self::execute_actions_decomposing`] is the third caller
     /// and it makes §3.2d's argument about *lineage* rather than §4.2's about
     /// batch identity, so a fourth needs one or the other — not a reason to
     /// reuse this body.
@@ -814,15 +836,11 @@ impl GameState {
     /// gain through `execute_action`, and that proposal is made from inside the
     /// `DealDamage` arm below.
     ///
-    /// `lineage` is what this event's own CR 616.1 loop applied, and exactly one
-    /// arm reads it: a performer that **decomposes** hands it to the events it
-    /// decomposes into, because those are this event at finer grain and CR
-    /// 614.5's applied set has to continue across them (§3.2d). A performer that
-    /// *contains* another event — `DealDamage`'s CR 120.3a life loss, an entry
-    /// caused by a creation — proposes it through `execute_action` and it gets
-    /// the fresh set that call gives it. §3.2d's discriminator is whether the
-    /// derived event is the same kind of thing as its parent, and it is answered
-    /// here, at the call, rather than inferred.
+    /// `lineage` is this event's own CR 616.1 applied set, and exactly one arm
+    /// reads it — the one that **decomposes**. Every other nested proposal here
+    /// is **containment** and takes the fresh set `execute_action` gives it.
+    /// Both words are defined in `plans/glossary.md`, and the discriminator they
+    /// turn on is `replacement-architecture.md` §3.2d's.
     fn perform_action(
         &mut self,
         action: GameAction,
@@ -980,7 +998,7 @@ impl GameState {
             // No guard on `n == 0`: the loop is the no-op.
             GameAction::DrawCards { player, n, cause } => {
                 for i in 0..n {
-                    self.execute_actions_inheriting(
+                    self.execute_actions_decomposing(
                         vec![GameAction::DrawCard {
                             player,
                             // CR 121.1's turn-based action is one card. Every

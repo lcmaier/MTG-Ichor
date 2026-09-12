@@ -11,14 +11,17 @@
 //! instructions of one.
 //!
 //! `ATOM-614.11b-001` — CR 121.6c's "additional actions on a card after it's
-//! drawn" — has **no test and no producer**. Nothing in `Primitive` does
-//! something to *the card it drew*: `Primitive::DrawCards` returns no ids to a
-//! later atom, and `Effect::Sequence` composes instructions rather than
-//! threading a drawn card between them. The atom needs an effect shaped like
-//! "draw a card, then discard that card", where "that card" is a reference the
-//! effect tree has no way to hold, so a fixture written today would assert the
-//! engine's guess rather than a printed card's behaviour. It stays uncovered
-//! with that reason (`replacement-architecture.md` §9, RE decision 1).
+//! drawn" — has **no test, because it has no producer to get wrong.** The rule
+//! says the additional action is not performed on a card that arrived by
+//! replacement; nothing in `Primitive` performs an additional action on the
+//! card it drew, so there is no site at which the engine could perform one.
+//! `Primitive::DrawCards` returns no ids to a later atom and `Effect::Sequence`
+//! threads nothing between its instructions (CR 608.2c). The printed shape is
+//! "draw a card **and reveal it**. If it isn't a land card, discard it" — four
+//! cards, and each also needs `Primitive::Discard` (RE-8) or the information
+//! model, so the facility alone unblocks none of them. Uncovered with that
+//! reason; `backlog.md` §2.26 owns the mechanic
+//! (`replacement-architecture.md` §9, RE decision 1).
 
 use std::sync::Arc;
 
@@ -189,14 +192,19 @@ fn an_instruction_of_one_is_not_an_instruction_of_two_or_more() {
     assert_eq!(drawn_by(&game, 0), 0, "Alms Collector did not apply");
 }
 
-/// Alms Collector's counting ruling, both halves on one board: *"count how many
+/// **The engine claim is that the two are different events at all**, and Alms
+/// Collector's counting ruling is the printed statement of it: *"count how many
 /// times the word 'draw' is used."*
 ///
-/// One instruction of two is the event it watches; two instructions of one — a
-/// `Sequence` of two `Primitive::DrawCards(1)`, which is what a card printing
-/// "draw a card" twice would be — are two events it does not.
+/// Which of the two a given card is written as is the author's business; that
+/// the vocabulary can *hold* the difference is not, and it is what
+/// [`GameAction::DrawCards`] exists for. Before the instruction event,
+/// `Primitive::DrawCards(2)` lowered to the same two `DrawCard` proposals a
+/// pair of cantrips does, and no pattern could have separated them — so the
+/// assertion is the pair, and a board with only one half would pass against an
+/// engine that watched everything.
 #[test]
-fn alms_collector_counts_the_word_draw_and_not_the_cards() {
+fn one_instruction_of_two_is_a_different_event_from_two_instructions_of_one() {
     let dp = ScriptedDecisionProvider::new();
 
     let mut one_of_two = stocked(2);
@@ -205,6 +213,9 @@ fn alms_collector_counts_the_word_draw_and_not_the_cards() {
     assert_eq!(drawn_by(&one_of_two, 1), 1, "the instruction was replaced");
     assert_eq!(drawn_by(&one_of_two, 0), 1, "and you drew one");
 
+    // Two instructions, which is how a card printing "draw a card" twice would
+    // be authored — `Effect::Sequence` is CR 608.2c's instruction sequencing and
+    // each atom proposes its own event.
     let mut two_of_one = stocked(2);
     put_on_battlefield(&mut two_of_one, alms_collector(), 0);
     let twice = Effect::Sequence(vec![
@@ -238,31 +249,33 @@ fn alms_collector_counts_the_word_draw_and_not_the_cards() {
 /// Without the inheritance the chosen Reflection re-applies to its own output,
 /// which does not answer wrongly; it recurses until the stack overflows.
 ///
-/// **The bound is the provider, and it is exact.** A correct run prompts
-/// CR 616.1 exactly once — at the first draw, the only point at which two
-/// Reflections are both unapplied; every later draw has one candidate and the
-/// pipeline never prompts with fewer than two. So a provider primed with one
-/// expectation turns the second prompt into
-/// `ScriptedDecisionProvider: unexpected ... call`, which is a red test with a
-/// message rather than a test binary that never returns. It is a bound and not
-/// a proxy: a broken lineage reaches its second prompt at depth two, before any
-/// recursion has had time to get deep.
+/// **The bound is `execute_actions_decomposing`'s debug assertion, and it is
+/// derived rather than chosen.** A decomposing call at depth `d` exists because
+/// `d - 1` substitutions happened above it, and each inserted an instance into
+/// the applied set — so `d <= inherited.len() + 1` on any correct board. Break
+/// the inheritance and depth climbs while the set does not: the assertion fires
+/// at **depth 2**, long before the recursion is deep enough to overflow the
+/// stack and take the whole test binary with it, and its message names the rule.
+/// Mutation-checked.
+///
+/// **And no prompt, which is the second claim.** Two Thought Reflections are
+/// order-invariant — the total is the product of their counts whichever applies
+/// first — so `ordering_cannot_change_outcome` suppresses CR 616.1's question
+/// the way it does for two Furnaces of Rath. The provider is primed with
+/// nothing and asserts it was never asked.
+/// [`a_draw_doubler_beside_a_notion_thief_is_a_real_choice`] is the board where
+/// the order does change the answer and the prompt is not suppressed.
 #[test]
 fn test_two_thought_reflections_draw_four_not_infinity() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, thought_reflection(), 0);
     put_on_battlefield(&mut game, thought_reflection(), 0);
 
-    // One prompt, and the drawing player answers it — Thought Reflection's own
-    // ruling, "the player who's drawing the card chooses what order to apply
-    // them". Anything past this is the lineage being wrong.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
-
     draw_instruction(&mut game, 0, 1, &dp);
 
     assert_eq!(drawn_by(&game, 0), 4, "two Reflections draw four, not four thousand");
-    assert!(dp.is_empty(), "exactly one CR 616.1 prompt, at the first draw");
+    assert!(dp.is_empty(), "and the choice between them has one outcome, so nobody was asked");
 }
 
 /// The same rule one copy further on, because the ruling states it: three
@@ -276,18 +289,56 @@ fn three_thought_reflections_draw_eight() {
         put_on_battlefield(&mut game, thought_reflection(), 0);
     }
 
-    // Three unapplied copies at the first draw, then two at each of its two
-    // outputs: three prompts, and the third pair of draws has one candidate
-    // each.
     let dp = ScriptedDecisionProvider::new();
-    for _ in 0..3 {
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
-    }
-
     draw_instruction(&mut game, 0, 1, &dp);
 
     assert_eq!(drawn_by(&game, 0), 8);
-    assert!(dp.is_empty(), "three prompts and no more");
+    assert!(dp.is_empty(), "still one outcome with three, so still no prompt");
+}
+
+/// **The other side of the suppression, and the reason it is a predicate rather
+/// than a blanket rule for draws.**
+///
+/// Player 0's Thought Reflection and player 1's Notion Thief both watch player
+/// 0's draw, and the order decides how many cards player 1 ends up with — so
+/// `ordering_cannot_change_outcome` says no and CR 616.1 asks. The Thief is what
+/// fails the predicate: its `GameActionTemplate::DrawCards` carries
+/// `player: Some(You)`, which moves the event's *subject*, and two applications
+/// that move the subject do not commute with anything.
+///
+/// Both answers are asserted, because "the prompt exists" is only half the
+/// claim — the other half is that the two answers really are different.
+#[test]
+fn a_draw_doubler_beside_a_notion_thief_is_a_real_choice() {
+    // Candidate order is the battlefield's (CR 613.7 timestamps), so the
+    // Reflection is index 0 and the Thief index 1 on both boards.
+    let doubled_first = {
+        let mut game = stocked(2);
+        put_on_battlefield(&mut game, thought_reflection(), 0);
+        put_on_battlefield(&mut game, notion_thief(), 1);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
+        draw_instruction(&mut game, 0, 1, &dp);
+        assert!(dp.is_empty(), "one prompt");
+        (drawn_by(&game, 0), drawn_by(&game, 1))
+    };
+    let stolen_first = {
+        let mut game = stocked(2);
+        put_on_battlefield(&mut game, thought_reflection(), 0);
+        put_on_battlefield(&mut game, notion_thief(), 1);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+        draw_instruction(&mut game, 0, 1, &dp);
+        assert!(dp.is_empty(), "one prompt");
+        (drawn_by(&game, 0), drawn_by(&game, 1))
+    };
+
+    // Double first and the Thief takes each of the two resulting draws; steal
+    // first and there is one draw to take, and it is no longer player 0's, so
+    // the Reflection never sees it.
+    assert_eq!(doubled_first, (0, 2));
+    assert_eq!(stolen_first, (0, 1));
+    assert_ne!(doubled_first, stolen_first, "the order is what CR 616.1 is for");
 }
 
 // ---------------------------------------------------------------------------
@@ -547,14 +598,16 @@ fn a_riders_draws_resolve_before_the_next_instruction_begins() {
 
 // COVERS: BOUNDARY-DEF-614.1a-001
 //
-// The boundary is "'instead' identifies a replacement effect" — an in-set
-// member that uses the word and an out-of-set member that does not. Notion
-// Thief is the in-set member and its effect is a `ReplacementDef` reached by
-// the CR 616.1 loop, which is what the boundary claims; the out-of-set member
-// is the same board with the Thief replaced by a vanilla creature, where the
-// draw happens unmodified and no replacement is gathered at all.
+// The boundary is CR 614.1a's "instead": a card whose text uses the word is a
+// replacement effect, and one whose text does not is not. Notion Thief is the
+// in-set member — its draw is taken before it happens, by the CR 616.1 loop.
+// The out-of-set member is the same board with a vanilla creature in its place,
+// where the draw happens as proposed. Both halves are on one board because the
+// claim is the difference: a test that only watched the Thief could not tell
+// "instead is a replacement" from "a creature on the battlefield changes
+// draws".
 #[test]
-fn instead_is_a_replacement_effect_and_a_creature_without_it_is_not() {
+fn notion_thief_takes_the_draw_and_a_vanilla_creature_leaves_it_alone() {
     let mut with = stocked(2);
     put_on_battlefield(&mut with, notion_thief(), 0);
     draw_instruction(&mut with, 1, 1, &test_dp());

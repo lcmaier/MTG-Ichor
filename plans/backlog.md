@@ -354,6 +354,36 @@ and no slot is not scheduled, it is merely recorded.
 
 Nothing else here is owed early.
 
+### 2.26 "That card", after it was drawn (CR 121.6c)
+
+**The surface that cannot express it.** An `Effect::Sequence` is CR 608.2c's
+instruction sequencing and threads nothing between its atoms;
+`Primitive::DrawCards` returns no object ids to a later one. So *"draw a card
+and reveal it. If it isn't a land card, discard it"* cannot be written at all,
+and CR 121.6c — the rule that says the additional action is **not** performed on
+a card that arrived by replacement instead — has nothing to govern.
+
+**Why it is here rather than in `codebase-state.md`'s Deferred Migrations
+(2026-09-12, at RE-2's review).** That section is debt owed by scaffolding, and
+RE-2 scaffolded nothing for this: with no producer of an additional action,
+there is no site at which the rule could be got wrong. It is a mechanic the
+types cannot say, which is this file's subject.
+
+| Field | |
+|---|---|
+| **Rules** | CR 121.6c, and CR 121.7's ordering beside it |
+| **Verdict** | `Effect::Sequence` carries no result between atoms; `Primitive` returns nothing to the tree |
+| **Size** | one field on `ResolutionContext`, written by the draw performer through the resolution that proposed it, plus a `SelectionFilter` leaf that reads it — the shape `replaced_amount` and `damage_prevented` already have. ~80 lines, and the same field is what CR 701's "the cards milled this way" and "the token created this way" will want |
+| **Blocks** | the "draw and reveal" four — Fa'adiyah Seer, Sindbad, Pact Weapon, Breathstealer's Crypt (Scryfall, 2026-09-12) — each of which *also* needs `Primitive::Discard` (RE-8) or the information model (§2.9), so none is unblocked by this alone |
+| **Atoms** | `ATOM-614.11b-001`, uncovered with this reason in `tests/phase_re2_integration_test.rs`'s module doc |
+| **Owner** | — |
+
+**Note what the four cards have in common**: every one of them is "draw and
+reveal, then act on what it was", and none is "draw, then act on it blind". The
+information model (§2.9) is therefore a co-requisite rather than a neighbour,
+which is the fact that makes building the field alone produce zero playable
+cards — §8c's "two customers before a leaf", failed on the first count.
+
 ### 2.25 Partial damage redirection (CR 614.9) — one event becoming two
 
 **The surface that cannot express it.** A `Rewrite` returns *one* proposal

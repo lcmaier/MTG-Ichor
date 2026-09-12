@@ -122,29 +122,40 @@
 //!
 //! # The rulings pass (Scryfall, 2026-09-11)
 //!
-//! Every ruling on all four cards, with what became of it. Fifteen in total;
-//! ten are tests, three fall out of the shape, and two have no facility to
-//! assert against and say so.
+//! Every ruling on all four cards, with what became of it, **and the test that
+//! carries it** — `engineering-practices.md` §3.4 asks for the name, so the next
+//! reader can go from a printed sentence to the assertion without searching.
+//! Fifteen rulings; ten are tests in `tests/phase_re2_integration_test.rs`,
+//! three fall out of the shape and are asserted anyway, and two have no
+//! facility to assert against and say so.
 //!
 //! - **Thought Reflection**, *"If a spell or ability causes you to draw
 //!   multiple cards, Thought Reflection's effect doubles each card draw. For
 //!   example, if you cast Harmonize ('Draw three cards'), you'll draw six
 //!   cards."* → `ATOM-121.2a-001` from the inner side: the instruction is not
 //!   what it watches, so three individual draws each become two.
+//!   → `thought_reflection_doubles_each_of_a_three_card_instruction`
 //! - **Thought Reflection**, *"The effects of multiple Thought Reflections are
 //!   cumulative ... two ... four times the original number ... three ... eight
 //!   times."* → **the acid test**,
 //!   `test_two_thought_reflections_draw_four_not_infinity`. Not legendary, so
 //!   the pool can build two, and the 2ⁿ is what §3.2d's lineage rule buys.
+//!   → `test_two_thought_reflections_draw_four_not_infinity`, with
+//!   `three_thought_reflections_draw_eight` for the exponent.
 //! - **Thought Reflection**, *"If two or more replacement effects would apply
 //!   to a card-drawing event, the player who's drawing the card chooses what
 //!   order to apply them."* → falls out of CR 616.1's chooser being the
-//!   affected player, and is asserted as the prompt the two-Reflection board
-//!   answers.
+//!   affected player. **Not asserted on two Reflections**: their order provably
+//!   cannot change the answer, so the engine does not ask (§11 item 55). The
+//!   boards that do ask are
+//!   `a_draw_doubler_beside_a_notion_thief_is_a_real_choice`, where the two
+//!   answers differ, and the three-Thief board, where the chooser moves with
+//!   the event's subject.
 //! - **Teferi's Ageless Insight**, *"If a spell or ability causes you to put a
 //!   card into your hand without specifically using the word 'draw,' it's not a
 //!   card drawn."* → structurally true and asserted: a `ZoneChangeCause` that
 //!   is not `Drawn` proposes no draw at all, so there is no event to watch.
+//!   → `a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it`
 //! - **Teferi's Ageless Insight**, *"If two or more replacement effects would
 //!   apply to a card-drawing event, the player drawing the card chooses the
 //!   order in which to apply them."* → as above.
@@ -154,10 +165,14 @@
 //!   → the legend rule makes this Thought Reflection's test, which is why the
 //!   acid test is on that card. Teferi's own board is the one decision 1 named:
 //!   beside a Thought Reflection in the draw step it draws **three**.
+//!   → `teferi_beside_thought_reflection_draws_three_in_the_draw_step`, with
+//!   `teferi_excepts_the_draw_steps_first_card` and
+//!   `teferi_doubles_a_draw_that_is_not_the_draw_steps` either side of it.
 //! - **Alms Collector**, *"[Its] replacement effect applies to an instruction
 //!   to draw more than one card before any replacement effects apply to
 //!   individual cards drawn."* → `ATOM-616.1g-001`, with Thought Reflection on
 //!   the other side of the board.
+//!   → `alms_collector_applies_to_the_instruction_before_thought_reflection_sees_a_draw`
 //! - **Alms Collector**, *"Once a replacement effect has been applied to an
 //!   event, it can't be applied again to the resulting events ... Thought
 //!   Reflection can double that player's resulting card draw without Alms
@@ -165,11 +180,13 @@
 //!   changed the card's encoding**, and a test. As `Prevent` plus riders the
 //!   board is an infinite loop; as an `Instead` on the count it is three cards,
 //!   which is what the ruling describes.
+//!   → `alms_collector_does_not_apply_again_to_the_draws_it_produced`
 //! - **Alms Collector**, *"To determine whether a player is instructed to draw
 //!   multiple once or instructed multiple times to draw one card, count how
 //!   many times the word 'draw' is used."* → test. Ancestral Recall (pooled) is
 //!   one "draw" of three and meets it; two `Primitive::DrawCards(1)` in one
 //!   resolution are two instructions and do not.
+//!   → `one_instruction_of_two_is_a_different_event_from_two_instructions_of_one`
 //! - **Alms Collector**, *"If an effect puts cards into a player's hand without
 //!   using the word 'draw' at all, [it] doesn't apply."* → the same structural
 //!   fact as Teferi's first ruling, asserted once.
@@ -178,11 +195,13 @@
 //!   effect of each ... is applied and both players end up drawing two cards."*
 //!   → test. Two separate instructions, one per player, each meeting the other
 //!   player's Collector and neither meeting its own controller's.
+//!   → `two_alms_collectors_facing_each_other_both_draw_two`
 //! - **Alms Collector**, *"If two players each control [one] and a third player
 //!   would draw two or more cards, the third player chooses which ... will
 //!   apply, and therefore which of the first two players draws a card."* → the
 //!   four-player test, and the only three-player CR 616.1 prompt reachable from
 //!   two printed cards.
+//!   → `a_third_player_chooses_which_alms_collector_applies`
 //! - **Notion Thief**, *"If an opponent is instructed to draw a card then
 //!   discard a card, and Notion Thief causes you to draw a card instead, that
 //!   opponent still discards a card. The same is true of any other actions that
@@ -190,6 +209,7 @@
 //!   `Primitive::Discard` is `NotImplemented` until RE-8, so the board is a
 //!   draw-then-lose-life resolution (Night's Whisper's shape, unnamed) and the
 //!   assertion is that the opponent still loses the life.
+//!   → `the_opponents_other_instructions_still_happen`
 //! - **Notion Thief**, *"If two or more players each control a Notion Thief ...
 //!   that player chooses one ... Then the player whose Notion Thief's effect
 //!   was chosen repeats this process among the remaining ... Each effect can be
@@ -198,10 +218,12 @@
 //!   chooses" is CR 616.1's affected player, "the player whose ... was chosen
 //!   repeats" is the same rule asked of the *new* subject, and "only once" is
 //!   CR 614.5's applied set travelling with the lineage.
+//!   → `three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order`
 //! - **Notion Thief**, *"[So] if each player in a two-player game controls a
 //!   Notion Thief and one would draw a card, it really will be that player who
 //!   draws a card."* → test, and it is the same mechanism observed from
 //!   outside: the draw is handed across the table twice and comes home.
+//!   → `two_notion_thieves_hand_the_draw_across_the_table_and_back`
 //!
 //! # What a random deck can draw
 //!
@@ -486,7 +508,9 @@ fn draw_two_instead(cause: Option<DrawCause>) -> ReplacementDef {
 ///
 /// **The acid test's card.** It is not legendary, so a board can hold two, and
 /// its ruling gives the arithmetic verbatim: two draw four times the original
-/// number, three draw eight. That 2ⁿ is what §3.2d's lineage rule buys — each
+/// number, three draw eight. CR 616.1 asks nothing between them — the order
+/// provably cannot change the total, which is `ordering_cannot_change_outcome`'s
+/// third shape (§11 item 55). That 2ⁿ is what §3.2d's lineage rule buys — each
 /// doubled draw inherits the applied set of the draw it came from, so a
 /// Reflection that has applied cannot apply to its own output. Without the
 /// inheritance the game does not answer wrongly; it hangs.

@@ -5503,21 +5503,11 @@ found them.
     plural helper beside a plural `GameAction` is the ambiguity, not the
     convenience: `Primitive::DrawCards` is the one way to ask for N draws.
 
-51. **`Game::setup`'s opening-hand comment claims a route the code does not
-    take, and has since RA-2.** The comment reads "CR 103.4 calls this drawing,
-    so it goes through the chokepoint like any other draw", and RA-2's commit
-    message says routing the opening hands was a deliberate deviation from the
-    plan. The diff threaded an `ActionContext` and left the call at
-    `state.draw_card(..)` — the performer. What *is* true is the comment's
-    second half and the reason RE-2 leaves the call alone: the battlefield is
-    empty and the registry has no rows, so no replacement can be gathered and no
-    choice can arise (CR 103.6 puts Leylines after this point). The correction
-    is one comment, and it is worth making now because "like any other draw"
-    stops meaning "reaches `execute_action`" and starts meaning "proposes a
-    `DrawCards` outer that decomposes" — a claim the reader can check and find
-    false. **The general shape: a comment that names a mechanism ages with the
-    mechanism**, and this one was written about a route the same commit chose
-    not to take.
+51. **`Game::setup`'s opening-hand comment claimed a route the code does not
+    take, and had since RA-2.** Fixed in the same PR that found it; kept as one
+    line because the general shape is worth a reader's second: *a comment that
+    names a mechanism ages with the mechanism*, and this one was written about a
+    route the same commit chose not to take.
 
 52. **CR 121.2c orders two players' draws and nothing can express it.** "If more
     than one player is instructed to draw cards, the active player performs all
@@ -5577,6 +5567,67 @@ found them.
     recording measured CPU deltas, and a phase that records a wrong one poisons
     every later phase that reads it. RE-9's decision is scheduled to turn on a
     2.5-point gate, and 6 points of noise is more than that gate is worth.
+
+### Found by the RE-2 review (2026-09-12)
+
+55. **Two draw doublers commute, and RE-2 shipped a prompt between them.**
+    Raised in review against trace A: if two Furnaces of Rath do not need
+    CR 616.1's question, why do two Thought Reflections? They do not. The
+    theorem is the multiplier shape's **one level out** — a doubler's output is
+    a `DrawCards`, which no `EventPattern::DrawCard` watches, so the composition
+    happens through the *decomposition*, where each inner meets whichever
+    doublers have not applied — and the total is the product of the members' `n`
+    in either order. Checked exhaustively over the printed population before a
+    line was written.
+
+    **The premise needs one clause the multiplier shape does not**, and it is the
+    clause the cause-stamping rule creates: a substituted instruction's inners
+    carry the parent's cause once and `DrawCause::Effect` thereafter, so a member
+    that admits the parent and *not* `Effect` applies to the first inner and to
+    none of the rest. `None` beside `Some(TurnBased)` at `n = 2` and `n = 3` on a
+    turn-based draw gives **4 one way and 6 the other**. No card prints a
+    turn-based-only draw replacement, so the exclusion costs nothing and leaving
+    it out would have cost the theorem. `player: None` is the other clause:
+    Notion Thief's `Some(You)` moves the subject, and two subject-moving
+    applications commute with nothing — which is the board the suppression is
+    tested against.
+
+    **`check_order_invariance` had to learn a second question.** The existing
+    check asserts that every suppressed candidate still applies to the *rewritten
+    event*; for draws it does not, because the suppressed doublers apply to the
+    inners. It now probes the first inner instead. Worth the entry for the
+    general shape: **a semantics-assuming shortcut's debug-build check is part of
+    the shortcut**, and a new shape that cannot be checked the same way is a new
+    shape that needs its own check rather than an exemption.
+
+    **Reachable in a measured game**, which is why it is a fix and not a note:
+    Thought Reflection is pooled at copies/deck 1.58.
+
+56. **The acid test's bound was the prompt, and suppressing the prompt took it
+    away — so the bound moved into the engine, derived.** `execute_actions_decomposing`
+    now carries `GameState::decomposition_depth` and asserts
+    `depth <= inherited.len() + 1` in debug builds. That is not a cap: a call at
+    depth `d` exists because `d - 1` substitutions happened above it, and each
+    inserted an instance into the applied set, so the bound *is* CR 614.5's set
+    computed the other way and has no number in it. Break the lineage and depth
+    climbs while the set does not; it fires at depth 2 naming the rule.
+
+    **Strictly better than what it replaced**, and the reason is worth keeping:
+    the provider bound only existed on boards that prompt, so it would have
+    protected trace A and nothing else. This one protects every draw board.
+
+    **The other half of the question it was asked: can a fuzz game loop?** Not
+    from anything registered. The loop item 53 describes is a property of the
+    encoding that was *rejected*; with what shipped, every board built from the
+    four registered cards terminates, and all four were forced through 200 games
+    apiece with zero errors and zero panics. What is true is that the harness has
+    **no watchdog** — `--max-turns` cannot see a loop inside one resolution, and
+    a stack overflow aborts the process rather than being counted as a panic, so
+    it is the one failure `fuzz_games` cannot report. The debug assertion covers
+    every test run; a release-mode ceiling is a number nobody has measured, and
+    it is recorded here as the owner's call rather than guessed at. CR 731 proper
+    stays §12's: it is about *game* loops and would answer "the game is a draw",
+    which is a different question from "this engine ran out of stack".
 
 ## 12. Explicitly out of scope
 

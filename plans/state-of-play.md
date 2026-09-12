@@ -78,7 +78,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 123 |
 | …of them in `PERFORMANCE_POOL` | 79 |
-| `#[test]` functions | 1246 |
+| `#[test]` functions | 1247 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -86,15 +86,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 5320 of 5535 lines (96%) |
-| Numbered items | 173 |
+| Section size | 5294 of 5509 lines (96%) |
+| Numbered items | 172 |
 | …closed, still recorded | 39 |
 | …open — unreachable, and says why | 82 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 19 |
 | …open — nothing to build, a record for a later phase | 23 |
-| **…open — reachability *not* stated** | **6** |
-| …open, carrying an explicit `**Sized:**` | 129 of 134 |
+| **…open — reachability *not* stated** | **5** |
+| …open, carrying an explicit `**Sized:**` | 128 of 133 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

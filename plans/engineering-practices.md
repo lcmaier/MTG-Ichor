@@ -725,21 +725,21 @@ real.
 |---|---|---|
 | P0 / P1 | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 21 (42.0%) |
 | Avg turns | 28.2 | 28.2 |
-| Spells cast | 22.5 | 21.0 |
+| Spells cast | 22.7 | 21.0 |
 | Lands played | 17.7 | 17.4 |
 | Combat w/ atk | 9.4 | 9.5 |
-| Creatures died | 6.3 | 4.4 |
-| Damage events | 20.2 | 19.9 |
-| Total damage | 58.1 | 51.8 |
-| Life changes | 13.3 | 13.6 |
-| **Layer walks** | **360** | **469** |
-| **Board walks** | **232** | **260** |
-| **Memo hits** | **53,921** | **70,035** |
-| **Layer frames** | **4,338** | **4,945** |
-| **Frames/walk** | **12.05** | **10.55** |
+| Creatures died | 6.4 | 4.4 |
+| Damage events | 20.3 | 19.9 |
+| Total damage | 58.4 | 51.8 |
+| Life changes | 13.4 | 13.6 |
+| **Layer walks** | **362** | **469** |
+| **Board walks** | **234** | **260** |
+| **Memo hits** | **54,867** | **70,035** |
+| **Layer frames** | **4,424** | **4,945** |
+| **Frames/walk** | **12.22** | **10.55** |
 | **Dependency checks** | **12** | **55** |
-| **Replacement gathers** | **928** | **986** |
-| **Restriction queries** | **930** | **988** |
+| **Replacement gathers** | **932** | **986** |
+| **Restriction queries** | **935** | **988** |
 | Prevention allocations | 0.02 | 0.02 |
 
 **The shipped arm's −5.0% is the game getting shorter, not the engine getting
@@ -770,6 +770,26 @@ reason: `default_registry` grew by four, so the middle and shipped arms play
 different decks from `main` on that pool and are byte-identical to each other.
 `Avg turns` 29.1 → 29.0 and `Dependency checks` 33 → 46 are the new cards being
 drawn, not the pipeline.
+
+**Re-run at the PR's review (2026-09-12), and the `performance` column moved by
+a hair — which is worth a paragraph, because the change was supposed to be
+answer-preserving and in the sense that matters it was.** Suppressing CR 616.1's
+prompt between two draw doublers (§11 item 55) changes no rules answer: the
+total is the product either way. It changes one thing the fuzz harness can see —
+`RandomDecisionProvider::pick_n` draws from its own `StdRng` on every prompt, so
+a prompt that no longer happens is one fewer draw and that game's decision
+stream shifts from there. At 200 games the aggregate rows are identical (turns
+29.6, layer walks 371) and `Restriction queries` moves by **1**; at 50 the
+smaller sample shows it, which is why the table above is the re-run. Stress is
+unchanged to the digit, because no `stress` deck put two draw doublers on one
+battlefield in these 50 games.
+
+**The rule that generalises**, and it applies to every suppression this codebase
+has: *answer-preserving is not stream-preserving.* An A/B whose arms differ by a
+prompt cannot be read as "byte-identical or the change is wrong" — the check is
+that the **gameplay aggregates** hold and the counters move by less than a game.
+RC-4's entry suppression had the same property and nothing said so; this is the
+line that says it.
 
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was

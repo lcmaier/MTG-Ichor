@@ -4178,7 +4178,9 @@ loop accumulated — `execute_actions_inheriting` beside `execute_actions`, and
 decided events. `GameState::draw_cards` deleted. Four cards — Thought
 Reflection (pooled), Teferi's Ageless Insight, Alms Collector, Notion Thief.
 Item 29 closes; `replacement-architecture.md` §11 items 18 and 42 close and
-items 50–54 open, of which 53 is the one worth reading. Trace page:
+items 50–56 open, of which 53 is the one worth reading. CR 121.6c went to
+`backlog.md` §2.26 rather than to this section: nothing was scaffolded for it,
+so it is a mechanic the surface cannot express and not debt. Trace page:
 [`plans/traces/re-2-a-draw-carries-its-lineage.html`](traces/re-2-a-draw-carries-its-lineage.html).
 
 122. **CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
@@ -4222,34 +4224,6 @@ items 50–54 open, of which 53 is the one worth reading. Trace page:
 
      → `replacement-architecture.md` §11 item 52. **Owner: RE-6**, which is
      where turn order stops being `(0..n)` because a lost player has left it.
-
-123. **CR 121.6c has no producer, and the reason is that `Effect` cannot name
-     the card an earlier instruction drew.** *"Some effects perform additional
-     actions on a card after it's drawn. If the draw is replaced, the additional
-     action is not performed on any cards that are drawn as a result of that
-     replacement effect."* The printed shape is "draw a card, then discard that
-     card", and nothing in the crate can write it: `Primitive::DrawCards` returns
-     no object ids to a later atom, and `Effect::Sequence` composes instructions
-     without threading anything between them. So the rule cannot be violated
-     today, and it cannot be tested either.
-
-     **Reachability (2026-09-11):** nothing to build — no `Primitive` acts on
-     the card a sibling instruction drew, so there is no site at which the rule
-     could be got wrong. `ATOM-614.11b-001` stays uncovered with this reason in
-     `tests/phase_re2_integration_test.rs`'s module doc, which is RE's exit
-     criteria item 2.
-
-     **Sized: a field on `ResolutionContext`, not a `Primitive`.** The general
-     facility is "what the instruction before this one produced" — the same
-     shape `replaced_amount` and `damage_prevented` already have, and the same
-     shape CR 701's "the cards milled this way" and "the token created this way"
-     will want. One field, written by the draw performer through the resolution
-     that proposed it, plus an `EffectRecipient` or `SelectionFilter` leaf that
-     reads it: ~80 lines. **Two customers before it is written** (§8c's rule):
-     Chains of Mephistopheles is not one — its discard is a *replacement's*
-     output, not a sibling instruction — so the first two are a "draw N, then
-     discard N" card and a mill-and-return card, and neither is in reach before
-     RE-8. → `replacement-architecture.md` §9, RE decision 1.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
