@@ -2348,6 +2348,19 @@ patterns included. `GainLife` producers 2 / `LoseLife` 3 was right in spirit:
 `TemplateAmount` did not exist and is this PR's; `AmountRewrite` had six arms
 and `LifeFloor` is the seventh.
 
+**Sized 1,400–1,600 and shipped +1,889 / −50**, so the row was ~18% low — inside
+`engineering-practices.md` §4's 1,500–2,500 band, over its own prediction, and
+the overrun is in one column. Engine **496** against ~350, cards **486** against
+~450, tests **907** against ~600. The card column is right because §9's table
+was written with the rulings pass in; the test column is not, and the reason is
+the phase's shape rather than a miscount: six cards over three event kinds means
+six rulings passes' worth of boards, and the two that produced the most tests
+(Ali from Cairo's three rulings, Skullcrack's four) are cards whose whole
+interest is in what they do *not* watch. **A phase whose cards are mostly about
+exclusions costs more test lines than one whose cards are about arithmetic**,
+and that is the calibration RE-4 should carry forward: RD-1's +1,950 against
+~1,500–1,700 was the same overrun and was read as the rulings pass alone.
+
 **Decided here, because the section left them open.**
 
 - **Ali from Cairo does not clamp a `LifeLossCause::Cost`**, and the answer is
