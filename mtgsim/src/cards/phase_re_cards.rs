@@ -252,7 +252,10 @@ use crate::types::effects::{
 };
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use crate::types::keywords::KeywordFlag;
+use crate::types::replacement::{
+    AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+};
 use crate::types::zones::DrawCause;
 
 /// A static ability whose effect is a replacement effect — never a resolution,
@@ -674,6 +677,44 @@ pub fn notion_thief() -> Arc<CardData> {
                 }),
             )
             .affecting_players(PlayerSet::Opponents),
+        ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// RE-3 — life
+// ---------------------------------------------------------------------------
+
+/// Rhox Faithmender — {3}{W}
+/// Creature — Rhino Monk 1/5
+///
+/// > Lifelink
+/// > If you would gain life, you gain twice that much life instead.
+///
+/// **The first consumer in Phase RE that meets a live proposal without a
+/// fixture.** Lifelink's contained `GainLife` has been proposed in every
+/// measured game since RB, with nothing watching it; this card is on the
+/// battlefield with lifelink of its own, so it doubles the life its own combat
+/// damage gains.
+///
+/// Its rulings are in this module's doc comment.
+pub fn rhox_faithmender() -> Arc<CardData> {
+    CardDataBuilder::new("Rhox Faithmender")
+        .mana_cost(ManaCost::build(&[ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Rhino))
+        .subtype(Subtype::Creature(CreatureType::Monk))
+        .power_toughness(1, 5)
+        .keyword_flag(KeywordFlag::Lifelink)
+        .rules_text("Lifelink\nIf you would gain life, you gain twice that much life instead.")
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::GainLife,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
         ))
         .build()
 }
