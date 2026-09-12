@@ -148,6 +148,57 @@
 //! damage dealt to opponents ... they would lose 2 life, but you'd still gain
 //! only 1."*
 //!
+//! # RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j)
+//!
+//! **Four printed cards on one axis: what a card does to a loss, or to a win.**
+//! CR 104's two ends are proposals from this phase on — the state-based
+//! check's four loss loops are batch members, `Primitive::{LoseGame, WinGame}`
+//! propose the effect-stated kinds — and the census says every printed card
+//! is about *whether* the event happens rather than about which reason it had:
+//!
+//! | Card | Watches | Does |
+//! |---|---|---|
+//! | [`laboratory_maniac`] | a draw, yours, while your library is empty | `Instead(PlayerWins)` |
+//! | [`exquisite_archangel`] | a loss, yours | `Prevent`, then exile itself and set your life to the starting total |
+//! | [`stunning_reversal`] | the next loss, yours, this turn | `Prevent`, then draw seven and set your life to 1 |
+//! | [`platinum_angel`] | — (it forbids) | two static `Restriction::Event` rows: you can't lose, your opponents can't win |
+//!
+//! **`EventPattern::PlayerLoses` carries no reason, and that is the census
+//! talking**: Exquisite Archangel's ruling is "any time you would lose the
+//! game", Stunning Reversal's is the same sentence, and Platinum Angel's list
+//! of what it stops — 0 life, an empty library, ten poison, Phage — is a list
+//! of reasons precisely because the card does not distinguish them. What
+//! CR 704.7 collapses (a player at 0 life who also drew from an empty library
+//! is *one* loss, Lich's Mirror's ruling) the pattern therefore never has to.
+//!
+//! **Laboratory Maniac is the first replacement effect with an "as long as"**,
+//! and the condition is evaluated by the gather at each proposal rather than by
+//! the rewrite at application: CR 604.2 makes a conditional static's effect
+//! exist while its condition holds, and CR 614.4 asks whether the effect
+//! exists *before* the event. CR 121.6a is what makes the board reachable at
+//! all — a draw with nothing to draw still reaches the pipeline — and the
+//! condition is true at exactly that gather.
+//!
+//! **Lich's Mirror is not registered**: its "shuffle your hand, your graveyard,
+//! and all permanents you own into your library" needs a
+//! `Primitive::ShuffleIntoLibrary` over three zones that nothing has built,
+//! and the CR 704.7 board its ruling names is built here with the Archangel
+//! instead (`ATOM-704.7-001`, partial for that reason).
+//!
+//! # What a random deck can draw
+//!
+//! Laboratory Maniac is the pooled card: a three-drop whose static is a draw
+//! watcher gated on a library state, so it opens the conditional gather leg
+//! on every draw while it is on the battlefield and — the first time in a
+//! measured game — makes decking a *win*. Fuzz games deck out rarely, so the
+//! rows to read are `--require`'s and the "wins by effect" outcome line rather
+//! than the average. **Platinum Angel is registered and not pooled**: a
+//! seven-drop that turns every lethal board into a stall would move average
+//! turns by design and not by engine, and its whole effect is CR 101.2's
+//! refusal, which RS-1's Sigarda already opens. Exquisite Archangel is seven
+//! mana for a replacement of an event most games reach exactly once, and
+//! Stunning Reversal is a one-shot whose engine path the Archangel already
+//! opens; both stay in `stress`.
 
 use std::sync::Arc;
 
@@ -157,8 +208,8 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
+    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
@@ -179,6 +230,33 @@ fn static_replacement(def: ReplacementDef) -> AbilityDef {
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
+        is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+    }
+}
+
+/// A static ability whose replacement effect exists only while `condition`
+/// holds — CR 604.2's "as long as", asked by `replacement::gather` at each
+/// proposal, the way the layer pass asks it of a Kird Ape.
+fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> AbilityDef {
+    AbilityDef {
+        id: new_ability_id(),
+        ability_type: AbilityType::Static,
+        costs: Vec::new(),
+        effect: Effect::Conditional(condition, Box::new(Effect::Replacement(Box::new(def)))),
+        is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+    }
+}
+
+/// A static "can't" (CR 101.2, 614.17) — read off the source's *effective*
+/// ability list by `engine::restriction::is_prohibited` at each proposal.
+fn static_restriction(what: Restriction) -> AbilityDef {
+    AbilityDef {
+        id: new_ability_id(),
+        ability_type: AbilityType::Static,
+        costs: Vec::new(),
+        effect: Effect::Restriction(Box::new(RestrictionDef::new(what))),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
     }
@@ -1079,5 +1157,328 @@ pub fn skullcrack() -> Arc<CardData> {
                 ),
             ]),
         ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// RE-6 — the game's end
+// ---------------------------------------------------------------------------
+
+/// Laboratory Maniac — {2}{U}
+/// Creature — Human Wizard 2/2
+///
+/// > If you would draw a card while your library has no cards in it, you win
+/// > the game instead.
+///
+/// The kind-changing substitution from a draw to the game's end, and the first
+/// replacement effect in the crate with an "as long as": `Condition::LibraryEmpty`
+/// on the ability, asked by the gather at each proposal (CR 604.2, 614.4). The
+/// draw reaches the pipeline with nothing to draw because CR 121.6a says a
+/// draw replacement applies "even if no cards could be drawn", which is the
+/// whole of why `draw_card` flags rather than refuses — and with the draw
+/// replaced, no flag is set and no loss is proposed. **The pooled card of the
+/// PR.**
+/// # The rulings, and where each is tested
+///
+/// - *"If for some reason you can't win the game (because your opponent has
+///   cast Angel's Grace this turn, for example), you won't lose for having
+///   tried to draw a card from a library with no cards in it. The draw was
+///   still replaced."* → an opponent's Platinum Angel is the printed "can't
+///   win" the crate has: the draw is replaced, the substituted win is refused
+///   by CR 101.2 at the next iteration, no card is drawn and no flag is set.
+///   → `laboratory_maniac_under_an_opponents_platinum_angel_neither_wins_nor_loses`
+/// - *"If two or more players each control a Laboratory Maniac and each player
+///   is instructed to draw a number of cards, first the player whose turn it is
+///   draws that many cards. If this causes that player to win the game instead,
+///   the game is immediately over."* → **not expressible**: an each-player draw
+///   instruction needs a recipient `EffectRecipient` lacks and CR 121.2c's
+///   APNAP ordering over an effect's recipients (`codebase-state.md` item 122,
+///   RE-2's note). What *is* tested is the half the engine has — the game is
+///   over at the first win and nothing after it performs —
+///   → `a_win_ends_the_game_immediately_and_the_rest_of_the_batch_still_performs`.
+pub fn laboratory_maniac() -> Arc<CardData> {
+    CardDataBuilder::new("Laboratory Maniac")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Wizard))
+        .power_toughness(2, 2)
+        .rules_text(
+            "If you would draw a card while your library has no cards in it, you win the game instead.",
+        )
+        .ability(static_conditional_replacement(
+            Condition::LibraryEmpty,
+            // Any individual draw, whatever instructed it: the draw step's,
+            // a cantrip's, the seventh of Stunning Reversal's. The instruction
+            // (`DrawCards`) is not what this watches — CR 121.2 performs the
+            // draws one at a time and the library empties between them.
+            ReplacementDef::new(
+                EventPattern::DrawCard { cause: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Instead(GameActionTemplate::PlayerWins),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Exquisite Archangel — {5}{W}{W}
+/// Creature — Angel 5/5
+///
+/// > Flying
+/// > If you would lose the game, instead exile this creature and your life
+/// > total becomes equal to your starting life total.
+///
+/// `Prevent` with a rider, because "instead exile this creature and ..." is
+/// two effects on two different subjects — the Archangel and you — and a
+/// substitution produces one event about one (§3.2d). The rider's exile names
+/// the Archangel through `EffectRecipient::Implicit`, which is the effect's
+/// own source; its life total is `Primitive::SetLifeTotal` over
+/// `AmountExpr::StartingLifeTotal`, so it is 40 in Commander and a 24-life
+/// *gain* from -4 that Rhox Faithmender doubles (CR 119.5).
+/// # The rulings, and where each is tested
+///
+/// - *"If Exquisite Archangel is dealt lethal damage at the same time that
+///   you're dealt damage that brings your life total to 0 or less, its effect
+///   applies and your life total becomes equal to your starting life total.
+///   You choose whether Exquisite Archangel is moved to exile or to your
+///   graveyard."* → the first half is a test: the loss and the death are two
+///   members of one CR 704.3 batch decided against one board, so the
+///   Archangel replaces the loss while it is still there. **The second half
+///   is not offered**: riders resolve after the batch performs (CR 615.5,
+///   §4.1a), so the death has happened when the rider's exile looks for the
+///   creature, and CR 400.7 makes the card in the graveyard a new object the
+///   exile does not find. The engine takes the graveyard outcome without the
+///   choice — `codebase-state.md` item 125.
+///   → `exquisite_archangel_replaces_the_loss_while_dying_in_the_same_check`
+/// - *"If an effect says that you can't lose the game, Exquisite Archangel's
+///   effect doesn't apply."* → CR 101.2's order: Platinum Angel's row refuses
+///   the proposal ahead of the gather, and CR 614.17c leaves nothing for a
+///   non-self-replacement to apply to.
+///   → `under_platinum_angel_exquisite_archangel_does_not_apply`
+/// - *"If you control two Exquisite Archangels, you choose which one's effect
+///   applies. The other's effect won't be applicable after that until the next
+///   time you would lose the game."* → a CR 616.1 prompt between two printed
+///   statics — a `Prevent` with a rider is no suppression shape — and the loss
+///   is gone after one applies.
+///   → `two_exquisite_archangels_you_choose_which_applies`
+/// - *"Exquisite Archangel's effect applies any time you would lose the game,
+///   even if you're not losing due to your life total being 0 or less. If you
+///   would have lost the game because you tried to draw from an empty library,
+///   you won't lose again until you try to draw again and still can't do so."*
+///   → the first sentence is `EventPattern::PlayerLoses` having no reason,
+///   tested on a poison loss; the second is CR 704.5b's window closing at the
+///   check that read it (item 112).
+///   → `exquisite_archangel_applies_to_a_poison_loss_and_then_the_poison_still_loses`,
+///   `a_replaced_empty_library_loss_is_not_proposed_again_until_the_next_draw`
+/// - *"Exquisite Archangel's effect does nothing if you concede the game. A
+///   player who concedes leaves the game."* → recorded, no harness offers
+///   concession (CR 104.3a is a *leave* that then loses, not a proposed loss).
+/// - *"For your life total to become your starting life total (normally 20),
+///   you gain or lose the appropriate amount of life. For example, if your life
+///   total is -4 when Exquisite Archangel's ability applies, it will cause you
+///   to gain 24 life; alternatively, if your life total is 40 when it applies,
+///   it will cause you to lose 20 life. Other cards that interact with life gain
+///   or life loss will interact with this effect accordingly."* → both
+///   directions, and the gain doubled to 48 by Rhox Faithmender.
+///   → `exquisite_archangel_from_minus_four_is_a_gain_of_twenty_four_that_rhox_faithmender_doubles`,
+///   `exquisite_archangel_applies_to_a_poison_loss_and_then_the_poison_still_loses`
+///   (life 40 → 20 is the loss leg)
+/// - *"If an effect states that an opponent wins the game, Exquisite Archangel's
+///   ability doesn't apply."* → an opponent's win is not a loss event; the game
+///   ends with the Archangel untouched.
+///   → `an_opponents_win_is_not_a_loss_exquisite_archangel_can_replace`
+pub fn exquisite_archangel() -> Arc<CardData> {
+    CardDataBuilder::new("Exquisite Archangel")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 5))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Angel))
+        .power_toughness(5, 5)
+        .keyword_flag(KeywordFlag::Flying)
+        .rules_text(
+            "Flying\nIf you would lose the game, instead exile this creature and your life total becomes equal to your starting life total.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::PlayerLoses,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Prevent,
+            )
+            .affecting_players(PlayerSet::You)
+            .with_then(Effect::Sequence(vec![
+                Effect::Atom(Primitive::Exile, EffectRecipient::Implicit),
+                Effect::Atom(
+                    Primitive::SetLifeTotal(AmountExpr::StartingLifeTotal),
+                    EffectRecipient::Controller,
+                ),
+            ])),
+        ))
+        .build()
+}
+
+/// Stunning Reversal — {3}{B}
+/// Instant
+///
+/// > The next time you would lose the game this turn, instead draw seven cards
+/// > and your life total becomes 1.
+/// > Exile Stunning Reversal.
+///
+/// A `Primitive::CreateReplacement` row — `PlayerLoses`, `You`, `Uses::Once`,
+/// `UntilEndOfTurn`, `Prevent` with the two-atom rider — and then the spell
+/// exiling itself as CR 608.2c's second instruction, which is not part of the
+/// row: the row outlives the card, and CR 608.2m lets the spell finish
+/// resolving from exile.
+/// # The rulings, and where each is tested
+///
+/// - *"If each player would lose the game at the same time, but Stunning
+///   Reversal's effect applies to you losing the game, you win the game as
+///   soon as everyone else has lost the game. This is true even if you'd lose
+///   the game immediately afterwards, perhaps because you don't have seven
+///   cards in your library to draw or because you couldn't gain life to raise
+///   your life total to 1."* → the four-player board: four `PlayerLoses`
+///   members, one replaced, and CR 104.2a settled by the *batch* — before the
+///   rider draws, and never overwritten by the loss that follows.
+///   → `stunning_reversal_when_everyone_would_lose_at_once_its_controller_wins`
+/// - *"While the replacement effect it creates lasts until end of turn (or
+///   until the event it replaces), Stunning Reversal is exiled as it
+///   resolves."* → the card is in exile and not in a graveyard after
+///   resolution, and the row is still registered.
+///   → `stunning_reversal_is_exiled_as_it_resolves_and_its_row_survives_it`
+/// - *"If an effect says you can't lose the game, Stunning Reversal's effect
+///   can't apply."* → Platinum Angel's row refuses the proposal, and the
+///   unspent row is still there for a loss the Angel no longer refuses.
+///   → `under_platinum_angel_stunning_reversal_neither_applies_nor_is_spent`
+/// - *"If an effect says that an opponent wins the game, Stunning Reversal's
+///   effect doesn't apply."* → the same fact as Exquisite Archangel's seventh
+///   ruling: an opponent's win is not a loss event.
+///   → `an_opponents_win_is_not_a_loss_exquisite_archangel_can_replace`
+/// - *"Stunning Reversal's effect does nothing if you concede the game. A
+///   player who concedes leaves the game."* → recorded, no harness.
+/// - *"Stunning Reversal's effect applies any time you would lose the game,
+///   even if you're not losing due to your life total being 0 or less."* →
+///   `EventPattern::PlayerLoses` has no reason; tested on the Archangel's
+///   poison board, which is the same pattern on the same event.
+///   → `exquisite_archangel_applies_to_a_poison_loss_and_then_the_poison_still_loses`
+/// - *"For your life total to become 1, you gain or lose the appropriate
+///   amount of life. For example, if your life total is 4 when Stunning
+///   Reversal's effect applies, it will cause you to lose 3 life;
+///   alternatively, if your life total is -5 when it applies, it will cause
+///   you to gain 6 life."* → the gain leg is the natural board (lethal damage
+///   leaves you below 0); the loss leg is `ATOM-119.5-001`'s fixture.
+///   → `stunning_reversal_from_minus_five_is_a_gain_of_six`,
+///   `setting_a_life_total_lower_is_a_loss_of_the_difference`
+/// - *"If you have fewer than seven cards in your library, you'll lose the
+///   game immediately after applying Stunning Reversal's replacement
+///   effect."* → the rider's draws flag CR 704.5b, the check repeats because
+///   the game changed, and the spent row cannot see the second proposal.
+///   → `stunning_reversal_with_a_short_library_loses_immediately_after`
+pub fn stunning_reversal() -> Arc<CardData> {
+    CardDataBuilder::new("Stunning Reversal")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 3))
+        .color(Color::Black)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "The next time you would lose the game this turn, instead draw seven cards and your life total becomes 1.\nExile Stunning Reversal.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::CreateReplacement(
+                        Box::new(
+                            ReplacementDef::new(
+                                EventPattern::PlayerLoses,
+                                AffectedSet::NO_OBJECTS,
+                                Rewrite::Prevent,
+                            )
+                            .affecting_players(PlayerSet::You)
+                            .once()
+                            .with_then(Effect::Sequence(vec![
+                                Effect::Atom(
+                                    Primitive::DrawCards(AmountExpr::Fixed(7)),
+                                    EffectRecipient::Controller,
+                                ),
+                                Effect::Atom(
+                                    Primitive::SetLifeTotal(AmountExpr::Fixed(1)),
+                                    EffectRecipient::Controller,
+                                ),
+                            ])),
+                        ),
+                        Duration::UntilEndOfTurn,
+                        PatternFill::Authored,
+                    ),
+                    EffectRecipient::Controller,
+                ),
+                // CR 608.2c's second instruction, on the spell itself.
+                Effect::Atom(Primitive::Exile, EffectRecipient::Implicit),
+            ]),
+        ))
+        .build()
+}
+
+/// Platinum Angel — {7}
+/// Artifact Creature — Angel 4/4
+///
+/// > Flying
+/// > You can't lose the game and your opponents can't win the game.
+///
+/// Two `Restriction::Event` rows over the two new patterns, refused ahead of
+/// the pipeline (CR 101.2, 614.17): the state-based check proposes your loss
+/// at every check and `is_prohibited` drops it every time, which is the ruling
+/// — "you keep playing". Its own controller may still win: `PlayerSet::Opponents`
+/// is the second row's whole scope. **Registered and not pooled**, and the
+/// module doc says why.
+/// # The rulings, and where each is tested
+///
+/// - *"No game effect can cause you to lose the game or cause any opponent to
+///   win the game while you control Platinum Angel. It doesn't matter whether
+///   you have 0 or less life, you're forced to draw a card while your library
+///   is empty, you have ten or more poison counters, you're dealt combat damage
+///   by Phage the Untouchable, your opponent has Mortal Combat with twenty or
+///   more creature cards in their graveyard, or so on. You keep playing."* →
+///   all three state-based reasons at once, refused at every check with the
+///   game continuing, and the loss performed at the first check after the
+///   Angel leaves; and an opponent's Laboratory Maniac win refused.
+///   → `platinum_angel_refuses_every_state_based_loss_and_the_game_goes_on`,
+///   `platinum_angel_leaving_the_battlefield_lets_the_next_check_lose`,
+///   `laboratory_maniac_under_an_opponents_platinum_angel_neither_wins_nor_loses`
+/// - *"Other circumstances can still cause you to lose the game, however. You
+///   will lose a game if you concede, if you're penalized with a Game Loss or
+///   a Match Loss during a sanctioned tournament ... or if your Magic Online
+///   game clock runs out of time."* → **not expressible**: none of the three is
+///   a game event the engine proposes; concession is CR 104.3a's leave, which
+///   no harness offers.
+/// - *"Effects that say the game is a draw, such as the Legends card Divine
+///   Intervention, are not affected by Platinum Angel. They'll still work."* →
+///   **not expressible**: CR 104.4c has no producer (`Primitive` has no
+///   "the game is a draw"), recorded in `replacement-architecture.md` §9's
+///   "Out of RE".
+/// - *"You can concede a game while Platinum Angel on the battlefield. A
+///   concession causes you to leave the game, which then causes you to lose
+///   the game."* → recorded with the first ruling's concession half.
+pub fn platinum_angel() -> Arc<CardData> {
+    CardDataBuilder::new("Platinum Angel")
+        .mana_cost(ManaCost::build(&[], 7))
+        .card_type(CardType::Artifact)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Angel))
+        .power_toughness(4, 4)
+        .keyword_flag(KeywordFlag::Flying)
+        .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
+        .ability(static_restriction(Restriction::Event {
+            pattern: EventPattern::PlayerLoses,
+            affected_objects: AffectedSet::NO_OBJECTS,
+            affected_players: PlayerSet::You,
+            by: None,
+        }))
+        .ability(static_restriction(Restriction::Event {
+            pattern: EventPattern::PlayerWins,
+            affected_objects: AffectedSet::NO_OBJECTS,
+            affected_players: PlayerSet::Opponents,
+            by: None,
+        }))
         .build()
 }

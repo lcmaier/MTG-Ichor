@@ -678,6 +678,16 @@ impl CardRegistry {
         );
         registry.register("Skullcrack", phase_re_cards::skullcrack);
 
+        // RE-6 — the game's end. Four cards on one axis: a draw turned into a
+        // win (Laboratory Maniac), a loss replaced by a static (Exquisite
+        // Archangel) or by a one-turn row (Stunning Reversal), and a loss
+        // refused outright (Platinum Angel). Laboratory Maniac is pooled;
+        // Platinum Angel is registered and not, and the module doc says why.
+        registry.register("Laboratory Maniac", phase_re_cards::laboratory_maniac);
+        registry.register("Exquisite Archangel", phase_re_cards::exquisite_archangel);
+        registry.register("Stunning Reversal", phase_re_cards::stunning_reversal);
+        registry.register("Platinum Angel", phase_re_cards::platinum_angel);
+
         registry
     }
 
