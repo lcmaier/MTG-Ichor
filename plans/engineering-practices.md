@@ -1842,9 +1842,73 @@ the plan as sized, "as landed", "measured", reachability — moves to
 the heading, a stub of what shipped and a pointer.** `check_state_of_play.py
 --check` fails when a ✅ section keeps more than 40 lines. What stays live is
 what the *next* phase needs: the design sections, the sizing of unlanded
-phases, and §11-style findings still open. Rulings passes live in the card
-file's doc comment at registration, once; a sizing names the card and the
-rulings that become tests, one line each.
+phases, and §11-style findings still open. Rulings passes live in the *card's* own doc
+comment at registration (§3.4, corrected at RE-3's review); a sizing names the
+card and the rulings that become tests, one line each.
+
+### 4.1 The standing review question
+
+**"What does this actually check, and what happens if it runs twice?"**
+
+Ask it of any claim the engine makes about itself. It is written down because
+`pipeline::ordering_cannot_change_outcome` — one predicate, whose whole job is
+to prove that a CR 616.1 prompt has one outcome — has been **corrected in three
+consecutive PRs**, and because of *how* the three were found.
+
+**The three** (`replacement-architecture.md` §11 items 55, 58, 60; item 19 is the
+founding argument, not a defect). Two of them mis-stated the premise as a **list
+of shapes**: RD-1 wrote the multiplier shape as "the pattern is
+`EventPattern::DealDamage`", RE-2 found the draw shape needed a clause that list
+could not express, and RE-3 found a `Multiplier` over `EventPattern::GainLife`
+falling straight through the damage gate into a prompt the rules do not require.
+Each time the axis that moved was `EventPattern`, which grows one arm per
+`GameAction` variant every replacement phase — so every new arm landed outside a
+premise written before it existed. The third mis-stated it about **one
+application**: it argued the event after one rewrite is the same either way and
+inferred that the same members are still applicable, when applicability resolves
+against each instance's own controller. What was holding that theorem up was
+idempotence, which nothing had said.
+
+**How they were found is the argument for a standing question.** Two came out of
+review rather than from a test. The third came from a test that asserted *the
+absence of a prompt* — and that kind of test only exists because the review
+before it had established that it should. None of the three is a shape CI finds
+on its own: a suppression that is wrong produces a question nobody needed, or an
+answer that is right for a reason that will stop being true.
+
+So the question has two halves, and both earn their place:
+
+1. **What does this actually check?** Name the values being compared and their
+   types, in a sentence. *"`Rewrite: PartialEq` compares def data a card file
+   wrote; the release predicate reads no board at all; the debug check compares
+   one `GameAction` to one `GameAction`"* is the sentence that exposed item 60 —
+   the hole was invisible until someone had to write down what was being
+   compared. If the answer seems obvious, write it anyway: the writing is the
+   check.
+2. **What happens if it runs twice?** Any predicate that suppresses, memoizes or
+   short-circuits inside a loop has an iteration count it is not controlling. A
+   premise that argues one application has *assumed* something about repeating
+   it; make it say which.
+
+**When to ask it — a list, so it is a gate and not a mood.** Any change to
+`ordering_cannot_change_outcome` or its leaf tables; any new `EventPattern`,
+`Rewrite` or `GameActionTemplate` arm; any `debug_assert` standing in for a
+proof; and any "this is safe because …" in a doc comment where the *because* is
+a list of cases rather than a property.
+
+**The cheap tell, if you only remember one thing:** a premise that enumerates
+shapes will be wrong when the shape list grows, and the shape list always grows.
+Prefer a property on the type whose arms grow — `EventPattern::reads_the_amount`
+rather than `matches!(pattern, DealDamage { .. })` — and put it beside the enum,
+so the question is in front of whoever writes the next arm rather than buried in
+a predicate they have no reason to open. The contrast is
+`pipeline::filter_is_mods_invariant`, which stays at its caller because it
+relates *two* types and so is a fact about neither.
+
+**A reviewer does not need to know the subsystem to ask this.** All three were
+caught by asking about the *form* of the claim, not about Magic — which is why
+it belongs here rather than in a rules doc, and why it is worth asking even when
+the answer turns out to be "checked, and it holds".
 
 ## 5. The spec database as a gate
 
