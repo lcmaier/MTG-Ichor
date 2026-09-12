@@ -28,6 +28,13 @@ use mtgsim::ui::random::RandomDecisionProvider;
 
 /// Play one short game and return its event log, rendered.
 fn play_seeded_game(seed: u64) -> Vec<String> {
+    play_seeded_game_with(seed, 2)
+}
+
+/// [`play_seeded_game`] at any table size. Four is where the rotation passes
+/// over a player who has left (CR 800.4j/k) and the game goes on, which no
+/// two-player game reaches.
+fn play_seeded_game_with(seed: u64, players: usize) -> Vec<String> {
     let registry = CardRegistry::default_registry();
     let deck: Vec<_> = registry
         .card_names()
@@ -37,7 +44,7 @@ fn play_seeded_game(seed: u64) -> Vec<String> {
         .filter_map(|name| registry.create(name).ok())
         .collect();
 
-    let mut game = Game::new(GameConfig::test(), vec![deck.clone(), deck])
+    let mut game = Game::new(GameConfig::test(), vec![deck; players])
         .expect("game creation");
     game.reseed(seed);
     let dp = RandomDecisionProvider::seeded(seed);
@@ -51,37 +58,47 @@ fn play_seeded_game(seed: u64) -> Vec<String> {
     game.event_log_snapshot()
 }
 
+/// Object ids are v4 UUIDs, so the rendered log's id column differs between
+/// runs by design. Everything else — which card, which zone, which order —
+/// is the game, and it must match event for event.
+fn strip(log: &[String]) -> Vec<String> {
+    log.iter()
+        .map(|line| {
+            let mut out = String::with_capacity(line.len());
+            let mut depth = 0;
+            for ch in line.chars() {
+                match ch {
+                    '(' => depth += 1,
+                    ')' if depth > 0 => depth -= 1,
+                    _ if depth == 0 => out.push(ch),
+                    _ => {}
+                }
+            }
+            out
+        })
+        .collect()
+}
+
 #[test]
 fn test_same_seed_replays_the_same_game() {
     let first = play_seeded_game(0xFEED_BEEF);
     let second = play_seeded_game(0xFEED_BEEF);
-
-    // Object ids are v4 UUIDs, so the rendered log's id column differs between
-    // runs by design. Everything else — which card, which zone, which order —
-    // is the game, and it must match event for event.
-    let strip = |log: &[String]| -> Vec<String> {
-        log.iter()
-            .map(|line| {
-                let mut out = String::with_capacity(line.len());
-                let mut depth = 0;
-                for ch in line.chars() {
-                    match ch {
-                        '(' => depth += 1,
-                        ')' if depth > 0 => depth -= 1,
-                        _ if depth == 0 => out.push(ch),
-                        _ => {}
-                    }
-                }
-                out
-            })
-            .collect()
-    };
 
     assert_eq!(
         strip(&first),
         strip(&second),
         "same seed produced two different games"
     );
+    assert!(first.len() > 20, "game was too short to prove anything");
+}
+
+/// The same claim at four seats — the first table size at which the priority
+/// and turn rotations read `player_lost` for a game that continues.
+#[test]
+fn test_same_seed_replays_the_same_four_player_game() {
+    let first = play_seeded_game_with(0xC0FF_EE42, 4);
+    let second = play_seeded_game_with(0xC0FF_EE42, 4);
+    assert_eq!(strip(&first), strip(&second), "same seed produced two different four-player games");
     assert!(first.len() > 20, "game was too short to prove anything");
 }
 

@@ -131,6 +131,14 @@ struct Args {
     /// out to `WINDOW_ACTIVATION_CAP` on every cast. That is the A/B's middle
     /// arm and not a way to play.
     auto_pay: bool,
+    /// How many players sit at the table — one random deck each, `--players`.
+    ///
+    /// Two by default, which keeps every earlier phase's output byte
+    /// identical. Four is v1's target and the run `engineering-practices.md`
+    /// §3 keeps a separate table for: it is where a player leaves the game
+    /// while it continues (CR 800.4), and nothing about that board is reachable
+    /// at two.
+    players: usize,
 }
 
 /// The two pools, and the reason there are two.
@@ -173,6 +181,7 @@ fn parse_args() -> Args {
         pool: CardPool::Performance,
         require: Vec::new(),
         auto_pay: true,
+        players: 2,
     };
 
     let mut i = 1;
@@ -245,6 +254,18 @@ fn parse_args() -> Args {
             }
             "--no-auto-pay" => {
                 result.auto_pay = false;
+            }
+            "--players" => {
+                i += 1;
+                if i < args.len() {
+                    result.players = match args[i].parse::<usize>() {
+                        Ok(n) if n >= 2 => n,
+                        _ => {
+                            eprintln!("--players wants a number of at least 2, not {:?}", args[i]);
+                            std::process::exit(2);
+                        }
+                    };
+                }
             }
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
@@ -506,6 +527,18 @@ struct GameStats {
     /// the same color pair has walked its path and met nothing; this says
     /// whether the board it met was the pool's or a hand-picked slice of it.
     met_another_color: bool,
+    /// The game ended with a `PlayerWon` — CR 104.2b's win, Laboratory
+    /// Maniac's — rather than with every opponent having lost.
+    won_by_effect: bool,
+    /// Turns that began after the first player left the game. Always 0 at two
+    /// seats, where a loss ends the game; at four it is how long a departed
+    /// player's permanents stayed on a battlefield the game was still using.
+    turns_after_departure: u32,
+    /// Permanents owned by a player who has left, still on the battlefield
+    /// at the game's end — `codebase-state.md` item 108's wrong answer,
+    /// counted. **RE-7 zeroes this row**: CR 800.4a removes them the moment
+    /// the player leaves.
+    departed_owned_permanents: u32,
 }
 
 /// Extract action statistics from raw GameEvents.
@@ -522,6 +555,8 @@ fn extract_stats<'a>(
 ) -> GameStats {
     let mut stats = GameStats::default();
     stats.reach = watch.iter().map(|n| (n.clone(), 0, 0)).collect();
+    // Set at the first `PlayerLost`; the turns after it are the departure row.
+    let mut departed = false;
 
     // Printed name, not the effective one: this asks "did the card the flag
     // named get cast", which is a question about the card, and CV-1 is the
@@ -605,9 +640,19 @@ fn extract_stats<'a>(
                     }
                 }
             }
+            GameEvent::PlayerWon { .. } => stats.won_by_effect = true,
+            GameEvent::PlayerLost { .. } => departed = true,
+            GameEvent::TurnBegin { .. } if departed => stats.turns_after_departure += 1,
             _ => {}
         }
     }
+    // A count over a `HashMap`, which is order-independent, so this line is
+    // not a determinism leak; it is read once, at the end.
+    stats.departed_owned_permanents = game
+        .battlefield
+        .keys()
+        .filter(|id| game.objects.get(id).is_some_and(|o| game.player_lost[o.owner]))
+        .count() as u32;
     stats
 }
 
@@ -684,10 +729,15 @@ struct AggregateStats {
     games_met_another_color: u64,
     /// Copies of each required card summed over every deck, in `reach`'s order.
     copies: Vec<u64>,
+    /// The two four-player rows — see `GameStats`.
+    total_turns_after_departure: u64,
+    total_departed_owned_permanents: u64,
 }
 
 impl AggregateStats {
     fn add(&mut self, game: &GameStats) {
+        self.total_turns_after_departure += game.turns_after_departure as u64;
+        self.total_departed_owned_permanents += game.departed_owned_permanents as u64;
         self.total_spells_cast += game.spells_cast as u64;
         self.total_creatures_died += game.creatures_died as u64;
         self.total_damage_events += game.damage_events as u64;
@@ -850,6 +900,7 @@ fn run_one_game(
     required: &[Arc<CardData>],
     require_names: &[String],
     middleware: MiddlewareConfig,
+    players: usize,
 ) -> (GameOutcome, std::time::Duration) {
     // Derive per-game seed from master seed for reproducibility
     let game_seed = master_seed.wrapping_add(game_num as u64);
@@ -862,12 +913,14 @@ fn run_one_game(
     let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
     let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
 
-    let deck1 = random_deck(registry, &mut deck_rng, required);
-    let deck2 = random_deck(registry, &mut deck_rng, required);
+    // One deck per seat, drawn from the one stream in seat order — so a
+    // two-player run draws exactly the two decks it always drew.
+    let decks: Vec<Vec<Arc<CardData>>> =
+        (0..players).map(|_| random_deck(registry, &mut deck_rng, required)).collect();
     let copies: Vec<u32> = require_names
         .iter()
         .map(|name| {
-            deck1.iter().chain(deck2.iter()).filter(|c| c.name == *name).count() as u32
+            decks.iter().flatten().filter(|c| c.name == *name).count() as u32
         })
         .collect();
 
@@ -879,7 +932,7 @@ fn run_one_game(
     let started = Instant::now();
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         let config = GameConfig::test();
-        let mut game = Game::new(config, vec![deck1, deck2]).expect("Failed to create game");
+        let mut game = Game::new(config, decks).expect("Failed to create game");
         game.reseed(shuffle_seed);
         let dp = build_stack(dp_seed, middleware);
         let dp = &*dp;
@@ -968,13 +1021,14 @@ fn run_games(
     required: &[Arc<CardData>],
     require_names: &[String],
     middleware: MiddlewareConfig,
+    players: usize,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
-                    middleware,
+                    middleware, players,
                 )
             })
             .collect();
@@ -1004,6 +1058,7 @@ fn run_games(
                                     required,
                                     require_names,
                                     middleware,
+                                    players,
                                 ),
                             ));
                         }
@@ -1040,6 +1095,10 @@ fn main() {
     // identical to every earlier phase's — `plans/fuzz_ab.py` diffs it.
     if !args.auto_pay {
         println!("Payer: off (--no-auto-pay) — CR 605.3a's window, unstopped");
+    }
+    // Printed only off the default, for the same reason as the payer line.
+    if args.players != 2 {
+        println!("Players: {}", args.players);
     }
     if args.threads > 1 {
         println!("Threads: {}", args.threads);
@@ -1136,6 +1195,7 @@ fn main() {
         &required,
         &args.require,
         MiddlewareConfig { auto_pay: args.auto_pay },
+        args.players,
     );
 
     // Reporting is a serial pass over the games in order, so every line printed
@@ -1179,7 +1239,16 @@ fn main() {
 
                 let result_str = match game_result {
                     Some(mtgsim::state::game_state::GameResult::Winner(pid)) => {
-                        let key = format!("P{} wins", pid);
+                        // CR 104.2b's win — Laboratory Maniac's — is its own
+                        // outcome row, because "games ended by a win" is the
+                        // number that says the path was walked; a win by
+                        // every opponent having lost (104.2a) keeps the row
+                        // every earlier phase printed.
+                        let key = if stats.won_by_effect {
+                            format!("P{} wins by effect", pid)
+                        } else {
+                            format!("P{} wins", pid)
+                        };
                         *winner_counts.entry(key.clone()).or_insert(0) += 1;
                         key
                     }
@@ -1325,6 +1394,19 @@ fn main() {
         println!("  Damage events:    {:>6.1}", agg_stats.avg(agg_stats.total_damage_events));
         println!("  Total damage:     {:>6.1}", agg_stats.avg(agg_stats.total_damage));
         println!("  Life changes:     {:>6.1}", agg_stats.avg(agg_stats.total_life_changes));
+        // The two rows only a table of three or more can move, printed only
+        // there so the two-player output stays byte identical to every
+        // earlier phase's.
+        if args.players > 2 {
+            println!(
+                "  Turns after a departure:     {:>6.1}",
+                agg_stats.avg(agg_stats.total_turns_after_departure)
+            );
+            println!(
+                "  Departed-owned permanents:   {:>6.1}",
+                agg_stats.avg(agg_stats.total_departed_owned_permanents)
+            );
+        }
 
         // Engine work, and it is a *fixture* like the block above rather than a
         // benchmark like `=== Timing ===`. Every number here is a pure function

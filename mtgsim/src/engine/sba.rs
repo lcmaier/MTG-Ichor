@@ -1601,6 +1601,7 @@ mod tests {
     // T16: Poison, commander damage, indestructible SBA tests
     // -----------------------------------------------------------------------
 
+    // COVERS: ATOM-104.3d-001, ATOM-704.5c-001
     #[test]
     fn test_sba_poison_10_loses() {
         // 704.5c — A player with 10 or more poison counters loses the game.
@@ -1622,6 +1623,7 @@ mod tests {
         assert!(has_event);
     }
 
+    // COVERS: ATOM-704.5c-002
     #[test]
     fn test_sba_poison_9_survives() {
         // 704.5c — A player with 9 poison counters does NOT lose.
@@ -1633,6 +1635,7 @@ mod tests {
         assert!(!game.player_lost[0]);
     }
 
+    // COVERS: ATOM-104.3j-001
     #[test]
     fn test_sba_commander_damage_21_loses() {
         // Commander variant: 21+ combat damage from a single commander → lose.

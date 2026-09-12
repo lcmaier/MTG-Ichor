@@ -639,6 +639,19 @@ impl GameState {
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
 
+        // CR 104.1 — "a game ends immediately when a player wins [or] the
+        // game is a draw". Asked here, at the chokepoint, so every proposal
+        // after the batch that ended the game stops at one line: the rest of
+        // a resolution's instructions, a decomposition's remaining inners,
+        // and the riders of the batch that ended it. Stunning Reversal's
+        // survivor "wins the game as soon as everyone else has lost", and
+        // the seven cards the rider would then draw are the game continuing
+        // to be over. The ending batch's own members all perform — they were
+        // one event — and its settlement is what makes this true afterwards.
+        if self.result.is_some() {
+            return Ok(Vec::new());
+        }
+
         // Entering is the zone change, and `EnterBattlefield` is its only
         // proposal: a `ZoneChange` onto the battlefield here has bypassed
         // `change_zone`'s routing and would be performed with no entity.
