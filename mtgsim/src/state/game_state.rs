@@ -20,6 +20,19 @@ use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::types::replacement::EnterMods;
 
+/// The outcome of a game that has ended (CR 104).
+///
+/// Lives on [`GameState::result`] rather than on the lifecycle wrapper because
+/// CR 104.1 says a game ends *immediately*, and the moment it ends is inside a
+/// performer — a `GameAction::PlayerWins` (104.2b), or the settlement of a batch
+/// that performed one or more `PlayerLoses` (104.2a, 104.4a). `Game` reads it;
+/// nothing outside `engine::actions` writes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GameResult {
+    Winner(PlayerId),
+    Draw,
+}
+
 /// Metadata for a spell or ability on the stack.
 ///
 /// This is the sidecar state for stack objects, analogous to how
@@ -255,9 +268,20 @@ pub struct GameState {
     /// battlefield gets the current value, then the counter increments.
     pub next_timestamp: u64,
 
-    // --- Game-end flags (set by SBAs, checked by Game) ---
-    /// Per-player loss flags. SBAs set these; `Game::check_game_over` reads them.
+    // --- The game's end (CR 104) ---
+    /// Per-player loss flags, written by the `GameAction::PlayerLoses`
+    /// performer and by nothing else. CR 104.5 makes a player who has lost a
+    /// player who has *left*, so this is also what the turn and priority
+    /// rotations pass over (CR 800.4j/k); their objects leaving is RE-7's.
     pub player_lost: Vec<bool>,
+    /// The outcome, once the game has one — see [`GameResult`]. Written by
+    /// the `PlayerWins` performer and by [`Self::settle_game_result`], read by
+    /// `Game::is_over` and by every loop that must stop when the game does.
+    pub result: Option<GameResult>,
+    /// CR 103.3's starting life total, which "your starting life total" on a
+    /// card (Exquisite Archangel) reads and a two-player 20 would get wrong
+    /// in Commander.
+    pub starting_life: i64,
 
     // --- First-turn draw skip (rule 103.8a) ---
     /// If true, the first draw step is skipped (one-time flag for game setup).
@@ -570,6 +594,8 @@ impl GameState {
             dealt_first_strike_damage: HashSet::new(),
             next_timestamp: 0,
             player_lost: vec![false; num_players],
+            result: None,
+            starting_life,
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
@@ -623,6 +649,45 @@ impl GameState {
     pub fn apnap_index(&self, player: PlayerId) -> usize {
         let n = self.players.len();
         (player + n - self.active_player) % n
+    }
+
+    /// Is `player` still in the game? CR 104.5: a player who has lost has left.
+    pub fn in_game(&self, player: PlayerId) -> bool {
+        !self.player_lost[player]
+    }
+
+    /// The next player in turn order after `after` who is still in the game,
+    /// or `None` when nobody is.
+    ///
+    /// CR 800.4j's "the next player in turn order" and the priority loop's
+    /// rotation. `next_turn_taker` is the turn's own reading of the same rule
+    /// and consumes what it reads; this one is a pure lookup.
+    pub fn next_player_in_game(&self, after: PlayerId) -> Option<PlayerId> {
+        let n = self.players.len();
+        (1..=n).map(|k| (after + k) % n).find(|&p| self.in_game(p))
+    }
+
+    /// CR 104.2a and 104.4a, asked of the batch that performed one or more
+    /// losses once every member has performed.
+    ///
+    /// A recorded result is never overwritten: CR 104.1 ended the game at the
+    /// first one, and a loss performed after it — Stunning Reversal's survivor
+    /// drawing seven from a short library on the next check — is the game
+    /// continuing to be over rather than a second result.
+    pub(crate) fn settle_game_result(&mut self) {
+        if self.result.is_some() {
+            return;
+        }
+        let survivors: Vec<PlayerId> =
+            (0..self.players.len()).filter(|&p| self.in_game(p)).collect();
+        self.result = match survivors.as_slice() {
+            // 104.4a — "all the players remaining in a game lose
+            // simultaneously".
+            [] => Some(GameResult::Draw),
+            // 104.2a — "that player's opponents have all left the game".
+            [winner] => Some(GameResult::Winner(*winner)),
+            _ => None,
+        };
     }
 
     /// The turn on which `player`'s most recent turn began, or `None` if they

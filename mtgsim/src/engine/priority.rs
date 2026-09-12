@@ -34,9 +34,32 @@ impl GameState {
         // --- Rule 117.5: SBAs before granting priority ---
         self.perform_sba_and_triggers(decisions)?;
 
-        let num_players = self.num_players();
+        // CR 104.1 — the game ends immediately, and nobody receives priority
+        // in a game that has ended. Before RE-6 a player who had just lost
+        // kept acting until the phase ended and `Game` noticed.
+        if self.result.is_some() {
+            return Ok(PriorityResult::PhaseEnds);
+        }
+
+        // CR 800.4j — players who have left the game are passed over, and a
+        // round ends when everyone *still in the game* has passed in
+        // succession. The active player receives priority first if they are
+        // still here; "if the active player would receive priority, instead
+        // the next player in turn order receives priority" otherwise.
+        //
+        // Counted once per round: a player can only leave between rounds,
+        // because a loss is a state-based action and those run at the top of
+        // this function and after each action, each of which starts a new
+        // round.
+        let in_game = (0..self.num_players()).filter(|&p| self.in_game(p)).count();
         let mut consecutive_passes = 0;
-        let mut current_priority = self.active_player;
+        let Some(mut current_priority) = (if self.in_game(self.active_player) {
+            Some(self.active_player)
+        } else {
+            self.next_player_in_game(self.active_player)
+        }) else {
+            return Ok(PriorityResult::PhaseEnds);
+        };
 
         loop {
             self.priority_player = current_priority;
@@ -171,7 +194,7 @@ impl GameState {
             match executed.0 {
                 PriorityAction::Pass => {
                     consecutive_passes += 1;
-                    if consecutive_passes >= num_players {
+                    if consecutive_passes >= in_game {
                         // All players passed in succession (rule 117.4)
                         if self.stack.is_empty() {
                             return Ok(PriorityResult::PhaseEnds);
@@ -183,8 +206,11 @@ impl GameState {
                             return Ok(PriorityResult::StackResolved);
                         }
                     }
-                    // Next player gets priority (117.3d)
-                    current_priority = (current_priority + 1) % num_players;
+                    // Next player still in the game gets priority (117.3d,
+                    // 800.4j). `in_game >= 1` here, so there is one.
+                    current_priority = self
+                        .next_player_in_game(current_priority)
+                        .expect("a round with a passer has a player in the game");
                 }
 
                 PriorityAction::CastSpell(_) => {

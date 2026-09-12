@@ -22,7 +22,8 @@ use std::sync::Arc;
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::{Game, GameResult};
+use mtgsim::state::game::Game;
+use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::cli::CliDecisionProvider;

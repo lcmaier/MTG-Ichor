@@ -791,7 +791,7 @@ fn percentile(ascending: &[f64], p: f64) -> f64 {
 
 enum GameOutcome {
     Completed {
-        result: Option<mtgsim::state::game::GameResult>,
+        result: Option<mtgsim::state::game_state::GameResult>,
         turns: u32,
         stats: GameStats,
         event_log: Option<Vec<String>>,
@@ -898,7 +898,7 @@ fn run_one_game(
         }
 
         Ok((
-            game.result.clone(),
+            game.result(),
             turns,
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
             uncast_resolutions(game.state.events.events(), &game.state),
@@ -1178,12 +1178,12 @@ fn main() {
                 agg_stats.add(&stats);
 
                 let result_str = match game_result {
-                    Some(mtgsim::state::game::GameResult::Winner(pid)) => {
+                    Some(mtgsim::state::game_state::GameResult::Winner(pid)) => {
                         let key = format!("P{} wins", pid);
                         *winner_counts.entry(key.clone()).or_insert(0) += 1;
                         key
                     }
-                    Some(mtgsim::state::game::GameResult::Draw) => {
+                    Some(mtgsim::state::game_state::GameResult::Draw) => {
                         *winner_counts.entry("Draw".to_string()).or_insert(0) += 1;
                         "Draw".to_string()
                     }

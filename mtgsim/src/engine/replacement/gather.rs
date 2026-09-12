@@ -66,7 +66,7 @@ pub enum CounterEffectKind {
 /// Named for the *event*, not for the effect, because `AffectedSet` already
 /// answers the other question — which objects an effect applies to — and the
 /// two are asked one line apart in [`applies_to`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum EventSubject {
     Object(ObjectId),
     Player(PlayerId),
@@ -98,6 +98,9 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::BeginTurn { player, .. } => EventSubject::Player(*player),
         GameAction::BeginPhase { player, .. } => EventSubject::Player(*player),
         GameAction::BeginStep { player, .. } => EventSubject::Player(*player),
+        // CR 616.1's "the affected player": the one who would lose or win.
+        GameAction::PlayerLoses { player, .. } => EventSubject::Player(*player),
+        GameAction::PlayerWins { player } => EventSubject::Player(*player),
     }
 }
 
@@ -708,6 +711,11 @@ pub(crate) fn pattern_watches(
         (EventPattern::BeginStep { step }, GameAction::BeginStep { step: actual, .. }) => {
             step.map(|s| s == *actual).unwrap_or(true)
         }
+
+        // CR 104's two ends. Which *player* is `set_affects`'s question; the
+        // loss's reason is asked by nothing printed (RE decision 5).
+        (EventPattern::PlayerLoses, GameAction::PlayerLoses { .. }) => true,
+        (EventPattern::PlayerWins, GameAction::PlayerWins { .. }) => true,
 
         _ => false,
     }

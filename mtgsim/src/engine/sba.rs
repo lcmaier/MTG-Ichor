@@ -8,6 +8,7 @@ use crate::oracle::characteristics::{
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use crate::engine::replacement::{subject_of, EventSubject};
 use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -21,11 +22,7 @@ use crate::ui::decision::DecisionProvider;
 /// the stack — they just happen. If any SBA is performed, they're all checked
 /// again before a player actually gets priority.
 
-/// The zone change `cause` calls for on `id`, paired with the object id.
-///
-/// The pair rather than the bare action: the CR 704.7 dedupe below keys on the
-/// object, and digging it back out of a `GameAction::ZoneChange` would make the
-/// dedupe match on a variant it has no other reason to know about.
+/// The zone change `cause` calls for on `id`.
 ///
 /// This was a struct with a third field until 2026-08-26, carrying the
 /// `CreatureDied`/`PlaneswalkerDied`/`LegendRuleSacrificed`/`AuraDied` event to
@@ -36,16 +33,13 @@ use crate::ui::decision::DecisionProvider;
 /// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
 /// not. That distinction is the whole of why regeneration and shield counters
 /// save a creature from lethal damage but not from zero toughness.
-fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameAction) {
-    (
-        id,
-        GameAction::ZoneChange {
-            object: id,
-            from: Zone::Battlefield,
-            to: Zone::Graveyard,
-            cause,
-        },
-    )
+fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> GameAction {
+    GameAction::ZoneChange {
+        object: id,
+        from: Zone::Battlefield,
+        to: Zone::Graveyard,
+        cause,
+    }
 }
 
 /// CR 704.5g/704.5h — lethal damage and deathtouch damage, which CR 701.8b
@@ -55,8 +49,19 @@ fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> (ObjectId, GameActio
 /// to, so that a CR 614.8 regeneration shield and a CR 122.1c shield counter
 /// have something to watch. Proposing the zone change directly would make a
 /// state-based death indistinguishable from every other trip to the graveyard.
-fn sba_destroy(id: ObjectId) -> (ObjectId, GameAction) {
-    (id, GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction })
+fn sba_destroy(id: ObjectId) -> GameAction {
+    GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction }
+}
+
+/// CR 704.5a–c and 704.6c — `player` would lose the game.
+///
+/// The **event**, proposed like every other state-based action, so that
+/// Exquisite Archangel can replace it, Platinum Angel can refuse it, and
+/// CR 704.7's collapse can see two reasons as one loss (`replacement-architecture.md`
+/// §9, RE decision 5). Until RE-6 the four loss loops wrote `player_lost`
+/// directly and Lich's Mirror's own worked example could not be expressed.
+fn sba_player_loses(player: PlayerId, reason: LossReason) -> GameAction {
+    GameAction::PlayerLoses { player, reason }
 }
 
 /// The objects that changed zones at or after `since`, in the order they moved.
@@ -98,6 +103,14 @@ impl GameState {
         &mut self,
         decisions: &dyn DecisionProvider,
     ) -> Result<bool, String> {
+        // CR 104.1 — a game that has ended performs nothing further. The
+        // priority loop stops granting on the same read; this is the check's
+        // own guard, because `check_state_based_actions_loop` repeats while
+        // anything was performed and the batch that ended the game was.
+        if self.result.is_some() {
+            return Ok(false);
+        }
+
         // CR 704 sweeps are turn-based, not part of any resolution.
         let actx = ActionContext::new(decisions);
         let mut any_performed = false;
@@ -113,55 +126,49 @@ impl GameState {
         let since = self.last_sba_check_epoch;
         self.last_sba_check_epoch = self.next_zone_change_epoch;
 
-        // 704.5a — Player with 0 or less life loses the game
-        for i in 0..self.players.len() {
-            if self.players[i].life_total <= 0 && !self.player_lost[i] {
-                self.player_lost[i] = true;
-                self.events.emit(GameEvent::PlayerLost {
-                    player_id: i,
-                    reason: LossReason::LifeReachedZero,
-                });
-                any_performed = true;
-            }
-        }
+        // CR 704.5b's window is the same sentence — "since the last time
+        // state-based actions were checked" — and closes at the same place:
+        // read here, into the batch, and cleared. **Cleared whether or not the
+        // loss it proposes then happens.** A replaced loss (Exquisite
+        // Archangel: "you won't lose again until you try to draw again") and
+        // a refused one (Platinum Angel: "you keep playing") both leave the
+        // player in the game, and a flag that survived them would propose the
+        // same loss at every check for the rest of the game. Until RE-6 it was
+        // never cleared at all (`codebase-state.md` item 112), unobservable only
+        // because its one reader ended the game.
+        let drew_from_empty: Vec<bool> = self
+            .players
+            .iter_mut()
+            .map(|p| std::mem::take(&mut p.has_drawn_from_empty_library))
+            .collect();
 
-        // 704.5b — Player who attempted to draw from empty library loses
+        // --- CR 704.5a–c: the losses, as batch members ---------------------
+        //
+        // One member per player, whatever the number of reasons: CR 704.7's
+        // "same result" is the player losing, and Lich's Mirror's ruling is
+        // that "a single Lich's Mirror will replace all of them". The dedupe on
+        // the batch below keys on the event's subject, so pushing in CR order
+        // is what makes the first reason the one the log carries. A player who
+        // has already left is gated here, ahead of the proposal, for the reason
+        // `next_turn_taker` gates CR 800.4k there: nothing about a departed
+        // player is an event.
+        let mut batch: Vec<GameAction> = Vec::new();
         for i in 0..self.players.len() {
-            if self.players[i].has_drawn_from_empty_library && !self.player_lost[i] {
-                self.player_lost[i] = true;
-                self.events.emit(GameEvent::PlayerLost {
-                    player_id: i,
-                    reason: LossReason::DrawnFromEmptyLibrary,
-                });
-                any_performed = true;
+            if !self.in_game(i) {
+                continue;
             }
-        }
-
-        // 704.5c — Player with 10 or more poison counters loses the game
-        for i in 0..self.players.len() {
-            if self.players[i].poison_counters >= 10 && !self.player_lost[i] {
-                self.player_lost[i] = true;
-                self.events.emit(GameEvent::PlayerLost {
-                    player_id: i,
-                    reason: LossReason::PoisonCounters,
-                });
-                any_performed = true;
+            // 704.5a — 0 or less life.
+            if self.players[i].life_total <= 0 {
+                batch.push(sba_player_loses(i, LossReason::LifeReachedZero));
             }
-        }
-
-        // 704.5 — Player who has been dealt 21 or more combat damage by a single
-        // commander loses the game (Commander variant rule)
-        for i in 0..self.players.len() {
-            if !self.player_lost[i] {
-                let lost = self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21);
-                if lost {
-                    self.player_lost[i] = true;
-                    self.events.emit(GameEvent::PlayerLost {
-                        player_id: i,
-                        reason: LossReason::CommanderDamage,
-                    });
-                        any_performed = true;
-                }
+            // 704.5b — attempted to draw from an empty library since the last
+            // check.
+            if drew_from_empty[i] {
+                batch.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
+            }
+            // 704.5c — ten or more poison counters.
+            if self.players[i].poison_counters >= 10 {
+                batch.push(sba_player_loses(i, LossReason::PoisonCounters));
             }
         }
 
@@ -186,7 +193,7 @@ impl GameState {
         // The zone-change epoch is what makes "since the last time" answerable
         // at all; `since` was read at the top of this function, before anything
         // moved.
-        let commander_moves: Vec<(ObjectId, GameAction)> = {
+        let commander_moves: Vec<GameAction> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
             for (id, obj) in moved_since(self, since) {
                 if !obj.is_commander {
@@ -201,18 +208,15 @@ impl GameState {
             // same time, so the active player is asked first. Stable, so one
             // player's two commanders keep `moved_since`'s order between them.
             to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
-            let mut accepted: Vec<(ObjectId, GameAction)> = Vec::new();
+            let mut accepted: Vec<GameAction> = Vec::new();
             for (id, owner, from) in to_offer {
                 if ask_commander_to_command_zone(decisions, self, owner, id) {
-                    accepted.push((
-                        id,
-                        GameAction::ZoneChange {
-                            object: id,
-                            from,
-                            to: Zone::Command,
-                            cause: ZoneChangeCause::CommanderZoneSba,
-                        },
-                    ));
+                    accepted.push(GameAction::ZoneChange {
+                        object: id,
+                        from,
+                        to: Zone::Command,
+                        cause: ZoneChangeCause::CommanderZoneSba,
+                    });
                 }
             }
             accepted
@@ -232,7 +236,7 @@ impl GameState {
         //
         // Ordered sweeps throughout: the batch order is the order a CR 616.1
         // prompt would be offered in, and the graveyard is an ordered zone.
-        let mut batch: Vec<(ObjectId, GameAction)> = Vec::new();
+        // The losses gathered above are already in it, first in CR order.
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         for id in self.battlefield_ids_ordered() {
@@ -389,32 +393,53 @@ impl GameState {
             batch.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
         }
 
-        // CR 704.6d's accepted moves, last because 704.6 is last in CR order
+        // 704.6c — dealt 21 or more combat damage by one commander over the
+        // course of the game. After the 704.5 sweeps because it is 704.6, and
+        // a player already losing to a 704.5 reason is collapsed onto that one
+        // by the dedupe below.
+        for i in 0..self.players.len() {
+            if self.in_game(i)
+                && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
+            {
+                batch.push(sba_player_loses(i, LossReason::CommanderDamage));
+            }
+        }
+
+        // CR 704.6d's accepted moves, last because 704.6d is last in CR order
         // among the conditions this check gathers.
         batch.extend(commander_moves);
 
-        // --- Perform the gathered zone changes as one event (CR 704.3) ------
+        // --- Perform the gathered actions as one event (CR 704.3) -----------
         //
-        // CR 704.7's same-result collapse is the dedupe: two state-based
-        // actions that would put the same permanent into the same graveyard at
-        // the same time have the same *result*, so they are one event with one
-        // applied set, not two. The first condition in CR order names the cause
-        // — a creature that is both a duplicate legend and dead to lethal damage
-        // was destroyed (704.5g), not put away by the legend rule.
-        let mut seen: HashSet<ObjectId> = HashSet::new();
-        batch.retain(|(object, _)| seen.insert(*object));
+        // CR 704.7's same-result collapse is the dedupe, keyed on the event's
+        // subject: two state-based actions that would put the same permanent
+        // into the same graveyard at the same time have the same *result*, and
+        // so do two that would make the same player lose, so each pair is one
+        // event with one applied set, not two. The first condition in CR order
+        // names the cause — a creature that is both a duplicate legend and dead
+        // to lethal damage was destroyed (704.5g), not put away by the legend
+        // rule, and a player at 0 life with an empty library lost to 704.5a.
+        let mut seen: HashSet<EventSubject> = HashSet::new();
+        batch.retain(|action| seen.insert(subject_of(action)));
 
         if !batch.is_empty() {
-            let actions = batch.into_iter().map(|(_, action)| action).collect();
-            // **The performed set, not the proposal.** CR 704.3 repeats the
-            // check only "if any state-based actions are performed", and a
+            // **What the game recorded, not the proposal.** CR 704.3 repeats
+            // the check only "if any state-based actions are performed", and a
             // proposal is not a performance: an indestructible creature with
             // lethal damage produces a `Destroy` that CR 614.17's "can't"
             // drops, and a sweep that counted the proposal would re-check
-            // forever. This is the customer that earned `execute_actions` its
-            // return value back (§4.2).
-            let performed = self.execute_actions(actions, &actx)?;
-            any_performed |= !performed.is_empty();
+            // forever. Nor is it only the *performed set* (this line read
+            // `execute_actions`' return value until RE-6): a loss Exquisite
+            // Archangel replaced performs no member, but its rider performs
+            // — CR 614.6's modified event, "the rest of the effect" (615.5) —
+            // and Stunning Reversal's ruling that a short library loses "the
+            // game immediately after" needs *that* to count as an action
+            // performed, or a priority window opens between the draw that
+            // set CR 704.5b's condition and the check that reads it. The
+            // event log is where anything the check did shows.
+            let before = self.events.len();
+            self.execute_actions(batch, &actx)?;
+            any_performed |= self.events.len() > before;
         }
 
         // 704.5n — an Equipment or Fortification attached to an illegal
