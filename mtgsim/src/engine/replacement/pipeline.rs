@@ -849,25 +849,42 @@ fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
 /// **same** [`Rewrite`], and that rewrite is an `Instead` whose substitute is a
 /// pure function of the event.
 ///
-/// Two Tainted Remedies are the printed board. The argument is shorter than the
-/// other three shapes' and does not mention the pattern at all: a `Rewrite` that
-/// is a pure, instance-invariant function `T` of the event produces the same
-/// event whichever member applies it, so after the first application the loop is
-/// in an identical state in either order — same event, and the same set of
-/// members still applicable to it, since applicability is decided against that
-/// event. By induction the whole trace is the same, however many members end up
-/// applying and whatever their patterns are.
+/// Two Tainted Remedies are the printed board, and the argument does not mention
+/// the pattern at all. Every member is the same pure function `T` of the event,
+/// so applying some subset of them in some order leaves `T^k(e)` for some
+/// `k ≥ 1` — and **`T` is idempotent**, so every such trace ends at `T(e)`.
+/// Neither which members applied nor how many is observable.
 ///
-/// **Instance-invariance is the clause that is not free**, and
-/// [`template_is_instance_invariant`] is where it lives: a substitute that
-/// embeds the *applying* instance's source or controller is a different event
-/// per member, and then the first application already differs.
+/// **Two clauses, and neither is free.** [`template_is_instance_invariant`]:
+/// a substitute that embeds the *applying* instance's source or controller is a
+/// different `T` per member, and then even `k = 1` differs.
+/// [`template_is_idempotent`]: without it `k` matters, and `k` is not pinned by
+/// the premise — see below.
 ///
-/// `Rewrite` derives `PartialEq`, so "the same rewrite" is the data being equal.
-/// Two defs that are equal as data may still resolve their affected sets
-/// differently — `PlayerSet::Opponents` against two controllers — and the
-/// argument does not care: both are in `choosable`, so both apply now, and what
-/// happens next is decided by an event they agree on.
+/// **Why `k` is not pinned, which is the step this comment got wrong until the
+/// review asked what the check actually checks.** The first draft argued that
+/// after one application "the same set of members is still applicable, since
+/// applicability is decided against that event". It is not: `applies_to`
+/// resolves `affected_objects` / `affected_players` against *each instance's own*
+/// controller and source, so two defs that are `==` as data can differ on the
+/// same event — `PlayerSet::Opponents` around two different permanents is the
+/// printed case. So order can change **which** members apply and **how many**.
+/// Idempotence is what makes that not matter, and it is the clause that was
+/// doing the work unstated.
+///
+/// `Rewrite` derives `PartialEq`, so "the same rewrite" is the *def data* being
+/// equal. Nothing here compares game state: the release-mode predicate reads no
+/// board at all, and the debug check compares one `GameAction` to one
+/// `GameAction`. Running the loop twice and diffing the board is not available
+/// — an application may prompt, spend a use and nest a batch — which is why the
+/// premise is discharged by argument and spot-checked rather than by replay.
+///
+/// **The residual, named:** a candidate that becomes applicable only after the
+/// rewrite (CR 616.2) joins a later `choosable` alongside whichever members have
+/// not applied, and those differ by order. Their *outcomes* are equal, by the
+/// argument above; what is not identical is the source-object list a prompt
+/// would name. No printed card reaches it, and it is a different question from
+/// the one this predicate answers.
 fn one_shared_instance_invariant_instead(choosable: &[Candidate]) -> bool {
     let Some(first) = choosable.first() else {
         return false;
@@ -876,6 +893,7 @@ fn one_shared_instance_invariant_instead(choosable: &[Candidate]) -> bool {
         return false;
     };
     template_is_instance_invariant(template)
+        && template_is_idempotent(template)
         && choosable
             .iter()
             .all(|c| c.instance.def.rewrite == first.instance.def.rewrite)
@@ -906,6 +924,33 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
         // source causes you to gain life".
         GameActionTemplate::GainLife { .. } => false,
         // A substituted loss carries `LifeLossCause::Effect` and no source.
+        GameActionTemplate::LoseLife { .. } => true,
+    }
+}
+
+/// Does applying this template to its own output produce that output again?
+///
+/// [`one_shared_instance_invariant_instead`]'s second clause, and the one that
+/// is actually load-bearing: order can change how many of the shared members
+/// apply, so the shape needs `T^k(e) = T(e)`.
+///
+/// **Every arm is idempotent today for one structural reason** — an `Instead`
+/// *overwrites* the event rather than accumulating into it, and the only field
+/// any template reads off the event is one the previous application already set
+/// to the value it will read. `TemplateAmount::ReplacedAmount` is the case to
+/// look at: applied to a gain of 3 it produces a loss of 3, and applied to
+/// *that* it reads 3 again.
+///
+/// Matched exhaustively, so a new arm classifies itself. The arm that would
+/// answer `false` is one whose output depends on the event in a way that
+/// compounds — "loses twice that much life instead" as a template rather than
+/// as an `AmountRewrite`, which is why doubling lives on that type.
+fn template_is_idempotent(template: &GameActionTemplate) -> bool {
+    match template {
+        GameActionTemplate::ZoneChangeTo { .. } => true,
+        GameActionTemplate::RemoveCountersFromAffected { .. } => true,
+        GameActionTemplate::DrawCards { .. } => true,
+        GameActionTemplate::GainLife { .. } => true,
         GameActionTemplate::LoseLife { .. } => true,
     }
 }
@@ -1010,6 +1055,22 @@ fn check_order_invariance(
                     theirs,
                     chosen.id,
                     next
+                );
+            }
+            // The second clause, checked where it is cheap: applying the same
+            // substitute to its own output must not move it, or `k` — how many
+            // of the shared members ended up applying, which order *can* change
+            // — becomes observable.
+            let Rewrite::Instead(template) = &chosen.def.rewrite else {
+                unreachable!("matched one line above");
+            };
+            if let Ok(again) = substitute(chosen, template, next.clone(), subject) {
+                debug_assert!(
+                    &again == next,
+                    "CR 616.1 prompt suppressed as order-invariant was not: {:?} is not                      idempotent — it took {:?} to {:?}. Order decides how many of the                      shared members apply, so a substitute that compounds makes that                      observable.",
+                    chosen.id,
+                    next,
+                    again
                 );
             }
             return;
