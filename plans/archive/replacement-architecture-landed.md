@@ -2466,3 +2466,220 @@ game (`Avg turns` 30.9 → 30.8 at 50 games, gathers 1062 → 1058), which is
 §11 item 55's *answer-preserving is not stream-preserving* showing up a second
 time and the first time it was predicted before the run. Determinism green
 again.
+
+#### RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j–k) — ✅ landed 2026-09-12
+
+*Evicted 2026-09-12 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+
+**Builds:** decision 5 — the two variants and arms, the SBA batch members,
+704.7's per-player leg, the flag reset, `GameResult` on `GameState`,
+`Primitive::LoseGame`, `Primitive::WinGame`, `Primitive::SetLifeTotal` (CR
+119.5 — "the player gains or loses the necessary amount", proposed through
+`GainLife`/`LoseLife` so Rhox Faithmender's "3 becomes 10 becomes 17" ruling
+is a test here), `GameActionTemplate::PlayerWins`, the two rotation sites, and
+`fuzz_games --players N`. **Consumers:**
+
+- **Laboratory Maniac** — "If you would draw a card while your library has no
+  cards in it, you win the game instead." `DrawCard { cause: None }`, `You`,
+  `Instead(PlayerWins)`, gated on a new `Condition::LibraryEmpty` evaluated
+  at gather — the leaf's second customer is Jace, Wielder of Mysteries, a
+  planeswalker, so the leaf is written for one card and says so; CR 121.6a
+  is what makes the proposal reach the pipeline at all. Rulings, two, both
+  tests: *if you can't win (Angel's Grace), you don't lose for the attempted
+  draw either — the draw was still replaced* → Platinum Angel's row refuses
+  the `PlayerWins`, the draw never performs, no flag is set; *two Maniacs and
+  an each-player draw: APNAP, and the game ends at the first win* → needs an
+  each-player draw producer, which `EffectRecipient` lacks (RD-2's Kitsune
+  Palliator note); recorded on the card, not tested.
+- **Exquisite Archangel** — "Flying. If you would lose the game, instead exile
+  this creature and your life total becomes equal to your starting life
+  total." `PlayerLoses`, `You`, `Prevent` with a rider of `Exile(self)` and
+  `SetLifeTotal(starting)`. Rulings, nine, five are tests: *lethal damage to
+  it and to you at once: its effect applies, and you choose exile or
+  graveyard* → the SBA batch decides against one board, and the rider's exile
+  meets the death's `ZoneChange` as two proposals on one object — the CR 704.7
+  same-object collapse from RA-3, now with a player loss beside it; *drew
+  from an empty library: you won't lose again until you try again* → the
+  flag reset; *two Archangels: you choose which* → CR 616.1 among two
+  printed statics; *an effect saying you can't lose: doesn't apply* → Platinum
+  Angel's row ahead of the pipeline; *life -4 becomes 20 is a 24-life gain,
+  and cards that interact with gain see it* → Rhox Faithmender makes it 44,
+  which is the `SetLifeTotal` decomposition observed. **`ATOM-704.7-001`** —
+  Lich's Mirror's board, 0 life and an empty library in one check, one
+  replacement replacing both — is built with the Archangel; `COVERS` if the
+  atom's board is generic, `COVERS-PARTIAL` naming Lich's Mirror if it is not,
+  read at write time. Lich's Mirror itself waits on `ShuffleIntoLibrary`.
+- **Stunning Reversal** — "The next time you would lose the game this turn,
+  instead draw seven cards and your life total becomes 1. Exile Stunning
+  Reversal." A `CreateReplacement` row, `PlayerLoses`, `Uses::Once`,
+  `UntilEndOfTurn`, `Prevent` with a rider of `DrawCards(7)` and
+  `SetLifeTotal(1)`, then `Exile(self)` as the resolution's second instruction
+  (CR 608.2c, not part of the row). Rulings, ten, four are tests: *fewer than
+  seven cards: you lose immediately after* → the rider's draws flag the empty
+  library and the next check proposes a loss the spent row cannot see;
+  *everyone would lose at once but this applies to you: you win as soon as
+  everyone else has lost* → the four-player board, CR 104.2a from a batch
+  with four `PlayerLoses` members and one replaced; *can't lose: can't
+  apply*; *does nothing if you concede* → recorded, no harness.
+- **Platinum Angel** — "Flying. You can't lose the game and your opponents
+  can't win the game." Two `Effect::Restriction` statics, `Event {
+  PlayerLoses, affected_players: You }` and `Event { PlayerWins, Opponents }`.
+  Rulings, three: *no game effect can cause you to lose — 0 life, empty
+  library, ten poison, Phage — you keep playing* → the SBA proposal refused
+  every check, and the game continues through it (the first fuzz-reachable
+  game that runs past a lethal board); *concession still loses* → recorded;
+  *effects saying the game is a draw are unaffected* → CR 104.4c has no
+  producer, recorded.
+
+**`PERFORMANCE_POOL` +1, Laboratory Maniac**, predicted: a three-drop static
+draw watcher, and the first card that makes decking a *win* in a measured game
+— fuzz games deck out rarely, so the `--require` count and "games ended by a
+win" are the rows to read. Platinum Angel is registered and not pooled: a
+seven-drop that turns lethal boards into stalls would move avg turns by design
+and not by engine.
+
+**The four-player run is this PR's second measurement.** `fuzz_games
+--players 4` at 200 games on `performance`: zero panics is the bar, and every
+row it moves is written down as the *starting point* for RE-7 — item 108's
+permanents that stay — and for B3's 802.
+
+**Atoms:** `ATOM-704.7-001`, `ATOM-614.11-002` (Laboratory Maniac, the
+corpus's own example), `ATOM-104.2b-001` and `ATOM-104.3e-001` (Phase 8, the
+two primitives — covered where they are, not re-filed), `ATOM-119.5-001` and
+`-002` (Phase 8, `SetLifeTotal`, same), `ATOM-104.4a-001` (ALREADY-IMPL,
+gains its `COVERS:` from the four-loss batch), `ATOM-800.4j-001` as
+`COVERS-PARTIAL` (the priority half; "the turn continues without an active
+player" is RE-7's).
+
+##### As landed (2026-09-12)
+
+**Built as sized, with five corrections.**
+
+- **CR 104.1 is a line at the top of `execute_batch_inner`.** The row listed
+  the performers and the settlement and nothing about what happens *after* a
+  game ends. Stunning Reversal's four-player ruling answered it: the survivor
+  "wins the game as soon as everyone else has lost", and the seven cards the
+  rider would then draw are the game continuing to be over. One early return at
+  the chokepoint stops a decomposition's later inners, a resolution's later
+  instructions and the ending batch's riders at the same line; the state-based
+  check and the priority loop read the same field. It is also the one stream
+  change on the two-player pools — see Measured.
+- **CR 704.3's "performed" is read off the event log, not off the performed
+  set.** A loss Exquisite Archangel replaced performs no member, but its rider
+  performs — CR 614.6's modified event, CR 615.5's "the rest of the effect" —
+  and Stunning Reversal's eighth ruling ("you'll lose the game immediately
+  after") needs that to count as an action performed, or a priority window
+  opens between the draw that re-arms CR 704.5b and the check that reads it.
+  A refused proposal emits nothing, so the indestructible creature still does
+  not re-check forever. §11 item 61 says what this admits (item 127).
+- **`Primitive::Exile` and CR 608.2m at the stack were nowhere in the row.**
+  The Archangel's rider and Stunning Reversal's second instruction both exile
+  the effect's own source, so `Exile` stopped being a stub with `Implicit` as
+  the source and battlefield targets as the rest, and the stack's CR 608.2n
+  graveyard trip now checks the card is still there to make it.
+- **The flag reset is the check's, not the performer's**, which the sizing
+  left as "either". A replaced loss and a refused one both perform nothing,
+  and a flag the performer cleared would have re-proposed the same loss at
+  every later check — Platinum Angel's "you keep playing" would have been
+  "you are proposed for losing every time anyone gets priority".
+- **CR 506.2 at the attack-target list**, found by the harness this PR built:
+  a departed seat was still offered as a target, and the four-player table's
+  first numbers were a measurement of the random agent hitting empty chairs
+  (item 66).
+
+**Counted against the tree before writing, and the row was light where the
+prompt said it would be.** `player_lost` had 27 mentions in `src` against the
+row's "~4 `Game.result` readers": four direct writes in the sweep, two reads in
+`turns.rs`, two in `pipeline.rs`, one in `game.rs`, plus the tests. `fuzz_games`
+hard-coded two decks at three sites — the deck loop, the copies count and the
+outcome key — so `--players N` was ~90 harness lines, not ~50. Six tests
+already ran three or four players, and none of them a fuzz game.
+
+**Sized 1,800–2,100, read as 2,100–2,600 at the prompt, and shipped +2,211 /
+−272 in code** (docs excluded): engine **664** against ~550, cards **423**
+against ~400, harness **94** against ~80, tests **1,030** against ~800. Inside
+`engineering-practices.md` §4's band and inside the corrected read; over the
+row by the two columns the row could not have seen — the priority loop's
+rotation, the settlement and the two primitives in the engine column, and the
+rulings pass in the test column, for RE-3's reason: three of the four cards are
+about what does *not* happen.
+
+**Decided here, because the section left them open.**
+
+- **`Condition::LibraryEmpty` is evaluated at gather, not at application, and
+  it holds because of two rules that were already there.** CR 604.2 makes a
+  conditional static's effect exist while its condition holds, and CR 614.4
+  asks whether the effect exists *before the event* — so a Laboratory Maniac
+  whose library still has cards is not a candidate at all, and a Thought
+  Reflection beside it is never a prompt with one live option. CR 121.6a is
+  what puts the proposal in front of that gather: the draw reaches the pipeline
+  with nothing to draw, and the condition is true at exactly that moment. The
+  doubled draw is the board that separates the two readings — the first inner
+  takes the last card and the second is the win — and it is a test. The
+  evaluator is `settled_holds`, the one the layer pass and CR 613.11's cost
+  effects already share, so the leaf is one question wherever it is asked
+  (§11 item 64).
+- **`GameResult` on `GameState` moves "the game is over" onto the
+  chokepoint, and the stateful part is CR 104.1's "immediately".**
+  `Game::check_game_over` is deleted; `Game::is_over` and `Game::result` are
+  reads. The `PlayerWins` performer records a win; a batch that performed one
+  or more `PlayerLoses` settles CR 104.2a/104.4a once every member has
+  performed; nothing outside `engine::actions` writes the field. That is the
+  materialize-not-derive rule: a fact recorded once, at the batch that made it
+  true, and read thereafter.
+- **CR 104.2a is checked per batch, never per member.** Two players losing in
+  one check is a draw (104.4a); a performer that asked "is anyone left" after
+  the first of them would have crowned the second. The four-loss Stunning
+  Reversal board is the same rule from the other side — three perform, the
+  batch settles the survivor's win, and the rider that follows performs
+  nothing (§11 item 62).
+- **`never_happens` gains no arm.** RE-2 and RE-3 declined because the CR
+  names no rule making a 0-draw or a 0-loss a non-event; here there is no
+  amount at all, so there is nothing a zero could mean. The one "never
+  happens" the CR does state for these kinds — a player who has left cannot
+  lose again — is CR 800.4k's shape, a rule at the *proposal* gate, which is
+  where RE-1 put 800.4k and where the sweep's `in_game` guard is.
+
+**Glossary triage** (`check_glossary.py --suggest`, 418 doc-comment lines,
+13 candidates): *ruling*, *tested*, *refused*, *reasons*, *concession*,
+*pooled*, *rulings*, *sentence*, *expressible*, *flag(s)*, *pattern*, *wrapper*.
+No coinage — the CR's words, the practice's, and the types' own names.
+RE-3's outcome again, and the second time "nothing to add" was the answer.
+
+##### Measured (2026-09-12)
+
+**The middle arm is the prediction to the digit: `Replacement gathers` +1 per
+game and `Restriction queries` +1 per game on `performance` (999 → 1000, 1001
+→ 1002), every gameplay row identical to `main`, `Layer walks` identical.** The
+one row that moves besides is `Memo hits`, 61,652 → 61,444 (−0.3%), and it is
+the post-mortem tail: until this PR a player who had just lost kept receiving
+priority — and, with a random agent, casting spells — until the phase ended
+and `Game` noticed, and CR 104.1 at the priority loop removed those questions.
+So `registered vs main outside Timing: differ`, and the check is the gameplay
+aggregates, which are identical to the printed digit (§11 item 65). CPU/game
+across two sittings **−1.0% and −1.7%**, `ms / 1,000 walks` −1.0% and −1.7%,
+`CPU/turn p50` 0.440 → 0.440 and 0.490 → 0.480 — flat, inside the spread, and
+the sittings' absolute medians (15.7 and 17.5 ms) are §8's reminder that a
+stored ms number is machine state.
+
+**The pooled arm is a re-record, not a reading.** Laboratory Maniac, 80 → 81:
+`Layer walks` 385 → 373, `Layer frames` 4,629 → 4,487, `Dependency checks`
+41 → 34, CPU/game −4.7% and −5.0% across the two sittings. A 2/2 for three
+displacing a slot's share of costlier cards, and §3.1's rule stands — never
+A/B a number across a pool change. **`--require "Laboratory Maniac"`: cast
+203, resolved 201, in 117 of 200 games (58%), copies/deck 1.57**, board
+diversity 100%. **Games ended by a win: zero**, on `performance` and `stress`
+at two seats and at four. Fuzz games deck out rarely, as the section said; the
+number that says the path was walked is the 58%, and the one that says decking
+is a win a measured game can reach came from the pre-fix four-player run,
+whose ghost-attack-inflated 87-turn games decked out five times in 400
+(item 66). The two-player pool at 30 turns does not.
+
+**The four-player table is `engineering-practices.md` §3's**, recorded as
+RE-7's starting point with the two rows it is measured against: turns after a
+departure **21.2** per game and departed-owned permanents **32.1** at the end
+on `performance` (22.6 and 34.1 on `stress`). Zero errors, zero panics on both
+pools; one `stress` game ran to its 200th turn and ended there with a win.
+Three shell runs at one seed line-for-line outside `=== Timing ===`, and
+`fuzz_ab.py`'s own check `deterministic: yes`.
