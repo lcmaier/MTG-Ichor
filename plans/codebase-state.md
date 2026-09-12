@@ -219,6 +219,25 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **How to use this section:** before opening the first ticket of a listed target system, re-read that system's subsection and treat the items as prerequisites to schedule before or alongside the system's core work.
 
+**What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
+answer sized under about thirty lines, with a fixture that can prove it, is
+**fixed in the PR that found it**, not recorded. This list is what a *later
+system* has to carry — a facility that does not exist yet, an arm with no
+customer, a wrong answer whose fix is a phase — and an entry longer than its
+fix is the sign it should have been a commit. RE-6's first cut recorded six
+entries and four were that shape (`replacement-architecture.md` §11 item 67).
+**The backlog of small fixes as of 2026-09-12**, read off every open item's
+own `**Sized:**` line, for a miscellaneous PR: items 12 (an explicit `None`
+toughness arm, 10 lines), 49 (`is_prohibited`'s entering-permanent leg, 20),
+84 (two dead helpers, 20), 103 (a `debug_assert!` on the swallowed filter
+`Err`, 10), 117 (land drops reset at turn begin, 10), 118 (the repeated
+cleanup step announced, 10), 32 (`DeckLimits` validated, 40) and "Before card
+breadth" item 1 (CR 208.3's no-P/T gate, 10) — about 130 lines of engine and
+their fixtures, no new arm among them; plus two perf items that want the A/B
+beside them, 22 (the counter fast path's set, 15) and 50 (one enumeration per
+CDA, 30), and one harness diagnostic, 104 (an activation counter, 20). The
+other small-sized items are each one card or one system away and stay.
+
 **Item ids are section-scoped, not unique (decided 2026-09-03).** Four runs
 share the numbers 1–65: the main run, which spans every dated "Found by …"
 subsection, and one run each inside "Before Layers", "Before card breadth",
@@ -2894,19 +2913,16 @@ games; with Humility forced beside her, both are on the board in 52%.
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
 
-73. **A conditional replacement or restriction static is inert.**
-    `register_static_effects` inserts a gate source when `ability.effect`
-    *is* an `Effect::Replacement` or `Effect::Restriction`; a conditional
-    one — `Effect::Conditional(cond, Replacement)`, Trinisphere's shape on a
-    replacement — is never inserted, and `gather`/`is_prohibited` match the
-    body the same way. The cost gate sees through the wrapper with
-    `Effect::as_cost_modification`, which is the fix's shape for both.
-
-    **Reachability (2026-09-07):** unreachable — no registered card prints
-    a conditional replacement or restriction static.
-
-    **Sized:** an `as_replacement`/`as_restriction` peel used at the three
-    sites each, ~40 lines; with the first such card.
+73. **~~A conditional replacement or restriction static is inert.~~ — ✅
+    closed 2026-09-12 (RE-6).** `register_static_effects` records a source
+    through the `Effect::Conditional` wrapper for both kinds, and both sweeps
+    — `replacement::gather`'s static leg and `is_prohibited`'s — peel it and
+    ask `settled_holds` at the proposal, the evaluator CR 613.11's cost effects
+    already use. Laboratory Maniac is the first such card on the replacement
+    side; the restriction side is a fixture
+    (`a_conditional_static_cant_is_honoured_while_its_condition_holds`).
+    *Original entry:* a conditional one was never inserted as a source, and
+    the sweeps matched only the bare body.
 
 74. **The generic split and the mana window read only the first `Cost::Mana` —
     closed by CM-1's merge.** — ✅ closed, archived.
@@ -5621,10 +5637,10 @@ effect's own source and for a targeted card wherever it is,
 `AmountExpr::StartingLifeTotal`, `Condition::LibraryEmpty` and the CR 604.2
 leg in both static sweeps through `settled_holds`; `fuzz_games --players N`.
 Four cards — Laboratory Maniac (pooled), Exquisite Archangel, Stunning
-Reversal, Platinum Angel. Items 6 (the loss half), 112, 113 (the priority
-half) and 123 close; 108 is re-dated and measured; 122 is re-owned; "Before
-Commander" item 4's fuzz mode is built. `replacement-architecture.md` §11
-items 61–67. **One line here, not six**: the review of this PR's first cut
+Reversal, Platinum Angel. Items 6 (the loss half), 73, 112, 113 (the
+priority half) and 123 close; 108 is re-dated and measured; 122 is re-owned;
+"Before Commander" item 4's fuzz mode is built. `replacement-architecture.md`
+§11 items 61–67. **One line here, not six**: the review of this PR's first cut
 found four small wrong answers recorded as debt with fixes shorter than their
 entries, and they were fixed instead (§11 item 67 and the rule at the foot of
 this section); a fifth was CR 104.3f, which is a catch-all and not a
@@ -5665,7 +5681,6 @@ migration.
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
 
-- Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
-- **A wrong answer sized under about thirty lines, with a fixture that can prove it, is fixed in the PR that found it — not recorded here.** This list is what a *later system* has to carry (a facility that does not exist yet, an arm with no customer, a wrong answer whose fix is a phase); an entry longer than its fix is the sign it should have been a commit. Adopted 2026-09-12 at RE-6's review, which found four such entries in one PR (`replacement-architecture.md` §11 item 67).
+- Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

@@ -451,8 +451,19 @@ object to two zones turn the CR 704.7 same-subject *collapse* into a *prompt*
 (~40 lines and a `ChoiceKind`). Lich's Mirror's fifteenth ruling is the same
 board with a shuffle. The engine takes the graveyard outcome today and never
 asks (`codebase-state.md` item 125; `replacement-architecture.md` §11 item
-63). Two customers now, which is §8c's bar for building a leaf; the gate that
-closed RD-5 was about *size*, and this entry's size is unchanged.
+63). **Two customers is the bar, and it is met — what is open is the slot,
+not the case.** §8c's "two customers before a leaf" was never what closed
+RD-5; its gate closed on *shape* — the ≈30 sites above, two of them on the
+path every combat step runs — and that table is unchanged. What the second
+customer changes is the cost of delay: the first was one unregistered card,
+and this one is a registered card answering a printed ruling without the
+choice the ruling names, reachable in `stress`. Nothing in the project's
+rules asks for a third. Recommended (2026-09-12, RE-6's review): its own PR
+under the RD-5 heading, sized there at ~300–400 plus the collapse-to-prompt,
+**after RE-7** — the two commute, RE-7 is the cheaper half of the four-player
+work RE-6 opened, and a change to `apply_replacements`' return shape should
+not ride inside a rules phase. Ordering authority stays with `CLAUDE.md`'s
+critical path, which lists neither; that is the owner's line to add.
 
 ### 2.23 Battles (CR 310), and CR 120.3h
 
