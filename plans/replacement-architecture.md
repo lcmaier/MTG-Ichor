@@ -4123,8 +4123,10 @@ number before running:
   200 games / seed 12345: patterns over events that already flow cost nothing
   until a card watches one. CPU median 15.49 vs 15.73 ms (**−1.5%**, rounds
   straddling: main 15.36–16.11, middle 15.32–15.77) — flat.
-  **The shipped arm's +4.0% is the card, and `ms / 1,000 walks` is what says
-  so**: +0.2%, so the walk did not get slower, there are more of them. Rhox
+  **The shipped arm's CPU/game is up and it is the card**, which the per-unit
+  rows are what say: two sittings gave +4.0% and +2.1%, both inside the spread,
+  while `ms / 1,000 walks` went +0.2% then −1.6% and `CPU/turn p50` +2.3% then
+  0.0%. The walk did not get slower; there are more of them. Rhox
   Faithmender makes the games longer (avg turns 29.6 → 29.8, spells 22.8 →
   23.4, damage events 19.6 → 21.3, total damage 56.1 → 61.1, life changes
   12.9 → 13.9), and `Replacement gathers` +25/game is the gain it doubles

@@ -797,9 +797,13 @@ templates and a field on `Restriction::Event` cost a game nothing until a card
 watches one. CPU median 15.73 → 15.49 ms (−1.5%; main 15.36–16.11, middle
 15.32–15.77 — straddling, so flat). Seven rounds, on RE-2's rule.
 
-*The shipped arm is +4.0% CPU and it is the card, which `ms / 1,000 walks` is
-what says.* That row moves **+0.2%** — the walk did not get slower, there are
-more of them. Rhox Faithmender is a 1/5 lifelinker that doubles its own
+*The shipped arm's CPU/game is up and it is the card, which the per-unit rows
+are what say.* Two sittings put CPU/game at **+4.0% and +2.1%** — both inside
+§8's 2–6% spread, both with the arms' rounds barely straddling, and the 1.9
+points between them is what §8 already says a stored ms number is. What is
+stable across both is the reading that matters: `ms / 1,000 walks` **+0.2% then
+−1.6%**, and `CPU/turn p50` **+2.3% then 0.0%**. The walk did not get slower;
+there are more of them. Rhox Faithmender is a 1/5 lifelinker that doubles its own
 lifelink, so at 200 games `performance` runs 29.6 → 29.8 turns, spells 22.8 →
 23.4, damage events 19.6 → 21.3, total damage 56.1 → 61.1, life changes 12.9 →
 13.9, layer walks 371 → 385. `Replacement gathers` **974 → 999 (+25)** is one
@@ -811,22 +815,22 @@ gathers, 0.450 → 0.460 `CPU/turn p50`, which is the slot.
 | | performance (80 cards) | stress (129 cards) |
 |---|---|---|
 | P0 / P1 | 29 (58.0%) / 21 (42.0%) | 30 (60.0%) / 20 (40.0%) |
-| Avg turns | 31.9 | 30.9 |
-| Spells cast | 24.9 | 22.1 |
+| Avg turns | 31.9 | 30.8 |
+| Spells cast | 24.9 | 22.0 |
 | Lands played | 19.2 | 18.2 |
 | Combat w/ atk | 11.6 | 9.3 |
 | Creatures died | 7.8 | 4.9 |
-| Damage events | 23.9 | 20.3 |
-| Total damage | 62.2 | 56.4 |
+| Damage events | 23.9 | 20.1 |
+| Total damage | 62.2 | 55.6 |
 | Life changes | 15.4 | 14.6 |
-| **Layer walks** | **406** | **496** |
-| **Board walks** | **264** | **297** |
-| **Memo hits** | **67,873** | **78,210** |
-| **Layer frames** | **5,107** | **5,940** |
+| **Layer walks** | **406** | **494** |
+| **Board walks** | **264** | **296** |
+| **Memo hits** | **67,873** | **77,925** |
+| **Layer frames** | **5,107** | **5,922** |
 | **Frames/walk** | **12.58** | **11.98** |
 | **Dependency checks** | **32** | **13** |
-| **Replacement gathers** | **1086** | **1062** |
-| **Restriction queries** | **1089** | **1067** |
+| **Replacement gathers** | **1086** | **1058** |
+| **Restriction queries** | **1089** | **1063** |
 | Prevention allocations | 0.00 | 0.04 |
 
 **Reachability.** `--require "Rhox Faithmender"` on `performance`, 200 games /
@@ -848,6 +852,17 @@ target that has left is a spell that does not resolve.
 `default_registry` grew by six, so the middle and shipped arms play different
 decks from `main` on that pool. `Avg turns` 29.0 → 32.3 and `Memo hits` +44% are
 the six new cards being drawn.
+
+**Re-run at the PR's review, and the stress column moved by a hair — the second
+instance of RE-2's rule, and the first that was predicted.** The review added
+`ordering_cannot_change_outcome`'s fourth shape, which suppresses CR 616.1's
+prompt between two identical substitutions. *Answer-preserving is not
+stream-preserving*: `RandomDecisionProvider::pick_n` draws from its own `StdRng`
+on every prompt, so a game in which two Tainted Remedies met one life gain lost
+a draw and shifted from there. `performance` is **identical to the digit** — no
+pooled card carries two identical `Instead` statics — and `stress` moves `Avg
+turns` 30.9 → 30.8, gathers 1062 → 1058, `Memo hits` −0.4%: less than one game's
+worth, which is the check the rule prescribes. The table above is the re-run.
 RC-4's entry suppression had the same property and nothing said so; this is the
 line that says it.
 

@@ -2422,9 +2422,13 @@ the card", and that is the byte-level result: two `EventPattern` arms, an
 `Restriction::Event` change no counter in a game with no card that uses them.
 CPU median 15.49 vs 15.73 ms (−1.5%), rounds straddling.
 
-**The shipped arm is +4.0% CPU, and it is the card.** `ms / 1,000 walks` is
-+0.2%: the walk did not get slower, there are more of them, because Rhox
-Faithmender makes the games longer.
+**The shipped arm's CPU/game is up, and it is the card.** Two sittings — the
+phase's and the review's — gave **+4.0%** and **+2.1%**, which is the honest
+width of that number here: both are inside §8's 2–6% spread and the arms' rounds
+straddle in both. The per-unit rows are the stable ones and they say the same
+thing twice: `ms / 1,000 walks` **+0.2%** then **−1.6%**, `CPU/turn p50`
+**+2.3%** then **0.0%**. The walk did not get slower; there are more of them,
+because Rhox Faithmender makes the games longer.
 
 | | main | new | Δ |
 |---|---:|---:|---|
@@ -2436,8 +2440,8 @@ Faithmender makes the games longer.
 | **Layer walks** | **371** | **385** | **+3.8%** |
 | **Replacement gathers** | **974** | **999** | **+2.6%** |
 | **Restriction queries** | **977** | **1001** | **+2.5%** |
-| CPU/game median | 15.73 ms | 16.36 ms | **+4.0%** |
-| ms / 1,000 walks | 42.40 | 42.49 | **+0.2%** |
+| CPU/game median | 15.73 ms | 16.36 ms | **+4.0%** (re-run: +2.1%) |
+| ms / 1,000 walks | 42.40 | 42.49 | **+0.2%** (re-run: −1.6%) |
 
 `Replacement gathers` +25/game is one per doubled gain, not a sweep the phase
 added — the sweep was already running on every lifelink gain, finding nothing.
@@ -2454,3 +2458,11 @@ threshold and never a comparison (§3.1).
 **Determinism.** `fuzz_ab` reports `deterministic: yes` on all three arms, and
 three shell `fuzz_games` runs at one seed are line-for-line identical outside
 `=== Timing ===`.
+
+**Re-measured at the review (2026-09-12)**, because the fourth suppression shape
+removes a prompt. `performance` is **identical to the digit** — no pooled card
+carries two identical `Instead` statics — and `stress` moves by less than one
+game (`Avg turns` 30.9 → 30.8 at 50 games, gathers 1062 → 1058), which is
+§11 item 55's *answer-preserving is not stream-preserving* showing up a second
+time and the first time it was predicted before the run. Determinism green
+again.
