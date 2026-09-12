@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch replacement/re-2-draw at 9cf5b2d (revised at the
+  2026-09-12 review, which changed trace A) and the
+  frozen CR `tmnt`; never maintained — a later phase that changes these paths
+  gets its own page. Self-contained: fonts from Google Fonts, mermaid from
+  jsDelivr, nothing else.
+-->
+<title>A Draw Carries Its Lineage — RE-2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.registry { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .diff-old { color: var(--decide); }
+  .diff-new { color: var(--changed); font-weight: 600; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+</style>
+
+
+<div class="page">
+
+<h1>A Draw Carries Its Lineage</h1>
+<p class="lede">RE-2 split drawing into CR 121.2a's <em>instruction</em> and CR 121.1's <em>draw</em>, and made the second a <b>decomposition</b> of the first — the engine's first events that continue their parent's CR 614.5 applied set instead of starting a fresh one. This page walks four boards through the code as it stands, read by read, and ends in the table of where each read differs from the single <code>DrawCard</code> that RB left and RD never touched.</p>
+<p class="meta"><span class="pin">replacement/re-2-draw @ 9cf5b2d</span><span class="pin">CR tmnt</span><span class="pin">2026-09-11, revised 09-12</span> Authority for the design: <code>plans/replacement-architecture.md</code> §3.2d, §4.1a and §9 (RE decision 1), with §11 items 18, 42, 53. Tests: <code>mtgsim/tests/phase_re2_integration_test.rs</code>.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>Four boards. Three of them were arguments before they were tests — two printed rulings overturned this document's own encoding of a card, one of them three hours after the other correction was written down — and the fourth is the board whose failure mode is not a wrong answer but a stack overflow.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td><b>Two Thought Reflections</b>, one draw</td><td>Does a decomposed event continue its parent's applied set — and what does the engine do if it does not?</td><td><code>test_two_thought_reflections_draw_four_not_infinity</code></td></tr>
+<tr><td><b>B</b></td><td><b>Teferi's Ageless Insight</b> beside a Thought Reflection, in the draw step</td><td>Where does "except the first one you draw in each of your draw steps" live, when nothing counts cards drawn this step?</td><td><code>teferi_beside_thought_reflection_draws_three_in_the_draw_step</code></td></tr>
+<tr><td><b>C</b></td><td><b>Alms Collector</b> beside an opponent's Thought Reflection</td><td>Which half of "instead you and that player each draw a card" has to be the rewrite, and what happens to the other filing?</td><td><code>alms_collector_does_not_apply_again_to_the_draws_it_produced</code></td></tr>
+<tr><td><b>D</b></td><td><b>Three Notion Thieves</b>, one draw</td><td>Where does CR 616.1's chooser come from once a substitution has moved the event's subject?</td><td><code>three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order</code></td></tr>
+</table>
+</div>
+<div class="prose">
+<p>§9 named three boards for this page — two Thought Reflections, Alms Collector beside one, and the three-Thief board. C grew a second half while the page was being written, because the Alms Collector encoding §9 sized turned out to be the one that loops; the page walks both encodings side by side, which is the one thing the test suite cannot show, since the test only proves the loop does not happen.</p>
+</div>
+
+<h3>The path, with RE-2's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  PROD["Primitive::DrawCards / process_draw_step"]:::changed --> EA["execute_action(DrawCards)"]
+  EA --> EBI["execute_batch_inner(batch, inherited)"]:::changed
+  EBI --> AR["apply_replacements(group, inherited)"]:::changed
+  AR --> SEED["applied = inherited.clone()"]:::new
+  SEED --> GATH["is_prohibited + gather<br/>pattern_watches: DrawCards | DrawCard"]:::changed
+  GATH -->|two or more| ASK["ask_choose_replacement<br/>(the affected player)"]:::decide
+  GATH -->|one| PICK
+  ASK --> PICK["chosen"]
+  PICK --> APPLY["apply_rewrite<br/>Instead(GameActionTemplate::DrawCards)"]:::new
+  APPLY --> SUB["a new DrawCards: n, player, same cause"]:::new
+  SUB --> GATH
+  GATH -->|no candidate| OUT["each member: its decided event<br/>+ the group applied set"]:::changed
+  OUT --> P2["phase 2: perform_action(action, lineage)"]:::changed
+  P2 --> DEC{"DrawCards?"}
+  DEC -->|yes| LOOP["for i in 0..n:<br/>execute_actions_inheriting(<br/>DrawCard cause = if i==0 outer else Effect<br/>, lineage)"]:::new
+  DEC -->|no| PERF["draw_card → change_zone → CardDrawn"]
+  LOOP --> EBI
+  P2 --> P3["phase 3: resolve_rider — fresh lineage"]
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+  classDef decide fill:#F8E8EA,stroke:#8A2F3B,color:#1B2226;
+</pre>
+<div class="legend"><span class="n">new in RE-2</span><span class="c">changed by RE-2</span><span class="d">a player is asked</span></div>
+<div class="prose">
+<p><b>The cycle in the middle is the whole page.</b> <code>execute_batch_inner</code> reaches <code>perform_action</code>, which reaches <code>execute_actions_inheriting</code>, which reaches <code>execute_batch_inner</code> again — and the only thing that stops it is the set carried around that loop. The read tags below are the board <span class="read board">board</span>, the replacement registry <span class="read registry">registry</span>, a player's answer <span class="read player">player</span>, and the applied set travelling down from the enclosing decision <span class="read state">lineage</span>.</p>
+</div>
+
+<h2>Trace A — two Thought Reflections, one draw</h2>
+<div class="prose">
+<p>Player 0 controls two Thought Reflections (<em>"If you would draw a card, draw two cards instead"</em> — not legendary, so a board can hold two) and resolves an instruction to draw one card. Its own ruling gives the answer: <em>"if you have two Thought Reflections on the battlefield, you'll draw four times the original number. If you have three, you'll draw eight times."</em></p>
+</div>
+<div class="callout rule"><b>CR 614.5</b> — "A replacement effect doesn't invoke itself repeatedly; it gets only one opportunity to affect an event <b>or any modified events that may replace that event</b>." The second clause is the whole of this page. A decomposed draw is such a modified event; a rider's draw is not.</div>
+<ol class="trace">
+<li class="changed"><span class="fn">Primitive::DrawCards(Fixed(1))</span> proposes <b>one instruction</b>: <code>execute_action(DrawCards { player: 0, n: 1, cause: Effect })</code>. Before RE-2 this arm looped <code>execute_action(DrawCard)</code> <code>n</code> times and there was no instruction at all.</li>
+<li><span class="fn">execute_batch_inner(batch, inherited = {})</span>. One member, one subject — <span class="fn">subject_of(DrawCards)</span> is <code>Player(0)</code> — so one group.</li>
+<li class="new"><span class="fn">apply_replacements</span>, iteration 1: <code>applied = inherited.clone()</code> = <code>{}</code>. <span class="fn">gather</span> sweeps the battlefield <span class="read board">board</span> and reads each permanent's <em>effective</em> ability list; both Reflections offer their <code>ReplacementDef</code>, and <span class="fn">pattern_watches</span> asks <code>(EventPattern::DrawCard, GameAction::DrawCards)</code> — <b>no arm matches</b>. Neither applies. <code>candidates.is_empty()</code> → return <code>([(0, Some(DrawCards{1}))], {})</code>.</li>
+<li class="new"><b>Phase 2.</b> <span class="fn">perform_action(DrawCards { n: 1 }, lineage = {})</span> <span class="read state">lineage</span>. The loop runs once: <code>i == 0</code>, so the inner takes the outer's <code>cause</code> (<code>Effect</code>), and <span class="fn">execute_actions_inheriting([DrawCard { player: 0, cause: Effect }], ctx, {})</span> opens a batch that <em>joins</em> the enclosing one — the draws are the result of the instruction, which is §4.2's default.</li>
+<li class="new"><span class="fn">apply_replacements</span> on the inner, <code>applied = {}</code>. Now <span class="fn">pattern_watches</span> matches <code>(EventPattern::DrawCard { cause: None }, GameAction::DrawCard)</code> for both Reflections; <span class="fn">set_affects</span> asks <code>PlayerSet::You.contains(0, 0)</code> <span class="read board">board</span> → both. Two candidates, both class <code>Other</code> — and <span class="fn">ordering_cannot_change_outcome</span> is <b>true</b>, so <b>nobody is asked</b>. Two draw doublers are order-invariant for the multiplier shape's reason one level out, which the review of this PR established and §11 item 55 records: whichever applies first, the total is the product of their counts. The first candidate in <code>battlefield_ids_ordered</code> is taken.</li>
+<li class="new">TR₁, then. <code>applied.insert(TR₁)</code>. <span class="fn">apply_rewrite</span> takes the <code>Instead(GameActionTemplate::DrawCards { n: 2, player: None })</code> arm: <span class="fn">draw_recipient</span> answers <code>None</code> → the affected player, <code>0</code>. The substitute is <code>DrawCards { player: 0, n: 2, cause: Effect }</code> — <b>the instruction</b>, and it keeps the cause it replaced, because CR 614.6 makes it the original in modified form.</li>
+<li>Iteration 2 re-gathers against the substituted event (CR 616.1f). <code>(EventPattern::DrawCard, GameAction::DrawCards)</code> matches neither Reflection; <code>(EventPattern::DrawCards, …)</code> is nobody's here. No candidates → return <code>([(0, Some(DrawCards{2}))], <b>{TR₁}</b>)</code>.</li>
+<li class="new"><b>Phase 2, and the load-bearing line.</b> <span class="fn">perform_action(DrawCards { n: 2 }, lineage = {TR₁})</span> <span class="read state">lineage</span>. Two inners, each through <span class="fn">execute_actions_inheriting(…, {TR₁})</span>. Inner 0 takes the outer's cause; inner 1 is stamped <code>Effect</code> — the same here, since the outer was already <code>Effect</code>.</li>
+<li class="new">Inner 0: <code>applied = {TR₁}</code>. <span class="fn">gather</span> offers both Reflections; the <code>.filter(|c| c.def.exempt_from_614_5 || !applied.contains(&amp;c.id))</code> leg drops TR₁. <b>One candidate</b> — so <span class="fn">must_choose_among</span> returns a list of one and <b>nothing is asked</b>. TR₂ applies → <code>DrawCards { n: 2 }</code>, <code>applied = {TR₁, TR₂}</code>.</li>
+<li>Its two inners inherit <code>{TR₁, TR₂}</code>; both Reflections are filtered; <span class="fn">draw_card</span> runs twice <span class="read board">board</span> — two <code>ZoneChange { cause: Drawn }</code> and two <code>CardDrawn</code>. Inner 1 of step 8 repeats the whole of steps 9–10. <b>Four cards.</b></li>
+</ol>
+<div class="callout before"><b>Without the inheritance, on the same board.</b> Step 9 seeds <code>applied = {}</code> instead of <code>{TR₁}</code>. Both Reflections are candidates again, so <code>must_choose_among</code> returns <b>two</b> and the pipeline prompts — at <b>depth two</b>, before anything has had time to get deep. Each of the two inners then becomes an instruction of two, whose inners become instructions of two, and <code>perform_action → execute_actions_inheriting → execute_batch_inner → perform_action</code> recurses until the thread's stack is gone. Not a wrong number: <code>STATUS_STACK_OVERFLOW</code>, which aborts the whole test binary rather than one test.</div>
+<div class="callout"><b>The bound is the invariant the applied set already implies.</b> A decomposing call at depth <code>d</code> exists because <code>d - 1</code> substitutions happened above it, and a substitution inserts an instance — so <code>d &lt;= inherited.len() + 1</code> on any correct board, and <span class="fn">execute_actions_decomposing</span> asserts it in debug builds. Break the inheritance and depth climbs while the set does not: it fires at <b>step 9, depth 2</b>, naming the rule, long before the recursion is deep enough to overflow the stack and take the whole test binary with it. Mutation-checked.<br><br><b>Derived, not chosen</b>, which is the difference between this and a cap. CR 614.5's applied set is still the termination argument; the assertion computes the same bound the other way rather than imposing a number beside it. The first CR 903.9b-exempt draw replacement — there is none, the exemption is about commanders — would relax it by exactly its count.</div>
+<div class="callout before"><b>What this bound replaced, and why.</b> Until the review, the bound was the provider: a correct run made exactly one CR 616.1 prompt, so priming <code>ScriptedDecisionProvider</code> with one expectation turned the second into <code>unexpected pick_n call</code>. Suppressing the prompt took that away — and the replacement is better on its own terms, because it does not depend on the board being one that asks. Every draw board is bounded now, including <b>C</b>'s and <b>D</b>'s.</div>
+<div class="prose">
+<p><b>Three copies are 2³ by the same road</b>, and they are a separate board rather than a flourish: two copies are also consistent with "each draw is doubled once per copy after the first", which three separate. <code>three_thought_reflections_draw_eight</code> makes no prompt either: three candidates commute exactly as two do.</p>
+</div>
+
+<h2>Trace B — Teferi's Ageless Insight beside a Thought Reflection, in the draw step</h2>
+<div class="prose">
+<p>Player 0 controls both and takes their draw step. Teferi's reads <em>"If you would draw a card <b>except the first one you draw in each of your draw steps</b>, draw two cards instead"</em>, and the answer is <b>three</b> cards. Four would mean a substituted instruction started fresh; two would mean the exception belonged to the instruction rather than to each draw.</p>
+</div>
+<div class="callout rule"><b>Nothing counts cards drawn this step.</b> <code>DrawCause</code> has two arms, the draw step is the engine's one <code>TurnBased</code> producer, and the stamping rule is three tokens of code in the outer's performer: <code>if i == 0 { cause } else { DrawCause::Effect }</code>. The exception is the shape of the event tree.</div>
+<ol class="trace">
+<li class="changed"><span class="fn">process_draw_step</span> proposes <code>DrawCards { player: 0, n: 1, cause: <b>TurnBased</b> }</code>. CR 504.1's turn-based action is "draw a card" — one "draw" of one card, and it proposes the outer like every other instruction so that Alms Collector's counting ruling has one rule to read rather than two shapes.</li>
+<li>Iteration 1 on the instruction: neither card's <code>EventPattern::DrawCard</code> matches a <code>DrawCards</code>. No candidates.</li>
+<li class="new"><span class="fn">perform_action(DrawCards { n: 1, cause: TurnBased }, {})</span>: <code>i == 0</code> → the inner is <code>DrawCard { cause: <b>TurnBased</b> }</code>.</li>
+<li class="new"><span class="fn">gather</span> on that inner <span class="read board">board</span>: Thought Reflection's pattern is <code>DrawCard { cause: <b>None</b> }</code> → matches. Teferi's is <code>DrawCard { cause: <b>Some(Effect)</b> }</code> → <code>Some(Effect) == TurnBased</code> is false → <b>does not match</b>. One candidate, no prompt. TR applies.</li>
+<li class="new"><span class="fn">apply_rewrite</span>: the substitute is <code>DrawCards { n: 2, cause: <b>TurnBased</b> }</code>. <b>The cause travels</b> — CR 614.6, the modified event occurs in the original's place, and this is still the draw step's instruction. <code>applied = {TR}</code>.</li>
+<li class="new"><span class="fn">perform_action(DrawCards { n: 2, cause: TurnBased }, {TR})</span> — and here the two inners are <em>different</em>:
+  <ul>
+    <li><code>i == 0</code> → <code>DrawCard { cause: <b>TurnBased</b> }</code>, inherited <code>{TR}</code>. TR is filtered; Teferi does not match <code>TurnBased</code>. <b>Card 1</b>, undoubled — the one the card excepts.</li>
+    <li><code>i == 1</code> → <code>DrawCard { cause: <b>Effect</b> }</code>, inherited <code>{TR}</code>. TR filtered; <b>Teferi matches</b>. One candidate, no prompt.</li>
+  </ul>
+</li>
+<li class="new">Teferi's substitute is <code>DrawCards { n: 2, cause: <b>Effect</b> }</code>, <code>applied = {TR, Teferi}</code>. Its <em>first</em> inner is <code>Effect</code> too, because the stamp copies the outer's cause and the outer is no longer the draw step's. Both inners are filtered against both effects. <b>Cards 2 and 3.</b></li>
+</ol>
+<div class="callout"><b>Read step 7 twice.</b> "The first inner carries the outer's cause" is <em>not</em> "the first inner is always <code>TurnBased</code>". Once a doubling has been applied to an <code>Effect</code> instruction, its first card is an <code>Effect</code> card too — which is why the recursion stops at three rather than producing a fresh excepted card at every level. The rule reads as one sentence and is really two: the exception belongs to the draw step's <em>first</em> draw, and the tree is what remembers which one that was.</div>
+<div class="prose">
+<p>The two halves alone are the boards either side of this one. <code>teferi_excepts_the_draw_steps_first_card</code> takes a draw step with Teferi and nothing else: one card, undoubled. <code>teferi_doubles_a_draw_that_is_not_the_draw_steps</code> takes the same step and then a spell: three cards, one from the step and two from the spell.</p>
+</div>
+
+<h2>Trace C — Alms Collector, in both encodings</h2>
+<div class="prose">
+<p>Player 0 controls Alms Collector (<em>"If an opponent would draw two or more cards, instead you and that player each draw a card"</em>); player 1 controls Thought Reflection and resolves an instruction to draw two.</p>
+<p>This is the trace §9 named, and it did not survive the writing of the test. The section sized the card as <code>Prevent</code> with a rider of two draws, on §3.2d's rule that heterogeneous multiplicity goes in <code>then</code>. Both encodings are walked below because the difference between them is a printed ruling, and because only one of them terminates.</p>
+</div>
+<div class="callout rule"><b>Alms Collector's second ruling</b> — "Once a replacement effect has been applied to an event, it can't be applied again to the resulting events. For example, once Alms Collector's replacement effect has modified the effect of a player's Divination, <b>Thought Reflection can double that player's resulting card draw without Alms Collector's replacement effect applying again</b>."</div>
+
+<h3>C — as shipped: <code>Instead(DrawCards { n: 1 })</code> plus one rider</h3>
+<ol class="trace">
+<li><span class="fn">Primitive::DrawCards(Fixed(2))</span> for player 1 → <code>DrawCards { player: 1, n: 2, cause: Effect }</code>.</li>
+<li class="new">Iteration 1. <span class="fn">pattern_watches</span> asks <code>(EventPattern::DrawCards { at_least: Some(2) }, GameAction::DrawCards { n: 2 })</code> → <code>2 >= 2</code> → matches; <span class="fn">set_affects</span> asks <code>PlayerSet::Opponents.contains(0, 1)</code> <span class="read board">board</span> → yes. Thought Reflection watches a <code>DrawCard</code> and is not offered. One candidate, no prompt.</li>
+<li class="new"><span class="fn">apply_rewrite</span>: <code>Instead(DrawCards { n: 1, player: None })</code> on a <code>DrawCards</code> — the arm's <b>second leg</b>, an instruction rewritten into a smaller instruction. The affected player keeps the draw: <code>DrawCards { player: 1, n: 1, cause: Effect }</code>. <code>applied = {Alms}</code>. One <code>Rider</code> is queued for "you draw a card", subject <code>Player(1)</code>.</li>
+<li>Iteration 2: <code>at_least: Some(2)</code> against <code>n: 1</code> → no. Return <code>([(0, Some(DrawCards{1}))], <b>{Alms}</b>)</code>.</li>
+<li class="new"><span class="fn">perform_action(DrawCards { n: 1 }, lineage = {Alms})</span> <span class="read state">lineage</span> → one inner, inherited <code>{Alms}</code>. Thought Reflection matches and applies → <code>DrawCards { n: 2 }</code>, <code>applied = {Alms, TR}</code>.</li>
+<li class="new">Iteration on the substituted instruction: Alms Collector's pattern <b>matches again</b> (<code>n: 2</code>, still an opponent's) — and the <code>applied</code> filter drops it. <b>That is the ruling, and it is the only place in the trace where it is enforced.</b> No candidates.</li>
+<li>Two inners inherit <code>{Alms, TR}</code>; both are filtered; player 1 draws <b>2</b>.</li>
+<li>Phase 3: <span class="fn">resolve_rider</span> proposes the controller's draw through <span class="fn">resolve_effect</span> → a <em>fresh</em> batch and a fresh applied set (§3.2d containment). Thought Reflection is player 1's and <code>PlayerSet::You</code> does not contain player 0, so nothing applies. Player 0 draws <b>1</b>. <b>Three cards, and it terminates.</b></li>
+</ol>
+
+<h3>C′ — <b>the same board</b>, against the encoding §9 sized: <code>Prevent</code> plus two riders</h3>
+<div class="prose">
+<p>The prime means the board is unchanged and one thing about the engine is not — the notation <b>A′</b> uses on the RD-2 page. So: player 0 still controls Alms Collector, player 1 still controls Thought Reflection and still resolves an instruction to draw two. The only difference is Alms Collector's <code>ReplacementDef</code>, which here is <code>Rewrite::Prevent</code> with a rider of <em>two</em> draws — "you draw a card" and "that player draws a card" — instead of the shipped <code>Instead(DrawCards { n: 1 })</code> with one.</p>
+</div>
+<ol class="trace">
+<li>Iteration 1 is identical: Alms Collector matches the instruction of two.</li>
+<li class="decide"><span class="fn">apply_rewrite</span>: <code>Prevent</code> → the event is <code>None</code>. Two riders queued — "you draw a card" and "that player draws a card". The applied set <code>{Alms}</code> is returned, and <b>nothing is left to hand it to</b>: there is no surviving event, so <code>perform_action</code> never runs and the lineage dies here.</li>
+<li>Phase 3, rider 2: player 1 draws one, through <span class="fn">resolve_effect</span> → <code>execute_action</code> → a <b>fresh</b> applied set.</li>
+<li>The inner <code>DrawCard { player: 1 }</code> meets Thought Reflection → <code>DrawCards { n: 2 }</code>, <code>applied = {TR}</code>.</li>
+<li class="decide">Re-gather: Alms Collector matches <code>n: 2</code>, and <code>{TR}</code> does not contain it. <b>It applies again</b> — the thing its ruling says cannot happen. <code>Prevent</code>, two more riders.</li>
+<li class="decide">Rider 2 of <em>those</em> gives player 1 one draw, with a fresh set again. Steps 4–5 repeat. Each cycle hands player 0 a card and player 1 a doubled draw, and neither effect is ever filtered because every rider starts over.</li>
+</ol>
+<div class="callout before"><b>What C′ actually does.</b> In the rules it is CR 104.4b — a loop of mandatory actions with no way to stop, so the game is a draw — and CR 731 loop detection is explicitly out of this phase's scope. In the engine it is recursion through <code>resolve_rider → resolve_effect → execute_action → apply_replacements</code> until the stack is gone. The first run of <code>alms_collector_does_not_apply_again_to_the_draws_it_produced</code> reported <code>STATUS_STACK_OVERFLOW</code> and took the test binary with it.</div>
+<div class="callout rule"><b>The rule both "and" cards needed, and it is CR 614.5's second clause read as an instruction to the card author.</b> An effect's one opportunity covers "any modified events that may replace that event" — which is what the <em>rewrite</em> outputs, and not what a rider proposes. So split a printed "instead X and Y" by asking which half CR 614.5 has to cover, and put that half in the rewrite. Notion Thief's is the draw with a new subject; Alms Collector's is the same draw with a smaller count — §3.2d's own homogeneous case, hiding inside a heterogeneous sentence. Each card's remainder is a different player's draw, which nothing watches twice.</div>
+
+<h2>Trace D — three Notion Thieves</h2>
+<div class="prose">
+<p>Players 0, 1 and 2 each control a Notion Thief; player 0 resolves an instruction to draw one. The ruling is a procedure: <em>"that player chooses one of the applicable Notion Thief effects to apply. Then <b>the player whose Notion Thief's effect was chosen repeats this process</b> among the remaining Notion Thief effects … Each effect can be applied to the card draw only once this way."</em></p>
+<p>Nothing in the engine implements that procedure. Every clause of it is a consequence of two facts already on the page: a substitution may move the event's subject, and CR 616.1's chooser is derived from the event rather than captured.</p>
+</div>
+<ol class="trace">
+<li><code>DrawCards { player: 0, n: 1, cause: Effect }</code> → no candidate → one inner <code>DrawCard { player: 0, cause: Effect }</code>, inherited <code>{}</code>.</li>
+<li class="decide"><span class="fn">gather</span> <span class="read board">board</span>: each Thief's <code>set_affects</code> asks <code>PlayerSet::Opponents.contains(controller, 0)</code>, so Thief₀ does not apply — nobody is their own opponent — and Thief₁ and Thief₂ do. Two candidates, in <code>battlefield_ids_ordered</code> (CR 613.7 timestamp) order. <span class="fn">chooser_for(DrawCard { player: 0 })</span> → <code>Player(0)</code>. <b>Player 0 is asked</b> <span class="read player">player</span> — the ruling's first clause.</li>
+<li class="new">Say Thief₁. <span class="fn">apply_rewrite</span> takes <code>Instead(DrawCards { n: 1, player: <b>Some(PlayerRef::You)</b> })</code>; <span class="fn">draw_recipient</span> answers <code>chosen.controller</code> = 1. The event becomes <code>DrawCards { player: <b>1</b>, n: 1, cause: Effect }</code>. <code>applied = {Thief₁}</code>. <b>The subject moved and the lineage did not.</b></li>
+<li>Iteration 2 on the substituted instruction: every Thief's pattern is <code>DrawCard</code>, so nothing matches a <code>DrawCards</code>. Return <code>([(0, Some(DrawCards{1, player: 1}))], {Thief₁})</code>.</li>
+<li class="new"><span class="fn">perform_action(…, lineage = {Thief₁})</span> <span class="read state">lineage</span> → <code>DrawCard { player: <b>1</b> }</code>, inherited <code>{Thief₁}</code>.</li>
+<li class="decide"><span class="fn">gather</span>: Thief₀ and Thief₂ apply (player 1 is an opponent of both); Thief₁ is filtered by the applied set. Two candidates. <span class="fn">chooser_for</span> reads the event, which is now about player 1 — so <b>player 1 is asked</b>. That is the ruling's "the player whose Notion Thief's effect was chosen repeats this process", and it is one line of <code>subject_of</code> rather than a rule.</li>
+<li class="new">Say Thief₀. The event becomes <code>DrawCards { player: <b>0</b>, n: 1 }</code>, <code>applied = {Thief₁, Thief₀}</code> → one inner <code>DrawCard { player: 0 }</code>, inherited both.</li>
+<li><span class="fn">gather</span>: Thief₁ is filtered, Thief₀ is filtered, and Thief₀ would not apply to its own controller's draw anyway. <b>Thief₂ alone</b> — one candidate, so nothing is asked. The event becomes player 2's.</li>
+<li>Its inner inherits <code>{Thief₀, Thief₁, Thief₂}</code>. Nothing applies. <span class="fn">draw_card(2)</span> <span class="read board">board</span>. <b>One card, three hops, each effect applied once.</b></li>
+</ol>
+<div class="callout"><b>Two players is the ruling's own worked example and a different shape.</b> With one Thief each, no step ever has two candidates — a Thief never watches its own controller's draw — so <code>two_notion_thieves_hand_the_draw_across_the_table_and_back</code> asserts <b>zero</b> prompts and the draw comes home: player 1's Thief takes it to player 0, player 0's takes it back, both are spent, player 1 draws. <em>"It really will be that player who draws a card."</em> With three, the draw does <b>not</b> come home — it lands on the controller of the last Thief to apply, which is player 2 above. Both are the same mechanism and only one of them is intuitive, which is why the test asserts the unintuitive one.</div>
+
+<h2>Where the reads differ</h2>
+<div class="wrap">
+<table>
+<tr><th>The read</th><th>Before RE-2</th><th>After</th><th>Why the difference is observable</th></tr>
+<tr><td><span class="fn">Primitive::DrawCards</span> / <span class="fn">process_draw_step</span></td><td class="diff-old"><code>n</code> × <code>execute_action(DrawCard)</code> — <b>no instruction event exists</b></td><td class="diff-new">one <code>execute_action(DrawCards { n })</code>, whose performer decomposes</td><td>Alms Collector's <code>at_least</code> has something to match, and "draw two cards" stops looking like two cantrips</td></tr>
+<tr><td><span class="fn">apply_replacements</span>' seed</td><td class="diff-old"><code>applied = HashSet::new()</code>, always — <code>inherited</code> had a parameter and no producer</td><td class="diff-new"><code>applied = inherited.clone()</code>, and <code>inherited</code> is the enclosing decision's set</td><td>Trace A: four cards instead of a stack overflow</td></tr>
+<tr><td><span class="fn">apply_replacements</span>' return</td><td class="diff-old">the members' decided events</td><td class="diff-new">the members' decided events <b>and the group's applied set</b></td><td>phase 2 has something to hand a decomposing performer; nothing else reads it</td></tr>
+<tr><td><span class="fn">perform_action</span></td><td class="diff-old"><code>(action, ctx)</code>; every nested proposal starts fresh</td><td class="diff-new"><code>(action, ctx, lineage)</code>; <b>one arm</b> reads it, and every other nested proposal still starts fresh</td><td><code>DealDamage</code>'s contained <code>LoseLife</code> and a creation's entries are containment and are unchanged — §3.2d's discriminator is answered at the call</td></tr>
+<tr><td>"the first card of my draw step"</td><td class="diff-old">unaskable — a draw carried no cause at all</td><td class="diff-new">the <em>first inner</em> of an instruction, stamped from the outer's <code>cause</code>; every later inner is <code>Effect</code></td><td>Trace B: three cards, with no counter of cards drawn this step anywhere in <code>GameState</code></td></tr>
+<tr><td><span class="fn">chooser_for</span> across a substitution</td><td class="diff-old">unchanged in practice — no rewrite moved a player subject</td><td class="diff-new">re-derived per iteration from the <em>event</em>, so a moved subject moves the chooser</td><td>Trace D: the ruling's "the player whose Thief was chosen repeats this process", uncoded</td></tr>
+<tr><td>CR 616.1's prompt between two draw doublers</td><td class="diff-old">n/a — there was no draw replacement to have two of</td><td class="diff-new">suppressed by <span class="fn">ordering_cannot_change_outcome</span>'s third shape, which composes through the <em>decomposition</em> rather than within the loop</td><td>Thought Reflection is pooled at copies/deck 1.58, so the two-copy board is a measured game's, not a fixture's — and <code>a_draw_doubler_beside_a_notion_thief_is_a_real_choice</code> is the board where the answer does change and the prompt stays</td></tr>
+<tr><td>An "instead X and Y" card</td><td class="diff-old">§3.2d: homogeneous → a count field, heterogeneous → <code>then</code></td><td class="diff-new">§3.2d: whichever half CR 614.5 must cover → the rewrite; the remainder → <code>then</code></td><td>Trace C: the old reading is a CR 104.4b loop on a two-card board</td></tr>
+<tr><td><span class="fn">event_amount(DrawCards)</span></td><td class="diff-old">n/a</td><td class="diff-new"><code>Some(n)</code> — CR 121.2a's "the number of cards drawn" is what a CR 615.5 rider's "that many" would mean</td><td>no rider reads it yet; the classification is forced by the exhaustive match rather than chosen</td></tr>
+<tr><td><span class="fn">Game::setup</span></td><td class="diff-old"><code>state.draw_card</code>, under a comment claiming it went through the chokepoint</td><td class="diff-new">the same call, under a comment that says it is the performer and why that is safe (CR 103.4, 103.6)</td><td>nothing; the behaviour was always right and the comment was always wrong — §11 item 51</td></tr>
+</table>
+</div>
+
+<h2>What RE-2 changed, trace by trace — and what is still open</h2>
+<div class="prose">
+<p><b>A</b> is the phase in one board: <code>inherited</code> stopped being an empty set with a doc comment and became the thing that terminates the loop. The engine gained no <em>cap</em> and wants none — what it gained is the same bound computed the other way, which is why the assertion has no number in it.</p>
+<p><b>A also changed at this page's own review</b>, and the change is worth naming because it is the second time §11 item 19's rule has bitten: two draw doublers commute, so CR 616.1's prompt between them has one outcome and is suppressed. The theorem is the multiplier shape's, one level out — a doubler's output is a <code>DrawCards</code>, which no <code>EventPattern::DrawCard</code> watches, so the composition happens through the decomposition and not within the loop. Its premise needs one clause the multiplier shape does not: every candidate must admit <code>DrawCause::Effect</code> as well as the event's own cause, because a substituted instruction's inners carry the parent's cause once and <code>Effect</code> thereafter. Drop that clause and <code>None</code> beside <code>Some(TurnBased)</code> gives 4 one way and 6 the other.</p>
+<p><b>B</b> is what a well-chosen enum arm buys. <code>DrawCause</code> is two variants and one <code>if</code> in a performer, and it replaces the per-player, per-step counter that "except the first one you draw in each of your draw steps" reads like it needs. The rule that makes it work is that a substituted instruction keeps the cause it replaced, which is CR 614.6 and not a special case.</p>
+<p><b>C</b> is the rulings pass doing design work for the third time (after Furnace of Rath's and Notion Thief's), and the first time it has overturned a correction made the same day. Worth keeping for the shape rather than the card: both mis-filings put an effect's whole output in <code>then</code>, both produce a loop rather than a wrong number, and both loops are the kind CR 731 would have to catch and does not.</p>
+<p><b>D</b> is the argument for deriving rather than capturing. Every clause of a three-sentence ruling falls out of <code>subject_of</code> being asked per iteration and <code>chooser_for</code> being asked of the event — neither of which RE-2 wrote.</p>
+<p><b>Open</b>, each with a dated line in <code>codebase-state.md</code>: CR 121.2c orders two players' draws and no <code>Effect</code> arm can express it, so Alms Collector's two draws come out affected-player-first (item 122); CR 121.6c has no producer, because nothing can name the card an earlier instruction drew, and <code>ATOM-614.11b-001</code> stays uncovered for that reason (123). <code>GameActionTemplate::DrawCards</code> refuses <code>PlayerRef::Owner</code> and <code>Opponent</code> rather than guessing — a draw's subject is a player, so there is no object to own and no rule that says who "an opponent" is — and each is one printed card away from an arm. RE-3 is the next PR and inherits the template arm it extends; <code>plans/replacement-architecture.md</code> §9 has the order.</p>
+</div>
+
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true, curve: "basis" } });
+</script>
+</body>
+</html>

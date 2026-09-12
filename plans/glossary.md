@@ -16,7 +16,19 @@ a `codebase-state.md` line and its own PR.
 **It is checked.** `python plans/check_glossary.py` asserts that every term and
 every code anchor here still resolves in `mtgsim/src`, that every word on its
 watch-list is defined, and that a word it lists as polysemous carries **all** of
-its senses, numbered. The last is the one with a scar: `Rewrite::Retarget`'s
+its senses, numbered.
+
+**And a phase does not close until it has run `--suggest`.** The watch-list is
+the gate's *input*, so it catches a coinage you remembered to add and is blind
+to one you forgot — which is how `lineage`, `decomposition` and `containment`
+reached a merged branch undefined, and were caught by a reviewer rather than by
+the check. `python plans/check_glossary.py --suggest` reads the doc-comment
+prose the branch added, drops what the CR itself says and what this file already
+mentions, and prints the rest: 17 words for the PR that prompted it, against 587
+for the same signal run over the whole crate. It reports and never fails, on
+purpose — the residue is ordinary English, and a gate over a heuristic is a gate
+people learn to silence. Triage it, and add what is a term of art to
+`WATCHLIST`, which is what makes the gate keep it. The last is the one with a scar: `Rewrite::Retarget`'s
 arms reached the build as `ToSource` and `ToSourceController` — two *different*
 sources, adjacent in one enum — and both had to be renamed mid-PR.
 
@@ -166,12 +178,44 @@ once" is about. Not the object that generated it and not the card. →
 **applied set** — the `ReplacementInstanceId`s already applied to this group,
 CR 614.5's memory for one event. Declining an optional effect is tracked
 **separately**: CR 903.9b is exempt *and* optional, so a decline recorded in the
-applied set is a hang. A rider re-enters with a fresh applied set.
+applied set is a hang. A rider re-enters with a fresh applied set; a
+**decomposition** inherits this one — see **lineage**.
 
 **ladder** — CR 616.1a–e's ordered classes, walked top-down: the first non-empty
 step decides the whole question and everything below it is not a choice the
 player has yet. `ReplacementClass` derives `Ord` in the rule's order, so the
 minimum present class *is* the first non-empty step.
+
+**outer event** / **inner event** — a pair, and only where the CR names both.
+CR 121.2a's "instruction to draw multiple cards" is the outer, `DrawCards`; the
+individual draw it is carried out as is the inner, `DrawCard`. Different cards
+watch each — Alms Collector the instruction, Thought Reflection the draw — and
+the rule that keeps them apart is the printed one: *count how many times the
+word "draw" is used*. CR 701.8's destruction and the graveyard move it proposes
+are the same shape and the older instance. Not a general layer of the design:
+an outer exists when a rule gives the instruction its own replaceable identity,
+and `Primitive::Mill` deliberately has none. → `engine::actions::GameAction`.
+
+**lineage** — which CR 614.5 applied set a proposed event starts from. An event
+derived from another either **continues** its parent's set or starts a fresh
+one, and §3.2d's discriminator is whether the derived event is *the same kind of
+thing as its parent*. Answered at the call — `perform_action`'s `lineage`
+argument, threaded by `execute_actions_decomposing` — never inferred from the
+event. → `replacement-architecture.md` §3.2d.
+
+**decomposition** — one event expressed at finer grain, which **continues** the
+lineage: CR 121.2's "draw N" carried out as N individual draws. The engine's
+only instance, and the reason there is one is that CR 121.2 says draws happen
+one at a time and no other rule says it of its own plural. Without the
+continuation, Teferi's Ageless Insight re-applies to its own output and the
+recursion does not stop. → `GameState::execute_actions_decomposing`.
+
+**containment** — a *different* event that a performed event caused, which
+starts a **fresh** lineage: CR 120.3a's life loss inside damage, an entry caused
+by a token creation, anything a **rider** proposes. The common case, and what
+plain `execute_action` gives. The card-authoring rule that follows: whatever a
+printed "instead X and Y" needs CR 614.5 to cover belongs in the rewrite, not in
+the rider — §3.2d, corrected twice.
 
 **rider** — CR 615.5's "and" clause on a replacement effect — Reverse Damage's
 "you gain life equal to the damage prevented this way". `Rider`. Riders resolve

@@ -11,10 +11,10 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, RetargetSpec,
-    GameActionTemplate, Rewrite, Uses,
+    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef,
+    RetargetSpec, GameActionTemplate, Rewrite, Uses,
 };
-use crate::types::zones::Zone;
+use crate::types::zones::{DrawCause, Zone};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
@@ -139,6 +139,11 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         GameAction::DealDamage { amount, .. }
         | GameAction::GainLife { amount, .. }
         | GameAction::LoseLife { amount, .. } => Some(*amount),
+        // CR 121.2a's "the number of cards drawn" is exactly what CR 615.5's
+        // "that many" would mean about a draw instruction, so the instruction
+        // reports it and the individual draw does not — one card, and no rider
+        // says "that many" about one.
+        GameAction::DrawCards { n, .. } => Some(*n),
         GameAction::AddCounters { .. }
         | GameAction::RemoveCounters { .. }
         | GameAction::DrawCard { .. }
@@ -209,10 +214,13 @@ fn never_happens(action: &GameAction) -> bool {
 /// batches, so a first striker and a regular blocker spend two counters.
 ///
 /// Returns each member's index with what happens to it — `None` when its
-/// event does not happen at all (CR 614.6). Queued riders are pushed onto
-/// `riders` in application order and are the caller's to resolve *after*
-/// performing the surviving events, including for a member that ended as
-/// `None`, since CR 615.12 makes a rider unconditional once queued.
+/// event does not happen at all (CR 614.6) — **and the group's applied set**,
+/// which is what a performer that decomposes hands to the events it decomposes
+/// into (§3.2d; the `inherited` paragraph below is the same rule from the
+/// other end). Queued riders are pushed onto `riders` in application order and
+/// are the caller's to resolve *after* performing the surviving events,
+/// including for a member that ended as `None`, since CR 615.12 makes a rider
+/// unconditional once queued.
 ///
 /// `later` is the rest of the batch — the groups not yet decided, at their
 /// proposed amounts — read for one thing only: CR 615.7's allocation is per
@@ -233,7 +241,7 @@ pub(crate) fn apply_replacements(
     ctx: &ActionContext,
     inherited: &HashSet<ReplacementInstanceId>,
     riders: &mut Vec<Rider>,
-) -> Result<Vec<(usize, Option<GameAction>)>, String> {
+) -> Result<(Vec<(usize, Option<GameAction>)>, HashSet<ReplacementInstanceId>), String> {
     let subject = subject_of(&group[0].1);
     debug_assert!(
         group.iter().all(|(_, a)| subject_of(a) == subject),
@@ -270,7 +278,9 @@ pub(crate) fn apply_replacements(
         .into_iter()
         .map(|(index, event)| Member { index, event: Some(event) })
         .collect();
-    let finish = |members: Vec<Member>| members.into_iter().map(|m| (m.index, m.event)).collect();
+    let finish = |members: Vec<Member>| -> Vec<(usize, Option<GameAction>)> {
+        members.into_iter().map(|m| (m.index, m.event)).collect()
+    };
 
     // Unbounded on purpose. **Every iteration consumes something finite**, and
     // the three things that guarantee it are each enforced in code rather than
@@ -293,7 +303,7 @@ pub(crate) fn apply_replacements(
         // Owned, because the gather below walks `members` mutably; one small
         // clone per iteration of a loop that runs once for most proposals.
         let Some(first) = members.iter().find_map(|m| m.event.clone()) else {
-            return Ok(finish(members));
+            return Ok((finish(members), applied));
         };
 
         // **The group's key is not the members' subject after RD-4**, and the
@@ -368,7 +378,7 @@ pub(crate) fn apply_replacements(
             }
         }
         if candidates.is_empty() {
-            return Ok(finish(members));
+            return Ok((finish(members), applied));
         }
 
         // CR 616.1a–e's ladder: everything below the first non-empty step is
@@ -396,7 +406,7 @@ pub(crate) fn apply_replacements(
         let mut unsuppressed: Vec<(ReplacementInstanceId, Vec<usize>)> = Vec::new();
         let chosen = if choosable.len() == 1 {
             choosable.into_iter().next().expect("len checked")
-        } else if ordering_cannot_change_outcome(&choosable, subject_object(subject)) {
+        } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first) {
             let mut rest = choosable.into_iter();
             let first = rest.next().expect("len checked");
             unsuppressed = rest.map(|c| (c.instance.id, c.members)).collect();
@@ -690,7 +700,29 @@ fn next_damage_shares(
 /// (3 → 1 → 2 or 3 → 6 → 3), `Plus` beside `Multiplier` does not commute
 /// either, and a prevention arm can empty the event.
 ///
-/// **Shared by both shapes — mandatory, static, under CR 614.5, not
+/// **Every member an `Instead(DrawCards { n ≥ 1, player: None })` on
+/// `EventPattern::DrawCard`, and every member's pattern admits `DrawCause::Effect`
+/// as well as the event's own cause** (RE-2's review). Two Thought Reflections
+/// are the printed board, and the arithmetic is the multiplier shape's one level
+/// out: a doubler does not compose *within* this loop — its output is a
+/// `DrawCards`, which no `EventPattern::DrawCard` watches — it composes through
+/// the **decomposition**, where each inner meets whichever doublers have not
+/// applied. So the total is the product of the members' `n` in any order.
+///
+/// The second half of the premise is what makes that true rather than nearly
+/// true. A substituted instruction keeps the cause it replaced, and its inners
+/// are the parent's cause once and [`DrawCause::Effect`] thereafter — so a
+/// member that admits the parent but *not* `Effect` applies to the first inner
+/// and to none of the others, and the two orders then differ. Worked: `None`
+/// beside `Some(TurnBased)` at `n = 2` and `n = 3` on a turn-based draw gives 4
+/// one way and 6 the other. Nothing prints a turn-based-only draw replacement,
+/// so the exclusion costs no card; leaving it out would cost the theorem.
+///
+/// `player: None` is the other half. Notion Thief's `Some(You)` moves the
+/// event's *subject*, so with two Thieves the order decides who draws — which
+/// is the whole of its ruling, and a prompt the affected player must be asked.
+///
+/// **Shared by all three shapes — mandatory, static, under CR 614.5, not
 /// counter-derived, no rider.** An optional is a second prompt whose answer
 /// can differ per order; a `Uses::Once` or `NextDamage` spends a registry row;
 /// an exempt effect may re-apply; a counter-derived instance is re-synthesized
@@ -712,11 +744,19 @@ fn next_damage_shares(
 /// `ObjectFilter` gains a leaf that reads P/T, keywords or counters, or
 /// `EventPattern::EnterBattlefield` reads `mods`. The multiplier shape goes
 /// false the day an `EventPattern::DealDamage` field reads the *amount*, or a
-/// `Multiplier(0)` is printed (refused here by `n ≥ 1`). `check_order_invariance`
-/// is the debug-build check that computes it the other way. The name is the
+/// `Multiplier(0)` is printed (refused here by `n ≥ 1`). The draw shape goes
+/// false the day `EventPattern::DrawCard` gains a field the decomposition can
+/// move, or `GameActionTemplate::DrawCards` gains an `n` that is not a literal.
+/// `check_order_invariance` is the debug-build check that computes it the other
+/// way — and for the draw shape it has to ask about the *inner*, since that is
+/// where the suppressed members apply. The name is the
 /// question's, not the implementation's (item 65): does CR 616.1's ordering
 /// prompt here have more than one outcome.
-fn ordering_cannot_change_outcome(choosable: &[Candidate], entering: Option<ObjectId>) -> bool {
+fn ordering_cannot_change_outcome(
+    choosable: &[Candidate],
+    entering: Option<ObjectId>,
+    event: &GameAction,
+) -> bool {
     let all_entries = choosable
         .iter()
         .all(|c| matches!(c.instance.def.rewrite, Rewrite::EnterWith(_)));
@@ -727,7 +767,9 @@ fn ordering_cannot_change_outcome(choosable: &[Candidate], entering: Option<Obje
                 Rewrite::Amount(AmountRewrite::Multiplier(n)) if n >= 1
             )
     });
-    if !(all_entries || all_multipliers) {
+    let all_draw_doublers = matches!(event, GameAction::DrawCard { .. })
+        && choosable.iter().all(|c| draw_doubler_commutes(&c.instance.def, event));
+    if !(all_entries || all_multipliers || all_draw_doublers) {
         return false;
     }
     choosable.iter().all(|c| {
@@ -740,6 +782,7 @@ fn ordering_cannot_change_outcome(choosable: &[Candidate], entering: Option<Obje
                     && affected_is_mods_invariant(&def.affected)
             }
             Rewrite::Amount(AmountRewrite::Multiplier(_)) => true,
+            Rewrite::Instead(GameActionTemplate::DrawCards { .. }) => true,
             _ => false,
         }) && !def.optional
             && def.then.is_none()
@@ -747,6 +790,30 @@ fn ordering_cannot_change_outcome(choosable: &[Candidate], entering: Option<Obje
             && !def.exempt_from_614_5
             && !matches!(c.instance.id, ReplacementInstanceId::Counter(..))
     })
+}
+
+/// One member of [`ordering_cannot_change_outcome`]'s draw shape: a doubler that
+/// leaves the draw where it is and admits every cause the decomposition can
+/// stamp on an inner.
+///
+/// `player: None` keeps the subject, so the members differ only in `n` and the
+/// total is their product. The `cause` test is the premise's second half: the
+/// inners of a substituted instruction carry the parent's cause once and
+/// [`DrawCause::Effect`] thereafter, so a member that admits one and not the
+/// other applies to some inners and not others, and the orders diverge.
+fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
+    let EventPattern::DrawCard { cause } = def.pattern else {
+        return false;
+    };
+    let Rewrite::Instead(GameActionTemplate::DrawCards { n, player: None }) = &def.rewrite else {
+        return false;
+    };
+    let GameAction::DrawCard { cause: actual, .. } = event else {
+        return false;
+    };
+    *n >= 1
+        && cause.map(|c| c == *actual).unwrap_or(true)
+        && cause.map(|c| c == DrawCause::Effect).unwrap_or(true)
 }
 
 /// Can no `EnterMods` field change whether this set matches the entering
@@ -795,6 +862,13 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
 /// because it is a second gather per suppressed prompt and its
 /// `record_replacement_gather` would move the fixtures table; the release
 /// binary trusts the leaf table.
+///
+/// **The draw shape asks about a different event, and that is the point.** A
+/// suppressed draw doubler does not apply to the `DrawCards` the chosen one
+/// produced — no `EventPattern::DrawCard` watches an instruction — it applies to
+/// the inners that instruction decomposes into. So for that shape the gather is
+/// taken against the **first inner**, which is the one carrying the parent's
+/// cause; the premise's `Effect` clause is what makes checking one inner enough.
 fn check_order_invariance(
     game: &GameState,
     ctx: &ActionContext,
@@ -805,8 +879,14 @@ fn check_order_invariance(
     if !cfg!(debug_assertions) || unsuppressed.is_empty() {
         return;
     }
-    let frame = EntryFrame::new(game, next);
-    let still: Vec<ReplacementInstanceId> = gather(game, next, ctx, false, &frame)
+    let probe = match next {
+        GameAction::DrawCards { player, cause, .. } => {
+            GameAction::DrawCard { player: *player, cause: *cause }
+        }
+        other => other.clone(),
+    };
+    let frame = EntryFrame::new(game, &probe);
+    let still: Vec<ReplacementInstanceId> = gather(game, &probe, ctx, false, &frame)
         .into_iter()
         .map(|c| c.id)
         .collect();
@@ -815,7 +895,7 @@ fn check_order_invariance(
             still.contains(id),
             "CR 616.1 prompt suppressed as order-invariant was not: {:?} stopped applying to {:?}",
             id,
-            next
+            probe
         );
     }
 }
@@ -1189,9 +1269,13 @@ fn apply_rewrite(
                 ))
             }
             // Its `EventPattern` and its `Rewrite` describe different events —
-            // the same card-authoring error every other arm reports.
+            // the same card-authoring error every other arm reports. The
+            // wording is about the *arm* and not about the event, because
+            // `DrawCards` carries CR 121.2a's count — a rider reads it through
+            // `event_amount` — while `Rewrite::Amount`'s arithmetic is CR 615's
+            // and still only about damage.
             other => Err(format!(
-                "replacement {:?} changes an amount but matched {:?}, which has none",
+                "replacement {:?} changes an amount but matched {:?}, which has no `Rewrite::Amount` arm",
                 chosen.id, other
             )),
         },
@@ -1291,10 +1375,52 @@ fn apply_rewrite(
                 }
             }
 
+            // CR 614.1a's "instead ... draw", and the substitute is always the
+            // **instruction** (CR 121.2a) whichever of the two draw events it
+            // replaced. Thought Reflection's "draw two cards instead" is one
+            // "draw" of two, so an inner-shaped substitute would hide from Alms
+            // Collector the very event it watches for.
+            //
+            // **The cause travels with the event**, because CR 614.6 makes this
+            // the original in modified form: a doubled draw-step draw still has
+            // a first card that is `DrawCause::TurnBased` and a second that is
+            // not, which is how Teferi's Ageless Insight's exception survives
+            // being doubled. Nothing here counts cards drawn this step.
+            //
+            // Two legs, one per draw event, because both are printed. Thought
+            // Reflection, Teferi's Ageless Insight and Notion Thief replace an
+            // individual draw; Alms Collector replaces an instruction with a
+            // smaller one, and CR 614.5's "any modified events that may replace
+            // that event" is why that half of its text has to be the rewrite
+            // rather than a rider — the affected player's one draw carries the
+            // applied set only this way, and its own ruling is that Alms
+            // Collector does not apply again to it.
+            (
+                GameActionTemplate::DrawCards { n, player },
+                GameAction::DrawCard { player: affected, cause },
+            )
+            | (
+                GameActionTemplate::DrawCards { n, player },
+                GameAction::DrawCards { player: affected, cause, .. },
+            ) => Ok((
+                Some(GameAction::DrawCards {
+                    player: draw_recipient(chosen, player.as_ref(), affected)?,
+                    n: *n,
+                    cause,
+                }),
+                changed,
+            )),
+
             // A template that cannot be built from this event is a card-
             // authoring error rather than a rules corner: the pattern is what
             // decides which events reach the rewrite, so a mismatch means the
             // two halves of one `ReplacementDef` disagree.
+            (GameActionTemplate::DrawCards { .. }, other) => Err(format!(
+                "replacement {:?} rewrites to a draw but matched {:?}, which is not an \
+                 individual card draw. Its `EventPattern` and its `Rewrite` describe \
+                 different events.",
+                chosen.id, other
+            )),
             (GameActionTemplate::ZoneChangeTo { .. }, other) => Err(format!(
                 "replacement {:?} rewrites to a zone change but matched {:?}, which is \
                  neither one nor an entry. Its `EventPattern` and its `Rewrite` describe \
@@ -1302,6 +1428,36 @@ fn apply_rewrite(
                 chosen.id, other
             )),
         },
+    }
+}
+
+/// Who a [`GameActionTemplate::DrawCards`] substitution hands the draw to.
+///
+/// `None` is the affected player — Thought Reflection and Teferi's Ageless
+/// Insight both leave the draw where it was — and [`PlayerRef::You`] is the
+/// effect's controller, which is Notion Thief's whole point.
+///
+/// **`Owner` and `Opponent` are refused rather than guessed.** A draw's subject
+/// is a player, so there is no object for `Owner` to be the owner of; and
+/// `Opponent` would need a prompt to pick one of several, which CR 616.1 has
+/// nowhere to hang — the choice that rule defines is *which effect applies*,
+/// not where an applied effect's draw lands. Nothing prints either one, each is
+/// one printed card away from an arm, and an arm the pipeline cannot apply is
+/// worse than a missing one.
+fn draw_recipient(
+    chosen: &ReplacementInstance,
+    player: Option<&PlayerRef>,
+    affected: PlayerId,
+) -> Result<PlayerId, String> {
+    match player {
+        None => Ok(affected),
+        Some(PlayerRef::You) => Ok(chosen.controller),
+        Some(PlayerRef::Player(pid)) => Ok(*pid),
+        Some(other) => Err(format!(
+            "replacement {:?} substitutes a draw for {:?}, which names no player a draw \
+             event has: a draw's subject is a player, not an object.",
+            chosen.id, other
+        )),
     }
 }
 

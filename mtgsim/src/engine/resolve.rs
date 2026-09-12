@@ -1,5 +1,5 @@
 use crate::engine::actions::{
-    ActionContext, DestructionSource, GameAction, LifeLossCause, ZoneChangeCause,
+    ActionContext, DestructionSource, DrawCause, GameAction, LifeLossCause, ZoneChangeCause,
 };
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -254,11 +254,19 @@ impl GameState {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
                 // Drawing targets the controller (EffectRecipient::Controller or None)
                 let player_id = self.resolve_player_for_self(recipient, ctx);
-                for _ in 0..count {
-                    self.execute_action(GameAction::DrawCard {
+                // **One instruction, whatever `count` is** (CR 121.2a). Its
+                // performer does CR 121.2's individual draws; a loop here would
+                // make "draw three cards" three instructions, which is exactly
+                // the distinction Alms Collector's ruling turns on — "count how
+                // many times the word 'draw' is used".
+                self.execute_action(
+                    GameAction::DrawCards {
                         player: player_id,
-                    }, &actx)?;
-                }
+                        n: count,
+                        cause: DrawCause::Effect,
+                    },
+                    &actx,
+                )?;
                 Ok(())
             }
 

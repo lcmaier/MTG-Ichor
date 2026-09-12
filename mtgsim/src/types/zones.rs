@@ -201,3 +201,35 @@ pub enum LifeLossCause {
     /// spell it out. Not a loss of life "caused by" anything with a source.
     Cost,
 }
+
+/// Why a card is being drawn — the fourth of this module's "why" carriers.
+///
+/// **Ten printed cards ask, and none of them can recover the answer a moment
+/// later.** "Except the first one you draw in each of your draw steps" —
+/// Teferi's Ageless Insight, Notion Thief, the five *Words of* cycle and three
+/// more — is a question about the *instruction*, and CR 121.1 is where the list
+/// comes from: a draw "is done as a turn-based action during each player's draw
+/// step. It may also be done as part of a cost or effect of a spell or
+/// ability." Two arms, because those ten cards distinguish two things.
+///
+/// **The stamping rule is the whole of "the first one", and it needs no
+/// counter.** An instruction's first individual draw carries the instruction's
+/// cause and every later one is [`Self::Effect`] (CR 121.2), and a *substituted*
+/// instruction keeps the cause it replaced, because CR 614.6 makes a modified
+/// event occur in the original's place. So Thought Reflection doubling the draw
+/// step's draw yields one `TurnBased` card and one `Effect` card, and Teferi's
+/// Ageless Insight excepts the first and doubles the second — three cards, from
+/// the shape of the event tree rather than from anything counting cards drawn
+/// this step.
+///
+/// **No `Cost` arm**, although CR 121.1 names one: nothing prints "draw a card"
+/// as a cost, and an arm no card reaches is worse than a missing one
+/// (`replacement-architecture.md` §9, RE "Cut, and argued").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DrawCause {
+    /// CR 121.1 / 504.1 — the draw step's turn-based action. The engine has
+    /// exactly one producer, `GameState::process_draw_step`.
+    TurnBased,
+    /// A spell, an ability, or a replacement effect's own draw.
+    Effect,
+}

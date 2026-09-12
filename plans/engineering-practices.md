@@ -690,6 +690,107 @@ decks itself, which takes `Avg turns` 31.2 → 29.1 and `Total damage` 60.9 →
 registered and not pooled; the engine delta is the `performance` column, where
 the decks are byte-identical.
 
+**Re-recorded 2026-09-11 for RE-2** — `PERFORMANCE_POOL` +1 (Thought
+Reflection, 78 → 79) and the stress pool +4 (119 → 123). **The middle arm is
+free, and the shipped arm is faster than `main`** — both readings need a
+sentence, and neither says what it looks like it says.
+
+*The engine's share, `performance`, 200 games / seed 12345.* Every
+seed-dependent gameplay row is **identical to `main`** — turns 31.6, spells
+23.6, lands 18.4, combats 10.1, deaths 7.1, damage events 21.0, total damage
+59.1, life changes 13.7, wins 117/83 — and so is every layer row: walks 375,
+board walks 249, frames 4,549, frames/walk 12.13, dependency checks 24, all
+unchanged. `Memo hits` 64,069 → 64,160 (+0.14%). What moved is
+**`Replacement gathers` 1003 → 1037 and `Restriction queries` 1006 → 1039,
+both +34** at 31.6 turns a game — one per turn for the draw step's instruction
+plus about two per game for the pool's cantrips, which is §9's prediction
+("+1 per draw instruction, so roughly +1 per turn plus one per cantrip") to
+within a rounding. The new proposal is the *outer*; the inner is the event that
+was already being proposed, which is why the count moves by one per instruction
+rather than by one per card drawn.
+
+*And it costs nothing measurable.* CPU/game median **16.15 → 16.23 ms, +0.5%**
+(seven interleaved rounds, `--threads 1`; main 15.74–16.62, middle
+15.92–17.03). **Seven rounds and not three, because three said +6.0% and the
+three were wrong**: one `main` round came in at 20.32 ms against its own
+15.97 median, and a 27% outlier in a three-round median is a 6% answer. The
+rule that follows is worth more than the number — **when an arm's rounds
+straddle another arm's, raise `--rounds` before writing the delta down**, and
+`fuzz_ab.py --rounds 7 --no-fixtures` re-runs the timing block alone in about
+70 seconds. RE-1 cost +5.0% for +447 gathers; +34 gathers costing +0.5% is the
+same per-proposal price, which is the cross-check that says both numbers are
+real.
+
+| | performance (79 cards) | stress (123 cards) |
+|---|---|---|
+| P0 / P1 | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 21 (42.0%) |
+| Avg turns | 28.2 | 28.2 |
+| Spells cast | 22.7 | 21.0 |
+| Lands played | 17.7 | 17.4 |
+| Combat w/ atk | 9.4 | 9.5 |
+| Creatures died | 6.4 | 4.4 |
+| Damage events | 20.3 | 19.9 |
+| Total damage | 58.4 | 51.8 |
+| Life changes | 13.4 | 13.6 |
+| **Layer walks** | **362** | **469** |
+| **Board walks** | **234** | **260** |
+| **Memo hits** | **54,867** | **70,035** |
+| **Layer frames** | **4,424** | **4,945** |
+| **Frames/walk** | **12.22** | **10.55** |
+| **Dependency checks** | **12** | **55** |
+| **Replacement gathers** | **932** | **986** |
+| **Restriction queries** | **935** | **988** |
+| Prevention allocations | 0.02 | 0.02 |
+
+**The shipped arm's −5.0% is the game getting shorter, not the engine getting
+faster, and every absolute counter on it has to be read that way.** At 200
+games `performance` goes 31.6 turns → 29.6, spells 23.6 → 22.8, and
+`Replacement gathers` **1003 → 974 — down, on the arm that adds a card**. Per
+turn it is the middle arm's: 31.7 for `main`, 32.8 for middle, 32.9 for the
+shipped arm, so Thought Reflection's own contribution to the sweep is about a
+tenth of a gather per turn and the 63-gather drop is two fewer turns. CPU/game
+median 16.15 → 15.35 (**−5.0%**) is the same arithmetic; `CPU/turn p50` is
+0.440 → 0.450 (**+2.3%**), which is what the slot actually costs. A card that
+draws extra cards ends games sooner, and a per-game counter cannot tell that
+from an engine that got cheaper — **so a pooled card that changes game length
+is read per turn**, which no earlier pool addition had forced.
+
+**Reachability.** `--require "Thought Reflection"` on `performance`, 200 games
+/ seed 12345: cast 133, resolved 131, in **91 of 200 games (46%)**, copies/deck
+1.58. Seven mana is the most any pooled card has cost and this is the number
+that was measured rather than argued: Eon Hub reaches 64% at five. Zero errors
+and zero panics. The other three were forced through `stress` the same way and
+are recorded because two of them can loop if their encoding is wrong
+(`replacement-architecture.md` §11 items 42 and 53): Alms Collector 134/134 in
+98 games (49%), Teferi's Ageless Insight 144/143 in 99 (50%), Notion Thief
+130/129 in 91 (46%) — zero errors and zero panics on each.
+
+**The stress column is not an engine reading this time either**, for RE-1's
+reason: `default_registry` grew by four, so the middle and shipped arms play
+different decks from `main` on that pool and are byte-identical to each other.
+`Avg turns` 29.1 → 29.0 and `Dependency checks` 33 → 46 are the new cards being
+drawn, not the pipeline.
+
+**Re-run at the PR's review (2026-09-12), and the `performance` column moved by
+a hair — which is worth a paragraph, because the change was supposed to be
+answer-preserving and in the sense that matters it was.** Suppressing CR 616.1's
+prompt between two draw doublers (§11 item 55) changes no rules answer: the
+total is the product either way. It changes one thing the fuzz harness can see —
+`RandomDecisionProvider::pick_n` draws from its own `StdRng` on every prompt, so
+a prompt that no longer happens is one fewer draw and that game's decision
+stream shifts from there. At 200 games the aggregate rows are identical (turns
+29.6, layer walks 371) and `Restriction queries` moves by **1**; at 50 the
+smaller sample shows it, which is why the table above is the re-run. Stress is
+unchanged to the digit, because no `stress` deck put two draw doublers on one
+battlefield in these 50 games.
+
+**The rule that generalises**, and it applies to every suppression this codebase
+has: *answer-preserving is not stream-preserving.* An A/B whose arms differ by a
+prompt cannot be read as "byte-identical or the change is wrong" — the check is
+that the **gameplay aggregates** hold and the counters move by less than a game.
+RC-4's entry suppression had the same property and nothing said so; this is the
+line that says it.
+
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
 about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
@@ -1773,6 +1874,7 @@ Three existed when the practice was written down, and they are the template:
 | `rc-5-applying-an-entry-can-move-the-board.html` | RC-5 | devour's selection and its nested batch, the zone chain that makes CR 614.13b bite, `frame_of(source)` and §5b's asymmetry, and two entries decided against one board |
 | `item-7-an-effect-waits-for-what-it-reads.html` | LI-2 + LI-3, closing item 7 | the CR 613.8 loop's fast and slow paths; the judge answer's four-card layer 4 step by step through `next_ready` and the journal; a condition that *is* a dependency (Simian Clause under Blood Moon, with the sabotage step that shows what `condition_reads` buys) and one that is not (Kird Ape, two layers apart); the read-by-read table |
 | `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
+| `re-2-a-draw-carries-its-lineage.html` | RE-2 | the first decomposed event: two Thought Reflections through the applied set that travels with it, and the same board without it — a stack overflow at depth two rather than a wrong number; Teferi's exception living in the shape of the event tree instead of a counter; **Alms Collector in both encodings**, the shipped one and the one §9 sized, which is a CR 104.4b loop; three Notion Thieves moving the event's subject and CR 616.1's chooser with it; the read-by-read table |
 | `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
@@ -1781,14 +1883,22 @@ share, and it is why a phase that adds a card, an enum arm or a pool entry does
 not get one. The phases that qualify were listed when the practice started:
 RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, because the
 pass changed every read at once, and the close), RD-2 ✓ (the loop's unit; the
-one RD phase that qualifies, decided at its close as §9 scheduled), **RS-2,
-critical-path item 6**. Budget
+one RD phase that qualifies, decided at its close as §9 scheduled), RE-2 ✓ (the
+applied set answered for a decomposed event; one of the two RE phases §9 named,
+decided at its close), **RE-4, RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 
 **Its examples are the phase's findings, not its feature list.** A page that
 walks the happy path explains the feature; a page that walks the board the
 review argued about explains the phase.
+
+**And a page may walk a design the phase rejected** — RE-2's does, side by side
+with the one that shipped. That is not a second feature list: the two Alms
+Collector encodings differ by a printed ruling and by whether the game
+terminates, and the *test* for it can only assert that the loop does not happen.
+Where a phase's finding is "this other reading is wrong", the page is the only
+artifact that can show why.
 
 **Naming: `<phase>-<claim>.html`**, kebab-case, where the claim is the sentence
 the page proves — `rc-4b-entering-is-one-event`, not `rc-4b-traces`. The file

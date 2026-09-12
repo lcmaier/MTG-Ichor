@@ -48,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 78] = [
+const PERFORMANCE_POOL: [&str; 79] = [
     "Plains",
     "Island",
     "Swamp",
@@ -294,6 +294,23 @@ const PERFORMANCE_POOL: [&str; 78] = [
     // and Moment of Silence are one-shots whose engine path this card already
     // opens.
     "Eon Hub",
+    // RE-2 — the first pooled card that watches a *draw*, and so the first that
+    // opens the gather sweep on both of the phase's events: the instruction
+    // every turn's draw step proposes, and each individual draw under it. It is
+    // also the pool's first `Instead` whose output is decomposed, which is the
+    // path §3.2d's lineage rule runs on — with one copy nothing can re-apply,
+    // but the sweep, the substitution and the decomposition all run unforced.
+    //
+    // Seven mana is the most any pooled card has cost, so its reachability is
+    // measured with `--require` rather than argued; see the RE-2 row in
+    // `engineering-practices.md` §3.
+    //
+    // The other three stay out. Alms Collector only ever watches an *opponent's*
+    // instruction of two or more, and the pool's multi-card draws are Ancestral
+    // Recall and Night's Whisper, so it would buy a creature slot to do nothing
+    // in most games; Teferi's Ageless Insight and Notion Thief are the same
+    // shape as this card with a narrower pattern.
+    "Thought Reflection",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -630,6 +647,13 @@ impl CardRegistry {
         registry.register("Meditate", phase_re_cards::meditate);
         registry.register("Time Walk", phase_re_cards::time_walk);
         registry.register("Moment of Silence", phase_re_cards::moment_of_silence);
+        registry.register("Thought Reflection", phase_re_cards::thought_reflection);
+        registry.register(
+            "Teferi's Ageless Insight",
+            phase_re_cards::teferis_ageless_insight,
+        );
+        registry.register("Alms Collector", phase_re_cards::alms_collector);
+        registry.register("Notion Thief", phase_re_cards::notion_thief);
 
         registry
     }

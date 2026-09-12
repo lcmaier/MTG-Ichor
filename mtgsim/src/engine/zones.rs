@@ -148,26 +148,6 @@ impl GameState {
         Ok(Some(card_id))
     }
 
-    /// Draw N cards for a player.
-    ///
-    /// Returns the IDs of cards actually drawn. If the library runs out mid-draw,
-    /// the player is flagged for SBA loss and the remaining draws are skipped.
-    pub fn draw_cards(
-        &mut self,
-        player_id: PlayerId,
-        count: u64,
-        ctx: &ActionContext,
-    ) -> Result<Vec<ObjectId>, String> {
-        let mut drawn = Vec::new();
-        for _ in 0..count {
-            match self.draw_card(player_id, ctx)? {
-                Some(id) => drawn.push(id),
-                None => break, // library empty, flagged for SBA
-            }
-        }
-        Ok(drawn)
-    }
-
     /// Play a land to the battlefield (special action, not a spell).
     ///
     /// The `from` parameter specifies which zone the land is being played from.

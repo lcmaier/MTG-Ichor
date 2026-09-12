@@ -291,6 +291,28 @@ RC-3's row above**, and it is the strongest argument for doing RC-3 next.
 
 ---
 
+### Phase RE — the remaining event kinds
+
+Ticket ids are the `RE` sub-phases of `plans/replacement-architecture.md` §9.
+Counts are that section's census, taken from Scryfall on 2026-09-11 before any
+of them was built; its queries overlap, so they are quoted rather than summed.
+**RE-1's row is filled in here retroactively** — it landed before this section
+existed, and a phase's first ledger entry is where its section starts.
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| RE-1 | **CR 614.10's skips — 58 printed cards say "skip"**: 22 name a turn, 18 the draw step, 8 the untap step, 6 combat, 2 the upkeep, plus two "players skip their …" statics and one "each player skips". CR 500.7's extra turns come with them, because the turn a skip consumes has to exist first. Not skips and not unlocked: the 249 "doesn't untap during" cards, which are `backlog.md` §2.14's | 🃏 **Eon Hub** (`PERFORMANCE_POOL`), 🃏 Yawgmoth's Bargain, 🃏 Meditate, 🃏 Time Walk, 🃏 Moment of Silence (all stress). Also newly readable without card work: `GameEvent::{TurnBegin, PhaseBegin, StepBegin}`, which nothing emitted and which item 6's 2,656 "at the beginning of" triggers all read | ✅ shipped 2026-09-11 |
+| RE-2 | **CR 614.11's draw replacements.** The census, overlapping queries over one population: `o:/would draw a card/` **45**, `o:/if you would draw/` 26, "draw two cards instead" 12, "except the first one" **10**, "next time you would draw a card this turn" 8, "two or more cards" 2. The last is the whole printed customer base for CR 121.2a's *instruction* event and the reason the outer exists. **The enabling half is wider than any card count**: every draw in the engine is a proposal now, so a CR 614.10 skip, a CR 101.2 "can't draw" and the 106 "whenever you draw a card" cards RA-2 counted each have an event to read | 🃏 **Thought Reflection** (`PERFORMANCE_POOL`), 🃏 Teferi's Ageless Insight, 🃏 Alms Collector, 🃏 Notion Thief (all stress). **Of the ten "except the first one" cards, six are replacements and four are triggers** (Orcish Bowmasters and its Alchemy rebalance, Leela, Xyris — item 6's). Two of the six are registered here; the other four are each blocked on one *later* RE PR's rewrite and on nothing else, which is what the hard order in §9 is about: Alhammarret's Archive on RE-3's life doubler, Bard King of Dale on RE-4's token doubler, Hullbreacher on RE-4's token creation, Chains of Mephistopheles on RE-8's `Primitive::Discard`. The eight "next time you would draw a card this turn" are the same shape one level out — five *Words of*, which want a kind-changing `GameActionTemplate` apiece (RE-3's life, RE-4's token, RE-8's discard, and RD's damage, which exists), plus Aladdin's Lamp, Mangara's Tome and Ring of Ma'rûf, which each replace a draw with a library or outside-the-game operation the engine has no primitive for. Still blocked on a different phase entirely: Laboratory Maniac and Jace, Wielder of Mysteries on `PlayerWins` (RE-6); Narset, Parter of Veils on CR 121.2b, which is RS's — though the two-event split is what makes 121.2b's "instructions to draw multiple cards may still be partially carried out" expressible at all | ✅ shipped 2026-09-11 |
+
+**What RE-2 unlocks that has no card in it.** The `--require` runs put all four
+cards through 200 games apiece with zero errors and zero panics, including the
+two whose encoding a printed ruling had to decide — Notion Thief, reached in 46%
+of games, and Alms Collector, 49% (`replacement-architecture.md` §11 items 42
+and 53). Neither card's loop is reachable from the pool without a second card on
+the table, which is why both were found by a fixture and not by the harness.
+
+---
+
 ## Part 4: "Can't" Effects (Phases RS-1–RS-4)
 
 Ticket ids are the `RS` sub-phases of `plans/cant-effects-architecture.md` §7.

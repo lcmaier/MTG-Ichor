@@ -33,12 +33,37 @@ needs. And a deleted name another subsystem still uses for something else -
 that name. What fails is a name that vanishes from the crate entirely, which is
 the case the glossary cannot survive.
 
+**And one report, which is not a gate.** Assertion 2's watch-list catches a
+coinage you *remembered* to add and cannot catch one you forgot, which is the
+hole a reviewer found on 2026-09-12. `--suggest [BASE]` closes it from the other
+end: it reads the doc-comment prose a branch **added** since BASE (default
+`origin/main`), drops the words the CR itself uses and the words the glossary
+already mentions, and prints what is left.
+
+    python plans/check_glossary.py --suggest        # at a phase's close
+
+Three filters and each earns its place. **Added prose only**: a new coinage is
+new text, and scoping to the diff took the candidate list from 587 to 17 when it
+was first measured. **Absent from `MTG-Rules/versions/*.txt`**: the rules are
+where this project's *inherited* vocabulary comes from, so a word the CR never
+uses is either invented or ordinary English — no hand-kept stoplist, which is
+the thing that would go stale. **Lowercase occurrences only**: a coinage is used
+in running prose and a card name is capitalised, which drops "Thought", "Alms"
+and "Notion" for free.
+
+It reports rather than fails on purpose. The residue is ordinary English a
+reader dismisses in seconds, and a gate over a heuristic is a gate people learn
+to silence. The obligation is `plans/glossary.md`'s: run it at a phase's close,
+triage the list, and add what is a term of art to WATCHLIST.
+
 `check_claude_md.py` and `check_module_layout.py` are the template, and
 CLAUDE.md's Commands fence runs all three.
 """
 
 import re
+import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -47,13 +72,16 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parent.parent
 GLOSSARY = ROOT / "plans" / "glossary.md"
 CRATE_SRC = ROOT / "mtgsim" / "src"
+CR_DIR = ROOT / "MTG-Rules" / "versions"
 
 # Every word this project uses in a sense a reader cannot recover from ordinary
 # English plus one rule number. Adding one here is the whole cost of coining it.
 WATCHLIST = [
     "applied set", "arm", "atom", "batch", "blocked", "bucket", "candidate",
-    "ceiling", "census", "chokepoint", "cursor", "donor", "drainer", "emitter",
-    "epoch", "frame", "gate", "host", "instance", "ladder", "leg", "member",
+    "ceiling", "census", "chokepoint", "containment", "cursor", "decomposition",
+    "donor", "drainer", "emitter",
+    "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
+    "lineage", "member", "outer event",
     "memo", "performer", "pool", "position", "proposal", "queue", "registry",
     "rider", "schedule", "shield", "source", "step", "subject",
     "subject group", "sweep", "unit", "walk",
@@ -107,7 +135,67 @@ def anchors(paragraph):
             yield span, "ident"
 
 
+DOC_LINE = re.compile(r"^\s*//[/!](.*)$")
+# A word in running prose: preceded by something that is not a letter, so
+# "Thought" inside "Thought Reflection" does not count as "thought".
+PROSE_WORD = re.compile(r"(?<![A-Za-z])([a-z][a-z]{3,})")
+
+
+def suggest(base: str) -> int:
+    """Report the words a branch's *added* doc comments coined. Never fails."""
+    diff = subprocess.run(
+        ["git", "diff", "--unified=0", f"{base}...HEAD", "--", "mtgsim/src"],
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if diff.returncode != 0:
+        print(f"git diff against {base!r} failed:\n{diff.stderr.strip()}", file=sys.stderr)
+        return 2
+
+    added = []
+    for line in diff.stdout.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            if m := DOC_LINE.match(line[1:]):
+                added.append(TICKED.sub(" ", m.group(1)))
+    prose = " ".join(added)
+
+    cr_words = set()
+    for f in sorted(CR_DIR.glob("*.txt")):
+        cr_words |= set(re.findall(r"[a-z]+", f.read_text(encoding="utf-8", errors="replace").lower()))
+    glossary_words = set(
+        re.findall(r"[a-z]+", GLOSSARY.read_text(encoding="utf-8", errors="replace").lower())
+    )
+    watched = {w for phrase in WATCHLIST for w in phrase.split()}
+
+    counts = Counter(PROSE_WORD.findall(prose))
+    cands = sorted(
+        ((w, n) for w, n in counts.items()
+         if n >= 3 and w not in cr_words and w not in glossary_words and w not in watched),
+        key=lambda t: (-t[1], t[0]),
+    )
+
+    print(f"  doc-comment lines added since {base}  {len(added):>4}")
+    print(f"  candidate coinages                    {len(cands):>4}")
+    print()
+    if not cands:
+        print("glossary --suggest: this branch coined nothing the glossary has not met.")
+        return 0
+    for word, n in cands:
+        print(f"  {word:<20} {n}x")
+    print(
+        "\nA report, not a gate. Most of this is ordinary English the CR happens\n"
+        "not to use. What is left is a term of art: define it in plans/glossary.md\n"
+        "and add it to WATCHLIST in the same commit, which is what makes assertion 2\n"
+        "keep it defined."
+    )
+    return 0
+
+
 def main() -> int:
+    if "--suggest" in sys.argv:
+        i = sys.argv.index("--suggest")
+        rest = [a for a in sys.argv[i + 1:] if not a.startswith("-")]
+        return suggest(rest[0] if rest else "origin/main")
+
     if not GLOSSARY.exists():
         print(f"not found: {GLOSSARY}", file=sys.stderr)
         return 2

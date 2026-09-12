@@ -91,21 +91,169 @@
 //! stays out because an extra turn in every blue deck moves `Avg turns/game` by
 //! design. Meditate and Moment of Silence stay out as one-shots whose engine
 //! path Eon Hub already opens.
+//!
+//! # RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g)
+//!
+//! **Four printed cards on two axes: which of the two draw events the effect
+//! watches, and whether the replacement keeps the draw or moves it.** CR 121.2a
+//! makes the instruction an event of its own, and Alms Collector's ruling is
+//! what makes the pair honest: *"count how many times the word 'draw' is
+//! used."*
+//!
+//! | Card | Watches | Rewrite | Keeps the draw? |
+//! |---|---|---|---|
+//! | [`thought_reflection`] | any individual draw | `Instead(DrawCards { n: 2 })` | yes |
+//! | [`teferis_ageless_insight`] | an individual draw that is not the draw step's first | `Instead(DrawCards { n: 2 })` | yes |
+//! | [`alms_collector`] | an instruction of two or more | `Instead(DrawCards { n: 1 })` + a rider | yes, cut to one, plus one for you |
+//! | [`notion_thief`] | an opponent's individual draw, not their draw step's first | `Instead(DrawCards { n: 1, player: You })` | yes, with a new subject |
+//!
+//! **Both "and" cards were mis-filed, and the same clause of CR 614.5 fixes
+//! both.** A replacement gets one opportunity to affect "an event **or any
+//! modified events that may replace that event**", so whatever the rewrite
+//! outputs carries the applied set and whatever a rider proposes does not.
+//! Notion Thief was `Prevent` plus a rider until RE's sizing; Alms Collector
+//! was `Prevent` plus *two* riders until this PR's tests ran. Each card's own
+//! ruling names the loop that encoding produces — two Thieves trading a draw
+//! forever, Alms Collector and an opponent's Thought Reflection trading cards
+//! forever — and each is fixed by putting the half that keeps the subject in
+//! the rewrite. Notion Thief keeps the draw and changes its subject; Alms
+//! Collector keeps the subject and changes the count. Only Alms Collector has a
+//! genuinely new subject left over, and that one draw is its rider.
+//!
+//! # The rulings pass (Scryfall, 2026-09-11)
+//!
+//! Every ruling on all four cards, with what became of it, **and the test that
+//! carries it** — `engineering-practices.md` §3.4 asks for the name, so the next
+//! reader can go from a printed sentence to the assertion without searching.
+//! Fifteen rulings; ten are tests in `tests/phase_re2_integration_test.rs`,
+//! three fall out of the shape and are asserted anyway, and two have no
+//! facility to assert against and say so.
+//!
+//! - **Thought Reflection**, *"If a spell or ability causes you to draw
+//!   multiple cards, Thought Reflection's effect doubles each card draw. For
+//!   example, if you cast Harmonize ('Draw three cards'), you'll draw six
+//!   cards."* → `ATOM-121.2a-001` from the inner side: the instruction is not
+//!   what it watches, so three individual draws each become two.
+//!   → `thought_reflection_doubles_each_of_a_three_card_instruction`
+//! - **Thought Reflection**, *"The effects of multiple Thought Reflections are
+//!   cumulative ... two ... four times the original number ... three ... eight
+//!   times."* → **the acid test**,
+//!   `test_two_thought_reflections_draw_four_not_infinity`. Not legendary, so
+//!   the pool can build two, and the 2ⁿ is what §3.2d's lineage rule buys.
+//!   → `test_two_thought_reflections_draw_four_not_infinity`, with
+//!   `three_thought_reflections_draw_eight` for the exponent.
+//! - **Thought Reflection**, *"If two or more replacement effects would apply
+//!   to a card-drawing event, the player who's drawing the card chooses what
+//!   order to apply them."* → falls out of CR 616.1's chooser being the
+//!   affected player. **Not asserted on two Reflections**: their order provably
+//!   cannot change the answer, so the engine does not ask (§11 item 55). The
+//!   boards that do ask are
+//!   `a_draw_doubler_beside_a_notion_thief_is_a_real_choice`, where the two
+//!   answers differ, and the three-Thief board, where the chooser moves with
+//!   the event's subject.
+//! - **Teferi's Ageless Insight**, *"If a spell or ability causes you to put a
+//!   card into your hand without specifically using the word 'draw,' it's not a
+//!   card drawn."* → structurally true and asserted: a `ZoneChangeCause` that
+//!   is not `Drawn` proposes no draw at all, so there is no event to watch.
+//!   → `a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it`
+//! - **Teferi's Ageless Insight**, *"If two or more replacement effects would
+//!   apply to a card-drawing event, the player drawing the card chooses the
+//!   order in which to apply them."* → as above.
+//! - **Teferi's Ageless Insight**, *"Because [it] is legendary, it's unlikely
+//!   that one player will control two. However, if that happens, each card that
+//!   player would draw after the first will result in four cards being drawn."*
+//!   → the legend rule makes this Thought Reflection's test, which is why the
+//!   acid test is on that card. Teferi's own board is the one decision 1 named:
+//!   beside a Thought Reflection in the draw step it draws **three**.
+//!   → `teferi_beside_thought_reflection_draws_three_in_the_draw_step`, with
+//!   `teferi_excepts_the_draw_steps_first_card` and
+//!   `teferi_doubles_a_draw_that_is_not_the_draw_steps` either side of it.
+//! - **Alms Collector**, *"[Its] replacement effect applies to an instruction
+//!   to draw more than one card before any replacement effects apply to
+//!   individual cards drawn."* → `ATOM-616.1g-001`, with Thought Reflection on
+//!   the other side of the board.
+//!   → `alms_collector_applies_to_the_instruction_before_thought_reflection_sees_a_draw`
+//! - **Alms Collector**, *"Once a replacement effect has been applied to an
+//!   event, it can't be applied again to the resulting events ... Thought
+//!   Reflection can double that player's resulting card draw without Alms
+//!   Collector's replacement effect applying again."* → **the ruling that
+//!   changed the card's encoding**, and a test. As `Prevent` plus riders the
+//!   board is an infinite loop; as an `Instead` on the count it is three cards,
+//!   which is what the ruling describes.
+//!   → `alms_collector_does_not_apply_again_to_the_draws_it_produced`
+//! - **Alms Collector**, *"To determine whether a player is instructed to draw
+//!   multiple once or instructed multiple times to draw one card, count how
+//!   many times the word 'draw' is used."* → test. Ancestral Recall (pooled) is
+//!   one "draw" of three and meets it; two `Primitive::DrawCards(1)` in one
+//!   resolution are two instructions and do not.
+//!   → `one_instruction_of_two_is_a_different_event_from_two_instructions_of_one`
+//! - **Alms Collector**, *"If an effect puts cards into a player's hand without
+//!   using the word 'draw' at all, [it] doesn't apply."* → the same structural
+//!   fact as Teferi's first ruling, asserted once.
+//! - **Alms Collector**, *"If two players each control an Alms Collector and an
+//!   effect instructs them to each draw two or more cards, the replacement
+//!   effect of each ... is applied and both players end up drawing two cards."*
+//!   → test. Two separate instructions, one per player, each meeting the other
+//!   player's Collector and neither meeting its own controller's.
+//!   → `two_alms_collectors_facing_each_other_both_draw_two`
+//! - **Alms Collector**, *"If two players each control [one] and a third player
+//!   would draw two or more cards, the third player chooses which ... will
+//!   apply, and therefore which of the first two players draws a card."* → the
+//!   four-player test, and the only three-player CR 616.1 prompt reachable from
+//!   two printed cards.
+//!   → `a_third_player_chooses_which_alms_collector_applies`
+//! - **Notion Thief**, *"If an opponent is instructed to draw a card then
+//!   discard a card, and Notion Thief causes you to draw a card instead, that
+//!   opponent still discards a card. The same is true of any other actions that
+//!   opponent is instructed to do."* → tested on the ruling's second sentence:
+//!   `Primitive::Discard` is `NotImplemented` until RE-8, so the board is a
+//!   draw-then-lose-life resolution (Night's Whisper's shape, unnamed) and the
+//!   assertion is that the opponent still loses the life.
+//!   → `the_opponents_other_instructions_still_happen`
+//! - **Notion Thief**, *"If two or more players each control a Notion Thief ...
+//!   that player chooses one ... Then the player whose Notion Thief's effect
+//!   was chosen repeats this process among the remaining ... Each effect can be
+//!   applied to the card draw only once this way."* → the three-player test,
+//!   and every sentence of it falls out rather than being coded: "that player
+//!   chooses" is CR 616.1's affected player, "the player whose ... was chosen
+//!   repeats" is the same rule asked of the *new* subject, and "only once" is
+//!   CR 614.5's applied set travelling with the lineage.
+//!   → `three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order`
+//! - **Notion Thief**, *"[So] if each player in a two-player game controls a
+//!   Notion Thief and one would draw a card, it really will be that player who
+//!   draws a card."* → test, and it is the same mechanism observed from
+//!   outside: the draw is handed across the table twice and comes home.
+//!   → `two_notion_thieves_hand_the_draw_across_the_table_and_back`
+//!
+//! # What a random deck can draw
+//!
+//! Thought Reflection is the pooled card, and it is `{4}{U}{U}{U}`. Seven mana
+//! is the most any pooled card has cost, so its `--require` reachability is
+//! read and recorded rather than assumed. It opens two paths nothing else in
+//! the pool does: the gather sweep on every draw *instruction* and every
+//! individual draw while it is on the battlefield, and the first `Instead`
+//! whose output is decomposed. Alms Collector is `{3}{W}` and stays out —
+//! it applies only to an opponent's multi-card instruction, and the pool's
+//! multi-draws are Ancestral Recall and Night's Whisper, so it would sit on the
+//! battlefield doing nothing in most games while paying for a creature slot.
+//! Teferi's Ageless Insight and Notion Thief stay out as the same shape with a
+//! narrower pattern.
 
 use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PatternFill, PlayerSet, Primitive,
-    SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet,
+    Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
+use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use crate::types::zones::DrawCause;
 
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
@@ -329,6 +477,203 @@ pub fn moment_of_silence() -> Arc<CardData> {
                 ),
                 EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             ),
+        ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// RE-2 — draw
+// ---------------------------------------------------------------------------
+
+/// "If you would draw a card, draw two cards instead" — the shape Thought
+/// Reflection and Teferi's Ageless Insight share, differing only in the
+/// [`DrawCause`] they except.
+///
+/// [`GameActionTemplate::DrawCards`]'s `player` is `None` on both: the draw
+/// stays with the player who would have drawn it. Notion Thief is the arm's
+/// other customer and the one that moves it.
+fn draw_two_instead(cause: Option<DrawCause>) -> ReplacementDef {
+    ReplacementDef::new(
+        EventPattern::DrawCard { cause },
+        AffectedSet::NO_OBJECTS,
+        Rewrite::Instead(GameActionTemplate::DrawCards { n: 2, player: None }),
+    )
+    .affecting_players(PlayerSet::You)
+}
+
+/// Thought Reflection — {4}{U}{U}{U}
+/// Enchantment
+///
+/// > If you would draw a card, draw two cards instead.
+///
+/// **The acid test's card.** It is not legendary, so a board can hold two, and
+/// its ruling gives the arithmetic verbatim: two draw four times the original
+/// number, three draw eight. CR 616.1 asks nothing between them — the order
+/// provably cannot change the total, which is `ordering_cannot_change_outcome`'s
+/// third shape (§11 item 55). That 2ⁿ is what §3.2d's lineage rule buys — each
+/// doubled draw inherits the applied set of the draw it came from, so a
+/// Reflection that has applied cannot apply to its own output. Without the
+/// inheritance the game does not answer wrongly; it hangs.
+///
+/// Its rulings are in this module's doc comment.
+///
+/// **The pooled card of the PR**, at seven mana, which is the most any pooled
+/// card has cost — so its reachability is measured with `--require` rather than
+/// assumed.
+pub fn thought_reflection() -> Arc<CardData> {
+    CardDataBuilder::new("Thought Reflection")
+        .mana_cost(ManaCost::build(
+            &[ManaType::Blue, ManaType::Blue, ManaType::Blue],
+            4,
+        ))
+        .color(Color::Blue)
+        .card_type(CardType::Enchantment)
+        .rules_text("If you would draw a card, draw two cards instead.")
+        .ability(static_replacement(draw_two_instead(None)))
+        .build()
+}
+
+/// Teferi's Ageless Insight — {2}{U}{U}
+/// Legendary Enchantment
+///
+/// > If you would draw a card except the first one you draw in each of your
+/// > draw steps, draw two cards instead.
+///
+/// **The card [`DrawCause`] exists for**, and the one that shows the stamping
+/// rule doing work: `Some(DrawCause::Effect)` watches every draw but the first
+/// of a draw step, and "the first" is not a count kept anywhere — it is the
+/// first inner of the draw step's instruction, with every later inner stamped
+/// `Effect` at every level of decomposition. So beside a Thought Reflection
+/// this draws **three** in the draw step: the Reflection doubles the
+/// instruction's one draw, the doubled instruction keeps its `TurnBased` cause
+/// (CR 614.6), its first inner is the card this excepts, and its second is the
+/// card this doubles.
+///
+/// Legendary, so the two-copy board is Thought Reflection's.
+pub fn teferis_ageless_insight() -> Arc<CardData> {
+    CardDataBuilder::new("Teferi's Ageless Insight")
+        .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 2))
+        .color(Color::Blue)
+        .card_type(CardType::Enchantment)
+        .supertype(Supertype::Legendary)
+        .rules_text(
+            "If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
+        )
+        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .build()
+}
+
+/// Alms Collector — {3}{W}
+/// Creature — Cat Cleric 3/3
+///
+/// > Flash
+/// > If an opponent would draw two or more cards, instead you and that player
+/// > each draw a card.
+///
+/// **The only printed customer for [`EventPattern::DrawCards`]**, and the card
+/// that makes the instruction event necessary rather than tidy: its own ruling
+/// says to count how many times the word "draw" is used, so "draw two cards" is
+/// one event this watches and two cantrips are two events it does not.
+///
+/// **Only half of it is a rider, and the other half is the modified event.**
+/// §9 filed the whole of "you and that player each draw a card" under `then` on
+/// §3.2d's heterogeneous rule, and its own second ruling refuses that: *"once
+/// Alms Collector's replacement effect has modified the effect of a player's
+/// Divination, Thought Reflection can double that player's resulting card draw
+/// **without Alms Collector's replacement effect applying again**."* CR 614.5
+/// gives an effect one opportunity to affect "an event **or any modified events
+/// that may replace that event**", and the affected player's one draw is such a
+/// modified event — so it has to carry this effect's applied set, which only the
+/// rewrite's own output does. As `Prevent` plus two riders it does not, and the
+/// board is an infinite loop rather than a wrong number: the rider's draw is
+/// doubled back to two, this applies again, and the two effects trade cards
+/// until the game is a draw (CR 104.4b) or the engine's stack runs out.
+///
+/// So the split follows §3.2d's rule read one clause further in. The affected
+/// player's half is the **same event with a smaller count** — homogeneous
+/// multiplicity, which is a count field — and only the controller's draw is a
+/// genuinely new subject, which is what `then` is for. One rider, not two.
+///
+/// **Flash is not modelled** (`codebase-state.md`'s timing item), and it costs
+/// this card's tests nothing: every board here puts it on the battlefield
+/// before the draw, which is the only state its replacement reads.
+///
+/// The two draws come out affected-player-first, because a rider resolves after
+/// the event it rides on (§4.1a) — neither the card's text order nor CR 121.2c's
+/// turn order, which `codebase-state.md` item 122 owns and sizes.
+pub fn alms_collector() -> Arc<CardData> {
+    CardDataBuilder::new("Alms Collector")
+        .mana_cost(ManaCost::build(&[ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Cat))
+        .subtype(Subtype::Creature(CreatureType::Cleric))
+        .power_toughness(3, 3)
+        .rules_text(
+            "Flash\nIf an opponent would draw two or more cards, instead you and that player each draw a card.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::DrawCards { at_least: Some(2) },
+                AffectedSet::NO_OBJECTS,
+                // "That player draws a card": the same instruction with `n`
+                // rewritten to 1, so it keeps this effect's applied set and
+                // whatever doubles it afterwards cannot hand it back.
+                Rewrite::Instead(GameActionTemplate::DrawCards { n: 1, player: None }),
+            )
+            .affecting_players(PlayerSet::Opponents)
+            // "And you draw a card": the half that is a different player's
+            // draw, which nothing about the replaced event can carry.
+            .with_then(Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            )),
+        ))
+        .build()
+}
+
+/// Notion Thief — {2}{U}{B}
+/// Creature — Human Rogue 3/1
+///
+/// > Flash
+/// > If an opponent would draw a card except the first one they draw in each of
+/// > their draw steps, instead that player skips that draw and you draw a card.
+///
+/// **The same event with a new subject**, and its own ruling is the only reason
+/// to know that. Read as English it is Alms Collector's shape — a skip and a
+/// draw joined by "and" — and §3.2d filed it as `Prevent` plus a rider until
+/// the rulings pass. The ruling walks two Thieves, says each is *"applied to
+/// the card draw only once"*, and concludes that in a two-player game *"it
+/// really will be that player who draws a card"*. A rider's draw is a fresh
+/// proposal with a fresh applied set, so two Thieves as riders would hand the
+/// draw back and forth forever. As `Instead(DrawCards { n: 1, player: You })`
+/// the draw keeps its lineage: each Thief applies once, and the draw comes home.
+///
+/// `n: 1` rather than a `DrawCard`, because the substitute for a draw is always
+/// the instruction (CR 121.2a) — which also means the Thief's own draw is
+/// `DrawCause::Effect` and a second Thief can take it.
+pub fn notion_thief() -> Arc<CardData> {
+    CardDataBuilder::new("Notion Thief")
+        .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Black], 2))
+        .color(Color::Blue)
+        .color(Color::Black)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Rogue))
+        .power_toughness(3, 1)
+        .rules_text(
+            "Flash\nIf an opponent would draw a card except the first one they draw in each of their draw steps, instead that player skips that draw and you draw a card.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::DrawCard { cause: Some(DrawCause::Effect) },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Instead(GameActionTemplate::DrawCards {
+                    n: 1,
+                    player: Some(PlayerRef::You),
+                }),
+            )
+            .affecting_players(PlayerSet::Opponents),
         ))
         .build()
 }

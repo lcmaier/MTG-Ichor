@@ -79,7 +79,8 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
             DamageTarget::Object(id) => EventSubject::Object(*id),
             DamageTarget::Player(pid) => EventSubject::Player(*pid),
         },
-        GameAction::DrawCard { player } => EventSubject::Player(*player),
+        GameAction::DrawCards { player, .. } => EventSubject::Player(*player),
+        GameAction::DrawCard { player, .. } => EventSubject::Player(*player),
         GameAction::GainLife { player, .. } => EventSubject::Player(*player),
         GameAction::LoseLife { player, .. } => EventSubject::Player(*player),
         GameAction::ZoneChange { object, .. } => EventSubject::Object(*object),
@@ -645,6 +646,27 @@ pub(crate) fn pattern_watches(
 
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
         (EventPattern::Tap, GameAction::Tap { .. }) => true,
+
+        // CR 121.2a's instruction. Alms Collector's "if an opponent would draw
+        // two or more cards" is `at_least: Some(2)`; `None` asks nothing about
+        // the count.
+        //
+        // **The two draw arms do not cross-match, and that is the printed
+        // ruling** — "count how many times the word 'draw' is used". One
+        // instruction to draw two is this event; two instructions to draw one
+        // are two `DrawCard`s with no instruction between them that Alms
+        // Collector could see. A pattern that watched both would make Divination
+        // and a pair of cantrips look alike.
+        (EventPattern::DrawCards { at_least }, GameAction::DrawCards { n, .. }) => {
+            at_least.map(|k| *n >= k).unwrap_or(true)
+        }
+
+        // CR 121.1's individual draw. `cause` is the field the ten "except the
+        // first one you draw in each of your draw steps" cards read, and it is
+        // this draw's own rather than its instruction's — see [`DrawCause`].
+        (EventPattern::DrawCard { cause }, GameAction::DrawCard { cause: actual, .. }) => {
+            cause.map(|c| c == *actual).unwrap_or(true)
+        }
 
         // CR 601's fact off the entry's cause: `Resolved` is a permanent spell
         // that was cast, everything else was not.

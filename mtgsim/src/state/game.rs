@@ -113,11 +113,12 @@ impl Game {
         // Draw opening hands
         let hand_size = self.config.starting_hand_size;
         let num_players = self.state.num_players();
-        // CR 103.4 calls this drawing, so it goes through the chokepoint like
-        // any other draw. Safe by construction rather than by exemption: the
+        // CR 103.4 calls this drawing, and it is the one draw in the engine
+        // that calls the *performer* instead of proposing a `DrawCards`
+        // instruction. Safe by construction rather than by exemption: the
         // battlefield is empty and the registry has no rows, so no replacement
-        // can be gathered and no choice can arise. Leylines (CR 103.6) arrive
-        // after this point.
+        // can be gathered and no choice can arise, and Leylines (CR 103.6)
+        // arrive after this point.
         let actx = ActionContext::new(decisions);
         for player_id in 0..num_players {
             for _ in 0..hand_size {

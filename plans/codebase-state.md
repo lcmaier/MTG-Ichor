@@ -1627,6 +1627,19 @@ section never asked.
     **Owner (2026-09-11):** RE-2 — `replacement-architecture.md` §9, RE
     decision 1; the outer `DrawCards` performer is the producer.
 
+    **~~Closed 2026-09-11 by RE-2.~~** `GameAction::DrawCards`'s performer hands
+    each of its `n` inner `DrawCard`s the applied set the outer's own CR 616.1
+    loop accumulated, which took four signatures rather than the one call site
+    this item sized: `apply_replacements` returns the group's applied set,
+    `execute_batch_inner` carries it per member into phase 2, `perform_action`
+    takes it, and `execute_actions_inheriting` hands it back down. The
+    regression is `test_two_thought_reflections_draw_four_not_infinity` — Thought
+    Reflection and not the Teferi §3.2d named, because Teferi's Ageless Insight
+    is legendary. **The sizing's one thing worth keeping**: it called the failure
+    a hang, and it is worse than that — the recursion overflows the stack, which
+    aborts the whole test binary rather than one test. The bound is in the
+    provider, not the engine.
+
 30. **Nothing records what was spent to pay a cost, and five rules want it
     (found 2026-08-31 by the type-surface audit; `cr-coverage-audit.md` §5.1).**
     `StackEntry.chosen_alternative_cost` and `additional_costs_paid` hold the
@@ -4153,6 +4166,64 @@ named RE PR.
      trigger. **Item 6's own doc should list them** — the card file's module
      doc records both rulings as "item 6's" and this is the line that says
      where they land.
+
+### Found by RE-2 — draw (2026-09-11)
+
+**Shipped:** `GameAction::{DrawCards, DrawCard}` as CR 121.2a's instruction and
+CR 121.1's draw, with `DrawCause`, the two `EventPattern` arms,
+`GameActionTemplate::DrawCards { n, player }` in both its legs, and the outer
+performer's decomposition handing each inner the applied set its own CR 616.1
+loop accumulated — `execute_actions_inheriting` beside `execute_actions`, and
+`apply_replacements` returning the group's applied set beside the members'
+decided events. `GameState::draw_cards` deleted. Four cards — Thought
+Reflection (pooled), Teferi's Ageless Insight, Alms Collector, Notion Thief.
+Item 29 closes; `replacement-architecture.md` §11 items 18 and 42 close and
+items 50–56 open, of which 53 is the one worth reading. CR 121.6c went to
+`backlog.md` §2.26 rather than to this section: nothing was scaffolded for it,
+so it is a mechanic the surface cannot express and not debt. Trace page:
+[`plans/traces/re-2-a-draw-carries-its-lineage.html`](traces/re-2-a-draw-carries-its-lineage.html).
+
+122. **CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
+     first customer.** *"If more than one player is instructed to draw cards,
+     the active player performs all of their draws first, then each other
+     player in turn order does the same."* Alms Collector's rider — "instead
+     **you and that player** each draw a card" — is the first effect in the
+     crate that instructs two players to draw, and it is an `Effect::Sequence`,
+     which resolves in the order the card's text was written. When the affected
+     opponent is the active player the two draws come out backwards.
+
+     **Reachability (2026-09-11):** reachable, wrong today, and only in the
+     event log. Alms Collector is registered and not pooled, so no fuzz game
+     reaches it; a fixture does, and the order is asserted nowhere because
+     asserting it would freeze the wrong answer. It becomes gameplay-visible
+     the day item 6 lands "whenever you draw a card", where two players'
+     triggers would go on the stack in the wrong order.
+
+     **Sized: not one line.** The facility is APNAP ordering over *an effect's
+     recipients*, and `Effect` has no arm that says "these atoms are one
+     instruction to several players" — a `Sequence` is CR 608.2c's instruction
+     sequencing, which is deliberately *not* reordered. The two candidate
+     shapes are a recipient-plural draw primitive
+     (`Primitive::DrawCards` with an `EffectRecipient::Filter`-style player set,
+     ordered by `apnap_index` at resolution, ~40 lines and one new recipient
+     reading) or a `Effect::Simultaneous` arm that sorts its atoms by chooser
+     the way `apnap_batch_order` already sorts a batch (~60 lines, and a second
+     ordering rule beside the batch's). CR 121.2d's shared-team-turns variant
+     is a third leg on whichever lands. **One customer today**, which is why
+     neither is built: §8c's "two customers before a leaf", applied to an
+     ordering rule rather than a filter.
+
+     **Narrowed 2026-09-11, at RE-2's close.** Alms Collector's rider turned out
+     to be one draw and not two — CR 614.5 forced the affected player's half
+     into the rewrite (item 53 there) — so the order is no longer the card's
+     text order but a structural one: the replaced event is performed, then the
+     rider (§4.1a). That is still not CR 121.2c's, and it is now wrong in a
+     narrower and more predictable way: the affected player always draws first,
+     where the rule says the active player does. The facility is unchanged and
+     so is the sizing.
+
+     → `replacement-architecture.md` §11 item 52. **Owner: RE-6**, which is
+     where turn order stops being `(0..n)` because a lost player has left it.
 
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 

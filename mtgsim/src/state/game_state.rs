@@ -379,6 +379,21 @@ pub struct GameState {
     /// restored by `execute_batch_inner` with `entry_selection`.
     pub(crate) prevention_allocations: PreventionAllocationScope,
 
+    /// How many decomposing calls (§3.2d) are on the stack — CR 121.2's draws
+    /// inside draws, and nothing else today.
+    ///
+    /// **Not a cap, and deliberately not one.** CR 614.5's applied set is the
+    /// loop's termination argument and a ceiling beside it would answer a
+    /// question the rules do not ask. What this counts is the *derived*
+    /// invariant that the applied set implies: a decomposing call at depth `d`
+    /// exists because `d - 1` substitutions happened above it, each of which
+    /// inserted an instance, so `d <= inherited.len() + 1`. Break the lineage
+    /// and depth climbs while the set stays put, which
+    /// `execute_actions_decomposing` asserts in debug builds — turning a stack
+    /// overflow that aborts the test binary into a red test that names the
+    /// rule. The release binary carries the counter and not the assertion.
+    pub(crate) decomposition_depth: usize,
+
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
     ///
@@ -563,6 +578,7 @@ impl GameState {
             restriction_ability_sources: HashSet::new(),
             cost_modification_ability_sources: HashSet::new(),
             entry_selection: EntrySelectionScope::default(),
+            decomposition_depth: 0,
             prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,

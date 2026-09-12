@@ -1,4 +1,4 @@
-use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::actions::{ActionContext, DrawCause, GameAction};
 use crate::state::game_state::{
     initial_step, next_phase, next_step, GameState, PhaseType, StepType,
 };
@@ -414,7 +414,17 @@ impl GameState {
             // Through the chokepoint, not straight to `draw_card`: CR 614.11
             // draw replacements and CR 614.10 skips both act on the *proposal*,
             // and the turn-based action is where the proposal is born.
-            self.execute_action(GameAction::DrawCard { player: active }, ctx)?;
+            //
+            // The **instruction** rather than the draw (CR 121.2a). CR 504.1's
+            // turn-based action is "draw a card", which is one "draw" of one
+            // card, and every draw instruction proposes the outer so that
+            // Divination and a pair of cantrips are told apart by `n` rather
+            // than by which event the producer happened to build. This is the
+            // engine's one `DrawCause::TurnBased` site (CR 121.1).
+            self.execute_action(
+                GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
+                ctx,
+            )?;
         }
 
         self.priority_player = active;
