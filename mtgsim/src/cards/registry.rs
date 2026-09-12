@@ -48,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 80] = [
+const PERFORMANCE_POOL: [&str; 81] = [
     "Plains",
     "Island",
     "Swamp",
@@ -318,6 +318,15 @@ const PERFORMANCE_POOL: [&str; 80] = [
     // consumer whose gather sweep runs without a second card to set it up —
     // and, with lifelink of its own, it doubles the life its own damage gains.
     "Rhox Faithmender",
+    // RE-6 — the game's end. A three-drop whose static is a draw watcher
+    // gated on a library state: the first conditional replacement in the
+    // pool, so the gather's "as long as" leg runs on every draw while it is
+    // on the battlefield, and the first card that makes decking a *win* in a
+    // measured game. Fuzz games deck out rarely, so the rows to read are
+    // `--require`'s and the "wins by effect" outcome line. Platinum Angel is
+    // registered and stays out: a seven-drop that turns every lethal board
+    // into a stall would move average turns by design and not by engine.
+    "Laboratory Maniac",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
