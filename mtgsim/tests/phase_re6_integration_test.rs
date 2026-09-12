@@ -25,6 +25,7 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::{GameEvent, LossReason};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
+use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState, StackEntry};
@@ -360,6 +361,30 @@ fn a_departed_active_players_priority_passes_to_the_next_player_in_turn_order() 
     assert_eq!(dp.prompts(), 3, "P1, P2, P3 — and the round ends when the three have passed");
     assert_eq!(game.priority_player, 3, "the last player asked was the last in turn order");
     assert_eq!(game.active_player, 0, "the turn is still P0's, continuing without them");
+}
+
+/// CR 506.2 — the defending players are the active player's *opponents*, and
+/// a player who has left the game is nobody's opponent: a departed seat is not
+/// offered as an attack target. Found by the four-player run, where the random
+/// agent had been attacking empty seats for a hundred turns.
+#[test]
+fn a_departed_player_is_not_offered_as_an_attack_target() {
+    let mut game = setup_game(4);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.players[1].life_total = 0;
+    game.players[2].life_total = 0;
+    assert!(sba(&mut game, &test_dp()));
+    assert_eq!(game.result, None, "two seats remain");
+
+    // Takes the first pair offered; with P1 and P2 gone, that is P3.
+    let dp = RecordingDecisionProvider::picking(0);
+    game.process_declare_attackers(&dp).unwrap();
+
+    let target = game.battlefield[&attacker].attacking.as_ref().map(|a| a.target.clone());
+    assert!(
+        matches!(target, Some(AttackTarget::Player(3))),
+        "the only opponent still in the game, not {target:?}"
+    );
 }
 
 /// The whole-game path for CR 800.4j: the active player leaves in their own
