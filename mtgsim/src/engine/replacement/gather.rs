@@ -668,6 +668,14 @@ pub(crate) fn pattern_watches(
             cause.map(|c| c == *actual).unwrap_or(true)
         }
 
+        // CR 119.3 / 119.10's gain and CR 120.3a's loss. Which *player* each is
+        // around is `set_affects`'s question one function below; these ask only
+        // about the event, and a gain has nothing to ask.
+        (EventPattern::GainLife, GameAction::GainLife { .. }) => true,
+        (EventPattern::LoseLife { cause }, GameAction::LoseLife { cause: actual, .. }) => {
+            cause.map(|c| c.matches(*actual)).unwrap_or(true)
+        }
+
         // CR 601's fact off the entry's cause: `Resolved` is a permanent spell
         // that was cast, everything else was not.
         (

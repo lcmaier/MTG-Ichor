@@ -41,7 +41,7 @@ use crate::types::effects::{
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::ObjectId;
-use crate::types::zones::{DestructionSource, DrawCause, Zone, ZoneChangeCause};
+use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
 ///
@@ -281,6 +281,42 @@ pub enum EventPattern {
         cause: Option<DrawCause>,
     },
 
+    /// CR 119.3 / 119.10 — "if you would gain life". The event's subject is
+    /// the gaining player.
+    ///
+    /// **No fields, and the census is why.** CR 119.10 restates every printed
+    /// one as "if a source would cause [a player] to gain life", and the
+    /// twenty-one printed "would gain life" replacements scope themselves by
+    /// *which* player — [`ReplacementDef::affected_players`]'s question, which
+    /// is why Rhox Faithmender (`You`) and Tainted Remedy (`Opponents`) differ
+    /// in nothing else. Nothing prints a constraint on the source or on the
+    /// amount, and an arm the pipeline cannot apply is worse than a missing
+    /// one (§3.2a).
+    ///
+    /// **Reading no amount is load-bearing**, and it is the same clause
+    /// [`Self::DealDamage`] carries: `pipeline::ordering_cannot_change_outcome`
+    /// suppresses CR 616.1's prompt for a bucket of commuting multipliers over
+    /// this pattern, and the premise holds only while no field here can make a
+    /// member fall out of applicability as another member changes the number.
+    /// `pipeline::pattern_reads_the_amount` is the leaf table that says so.
+    GainLife,
+
+    /// CR 119.3 / 120.3a — "if you would lose life". The event's subject is
+    /// the losing player.
+    ///
+    /// `cause` is the loss's own [`LifeLossCause`](crate::types::zones::LifeLossCause),
+    /// and it is the field Ali from Cairo exists for: its clamp is on *damage*,
+    /// and its own ruling is that the effect "does not prevent damage, it
+    /// prevents the damage from turning into loss of life" — so it watches the
+    /// loss CR 120.3a contains inside the damage rather than the damage.
+    /// `None` matches any loss, which is Bloodletter of Aclazotz's shape and
+    /// the reason the card prints "(Damage causes loss of life.)".
+    ///
+    /// Reads no amount, for [`Self::GainLife`]'s reason.
+    LoseLife {
+        cause: Option<LifeLossCausePattern>,
+    },
+
     /// CR 603.2e's counterpart. No printed customer in RB; the arm exists
     /// because `GameAction::Tap` exists and the contract above says one arm
     /// per variant.
@@ -462,6 +498,37 @@ impl DestructionSourcePattern {
                     DestructionSourcePattern::StateBasedAction,
                     DestructionSource::StateBasedAction
                 )
+        )
+    }
+}
+
+/// [`LifeLossCause`] with its payload dropped — what
+/// [`EventPattern::LoseLife`] can ask about a loss.
+///
+/// **A projection and not the cause itself**, exactly as
+/// [`DestructionSourcePattern`] is of [`DestructionSource`]: `LifeLossCause::Damage`
+/// carries the damage's source, and Ali from Cairo's "damage that would reduce
+/// your life total" is about damage from *anything*. A pattern holding the cause
+/// verbatim could only name one source object, which no printed card does — and
+/// the field a card could want beside it is CR 609.7's source predicate, which
+/// [`SourcePattern`] already is and which nothing prints about a life loss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifeLossCausePattern {
+    /// CR 120.3a — the loss contained in damage.
+    Damage,
+    /// A resolving spell or ability's "loses N life".
+    Effect,
+    /// CR 119.4's life payment.
+    Cost,
+}
+
+impl LifeLossCausePattern {
+    pub fn matches(self, cause: LifeLossCause) -> bool {
+        matches!(
+            (self, cause),
+            (LifeLossCausePattern::Damage, LifeLossCause::Damage { .. })
+                | (LifeLossCausePattern::Effect, LifeLossCause::Effect)
+                | (LifeLossCausePattern::Cost, LifeLossCause::Cost)
         )
     }
 }
@@ -758,6 +825,36 @@ pub enum AmountRewrite {
     /// amount: "the remaining" with no count is everything, and the pipeline
     /// refuses the pairing that would ever ask it.
     PreventRemaining,
+
+    /// "Damage that would reduce your life total to less than N reduces it to N
+    /// instead" — CR 614.1a's modification of the *loss*, clamped so the
+    /// affected player's total does not end below the floor.
+    ///
+    /// **The floor is a life total, which is why it is `i64`.**
+    /// `PlayerState::life_total` is signed, because CR 119.6 loses the game at
+    /// 0 *or less* and the number below zero is a real board state between one
+    /// SBA check and the next. A `u64` here would be a claim about the *scale*
+    /// rather than about the cards. All three printed floors are 1 — Ali from
+    /// Cairo, Worship, Angel's Grace.
+    ///
+    /// **It only ever reduces a loss, never reverses one.** From a total
+    /// already at or below the floor the clamp takes the whole amount and the
+    /// loss becomes 0; "reduces it to N" is a bound on how far the loss may
+    /// carry the total, not an instruction to raise it. The arm's type says the
+    /// same thing — a `LoseLife`'s amount is a `u64` and there is no negative
+    /// loss to produce.
+    ///
+    /// **Not a prevention effect** ([`Self::prevents_damage`] is `false`), and
+    /// the card's own ruling is the reason: *"this effect does not prevent
+    /// damage, it prevents the damage from turning into loss of life"*. So
+    /// CR 615.12's "damage can't be prevented" has nothing to say to it and
+    /// Skullcrack does not turn it off.
+    ///
+    /// **The one arm whose arithmetic needs the board**, which is why
+    /// [`Self::apply`] cannot answer for it: the clamp reads the affected
+    /// player's life total *now*. `pipeline::apply_rewrite`'s `LoseLife` leg is
+    /// its only evaluator, and that arm's other two legs refuse the pairing.
+    LifeFloor(i64),
 }
 
 impl AmountRewrite {
@@ -773,6 +870,10 @@ impl AmountRewrite {
             AmountRewrite::PreventHalf(rounding) => rounding.half(amount),
             AmountRewrite::PreventUpTo(n) => amount.min(n),
             AmountRewrite::PreventRemaining => amount,
+            // Ali from Cairo's ruling, in the one place the engine could get it
+            // wrong: the clamp is not prevention, so nothing it does feeds
+            // CR 615.5's rider, CR 615.7's count or CR 615.13's trigger.
+            AmountRewrite::LifeFloor(_) => 0,
         }
     }
 
@@ -785,6 +886,19 @@ impl AmountRewrite {
             AmountRewrite::PreventHalf(_)
             | AmountRewrite::PreventUpTo(_)
             | AmountRewrite::PreventRemaining => amount - self.prevented(amount),
+            // Unreachable, and loud about it rather than plausible: the clamp
+            // needs the affected player's life total, which this signature has
+            // no way to read. `pipeline::apply_rewrite`'s `LoseLife` leg is the
+            // only evaluator and its sibling legs refuse the pairing, so an
+            // arrival here is a leg that forgot to — and a wrong life total
+            // with nothing pointing at it is the failure this assertion buys.
+            AmountRewrite::LifeFloor(_) => {
+                debug_assert!(
+                    false,
+                    "`AmountRewrite::LifeFloor` is clamped against the affected player's                      life total, which `apply` cannot read. Its only evaluator is                      `pipeline::apply_rewrite`'s `LoseLife` leg."
+                );
+                amount
+            }
         }
     }
 
@@ -815,6 +929,7 @@ impl AmountRewrite {
             AmountRewrite::PreventHalf(_)
             | AmountRewrite::PreventUpTo(_)
             | AmountRewrite::PreventRemaining => true,
+            AmountRewrite::LifeFloor(_) => false,
         }
     }
 }
@@ -1087,6 +1202,56 @@ pub enum GameActionTemplate {
     /// the other one saying so explicitly would be a `PlayerRef` the pipeline
     /// resolves to the same answer it already has.
     DrawCards { n: u64, player: Option<PlayerRef> },
+
+    /// Gain life instead — CR 614.1a, from an event of any kind.
+    ///
+    /// One customer, Words of Worship ("the next time you would draw a card
+    /// this turn, you gain 5 life instead"), and it is a *kind-changing*
+    /// substitution: the pattern is a draw and the substitute is a life gain.
+    /// The affected player gains; nothing printed moves a substituted gain to
+    /// somebody else, so there is no `player` field here and the day one is
+    /// printed it arrives as [`Self::DrawCards`]'s already is.
+    GainLife { amount: TemplateAmount },
+
+    /// Lose life instead — CR 614.1a.
+    ///
+    /// One customer, Tainted Remedy ("if an opponent would gain life, that
+    /// player loses that much life instead"), and it is the arm
+    /// [`TemplateAmount::ReplacedAmount`] exists for: "that much" is the
+    /// replaced event's own number.
+    ///
+    /// `cause` is [`LifeLossCause::Effect`] and is not a field: a substituted
+    /// loss is produced by the replacement effect, which is an effect, and no
+    /// printed substitution claims to be damage or a payment. Ali from Cairo
+    /// reading `Some(Damage)` is what makes that distinction load-bearing
+    /// rather than cosmetic.
+    LoseLife { amount: TemplateAmount },
+}
+
+/// How a life template gets its number.
+///
+/// Two arms, one printed customer each, and the pair is the whole of what
+/// CR 614.1a's life substitutions say: Words of Worship names a constant and
+/// Tainted Remedy names the event's own amount.
+///
+/// **Not [`AmountExpr`].** That type is a resolving effect's arithmetic over
+/// the board — "X", "equal to this creature's power" — evaluated against a
+/// `ResolutionContext` a replacement effect does not have. This one is
+/// evaluated against the *event*, which is the only thing a rewrite may read,
+/// and its two arms are the two things an event can supply. The day a card
+/// prints "gain life equal to the number of creatures you control instead",
+/// the arm it wants is an `AmountExpr` leg here rather than a third constant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemplateAmount {
+    /// A number printed on the card — Words of Worship's 5.
+    Fixed(u64),
+    /// CR 615.5's "that much", read off the replaced event through
+    /// `pipeline::event_amount` — Tainted Remedy's.
+    ///
+    /// An event with no amount is a card-authoring error rather than a rules
+    /// corner, and the pipeline reports it the way every other half-disagreeing
+    /// `ReplacementDef` is reported.
+    ReplacedAmount,
 }
 
 /// CR 616.1a–e — the steps of the rule's choice ladder, in its own order.

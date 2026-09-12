@@ -12,9 +12,9 @@ use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, Playe
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef,
-    RetargetSpec, GameActionTemplate, Rewrite, Uses,
+    RetargetSpec, GameActionTemplate, Rewrite, TemplateAmount, Uses,
 };
-use crate::types::zones::{DrawCause, Zone};
+use crate::types::zones::{DrawCause, LifeLossCause, Zone};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
@@ -1240,6 +1240,21 @@ fn apply_rewrite(
                             chosen.id, other
                         ))
                     }
+                    // Refused here so `AmountRewrite::apply` never has to
+                    // answer for it: the clamp is about a life total, and
+                    // damage has none. Ali from Cairo watches the loss
+                    // CR 120.3a contains inside the damage, which is the leg
+                    // below.
+                    (AmountRewrite::LifeFloor(_), _) => {
+                        return Err(format!(
+                            "replacement {:?} floors a life total but matched damage. \
+                             CR 120.3a's contained loss is the event a floor is about, \
+                             and the printed card says so: the effect \"does not prevent \
+                             damage, it prevents the damage from turning into loss of \
+                             life\".",
+                            chosen.id
+                        ))
+                    }
                     (other, _) => *other,
                 };
                 // The consult is on the *prevention* arms only. Ghosts of the
@@ -1268,6 +1283,37 @@ fn apply_rewrite(
                     Applied { took_effect: after != amount, prevented },
                 ))
             }
+
+            // CR 119.3's gain and CR 120.3a's loss, on the same arithmetic
+            // minus CR 615 — Rhox Faithmender's doubler, Bloodletter of
+            // Aclazotz's, and Ali from Cairo's clamp.
+            //
+            // **A prevention arm here is an authoring error, not a rules
+            // corner.** CR 615.1 is about damage: "prevent half that damage"
+            // over a life gain is a def whose pattern and rewrite describe
+            // different events, and the pipeline reports it the way it reports
+            // every other such pairing.
+            GameAction::GainLife { player, amount, source } => {
+                let after = life_arithmetic(chosen, *amount_rewrite, amount, None)?;
+                Ok((
+                    Some(GameAction::GainLife { player, amount: after, source }),
+                    Applied { took_effect: after != amount, prevented: 0 },
+                ))
+            }
+            GameAction::LoseLife { player, amount, cause } => {
+                // The clamp's board read, and the only one in this function
+                // that is not about an entry: CR 614.1a lets Ali from Cairo
+                // modify the loss by *how much of it the total can take*, which
+                // is a fact about the player right now (`codebase-state.md`
+                // item 53). A read, not a write.
+                let life = game.get_player(player)?.life_total;
+                let after = life_arithmetic(chosen, *amount_rewrite, amount, Some(life))?;
+                Ok((
+                    Some(GameAction::LoseLife { player, amount: after, cause }),
+                    Applied { took_effect: after != amount, prevented: 0 },
+                ))
+            }
+
             // Its `EventPattern` and its `Rewrite` describe different events —
             // the same card-authoring error every other arm reports. The
             // wording is about the *arm* and not about the event, because
@@ -1411,6 +1457,56 @@ fn apply_rewrite(
                 changed,
             )),
 
+            // CR 614.1a's kind-changing substitutions, and the pair is what
+            // §10's Eligeth test wanted: a draw becomes a life gain (Words of
+            // Worship), a gain becomes a loss (Tainted Remedy).
+            //
+            // **The subject does not move**, which is why neither carries a
+            // `player`. Both printed customers leave the life where the
+            // replaced event put it, and the affected player is what
+            // `subject_of` already answered — the `EventSubject::Object` arm is
+            // the authoring error, since nothing here can hand life to a
+            // permanent.
+            //
+            // A substituted loss is `LifeLossCause::Effect` and never
+            // `Damage`: it is produced by a replacement effect, and calling it
+            // damage would hand it to Ali from Cairo's clamp, which watches
+            // CR 120.3a's loss and nothing else.
+            (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
+                EventSubject::Player(player) => Ok((
+                    Some(GameAction::GainLife {
+                        player,
+                        amount: template_amount(chosen, *amount, &event)?,
+                        // CR 609.6: the replacement effect's own source is the
+                        // source of what it substitutes.
+                        source: chosen.source,
+                    }),
+                    changed,
+                )),
+                EventSubject::Object(_) => Err(format!(
+                    "replacement {:?} rewrites to a life gain but matched {:?}, whose subject \
+                     is an object, not a player. Its `EventPattern` and its `Rewrite` \
+                     describe different events.",
+                    chosen.id, event
+                )),
+            },
+            (GameActionTemplate::LoseLife { amount }, event) => match subject_of(&event) {
+                EventSubject::Player(player) => Ok((
+                    Some(GameAction::LoseLife {
+                        player,
+                        amount: template_amount(chosen, *amount, &event)?,
+                        cause: LifeLossCause::Effect,
+                    }),
+                    changed,
+                )),
+                EventSubject::Object(_) => Err(format!(
+                    "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \
+                     is an object, not a player. Its `EventPattern` and its `Rewrite` \
+                     describe different events.",
+                    chosen.id, event
+                )),
+            },
+
             // A template that cannot be built from this event is a card-
             // authoring error rather than a rules corner: the pattern is what
             // decides which events reach the rewrite, so a mismatch means the
@@ -1428,6 +1524,71 @@ fn apply_rewrite(
                 chosen.id, other
             )),
         },
+    }
+}
+
+/// A [`Rewrite::Amount`] over a life event — CR 614.1a's arithmetic, with
+/// CR 615's removed.
+///
+/// `life` is the affected player's life total, and `None` says the event is a
+/// *gain*: the clamp has no meaning over one, because a gain cannot carry a
+/// total downward past a floor.
+///
+/// **Two arms are refused rather than computed.** A prevention arm over a life
+/// event is a def whose pattern and rewrite describe different events —
+/// CR 615.1 is about damage and nothing else — and [`AmountRewrite::LifeFloor`]
+/// over a gain is the same error from the other side. Both are card-authoring
+/// mistakes, reported the way every other half-disagreeing `ReplacementDef` is.
+fn life_arithmetic(
+    chosen: &ReplacementInstance,
+    arm: AmountRewrite,
+    amount: u64,
+    life: Option<i64>,
+) -> Result<u64, String> {
+    match (arm, life) {
+        // "Damage that would reduce your life total to less than N reduces it
+        // to N instead." The clamp is on the *loss*: how much of it the total
+        // can take before reaching the floor, which is 0 from a total already
+        // there. A floor never hands life back — see [`AmountRewrite::LifeFloor`].
+        (AmountRewrite::LifeFloor(floor), Some(life)) => {
+            Ok(amount.min(life.saturating_sub(floor).max(0) as u64))
+        }
+        (AmountRewrite::LifeFloor(_), None) => Err(format!(
+            "replacement {:?} floors a life total but matched a life gain, which carries \
+             no total downward. Its `EventPattern` and its `Rewrite` describe different \
+             events.",
+            chosen.id
+        )),
+        (other, _) if other.prevents_damage() => Err(format!(
+            "replacement {:?} prevents damage but matched a life gain or loss. CR 615.1 is \
+             about damage, and the loss CR 120.3a contains inside it is a different event: \
+             an effect that modifies one is not a prevention effect.",
+            chosen.id
+        )),
+        (other, _) => Ok(other.apply(amount)),
+    }
+}
+
+/// The number a [`TemplateAmount`] stands for, against the event being replaced.
+///
+/// [`TemplateAmount::ReplacedAmount`] is CR 615.5's "that much" read one step
+/// earlier than a rider reads it — off the event as it stands when the
+/// substitution is applied, which is what Tainted Remedy's "loses that much
+/// life" means after Alhammarret's Archive has doubled it.
+fn template_amount(
+    chosen: &ReplacementInstance,
+    amount: TemplateAmount,
+    event: &GameAction,
+) -> Result<u64, String> {
+    match amount {
+        TemplateAmount::Fixed(n) => Ok(n),
+        TemplateAmount::ReplacedAmount => event_amount(event).ok_or_else(|| {
+            format!(
+                "replacement {:?} substitutes an event sized by the replaced event's own \
+                 amount (CR 615.5's \"that much\"), but {:?} carries none to read.",
+                chosen.id, event
+            )
+        }),
     }
 }
 
