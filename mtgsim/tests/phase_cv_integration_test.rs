@@ -37,7 +37,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, Primitive,
+    PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -790,6 +790,7 @@ fn restriction_creature() -> Arc<CardData> {
                 affected: AffectedSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
+                affected_players: PlayerSet::Nobody,
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),
         })

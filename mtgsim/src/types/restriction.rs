@@ -2,9 +2,9 @@
 //!
 //! A "can't" is discovered exactly the way a replacement effect is and differs
 //! from one only in what it is asked at (`cant-effects-architecture.md` §3.1).
-//! So this module borrows [`EventPattern`] and [`AffectedSet`] verbatim and
-//! adds one field of its own; the vocabulary that would have been new is
-//! vocabulary the replacement pipeline already owns.
+//! So this module borrows [`EventPattern`], [`AffectedSet`] and [`PlayerSet`]
+//! verbatim and adds one field of its own; the vocabulary that would have been
+//! new is vocabulary the replacement pipeline already owns.
 //!
 //! Data only, like `types::replacement`, so a card file can write a
 //! `RestrictionDef` without reaching into the engine. The enforcement points
@@ -80,7 +80,24 @@ pub enum Restriction {
     /// what *caused* the event, which is §2.6's Sigarda family.
     Event {
         pattern: EventPattern,
+        /// The objects this forbids the event about. **Half a pair**, like
+        /// [`Self::ApplyReplacement::to_objects`] and for the same reason: the
+        /// two sets are unioned and neither is primary.
         affected: AffectedSet,
+        /// The other half — CR 101.2 about an event whose subject is a
+        /// *player*. "Players can't gain life" (Skullcrack, Leyline of
+        /// Punishment, 25 cards) is the family, and CR 119.7 spells out what it
+        /// costs the pipeline: *"a replacement effect that would replace a life
+        /// gain event affecting that player won't do anything"*, which falls
+        /// out of `is_prohibited` being asked ahead of `gather`.
+        ///
+        /// Unioned with `affected` by the same `set_affects` that unions a
+        /// `ReplacementDef`'s two sets — so an event about an object asks
+        /// `affected` and one about a player asks this, and neither set has any
+        /// say about the other's kind of subject. [`PlayerSet::Nobody`] is
+        /// therefore what every object-scoped restriction written before RE-3
+        /// means and what it keeps meaning: "this is not about players".
+        affected_players: PlayerSet,
         by: Option<SourceFilter>,
     },
 
@@ -120,10 +137,10 @@ pub enum Restriction {
         /// plus `Filter { All }`; a hypothetical "damage to you can't be
         /// prevented" would be `You` plus `NO_OBJECTS`.
         ///
-        /// [`Self::Event`] has no such field yet, deliberately: no printed
-        /// "can't" the engine can express names a player, and the day one does
-        /// it adds the field with its card (`replacement-architecture.md` §9,
-        /// RD decision 0).
+        /// [`Self::Event`] gained the same field in RE-3, with Skullcrack —
+        /// which is how RD-4 said it would arrive (`replacement-architecture.md`
+        /// §9, RD decision 0: "the day one is, it adds the field with its
+        /// card").
         to_players: PlayerSet,
     },
 }

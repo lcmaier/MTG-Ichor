@@ -637,6 +637,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
         affected: AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
     let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: Vec::new(), replaced_amount: None, damage_prevented: None };
