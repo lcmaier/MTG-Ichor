@@ -39,9 +39,7 @@ impl GameState {
         let attacker_ids = legal_attackers(self, active);
         // CR 506.2 — the defending players are the active player's
         // *opponents*, and a player who has left the game (CR 104.5, 800.4a)
-        // is nobody's opponent. Before RE-6 no departed player could still be
-        // sitting at a table the game was using; at four seats, `--players 4`
-        // showed the random agent attacking empty seats for a hundred turns.
+        // is nobody's opponent.
         let defenders: Vec<_> = (0..self.num_players())
             .filter(|&pid| pid != active && self.in_game(pid))
             .collect();

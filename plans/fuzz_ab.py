@@ -53,7 +53,8 @@ ROWS = [
     ("Panics", r"^Panics:\s+(\d+)"),
     ("Uncast resolved", r"^Uncast resolved:\s+(\d+)"),
     ("Hit turn limit", r"^Hit turn limit:\s+(\d+)"),
-    ("P0 / P1", None),
+    ("Wins by seat", None),
+    ("Wins by effect", None),
     ("Avg turns", r"^Avg turns/game:\s+([\d.]+)"),
     ("Max turns", r"^Max turns seen:\s+(\d+)"),
     ("Spells cast", r"^\s+Spells cast:\s+([\d.]+)"),
@@ -106,16 +107,31 @@ def grab(text, pat):
     return m.group(1) if m else "?"
 
 
+def seats(text):
+    # The harness prints the line only off its default of two.
+    m = re.search(r"^Players: (\d+)", text, re.M)
+    return int(m.group(1)) if m else 2
+
+
 def wins(text):
-    p0 = re.search(r"^\s+P0 wins\s+(\d+) \(([\d.]+)%\)", text, re.M)
-    p1 = re.search(r"^\s+P1 wins\s+(\d+) \(([\d.]+)%\)", text, re.M)
-    if not (p0 and p1):
-        return "?"
-    return f"{p0.group(1)} ({p0.group(2)}%) / {p1.group(1)} ({p1.group(2)}%)"
+    """Every seat's wins, in seat order — two cells at two seats, four at four."""
+    cells = []
+    for p in range(seats(text)):
+        m = re.search(rf"^\s+P{p} wins\s+(\d+) \(([\d.]+)%\)", text, re.M)
+        cells.append(f"{m.group(1)} ({m.group(2)}%)" if m else "0 (0.0%)")
+    return " / ".join(cells)
+
+
+def wins_by_effect(text):
+    """Games ended by a `PlayerWon` (CR 104.2b), summed over seats."""
+    return str(sum(int(n) for n in re.findall(r"^\s+P\d+ wins by effect\s+(\d+) \(", text, re.M)))
+
+
+SPECIAL = {"Wins by seat": wins, "Wins by effect": wins_by_effect}
 
 
 def counters(text):
-    return {name: (wins(text) if pat is None else grab(text, pat)) for name, pat in ROWS}
+    return {name: (SPECIAL[name](text) if pat is None else grab(text, pat)) for name, pat in ROWS}
 
 
 def fmt(name, value):

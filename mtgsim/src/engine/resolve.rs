@@ -384,10 +384,11 @@ impl GameState {
             }
 
             // CR 701.? "exile" — move to the exile zone from wherever the
-            // object is. Two recipients: the resolved object targets still on
-            // the battlefield (CR 608.2b does the filtering), and `Implicit`,
-            // which is the effect's own source — "exile this creature" on a
-            // rider (Exquisite Archangel) and "Exile Stunning Reversal" as a
+            // object is: a battlefield permanent, a card in a graveyard, a
+            // spell on the stack. Two recipients: the resolved object targets
+            // (CR 608.2b has already re-checked them), and `Implicit`, which
+            // is the effect's own source — "exile this creature" on a rider
+            // (Exquisite Archangel) and "Exile Stunning Reversal" as a
             // resolving spell's last instruction, which CR 608.2m lets finish
             // resolving from exile. A source that has already left where the
             // effect found it is a new object (CR 400.7) and nothing moves.
@@ -402,7 +403,14 @@ impl GameState {
                             || self.resolving.as_ref().is_some_and(|r| r.id == source);
                         if here { vec![source] } else { Vec::new() }
                     }
-                    _ => self.collect_battlefield_targets(ctx),
+                    _ => ctx
+                        .targets
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Object(id) if self.objects.contains_key(id) => Some(*id),
+                            _ => None,
+                        })
+                        .collect(),
                 };
                 let mut batch = Vec::with_capacity(objects.len());
                 for object in objects {

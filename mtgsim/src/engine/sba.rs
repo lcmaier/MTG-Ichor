@@ -5,7 +5,7 @@ use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
 };
-use crate::state::game_state::GameState;
+use crate::state::game_state::{GameResult, GameState};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use crate::engine::replacement::{subject_of, EventSubject};
@@ -57,12 +57,15 @@ fn sba_destroy(id: ObjectId) -> GameAction {
 ///
 /// The **event**, proposed like every other state-based action, so that
 /// Exquisite Archangel can replace it, Platinum Angel can refuse it, and
-/// CR 704.7's collapse can see two reasons as one loss (`replacement-architecture.md`
-/// §9, RE decision 5). Until RE-6 the four loss loops wrote `player_lost`
-/// directly and Lich's Mirror's own worked example could not be expressed.
+/// CR 704.7's collapse can see two reasons as one loss
+/// (`replacement-architecture.md` §9, RE decision 5).
 fn sba_player_loses(player: PlayerId, reason: LossReason) -> GameAction {
     GameAction::PlayerLoses { player, reason }
 }
+
+/// How many performing state-based checks in one run of
+/// [`GameState::check_state_based_actions_loop`] count as CR 104.4b's loop.
+const MANDATORY_LOOP_CHECKS: usize = 500;
 
 /// The objects that changed zones at or after `since`, in the order they moved.
 ///
@@ -133,9 +136,7 @@ impl GameState {
         // Archangel: "you won't lose again until you try to draw again") and
         // a refused one (Platinum Angel: "you keep playing") both leave the
         // player in the game, and a flag that survived them would propose the
-        // same loss at every check for the rest of the game. Until RE-6 it was
-        // never cleared at all (`codebase-state.md` item 112), unobservable only
-        // because its one reader ended the game.
+        // same loss at every check for the rest of the game.
         let drew_from_empty: Vec<bool> = self
             .players
             .iter_mut()
@@ -428,14 +429,13 @@ impl GameState {
             // proposal is not a performance: an indestructible creature with
             // lethal damage produces a `Destroy` that CR 614.17's "can't"
             // drops, and a sweep that counted the proposal would re-check
-            // forever. Nor is it only the *performed set* (this line read
-            // `execute_actions`' return value until RE-6): a loss Exquisite
-            // Archangel replaced performs no member, but its rider performs
-            // — CR 614.6's modified event, "the rest of the effect" (615.5) —
-            // and Stunning Reversal's ruling that a short library loses "the
-            // game immediately after" needs *that* to count as an action
-            // performed, or a priority window opens between the draw that
-            // set CR 704.5b's condition and the check that reads it. The
+            // forever. Nor is it only the performed *members*: a loss
+            // Exquisite Archangel replaced performs no member, but its rider
+            // performs — CR 614.6's modified event, "the rest of the effect"
+            // (615.5) — and Stunning Reversal's ruling that a short library
+            // loses "the game immediately after" needs *that* to count as an
+            // action performed, or a priority window opens between the draw
+            // that set CR 704.5b's condition and the check that reads it. The
             // event log is where anything the check did shows.
             let before = self.events.len();
             self.execute_actions(batch, &actx)?;
@@ -588,13 +588,30 @@ impl GameState {
         Ok(any_performed)
     }
 
-    /// Repeatedly check SBAs until none are performed (rule 704.3)
+    /// Repeatedly check SBAs until none are performed (rule 704.3) — or until
+    /// the checks are a loop, which CR 104.4b makes a draw.
     pub fn check_state_based_actions_loop(
         &mut self,
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        let mut checks = 0usize;
         loop {
             if !self.check_state_based_actions(decisions)? {
+                break;
+            }
+            checks += 1;
+            // CR 104.4b — "if a game ... somehow enters a 'loop' of mandatory
+            // actions, repeating a sequence of events with no way to stop, the
+            // game is a draw." A state-based check that keeps performing is
+            // that loop: a static "if you would lose the game, instead ..."
+            // whose rider does not clear the condition — Lich's Mirror
+            // controlled but not owned, with ten poison counters — is
+            // proposed, replaced and re-proposed at every check, and the
+            // rules' own answer is the one recorded here. No legitimate chain
+            // of checks comes near the limit; each one has to perform
+            // something new.
+            if checks >= MANDATORY_LOOP_CHECKS && self.result.is_none() {
+                self.result = Some(GameResult::Draw);
                 break;
             }
         }

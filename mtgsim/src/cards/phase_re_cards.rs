@@ -171,13 +171,15 @@
 //! CR 704.7 collapses (a player at 0 life who also drew from an empty library
 //! is *one* loss, Lich's Mirror's ruling) the pattern therefore never has to.
 //!
-//! **Laboratory Maniac is the first replacement effect with an "as long as"**,
-//! and the condition is evaluated by the gather at each proposal rather than by
-//! the rewrite at application: CR 604.2 makes a conditional static's effect
-//! exist while its condition holds, and CR 614.4 asks whether the effect
-//! exists *before* the event. CR 121.6a is what makes the board reachable at
-//! all — a draw with nothing to draw still reaches the pipeline — and the
-//! condition is true at exactly that gather.
+//! **Laboratory Maniac is the first replacement effect with a condition on its
+//! static ability** — "while your library has no cards in it", the same
+//! `Effect::Conditional` shape CR 604.2 gives Kird Ape's "as long as you
+//! control a Forest" — and the condition is evaluated by the gather at each
+//! proposal rather than by the rewrite at application: CR 604.2 makes a
+//! conditional static's effect exist while its condition holds, and CR 614.4
+//! asks whether the effect exists *before* the event. CR 121.6a is what makes
+//! the board reachable at all — a draw with nothing to draw still reaches the
+//! pipeline — and the condition is true at exactly that gather.
 //!
 //! **Lich's Mirror is not registered**: its "shuffle your hand, your graveyard,
 //! and all permanents you own into your library" needs a
@@ -1171,8 +1173,10 @@ pub fn skullcrack() -> Arc<CardData> {
 /// > the game instead.
 ///
 /// The kind-changing substitution from a draw to the game's end, and the first
-/// replacement effect in the crate with an "as long as": `Condition::LibraryEmpty`
-/// on the ability, asked by the gather at each proposal (CR 604.2, 614.4). The
+/// replacement effect in the crate whose static ability carries a condition —
+/// the card's "while", which is CR 604.2's "as long as" shape:
+/// `Condition::LibraryEmpty` on the ability, asked by the gather at each
+/// proposal (CR 604.2, 614.4). The
 /// draw reaches the pipeline with nothing to draw because CR 121.6a says a
 /// draw replacement applies "even if no cards could be drawn", which is the
 /// whole of why `draw_card` flags rather than refuses — and with the draw

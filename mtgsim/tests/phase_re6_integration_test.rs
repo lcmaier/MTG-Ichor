@@ -94,6 +94,17 @@ fn resolve_card(game: &mut GameState, card: Arc<CardData>, controller: PlayerId)
 /// `resolve_top_of_stack` runs the card's instructions and then CR 608.2n's
 /// trip — `test_support::put_spell_on_stack` stages an empty effect.
 fn stage_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
+    stage_spell_with(game, card, controller, Vec::new(), EffectRecipient::Implicit)
+}
+
+/// [`stage_spell`] with the targets CR 601.2c would have recorded.
+fn stage_spell_with(
+    game: &mut GameState,
+    card: Arc<CardData>,
+    controller: PlayerId,
+    chosen_targets: Vec<ResolvedTarget>,
+    recipient: EffectRecipient,
+) -> ObjectId {
     let effect = card.abilities[0].effect.clone();
     let obj = GameObject::new(card, controller, Zone::Stack);
     let id = obj.id;
@@ -102,8 +113,8 @@ fn stage_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) 
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets: Vec::new(),
-        recipient: EffectRecipient::Implicit,
+        chosen_targets,
+        recipient,
         chosen_modes: Vec::new(),
         x_value: None,
         effect,
@@ -385,6 +396,162 @@ fn a_departed_player_is_not_offered_as_an_attack_target() {
         matches!(target, Some(AttackTarget::Player(3))),
         "the only opponent still in the game, not {target:?}"
     );
+}
+
+/// CR 800.4a at the target rule: a player who has left the game is not a
+/// player, so not a legal target — a spell that chose them before they left
+/// has an illegal target at CR 608.2b and fizzles rather than making a seat
+/// the game no longer has draw a card.
+#[test]
+fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
+    let mut game = setup_game(3);
+    fill_library(&mut game, 2, 5);
+    let draw_for_target = CardDataBuilder::new("Fixture Draw")
+        .card_type(mtgsim::types::card_types::CardType::Instant)
+        .ability(mtgsim::objects::card_data::AbilityDef {
+            id: mtgsim::types::ids::new_ability_id(),
+            ability_type: mtgsim::objects::card_data::AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            ),
+            is_characteristic_defining: false,
+            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
+        })
+        .build();
+    // Targeted while P2 was in the game; P2 leaves before it resolves.
+    let spell = stage_spell_with(
+        &mut game,
+        draw_for_target,
+        0,
+        vec![ResolvedTarget::Player(2)],
+        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+    );
+    game.players[2].life_total = 0;
+    assert!(sba(&mut game, &test_dp()));
+    assert!(game.player_lost[2]);
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert_eq!(cards_drawn(&game, 2), 0, "no draw for a seat that has left");
+    assert_eq!(zone_of(&game, spell), Zone::Graveyard, "CR 608.2b: it fizzled");
+}
+
+/// CR 701's exile reaches a card wherever it is, not only a permanent: a card
+/// in a graveyard resolved as the target of an exile goes to exile.
+#[test]
+fn exile_reaches_a_card_in_a_graveyard() {
+    let mut game = setup_game(2);
+    let card = put_in_hand(&mut game, fixture_object(), 1);
+    game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx()).unwrap();
+    let exile = Effect::Atom(
+        Primitive::Exile,
+        EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+    );
+
+    resolve_with(&mut game, 0, &exile, vec![ResolvedTarget::Object(card)], &test_dp());
+
+    assert_eq!(zone_of(&game, card), Zone::Exile);
+    assert!(game.players[1].graveyard.is_empty());
+}
+
+/// CR 104.4b — a state-based check that keeps performing is a mandatory
+/// loop, and the game is a draw. A static "if you would lose the game,
+/// instead gain 1 life" on a player with ten poison counters is proposed,
+/// replaced and re-proposed at every check; Lich's Mirror controlled but not
+/// owned is the printed board.
+#[test]
+fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
+    let mut game = setup_game(2);
+    let gain_instead = mtgsim::objects::card_data::AbilityDef {
+        id: mtgsim::types::ids::new_ability_id(),
+        ability_type: mtgsim::objects::card_data::AbilityType::Static,
+        costs: Vec::new(),
+        effect: Effect::Replacement(Box::new(
+            mtgsim::types::replacement::ReplacementDef::new(
+                EventPattern::PlayerLoses,
+                AffectedSet::NO_OBJECTS,
+                mtgsim::types::replacement::Rewrite::Prevent,
+            )
+            .affecting_players(PlayerSet::You)
+            .with_then(Effect::Atom(
+                Primitive::GainLife(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            )),
+        )),
+        is_characteristic_defining: false,
+        activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
+    };
+    let mirror = CardDataBuilder::new("Fixture Mirror")
+        .card_type(mtgsim::types::card_types::CardType::Artifact)
+        .ability(gain_instead)
+        .build();
+    put_on_battlefield(&mut game, mirror, 0);
+    game.players[0].poison_counters = 10;
+
+    game.check_state_based_actions_loop(&test_dp()).unwrap();
+
+    assert_eq!(game.result, Some(GameResult::Draw));
+    assert!(losses(&game).is_empty(), "the loss was replaced every time");
+    assert!(life_changes(&game, 0).len() >= 100, "and it went round many times first");
+}
+
+/// A "can't" behind a CR 604.2 condition is read the way a conditional
+/// replacement is: the restriction exists while the condition holds.
+#[test]
+fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
+    let mut game = setup_game(2);
+    let cant_lose_while_decked = mtgsim::objects::card_data::AbilityDef {
+        id: mtgsim::types::ids::new_ability_id(),
+        ability_type: mtgsim::objects::card_data::AbilityType::Static,
+        costs: Vec::new(),
+        effect: Effect::Conditional(
+            mtgsim::types::effects::Condition::LibraryEmpty,
+            Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+                pattern: EventPattern::PlayerLoses,
+                affected_objects: AffectedSet::NO_OBJECTS,
+                affected_players: PlayerSet::You,
+                by: None,
+            })))),
+        ),
+        is_characteristic_defining: false,
+        activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
+    };
+    let fixture = CardDataBuilder::new("Fixture Angel")
+        .card_type(mtgsim::types::card_types::CardType::Artifact)
+        .ability(cant_lose_while_decked)
+        .build();
+    put_on_battlefield(&mut game, fixture, 0);
+    game.players[0].life_total = 0;
+
+    assert!(!sba(&mut game, &test_dp()), "library empty: the loss is refused");
+    assert!(!game.player_lost[0]);
+
+    fill_library(&mut game, 0, 1);
+    assert!(sba(&mut game, &test_dp()), "a card in the library: the condition is false");
+    assert!(game.player_lost[0]);
+}
+
+/// The whole-game path for a win: the draw step's draw is the one Laboratory
+/// Maniac replaces, `run_turn` returns with the result, and nothing after it
+/// runs.
+#[test]
+fn laboratory_maniac_wins_a_whole_game_at_the_draw_step() {
+    let deck: Vec<Arc<CardData>> = (0..40).map(|_| forest()).collect();
+    let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
+    g.reseed(3);
+    g.setup(&test_dp()).unwrap();
+    put_on_battlefield(&mut g.state, laboratory_maniac(), 0);
+    g.state.players[0].library.clear();
+    let turns_before = g.state.turn_number;
+
+    g.run_turn(&RecordingDecisionProvider::picking(0)).unwrap();
+
+    assert_eq!(g.result(), Some(GameResult::Winner(0)));
+    assert_eq!(wins(&g.state), vec![0]);
+    assert_eq!(g.state.turn_number, turns_before, "the game ended inside this turn");
+    assert!(g.is_over());
 }
 
 /// The whole-game path for CR 800.4j: the active player leaves in their own

@@ -35,8 +35,7 @@ impl GameState {
         self.perform_sba_and_triggers(decisions)?;
 
         // CR 104.1 — the game ends immediately, and nobody receives priority
-        // in a game that has ended. Before RE-6 a player who had just lost
-        // kept acting until the phase ended and `Game` noticed.
+        // in a game that has ended.
         if self.result.is_some() {
             return Ok(PriorityResult::PhaseEnds);
         }
@@ -51,7 +50,7 @@ impl GameState {
         // because a loss is a state-based action and those run at the top of
         // this function and after each action, each of which starts a new
         // round.
-        let in_game = (0..self.num_players()).filter(|&p| self.in_game(p)).count();
+        let players_in_game = (0..self.num_players()).filter(|&p| self.in_game(p)).count();
         let mut consecutive_passes = 0;
         let Some(mut current_priority) = (if self.in_game(self.active_player) {
             Some(self.active_player)
@@ -194,7 +193,7 @@ impl GameState {
             match executed.0 {
                 PriorityAction::Pass => {
                     consecutive_passes += 1;
-                    if consecutive_passes >= in_game {
+                    if consecutive_passes >= players_in_game {
                         // All players passed in succession (rule 117.4)
                         if self.stack.is_empty() {
                             return Ok(PriorityResult::PhaseEnds);
@@ -207,7 +206,7 @@ impl GameState {
                         }
                     }
                     // Next player still in the game gets priority (117.3d,
-                    // 800.4j). `in_game >= 1` here, so there is one.
+                    // 800.4j). `players_in_game >= 1` here, so there is one.
                     current_priority = self
                         .next_player_in_game(current_priority)
                         .expect("a round with a passer has a player in the game");

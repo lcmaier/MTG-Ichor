@@ -1234,7 +1234,12 @@ impl GameState {
             // restriction ability generates no continuous effect either; what it
             // needs is for `engine::restriction::is_prohibited` to know this
             // permanent is worth asking about.
-            if matches!(ability.effect, Effect::Restriction(_)) {
+            let is_restriction = match &ability.effect {
+                Effect::Restriction(_) => true,
+                Effect::Conditional(_, inner) => matches!(**inner, Effect::Restriction(_)),
+                _ => false,
+            };
+            if is_restriction {
                 self.restriction_ability_sources.insert(id);
             }
 
