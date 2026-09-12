@@ -502,6 +502,67 @@ impl DestructionSourcePattern {
     }
 }
 
+impl EventPattern {
+    /// Does any field of this pattern constrain the event's **amount**?
+    ///
+    /// The premise `pipeline::ordering_cannot_change_outcome` needs for its
+    /// multiplier shape: a bucket of commuting doublers reaches one outcome in
+    /// any order *only if* no member can stop applying as another member
+    /// changes the number. A pattern that reads no amount cannot.
+    ///
+    /// **It lives here rather than beside its caller, and that is the third
+    /// time this premise has been got wrong.** RD-1 wrote it as "the pattern is
+    /// `EventPattern::DealDamage`" and RE-2 found the same clause missing from
+    /// the draw shape (`replacement-architecture.md` §11 items 19, 55); RE-3
+    /// found a `Multiplier` over a life gain falling through the damage gate.
+    /// Each time the axis that moved was **this enum**, which grows one arm per
+    /// `GameAction` variant every replacement phase — so the classification
+    /// belongs where the arm is written, in front of whoever writes it, rather
+    /// than in a predicate they have no reason to open. Matched exhaustively,
+    /// so a new arm has to answer rather than defaulting to "safe".
+    ///
+    /// The contrast is `pipeline::filter_is_mods_invariant`, which stays at its
+    /// caller: that one classifies an `ObjectFilter` against a property of
+    /// `EnterMods`, a relation between two types and so a fact about neither.
+    /// This is a property of one arm, answerable from its own definition.
+    pub fn reads_the_amount(&self) -> bool {
+        match self {
+            // CR 121.2a's "two or more cards" — Alms Collector, and the only
+            // printed pattern in the engine that reads a count. A doubler
+            // beside it is exactly the board the premise excludes: 1 → 2 puts
+            // the event inside `at_least: Some(2)` where it was outside.
+            EventPattern::DrawCards { .. } => true,
+
+            // A source predicate and a combat flag (CR 609.7, 510.2).
+            EventPattern::DealDamage { .. } => false,
+            // No fields at all — CR 119.10 restates every printed life-gain
+            // replacement as a question about the *source*, never the amount.
+            EventPattern::GainLife => false,
+            // A cause (CR 120.3a / 119.4).
+            EventPattern::LoseLife { .. } => false,
+            // Zones, a cause and a filter on the moving object.
+            EventPattern::ZoneChange { .. } => false,
+            // One individual draw. CR 121.2 makes it one card, so there is no
+            // amount for a field to read.
+            EventPattern::DrawCard { .. } => false,
+            // CR 601's fact about how the permanent arrived.
+            EventPattern::EnterBattlefield { .. } => false,
+            // CR 701.8b's two ways.
+            EventPattern::Destroy { .. } => false,
+            // A counter kind and a direction, never a count: CR 122.6's
+            // doublers are written about "one or more", which is every
+            // `AddCounters` this can match.
+            EventPattern::CounterChange { .. } => false,
+            // A turn, a phase, a step. CR 614.10's units are not amounts.
+            EventPattern::Untap
+            | EventPattern::Tap
+            | EventPattern::BeginTurn
+            | EventPattern::BeginPhase { .. }
+            | EventPattern::BeginStep { .. } => false,
+        }
+    }
+}
+
 /// [`LifeLossCause`] with its payload dropped — what
 /// [`EventPattern::LoseLife`] can ask about a loss.
 ///

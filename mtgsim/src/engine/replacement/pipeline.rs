@@ -698,7 +698,15 @@ fn next_damage_shares(
 /// noise a human would resent. **Not `Halve`, `Plus` or any prevention arm**:
 /// `Halve` beside `Multiplier` is the phase's headline non-commuting board
 /// (3 → 1 → 2 or 3 → 6 → 3), `Plus` beside `Multiplier` does not commute
-/// either, and a prevention arm can empty the event.
+/// either, `LifeFloor` beside one does not (3 → 1 → 2 or 3 → 6 → 1), and a
+/// prevention arm can empty the event.
+///
+/// **It is not "the pattern is damage", and it was until RE-3.** The clause the
+/// theorem needs is that no member can stop applying as another member changes
+/// the number, which is a property of the pattern rather than a list of kinds:
+/// [`EventPattern::reads_the_amount`]. Two Rhox Faithmenders are the board that
+/// found it — they commute for exactly the reason two Furnaces of Rath do, and
+/// the damage gate asked them CR 616.1's question anyway.
 ///
 /// **Every member an `Instead(DrawCards { n ≥ 1, player: None })` on
 /// `EventPattern::DrawCard`, and every member's pattern admits `DrawCause::Effect`
@@ -743,8 +751,9 @@ fn next_damage_shares(
 /// characteristic — face-down, which is Layer 1 and changes everything — or
 /// `ObjectFilter` gains a leaf that reads P/T, keywords or counters, or
 /// `EventPattern::EnterBattlefield` reads `mods`. The multiplier shape goes
-/// false the day an `EventPattern::DealDamage` field reads the *amount*, or a
-/// `Multiplier(0)` is printed (refused here by `n ≥ 1`). The draw shape goes
+/// false the day a pattern arm answers [`EventPattern::reads_the_amount`]
+/// differently, which is a compile error at that function rather than silence
+/// here, or the day a `Multiplier(0)` is printed (refused here by `n ≥ 1`). The draw shape goes
 /// false the day `EventPattern::DrawCard` gains a field the decomposition can
 /// move, or `GameActionTemplate::DrawCards` gains an `n` that is not a literal.
 /// `check_order_invariance` is the debug-build check that computes it the other
@@ -761,7 +770,7 @@ fn ordering_cannot_change_outcome(
         .iter()
         .all(|c| matches!(c.instance.def.rewrite, Rewrite::EnterWith(_)));
     let all_multipliers = choosable.iter().all(|c| {
-        matches!(c.instance.def.pattern, EventPattern::DealDamage { .. })
+        !c.instance.def.pattern.reads_the_amount()
             && matches!(
                 c.instance.def.rewrite,
                 Rewrite::Amount(AmountRewrite::Multiplier(n)) if n >= 1
