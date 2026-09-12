@@ -1013,19 +1013,37 @@ impl GameState {
             // restriction text can have different scopes because of the sentence
             // before them (`cant-effects-architecture.md` §9 finding 1).
             Primitive::Restrict(def, duration) => {
-                for object in self.collect_battlefield_targets(ctx) {
-                    let mut def = def.clone();
-                    let set = restriction_affected_set_mut(&mut def);
-                    debug_assert!(
-                        matches!(set, AffectedSet::Fixed(ids) if ids.is_empty()),
-                        "a `Primitive::Restrict` on {:?} authored a non-empty \
-                         affected set, which the resolution then overwrote with \
-                         its own targets. Write `AffectedSet::Fixed(Vec::new())`: \
-                         the shape is the card's and the objects are the \
-                         resolution's.",
-                        ctx.source
-                    );
-                    *set = AffectedSet::Fixed(vec![object]);
+                // **A restriction that names nobody at all is the one waiting
+                // for the resolution's targets**, and that is the marker rather
+                // than a flag: a card file cannot write a target it has not yet
+                // chosen, so it writes an empty `Fixed` beside `Nobody` and this
+                // fills the object in — one row per target, because one row
+                // naming both would make a second copy of the spell a no-op
+                // under CR 614.5.
+                //
+                // Everything else is complete as authored and gets one row.
+                // Skullcrack is the first card that needs the distinction:
+                // "players can't gain life this turn" is `Everyone` with no
+                // object, and its target is the player it then damages — so
+                // filling from targets would have produced no row at all, and
+                // the debug assertion this condition replaces would have fired
+                // on the half that says "damage can't be prevented"
+                // (`AffectedSet::Filter { All }`, complete on the card).
+                let mut rows: Vec<RestrictionDef> = Vec::new();
+                let (objects, players) = restriction_scope(def);
+                if matches!(objects, AffectedSet::Fixed(ids) if ids.is_empty())
+                    && matches!(players, PlayerSet::Nobody)
+                {
+                    for object in self.collect_battlefield_targets(ctx) {
+                        let mut filled = def.clone();
+                        *restriction_affected_set_mut(&mut filled) =
+                            AffectedSet::Fixed(vec![object]);
+                        rows.push(filled);
+                    }
+                } else {
+                    rows.push(def.clone());
+                }
+                for def in rows {
                     self.restrictions.add(RegisteredRestriction {
                         id: 0,
                         source: ctx.source,
@@ -1808,6 +1826,20 @@ fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
     match &mut def.what {
         Restriction::Event { affected, .. } => affected,
         Restriction::ApplyReplacement { to_objects, .. } => to_objects,
+    }
+}
+
+/// Both halves of a [`RestrictionDef`]'s scope, whichever arm it is.
+///
+/// The read-only sibling of [`restriction_affected_set_mut`], and it returns
+/// the *pair* because that is the question `Primitive::Restrict` asks: a
+/// restriction naming no objects and no players is the one whose subject the
+/// resolution supplies. Either half alone would answer it wrongly — Skullcrack
+/// names no object and every player.
+fn restriction_scope(def: &RestrictionDef) -> (&AffectedSet, &PlayerSet) {
+    match &def.what {
+        Restriction::Event { affected, affected_players, .. } => (affected, affected_players),
+        Restriction::ApplyReplacement { to_objects, to_players, .. } => (to_objects, to_players),
     }
 }
 

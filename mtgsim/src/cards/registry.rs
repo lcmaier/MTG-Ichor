@@ -48,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 79] = [
+const PERFORMANCE_POOL: [&str; 80] = [
     "Plains",
     "Island",
     "Swamp",
@@ -311,6 +311,13 @@ const PERFORMANCE_POOL: [&str; 79] = [
     // in most games; Teferi's Ageless Insight and Notion Thief are the same
     // shape as this card with a narrower pattern.
     "Thought Reflection",
+    // RE-3 — the first pooled card that meets a proposal the pool already
+    // makes: lifelink's contained `GainLife` has been proposed in every
+    // measured game since RB with nothing watching it, and Knight of
+    // Meadowgrain and Vampire Nighthawk are both here. So this is the one RE
+    // consumer whose gather sweep runs without a second card to set it up —
+    // and, with lifelink of its own, it doubles the life its own damage gains.
+    "Rhox Faithmender",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -654,6 +661,22 @@ impl CardRegistry {
         );
         registry.register("Alms Collector", phase_re_cards::alms_collector);
         registry.register("Notion Thief", phase_re_cards::notion_thief);
+
+        // RE-3 — life. Six cards over three events: a gain doubled (Rhox
+        // Faithmender, Alhammarret's Archive), a gain turned into a loss
+        // (Tainted Remedy), a draw turned into a gain (Words of Worship), the
+        // loss inside damage clamped (Ali from Cairo), and the gain refused
+        // outright (Skullcrack). Rhox Faithmender is pooled; Leyline of
+        // Punishment is deliberately unregistered and the module doc says why.
+        registry.register("Rhox Faithmender", phase_re_cards::rhox_faithmender);
+        registry.register("Tainted Remedy", phase_re_cards::tainted_remedy);
+        registry.register("Words of Worship", phase_re_cards::words_of_worship);
+        registry.register("Ali from Cairo", phase_re_cards::ali_from_cairo);
+        registry.register(
+            "Alhammarret's Archive",
+            phase_re_cards::alhammarrets_archive,
+        );
+        registry.register("Skullcrack", phase_re_cards::skullcrack);
 
         registry
     }

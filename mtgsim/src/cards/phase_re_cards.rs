@@ -247,15 +247,17 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
+    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{
-    AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+    AmountRewrite, EventPattern, GameActionTemplate, LifeLossCausePattern, ReplacementDef,
+    Rewrite, TemplateAmount,
 };
+use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::DrawCause;
 
 /// A static ability whose effect is a replacement effect — never a resolution,
@@ -715,6 +717,247 @@ pub fn rhox_faithmender() -> Arc<CardData> {
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Tainted Remedy — {2}{B}
+/// Enchantment
+///
+/// > If an opponent would gain life, that player loses that much life instead.
+///
+/// **The kind-changing substitution, and the first customer of
+/// [`TemplateAmount::ReplacedAmount`].** "That much" is the gain's own number
+/// read at the moment this applies, which is what makes its ordering ruling
+/// arithmetic rather than a coin flip: beside Alhammarret's Archive the gaining
+/// player picks double-then-lose-6, or lose-3-then-nothing.
+///
+/// Its rulings are in this module's doc comment.
+///
+/// Four-player: `PlayerSet::Opponents` is three opponents against one static
+/// row, which is the shape CR 109.5 resolves per event rather than per
+/// registration.
+pub fn tainted_remedy() -> Arc<CardData> {
+    CardDataBuilder::new("Tainted Remedy")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 2))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text("If an opponent would gain life, that player loses that much life instead.")
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::GainLife,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Instead(GameActionTemplate::LoseLife {
+                    amount: TemplateAmount::ReplacedAmount,
+                }),
+            )
+            .affecting_players(PlayerSet::Opponents),
+        ))
+        .build()
+}
+
+/// Words of Worship — {2}{W}
+/// Enchantment
+///
+/// > {1}: The next time you would draw a card this turn, you gain 5 life
+/// > instead.
+///
+/// **A draw replaced by life — RE-2's pattern and RE-3's template on one
+/// row**, and the first `Uses::Once` draw replacement in the crate. It is a
+/// resolution's row rather than a static ability, so `Duration::UntilEndOfTurn`
+/// is the card's "this turn" and `Uses::Once` is its "the next time"; neither
+/// is derived, for CR 608.2c's reason.
+///
+/// [`EventPattern::DrawCard`] with `cause: None` — "the next time you would
+/// draw a card" excepts nothing, so the draw step's own draw is a candidate.
+///
+/// Its rulings are in this module's doc comment. **Leyline of Punishment's
+/// ruling about this card is the CR 101.2 ordering test**: under a "players
+/// can't gain life", the substituted gain is proposed, refused, and the draw
+/// has been replaced with nothing.
+pub fn words_of_worship() -> Arc<CardData> {
+    CardDataBuilder::new("Words of Worship")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text("{1}: The next time you would draw a card this turn, you gain 5 life instead.")
+        .ability(one_shot(
+            AbilityType::Activated,
+            vec![Cost::Mana(ManaCost::build(&[], 1))],
+            Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(
+                        ReplacementDef::new(
+                            EventPattern::DrawCard { cause: None },
+                            AffectedSet::NO_OBJECTS,
+                            Rewrite::Instead(GameActionTemplate::GainLife {
+                                amount: TemplateAmount::Fixed(5),
+                            }),
+                        )
+                        .affecting_players(PlayerSet::You)
+                        .once(),
+                    ),
+                    Duration::UntilEndOfTurn,
+                    PatternFill::Authored,
+                ),
+                EffectRecipient::Controller,
+            ),
+        ))
+        .build()
+}
+
+/// Ali from Cairo — {2}{R}{R}
+/// Creature — Human 0/1
+///
+/// > Damage that would reduce your life total to less than 1 reduces it to 1
+/// > instead.
+///
+/// **It watches the loss, not the damage**, and its own ruling is the only
+/// reason to know that: *"this effect does not prevent damage, it prevents the
+/// damage from turning into loss of life. So the full damage is dealt (and
+/// abilities that trigger on damage being dealt still trigger), but the full
+/// loss of life is not applied."* CR 120.3a's contained `LoseLife` is that
+/// loss, built in RD-1 for this card.
+///
+/// So the def is `LoseLife { cause: Some(Damage) }` and **not** a prevention
+/// effect: `is_prevention` tests the pattern for damage first, and this pattern
+/// is not damage, which is why Skullcrack's "damage can't be prevented" does
+/// not switch it off.
+///
+/// `cause: Some(Damage)` is also the whole answer to whether it clamps a life
+/// *payment*. It does not, twice over: CR 119.4 refuses a payment larger than
+/// the life total before any replacement is asked, and a payment's cause is
+/// [`LifeLossCause::Cost`], which this pattern does not match. The card agrees
+/// — "damage that would reduce" — and so does its first ruling, *"this effect
+/// does not apply to effects which reduce your life without doing damage."*
+///
+/// Its rulings are in this module's doc comment.
+pub fn ali_from_cairo() -> Arc<CardData> {
+    CardDataBuilder::new("Ali from Cairo")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .power_toughness(0, 1)
+        .rules_text("Damage that would reduce your life total to less than 1 reduces it to 1 instead.")
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::LoseLife { cause: Some(LifeLossCausePattern::Damage) },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::LifeFloor(1)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Alhammarret's Archive — {5}
+/// Legendary Artifact
+///
+/// > If you would gain life, you gain twice that much life instead.
+/// > If you would draw a card except the first one you draw in each of your
+/// > draw steps, draw two cards instead.
+///
+/// **Two statics on one permanent, one from each of the two RE phases** —
+/// Rhox Faithmender's gain doubler and Teferi's Ageless Insight's draw doubler,
+/// written as the same two defs because they *are* the same two defs. Gisela's
+/// shape, and the reason RE-2 → RE-3 is a hard order in §9.
+///
+/// Its rulings are Rhox Faithmender's and Teferi's, already tests; the module
+/// doc says which.
+pub fn alhammarrets_archive() -> Arc<CardData> {
+    CardDataBuilder::new("Alhammarret's Archive")
+        .mana_cost(ManaCost::build(&[], 5))
+        .card_type(CardType::Artifact)
+        .supertype(Supertype::Legendary)
+        .rules_text(
+            "If you would gain life, you gain twice that much life instead.\nIf you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::GainLife,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .build()
+}
+
+/// Skullcrack — {1}{R}
+/// Instant
+///
+/// > Players can't gain life this turn. Damage can't be prevented this turn.
+/// > Skullcrack deals 3 damage to target player or planeswalker.
+///
+/// **The card that lands RD-4's restriction row in a game** (§11 item 26). Its
+/// second sentence is the `ApplyReplacement { Prevention }` row RD-4 could only
+/// build as a fixture, because every printed carrier of it needed a facility
+/// the engine lacked; its first is the `Event { GainLife }` row RE-3 gave
+/// `Restriction::Event` the player set for (item 45).
+///
+/// **Three atoms in text order, and the order is the card's**: CR 608.2c reads
+/// a spell's instructions in the order printed, and both restrictions are in
+/// place before the damage is dealt — which is what makes a lifelinker's damage
+/// gain nothing this turn.
+///
+/// Its rulings are in this module's doc comment.
+///
+/// **Leyline of Punishment is deliberately not registered.** It is the static
+/// form of the same two rows — an `Effect::Restriction` on a permanent, which
+/// RS-1's sweep already reads — and the RD-4 fixture extended with the life arm
+/// is what proves that form. What keeps it out is its first line: "if this card
+/// is in your opening hand, you may begin the game with it on the battlefield"
+/// is §3.3 source 2's zone-reaching static, which would be dead text under a
+/// real card name. Recorded so the omission reads as the rule and not as an
+/// oversight.
+pub fn skullcrack() -> Arc<CardData> {
+    CardDataBuilder::new("Skullcrack")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Sequence(vec![
+                // "Players can't gain life this turn." No object and every
+                // player, so the row is complete as authored and the
+                // resolution's target — the player it then damages — is not
+                // what it is about.
+                Effect::Atom(
+                    Primitive::Restrict(
+                        RestrictionDef::new(Restriction::Event {
+                            pattern: EventPattern::GainLife,
+                            affected: AffectedSet::NO_OBJECTS,
+                            affected_players: PlayerSet::Everyone,
+                            by: None,
+                        }),
+                        Duration::UntilEndOfTurn,
+                    ),
+                    EffectRecipient::Controller,
+                ),
+                // "Damage can't be prevented this turn." CR 615.12's row, whose
+                // two halves are a union: every object and every player.
+                Effect::Atom(
+                    Primitive::Restrict(
+                        RestrictionDef::new(Restriction::ApplyReplacement {
+                            kind: ReplacementKindFilter::Prevention,
+                            to_objects: AffectedSet::Filter { filter: ObjectFilter::All },
+                            to_players: PlayerSet::Everyone,
+                        }),
+                        Duration::UntilEndOfTurn,
+                    ),
+                    EffectRecipient::Controller,
+                ),
+                Effect::Atom(
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
+                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                ),
+            ]),
         ))
         .build()
 }
