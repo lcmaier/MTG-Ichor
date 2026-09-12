@@ -238,6 +238,178 @@
 //! battlefield doing nothing in most games while paying for a creature slot.
 //! Teferi's Ageless Insight and Notion Thief stay out as the same shape with a
 //! narrower pattern.
+//! # RE-3 — life (CR 119.3, 119.7, 119.10, 120.3a's contained loss)
+//!
+//! **Six printed cards over three events, and the axis is which event an effect
+//! watches.** CR 119.3's gain, the loss CR 120.3a contains inside damage, and a
+//! gain that CR 101.2 refuses outright:
+//!
+//! | Card | Watches | Does |
+//! |---|---|---|
+//! | [`rhox_faithmender`] | a gain, yours | `Amount(Multiplier(2))` |
+//! | [`alhammarrets_archive`] | a gain, yours — and a draw | the same, plus RE-2's draw doubler |
+//! | [`tainted_remedy`] | a gain, an opponent's | `Instead(LoseLife { ReplacedAmount })` |
+//! | [`words_of_worship`] | a draw, yours, once | `Instead(GainLife { Fixed(5) })` |
+//! | [`ali_from_cairo`] | the loss inside damage, yours | `Amount(LifeFloor(1))` |
+//! | [`skullcrack`] | — (it forbids) | two `Primitive::Restrict` rows |
+//!
+//! **Ali from Cairo is why the loss inside damage is its own event**, and its
+//! own ruling is the only thing that says so: *"this effect does not prevent
+//! damage, it prevents the damage from turning into loss of life."* So it is a
+//! `LoseLife { cause: Some(Damage) }` and **not** a prevention effect —
+//! `ReplacementDef::is_prevention` tests the pattern for damage first, and this
+//! pattern is not damage, which is what keeps Skullcrack's second sentence from
+//! switching it off. `is_prevention` is untouched by this phase.
+//!
+//! **Skullcrack's first sentence is a "can't", not a replacement** (CR 101.2,
+//! 614.17), and CR 119.7 spells out what that costs the pipeline: *"a
+//! replacement effect that would replace a life gain event affecting that
+//! player won't do anything."* Both directions fall out of the order of the two
+//! checks rather than being coded — a gain replacement finds no event, and a
+//! replacement that *produces* a gain has its substitute refused, which is
+//! Leyline of Punishment's ruling about Words of Worship.
+//!
+//! # The rulings pass (Scryfall, 2026-09-12)
+//!
+//! Every ruling on all six registered cards, with what became of it **and the
+//! test that carries it** (`engineering-practices.md` §3.4). Eighteen rulings;
+//! thirteen are tests in `tests/phase_re3_integration_test.rs`, two are already
+//! tested elsewhere, and three have no facility to assert against and say so.
+//!
+//! - **Rhox Faithmender**, *"If you control two Rhox Faithmenders, life you
+//!   gain will be multiplied by four. Three Rhox Faithmenders will multiply any
+//!   life gain by eight, and so on."* → **the acid test**, and it failed as an
+//!   unexpected *prompt* before it failed as a number: the CR 616.1 suppression
+//!   premise was written about damage (§11 items 19, 55).
+//!   → `test_two_rhox_faithmenders_quadruple`, with
+//!   `three_rhox_faithmenders_multiply_by_eight` for the exponent and
+//!   `four_is_not_two_applications_of_one_faithmender` for CR 614.6's single
+//!   modified event.
+//! - **Rhox Faithmender**, *"If an effect sets your life total to a specific
+//!   number, and that number is higher than your current life total, the effect
+//!   will cause you to gain life equal to the difference ... if you have 3 life
+//!   and an effect says that your life total 'becomes 10,' your life total will
+//!   actually become 17."* → **no facility**: CR 119.5's "set life total" is
+//!   `Primitive::SetLifeTotal`, which RE-6 builds (§9's RE-6 row). Recorded, not
+//!   skipped — and it is the same board as Skullcrack's fourth ruling and
+//!   Leyline's fifth, so one primitive closes three.
+//! - **Rhox Faithmender**, *"In a Two-Headed Giant game, only Rhox
+//!   Faithmender's controller is affected by it."* → n/a: CR 810 is `backlog`'s,
+//!   and the engine has no teams (CR 102.3, `PlayerSet`'s doc).
+//! - **Tainted Remedy**, *"If more than one replacement effect tries to apply
+//!   to a life gain event, the player who would gain life chooses the order ...
+//!   that player may choose to have the 3 life become doubled to 6 life and
+//!   then lose 6 life. The player may also choose to apply Tainted Remedy
+//!   first, turning 'gain 3 life' into 'lose 3 life.' Alhammarret's Archive
+//!   would then not apply."* → test, with the ruling's own numbers, and the
+//!   board `ordering_cannot_change_outcome` must **not** suppress.
+//!   → `the_gaining_player_chooses_between_the_archive_and_tainted_remedy`
+//! - **Tainted Remedy**, *"Having more than one Tainted Remedy on the
+//!   battlefield doesn't have any noticeable effect on life gain. Once the
+//!   effect of one Tainted Remedy applies, there is no life gain for the others
+//!   to apply to."* → test, and asserted the stronger way: CR 616.1 still asks
+//!   which one (both are applicable at the first iteration), and both answers
+//!   are the same three life.
+//!   → `a_second_tainted_remedy_has_no_gain_left_to_apply_to`
+//! - **Words of Worship**, *"If multiple Words have been used prior to drawing a
+//!   card, then you can choose which one to apply (and use up) each time you
+//!   draw a card."* → test. Two rows from one source, one prompt, and the other
+//!   row still there for the next draw — which is what "(and use up)" means.
+//!   → `two_words_rows_are_a_choice_and_each_draw_uses_one_up`
+//! - **Ali from Cairo**, *"This effect does not apply to effects which reduce
+//!   your life without doing damage."* → test: a `Primitive::LoseLife` is
+//!   `LifeLossCause::Effect`, which the pattern does not match, and the player
+//!   goes to -7. → `ali_from_cairo_does_not_clamp_a_loss_that_is_not_damage`,
+//!   with `ali_from_cairo_does_not_clamp_a_life_payment` for the `Cost` arm
+//!   nothing had watched.
+//! - **Ali from Cairo**, *"The ability works up until Ali enters the graveyard,
+//!   so if he takes lethal damage or is destroyed at the same time you take
+//!   damage, the ability helps you."* → test, and it falls out of CR 704.3's
+//!   decide-then-perform rather than being coded: a batch decides every member
+//!   against one board. → `ali_helps_on_the_earthquake_that_kills_him`
+//! - **Ali from Cairo**, *"This effect does not prevent damage, it prevents the
+//!   damage from turning into loss of life. So the full damage is dealt (and
+//!   abilities that trigger on damage being dealt still trigger), but the full
+//!   loss of life is not applied."* → **the ruling that decided the card's
+//!   pattern**, and two tests: the `DamageDealt` event still carries the whole
+//!   amount, and Skullcrack does not switch the clamp off.
+//!   → `the_full_damage_is_still_dealt_and_only_the_loss_is_clamped` and
+//!   `skullcrack_does_not_turn_off_ali_from_cairo`
+//! - **Alhammarret's Archive**, *"If an effect would set your life total to a
+//!   specific number that's higher ... your life total will actually become
+//!   17."* → RE-6's, as Rhox Faithmender's twin above.
+//! - **Alhammarret's Archive**, *"If two or more replacement effects would apply
+//!   to a card-drawing event, the player drawing the card chooses the order in
+//!   which to apply them."* → already tested, in RE-2:
+//!   `a_draw_doubler_beside_a_notion_thief_is_a_real_choice`.
+//! - **Alhammarret's Archive**, *"Because [it] is legendary ... if that happens,
+//!   life gained by that player will be multiplied by four."* → the legend rule
+//!   makes this Rhox Faithmender's board, which is why the acid test is on that
+//!   card. This card's own board is the one that shows the two halves coexist.
+//!   → `alhammarrets_archive_doubles_a_gain_and_a_draw_from_one_permanent`
+//! - **Alhammarret's Archive**, *"Similarly, the effects of the last abilities
+//!   of multiple Archives are cumulative."* → already tested, in RE-2:
+//!   `test_two_thought_reflections_draw_four_not_infinity`.
+//! - **Alhammarret's Archive**, *"In a Two-Headed Giant game ..."* → n/a, as
+//!   Rhox Faithmender's.
+//! - **Skullcrack**, *"Skullcrack targets only the player or planeswalker. If
+//!   that player or planeswalker is an illegal target when Skullcrack tries to
+//!   resolve, it won't resolve and none of its effects will happen."* → CR
+//!   608.2b's fizzle, which is the stack's and predates this phase; the card
+//!   adds no new claim to it. Recorded rather than re-tested.
+//! - **Skullcrack**, *"Spells and abilities that would cause a player to gain
+//!   life or that would prevent damage still resolve, but the life-gain and
+//!   damage-prevention parts have no effect."* → test, and "still resolve" is
+//!   the half that could have been got wrong: a refused proposal is not an
+//!   error. → `a_life_gain_spell_still_resolves_under_skullcrack_and_gains_nothing`,
+//!   with `skullcrack_stops_life_gain_for_everyone_including_its_controller`
+//!   for `PlayerSet::Everyone`.
+//! - **Skullcrack**, *"Effects that would replace gaining life with another
+//!   effect won't apply because it's impossible for players to gain life."* →
+//!   CR 119.7's own last clause, and `ATOM-119.7-004`.
+//!   → `under_skullcrack_a_gain_replacement_has_no_event_to_replace`
+//! - **Skullcrack**, *"If an effect says to set a player's life total to a
+//!   certain number and that number is higher than the player's current life
+//!   total, that part of the effect won't do anything."* → RE-6's, as above.
+//!
+//! **Leyline of Punishment is not registered**, so its ten rulings are not this
+//! phase's pass — but one of them is a test here, because it is about a card
+//! that *is* registered: *"effects that replace an event with gaining life (like
+//! Words of Worship's effect does) will end up replacing the event with
+//! nothing."* → `words_of_worship_under_skullcrack_replaces_the_draw_with_nothing`.
+//! Its sibling — *"if a cost includes life gain (like Invigorate's alternative
+//! cost does), that cost can't be paid"* — is CR 119.7's cost clause and
+//! `ATOM-119.7-003`, which needs the alternative-cost model and is Phase 8's.
+//!
+//! # What a random deck can draw
+//!
+//! Rhox Faithmender is the pooled card, and it is the first RE consumer that
+//! needs no second card to set it up: Knight of Meadowgrain and Vampire
+//! Nighthawk are already in the pool, so lifelink's contained `GainLife` —
+//! proposed in every measured game since RB with nothing watching it — is a
+//! live proposal the moment this is on the battlefield. At `{3}{W}` for a 1/5
+//! with lifelink it also doubles the life its own combat damage gains, so the
+//! board it opens is one card wide.
+//!
+//! The other five stay out. Tainted Remedy and Words of Worship are enchantments
+//! whose whole effect is a replacement nothing in the pool would trigger often
+//! enough to pay for a slot; Ali from Cairo is a 0/1 for four mana whose clamp
+//! only matters on a board that is already lethal; Alhammarret's Archive is the
+//! same two engine paths as Thought Reflection and this card at five mana; and
+//! Skullcrack would put a CR 101.2 restriction row on every turn it is cast,
+//! which is RS-1's path rather than a new one. **Leyline of Punishment is
+//! deliberately unregistered** — its opening-hand clause is §3.3 source 2's
+//! zone-reaching static, which would be dead text under a real card name, and
+//! the static form of its other two sentences is the fixture in
+//! `tests/phase_rd4_integration_test.rs`. **Bloodletter of Aclazotz is recorded
+//! as a shape and not written**: "if an opponent would lose life during your
+//! turn" is a conditional static whose condition — it is your turn — the
+//! `Condition` AST has no leaf for, with one customer. `EventPattern::LoseLife`
+//! and `PlayerSet::Opponents` are built here for it, and its own ruling is what
+//! the pattern's `cause: None` is about: *"[it] doesn't change the amount of
+//! damage dealt to opponents ... they would lose 2 life, but you'd still gain
+//! only 1."*
+//!
 
 use std::sync::Arc;
 

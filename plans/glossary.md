@@ -227,6 +227,20 @@ damage assignment, one color in a generic mana payment, one member across which
 a 615.7 shield's remaining amount is split. The CR never uses the word, which is
 why it was retired from the choice ladder — see **step**.
 
+**clamp** / **floor** — a pair, and the CR has no noun for either.
+`AmountRewrite::LifeFloor(n)` is the **floor** — a life *total* below which a
+loss may not carry the affected player — and the **clamp** is what applying it
+does: the loss is cut to however much of it the total can take, and to nothing at
+all from a total already at the floor. A clamp never hands life back. Printed by
+Ali from Cairo, Worship and Angel's Grace, all at 1.
+
+**Not prevention, and the card's own ruling is the distinction**: it *"does not
+prevent damage, it prevents the damage from turning into loss of life"*, so it
+watches CR 120.3a's contained `LoseLife` rather than the damage,
+`ReplacementDef::is_prevention` is `false` for it, and CR 615.12's "damage can't
+be prevented" has nothing to say to it. → `types/replacement.rs`,
+`replacement-architecture.md` §9's RE decision 2.
+
 **frame** — a computed `EffectiveCharacteristics` snapshot of one object. Two
 scopes, one meaning: the layer walk's frame for an object on the board, cached
 per `layer_epoch` under a descending layer **ceiling**; and `EntryFrame`, CR

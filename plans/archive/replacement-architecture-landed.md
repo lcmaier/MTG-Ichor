@@ -2238,3 +2238,201 @@ falls through to `false` at one `_` arm; `DrawCard`'s producers are two
   The behaviour is right — CR 103.4's opening hands cannot meet a replacement —
   but the comment claims a route the code does not take.
 
+#### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event) — ✅ landed 2026-09-12
+
+*Evicted 2026-09-12 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+**Builds:** decision 2 — the two pattern arms, `AmountRewrite::LifeFloor`,
+the two life templates with `TemplateAmount`, and `Restriction::Event.affected_players`
+with its `is_prohibited` union (§11 item 26 closes). **Consumers:**
+
+- **Rhox Faithmender** — "Lifelink. If you would gain life, you gain twice
+  that much life instead." `GainLife`, `Fixed(vec![])` + `You`,
+  `Amount(Multiplier(2))`. Rulings, three: *two Faithmenders quadruple* →
+  test (`Amount` composing on a player subject, RD-1's Furnace pair on the
+  other kind); *"becomes 10" from 3 becomes 17* → RE-6's `SetLifeTotal` test,
+  when it exists; *2HG* → n/a. **Reachable from the pool today**: lifelink's
+  contained `GainLife` (Vampire Nighthawk, Knight of Meadowgrain) is the first
+  proposal it meets.
+- **Tainted Remedy** — "If an opponent would gain life, that player loses that
+  much life instead." `GainLife`, `Opponents`, `Instead(LoseLife {
+  ReplacedAmount })`. Rulings, two, both tests: *Alhammarret's Archive beside
+  it: the gaining player picks double-then-lose-6 or lose-3-then-nothing* →
+  the ordering test, and Archive's second application not existing is
+  `never_happens` on a proposal that is no longer a gain; *two Remedies: the
+  second has no gain to apply to* → CR 614.7 by the same road. Four-player:
+  three opponents, three rows' worth of one static.
+- **Words of Worship** — "{1}: The next time you would draw a card this turn,
+  you gain 5 life instead." A `Primitive::CreateReplacement` row, `DrawCard`,
+  `Uses::Once`, `UntilEndOfTurn`, `Instead(GainLife { Fixed(5) })` — the
+  kind-changing substitution, from a draw (RE-2's pattern) to life (this PR's
+  template), and the first `Once` draw row. Ruling: *several Words used before
+  a draw: choose which applies each time* → CR 616.1 among rows of one player.
+  Leyline of Punishment's ruling about it — the gain refused, the draw
+  replaced with nothing — is the "can't" test below.
+- **Ali from Cairo** — "Damage that would reduce your life total to less than
+  1 reduces it to 1 instead." `LoseLife { cause: Some(Damage) }`, `You`,
+  `Amount(LifeFloor(1))`. Rulings, three, all tests: *not effects that reduce
+  life without damage* → `Primitive::LoseLife` goes through; *works if Ali
+  dies in the same event* → the SBA batch decides against one board, so a
+  lethal Earthquake to Ali and to you is decided while Ali is there;
+  *damage is still dealt, triggers on damage still see it* → `DamageDealt`
+  carries the full amount and only the contained loss is clamped.
+- **Alhammarret's Archive** — both halves: `GainLife` ×2 and `DrawCard {
+  cause: Some(Effect) }` ×2 on one legendary artifact, RE-2's arm and this
+  one's on one consumer, Gisela's shape. Its rulings are Rhox Faithmender's
+  and Teferi's, already tests.
+- **Skullcrack** — "Players can't gain life this turn. Damage can't be
+  prevented this turn. Skullcrack deals 3 damage to target player or
+  planeswalker." Two `Primitive::Restrict` rows, `UntilEndOfTurn`: the RD-4
+  fixture's `ApplyReplacement { Prevention }` row, now printed, and the new
+  `Event { GainLife, affected_players: Everyone }`. Rulings, two, both tests:
+  *replacements that turn gain into something else won't apply because
+  gaining is impossible* → Tainted Remedy under Skullcrack does nothing;
+  *"becomes N" higher than current does nothing* → RE-6's. **Leyline of
+  Punishment** is the static form (`Effect::Restriction` on the permanent,
+  RS-1's sweep) and its opening-hand clause is §3.3 source 2's, which would be
+  dead under a real name — so Leyline is *not* registered, and the static form
+  is proved by the RD-4 fixture extended with the life arm. Recorded so the
+  omission reads as the rule and not as an oversight.
+- **Bloodletter of Aclazotz** is recorded as a shape and not registered: "if
+  an opponent would lose life during your turn" is a conditional static whose
+  condition — it is your turn — the `Condition` AST has no leaf for, with one
+  customer. `LoseLife`'s pattern and `Opponents` are built here for it.
+
+**`PERFORMANCE_POOL` +1, Rhox Faithmender**, predicted: the first static
+`GainLife` source, opening the sweep on every lifelink gain, and a four-drop
+with lifelink of its own.
+
+**Atoms:** `ATOM-119.10-001` (the 0-gain non-event, already `never_happens`;
+the test now has a watcher to prove nothing was offered). Nothing else in the
+corpus is filed under life-gain replacement; the ordering board is
+`COMP-614-DAMAGE-ORDERING-001`'s sibling and is a test with no atom, which
+`specdb suspicious` will not mind.
+
+##### As landed (2026-09-12)
+
+**Built as sized, with four corrections.**
+
+- **`EventPattern::LoseLife` carries a `LifeLossCausePattern`, not a
+  `LifeLossCause`.** The cause's `Damage` arm holds the damage's *source*, so a
+  pattern holding it verbatim could only name one object, and Ali from Cairo is
+  about damage from anything. `DestructionSourcePattern` is the same projection
+  of `DestructionSource` and is the precedent the section did not reach for.
+- **`AmountRewrite::LifeFloor` is the first arm `apply` cannot answer for.** The
+  clamp reads the affected player's life total, which that signature has no way
+  to see, so `apply_rewrite`'s `LoseLife` leg is its only evaluator and the
+  damage and gain legs refuse the pairing — a card-authoring error reported the
+  way every other half-disagreeing `ReplacementDef` is. `apply` asserts rather
+  than returning a plausible number. The floor is `i64` because a life total is:
+  CR 119.6 loses the game at 0 *or less*, so below zero is a real state between
+  SBA checks, and a `u64` would be a claim about the scale rather than about the
+  cards. All three printed floors are 1.
+- **`Primitive::Restrict` could not build a player-scoped row** (§11 item 57),
+  and Skullcrack — its first printed consumer — needed one. The target-filling
+  loop's demand became a marker: an empty `Fixed` beside `PlayerSet::Nobody` is
+  the restriction waiting for the resolution's subject, everything else is
+  complete as authored.
+- **The CR 616.1 suppression premise was written about damage** (item 58), so
+  `test_two_rhox_faithmenders_quadruple` failed as an unexpected prompt before
+  it could fail as a number. `EventPattern::reads_the_amount` replaces the list
+  of kinds, on the type whose arms it classifies.
+
+**Counted against the tree before writing, and §9's row had three numbers
+wrong.** `Restriction::Event` constructions: the row said ~6, the tree had 12
+literal constructions (3 in `src`, 9 in tests) plus one exhaustive
+destructuring — the "~6" was a grep of the type name, comments and `..`
+patterns included. `GainLife` producers 2 / `LoseLife` 3 was right in spirit:
+`keywords.rs:75` and `resolve.rs:319` for the gain; `actions.rs:948`,
+`resolve.rs:330` and `costs.rs:414` for the loss, and none needed an edit.
+`TemplateAmount` did not exist and is this PR's; `AmountRewrite` had six arms
+and `LifeFloor` is the seventh.
+
+**Decided here, because the section left them open.**
+
+- **Ali from Cairo does not clamp a `LifeLossCause::Cost`**, and the answer is
+  structural twice over: CR 119.4 refuses a payment larger than the life total
+  *before* any replacement is asked, and the pattern names `Damage`. Paying 3 at
+  3 life leaves you at 0 with him on the battlefield. The card says "damage that
+  would reduce" and its first ruling says "this effect does not apply to effects
+  which reduce your life without doing damage". `Cost` is the arm nothing had
+  watched; it is watched by a test now.
+- **A floor only ever reduces a loss, never reverses one.** From a total already
+  at or below the floor the clamp takes the whole amount and the loss becomes 0.
+  "Reduces it to N" is a bound on how far the loss may carry the total, not an
+  instruction to raise it, and the arm's type agrees — a `LoseLife`'s amount is
+  a `u64`.
+- **`Restriction::Event.affected_players` unions, and `PlayerSet::Nobody` on an
+  object-only restriction keeps meaning what it always meant.** `set_affects`
+  asks the object set or the player set by what the event is *about*, never
+  both, so the union costs no existing restriction an answer and "this is not
+  about players" is the honest reading of every row written before RE-3.
+- **`never_happens` gains no `LoseLife` arm.** CR 119.10 is written about gain
+  and the CR has no counterpart for loss; RE-2 kept `DrawCards { n: 0 }` out on
+  the same reasoning. So a clamp from the floor performs a loss of 0, which
+  `perform_action`'s local guard makes silent, and a watcher would see the
+  proposal — which is what the rules say and what no printed card yet asks
+  about.
+- **Two identical kind-changing substitutions are not a fourth suppression
+  shape.** Two Tainted Remedies do prompt: both are applicable at the first
+  iteration, and CR 616.1's question is "choose one to apply", not "choose one
+  if it matters". Its ruling says the *outcome* is unaffected, which the test
+  asserts the stronger way — the prompt happens and both answers are three
+  life. A fourth semantics-assuming shortcut would carry its own expiry
+  conditions for a board no ruling calls a choice and no pooled card reaches.
+
+**`codebase-state.md` item 53's open question, answered.** "Will the next
+`apply_rewrite` arm need `&mut GameState`?" — the review's answer was "mostly
+no", and it held. `LifeFloor` is the second arm to consult the board and it is
+a **read**: the affected player's life total, taken through `get_player`. The
+count of arms needing `&mut` stands at one.
+
+**Atoms.** `ATOM-119.10-001` covered — the atom needed a life-gain replacement
+to prove was *not* offered, and until this phase there was none.
+`ATOM-119.7-004` covered, which §9 said the corpus did not have (item 59).
+`ATOM-616.2-001` gains a second `COVERS-PARTIAL`. `specdb owed` still 9.
+
+##### Measured (2026-09-12)
+
+Three arms, `plans/fuzz_ab.py`, 200 games / seed 12345, `--rounds 7`
+(§11 item 54), against a same-day `main` worktree.
+
+**The middle arm is identical to `main` outside `=== Timing ===` on both
+pools.** §9 predicted "flat — patterns over events that already flow. A move is
+the card", and that is the byte-level result: two `EventPattern` arms, an
+`AmountRewrite` variant, two `GameActionTemplate` arms and a field on
+`Restriction::Event` change no counter in a game with no card that uses them.
+CPU median 15.49 vs 15.73 ms (−1.5%), rounds straddling.
+
+**The shipped arm is +4.0% CPU, and it is the card.** `ms / 1,000 walks` is
++0.2%: the walk did not get slower, there are more of them, because Rhox
+Faithmender makes the games longer.
+
+| | main | new | Δ |
+|---|---:|---:|---|
+| Avg turns | 29.6 | 29.8 | +0.7% |
+| Spells cast | 22.8 | 23.4 | +2.6% |
+| Damage events | 19.6 | 21.3 | +8.7% |
+| Total damage | 56.1 | 61.1 | +8.9% |
+| Life changes | 12.9 | 13.9 | +7.8% |
+| **Layer walks** | **371** | **385** | **+3.8%** |
+| **Replacement gathers** | **974** | **999** | **+2.6%** |
+| **Restriction queries** | **977** | **1001** | **+2.5%** |
+| CPU/game median | 15.73 ms | 16.36 ms | **+4.0%** |
+| ms / 1,000 walks | 42.40 | 42.49 | **+0.2%** |
+
+`Replacement gathers` +25/game is one per doubled gain, not a sweep the phase
+added — the sweep was already running on every lifelink gain, finding nothing.
+`--require Rhox Faithmender`: **cast 176, resolved 174, in 114 of 200 games
+(57%), copies/deck 1.52** — between Eon Hub's 64% at five mana and Thought
+Reflection's 46% at seven, which is where a four-drop belongs. Reach was never
+this card's claim: it is the only RE consumer that needs no second card to do
+anything.
+
+`stress` moves much further (gathers 987 → 1143, avg turns 29.0 → 32.3, memo
+hits +44%) with all six cards in the deck; `stress` milliseconds are a
+threshold and never a comparison (§3.1).
+
+**Determinism.** `fuzz_ab` reports `deterministic: yes` on all three arms, and
+three shell `fuzz_games` runs at one seed are line-for-line identical outside
+`=== Timing ===`.

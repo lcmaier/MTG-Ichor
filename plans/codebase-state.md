@@ -2586,8 +2586,16 @@ measurement; what follows is what a later phase has to know.
     abilities land — which is the argument for leaving the signature `&mut`
     rather than threading a narrower capability that would be widened twice.
 
-    **Reachability (2026-09-03):** nothing owed — a signature decision,
-    recorded.
+    **Answered by RE-3 (2026-09-12), and "mostly no" held.**
+    `AmountRewrite::LifeFloor` is the second arm to consult the board — Ali from
+    Cairo's clamp is against the affected player's life total *now* — and it is
+    a **read**, one `get_player` in `apply_rewrite`'s `LoseLife` leg. So the
+    count of arms needing `&mut` still stands at one, and the prediction's list
+    of reasons an arm might want the board (arithmetic, a re-check, a prompt) is
+    now four for four. Piece 4 remains the one that will write.
+
+    **Reachability (2026-09-12):** nothing owed — a signature decision,
+    recorded, and re-checked against a new arm.
 
     **Sized:** none.
 
@@ -4019,6 +4027,14 @@ named RE PR.
 
      **Sized:** one field plus a `set_affects`-style union in
      `is_prohibited`'s `Event` arm, ~40 lines; RE-3, read by RE-6.
+
+     ~~**Closed by RE-3 (2026-09-12)**~~ — `affected_players: PlayerSet`, unioned
+     by the same `set_affects` call `ReplacementDef` and
+     `Restriction::ApplyReplacement` use. Skullcrack is registered and lands the
+     row in a game; Leyline of Punishment's static form is the extended RD-4
+     fixture. The sizing's "~40 lines" was right for the engine and missed the
+     constructions: 12 literal ones plus one exhaustive destructuring, because
+     an enum variant cannot take a `..Default::default()`.
 
 115. **`turn_rotation` is a second cursor beside `active_player`, and
      nothing enforces that they agree.** RE-1 added it because CR 500.7
@@ -5502,6 +5518,58 @@ What the *shape* says, as opposed to what one endpoint suggested:
 **What to design against:** ~6.7× is the ceiling on this machine, **8 workers buys 79% of it**, and past the physical core count each doubling of workers returns ~25%. Default to physical cores or a little under, not logical, and treat worker count as a tuning knob rather than a constant. Determinism is unaffected by any of it — outcomes are identical at every worker count, verified.
 
 **The perf protocol is trustworthy again.** "200 games / seed 12345, back to back, ±3% band" now compares equal work, so avg-turns is a *check* rather than a variable: if two runs at the same seed report different turn counts, something reintroduced process state into a decision, and the perf reading is meaningless until it is found. Median-of-five ms/turn remains the better statistic, but for machine noise now, not for divergence.
+
+123. **`GameActionTemplate::GainLife` has no `player` and `LoseLife` no
+     `cause`.** Both substitutions hand the life to the event's own subject and
+     stamp `LifeLossCause::Effect`, which is what Words of Worship and Tainted
+     Remedy mean. The fields the two arms could want are the ones
+     `DrawCards { player }` already has — Notion Thief moves a draw's subject,
+     and nothing printed moves a substituted gain's.
+
+     **Reachability (2026-09-12):** unreachable — no registered card writes
+     either template, and the pipeline would have to be asked for a player it
+     has no way to name. A card that printed "if an opponent would gain life,
+     **you** gain that much instead" is the customer for the first.
+
+     **Sized:** one `Option<PlayerRef>` field and a `draw_recipient`-style
+     resolver already written for draws, ~20 lines, with its card.
+
+124. **`Primitive::SetLifeTotal` does not exist, and three registered cards'
+     rulings wait on it.** CR 119.5 — "if an effect sets a player's life total
+     to a specific number, the player gains or loses the necessary amount of
+     life to end up with the new total" — is the board Rhox Faithmender's second
+     ruling ("becomes 10" from 3 becomes **17**), Alhammarret's Archive's first
+     and Skullcrack's fourth all describe, and the engine has no way to state
+     any of them.
+
+     **Reachability (2026-09-12):** unreachable — no `Primitive` produces a
+     set-life-total, so no board can be built. Recorded here rather than as a
+     gap because three registered cards' rulings now name it, which is a
+     different kind of owing from "a card might want it".
+
+     **Sized:** RE-6's, with CR 119.5 beside `PlayerLoses` — §9's RE-6 row
+     already lists it. One `Primitive` arm that computes the difference and
+     proposes a `GainLife` or a `LoseLife`, so both replacement families see it
+     for free; ~40 lines plus the three tests.
+
+125. **`ordering_cannot_change_outcome` has three shapes and a fourth is
+     provable.** Two identical `Instead` substitutions whose output leaves their
+     own pattern commute trivially — whichever applies, the other has nothing
+     left to watch — and Tainted Remedy's own ruling says the outcome is
+     unaffected. The engine asks anyway, which is CR-correct: CR 616.1's
+     question is "choose one to apply", and the suppression is a proof
+     obligation rather than a requirement.
+
+     **Reachability (2026-09-12):** reachable and **not wrong** — a prompt the
+     rules permit, on a board no pooled card reaches (Tainted Remedy is
+     registered, not pooled). The cost is one `DecisionProvider` question per
+     doubled board in a fixture.
+
+     **Sized:** a fourth clause in the predicate plus its own
+     `check_order_invariance` probe and its own expiry conditions, ~40 lines.
+     **Deliberately not built**: a semantics-assuming shortcut earns its keep on
+     boards a measured game reaches (`layers-architecture.md` §12 item 3), and
+     this one reaches none.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
