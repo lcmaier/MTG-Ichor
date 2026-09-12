@@ -133,6 +133,13 @@ pub(super) fn holds(
         // and so is not untapped either.
         Condition::SourceUntapped => board.entity(game, source).is_some_and(|entity| !entity.tapped),
 
+        // "While your library has no cards in it" — Laboratory Maniac. The
+        // library is off `GameState`; "your" is the source's controller off
+        // its live frame, as `life_compare` reads it.
+        Condition::LibraryEmpty => controller_of(game, board, source, layer_index)
+            .and_then(|you| game.players.get(you))
+            .is_some_and(|player| player.library.is_empty()),
+
         // CR 303.4m — whatever the source is attached to *now*, re-read at
         // every layer, exactly as `AffectedSet::Host` is. An unattached
         // source matches nothing, so its conditional effect does not exist.

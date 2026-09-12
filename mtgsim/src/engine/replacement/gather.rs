@@ -22,6 +22,7 @@
 //! producer.
 
 use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::layers::condition::settled_holds;
 use crate::events::event::DamageTarget;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
@@ -391,8 +392,26 @@ fn push_static_ability_replacements(
         if ability.ability_type != AbilityType::Static {
             continue;
         }
-        let Effect::Replacement(def) = &ability.effect else {
-            continue;
+        // CR 604.2 through the "as long as" wrapper: a conditional static's
+        // effect exists while its condition holds, and CR 614.4 asks whether
+        // the effect exists *before the event* — so the condition is asked
+        // here, at the proposal, against the settled board, and a source whose
+        // condition is false contributes nothing to CR 616.1's choice at all.
+        // That is what makes Laboratory Maniac ("while your library has no
+        // cards in it") a candidate exactly when the draw would fail, and
+        // never a prompt beside Thought Reflection while cards remain. The
+        // same evaluator the layer pass and CR 613.11's cost effects use, so
+        // the leaf is one question wherever it is asked.
+        let def = match &ability.effect {
+            Effect::Replacement(def) => def,
+            Effect::Conditional(condition, inner) => {
+                let Effect::Replacement(def) = &**inner else { continue };
+                if !settled_holds(condition, game, id) {
+                    continue;
+                }
+                def
+            }
+            _ => continue,
         };
         if scope == SelfScope::EnteringSelf && !matches!(def.affected, AffectedSet::SourceOnly) {
             continue;

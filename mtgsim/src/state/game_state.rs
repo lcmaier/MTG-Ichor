@@ -1217,7 +1217,16 @@ impl GameState {
             // asking about; recording it here rather than in a separate ETB
             // pass is deliberate, since this is already the one function that
             // reads printed abilities at the moment a permanent enters.
-            if matches!(ability.effect, Effect::Replacement(_)) {
+            //
+            // Through the "as long as" wrapper as well: the gather evaluates
+            // the condition at each proposal, and a conditional source this
+            // never recorded would be a card that silently does nothing.
+            let is_replacement = match &ability.effect {
+                Effect::Replacement(_) => true,
+                Effect::Conditional(_, inner) => matches!(**inner, Effect::Replacement(_)),
+                _ => false,
+            };
+            if is_replacement {
                 self.replacement_ability_sources.insert(id);
             }
 

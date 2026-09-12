@@ -180,9 +180,13 @@ impl GameState {
                     };
                     self.attach(object_id, host_id);
                 }
-            } else {
+            } else if self.get_object(object_id)?.zone == Zone::Stack {
                 // Instant/sorcery: to its owner's graveyard as the final part
-                // of resolution (CR 608.2n).
+                // of resolution (CR 608.2n) — if it is still on the stack.
+                // CR 608.2m: a spell that left the stack while resolving
+                // "will continue to resolve fully", and Stunning Reversal's
+                // "Exile Stunning Reversal" is such a spell; the graveyard
+                // trip is for a card that is still there to make it.
                 self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
             }
         } else {

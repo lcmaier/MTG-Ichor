@@ -4,7 +4,7 @@ use crate::engine::actions::{
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
-use crate::events::event::DamageTarget;
+use crate::events::event::{DamageTarget, LossReason};
 use crate::objects::card_data::AbilityDef;
 use crate::objects::object::GameObject;
 use crate::types::zones::Zone;
@@ -332,6 +332,89 @@ impl GameState {
                     amount,
                     cause: LifeLossCause::Effect,
                 }, &actx)?;
+                Ok(())
+            }
+
+            // CR 119.5 — "the player gains or loses the necessary amount of
+            // life to end up with the new total". A proposal of whichever
+            // one it is, never a write to the total: Exquisite Archangel's
+            // "-4 becomes 20 is a 24-life gain" is what a Rhox Faithmender
+            // doubles and a Skullcrack refuses. Equal totals propose nothing;
+            // a 0 gain is a non-event (CR 119.10) and a 0 loss a no-op.
+            Primitive::SetLifeTotal(amount_expr) => {
+                let target = self.evaluate_amount(amount_expr, ctx)? as i64;
+                let player = self.resolve_player_for_self(recipient, ctx);
+                let current = self.get_player(player)?.life_total;
+                if target > current {
+                    self.execute_action(GameAction::GainLife {
+                        player,
+                        amount: (target - current) as u64,
+                        source: ctx.source,
+                    }, &actx)?;
+                } else if target < current {
+                    self.execute_action(GameAction::LoseLife {
+                        player,
+                        amount: (current - target) as u64,
+                        cause: LifeLossCause::Effect,
+                    }, &actx)?;
+                }
+                Ok(())
+            }
+
+            // CR 104.3e / 104.2b — the game's end as an effect. Proposed, so
+            // "you can't lose" refuses one and "if you would lose" replaces
+            // one, exactly as for a state-based loss; a player who has
+            // already left is gated here, as the SBA check gates them.
+            Primitive::LoseGame => {
+                let player = self.resolve_player_for_self(recipient, ctx);
+                if self.in_game(player) {
+                    self.execute_action(
+                        GameAction::PlayerLoses { player, reason: LossReason::Effect },
+                        &actx,
+                    )?;
+                }
+                Ok(())
+            }
+            Primitive::WinGame => {
+                let player = self.resolve_player_for_self(recipient, ctx);
+                if self.in_game(player) {
+                    self.execute_action(GameAction::PlayerWins { player }, &actx)?;
+                }
+                Ok(())
+            }
+
+            // CR 701.? "exile" — move to the exile zone from wherever the
+            // object is. Two recipients: the resolved object targets still on
+            // the battlefield (CR 608.2b does the filtering), and `Implicit`,
+            // which is the effect's own source — "exile this creature" on a
+            // rider (Exquisite Archangel) and "Exile Stunning Reversal" as a
+            // resolving spell's last instruction, which CR 608.2m lets finish
+            // resolving from exile. A source that has already left where the
+            // effect found it is a new object (CR 400.7) and nothing moves.
+            //
+            // One batch, for `Destroy`'s reason (CR 608.2f).
+            Primitive::Exile => {
+                let objects: Vec<ObjectId> = match recipient {
+                    EffectRecipient::Implicit => {
+                        let source = ctx.source;
+                        let here = self.battlefield.contains_key(&source)
+                            || self.stack_entries.contains_key(&source)
+                            || self.resolving.as_ref().is_some_and(|r| r.id == source);
+                        if here { vec![source] } else { Vec::new() }
+                    }
+                    _ => self.collect_battlefield_targets(ctx),
+                };
+                let mut batch = Vec::with_capacity(objects.len());
+                for object in objects {
+                    let from = self.get_object(object)?.zone;
+                    batch.push(GameAction::ZoneChange {
+                        object,
+                        from,
+                        to: Zone::Exile,
+                        cause: ZoneChangeCause::Exiled,
+                    });
+                }
+                self.execute_actions(batch, &actx)?;
                 Ok(())
             }
 
@@ -1207,8 +1290,7 @@ impl GameState {
 
             // === Phase 3+ primitives — stubs ===
 
-            Primitive::Exile
-            | Primitive::ReturnToHand
+            Primitive::ReturnToHand
             | Primitive::ReturnToBattlefield
             | Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
@@ -1787,6 +1869,8 @@ impl GameState {
             AmountExpr::Multiply(inner, n) => {
                 Ok(self.evaluate_amount(inner, _ctx)?.saturating_mul(*n))
             }
+            // CR 103.3's number is the game's, and never below zero.
+            AmountExpr::StartingLifeTotal => Ok(self.starting_life.max(0) as u64),
             // Meaningful only inside the layer walk, where "it" is the object
             // the continuous effect is being applied to. A resolving spell has
             // no such object — see `compute::evaluate_pt_value`.
