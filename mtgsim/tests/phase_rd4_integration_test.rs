@@ -197,7 +197,7 @@ fn leyline_fixture() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
-                affected: AffectedSet::NO_OBJECTS,
+                affected_objects: AffectedSet::NO_OBJECTS,
                 affected_players: PlayerSet::Everyone,
                 by: None,
             }))),

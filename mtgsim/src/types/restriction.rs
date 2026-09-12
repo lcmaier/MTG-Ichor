@@ -83,7 +83,7 @@ pub enum Restriction {
         /// The objects this forbids the event about. **Half a pair**, like
         /// [`Self::ApplyReplacement::to_objects`] and for the same reason: the
         /// two sets are unioned and neither is primary.
-        affected: AffectedSet,
+        affected_objects: AffectedSet,
         /// The other half — CR 101.2 about an event whose subject is a
         /// *player*. "Players can't gain life" (Skullcrack, Leyline of
         /// Punishment, 25 cards) is the family, and CR 119.7 spells out what it

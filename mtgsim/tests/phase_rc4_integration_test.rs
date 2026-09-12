@@ -210,7 +210,7 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
+        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
         affected_players: PlayerSet::Nobody,
         by: None,
     }
@@ -224,7 +224,7 @@ fn no_minus_counters_on_your_creatures() -> Restriction {
             counter: Some(CounterType::MinusOneMinusOne),
             adding: true,
         },
-        affected: AffectedSet::Filter {
+        affected_objects: AffectedSet::Filter {
             filter: ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -811,7 +811,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
             "No loyalty counters",
             Restriction::Event {
                 pattern: EventPattern::CounterChange { counter: Some(CounterType::Loyalty), adding: true },
-                affected: AffectedSet::Filter { filter: ObjectFilter::All },
+                affected_objects: AffectedSet::Filter { filter: ObjectFilter::All },
                 affected_players: PlayerSet::Nobody,
                 by: None,
             },

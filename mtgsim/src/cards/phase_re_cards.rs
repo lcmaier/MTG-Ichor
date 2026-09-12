@@ -1104,7 +1104,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::Event {
                             pattern: EventPattern::GainLife,
-                            affected: AffectedSet::NO_OBJECTS,
+                            affected_objects: AffectedSet::NO_OBJECTS,
                             affected_players: PlayerSet::Everyone,
                             by: None,
                         }),

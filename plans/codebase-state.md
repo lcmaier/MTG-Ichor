@@ -5519,22 +5519,7 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 **The perf protocol is trustworthy again.** "200 games / seed 12345, back to back, ±3% band" now compares equal work, so avg-turns is a *check* rather than a variable: if two runs at the same seed report different turn counts, something reintroduced process state into a decision, and the perf reading is meaningless until it is found. Median-of-five ms/turn remains the better statistic, but for machine noise now, not for divergence.
 
-123. **`GameActionTemplate::GainLife` has no `player` and `LoseLife` no
-     `cause`.** Both substitutions hand the life to the event's own subject and
-     stamp `LifeLossCause::Effect`, which is what Words of Worship and Tainted
-     Remedy mean. The fields the two arms could want are the ones
-     `DrawCards { player }` already has — Notion Thief moves a draw's subject,
-     and nothing printed moves a substituted gain's.
-
-     **Reachability (2026-09-12):** unreachable — no registered card writes
-     either template, and the pipeline would have to be asked for a player it
-     has no way to name. A card that printed "if an opponent would gain life,
-     **you** gain that much instead" is the customer for the first.
-
-     **Sized:** one `Option<PlayerRef>` field and a `draw_recipient`-style
-     resolver already written for draws, ~20 lines, with its card.
-
-124. **`Primitive::SetLifeTotal` does not exist, and three registered cards'
+123. **`Primitive::SetLifeTotal` does not exist, and three registered cards'
      rulings wait on it.** CR 119.5 — "if an effect sets a player's life total
      to a specific number, the player gains or loses the necessary amount of
      life to end up with the new total" — is the board Rhox Faithmender's second
@@ -5552,24 +5537,34 @@ What the *shape* says, as opposed to what one endpoint suggested:
      proposes a `GainLife` or a `LoseLife`, so both replacement families see it
      for free; ~40 lines plus the three tests.
 
-125. **`ordering_cannot_change_outcome` has three shapes and a fourth is
-     provable.** Two identical `Instead` substitutions whose output leaves their
-     own pattern commute trivially — whichever applies, the other has nothing
-     left to watch — and Tainted Remedy's own ruling says the outcome is
-     unaffected. The engine asks anyway, which is CR-correct: CR 616.1's
-     question is "choose one to apply", and the suppression is a proof
-     obligation rather than a requirement.
+124. **Three types carry an object set called `affected`, and two of them now
+     have a player sibling — so the bare name is wrong in two places and will be
+     wrong in a third.** RD-4's review already made this call for
+     `Restriction::ApplyReplacement`, which is `to_objects` / `to_players`: *"a
+     bare `to` beside a `to_players` reads as the whole set with a modifier hung
+     off it, and it is not — the two are unioned and neither is primary."*
+     RE-3 renamed `Restriction::Event.affected` to `affected_objects` on that
+     argument (19 sites). Two are left:
 
-     **Reachability (2026-09-12):** reachable and **not wrong** — a prompt the
-     rules permit, on a board no pooled card reaches (Tainted Remedy is
-     registered, not pooled). The cost is one `DecisionProvider` question per
-     doubled board in a fixture.
+     - **`ReplacementDef.affected`** beside `affected_players`, which is the
+       original instance of the asymmetry and the largest: ~135 field uses
+       across the card files.
+     - **`ContinuousEffect.affected`**, which has no player sibling *yet*. It is
+       the one that will need it: CR 611.1's continuous effects are not all
+       about objects — "you have no maximum hand size", "players can't untap
+       more than one permanent" — and the day one of those is written as a
+       layer row rather than a restriction, this field grows the same pair.
 
-     **Sized:** a fourth clause in the predicate plus its own
-     `check_order_invariance` probe and its own expiry conditions, ~40 lines.
-     **Deliberately not built**: a semantics-assuming shortcut earns its keep on
-     boards a measured game reaches (`layers-architecture.md` §12 item 3), and
-     this one reaches none.
+     **Reachability (2026-09-12):** reachable, **not wrong** — a name, not an
+     answer. Every reader of both fields already asks for the object half
+     explicitly.
+
+     **Sized:** a mechanical rename, ~135 + ~24 sites, and it is
+     `AbilityDef`'s named-constructors shape (item 120): **its own PR**, so a
+     sweep does not ride inside a rules change. `AffectedSet` → `ObjectSet`
+     (302 mentions) is the same PR's second half if it is taken — the type is
+     already object-only, and the name says "affected" where the field name
+     now says it twice.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

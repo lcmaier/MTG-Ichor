@@ -787,7 +787,7 @@ fn restriction_creature() -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected: AffectedSet::Filter {
+                affected_objects: AffectedSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 affected_players: PlayerSet::Nobody,

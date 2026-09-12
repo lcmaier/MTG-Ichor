@@ -148,7 +148,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// def  = Restriction::Event {
 ///            pattern:  ZoneChange { from: Battlefield, to: Graveyard,
 ///                                   cause: Sacrificed, object: None },
-///            affected: Filter { ByController(You) },
+///            affected_objects: Filter { ByController(You) },
 ///            by:       Some(ControlledBy(Opponent)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
@@ -198,7 +198,7 @@ fn matches(
 ) -> bool {
     match (&def.what, query) {
         (
-            Restriction::Event { pattern, affected, affected_players, by },
+            Restriction::Event { pattern, affected_objects, affected_players, by },
             Query::Event { action, cause, .. },
         ) => {
             pattern_watches(game, pattern, action, controller)
@@ -212,7 +212,7 @@ fn matches(
                 // always said.
                 && set_affects(
                     game,
-                    affected,
+                    affected_objects,
                     affected_players,
                     source,
                     controller,
@@ -294,7 +294,7 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
         debug_assert!(
             matches!(
                 def.what,
-                Restriction::Event { affected: AffectedSet::SourceOnly, .. }
+                Restriction::Event { affected_objects: AffectedSet::SourceOnly, .. }
             ),
             "a keyword-derived restriction that is not `AffectedSet::SourceOnly` \
              cannot be found by asking the event's subject about its own \
@@ -339,7 +339,7 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<RestrictionDef> {
     if has_keyword(game, id, KeywordFlag::Indestructible) {
         out.push(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected: AffectedSet::SourceOnly,
+            affected_objects: AffectedSet::SourceOnly,
             affected_players: PlayerSet::Nobody,
             by: None,
         }));

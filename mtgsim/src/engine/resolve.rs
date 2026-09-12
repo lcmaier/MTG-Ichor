@@ -1824,7 +1824,7 @@ impl GameState {
 /// silently keeping whatever the card wrote.
 fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
     match &mut def.what {
-        Restriction::Event { affected, .. } => affected,
+        Restriction::Event { affected_objects, .. } => affected_objects,
         Restriction::ApplyReplacement { to_objects, .. } => to_objects,
     }
 }
@@ -1838,7 +1838,7 @@ fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
 /// names no object and every player.
 fn restriction_scope(def: &RestrictionDef) -> (&AffectedSet, &PlayerSet) {
     match &def.what {
-        Restriction::Event { affected, affected_players, .. } => (affected, affected_players),
+        Restriction::Event { affected_objects, affected_players, .. } => (affected_objects, affected_players),
         Restriction::ApplyReplacement { to_objects, to_players, .. } => (to_objects, to_players),
     }
 }

@@ -122,7 +122,7 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
+        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
         affected_players: PlayerSet::Nobody,
         by: None,
     }
@@ -134,7 +134,7 @@ fn lands_cant_enter() -> Restriction {
 fn creatures_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::EnterBattlefield { cast: None },
-        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
         affected_players: PlayerSet::Nobody,
         by: None,
     }
